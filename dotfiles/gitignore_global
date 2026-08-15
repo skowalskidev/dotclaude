@@ -1,0 +1,20 @@
+*~
+.DS_Store
+
+**/.claude/settings.local.json
+
+# Per-worktree dev-port lane state, written by ~/.claude/bin/port-slot.sh. Ignored HERE rather than in
+# any repo's committed .gitignore so one line covers every repo, personal and work, with no per-repo
+# setup and nothing teammates ever see. Living inside the worktree is deliberate: deleting the worktree
+# deletes the state, so an orphaned lane record is impossible.
+**/.claude-slot.json
+
+# Connector/credential artifacts — never commit personal keys/tokens/refs to ANY repo.
+# (Design keeps these outside repos; this is belt-and-suspenders. See ~/.claude/rules/connectors.md.)
+**/.env.op
+**/*serviceAccountKey*.json
+**/.firebase/
+
+# Per-worktree agent scratch: plans, trackers, the intent ledger. Personal, never a
+# teammate concern, so it lives here rather than in any repo's committed .gitignore.
+.context/

@@ -1,0 +1,17 @@
+# Live browser debugging — chrome-devtools MCP
+
+A user-scope MCP for verifying UI changes in a **real, logged-in browser** — the live-eyes complement to automated tests (Playwright/Cypress/etc.). Use it to sanity-check a flow visually, grab screenshots, and inspect real network calls; keep automated specs as the committed regression coverage.
+
+**Setup:** launch Chrome with `--remote-debugging-port=9222` using a profile that's **already signed in** (a fresh/debug profile lands on the login screen). The MCP attaches to that session.
+
+**Core loop:** `navigate_page` → `wait_for({text:[…]})` → `take_snapshot` (accessibility tree with `uid`s) → act via `click({uid})` / `fill` / `evaluate_script` → `take_screenshot`. `take_screenshot` accepts `{filePath}` (save straight to disk, e.g. for PR screenshots) and `{fullPage}`. Inspect the backend with `list_network_requests` + `get_network_request({reqid})` (status, request/response headers incl. bearer token, body).
+
+**Gotchas (learned the hard way):**
+- **Window width is unreliable.** `resize_page` often won't give a true desktop width (`window.innerWidth` can get stuck at ~315–500px regardless). Check it via `evaluate_script` before trusting a screenshot's layout; for authoritative desktop *and* mobile, run the framework's device projects (e.g. Playwright `chromium` 1280 + `mobile-chrome`) rather than the MCP window.
+- **It hits whatever the running app points at** — often a **real cloud project**, not an emulator (the API may have no emulator host set even if emulators are running). Confirm the account/project before any write; never cross accounts/projects.
+- **304 = cached.** After a backend change the app may keep returning the old body until the dev server reloads; hard-reload once it has.
+- **Auth without UI login:** mint an ID token via Admin SDK `createCustomToken(uid)` → Identity Toolkit `signInWithCustomToken` REST (with the project's public web API key) → call the API directly. Lets you test as any user (e.g. a teammate) without switching the browser session.
+
+**Password-free preview login pattern (for driving the actual client UI, not just calling APIs):** mint a custom token server-side → call `signInWithCustomToken` in the page context with the app's real client SDK (so `onAuthStateChanged` fires and client-side reads/writes get a token) → POST the resulting ID token to the app's session endpoint to set its session cookie → navigate to the authenticated route; auth then persists through the SDK's normal local persistence. Each project documents its own specifics (test-account id, session endpoint, any dev-only sign-in bridge needed) in its own testing playbook — don't re-derive the pattern per project, but do look up the concrete details there.
+
+**Keep it user-scope** — don't add chrome-devtools to a project's committed `.mcp.json` unless the team adopts it. Per-project specifics (test accounts, ports, URLs, which cloud project it hits) belong in that repo's gitignored `CLAUDE.local.md`, not here.

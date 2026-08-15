@@ -1,0 +1,4 @@
+# Homebrew Bundle — reproduces the CLI tooling your Claude config depends on.
+# Install on a new machine with:  brew bundle --file ~/.claude/dotfiles/Brewfile
+brew "gitleaks"   # secret scanning for the config repo (pre-commit + sync gate)
+brew "jq"         # used by the hooks (config-status.sh, work-resource-guard.sh) and bin/connectors-provision.sh

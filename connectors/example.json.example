@@ -1,0 +1,41 @@
+{
+  "_comment": "Copy to connectors/<your-project>.json (untracked overlay) and fill in YOUR project. One manifest per project; matched to a repo by its git origin. Schema + all kinds are documented in references/connectors-setup.md. No secret VALUES go here — only paths/steps; real keys live outside the repo (e.g. ~/.config).",
+  "project": "your-project",
+  "match": ["YourOrg/your-project", "your-project"],
+  "connectors": [
+    {
+      "name": "firebase",
+      "kind": "mcp",
+      "boundary": "work",
+      "readOnly": true,
+      "mcp": {
+        "command": "npx",
+        "args": ["-y", "firebase-tools", "mcp", "--dir", "~/.config/firebase-mcp/your-project", "--only", "firestore"],
+        "env": { "GOOGLE_APPLICATION_CREDENTIALS": "~/.config/firebase-keys/your-project-readonly.json" }
+      },
+      "projectDir": "~/.config/firebase-mcp/your-project",
+      "secret": { "path": "~/.config/firebase-keys/your-project-readonly.json" },
+      "auth": {
+        "how": "Read-only service-account key (IAM viewer), machine-local in ~/.config. Regenerated on demand; the cloud provider's IAM is the source of truth, not this repo.",
+        "steps": [
+          "gcloud iam service-accounts create readonly --project=your-cloud-project --display-name='Read-only (Claude connectors)'",
+          "gcloud projects add-iam-policy-binding your-cloud-project --member='serviceAccount:readonly@your-cloud-project.iam.gserviceaccount.com' --role='roles/datastore.viewer'",
+          "mkdir -p ~/.config/firebase-keys && gcloud iam service-accounts keys create ~/.config/firebase-keys/your-project-readonly.json --iam-account=readonly@your-cloud-project.iam.gserviceaccount.com && chmod 600 ~/.config/firebase-keys/your-project-readonly.json"
+        ]
+      }
+    },
+    {
+      "name": "stripe",
+      "kind": "cli",
+      "boundary": "personal",
+      "cli": { "name": "stripe", "profile": "your-personal-profile" },
+      "auth": {
+        "how": "Stripe CLI named profile. Live commands are gated prod actions — never run one unless the user asked for that exact change.",
+        "steps": [
+          "stripe login --project-name=your-personal-profile",
+          "Confirm the browser shows YOUR account"
+        ]
+      }
+    }
+  ]
+}

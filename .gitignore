@@ -1,0 +1,62 @@
+# ~/.claude config repo — ALLOWLIST gitignore.
+# Ignore EVERYTHING by default, then opt in only the config I actually maintain. This is the safe
+# pattern for a repo that gets pushed: a new secret/runtime file added later can't leak in unless I
+# explicitly track it. See README.md for the full inventory + reproduce-on-a-new-machine steps.
+
+# 1) Ignore all top-level entries by default.
+/*
+
+# 2) Opt in the config.
+!/.gitignore
+!/LICENSE
+!/README.md
+!/AGENTS.md
+!/CLAUDE.md
+!/settings.json
+!/identity.example.json
+!/hooks/
+!/.githooks/
+!/dotfiles/
+!/commands/
+!/references/
+!/rules/
+!/bin/
+!/connectors/
+# Real connector manifests are a PER-USER untracked overlay (like identity.local.json).
+# Only the *.example templates are tracked.
+/connectors/*.json
+!/contracts/
+!/security-guard-allowlist.txt
+
+# 3) Inside skills/, track ONLY your own personal plugin. Everything else there is third-party
+#    (gstack, impeccable, agency-agents, …), an embedded git repo, or a symlink.
+#    Your work-skills plugin (e.g. sk-work) is deliberately NOT opted back in: it is job-specific,
+#    lives in /work/ (also covered by the default-ignore at the top), and reaches Claude Code through
+#    a symlink here. Untracked by omission from this allowlist rather than by an ignore rule.
+!/skills/
+/skills/*
+!/skills/sk/
+
+# 4) Belt-and-suspenders: never commit a secret or runtime artifact, even inside a tracked dir.
+.DS_Store
+**/.DS_Store
+**/.env
+**/.env.*
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/id_rsa
+**/id_dsa
+**/id_ecdsa
+**/id_ed25519
+**/auth.json
+**/.credentials.json
+**/*credentials*.json
+**/*.token
+**/*.secret
+**/*.log
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/

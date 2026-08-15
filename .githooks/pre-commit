@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Block any commit that stages a secret. Delegates to the shared scanner (gitleaks + grep fallback).
+# Enable on a machine with:  git -C ~/.claude config core.hooksPath .githooks
+root="$(git rev-parse --show-toplevel 2>/dev/null)"
+exec "$root/dotfiles/secret-scan.sh"

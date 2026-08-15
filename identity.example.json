@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to identity.local.json (untracked) and fill in YOUR accounts. This is the single source for the work/personal values the guard hooks compare against and the SessionStart hook injects into context. No secrets go here — just identifiers. Empty/missing values make the rule that needs them no-op (fail open), never match-everything.",
+  "workOrgMatch": "YourOrg-Inc",
+  "workEmail": "you@work.example",
+  "personalEmail": "you@personal.example",
+  "workCloudProjects": ["your-work-prod", "your-work-dev"],
+  "personalCloudProject": "your-personal-project"
+}
