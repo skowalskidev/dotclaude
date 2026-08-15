@@ -79,6 +79,14 @@ marked as a refutation with its reason.
 network, no persistence, no auth.
 **DON'T build interactivity beyond selecting and toggling.** He is looking, not operating.
 
+**DO make a GALLERY of options selectable in the page** when the mockup exists for him to choose among
+them — a grid of variants, not a single before/after. Click a card to toggle it (the component's own
+selected/active state plus a checkbox), a fixed bar lists the picks, and a Copy button puts them on the
+clipboard; persist the set to localStorage so a long compare does not lose it.
+**DON'T make him read each option's name and type it back.** That transcription is the error the mockup
+exists to remove; the picks ARE the decision the gallery is for.
+TEST: he selects the options he wants and hands you the exact list without typing a name.
+
 **DO iterate on the preview until he approves it.** Then the second half of this skill starts.
 
 ## After he approves: implement it, prove it matches, then delete it

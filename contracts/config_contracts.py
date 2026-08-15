@@ -650,6 +650,9 @@ CONTRACTS: dict[str, dict] = {
             "comparer forgot, which is the whole failure mode.",
             "Deletes the route only once every row is green. Earlier takes the checklist with it; "
             "later drifts from the screen it claims to show.",
+            "Makes a gallery of options selectable in the page — click to toggle, a fixed bar "
+            "listing the picks, a Copy button, persisted to localStorage — so the user hands over "
+            "the exact picks without typing a name.",
         ],
     },
     "skills/sk/skills/work-preview-on-phone/SKILL.md": {
