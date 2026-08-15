@@ -6,7 +6,8 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 
 ### Orchestrate with strong models, implement with smaller ones
 Orchestrate substantial work on the strong model; delegate file edits via the Agent `model` override:
-default **Sonnet 4.6** (`claude-sonnet-4-6`), **`haiku`** only for genuinely mechanical edits.
+default **Sonnet 4.6** (`claude-sonnet-4-6`), **`haiku`** for genuinely mechanical edits and simple
+high-volume parallel fan-out (scans, classification).
 **Today's-landscape exception:** pin to Sonnet 4.6 / Opus 4.8 (`claude-opus-4-8`), not the 5-series
 `sonnet`/`opus` aliases; mechanics in `parallelization.md`. **Verify on disk after every batch — never
 trust an agent's self-report.** Fan out across parallel agents when the pieces are independent.
