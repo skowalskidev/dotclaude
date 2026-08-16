@@ -1,0 +1,54 @@
+---
+name: work-reply-in-full-before-after-artifact
+description: >
+  When Simon is lost on what a reply means, or is weighing several options to decide among, answer
+  with an INTERACTIVE decision ARTIFACT instead of chat prose: a plain-English explainer plus a
+  BEFORE and AFTER preview and a verdict per option, grouped into sections. Every card and section is
+  SELECTABLE with a COMMENT box, and Simon can PICK the items he wants and hand back exactly what he
+  selected and commented (a copy-paste block, or a submit button when the runtime allows). Use for
+  "I don't know what you're talking about", "explain this so I can decide", "give me the before/after",
+  "make it selectable", or an explicit /sk:work-reply-in-full-before-after-artifact.
+---
+
+# Reply as an interactive before/after decision artifact
+
+Use when Simon can't tell what a reply means, or when a reply offers several options or changes he has
+to choose among. Answer with a BUILT artifact he reads, selects from, and comments on, not a wall of
+chat prose. Reference format: the "Borrowed Parts" artifact (explainer + before/after + verdict cards).
+
+## Build it
+DO load `artifact-design` first for the visual craft (theme-aware light+dark, self-contained, real
+content never lorem), then build. DO load `artifact-capabilities` before wiring any submit-to-chat
+button, to see what this user's runtime allows.
+
+Structure every thing under discussion as a CARD, grouped into SECTIONS (tiers):
+- **What it does** — FIRST, a plain-English explainer that assumes Simon does NOT know the jargon.
+- **Before / After** — where a change is involved, the current state beside a concrete preview snippet
+  of the change (real config or code, side by side). Omit for a card that is pure explanation.
+- **Verdict / why** — one line: the call and the reason.
+
+## Make it selectable and commentable
+DO give EVERY card a select control (a checkbox or toggle: include / yes / add-this) AND a comment
+textarea. DO give every SECTION a select-all control AND its own comment textarea, so Simon can act on
+one item or a whole section.
+
+## The response contract — always a copy-paste block
+DO include a "Generate my response" button whose self-contained JS reads the checkbox + textarea state
+and assembles ONE delimited, copy-pasteable block, shown in a readonly box with a COPY button. The
+block MUST carry enough context to act on with zero ambiguity:
+- a header naming the source artifact,
+- **Selected:** each chosen item as `item — section — comment`,
+- **Not selected:** the rejected items,
+- **Section comments:** any whole-section notes.
+DO keep that JS free of external calls, so copy-paste works with zero runtime capabilities. This is the
+always-available path; never make it the fallback.
+
+## Submit-to-chat — only when the runtime allows
+DO wire a "Submit to chat" button ONLY when `artifact-capabilities` confirms a post-back capability
+exists; it emits the SAME block. Absent that, the copy-paste block stands alone. Never make submit the
+only path.
+
+## Hand-off
+The artifact is the deliverable. Simon pastes his response block (or submits it) and the chat acts on
+exactly his selections and comments — TEST: the pasted block names each pick, each rejection, and each
+comment with its section, so nothing he chose is ambiguous.
