@@ -756,7 +756,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Builds an artifact via artifact-design with explainer + before/after + verdict cards grouped into sections, not chat prose.",
             "Every card and every section is selectable and carries a comment field.",
-            "Always emits a self-contained copy-paste response block carrying the selections, rejections, and comments with their section context; a submit-to-chat button appears only when artifact-capabilities allows.",
+            "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",
+            "Persists every input field (radios and textareas) to localStorage on change and restores on load, and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
+            "A submit-to-chat button appears only when artifact-capabilities confirms a post-back path; the copy-paste block always stands alone.",
         ],
     },
     "skills/sk/skills/claude-config-sync/SKILL.md": {

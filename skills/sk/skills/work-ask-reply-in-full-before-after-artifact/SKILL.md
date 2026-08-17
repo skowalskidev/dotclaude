@@ -32,15 +32,33 @@ DO give EVERY card a select control (a checkbox or toggle: include / yes / add-t
 textarea. DO give every SECTION a select-all control AND its own comment textarea, so Simon can act on
 one item or a whole section.
 
-## The response contract — always a copy-paste block
-DO include a "Generate my response" button whose self-contained JS reads the checkbox + textarea state
-and assembles ONE delimited, copy-pasteable block, shown in a readonly box with a COPY button. The
-block MUST carry enough context to act on with zero ambiguity:
+## The response contract — never lose a keystroke
+DO include a "Generate my response" button whose self-contained JS assembles ONE delimited,
+copy-pasteable block, shown in a readonly box with a Copy button. The block MUST carry, with zero
+ambiguity:
 - a header naming the source artifact,
 - **Selected:** each chosen item as `item — section — comment`,
-- **Not selected:** the rejected items,
+- **Not selected:** each rejected item AND any comment typed on it, same `item — section — comment` shape,
 - **Section comments:** any whole-section notes.
-DO keep that JS free of external calls, so copy-paste works with zero runtime capabilities. This is the
+
+DO put EVERY non-empty input into the block — every selection AND every comment, on selected cards and
+unselected ones alike. A comment on a rejected option, or on no option at all, is a first-class answer.
+TEST: type a comment on an unselected card, hit Generate, and it appears in the block; if it does not,
+the contract dropped input.
+
+DO let Generate run with nothing selected. A no-pick-plus-comment (a question, a redirect) is a valid
+response. DON'T gate Generate on a selection — that is how a real answer gets thrown away.
+
+DO make every keystroke impossible to lose — all three, always:
+- **Persist every field on input:** write EVERY input — every radio and every textarea — to localStorage
+  on each change, and restore on load, so a reload or an accidental close keeps all of it.
+- **Always-visible block:** Generate renders into a visible, selectable, readonly textarea, so Simon can
+  select-all and Cmd-C by hand even if the button does nothing.
+- **Copy that reports:** the Copy button tries `navigator.clipboard.writeText`, falls back to
+  `execCommand('copy')`, and shows "Copied ✓" only on success — else "Press Cmd-C", so a silent
+  `file://` failure is visible, not lost.
+
+DO keep that JS free of external calls, so it works with zero runtime capabilities. This is the
 always-available path; never make it the fallback.
 
 ## Submit-to-chat — only when the runtime allows
