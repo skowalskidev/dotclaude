@@ -218,6 +218,16 @@ CONTRACTS: dict[str, dict] = {
             "delivers are linked.",
         ],
     },
+    "references/human-pacing.md": {
+        "mission": "A human driven through a manual sequence always has exactly one action in front of them and knows it is their turn, so a paced flow never becomes a wall of steps they lose the thread in.",
+        "purpose": "The shared contract for pacing a human through a manual multi-step flow, one step at a time.",
+        "criteria": [
+            "The plan lives in a file; chat gets one action per message, never the whole plan.",
+            "Every step carries a progress count and signals the hand-off as the first action of a "
+            "blocking response.",
+            "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
+        ],
+    },
     "references/parallelization.md": {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
@@ -320,7 +330,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Paces Simon through a real user journey while watching instrumented logs.",
         "criteria": [
             "Machine-checkable defects are fixed before his session starts.",
-            "One step per message, with a progress count.",
+            "Paces Simon per references/human-pacing.md (one action per message, progress count, "
+            "signal the hand-off); does not restate it.",
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
@@ -447,6 +458,8 @@ CONTRACTS: dict[str, dict] = {
             "Records each round in a reconcile.json (same schema and causes as /sk:work-superspeed), "
             "analyses it with /sk:claude-config-self-optimize-analysis-after-run, and folds only "
             "recurring findings into this skill via the self-healing gate.",
+            "Guides Simon as a paced co-pilot session (references/human-pacing.md): one handoff at a "
+            "time, signal, wait; the plan file holds the rest.",
         ],
     },
     "skills/sk/skills/work-warpspeed/SKILL.md": {

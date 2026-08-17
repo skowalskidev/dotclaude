@@ -27,6 +27,15 @@ removed concurrency cap, the removed orchestration toll, and full-tool reliabili
 raw throughput multiplier. Genuine multiplication needs different accounts/orgs, which is
 `/sk:work-warpspeed`'s territory.
 
+## Run it as a paced co-pilot session, not a memo
+
+Simon drives the pasting; you drive the cutting and assembly. GUIDE him through it the way
+`/sk:test-copilot` runs a journey — the shared contract is `references/human-pacing.md`: keep the plan
+in the file, give him ONE handoff at a time with a progress marker ("round 1 · 3 parts to paste, then
+relay back"), signal the hand-off, and WAIT for his relay before the next move. The Steps below are the
+CONTENT of those handoffs, not a wall to paste at him. Each round is one overview line, then: paste
+handoff → wait → assemble → cleanup handoff → next round.
+
 ## Step 0 — decide whether to fan out at all
 
 Same test as superspeed (`references/parallelization.md` § "decide whether to fan out"): only fan out

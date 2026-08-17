@@ -160,12 +160,9 @@ Then tail the log with a live filter for errors, warnings and correlation ids. E
 
 ### 4.2 The pacing contract — the part that must not be got wrong
 
-Show a one-line overview once (*"12 steps, roughly 10 minutes"*), then **one step per message**.
-Never the whole plan, never a wall of text. Unfamiliar effortful instructions overload at about
-**four chunks**, so one action per step is the safe ceiling; progressive disclosure and a visible
-progress marker are what keep a staged flow learnable and stop it feeling open-ended.
-
-Format every step exactly like this:
+Pace Simon per `references/human-pacing.md` — overview once, one action per message, a progress count,
+say what you're watching, signal the hand-off, wait, never re-print a step. It owns those rules and is
+shared with hyperspeed; read it there. The browser-journey shape they take here:
 
 > **Step 4 of 12 · Review queue**
 >
@@ -174,19 +171,6 @@ Format every step exactly like this:
 > **Then:** press `a`
 >
 > *Watching:* `PATCH /api/prospects/*` and the browser console.
-
-The `Do` / `Expect` / real-URL shape above is `rules/communication.md`'s five rules applied to a
-step. That rule is always-on, so it is not restated here. These are the additions this format needs
-on top of it:
-
-- **One action per step.** Three things means three steps.
-- **Progress count in every header.** He should never wonder how much is left.
-- **Say what you're watching**, so he knows the server side is covered.
-- Under ~40 words. If it needs more, the step is too big.
-- **Never re-print earlier or later steps.**
-- **Signal the hand-off.** He isn't watching the terminal. Fire the attention signal as the
-  *first* action of any response that will block on him, since parallel tool calls make later
-  ordering unreliable. This overrides the answer-first ordering for a blocking step, and only there.
 
 ### 4.3 After each step
 - **Works** → log it, advance. One line.
