@@ -460,6 +460,10 @@ CONTRACTS: dict[str, dict] = {
             "recurring findings into this skill via the self-healing gate.",
             "Guides Simon as a paced co-pilot session (references/human-pacing.md): one handoff at a "
             "time, signal, wait; the plan file holds the rest.",
+            "Two levels, not a replacement for superspeed: each hand-run part runs its slice through "
+            "the full harness autonomously (full-detailed-workflow + inner /sk:work-superspeed where it "
+            "sub-divides + isolate-env + ship-report) and reports done only after ship-report confirms "
+            "its accept criteria.",
         ],
     },
     "skills/sk/skills/work-warpspeed/SKILL.md": {

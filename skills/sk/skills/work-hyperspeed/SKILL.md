@@ -1,30 +1,30 @@
 ---
 name: work-hyperspeed
-description: Hand-run parallelism — instead of dispatching `claude -p` subprocesses like superspeed, YOU paste each slice into a separate Claude session yourself. The orchestrator commits a clean START commit, writes ONE durable plan file split into fully self-contained paste-and-forget parts (each carries the whole shared context, its owned files, the exact git branch-off-START ritual, the repo setup steps, and a fixed report-back block), and hands you the file location. You open a session per part and paste it; each works on its own branch off START in its own Conductor workspace and, when done, prints its branch + output paths; you relay those back; the orchestrator merges the branches, deletes them, tells you to archive the sessions, and loops until the whole task is done. Use for "hyperspeed", "I'll paste the parts into separate sessions myself", "split this into paste-and-forget parts", "hand-parallelise this", or when superspeed's automation is slower or less reliable than you pasting into fresh sessions by hand. Sibling of /sk:work-superspeed (automated) and /sk:work-warpspeed (the VM/VPS evolution, not built yet); the slice-cutting craft is shared and lives in references/parallelization.md.
+description: Two-level, hand-run parallelism that sits ON TOP OF /sk:work-superspeed, not in place of it. The OUTER layer is you: the orchestrator commits a clean START commit and writes ONE durable plan file split into fully self-contained paste-and-forget parts (each carries the whole shared context, its owned files, the git branch-off-START ritual, the repo setup steps, and a fixed report-back block), and you paste each part into its own separate Claude session. The INNER layer is superspeed: each session runs its slice through /sk:work-full-detailed-workflow and fans its OWN slice out with /sk:work-superspeed where it makes sense, then proves its goals with /sk:ship-report-and-ensure-correct-user-system-journey before printing its branch + output paths. You relay those back; the orchestrator merges the branches, deletes them, tells you to archive the sessions, and loops until done. Use for "hyperspeed", "I'll paste the parts into separate sessions myself", "split this into paste-and-forget parts", "hand-parallelise this", or when you want more parallelism than one superspeed run's caps. /sk:work-warpspeed is the VM/VPS evolution, not built yet; the slice-cutting craft is shared and lives in references/parallelization.md.
 argument-hint: "[the task to hand-parallelise]"
 ---
 
-# Hyperspeed — hand-run parallelism
+# Hyperspeed — two-level parallelism (hand-run on top of superspeed)
 
-You paste the parts into separate sessions yourself; the orchestrator only cuts the work, writes the
-plan file, and assembles the branches. It is `/sk:work-superspeed` with the automated `claude -p`
-dispatch replaced by a human relay, because on your setup the manual separate sessions beat the
-automated ones.
+Hyperspeed is a LAYER ON TOP of `/sk:work-superspeed`, not a replacement for it. The OUTER layer is
+you: the orchestrator cuts the work, writes a plan file, and you paste each part into its own session.
+The INNER layer is superspeed: each of those sessions fans its OWN slice out with `/sk:work-superspeed`
+where it makes sense. So the parallelism multiplies — N hand-run sessions, each fanning out again —
+which is why it goes wider than superspeed alone.
 
-## Why this exists, honestly
+## Why two levels, honestly
 
-`references/parallelization.md` is the source for BOTH the win and its limits — read it, don't restate
-it here. The measured finding: separately launched sessions have no documented concurrency cap, while
-in-session subagents cap at 10 and workflows at 16. Superspeed already rides that finding with
-`claude -p`. This skill exists because that automation carries failure modes a hand-run session does
-not: a `claude -p` slice can exit 0 mid-task, it runs under `acceptEdits` so it cannot Bash, and a
-blocked slice dies silently. A full interactive session you drive has all its tools, asks nothing it
-cannot resolve, and you SEE it finish.
+`references/parallelization.md` is the source for the win and its limits — read it, don't restate it.
+The measured finding: separately launched sessions have no documented concurrency cap, while in-session
+subagents cap at 10 and workflows at 16. The OUTER hand-run layer buys what an automated dispatcher
+cannot: you SEE each session finish, each has full tools (it can Bash, and it can run superspeed
+itself), and a stuck session is one you notice rather than a `claude -p` slice that exits 0 mid-task and
+dies silently. The INNER superspeed layer buys throughput inside each session's slice.
 
 **The honest caveat, from `references/parallelization.md`: Anthropic's limits key on the ORGANIZATION,
-not the machine.** So many hand-run sessions on ONE account share one rate pool — the win here is the
-removed concurrency cap, the removed orchestration toll, and full-tool reliability per session, NOT a
-raw throughput multiplier. Genuine multiplication needs different accounts/orgs, which is
+not the machine.** So all these sessions on ONE account share one rate pool — the win is the removed
+concurrency cap, the removed outer-layer orchestration toll, and full-tool reliability per session, NOT
+a raw throughput multiplier. Genuine multiplication needs different accounts/orgs, which is
 `/sk:work-warpspeed`'s territory.
 
 ## Run it as a paced co-pilot session, not a memo
@@ -64,7 +64,8 @@ The partition rules are IDENTICAL to superspeed and live in `references/parallel
 `/sk:work-superspeed` Step 1: freeze any shared contract into START first, give every slice exclusive
 `owns`/`reads`/`forbid`, name what each file ASSERTS not only what it writes, split any slice owning
 more than 4 files or creating files from scratch, and balance by deliverable count. Read them there.
-Only the dispatch differs; the cut does not.
+Only the dispatch differs; the cut does not. Size a slice so it is worth a whole session — a slice that
+itself sub-divides is fine, because its session will superspeed it (Step 3, item 3).
 
 ## Step 3 — write ONE plan file, split into self-contained parts
 
@@ -79,7 +80,16 @@ this order:
 2. **This part's task**, written as a rule not an example (`rules/process.md` § "Fix the CLASS"), with
    its `owns` (may edit), `reads` (read-only), `forbid` (the look-alikes another part owns), an
    `accept` line, and a runnable `verify` command scoped to its owned files.
-3. **The git ritual, verbatim and copy-pasteable:**
+3. **Run the slice through the full harness — autonomously, and superspeed WITHIN it.** The session
+   drives its slice with `/sk:work-full-detailed-workflow` (the spine already takes a port lane via
+   `/sk:work-isolate-environment` and closes with
+   `/sk:ship-report-and-ensure-correct-user-system-journey`), and **fans its OWN slice out with
+   `/sk:work-superspeed` where that slice sub-divides into 3-5+ independent pieces** — this is the inner
+   layer, hyperspeed on top of superspeed. It runs UNATTENDED: this spec IS the ratified plan (no
+   sign-off to wait for), the `accept` line is the criteria ship-report judges against, and it asks
+   NOTHING. It prints its report block only AFTER ship-report confirms the slice's goals are met, so the
+   orchestrator assembles verified work.
+4. **The git ritual, verbatim and copy-pasteable:**
    ```bash
    git fetch origin
    git switch -c hs/<run-id>/<part-name> <START-SHA>
@@ -87,11 +97,12 @@ this order:
    git add -A && git commit -F <msg-file>     # -F, never -m
    git push -u origin HEAD
    ```
-4. **The repo setup ritual**, lifted from the project's `CLAUDE.md` and `CLAUDE.local.md` (e.g. Node
+5. **The repo setup ritual**, lifted from the project's `CLAUDE.md` and `CLAUDE.local.md` (e.g. Node
    version, `yarn install`, any build a fresh worktree needs) — the part must not have to go find it.
-5. **The report-back block** (§ below): the part PRINTS it as its last action so Simon can copy it.
-6. **The leaf-worker rules:** you are one worker; do not ask questions (nobody can answer); if blocked,
-   write `BLOCKED.md` in the repo root saying what and why, then stop rather than editing a `forbid` file.
+6. **The report-back block** (§ below): the part PRINTS it as its last action so Simon can copy it.
+7. **The leaf-worker boundary:** you own only your `owns` files — never edit a `forbid` file to make
+   your slice pass. If the work genuinely needs one, or you get stuck, that is a `BLOCKED.md` in the
+   repo root (what and why) and a stop, not an edit.
 
 TEST: a part pasted into a brand-new session, with nothing else, can reach `accept`, push its branch,
 and print its report block.
@@ -99,9 +110,10 @@ and print its report block.
 ## Step 4 — Simon pastes each part; parts report their location
 
 Open one session per part — a separate Conductor workspace is the intended home, so each part gets its
-own worktree and branch off START without fighting the others over the checkout. Paste the part, forget
-it. When it finishes it prints its report block; copy every block back to the orchestrator in one
-message.
+own worktree and branch off START without fighting the others over the checkout (and its own port lane
+when its harness boots a server). Paste the part, forget it. Each session runs the full harness on its
+slice (Step 3, item 3); when it finishes it prints its report block. Copy every block back to the
+orchestrator in one message.
 
 ## Step 5 — assemble, warm, in the orchestrator session
 
@@ -134,6 +146,7 @@ run: <run-id>
 part: <part-name>
 branch: <branch-name> (pushed: yes|no)
 paths: <comma-separated output files this part created or changed>
+goals: met | not-met (ship-report verdict)
 status: done | blocked
 ```
 
