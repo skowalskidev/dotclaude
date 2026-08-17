@@ -225,6 +225,9 @@ CONTRACTS: dict[str, dict] = {
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
+            "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
+            "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring); superspeed and "
+            "hyperspeed point to it, not restate it.",
         ],
     },
     "references/planning-and-tracking.md": {
@@ -428,6 +431,31 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
+        ],
+    },
+    "skills/sk/skills/work-hyperspeed/SKILL.md": {
+        "mission": "A dividing task finishes across as many hand-run sessions as Simon can open, assembled from clean branches, each part pasteable into a cold session with no prior context, and the skill gets better every round.",
+        "purpose": "Manual, branch-based parallel harness: one plan file of self-contained parts pasted into separate sessions, assembled from their pushed branches.",
+        "criteria": [
+            "Commits and pushes a clean START commit that every part branches from, before any part is written.",
+            "Each part is self-contained: whole shared context, owned files, the git branch-off-START "
+            "ritual, the repo setup ritual, and a fixed report-back block — pasteable into a cold session.",
+            "Assembles by merging the reported branches, deletes them local and remote, and tells Simon "
+            "to archive the sessions (it cannot touch the Claude UI).",
+            "Shares the slice-cutting and reconcile craft with references/parallelization.md and "
+            "/sk:work-superspeed; does not restate it.",
+            "Records each round in a reconcile.json (same schema and causes as /sk:work-superspeed), "
+            "analyses it with /sk:claude-config-self-optimize-analysis-after-run, and folds only "
+            "recurring findings into this skill via the self-healing gate.",
+        ],
+    },
+    "skills/sk/skills/work-warpspeed/SKILL.md": {
+        "mission": "The VM/VPS evolution is captured as a TODO so it is not re-invented, and Simon is sent to the working /sk:work-hyperspeed until it exists.",
+        "purpose": "Placeholder for running hyperspeed parts on separate VMs/VPSs. Not built.",
+        "criteria": [
+            "Runs nothing; it explains the plan and points at /sk:work-hyperspeed.",
+            "States the honest blocker: Anthropic limits key on the org, so more machines on one "
+            "account add no throughput; the win needs separate accounts, per references/parallelization.md.",
         ],
     },
     "skills/sk/skills/work-copilot-agile-build/SKILL.md": {

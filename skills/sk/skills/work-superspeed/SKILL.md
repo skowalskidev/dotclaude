@@ -216,10 +216,9 @@ already in context.
    carries: naming, import order, comment density, error handling, prose style. The tell is that the
    rule was stated in the prompt and the diff still breaks it.
 5. Assemble, fix the seams, then **run the gate once** over the whole tree.
-6. **Give every fixed file a `cause`: `slice` (it got it wrong), `late_scope` (the ask changed
-   after dispatch), or `reconciler` (you broke it). Only `slice` means the partition needs
-   changing.** Recording all three as one number gets two of them the wrong prescription — measured
-   across two consecutive runs whose identical rework counts came from opposite causes.
+6. **Give every fixed file a `cause`: `slice`, `late_scope` or `reconciler`.** The taxonomy, and why
+   only `slice` means the partition needs changing, is in `references/parallelization.md` §
+   "Self-improving a parallel run" — shared with hyperspeed, not restated here.
 7. Record what you had to fix, so the next partition is better:
 
 ```bash
@@ -244,21 +243,16 @@ Every finding carries the specific change to make next time.
 
 ## Step 5 — `/sk:claude-config-self-optimize-analysis-after-run <run-dir>`, automatically after every run
 
-**Run this automatically after every run — don't wait to offer it.** It fires on run completion (an
-event, not a cron, so it stays inside `rules/self-healing-config.md`'s no-periodic-scan line). Step 4
-is mechanical and finds what the numbers show; this reads the prompts, the `BLOCKED.md` files and the
-thrashing slices to find why, and proposes the durable fixes, including changes to this skill and to
-what the logs capture. Both `superspeed-dispatch.sh` and `superspeed-analyse.py` print it as their
-last line so it survives being forgotten.
+**Run this automatically after every run — don't wait to offer it.** Step 4 is mechanical and finds
+what the numbers show; this reads the prompts, the `BLOCKED.md` files and the thrashing slices to find
+WHY, and proposes durable fixes, including changes to this skill and to what the logs capture. Both
+`superspeed-dispatch.sh` and `superspeed-analyse.py` print it as their last line so it survives being
+forgotten.
 
-**But bound it — auto-analyse, never auto-optimize.** The run analyses itself; it does not CHANGE the
-config on its own. An actual config or skill edit still goes through the self-healing propose-and-confirm
-gate, and most runs should propose NOTHING — silence is the default, and a well-partitioned run has
-nothing to say. Weigh every candidate change against its own cost: the fan-out toll is a fixed ~33s, so
-splitting a fast slice finer, freezing one more contract, or adding a log field for a one-off spends
-more than it saves and DEGRADES the next run. Only a finding that RECURS across runs (check the prior
-`analysis.json`) is durable enough to become a rule; a single run's symptom is a re-partition note, not
-a config change.
+The loop it feeds — record each fixed file's cause, analyse every run, and heal only what RECURS,
+auto-analysing but never auto-optimising — is shared with hyperspeed and defined once in
+`references/parallelization.md` § "Self-improving a parallel run". Read it there. The one thing not to
+forget here: a single run's symptom is a re-partition note, not a config change.
 
 ## Teardown
 
