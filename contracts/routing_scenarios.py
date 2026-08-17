@@ -173,8 +173,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "not enough permissions", "expect": "setup-connectors"},
 
     # --- Interactive before/after decision artifact --------------------------------
-    {"phrase": "make it selectable so I can pick and comment", "expect": "work-reply-in-full-before-after-artifact"},
-    {"phrase": "give me an interactive before and after artifact", "expect": "work-reply-in-full-before-after-artifact"},
+    {"phrase": "make it selectable so I can pick and comment", "expect": "work-ask-reply-in-full-before-after-artifact"},
+    {"phrase": "give me an interactive before and after artifact", "expect": "work-ask-reply-in-full-before-after-artifact"},
 
     # No scenario for your work-skills plugin's timesheet skill (e.g. sk-work): it lives in the untracked work/ directory and
     # is outside this suite's scope. Its routing is not asserted here.

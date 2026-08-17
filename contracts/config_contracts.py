@@ -740,7 +740,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Guided connector setup, doctor, and migration audit.",
         "criteria": ["Reads connectors/<project>.json. Asks before creating or reading a credential."],
     },
-    "skills/sk/skills/work-reply-in-full-before-after-artifact/SKILL.md": {
+    "skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md": {
         "mission": "Simon acts on a reply he did not understand: he reads it, picks from it, comments, and hands his exact choices back with no ambiguity.",
         "purpose": "Answer a confusing or multi-option reply as an interactive before/after decision artifact Simon selects and comments on.",
         "criteria": [

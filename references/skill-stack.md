@@ -33,14 +33,15 @@ a maintenance and security risk, not a recommendation, and a skill runs with ful
 ## The groups
 
 Simon's skills are named `<group>-<what-it-does>`, so typing the group in the slash menu narrows it
-instead of scrolling 17. The prefix list is data in `contracts/skill_naming.py`, enforced by the
+instead of scrolling 25. The prefix list is data in `contracts/skill_naming.py`, enforced by the
 config suite; this is the reading of it.
 
 | Prefix | Holds | Count |
 |---|---|---:|
 | `claude-config-` | Changes `~/.claude` itself | 4 |
-| `work-` | Starting or running a piece of work | 5 |
-| `ship-` | Getting a change out, and reporting on it | 4 |
+| `work-` | Starting or running a piece of work | 8 |
+| `plan-` | Researching and deciding before building | 1 |
+| `ship-` | Getting a change out, and reporting on it | 6 |
 | `test-` | Verifying something behaves | 2 |
 | `maintenance-code-` | Improving code already there | 2 |
 | `meta-` | Reporting on Simon's own work, not on a change | 1 |

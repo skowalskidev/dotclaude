@@ -1,5 +1,5 @@
 ---
-name: work-reply-in-full-before-after-artifact
+name: work-ask-reply-in-full-before-after-artifact
 description: >
   When Simon is lost on what a reply means, or is weighing several options to decide among, answer
   with an INTERACTIVE decision ARTIFACT instead of chat prose: a plain-English explainer plus a
@@ -7,7 +7,7 @@ description: >
   SELECTABLE with a COMMENT box, and Simon can PICK the items he wants and hand back exactly what he
   selected and commented (a copy-paste block, or a submit button when the runtime allows). Use for
   "I don't know what you're talking about", "explain this so I can decide", "give me the before/after",
-  "make it selectable", or an explicit /sk:work-reply-in-full-before-after-artifact.
+  "make it selectable", or an explicit /sk:work-ask-reply-in-full-before-after-artifact.
 ---
 
 # Reply as an interactive before/after decision artifact
