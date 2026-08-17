@@ -4,8 +4,8 @@ Deny TWO git mistakes Claude makes that no other layer catches:
 
   1. Committing or pushing on the default branch (main / master). rules/process.md: "If on the
      default branch, create a branch first", and feedback_no_master_commits: never commit/push to
-     master without your confirmation. Branch first, or set CLAUDE_ALLOW_MAIN_COMMIT=1 when you
-     have confirmed this exact commit.
+     master without your confirmation. Branch first, or set CLAUDE_ALLOW_MAIN_COMMIT=1 — in the
+     hook's env OR prefixed inline on the command — when you have confirmed this exact commit/push.
 
   2. `git commit -m` (or a heredoc). references/git-pr-deploy.md makes `git commit -F <file>` the
      ONLY sanctioned form: the shell interprets `-m "…"` and heredoc bodies — backticks run, $VAR
@@ -102,7 +102,14 @@ def main() -> int:
             continue
 
         # 1. Default-branch protection (the config repo is exempt — it lives on main by design).
-        if os.environ.get("CLAUDE_ALLOW_MAIN_COMMIT") != "1" and not is_config_repo(cwd):
+        # The override counts whether the flag is in the hook's OWN env OR prefixed inline on the
+        # command (`CLAUDE_ALLOW_MAIN_COMMIT=1 git push …`). The inline form is what the deny message
+        # tells the user to use, and Claude only adds it once the user has confirmed THIS push; a bare
+        # push with no flag stays blocked, so accidental default-branch pushes are still caught.
+        allow_main = os.environ.get("CLAUDE_ALLOW_MAIN_COMMIT") == "1" or bool(
+            re.search(r"\bCLAUDE_ALLOW_MAIN_COMMIT=1\b", command)
+        )
+        if not allow_main and not is_config_repo(cwd):
             branch = current_branch(cwd)
             names_default = re.search(r"(?:^|\s|:)(main|master)\b", seg) is not None
             if branch in DEFAULT_BRANCHES or (is_push and names_default):
@@ -113,8 +120,8 @@ def main() -> int:
                     "rules/process.md says branch first; never commit or push to main/master "
                     "without the user's confirmation.\n"
                     "Create a feature branch (git switch -c <branch>) and redo it there. If the user "
-                    "confirmed this exact commit/push to the default branch, set "
-                    "CLAUDE_ALLOW_MAIN_COMMIT=1."
+                    "confirmed this exact commit/push to the default branch, prefix the command with "
+                    "CLAUDE_ALLOW_MAIN_COMMIT=1 (e.g. `CLAUDE_ALLOW_MAIN_COMMIT=1 git push origin main`)."
                 )
 
         # 2. Commit must use -F <file>, never -m or a heredoc.

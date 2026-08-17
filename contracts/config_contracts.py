@@ -798,8 +798,9 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Claude never commits or pushes on the default branch, and never commits with -m or a heredoc.",
         "purpose": "PreToolUse: blocks a default-branch commit/push and an inline -m/heredoc commit.",
         "criteria": [
-            "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1; exempts the "
-            "~/.claude config repo, which lives on main by design.",
+            "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
+            "hook's env OR prefixed inline on the command; exempts the ~/.claude config repo, "
+            "which lives on main by design.",
             "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
             "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
             "Matches the plain Bash tool and parses the command; fails open on a malformed payload.",
