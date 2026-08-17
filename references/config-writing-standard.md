@@ -30,6 +30,22 @@ explaining why a constraint exists lets the model make better calls on adjacent 
 **DON'T write a paragraph of rationale, and don't repeat the incident that produced the rule.** One
 clause, or a bracketed `(the fix for X)` tag.
 
+## Reference a config part; never re-explain it
+
+The config is abstraction: every skill, `references/*.md` catalog and hook states its own purpose ONCE,
+in its own file. A description of it written anywhere else is a copy that drifts when the original changes.
+
+**DO name a part you compose and stop** — `/sk:work-superspeed`, `references/parallelization.md` — with
+no gloss on what it does. Its own `description` or opening line already says that.
+**DON'T add a parenthetical or clause re-explaining it** — "`/sk:work-superspeed` (fans work across
+sessions)" is the drift surface: the skill's real description moves and the copy lies. The precedent to
+copy is `work-copilot-agile-build`'s "Drives X and Y; does not re-explain them".
+**DON'T add a pointer the SAME file already carries.** Before naming a sibling skill or catalog, search
+the file — if it is already referenced, the addition is pure duplication (e.g. the paragraph that named
+isolate-environment, superspeed and end-report when all three were already pointed to elsewhere in the file).
+TEST: every part a config file names appears WITHOUT a description of its behaviour, and appears once in
+that file.
+
 ## The three things a rule must state
 
 **DO state all three, in this order: the DEFAULT to apply, the NUMBER or threshold, the TEST that

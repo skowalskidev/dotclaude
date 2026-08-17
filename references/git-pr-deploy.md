@@ -50,10 +50,16 @@ cannot:
 
 ## Git, PRs, integration
 
-- Read the project's CLAUDE.md and relevant plan docs at the start of the task.
+- Read the project's CLAUDE.md AND CLAUDE.local.md and relevant plan docs at the start of the task — the
+  local file carries machine-local setup, test accounts and secrets-by-reference the committed one omits.
 - Merge/rebase the latest default branch in before working, and re-evaluate the plan against what changed (e.g., redesigns that must now be used).
 - Resolve all merge conflicts by merging the default branch into the feature/base branch before merging the PR.
 - Fix all PR review comments: fix the code, reply inline, and resolve the threads.
+- **Keep the issue tracker in lockstep with the branch.** On starting a ticket, assign it to Simon and
+  set it In Progress; on opening the PR, link the PR and the ticket both ways so the tracker syncs the
+  ticket's status from the PR; tick each acceptance criterion as its work is verified, not at the end.
+  Link ONLY the tickets this PR actually delivers — a linked ticket's status flips with the PR, so an
+  unrelated link wrongly moves that ticket.
 - When adopting someone else's branch: check whether it reinvents logic that already exists; run full review tooling on it and fix all findings with no loose ends; verify none of it breaks existing behavior; compare it against the reference implementation for missing parts (tests, error handling, logging) and add them.
 - Build and run with the project's documented commands to verify before declaring done.
 - When finished: fix everything with no loose ends, create a draft PR, then tear down all processes and clean up the environment for other testing.

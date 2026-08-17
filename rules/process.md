@@ -1,6 +1,6 @@
 # How I work — process
 
-Orchestration/process discipline, project-doc syncing, and test-account/secret handling — moved verbatim from `~/.claude/CLAUDE.md`.
+Orchestration/process discipline, project-doc syncing, and test-account/secret handling.
 
 ## How to work — orchestration & process
 
@@ -17,7 +17,6 @@ trust an agent's self-report.** Fan out across parallel agents when the pieces a
 Run verification for INDEPENDENT units as **parallel tool calls, not one sequential command.**
 **Rebuild a shared dependency only when it actually changed**; **background the long pole** so editing
 continues. **Verify at TASK boundaries** — not after every edit, not only at the end.
-→ Full detail: **`~/.claude/references/parallelization.md`**.
 
 ### Claims about third parties must come from primary sources
 
@@ -89,11 +88,11 @@ present the approach, and confirm scope/decisions (AskUserQuestion) before writi
 a big refactor or migration on assumptions.
 
 ### Track every task to completion — don't drop items
-When a request has multiple tasks (or you spin off several sub-tasks), write them ALL into a plan/checklist
-first, then tick each off as it's genuinely done and verified. At the END, re-check the plan against the
-original request: if any item isn't done, go back and finish it, then tick it off. A long multi-part ask is
-exactly where items get silently forgotten — the checklist is the guard. Never imply full completion when
-part is still outstanding; say plainly what remains.
+When a request has multiple tasks (or you spin off sub-tasks), write them ALL — and the decisions behind
+them — into a checklist that survives a RESTART: a ticket or the worktree's `.context/`, never `/tmp` or
+memory. Tick each off only when genuinely done and verified. At the END, re-check against the original
+request and finish anything not done — a long multi-part ask is where items get silently forgotten, and
+the checklist is the guard. Never imply full completion when part is outstanding; say plainly what remains.
 
 ### A message that arrives mid-run is a QUEUED task, not an interrupt
 When a new request lands while you are already working, add it to the checklist and keep going — never

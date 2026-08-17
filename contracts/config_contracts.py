@@ -105,6 +105,8 @@ CONTRACTS: dict[str, dict] = {
             "exception to it. There is exactly ONE. Widening that list, or letting an exception be "
             "recorded in the skill that benefits from it instead of here, is the regression: an "
             "ask-first gate with an open-ended exception list is not a gate.",
+            "The checklist and the decisions behind it survive a RESTART in a durable store — a "
+            "ticket or .context/, never /tmp or memory.",
         ],
     },
     "rules/security.md": {
@@ -185,6 +187,8 @@ CONTRACTS: dict[str, dict] = {
             "word hides a missing number; the fix is the number, never a narrower check.",
             "Defines a mission as an OUTCOME that can decide a diff, distinct from `purpose` which "
             "states what the part is.",
+            "Bans re-explaining a config part the file already references or that self-describes: name "
+            "it once, no behaviour gloss. TEST: every named part appears without a description and once.",
         ],
     },
     "references/contracts-and-outcomes.md": {
@@ -210,6 +214,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
+            "The issue tracker is kept In-Progress and PR-linked both ways; only tickets the PR "
+            "delivers are linked.",
         ],
     },
     "references/parallelization.md": {
@@ -225,13 +231,17 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon sees the whole shape before work starts, and no ask is silently dropped between the plan and the hand-back.",
         "purpose": "Plan first, track every ask, verify foundations, scope a feature fully.",
         "criteria": [
-            "The checklist is a real artifact that survives compaction.",
+            "Names the durability tiers — the ticket outlives all, .context/ survives a restart but "
+            "dies with the worktree — and promotes decisions and human input to the ticket before teardown.",
             "A feature is scoped across discoverability and docs, not just its mechanism.",
             "Every plan, ticket and PR body OPENS with the user-journey block, above the technical "
             "detail. The format itself moved to references/tldr-report-formats.md; this file owns "
             "when it is required, not what it looks like.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
+            "Every out-of-code surface the work touches (edge/CDN, a design tool, a third-party "
+            "console, a dashboard) is asked for before the plan, and each ticket names the inputs "
+            "its implementer must obtain.",
         ],
     },
     "references/research.md": {
