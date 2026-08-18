@@ -1038,6 +1038,93 @@ CONTRACTS: dict[str, dict] = {
             "Kills the family then re-checks, since killing a parent reparents its children.",
         ],
     },
+    # --- Config metrics + self-analysis subsystem ---------------------------------------------
+    "bin/dotclaude-redact.py": {
+        "mission": "Nothing sensitive ever leaves the machine — only what config optimization needs to know does.",
+        "purpose": "The one need-to-know minimization layer: scrub secrets + PII, drop content, before any store or commit.",
+        "criteria": [
+            "Runs before anything is stored or committed; every write path routes through it.",
+            "Redacts secrets (keys, tokens, passwords, private keys, connection strings) and PII (emails, phones).",
+            "Drops content by a field allowlist: file/code bodies, command bodies, tool payloads, diffs, unknown fields.",
+            "Fails closed: a field it cannot classify as safe is dropped, not kept.",
+            "Drops, never tokenizes — config optimization never needs to recover a specific.",
+            "Pure functions, no I/O or network, so it is unit-testable in isolation.",
+        ],
+    },
+    "bin/dotclaude-log.py": {
+        "mission": "Every collector's events land in one place, minimized, and a session is never blocked or lost.",
+        "purpose": "The one shared Firestore writer: minimize, boundary-scope, outbox-first, batched flush, TTL.",
+        "criteria": [
+            "Never raises to the caller and never blocks; a hook calling it ends in exit 0.",
+            "Capture-first: appends every event to the local outbox before any network write, so nothing is lost.",
+            "Flushes in batched commits under a time budget; whatever does not flush drains next run.",
+            "Fails closed on project: refuses to write when the key's project_id mismatches the configured one.",
+            "Passes every event through dotclaude-redact.minimize_event, honoring the work boundary.",
+            "Names no specific project, account, or org — public-template-safe; unconfigured, it no-ops to the outbox.",
+        ],
+    },
+    "bin/config-metrics-record.py": {
+        "mission": "Each ended session's real usage is captured completely-for-diagnosis, with no work content in a personal project.",
+        "purpose": "SessionEnd: parse the transcript into minimized per-part events and write them to the store.",
+        "criteria": [
+            "Never raises; a bad transcript must not fail SessionEnd.",
+            "Emits prompt, tool_call (skill/reference), hook_deny, and error events, keyed by session.",
+            "Reads the work/personal boundary from identity.local.json; a work session drops its request text.",
+            "Routes every event through the shared writer, never writing a store or file directly.",
+            "Records its own pipeline_health row so a broken collector is visible, not silent.",
+        ],
+    },
+    "bin/config-metrics.py": {
+        "mission": "Every config part gets an honest usage + health verdict, and a dead part reads as a broken trigger to fix.",
+        "purpose": "Score every part two-axis from the store, write aggregates, render the scoreboard + HTML console.",
+        "criteria": [
+            "Loads the parts list ONLY from contracts/config_contracts.py, never a hardcoded copy.",
+            "Classifies dead only when a part is both unreachable AND unused; a fresh part is new/unmeasured.",
+            "Reports safety and planned/stub parts (from part_criticality.py) as expected-dormant, never as defects.",
+            "Denial rates carry a Wilson lower bound and a low_confidence flag below 20 events.",
+            "Runs without a store: prints the inventory and a configure-a-project notice, never errors.",
+            "Writes the computed rollup to aggregates so the local and hosted console read one result.",
+        ],
+    },
+    "contracts/part_criticality.py": {
+        "mission": "A part that is quiet by design is never mistaken for a dead part to fix.",
+        "purpose": "Tag safety/compliance parts (warranted-dormant) and deliberate stubs (planned), for the metrics report.",
+        "criteria": [
+            "Data only, no logic beyond the lookup — like skill_naming.py.",
+            "Every tagged path names a real, contract-covered part; a parity check forbids stale tags.",
+            "Holds two sets: SAFETY (warranted low usage) and STUB (not built yet).",
+        ],
+    },
+    "hooks/config-metrics-log.sh": {
+        "mission": "Every session's usage is recorded without the recording ever slowing or failing the session.",
+        "purpose": "SessionEnd: hand the transcript to the metrics recorder under the right interpreter.",
+        "criteria": [
+            "Detection and reporting only. Never proposes, prompts, or edits.",
+            "Prefers the metrics venv interpreter, falls back to system python3, exits 0 either way.",
+            "Passes the payload through untouched; the recorder owns minimization.",
+            "Silent and non-blocking when the recorder or interpreter is absent.",
+        ],
+    },
+    "references/dotclaude-metrics-setup.md": {
+        "mission": "Anyone forking the public template can stand up their own metrics project with nothing of the author's leaked.",
+        "purpose": "Generic, placeholder-only setup for the dotclaude metrics project and its rules.",
+        "criteria": [
+            "Names no specific account, project, or org — placeholders only.",
+            "States the zero-setup no-op behavior and the least-privilege + owner-read security model.",
+            "Lists the env knobs and what is captured (need-to-know) versus dropped.",
+        ],
+    },
+    "skills/sk/skills/claude-config-metrics-self-analysis/SKILL.md": {
+        "mission": "Underused and silently-dead parts get surfaced and fixed to be used, so the config earns its keep.",
+        "purpose": "Read the metrics store, score every part, and propose a trigger fix for the dead/underused ones.",
+        "criteria": [
+            "Proposes only; every change routes through /sk:claude-config-update.",
+            "The default action is to fix the trigger so a part gets used; removal is a rare last resort.",
+            "Never flags a warranted-dormant safety or stub part on low usage.",
+            "Reads two axes: dead needs unreachable AND unused; denial rates are Wilson-bounded.",
+            "Every finding names its part, its numbers, and the store record behind it.",
+        ],
+    },
     # --- Connector manifests are a per-user untracked overlay (connectors/*.json, gitignored);
     #     the tracked template is connectors/example.json.example. No per-manifest contract entries. ---
 }

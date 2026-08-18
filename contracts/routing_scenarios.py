@@ -141,6 +141,13 @@ SCENARIOS: list[dict] = [
     {"phrase": "change my config", "expect": "claude-config-update"},
     {"phrase": "what am I missing", "expect": "claude-config-self-development-research"},
     {"phrase": "is my Claude setup current", "expect": "claude-config-self-development-research"},
+    # Metrics-driven self-analysis of the config's OWN part usage. Distinct from self-development-
+    # research (audits against outside practice) and self-optimize (judges one run): this scores
+    # every part from real usage metrics and proposes trigger fixes for the dead/underused ones.
+    {"phrase": "run config self analysis", "expect": "claude-config-metrics-self-analysis"},
+    {"phrase": "surface underused config parts", "expect": "claude-config-metrics-self-analysis"},
+    {"phrase": "which parts of my config are dead", "expect": "claude-config-metrics-self-analysis"},
+    {"phrase": "config metrics", "expect": "claude-config-metrics-self-analysis"},
 
     # --- Parallel execution ----------------------------------------------------------
     {"phrase": "run this in parallel", "expect": "work-superspeed"},
@@ -211,7 +218,7 @@ HOOK_ROUTING: list[dict] = [
     {"event": "PostToolUse", "tool": "mcp__conductor__AskUserQuestion",
      "expect": ["task-intake.sh"]},
     {"event": "PostToolUse", "tool": "Edit", "expect": []},
-    {"event": "SessionEnd", "tool": None, "expect": ["retro-trigger-log.sh"]},
+    {"event": "SessionEnd", "tool": None, "expect": ["retro-trigger-log.sh", "config-metrics-log.sh"]},
     # Matcher-less like SessionStart, so every UserPromptSubmit hook fires on every prompt.
     {"event": "UserPromptSubmit", "tool": None,
      "expect": ["task-intake.sh", "intent-ledger.sh"]},
