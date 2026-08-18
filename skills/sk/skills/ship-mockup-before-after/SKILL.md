@@ -181,6 +181,35 @@ is:** the current type, variant N of M within it, the current VERSION, and quick
 his place.
 TEST: at any moment the HUD names the type, the variant position (N of M), and the version being viewed.
 
+## The consolidation gallery (many self-contained files → one review surface)
+
+When a fan-out (e.g. `/sk:work-hyperspeed`) produces N self-contained mockup FILES rather than one
+`#spec` document, the gather builds ONE review gallery over them — served over http so same-origin
+iframes render (a `file://` page cannot iframe sibling files). Build it with these controls BY DEFAULT:
+
+- **Bird's-eye GRID with CONFIGURABLE columns (1 / 2 / 3 per row).** Each tile is a small DESKTOP view —
+  render the mockup at ~1440px and scale it to fit the tile; NEVER render it narrow (that trips the
+  mockup's own mobile breakpoint and looks squished). On a column change, re-scale to the new tile width.
+- **Each tile SCROLLS INDEPENDENTLY** — scale the full page into a `scaleinner` sized to the scaled
+  height, tile `overflow-y:auto`, iframe `pointer-events:none` so the wheel scrolls the tile and a click
+  opens it. He can then scroll two tiles to different sections and compare them.
+- **A GLOBAL VIEW (before/after) + SURFACE nav that drives ALL tiles at once.** The fanned-out parts are
+  CONTENT-ONLY (no per-part HUD) and expose `[data-mode="before|after"]` + CONSISTENT `[data-surface]`
+  values; the gallery hides each part's own control bar and clicks those hooks in every tile, so
+  "switch all variants to surface X" is one click.
+- **Click a tile → FOCUS** (full-size, filmstrip rail, ←/→/Esc/Home/End) → **Present** (full-screen).
+- **A FLOATING HUD** — fixed, styled with none of the app's tokens — showing view · variant N of M ·
+  version. NEVER put it inside the header: a wide header scrolls it off-screen and reads as "no HUD".
+- **Keep/comment + an Approve / Request-changes verdict per variant**, using the response contract of
+  `/sk:work-ask-reply-in-full-before-after-artifact`.
+- **A QUIET version box** (per § versioning) — each consolidation checkpoint is a version, newest active.
+
+**CLASS-OF-BUG to avoid: an id selector that sets `display` on a view overrides the `.view{display:none}`
+toggle.** `#compare{display:flex}` kept an empty pane displayed over the grid on ALL views — a whole
+"blank grid" was actually a gray overlay on top. Scope every view's display to its `.show` class
+(`#compare.show{display:flex}`), and when a view looks blank, `elementFromPoint` the empty area before
+assuming lost content. Verify the gallery in the browser before handing it over.
+
 ## Compare — side by side, and diff what changed between versions
 
 **DO give a 3-up SIDE-BY-SIDE compare mode (cap 3-4 variants)** so he judges options head to head without
@@ -277,6 +306,23 @@ exactly what the author needs to resolve it.
 TEST: the returned document opens on the latest version, the HUD lists every version with its author,
 switching to an earlier version shows that author's variants + picks + comments intact, and the diff
 marks what changed between any two.
+
+## Version every iteration — grouped, latest-active, and QUIET
+
+Versions are not only for the external round-trip above — every LOCAL iteration checkpoint is a version,
+so you can watch your own progression as you edit. The hyperspeed fan-out → consolidation is the
+canonical case: each fanned-out pass saves its variant stamped with the CURRENT version, and the
+consolidation groups all same-version variants into ONE version group. So each consolidation checkpoint
+is one version (round 3 = v3, round 4 = v4, …), each holding that round's variants; the next round
+APPENDS the next version rather than overwriting, and older versions stay reachable to show the
+progression.
+
+**The newest version is always active; older versions are for looking back only** — open on the latest
+version's variants. **Keep the version control COMPACT and quiet — it is NOT a primary interface
+element:** a small, low-prominence affordance in a corner (a tiny `v4 ▾` stepper), visually quieter than
+the variant switcher, that never obscures the design and is reached only on demand. TEST: the version
+control is a small corner affordance, the newest version is active on open, and switching to an older
+version shows that version's grouped variants intact.
 
 ## Cite where each part came from
 
