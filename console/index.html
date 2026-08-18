@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dotclaude config metrics</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Hosted metrics console for the dotclaude-metrics project. Owner-only:
+  Firebase Auth Google sign-in gates it, and the Firestore rules allow reading `aggregates/*`
+  ONLY to the owner (see references/dotclaude-metrics-setup.md). Raw session_events stay deny-all,
+  so this page never sees them — only the computed rollup the Python aggregator wrote.
+
+  Committed source carries PLACEHOLDERS. The real Firebase web config is injected at deploy time from
+  machine-local config (~/.config/dotclaude-metrics/), so nothing project-specific is committed to the
+  public template.
+-->
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--mut:#666;--line:#e5e5e5;--acc:#2563eb}
+@media(prefers-color-scheme:dark){:root{--bg:#111;--fg:#eee;--mut:#999;--line:#2a2a2a;--acc:#60a5fa}}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif;margin:0;padding:24px;max-width:1000px}
+h1{font-size:20px;margin:0 0 4px}.sub{color:var(--mut);margin:0 0 16px}
+button{font:inherit;padding:8px 16px;border:1px solid var(--line);border-radius:8px;background:var(--acc);color:#fff;cursor:pointer}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:12px;padding:2px 10px;margin:2px;font-size:12px}
+.bar{display:flex;align-items:center;gap:8px;margin:2px 0;font-size:12px}
+.bar .lbl{flex:0 0 300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .track{flex:1;background:var(--line);border-radius:3px;height:10px}
+.bar .track i{display:block;height:10px;background:var(--acc);border-radius:3px}
+.bar .n{flex:0 0 40px;text-align:right;color:var(--mut)}
+table{border-collapse:collapse;width:100%;margin-top:16px;font-size:12px}
+th,td{text-align:left;padding:4px 8px;border-bottom:1px solid var(--line)}
+th{color:var(--mut);font-weight:600}
+tr.dead td,tr.erroring td{color:#dc2626}
+section{margin-top:28px}
+#gate{margin-top:40px}
+</style>
+</head>
+<body>
+<h1>dotclaude config metrics</h1>
+<p class="sub">per-part usage &amp; health — best/worst, classification, trends. Owner-only.</p>
+<div id="gate"><button id="signin">Sign in with Google</button><p class="sub" id="status"></p></div>
+<div id="app" style="display:none">
+  <div id="chips"></div>
+  <section><h2>Most used</h2><div id="bars"></div></section>
+  <section><h2>All parts</h2><div id="table"></div></section>
+  <p class="sub" id="generated"></p>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, doc, getDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// Injected at deploy from machine-local config; PLACEHOLDER in the committed template.
+const firebaseConfig = __FIREBASE_CONFIG__;
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+$("signin").onclick = () => signInWithPopup(auth, new GoogleAuthProvider())
+  .catch(e => $("status").textContent = "Sign-in failed: " + e.message);
+
+onAuthStateChanged(auth, async user => {
+  if (!user) return;
+  $("status").textContent = "Signed in as " + (user.email || user.uid) + " — loading…";
+  try {
+    const snap = await getDoc(doc(db, "aggregates", "latest"));
+    if (!snap.exists()) { $("status").textContent = "No aggregates yet. Run bin/config-metrics.py."; return; }
+    render(snap.data());
+    $("gate").style.display = "none";
+    $("app").style.display = "block";
+  } catch (e) {
+    $("status").textContent = "Not authorized to read metrics (owner-only), or a network error: " + e.message;
+  }
+});
+
+function render(data) {
+  const parts = (data.parts || []).slice();
+  $("generated").textContent = "Generated " + (data.generated || "?");
+  const counts = {};
+  parts.forEach(p => counts[p.classification] = (counts[p.classification]||0)+1);
+  $("chips").innerHTML = Object.keys(counts).sort()
+    .map(k => `<span class="chip">${esc(k)}: ${counts[k]}</span>`).join(" ");
+  const byUses = parts.slice().sort((a,b)=>b.uses-a.uses);
+  $("bars").innerHTML = byUses.slice(0,25).map(p =>
+    `<div class="bar"><span class="lbl">${esc(p.part)}</span>`+
+    `<span class="track"><i style="width:${Math.min(400,p.uses*8)}px"></i></span>`+
+    `<span class="n">${p.uses}</span></div>`).join("");
+  const byClass = parts.slice().sort((a,b)=> (a.classification>b.classification?1:-1) || b.uses-a.uses);
+  $("table").innerHTML = "<table><tr><th>part</th><th>type</th><th>class</th><th>uses</th>"+
+    "<th>errs</th><th>deny</th><th>reach</th></tr>" + byClass.map(p =>
+    `<tr class="${esc(p.classification)}"><td>${esc(p.part)}</td><td>${esc(p.type)}</td>`+
+    `<td>${esc(p.classification)}</td><td>${p.uses}</td><td>${p.errors}</td>`+
+    `<td>${(p.deny_rate_wilson||0).toFixed(2)}</td><td>${p.reachable?"yes":"NO"}</td></tr>`).join("") +
+    "</table>";
+}
+</script>
+</body>
+</html>

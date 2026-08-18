@@ -26,6 +26,7 @@
 # Only the *.example templates are tracked.
 /connectors/*.json
 !/contracts/
+!/console/
 !/security-guard-allowlist.txt
 
 # 3) Inside skills/, track ONLY your own personal plugin. Everything else there is third-party
