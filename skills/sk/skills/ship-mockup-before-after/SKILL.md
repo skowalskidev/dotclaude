@@ -1,6 +1,6 @@
 ---
 name: ship-mockup-before-after
-description: Show Simon what a planned change will LOOK like, before it is built, as a shareable before/after artifact on Claude instead of a plan he has to read and imagine. Builds a standalone artifact that is pixel-identical to the real app — a real screenshot of the target screen as the BEFORE, an HTML/CSS overlay sized from the real components' MEASURED styles as the AFTER — one per ticket or plan part, each citing the validated plan it came from and flagging anything that changed after validation. Independent of the app: it ships to a Claude URL and needs nothing running to view or share. Use for "mock this up", "show me before and after", "what will this look like", "preview the plan", "I want to see it before you build it", or whenever a plan proposes a visible change. Then, once he approves it, this same skill owns the implementation: it inventories every difference from the artifact, wires each one's call site, proves each on the real screen. Use it again for "implement the mockup", "build what I approved", or "the screen doesn't match the mockup".
+description: Show Simon what a planned change will LOOK like, before it is built, as a shareable before/after artifact on Claude instead of a plan he has to read and imagine. Builds a standalone artifact that is pixel-identical to the real app — a real screenshot of the target screen as the BEFORE, an HTML/CSS overlay sized from the real components' MEASURED styles as the AFTER — one per ticket or plan part, each citing the validated plan it came from and flagging anything that changed after validation. Independent of the app: it ships to a Claude URL and needs nothing running to view or share. Use for "mock this up", "show me before and after", "what will this look like", "preview the plan", "I want to see it before you build it", or whenever a plan proposes a visible change. The artifact is shareable to a recipient who is guided to browse variants in a bird's-eye grid with a HUD, select the ones they like and comment asking for changes; their Claude then updates or recreates it as a new author-attributed version, and every version is kept inside the artifact so the author can switch between them and see each author's variants. Then, once he approves it, this same skill owns the implementation: it inventories every difference from the artifact, wires each one's call site, proves each on the real screen. Use it again for "implement the mockup", "build what I approved", or "the screen doesn't match the mockup".
 argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 ---
 
@@ -92,6 +92,38 @@ that trust.
 TEST: every visible difference between before and after traces to a named source, or is explicitly
 marked as a refutation with its reason.
 
+## Browse the variants — bird's-eye grid, full view, and a HUD
+
+When the artifact holds more than one variant, or variants of more than one thing, make it browsable at
+two zoom levels, not a single long scroll.
+
+**DO open on a BIRD'S-EYE grid — variants as thumbnails, 3 to a row — so he decides at a glance which to
+look at closely.** Each thumbnail is the variant's AFTER, labelled and selectable right there.
+**DON'T make him scroll past full-size variants to compare them.** Comparing is the whole job of the
+grid; a stacked scroll defeats it.
+
+**DO click a thumbnail into a FULL view of that variant**, with next/previous controls to step between
+variants without returning to the grid, and a clear "back to grid" control.
+
+**DO SEPARATE variants by TYPE, each type its own grid section** — the dashboard's variants in one
+section, the modal's in another — so several different changes live in one artifact without blurring
+together. Name each type.
+
+**DO float a HUD — fixed, high z-index, styled with NONE of the app's tokens — that ALWAYS shows where he
+is:** the current type, variant N of M within it, the current VERSION (below), and quick nav. He never
+loses his place.
+TEST: at any moment the HUD names the type, the variant position (N of M), and the version being viewed.
+
+## Point at what's new
+
+**DO gently highlight the CHANGED region of each variant, so a small new section is not missed.** When a
+variant first opens, flash the changed area once — a brief outline or glow that draws the eye then
+settles — and give a "What's new" control that re-flashes it on demand.
+**DON'T pulse it forever or animate the whole screen.** One calm flash on open, re-triggerable, is
+enough; a looping animation fights the thing he is trying to judge.
+TEST: opening a variant flashes only the region the plan changed, once, and the "What's new" button
+re-flashes that same region.
+
 ## Let him choose among variants, and say what to keep
 
 **DO make a GALLERY of variants he browses** when the mockup exists for him to choose among them — a
@@ -108,6 +140,38 @@ browsing, and the options stay fully visible while he decides.
 **DON'T float it over the screen he is judging.**
 TEST: he picks one or more variants, comments keep-or-change on each, opens the panel and copies, and
 the block names every pick, every rejection and every comment.
+
+## Share it, and run the review round-trip
+
+The artifact is one shareable Claude URL, so it can go to someone who is NOT Simon — a stakeholder, a
+teammate — and come back with their picks and change requests, without either side typing a variant name.
+
+**DO make the artifact GUIDE a first-time recipient.** A short, dismissible intro on open explains: browse
+the variants (grid → full view), select the ones you like, and write what to change in the comment box on
+each. The guidance is part of the artifact; the recipient needs no briefing from Simon.
+
+**DO have the recipient's selections + comments generate a SELF-CONTAINED instruction block** — the
+pick/comment/copy contract from `/sk:work-ask-reply-in-full-before-after-artifact`, extended so the block
+carries everything ANOTHER Claude needs to act: every selected variant, every rejection, every comment,
+the version it was made against, and the artifact's own regeneration context. The artifact tells the
+recipient in one line: copy this block and give it to your Claude.
+
+**DO instruct the recipient's Claude, inside that block, to:**
+1. Apply the picks + comments as a NEW version — UPDATE the artifact HTML directly (they have the file),
+   or RECREATE the artifact from the block's regeneration context if updating is not possible.
+2. Increment the VERSION HISTORY, attributed: v1 is the author, v2 is this recipient, and so on — each
+   version records who made it, when, and what changed.
+3. Tell the recipient to LOOK at the updated mockup and confirm it reflects their asks.
+4. Tell the recipient to PASS IT BACK to the original author.
+
+**DO keep EVERY version inside the artifact — it carries its own history.** A version selector in the HUD
+switches between versions, each attributed to its author, and shows that version's variants, selections
+and comments. The author receives ONE artifact and steps back through v1 (what they proposed), v2 (what
+the recipient chose and asked for), and onward — variants and all — never a pile of separate files.
+**DON'T flatten an old version away when a new one is made.** The trail — who changed what, and why — is
+exactly what the author needs to resolve it.
+TEST: the returned artifact opens on the latest version, the HUD lists every version with its author, and
+switching to an earlier version shows that author's variants + picks + comments intact.
 
 ## Check it against the real app, and fold the fix forward
 

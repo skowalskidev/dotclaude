@@ -713,6 +713,18 @@ CONTRACTS: dict[str, dict] = {
             "Offers a variant gallery whose picks and per-variant keep/change comments use the "
             "response contract from /sk:work-ask-reply-in-full-before-after-artifact, docked compact "
             "and collapsed so it never covers the mockup.",
+            "Browsable at two zooms: a bird's-eye grid of variant thumbnails (3 per row) that click "
+            "into a full view with next/prev and back-to-grid, variants separated by TYPE, and a HUD "
+            "always showing the type, variant N-of-M and the version being viewed.",
+            "Flashes the CHANGED region of a variant once when it opens, with a 'what's new' button "
+            "to re-flash on demand — never a looping animation that fights the screen.",
+            "Shareable to a non-Simon recipient: the artifact guides them to select + comment, then "
+            "generates a self-contained block (extending the /sk:work-ask-reply contract) that tells "
+            "THEIR Claude to update or recreate the artifact as a new author-attributed version and "
+            "pass it back.",
+            "Keeps every version inside the artifact as attributed history (v1 author, v2 recipient, "
+            "…), switchable from the HUD, each showing its author's variants + picks + comments; "
+            "never flattens an old version away.",
             "Diffs every overlaid and new-state component against a real render before showing him, "
             "and when a divergence traces to the skill folds the fix forward through "
             "/sk:claude-config-update. That is the self-healing-config loop.",
