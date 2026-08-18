@@ -5,21 +5,24 @@ etc.) across my work and personal projects. Complements `security.md` (provenanc
 and `config-repo.md`. Deep how-to + the manifest schema live in `references/connectors-setup.md`; each
 project's connectors are declared in `~/.claude/connectors/<project>.json`.
 
+## Discover the provisioned path FIRST
+
+Before any work that REACHES a project service — auth, login, screenshots, seed/read/write a DB or
+cloud, hit an API, boot against a real backend — read `~/.claude/connectors/<project>.json` +
+`references/connectors-setup.md` (and `browser-debugging.md` for login/screenshots) and use the
+provisioned path, never an improvised cloud-CLI or boot recipe (it's what produces a bogus auth gate).
+**Delegating it? Carry the connector + `auth.steps` + reference INTO the subagent's prompt** — it won't
+read the manifest unless told, so it improvises (the fix for: a boot+screenshot agent handed an
+"emulator-first" guess when the `firebase` MCP + the repo's e2e sign-in bridge were provisioned). TEST:
+before any such step, here or in a subagent prompt, the manifest + reference were read and the path
+traces to them.
+
 ## The auth-gate protocol (ask me FIRST, then wait)
 
 When a task needs any action ONLY I can do — authenticate, start a service, install a tool, restart the
 session/app, or use a capability the connector withholds by default (e.g. a prod/Firestore write) — do
 NOT grind around it or bury it at the end. Instead:
 
-0. **Read `~/.claude/connectors/<project>.json` BEFORE deciding a capability is missing.** The
-   manifest is the list of what is already provisioned, so it answers "how do I reach this service
-   here" — and a tool absent from it is usually not part of this project's setup at all. Reaching
-   past it for a raw cloud CLI (`gcloud`, `aws`, `az`) is what produces a bogus auth gate: the CLI's
-   own credentials are stale because nothing in this project uses them, and the ask that follows
-   costs an interruption for access that already worked. The provisioned path is the ONLY one whose
-   auth is kept fresh. (The fix for: hitting `gcloud auth print-access-token` → "Reauthentication
-   failed" and asking Simon to log in, when the project's `firebase` MCP connector could already
-   read that Firestore doc.)
 1. **Detect early** — at session start (the precheck hook flags already-expired connectors) and at the
    first point of need. A missing/blocked connector is surfaced as obviously as any hard blocker.
 2. **Stop and ask FIRST**, before starting the task and before any workaround.

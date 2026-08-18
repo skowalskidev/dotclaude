@@ -11,7 +11,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `ui-conventions.md` — button order, and minimalist interfaces: default to a label, cut the number of text blocks. Always-on with a scope line at the top, because `paths:` frontmatter is silently ignored at user level and this file consequently never loaded; see the comment in it before re-scoping.
   - `skills-workflow.md` — the skill-listing repo-prefix rule, how my `sk`/`sk-work` skills are organised, when to use my own vs other repos' skills.
   - `config-repo.md` — `~/.claude` is a git repo (this config repo); keep it in sync via `/sk:claude-config-sync`.
-  - `connectors.md` — connector/credential system: the auth-gate protocol (ask first with numbered steps, then wait), work/personal boundary, prod read-only + gated writes, and the per-project manifest convention (`~/.claude/connectors/<project>.json`).
+  - `connectors.md` — connector/credential system: discover the provisioned path first (manifest + browser-debugging), the auth-gate protocol (ask first with numbered steps, then wait), work/personal boundary, prod read-only + gated writes, and the per-project manifest convention (`~/.claude/connectors/<project>.json`).
   - `self-healing-config.md` — when a config-rooted problem is diagnosed and resolved mid-session, propose a durable fix and ask to fold it in (event-driven, never a cron).
 
 - **Deep, task-only how-tos** → `~/.claude/references/*.md` (on-demand, zero context cost until read):
