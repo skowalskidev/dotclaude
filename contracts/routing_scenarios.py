@@ -129,6 +129,16 @@ SCENARIOS: list[dict] = [
     {"phrase": "write my standup", "expect": "meta-report-standup-weekly"},
     {"phrase": "monday morning standup", "expect": "meta-report-standup-weekly"},
     {"phrase": "what did I do last week", "expect": "meta-report-standup-weekly"},
+    {"phrase": "clean up merged worktrees", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "remove done worktrees and branches", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "tidy up my worktrees", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "delete merged branches", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "which sessions can I archive", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "start here", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "what should I use for this", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "run this the right way", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "just handle this", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "which skills for this task", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
 
     # --- The config itself ---------------------------------------------------------
     {"phrase": "sync my config", "expect": "claude-config-sync"},
@@ -153,6 +163,17 @@ SCENARIOS: list[dict] = [
     {"phrase": "run this in parallel", "expect": "work-superspeed"},
     {"phrase": "fan this out", "expect": "work-superspeed"},
     {"phrase": "split this across sessions", "expect": "work-superspeed"},
+    {"phrase": "hyperspeed", "expect": "work-hyperspeed", "also_matches": ["work-warpspeed"]},
+    {"phrase": "paste the parts into separate sessions", "expect": "work-hyperspeed"},
+    {"phrase": "hand-parallelise this", "expect": "work-hyperspeed"},
+    {"phrase": "split this into paste-and-forget parts", "expect": "work-hyperspeed"},
+    {"phrase": "warpspeed", "expect": "work-warpspeed", "also_matches": ["work-hyperspeed"]},
+    {"phrase": "run the parts on different VMs", "expect": "work-warpspeed"},
+    {"phrase": "keep a single plan", "expect": "plan-stable-persistent-dynamic-complete-full-plan"},
+    {"phrase": "stop making me re-read the plan", "expect": "plan-stable-persistent-dynamic-complete-full-plan"},
+    {"phrase": "just update the plan", "expect": "plan-stable-persistent-dynamic-complete-full-plan"},
+    {"phrase": "one source of truth plan", "expect": "plan-stable-persistent-dynamic-complete-full-plan"},
+    {"phrase": "stay in plan mode until I say go", "expect": "plan-stable-persistent-dynamic-complete-full-plan"},
     {"phrase": "what did we waste", "expect": "claude-config-self-optimize-analysis-after-run"},
     {"phrase": "why was that slow", "expect": "claude-config-self-optimize-analysis-after-run"},
     {"phrase": "analyse the run", "expect": "claude-config-self-optimize-analysis-after-run"},
@@ -180,8 +201,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "not enough permissions", "expect": "setup-connectors"},
 
     # --- Interactive before/after decision artifact --------------------------------
-    {"phrase": "make it selectable so I can pick and comment", "expect": "work-reply-in-full-before-after-artifact"},
-    {"phrase": "give me an interactive before and after artifact", "expect": "work-reply-in-full-before-after-artifact"},
+    {"phrase": "make it selectable so I can pick and comment", "expect": "work-ask-reply-in-full-before-after-artifact"},
+    {"phrase": "give me an interactive before and after artifact", "expect": "work-ask-reply-in-full-before-after-artifact"},
 
     # No scenario for your work-skills plugin's timesheet skill (e.g. sk-work): it lives in the untracked work/ directory and
     # is outside this suite's scope. Its routing is not asserted here.

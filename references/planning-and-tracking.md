@@ -65,15 +65,36 @@ front, because the ones that get forgotten are always the same ones:
 Decide these at planning time. Retrofitting discoverability onto a shipped feature is how a good
 feature stays unused.
 
+## Capture the inputs the code cannot show you — ask now, and make each ticket ask too
+
+A plan built only from the repo misses everything that lives in another system: edge/CDN rules and
+cache/routing/firewall config, design-tool screens (mockups, prototypes) and their export settings, a
+third-party service console (billing, telephony, auth, analytics), an infra or observability dashboard,
+a DNS record. None of it is in the diff, so a plan derived from code alone ships with those to-dos
+silently missing.
+
+- **DO list every out-of-code surface the work touches, then ask Simon for each BEFORE writing the
+  plan** — one questions block, the exact thing named ("the edge cache rules for the app's domain",
+  "the design-tool frame for the new wizard step"), never "the relevant config". This is
+  `rules/process.md` § "Front-load everything you need from me" applied to out-of-code STATE, not just
+  auth. TEST: every external system the feature reads or writes has its config in hand OR a named ask
+  against it before the plan is proposed.
+- **DO make each ticket name the inputs its implementer must obtain before starting** — mockup/design
+  references, that out-of-code config, a sample payload — so the downstream agent asks Simon for them
+  instead of guessing. A ticket that needs a mockup and does not say so produces a confidently wrong build.
+
 ## Track every ask to completion — never drop items
 
 Owned by **`~/.claude/rules/process.md` § "Track every task to completion"**, which is always-on and
 so already loaded. Not restated here — two copies of a completion rule is how one of them ends up
 saying "done" while the other still has open items.
 
-The only thing this file adds: the checklist is a real artifact, not a mental note. Write it to a
-tracker, or to the worktree's `.context/intent-ledger.md`, BEFORE starting, so it survives a
-compaction, a quota reset, or a handover to another session.
+The only thing this file adds: WHERE that durable artifact lives, and how it survives worktree
+teardown. The intent-ledger hook already logs every prompt verbatim to `.context/intent-ledger.md`.
+Durability tiers, most durable first: the ticket/tracker outlives everything; the worktree's
+`.context/` survives a restart but dies with the worktree, so promote the decisions and human input to
+the ticket before teardown (§ Promotion before teardown below). The survives-a-restart guarantee and
+the no-`/tmp` rule are process.md's, above.
 
 ## The intent ledger — the record of what was asked, and whether it got built
 
@@ -133,4 +154,5 @@ adds a leak path and no information.
 - For empirical verification, tell me which credentials/mode you need (test vs prod key, sandbox vs live) and prefer sandbox/test so verification can't pollute production.
 - If an assumption can't be verified with a simple script (needs a second account/another platform/too complex), don't block: create a prioritized follow-up backlog ticket with an explanation — unless it's mission-critical, in which case flag exactly what you need from me now.
 - Before designing, inspect real production data (via MCP/CLI on the prod project) to verify base assumptions and see realistic document shapes, data patterns, and volumes — including worst cases — and plan for high performance against those worst cases.
+- **Screen production data for the bug BEFORE planning the fix, and let only fresh data count.** The codebase moves fast, so a document written before the relevant code last changed can show a shape the current path no longer produces. DO pull the most-recent documents for the collection, treat a pattern that only pre-change docs show as already-fixed, and corroborate every inconsistency you keep against a second independent signal (a sibling collection, the write path in code, a log line). TEST: each inconsistency carried into the plan appears in data written AFTER the code that writes it last changed, AND is confirmed by one independent source — never inferred from a single stale document.
 - Document platform gotchas discovered during spikes (account constraints, mode restrictions, version quirks) in the plan/test plan so they aren't re-learned.

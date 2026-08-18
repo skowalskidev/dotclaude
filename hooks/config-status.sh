@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # SessionStart hook: surface out-of-sync ~/.claude config so Claude proactively offers to sync it.
-# Runs ONCE per session start (event-driven, NO daemon). Fast — local git only. A rate-limited
+# Runs on session start and can re-fire mid-session (Conductor re-runs SessionStart between messages),
+# event-driven, NO daemon. Fast — local git only. A rate-limited
 # BACKGROUND fetch (at most once / 4h, fully detached) keeps the remote-tracking ref fresh for
 # multi-machine use; it never blocks session start and is not an always-on process.
 REPO="$HOME/.claude"
 
-# Clear any leftover config-edit authorization sentinel. The /sk:claude-config-update flow sets it
-# after your yes and removes it when done, all within one session; a sentinel surviving into a NEW
-# session means that flow crashed, and leaving it would hold config-edit-guard.py open. Safe to remove
-# unconditionally here — a live flow would re-touch it.
-rm -f "$REPO/.config-edit-authorized" 2>/dev/null
+# Clear a STALE config-edit authorization sentinel. The /sk:claude-config-update flow sets it after
+# your yes and removes it when done; a sentinel left behind means that flow crashed, and leaving it
+# would hold config-edit-guard.py open. Only clear a STALE one (>2 min old): this hook can re-fire
+# mid-session (Conductor re-runs SessionStart between messages), and an unconditional rm would wipe a
+# LIVE sentinel a flow just touched — blocking the very edits it authorized. A crashed-flow sentinel is
+# minutes old and still gets cleaned.
+find "$REPO/.config-edit-authorized" -mmin +2 -delete 2>/dev/null
 
 [ -d "$REPO/.git" ] || exit 0
 

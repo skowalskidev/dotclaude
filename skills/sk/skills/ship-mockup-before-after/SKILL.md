@@ -1,6 +1,6 @@
 ---
 name: ship-mockup-before-after
-description: Show Simon what a planned change will LOOK like, before it is built, as a clickable before/after preview instead of a plan he has to read and imagine. Builds a dev-only route inside the project that renders the change with the project's OWN components, one preview per ticket or plan part, each citing the validated plan it came from and flagging anything that changed after validation. Use for "mock this up", "show me before and after", "what will this look like", "preview the plan", "I want to see it before you build it", or whenever a plan proposes a visible change. Then, once he approves it, this same skill owns the implementation: it inventories every difference from the mockup file, wires each one's call site, proves each on the real screen, and only then deletes the preview. Use it again for "implement the mockup", "build what I approved", or "the screen doesn't match the mockup".
+description: Show Simon what a planned change will LOOK like, before it is built, as a shareable before/after mockup instead of a plan he has to read and imagine. The mockup is ONE self-contained HTML document whose entire state lives in an embedded JSON spec (a data island) and whose UI renders from it — so another Claude can rebuild it with zero loss. It is pixel-true to the real app: a compressed real screenshot of the target screen as the BEFORE, an HTML/CSS overlay sized from the real components' MEASURED styles as the AFTER, one per ticket or plan part, each citing the validated plan it came from. It ships as the medium that fits — a downloadable HTML FILE (default for collaborative, versioned, multi-screenshot round-trips) or a Claude artifact URL (frictionless when small and un-gated). Recipients are guided to browse variants in a bird's-eye grid with a HUD, select the ones they like, pin comments asking for changes, and approve or request changes; the copy-paste block they hand their Claude IS the complete build spec, so it updates or recreates the mockup as a new author-attributed version and passes it back, and every version stays inside the mockup, switchable and diffable. Use for "mock this up", "show me before and after", "what will this look like", "preview the plan", "share this mockup for feedback", "I want to see it before you build it", or whenever a plan proposes a visible change. Then, once he approves it, this same skill owns the implementation: it inventories every difference, wires each one's call site, and proves each on the real screen. Use it again for "implement the mockup", "build what I approved", or "the screen doesn't match the mockup".
 argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 ---
 
@@ -10,86 +10,376 @@ argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 He cannot, so he approves something he has not seen and corrects it after it is built, which is the
 expensive end. A preview moves every correction to before the work.
 
-**DO build the preview as a dev-only route INSIDE the project, using the project's own components.**
-**DON'T hand-write HTML, and DON'T publish an artifact, for anything that has a real screen.** Both
-were tried on 2026-08-10 and both were rejected, in his words: *"it's not looking like the real app"*,
+**DO ship the preview as ONE self-contained HTML document, built from real app pixels, whose state is a
+data island (below).**
+**DON'T hand-write the screen from scratch, and DON'T build a dev route just to view it.** A rebuilt
+screen is always nearly right, and nearly right is what wastes the round — the artifact and the
+hand-rebuild were both rejected on 2026-08-10, in his words: *"it's not looking like the real app"*,
 then *"still not reusing existing components... I want you to use the exact components not remake
-them"*. A rebuilt screen is always nearly right, and nearly right is what wastes the round.
+them"*. The rule that survives both rejections: **the mockup's fidelity comes from the real app, never
+from eyeballing.** A document that starts from a real screenshot and measured real-component styles IS
+exact, and it needs nothing running to open or share.
 
-An artifact stays correct for a change with NO screen — a schema, a prompt harness, a pipeline
-ordering. There, diagram the before and after. The rule is the medium follows the subject.
+**DO make EVERY deliverable open from `file://` with no server — self-contained, no external requests,
+no sibling-file dependencies — whether it is one `#spec` document or the consolidation gallery over many
+files (§ below).** The same anti-pattern as the dev route above, one level up: a gallery that needs
+`http://localhost` to show its tiles hands a recipient blank tiles.
+TEST: with every server off, opening the file renders it fully. A deliverable that needs a running
+server is not shareable and is not done.
 
-## The shape that worked
+A change with NO screen — a schema, a prompt harness, a pipeline ordering — has nothing to screenshot;
+diagram the before and after instead. The rule is the medium follows the subject.
 
-```
-app/<routes-dir>/mockup-<subject>/page.tsx   + data.ts
-```
+**When the screen ALREADY EXISTS, the BEFORE is that real screen — always.** A "blind", "exploratory"
+or "independent-directions" round is free to reinvent the LAYOUT, but it NEVER licenses a fabricated,
+generic, or from-memory before/after. The BEFORE is the real screenshot (or the real component
+measured); the AFTER's tokens, chrome and theme trace to the measured real app; only the layout is
+open. The no-screen escape above is ONLY for a surface that does not exist yet. Round 1 of the RR
+redesign was run blind with zero app grounding and every direction was rejected for not looking like
+the product — the exploration belongs in the layout, not in the fidelity. TEST: the BEFORE traces to
+the real screen, and every colour/font/radius/theme in the AFTER traces to a measured value, even in a
+blind round.
 
-**DO gate it on development** — `if (process.env.NODE_ENV !== "development") notFound();` — so it
-cannot ship even if the deletion is forgotten.
+## Ask for the direction FIRST — reference images
 
-**DO put it where the app's own layout wraps it**, so the sidebar, top bar and theme come for free
-rather than being rebuilt.
+Before designing an AFTER, ASK the user for reference images of interfaces they like — it is the
+fastest route to a direction they accept and it stops you inventing one they reject. Suggest they
+browse **Dribbble** (dribbble.com) and copy-paste the shots or directions they want to emulate (app
+screenshots work too). Ground the AFTER in those references — reproduce their layout, hierarchy and
+component patterns — alongside the real app's measured tokens. When references exist, PASS EVERY ONE to
+each builder by absolute path and have the builder READ them before designing; a reference that
+silently never reaches a builder wastes the whole round, so **FAIL LOUD** — stop and report which
+reference is missing — rather than building without it.
 
-**DO give every preview a BEFORE/AFTER toggle**, defaulting to AFTER. Before is what the code does
+## Choose the medium — a downloadable HTML FILE, or a Claude artifact URL
+
+The deliverable is one self-contained HTML document; ship it as whichever medium serves THIS mockup.
+The Claude-artifact medium is genuinely limited, and the limits pick the medium (all measured 2026-08):
+
+- **A downloadable HTML FILE — the DEFAULT for a collaborative, versioned, multi-screenshot round-trip.**
+  It has no size ceiling, opens in any browser, and the recipient's Claude edits the ACTUAL file with
+  zero regeneration loss. Write it to a path and hand Simon the file to share.
+- **A Claude artifact URL — the frictionless option when the mockup is SMALL and un-gated.** Publish it,
+  send the link; non-account viewers get full interactivity, nothing to run.
+
+**DO pick the FILE the moment any of these is true**, because the artifact medium breaks on them:
+- **Size:** a full-screen base64 PNG is ~1M+ text tokens; a few inlined screenshots plus version history
+  can exceed the context window and make the artifact impossible to rewrite in one turn. A file has no
+  such ceiling.
+- **`localStorage`/`sessionStorage` are BLOCKED in the artifact sandbox** — state must be in-memory. A
+  file can use storage, but keep state in-memory + the embedded spec so it is portable either way.
+- **Publishing gotchas:** the one-click "Remix" is gone (a recipient copies the source into their own
+  Claude — a fork, not a live shared doc); **Team/Enterprise accounts cannot publish publicly** (org
+  only), so if Simon is on a work org, use the FILE; published links do not expire and carry no
+  password, so never put anything sensitive in a mockup.
+
+TEST: a mockup with more than one screenshot, more than one version, or a review round-trip ships as a
+FILE, not an artifact.
+
+## Make it a DATA ISLAND — the embedded spec is the single source of truth
+
+This is what makes the mockup rebuildable without loss, diffable across versions, and faithful on a
+hand-back. It is the Next.js `__NEXT_DATA__` / SingleFile hydration pattern applied to a mockup.
+
+**DO embed ONE `<script type="application/json" id="spec">` block that IS the mockup's entire state** —
+`schemaVersion`; a `manifest` (version count + every variant id); design tokens; and `versions[]`, where
+each version carries its before/after variants as STRUCTURED component data + measured styles, plus its
+author, timestamp, selections, comments and verdicts. A small `render(spec)` builds the whole visible UI
+from it.
+**DON'T author any label, prop, or state directly into the markup.** A string baked into HTML instead of
+`#spec` is a string the next regeneration silently drops — that is the whole failure mode this prevents.
+WHY: regeneration then becomes "re-render this JSON" (mechanical, loss-free) instead of "re-describe the
+UI" (lossy — verbatim structured data survives an LLM round-trip 91% vs 14% for a summary).
+TEST: with the render layer deleted, `#spec` alone still holds every variant, version, selection and
+comment; re-running `render(spec)` reproduces the mockup exactly.
+
+## Capture the BEFORE from the real app
+
+**DO screenshot the target screen at a FIXED viewport, in one theme, populated with realistic data.** A
+seeded demo is fine and preferred — seed the screen and everything it references with realistic values
+(plausible names, lengths, counts) so it looks like the app in real use. Record the route, viewport
+size and theme in the spec. That raster is the substrate the AFTER sits on, so every pixel around the
+change stays true to the app.
+**DON'T screenshot placeholder, lorem or empty-stub content.** The wrapping, truncation and populated
+states are the whole reason to look, and only realistic content shows them.
+
+**DO compress every screenshot HARD before inlining — WebP q70-80, downscaled to display size (long edge
+~1280px), never a full-res PNG.** A full-res PNG as base64 can exceed the whole context window on its
+own; a downscaled WebP is roughly 40x smaller. Cap inlined screenshots at about 1-3 and keep the total
+base64 well under the model's output cap, or the document cannot be rewritten in one turn. Prefer
+rendering a state from measured-style DATA over screenshotting it wherever the state is reachable.
+
+## Measure the real components — never eyeball the AFTER
+
+**DO measure the real rendered components before drawing anything** — `getComputedStyle` and
+`getBoundingClientRect` for box size, font, colour, spacing, border-radius, shadow — and size the
+AFTER from those exact values, stored in `#spec`. The app itself is the render rig; stand up a scratch
+route ONLY when a component the AFTER needs is not reachable on any real screen.
+**DON'T set a dimension, colour or font in the overlay by eye.** Eyeballing is the nearly-right failure
+that got the rebuild rejected; a measured value cannot be nearly right.
+TEST: every dimension and colour in the overlay traces to a value you measured this run.
+
+## Render the AFTER: overlay a screen, storyboard a flow
+
+**DO overlay the change on the BEFORE screenshot when it is a single screen** — HTML/CSS positioned and
+sized from the measured values in `#spec`, changing ONLY the region the plan touches. Everything outside
+the change stays the untouched screenshot, so it is real pixels by construction.
+**DON'T re-render the parts that did not change.** Re-drawing them re-introduces the exact nearly-right
+rebuild this skill exists to avoid.
+
+**DO make it a WALKABLE storyboard when the change is a flow** — every step the user passes through,
+each new state built from the measured component styles, each state the app already renders reused as a
+real screenshot. Wire the buttons, fields and steps so he advances through them himself.
+
+## Walk every state — simulated, seeded, no real requests
+
+**DO cover every step of the proposed journey**, enumerated from `references/user-journey-review.md`
+(first contact → set-up → trigger → the wait → the result, and the empty, loading and error state of
+every surface). He can only tell you which parts need changing if he can reach every state; a first
+screen with nothing beyond it sends the fix back to after the build — the exact cost this skill removes.
+**DON'T stop at the first state, and DON'T leave a button dead.**
+**DO simulate every transition with local state and seeded data** — no network, no persistence, no auth,
+no real requests. He is walking the flow, not operating a live app.
+
+## Assemble the document
+
+**DO make it self-contained** — screenshots as compressed `data:` URIs, all CSS and JS inline — so the
+one file (or the CSP-locked artifact) needs no external request. Apply the visual craft directly — no
+separate design skill to load: give the page a title, a favicon, a palette and theme support that MATCH
+THE REAL APP'S — measure it, and if the app wires no dark theme, the mockup is light-only; never impose
+a light+dark the product does not have — a responsive layout, and realistic seeded content (never lorem).
+**DO keep ALL state in-memory and in `#spec`; NEVER use `localStorage`/`sessionStorage`.** They are
+blocked in the artifact sandbox and fail silently; the embedded `#spec` is the durable record either way.
+
+**DO give the document a BEFORE/AFTER toggle defaulting to AFTER.** Before is what the screen does
 today; after is the proposal. He compares in one click instead of holding two screens in his head.
 
-**DO float every mockup control over the app — fixed, high z-index, styled with NONE of the project's
+**DO float every mockup control OVER the screen — fixed, high z-index, styled with NONE of the app's
 tokens.** A dark pill in a corner with a `MOCKUP` label reads instantly as scaffolding.
-**DON'T put a control inside a real component.** The before/after toggle went into a node header
-first and immediately read as a shipped feature: *"it should be a floating mockup interface element,
-not part of the app"*. A preview whose scaffolding is indistinguishable from the product teaches him
-the wrong thing about what was built, and screenshots as if the control were real.
+**DON'T style a control to look like part of the app.** A preview whose scaffolding is
+indistinguishable from the product teaches him the wrong thing about what was built.
 
-## Use the real components. All of them.
+## Browse the variants — grid, focus, filmstrip, present mode
 
-**DO import the actual components — the shells, the headers, the inputs, the cards, the buttons.**
-**DON'T re-create a single one, however small.** The bar at the top of a panel is a real component
-with real state; a div that looks like it is a lie that costs a round.
+Overview first, then focus (Shneiderman's mantra): a bird's-eye view lets him get his head around the
+whole set before drilling in.
 
-**DO stub the context rather than the components** when a component needs a provider. Read what it
-actually consumes first: on 2026-08-10 a node shell needed exactly one field, so a one-field cast
-replaced standing up an entire fake context.
+**DO open on a BIRD'S-EYE grid — variants as thumbnails, 3 to a row — so he decides at a glance which to
+look at closely.** Each thumbnail is the variant's AFTER, labelled and selectable right there.
+**DON'T make him scroll past full-size variants to compare them.** Comparing is the whole job of the
+grid; a stacked scroll defeats it.
 
-**DO use real data**, read out of the project's own database or fixtures, and say in the file where
-it came from and when. Invented copy hides the wrapping, the truncation and the empty states that
-are the whole reason to look.
+**DO click a thumbnail into a FULL view**, and keep a PERSISTENT thumbnail filmstrip (a rail) visible in
+focus mode with the current variant highlighted, so orientation is free. Add next/previous, a "back to
+grid" control, and keyboard nav (←/→ move, Esc back to grid, Home/End first/last).
 
-**DO reuse existing behaviour rather than reimplementing it in the preview.** If the preview needs
-a component to change, CHANGE THE COMPONENT — that change is part of the work anyway, and a preview
-that forks it proves nothing about the real screen.
+**DO offer a PRESENT / full-screen mode that hides all chrome, with fit / fill / 100% scaling**, so a
+mockup is judged uncovered by UI.
+
+**DO SEPARATE variants by TYPE — tabs or titled lanes, each type its own section** (the dashboard's
+variants in one, the modal's in another), so several different changes live in one document without
+blurring together. Keep types to a handful; a type is a chunk, a variant is an item inside it.
+
+**DO put secondary detail (specs, notes, rationale) behind a per-variant DETAILS drawer** — progressive
+disclosure keeps the canvas clean.
+
+**DO float a HUD — fixed, high z-index, styled with NONE of the app's tokens — that ALWAYS shows where he
+is:** the current type, variant N of M within it, the current VERSION, and quick nav. He never loses
+his place.
+TEST: at any moment the HUD names the type, the variant position (N of M), and the version being viewed.
+
+## The consolidation gallery (many self-contained files → one review surface)
+
+When a fan-out (e.g. `/sk:work-hyperspeed`) produces N self-contained mockup FILES rather than one
+`#spec` document, the gather builds ONE review gallery over them.
+
+**DO make that gallery a self-contained single file BY DEFAULT — INLINE every mockup into it.** Embed
+each file's HTML in a `<script type="application/json" id="mocks">` island and point each iframe at
+`fr.srcdoc=MOCKS[key]`, never `fr.src=<sibling-path>`. `about:srcdoc` is same-origin to the gallery, so
+every tile renders from `file://` AND the gallery's cross-frame controls still reach in.
+**DON'T hand over a gallery that iframes sibling files over `http://localhost`** — `file://` blocks
+cross-origin iframes, so a recipient who opens it gets blank tiles (the fix that re-inlined
+`gallery-share.html`: 8 mockups inlined, verified rendering on `file://` with zero server). Serving over
+http is a DEV convenience for fast cache-busted refresh while you edit the mockups; RE-INLINE before
+handoff so the at-rest deliverable always opens standalone.
+TEST: open the gallery from `file://` with the server OFF — every tile still renders.
+
+Build it with these controls BY DEFAULT:
+
+- **Bird's-eye GRID with CONFIGURABLE columns (1 / 2 / 3 per row).** Each tile is a small DESKTOP view —
+  render the mockup at ~1440px and scale it to fit the tile; NEVER render it narrow (that trips the
+  mockup's own mobile breakpoint and looks squished). On a column change, re-scale to the new tile width.
+- **Each tile SCROLLS INDEPENDENTLY** — scale the full page into a `scaleinner` sized to the scaled
+  height, tile `overflow-y:auto`, iframe `pointer-events:none` so the wheel scrolls the tile and a click
+  opens it. He can then scroll two tiles to different sections and compare them.
+- **A GLOBAL VIEW (before/after) + SURFACE nav that drives ALL tiles at once.** The fanned-out parts are
+  CONTENT-ONLY (no per-part HUD) and expose `[data-mode="before|after"]` + CONSISTENT `[data-surface]`
+  values; the gallery hides each part's own control bar and clicks those hooks in every tile, so
+  "switch all variants to surface X" is one click.
+- **Click a tile → FOCUS** (full-size, filmstrip rail, ←/→/Esc/Home/End) → **Present** (full-screen).
+- **A FLOATING HUD** — fixed, styled with none of the app's tokens — showing view · variant N of M ·
+  version. NEVER put it inside the header: a wide header scrolls it off-screen and reads as "no HUD".
+- **Keep/comment + an Approve / Request-changes verdict per variant**, using the response contract of
+  `/sk:work-ask-reply-in-full-before-after-artifact`.
+- **A QUIET version box** (per § versioning) — each consolidation checkpoint is a version, newest active.
+- **Tile height scales with the column count:** 1 column = one variant fills the screen and must FIT
+  without overflow (leave room for the header + tile cap so a single tile needs no page scroll); 2 =
+  ~half screen; 3 = a cozy default (~340px). Switching the focused variant RESETS its scroll to the top.
+- **Place the floating HUD OFF the mockup's own chrome** — a corner clear of the app's action buttons,
+  raised above the filmstrip in focus (it once sat over the app's Upgrade / Buy-Credits buttons).
+
+**CLASS-OF-BUG to avoid: an id selector that sets `display` on a view overrides the `.view{display:none}`
+toggle.** `#compare{display:flex}` kept an empty pane displayed over the grid on ALL views — a whole
+"blank grid" was actually a gray overlay on top. Scope every view's display to its `.show` class
+(`#compare.show{display:flex}`), and when a view looks blank, `elementFromPoint` the empty area before
+assuming lost content. Verify the gallery in the browser before handing it over — including a `file://`
+open with the server off — and cache-bust the reload (`?t=`) or a served gallery hands you the stale
+file mid-iteration.
+
+## Compare — side by side, and diff what changed between versions
+
+**DO give a 3-up SIDE-BY-SIDE compare mode (cap 3-4 variants)** so he judges options head to head without
+holding them in memory, plus an onion-skin opacity slider (or a before/after wipe) for two close variants
+where a small positional shift matters.
+
+**DO DIFF two versions at the FIELD level — green added, yellow modified, red removed** — derived from
+`#spec`, since the state is structured data. This is the single highest-value comparison feature and the
+reason the data island is worth it: it shows exactly what a recipient changed between v1 and v2, which
+even design tools built on rasters cannot do on their own content.
+TEST: switching to "compare v1 → v2" marks every added/modified/removed field, and the marks come from
+`#spec`, not from eyeballing two screenshots.
+
+## Point at what's new
+
+**DO gently highlight the CHANGED region of each variant, so a small new section is not missed.** When a
+variant first opens, flash the changed area ONCE — a brief 150-300ms outline or glow — then HOLD a static
+marker (a persistent outline on the changed region, the rest dimmed). Give a "What's new" control that
+re-flashes on demand, and respect `prefers-reduced-motion` (fall back to the static marker, no motion).
+**DON'T pulse it forever or animate the whole screen.** A looping animation dilutes attention and gets
+annoying on repeat; one flash then a static marker is what defeats change-blindness without distraction.
+TEST: opening a variant flashes only the region the plan changed, once, then a static outline stays; the
+"What's new" button re-flashes it, and reduced-motion shows the static marker with no flash.
+
+## Let him — and a recipient — choose, comment, and decide
+
+**DO make the variants selectable (one or more), each with a comment box for what to keep and what to
+change, using the response contract from `/sk:work-ask-reply-in-full-before-after-artifact`** — so he
+hands back exactly what he selected and commented without typing a variant name.
+**DON'T make him read a variant's name and type it back.** The picks and comments ARE the decision.
+
+**DO let him PIN a comment to a specific region** — anchor it to the element's id in `#spec`, not to raw
+x/y, so the pin survives a reflow — with a resolve/done state, and an explicit **Approve** or **Request
+changes** verdict per variant. Pins, resolve and an approve/request-changes verdict are the feedback
+reviewers actually rely on.
+
+**DO dock the picks/comments panel COMPACT and collapsed, so it never covers the mockup.**
+**DON'T float it over the screen he is judging.**
+TEST: he selects variants, comments and pins keep-or-change on each, sets a verdict, opens the panel and
+copies, and the block names every pick, rejection, pinned comment and verdict.
+
+## Share it, and run the LOSS-FREE review round-trip
+
+The document goes to someone who is NOT Simon — a stakeholder, a teammate — and comes back with their
+picks and change requests. Send the FILE (their Claude edits it directly, loss-free), or the artifact
+URL when it is small and un-gated.
+
+**DO make the document GUIDE a first-time recipient.** A short, dismissible intro on open explains: browse
+the variants (grid → full view), select the ones you like, pin comments for changes, and set a verdict.
+The guidance is part of the document; the recipient needs no briefing from Simon.
+
+**DO make the copy-paste hand-off block BE the complete build spec — the verbatim `#spec` in an XML
+instruction frame**, so nothing degrades on the round-trip:
+
+```text
+<task>
+Rebuild a versioned UI mockup from the spec below. The <spec> JSON is the SINGLE SOURCE OF TRUTH.
+Render it exactly. Do NOT paraphrase, summarise, invent, reorder, or drop any field.
+Produce ONE self-contained HTML file. No external calls; inline or pin every dependency.
+</task>
+<spec> …the FULL #spec JSON, verbatim: manifest, designTokens, versions[] with before/after, selections,
+comments, verdicts… </spec>
+<build>
+1. Embed <spec> unchanged as <script type="application/json" id="spec">.
+2. render(spec): build the grid, focus view, filmstrip, HUD, compare/diff and comment UI PURELY from #spec.
+3. Nothing user-visible may exist outside #spec; style only from designTokens.
+</build>
+<invariants>
+- Output the ENTIRE file. No placeholders, no "// unchanged", no elisions.
+- Every string in #spec must appear in the rendered output.
+- versions rendered == manifest.versionCount; all manifest.variantIds present.
+- When handing back, RE-EMBED the updated #spec verbatim — never a prose description.
+</invariants>
+<selfcheck>
+Before returning: parse #spec from your own output, assert the three invariants, report each PASS/FAIL.
+</selfcheck>
+```
+
+**DO instruct the recipient's Claude, inside that block, to:**
+1. Apply the picks + comments as a NEW version — EDIT the file's `#spec` directly if they have the file,
+   or REGENERATE from the block above if they only have the copied text. Change only the relevant `#spec`
+   fields and re-render; reserve a full rebuild for when the render layer changes.
+2. Increment the VERSION HISTORY in `#spec`, attributed: v1 is the author, v2 is this recipient, and so
+   on — each version records who made it, when, and what changed.
+3. Tell the recipient to LOOK at the updated mockup and confirm it reflects their asks.
+4. Tell the recipient to PASS IT BACK to the original author (the updated file, or the fresh block).
+
+**DO keep EVERY version inside `#spec` — the mockup carries its own history.** The HUD version selector
+switches between versions, each attributed to its author, and the field-level diff (above) shows what
+each version changed. The author receives ONE document and steps back through v1 (what they proposed),
+v2 (what the recipient chose and asked for), and onward — variants and all — never a pile of files.
+**DON'T flatten an old version away when a new one is made.** The trail — who changed what, and why — is
+exactly what the author needs to resolve it.
+TEST: the returned document opens on the latest version, the HUD lists every version with its author,
+switching to an earlier version shows that author's variants + picks + comments intact, and the diff
+marks what changed between any two.
+
+## Version every iteration — grouped, latest-active, and QUIET
+
+Versions are not only for the external round-trip above — every LOCAL iteration checkpoint is a version,
+so you can watch your own progression as you edit. The hyperspeed fan-out → consolidation is the
+canonical case: each fanned-out pass saves its variant stamped with the CURRENT version, and the
+consolidation groups all same-version variants into ONE version group. So each consolidation checkpoint
+is one version (round 3 = v3, round 4 = v4, …), each holding that round's variants; the next round
+APPENDS the next version rather than overwriting, and older versions stay reachable to show the
+progression.
+
+**The newest version is always active; older versions are for looking back only** — open on the latest
+version's variants. **Keep the version control COMPACT and quiet — it is NOT a primary interface
+element:** a small, low-prominence affordance in a corner (a tiny `v4 ▾` stepper), visually quieter than
+the variant switcher, that never obscures the design and is reached only on demand. TEST: the version
+control is a small corner affordance, the newest version is active on open, and switching to an older
+version shows that version's grouped variants intact.
 
 ## Cite where each part came from
 
-**DO put a sources line on every preview**, naming the validated plan part, ticket or decision it
-implements, by link.
+**DO put a sources line in the spec**, naming the validated plan part, ticket or decision each visible
+difference implements, by link.
 **DON'T show a change with no source.** Anything unsourced is scope you invented, and this is the
 cheapest moment to notice.
 
-**DO refute, in the preview's own comments, any part that changed after validation** — what the plan
-said, what it is now, and what the evidence was. He validated the plan; a silent divergence spends
-that trust.
+**DO refute, in the spec's own notes, any part that changed after validation** — what the plan said,
+what it is now, and what the evidence was. He validated the plan; a silent divergence spends that trust.
 
 TEST: every visible difference between before and after traces to a named source, or is explicitly
 marked as a refutation with its reason.
 
-## Keep it quick
+## Check it against the real app, and fold the fix forward
 
-**DO limit it to what can be judged by eye** — layout, hierarchy, wording, density, state. Wire no
-network, no persistence, no auth.
-**DON'T build interactivity beyond selecting and toggling.** He is looking, not operating.
+**DO diff every overlaid and new-state component against a real render before showing him** — screenshot
+the same component in the app at the same viewport and seed, and compare size, font, colour, spacing and
+radius. A difference means the overlay measured the wrong value or missed one; fix it against the
+measurement, never by nudging pixels.
+**DON'T show a mockup you have not checked against the real app.** Nearly-right is the whole failure, and
+the real render is the ground truth that catches it.
 
-**DO make a GALLERY of options selectable in the page** when the mockup exists for him to choose among
-them — a grid of variants, not a single before/after. Click a card to toggle it (the component's own
-selected/active state plus a checkbox), a fixed bar lists the picks, and a Copy button puts them on the
-clipboard; persist the set to localStorage so a long compare does not lose it.
-**DON'T make him read each option's name and type it back.** That transcription is the error the mockup
-exists to remove; the picks ARE the decision the gallery is for.
-TEST: he selects the options he wants and hands you the exact list without typing a name.
+**DO fix the CLASS and fold it forward.** When a divergence traces to how this skill works — a
+measurement it skips, a token it never reads, a state it forgets — propose the durable fix to this skill
+through `/sk:claude-config-update` so the next mockup is exact from the first render. That is the
+`self-healing-config` loop.
 
-**DO iterate on the preview until he approves it.** Then the second half of this skill starts.
+**DO iterate on the mockup until he approves it.** Then the second half of this skill starts.
 
-## After he approves: implement it, prove it matches, then delete it
+## After he approves: implement it, prove it matches
 
 **A mockup is only worth what ships.** On 2026-08-11 an approved mockup was called implemented three
 separate times with three different details still missing, and each was found by Simon opening the
@@ -99,9 +389,11 @@ failure this half exists to make impossible.
 
 ### Build the inventory BEFORE writing any code
 
-**DO re-read the approved mockup file top to bottom and write every visible difference as a numbered
+**DO re-read the approved `#spec` top to bottom and write every visible difference as a numbered
 row.** Each row names three things: what changes, the file that must change, and **the CALL SITE that
-must pass it**. Rows come out of the file, never out of your memory of the round.
+must pass it**. Rows come out of the spec, never out of your memory of the round. Walk every
+storyboard step, not just the entry screen — a state reached only by clicking through is the one most
+likely to be missed.
 
 **DO treat the third column as the real work.** A component that grows a prop no caller passes is the
 DEFAULT outcome, not an edge case: the component changes, every test passes, the screen does not move.
@@ -132,12 +424,12 @@ the failure looked like all three times.
 
 TEST: every row has a value next to it. A row with no value is an unimplemented row.
 
-**DO delete the mockup route only once every row is green**, in the same change that lands the work. A
-preview kept past that drifts from the screen it claims to show; one deleted before it is proven takes
-the checklist with it.
+**DO tear down any scratch render rig you stood up to measure** — a temporary route or harness — in
+the change that lands the work. The mockup document itself is not in the repo, so there is no dev route
+to clean up.
 
 ## Report
 
-Give him the URL, one line on what changed between before and after, and the open questions as a
-numbered list — the things you genuinely cannot decide for him, each with the option you would pick.
+Give him the mockup — the file path or the artifact URL — one line on what changed between before and
+after, and the open questions as a numbered list, each with the option you would pick.
 **DON'T ask him about anything the preview already answers.**

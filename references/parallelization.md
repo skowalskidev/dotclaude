@@ -51,8 +51,39 @@ mechanism.
 analysis: `~/.claude/bin/superspeed-analyse.py`). Run `/sk:claude-config-self-optimize-analysis-after-run` on the run
 directory afterwards.
 
+**`/sk:work-hyperspeed` is a two-level layer ON TOP of this** — an OUTER human relay (you paste each
+slice into its own session) where each session runs the INNER superspeed on its own slice where it makes
+sense, assembling from pushed branches off a shared START commit. It goes wider than one run's caps at
+the cost of a manual relay. `/sk:work-warpspeed` (TODO) is the third layer on top of that — the same relay spread across VMs/VPSs on
+DIFFERENT accounts/orgs, the only tier that breaks the per-org rate ceiling.
+
 **Honest limits:** measured at 22-120s per round on one machine, one account, one repo. The reconcile
 stage was not in the benchmark, so its cost is not in those numbers.
+
+## Self-improving a parallel run — shared by superspeed and hyperspeed
+
+A parallel harness is mediocre on its first runs and gets good only if each run records what it cost and
+the next one is cut better. Both `/sk:work-superspeed` (automated) and `/sk:work-hyperspeed` (hand-run)
+use this loop; it is defined ONCE here and neither restates it.
+
+**Record every fixed file with a `cause`** in the run's `reconcile.json`:
+- `slice` — the slice got it wrong. The ONLY cause that means the PARTITION needs changing.
+- `late_scope` — the ask changed after dispatch. The partition was fine for what it was told.
+- `reconciler` — you broke it while assembling. Not the slice's fault, not the partition's.
+
+Recording all three as one number gets two of them the wrong prescription — measured across two
+consecutive runs whose identical rework counts came from opposite causes.
+
+**Analyse every run, then heal only what RECURS.** Run
+`/sk:claude-config-self-optimize-analysis-after-run <run-dir>` on completion — an event, not a cron, so
+it stays inside `rules/self-healing-config.md`'s no-periodic-scan line. It reads what the run left and
+proposes durable fixes, including to the skill itself. But **auto-analyse, never auto-optimize:** the
+run analyses itself, it does not change the config on its own — an edit still goes through the
+self-healing propose-and-confirm gate, and most runs propose NOTHING. Weigh every candidate against the
+fixed ~33s fan-out toll: splitting a fast slice finer, freezing one more contract, or adding a log field
+for a one-off spends more than it saves and DEGRADES the next run. Only a finding that RECURS across
+runs (check the prior run's log) is durable enough to become a rule; a single run's symptom is a
+re-partition note, not a config change. Silence is the default.
 
 ## Parallelize across tasks AND stages
 - Default to fanning work out across parallel agents whenever it's safe and speeds things up — wherever the pieces are genuinely independent (disjoint files, no shared state, no same-account/CLI clashes).

@@ -105,6 +105,8 @@ CONTRACTS: dict[str, dict] = {
             "exception to it. There is exactly ONE. Widening that list, or letting an exception be "
             "recorded in the skill that benefits from it instead of here, is the regression: an "
             "ask-first gate with an open-ended exception list is not a gate.",
+            "The checklist and the decisions behind it survive a RESTART in a durable store — a "
+            "ticket or .context/, never /tmp or memory.",
         ],
     },
     "rules/security.md": {
@@ -185,6 +187,8 @@ CONTRACTS: dict[str, dict] = {
             "word hides a missing number; the fix is the number, never a narrower check.",
             "Defines a mission as an OUTCOME that can decide a diff, distinct from `purpose` which "
             "states what the part is.",
+            "Bans re-explaining a config part the file already references or that self-describes: name "
+            "it once, no behaviour gloss. TEST: every named part appears without a description and once.",
         ],
     },
     "references/contracts-and-outcomes.md": {
@@ -210,6 +214,18 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
+            "The issue tracker is kept In-Progress and PR-linked both ways; only tickets the PR "
+            "delivers are linked.",
+        ],
+    },
+    "references/human-pacing.md": {
+        "mission": "A human driven through a manual sequence always has exactly one action in front of them and knows it is their turn, so a paced flow never becomes a wall of steps they lose the thread in.",
+        "purpose": "The shared contract for pacing a human through a manual multi-step flow, one step at a time.",
+        "criteria": [
+            "The plan lives in a file; chat gets one action per message, never the whole plan.",
+            "Every step carries a progress count and signals the hand-off as the first action of a "
+            "blocking response.",
+            "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
         ],
     },
     "references/parallelization.md": {
@@ -219,19 +235,26 @@ CONTRACTS: dict[str, dict] = {
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
+            "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
+            "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring); superspeed and "
+            "hyperspeed point to it, not restate it.",
         ],
     },
     "references/planning-and-tracking.md": {
         "mission": "Simon sees the whole shape before work starts, and no ask is silently dropped between the plan and the hand-back.",
         "purpose": "Plan first, track every ask, verify foundations, scope a feature fully.",
         "criteria": [
-            "The checklist is a real artifact that survives compaction.",
+            "Names the durability tiers — the ticket outlives all, .context/ survives a restart but "
+            "dies with the worktree — and promotes decisions and human input to the ticket before teardown.",
             "A feature is scoped across discoverability and docs, not just its mechanism.",
             "Every plan, ticket and PR body OPENS with the user-journey block, above the technical "
             "detail. The format itself moved to references/tldr-report-formats.md; this file owns "
             "when it is required, not what it looks like.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
+            "Every out-of-code surface the work touches (edge/CDN, a design tool, a third-party "
+            "console, a dashboard) is asked for before the plan, and each ticket names the inputs "
+            "its implementer must obtain.",
         ],
     },
     "references/research.md": {
@@ -307,7 +330,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Paces Simon through a real user journey while watching instrumented logs.",
         "criteria": [
             "Machine-checkable defects are fixed before his session starts.",
-            "One step per message, with a progress count.",
+            "Paces Simon per references/human-pacing.md (one action per message, progress count, "
+            "signal the hand-off); does not restate it.",
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
@@ -418,6 +442,56 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
+        ],
+    },
+    "skills/sk/skills/plan-stable-persistent-dynamic-complete-full-plan/SKILL.md": {
+        "mission": "Simon reads only what changed, never the whole plan again, and no request slips into code before he confirms — because there is exactly one living plan that stays in plan-mode until he says go.",
+        "purpose": "Maintain ONE durable source-of-truth plan, update only the sections a request touches, highlight the delta, lock plan-mode until confirmed, then ask about tickets and hand off.",
+        "criteria": [
+            "One plan file at .context/<slug>-plan.md; a request updates only the sections it touches, never a wholesale rewrite.",
+            "Every update prepends a dated Changelog entry and shows Simon ONLY the changed section(s) as the delta in chat.",
+            "Stays in plan-mode — every request folds into the plan, nothing is implemented — until an explicit confirmation ('implement'/'go build'/'the plan is confirmed').",
+            "On confirmation it asks whether to encode the plan into tickets, then hands off to /sk:work-full-detailed-workflow automatically.",
+            "Reuses references/planning-and-tracking.md for the plan's content; does not restate it.",
+            "Backs every plan change with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) and offers a clickable preview (/sk:ship-mockup-before-after) for visible changes; does not restate either.",
+        ],
+    },
+    "skills/sk/skills/work-hyperspeed/SKILL.md": {
+        "mission": "A dividing task finishes across as many hand-run sessions as Simon can open, assembled from clean branches (or gathered from each part's reported path when parts produce standalone untracked artifacts), each part pasteable into a cold session with no prior context, and the skill gets better every round.",
+        "purpose": "Manual, branch-based parallel harness: one plan file of self-contained parts pasted into separate sessions, assembled from their pushed branches.",
+        "criteria": [
+            "Commits and pushes a clean START commit that every part branches from, before any part is written.",
+            "Each part is self-contained: whole shared context, owned files, the git branch-off-START "
+            "ritual, the repo setup ritual, and a fixed report-back block — pasteable into a cold session.",
+            "Assembles by merging the reported branches, deletes them local and remote, and tells Simon "
+            "to archive the sessions (it cannot touch the Claude UI).",
+            "Reconciles a run's full footprint at cleanup, not just branches: removes/prunes part "
+            "worktrees, sweeps orphan dev-servers, port lanes and stray claude -p slices, and each part "
+            "self-tears-down its processes before reporting done.",
+            "Shares the slice-cutting and reconcile craft with references/parallelization.md and "
+            "/sk:work-superspeed; does not restate it.",
+            "Records each round in a reconcile.json (same schema and causes as /sk:work-superspeed), "
+            "analyses it with /sk:claude-config-self-optimize-analysis-after-run, and folds only "
+            "recurring findings into this skill via the self-healing gate.",
+            "Guides Simon as a paced co-pilot session (references/human-pacing.md): one handoff at a "
+            "time, signal, wait; the plan file holds the rest.",
+            "Two levels, not a replacement for superspeed: each hand-run part runs its slice through "
+            "the full harness autonomously (full-detailed-workflow + inner /sk:work-superspeed where it "
+            "sub-divides + isolate-env + ship-report) and reports done only after ship-report confirms "
+            "its accept criteria.",
+            "Supports a standalone-artifact variant: when parts produce untracked files (not tracked "
+            "code), each writes to its OWN worktree and reports the absolute path, and assembly GATHERS "
+            "those paths into one collection dir instead of merging branches.",
+        ],
+    },
+    "skills/sk/skills/work-warpspeed/SKILL.md": {
+        "mission": "The outermost, account/org-spanning layer of the parallel stack is captured as a TODO so it is not re-invented, and Simon is sent to the working /sk:work-hyperspeed until it exists.",
+        "purpose": "Placeholder for the third layer: a whole hyperspeed relay spread across VMs/VPSs on different accounts/orgs. Not built.",
+        "criteria": [
+            "Frames the three-level stack (warpspeed on top of hyperspeed on top of superspeed); runs "
+            "nothing and points at /sk:work-hyperspeed.",
+            "States the honest blocker: Anthropic limits key on the org, so more machines on one "
+            "account add no throughput; the win needs separate accounts, per references/parallelization.md.",
         ],
     },
     "skills/sk/skills/work-copilot-agile-build/SKILL.md": {
@@ -613,46 +687,82 @@ CONTRACTS: dict[str, dict] = {
     "skills/sk/skills/ship-mockup-before-after/SKILL.md": {
         "mission": "The screen Simon approved is the screen that ships — he judges it by looking "
                    "before the work, and never has to find a missing detail by looking after it.",
-        "purpose": "Builds a dev-only before/after preview of a planned change inside the project, "
-                   "using the project's own components, one per ticket or plan part.",
+        "purpose": "Publishes a standalone, shareable Claude artifact of a planned change before/after "
+                   "— a real screenshot plus the real components' measured styles, walkable as a "
+                   "storyboard — one per ticket or plan part.",
         "criteria": [
-            "Builds the preview as a route INSIDE the project, never hand-written HTML and never a "
-            "published artifact, whenever the change has a real screen. Both alternatives were "
-            "tried on 2026-08-10 and rejected: a rebuilt screen is always nearly right, and nearly "
-            "right is what costs the round.",
-            "Uses the EXACT components, including the small ones. A bar or tile that merely looks "
-            "right is a lie that reads as a real preview.",
-            "Stubs the CONTEXT rather than the components, after reading what a component actually "
-            "consumes — one field is common, a whole fake context almost never needed.",
-            "Reads real data out of the project's own store and records where and when it came "
-            "from. Invented copy hides the wrapping, truncation and empty states worth looking at.",
-            "Carries a BEFORE/AFTER toggle defaulting to after, so two screens are compared in a "
-            "click rather than held in the head.",
-            "Floats every mockup control OVER the app, fixed and using none of the project's tokens. "
-            "A control placed inside a real component reads as a shipped feature and screenshots as "
-            "though it were one.",
-            "Cites the validated plan part behind every visible difference, and refutes in comments "
-            "anything that changed after validation, with the evidence. Unsourced difference is "
-            "invented scope, and this is the cheapest moment to catch it.",
-            "Gated on development and deleted in the change that lands the work. A preview kept "
-            "past sign-off drifts from the screen it claims to show.",
-            "Changes a component when the preview needs it changed, rather than forking it. A "
-            "forked copy proves nothing about the real screen.",
-            "Derives a numbered inventory FROM THE APPROVED MOCKUP FILE before writing any code, "
-            "each row naming what changes, the file, and the CALL SITE that must pass it. A "
-            "component that grows a prop no caller passes is the default outcome, not an edge "
-            "case: three landed in one round on 2026-08-11, all shaped identically.",
-            "Sweeps the mockup's own markup for controls no plan or slice ever specified, because "
-            "an unspecified control is the row most likely to be dropped — the Regenerate button "
-            "survived three rounds of being reported done.",
+            "Ships a self-contained shareable Claude artifact for a change with a real screen, never "
+            "a dev route to view it and never HTML rebuilt by eye. Fidelity comes from real pixels; "
+            "both alternatives were rejected 2026-08-10.",
+            "Captures the BEFORE as a screenshot of the target screen at a fixed viewport, populated "
+            "with realistic data — a seeded demo counts — never placeholder, lorem or empty-stub "
+            "content, which hide the states worth looking at.",
+            "Measures the real components (getComputedStyle, getBoundingClientRect: size, font, "
+            "colour, spacing, radius) and sizes the AFTER from those values. Every dimension and "
+            "colour in the overlay traces to a measured value, never eyeballed.",
+            "Overlays only the region the plan touches on the screenshot for a single-screen change; "
+            "the rest stays untouched real pixels. Re-rendering the unchanged parts re-introduces "
+            "the nearly-right rebuild.",
+            "Renders a flow as a WALKABLE storyboard covering every step and state from "
+            "references/user-journey-review.md, empty, loading and error included, so he reaches "
+            "every state rather than the first screen alone.",
+            "Simulates every transition with local state and seeded data — no network, no "
+            "persistence, no auth, no real requests. He walks the flow, he does not operate a live "
+            "app.",
+            "Embeds the screenshot as a compressed data URI with inline CSS/JS for the artifact CSP, "
+            "and applies the visual craft directly (theme-aware, self-contained, real content) rather "
+            "than loading a separate design skill.",
+            "Carries a BEFORE/AFTER toggle defaulting to after, floated over the screen using none "
+            "of the app's tokens, so scaffolding never reads as a shipped feature.",
+            "Cites the validated plan part behind every visible difference and refutes in comments "
+            "anything that changed after validation. Unsourced difference is invented scope, and "
+            "this is the cheapest moment to catch it.",
+            "Offers a variant gallery whose picks and per-variant keep/change comments use the "
+            "response contract from /sk:work-ask-reply-in-full-before-after-artifact, docked compact "
+            "and collapsed so it never covers the mockup.",
+            "Ships as a self-contained HTML FILE for a collaborative/versioned/multi-screenshot "
+            "round-trip, or a Claude artifact URL only when small and un-gated — the artifact's size "
+            "ceiling, blocked localStorage and Team-can't-publish-publicly limits pick the medium.",
+            "The consolidation gallery over N fanned-out files opens from file:// with no server — every "
+            "mockup inlined as srcdoc, never iframed from sibling paths — so a recipient sees rendered "
+            "tiles, not blank ones with the server off.",
+            "Keeps all state in an embedded <script id=spec type=application/json> data island and "
+            "renders the UI from it; nothing user-visible exists outside #spec, so a rebuild is "
+            "re-render-from-data (loss-free), not re-describe.",
+            "Compresses screenshots (WebP, downscaled, capped) so the document fits the output cap — "
+            "never a full-res PNG base64 — and never uses localStorage/sessionStorage (blocked in the "
+            "artifact sandbox); state is in-memory + #spec.",
+            "Browses overview-first: a bird's-eye grid (3/row) into a focus view with a persistent "
+            "filmstrip, keyboard nav and a present/full-screen mode; variants separated by TYPE; a HUD "
+            "always showing type, variant N-of-M and version.",
+            "Compares 3-up side-by-side and diffs two versions at the FIELD level (green added / "
+            "yellow modified / red removed) from #spec — what even raster tools cannot do on their "
+            "own content.",
+            "Lets a reviewer pin comments to element ids (survive reflow), resolve them, and set an "
+            "Approve/Request-changes verdict; flashes a change ONCE then holds a static marker, "
+            "respecting prefers-reduced-motion.",
+            "The copy-paste hand-off block IS the complete build spec: the verbatim #spec in an XML "
+            "frame (task/spec/build/invariants/selfcheck) that forbids elisions and re-embeds #spec "
+            "verbatim, so another Claude rebuilds with nothing dropped.",
+            "Keeps every version inside #spec as attributed history (v1 author, v2 recipient), "
+            "switchable from the HUD; a recipient's Claude edits the file or regenerates from the "
+            "block into a new attributed version, and never flattens an old one.",
+            "Diffs every overlaid and new-state component against a real render before showing him, "
+            "and when a divergence traces to the skill folds the fix forward through "
+            "/sk:claude-config-update. That is the self-healing-config loop.",
+            "Derives a numbered inventory FROM THE APPROVED ARTIFACT before writing code — each row "
+            "naming what changes, the file, and the CALL SITE, across every storyboard step. A prop "
+            "no caller passes is the default: three landed identically 2026-08-11.",
+            "Sweeps the artifact's own markup for controls no plan or slice ever specified, the row "
+            "most likely to be dropped — the Regenerate button survived three rounds of being "
+            "reported done.",
             "Gives every row a mechanical check returning a readable value, runs it against the "
             "REAL screen, and reports the value. A comparison made from memory cannot see what the "
             "comparer forgot, which is the whole failure mode.",
-            "Deletes the route only once every row is green. Earlier takes the checklist with it; "
-            "later drifts from the screen it claims to show.",
-            "Makes a gallery of options selectable in the page — click to toggle, a fixed bar "
-            "listing the picks, a Copy button, persisted to localStorage — so the user hands over "
-            "the exact picks without typing a name.",
+            "Tears down any scratch render rig stood up to measure and leaves nothing in the repo, "
+            "since the artifact lives on Claude. There is no dev route to delete.",
+            "Changes a component when the mockup needs it changed rather than forking it. A forked "
+            "copy proves nothing about the real screen.",
         ],
     },
     "skills/sk/skills/work-preview-on-phone/SKILL.md": {
@@ -713,6 +823,38 @@ CONTRACTS: dict[str, dict] = {
             "every run is a nuisance rather than a feature.",
         ],
     },
+    "skills/sk/skills/meta-dotclaude-copilot-start-here-for-any-task/SKILL.md": {
+        "mission": "Simon calls ONE skill for any task and never has to remember which of 25+ fits — it routes, shows how far along he is at every level, and finishes with no skill forgotten and no tangent dropped.",
+        "purpose": "The single user-invocable front door: route a task to the right skills via skill-stack.md, present the plan, and drive it to a verified finish with an always-on progress bar.",
+        "criteria": [
+            "Routes via references/skill-stack.md and verifies every named skill is installed before "
+            "planning on it; never restates the map or a skill's method.",
+            "Keeps an always-on progress bar — the harness Task list as canonical tracker plus a compact "
+            "text bar echoed each response — with nested sub-progress for a sub-skill's multi-step process.",
+            "A tangent (a discovered fix, a mid-run ask) is a QUEUED task per process.md: handled, then "
+            "the main thread RESUMES; nothing is dropped.",
+            "Callable at any stage: re-reads the tracker and continues where the plan left off, never "
+            "restarting done work.",
+            "Reuses skill-stack.md + the intake gate + process.md; owns the entry point, the progress "
+            "bar, verifying skill names, and the resume.",
+        ],
+    },
+    "skills/sk/skills/meta-cleanup-worktrees/SKILL.md": {
+        "mission": "Simon's finished worktrees, branches and their Claude sessions get cleared away without any work-in-progress ever being lost, so a machine full of dead workspaces becomes just the live ones.",
+        "purpose": "Safely remove DONE (merged, clean, idle) worktrees + branches for a repo and name the Conductor sessions to archive.",
+        "criteria": [
+            "Removes a worktree/branch ONLY when its branch is ancestor-merged into origin/<default> OR "
+            "its PR is gh-MERGED (the OR covers squash and rebase merges).",
+            "BLOCKS any worktree that is dirty, has unpushed or local-only commits, has a live session "
+            "cwd'd in it, has an open or closed-unmerged PR, or is the current or main checkout.",
+            "Never --force on git worktree remove, and never git branch -D unless gh already confirmed MERGED.",
+            "Lists and CONFIRMS before deleting; remote-branch deletion is a separate extra-confirmed step, off by default.",
+            "Verifies cleanup against on-disk storage, not just git worktree list, and names the "
+            "Conductor sessions (codename + alias) for Simon to archive without touching the Claude UI.",
+            "Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh and points to process.md + "
+            "dev-server-hygiene.md; does not restate them.",
+        ],
+    },
     "skills/sk/skills/meta-report-standup-weekly/SKILL.md": {
         "mission": "Simon walks into standup with a 45-second script he did not have to write or remember.",
         "purpose": "Builds the spoken Last week / Today / Next standup bullets from the record of a "
@@ -740,13 +882,17 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Guided connector setup, doctor, and migration audit.",
         "criteria": ["Reads connectors/<project>.json. Asks before creating or reading a credential."],
     },
-    "skills/sk/skills/work-reply-in-full-before-after-artifact/SKILL.md": {
+    "skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md": {
         "mission": "Simon acts on a reply he did not understand: he reads it, picks from it, comments, and hands his exact choices back with no ambiguity.",
         "purpose": "Answer a confusing or multi-option reply as an interactive before/after decision artifact Simon selects and comments on.",
         "criteria": [
-            "Builds an artifact via artifact-design with explainer + before/after + verdict cards grouped into sections, not chat prose.",
+            "Builds an artifact (visual craft applied directly, no separate design skill) with explainer + before/after + verdict cards grouped into sections, not chat prose.",
             "Every card and every section is selectable and carries a comment field.",
-            "Always emits a self-contained copy-paste response block carrying the selections, rejections, and comments with their section context; a submit-to-chat button appears only when artifact-capabilities allows.",
+            "Renders a pick-one choice as RADIO buttons (one pre-selected) and an apply/include edit as "
+            "a CHECKBOX defaulting to CHECKED (opt-out); the two controls never look the same.",
+            "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",
+            "Holds every input (radios and textareas) in in-memory JS state — never localStorage/sessionStorage, blocked in the artifact sandbox — and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
+            "A submit-to-chat button appears only when the runtime is known to support a post-back (a claude.ai artifact; a Claude Code terminal HTML file has none); the copy-paste block always stands alone.",
         ],
     },
     "skills/sk/skills/claude-config-sync/SKILL.md": {
@@ -798,8 +944,9 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Claude never commits or pushes on the default branch, and never commits with -m or a heredoc.",
         "purpose": "PreToolUse: blocks a default-branch commit/push and an inline -m/heredoc commit.",
         "criteria": [
-            "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1; exempts the "
-            "~/.claude config repo, which lives on main by design.",
+            "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
+            "hook's env OR prefixed inline on the command; exempts the ~/.claude config repo, "
+            "which lives on main by design.",
             "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
             "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
             "Matches the plain Bash tool and parses the command; fails open on a malformed payload.",
