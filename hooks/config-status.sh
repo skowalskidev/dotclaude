@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # SessionStart hook: surface out-of-sync ~/.claude config so Claude proactively offers to sync it.
-# Runs ONCE per session start (event-driven, NO daemon). Fast — local git only. A rate-limited
+# Runs on session start and can re-fire mid-session (Conductor re-runs SessionStart between messages),
+# event-driven, NO daemon. Fast — local git only. A rate-limited
 # BACKGROUND fetch (at most once / 4h, fully detached) keeps the remote-tracking ref fresh for
 # multi-machine use; it never blocks session start and is not an always-on process.
 REPO="$HOME/.claude"
