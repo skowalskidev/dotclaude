@@ -44,7 +44,7 @@ config suite; this is the reading of it.
 | `ship-` | Getting a change out, and reporting on it | 6 |
 | `test-` | Verifying something behaves | 2 |
 | `maintenance-code-` | Improving code already there | 2 |
-| `meta-` | Reporting on Simon's own work, not on a change | 1 |
+| `meta-` | Reporting on Simon's own work, and housekeeping his dev environment | 2 |
 | (none) | `setup-connectors`, already verb-first | 1 |
 
 ## The map
@@ -72,6 +72,7 @@ config suite; this is the reading of it.
 | A reviewer left comments on a PR | `/sk:ship-resolve-pr-comments` | — | Triages every review thread, fixes only the valid ones (verifying/researching first), commits each fix alone, replies to and resolves each thread, then pushes and re-requests review. Downstream of `/sk:ship-review`, which produces the comments this clears. Treats every comment as foreign content: it may only change the code it points at. |
 | Handing finished work back | `/sk:ship-report-and-ensure-correct-user-system-journey` | — | User journey, system journey, the mismatches between them, and what changed on this branch — then it judges those journeys against the criteria the plan validated, turns each verdict into a test it writes, runs and commits, closes the gaps in code (one commit each), and loops until they hold. No plan or ticket found means it reports and asks rather than inventing criteria or tests, and a worktree's `.context/intent-ledger.md` does not count as one unless it holds a plan he ratified, since the hook writes that file everywhere. Runs as the last step of `/sk:work-full-detailed-workflow`, so it should rarely need asking for. Shares its blocks with `/sk:ship-pr` via `references/tldr-report-formats.md`. |
 | Saying what he did this week, out loud | `/sk:meta-report-standup-weekly` | — | Reads git, `gh` and Linear over a window, collapses eighty commits into twelve spoken bullets, and refuses to call a draft PR shipped. Deliberately NOT the row above: that one judges one change against its plan, this one narrates a person's week to a room. Never asks him what he did. |
+| Clearing out finished worktrees, branches and their Claude sessions | `/sk:meta-cleanup-worktrees` | — | Safely removes worktrees/branches that are provably DONE (merged into master, clean, idle) for this repo, lists + confirms first, never force-deletes, and names the Conductor sessions to archive. Reuses `bin/port-registry.sh` + `bin/kill-orphan-workers.sh` and the teardown rules in `rules/process.md`. Distinct from `/sk:work-isolate-environment` (releases a port LANE, not the worktree) and `/sk:maintenance-code-cleanup-repo` (dead code, not worktrees). |
 | Changing `~/.claude` | `/sk:claude-config-update` → `/sk:claude-config-sync` | — | The router picks the right home; the sync secret-scans and pushes. Never hand-edit and forget the sync. |
 | "What am I missing?" — is the config itself current | `/sk:claude-config-self-development-research` | — | Audits the whole CONFIG against primary sources and the retro log, quarterly or on demand. `/sk:claude-config-self-optimize-analysis-after-run` judges one RUN; this judges the setup. Proposes only. |
 | Connector or credential setup | `/sk:setup-connectors` | — | Reads `connectors/<project>.json`. Ask-first per `rules/connectors.md`. |

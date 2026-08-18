@@ -129,6 +129,11 @@ SCENARIOS: list[dict] = [
     {"phrase": "write my standup", "expect": "meta-report-standup-weekly"},
     {"phrase": "monday morning standup", "expect": "meta-report-standup-weekly"},
     {"phrase": "what did I do last week", "expect": "meta-report-standup-weekly"},
+    {"phrase": "clean up merged worktrees", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "remove done worktrees and branches", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "tidy up my worktrees", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "delete merged branches", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "which sessions can I archive", "expect": "meta-cleanup-worktrees"},
 
     # --- The config itself ---------------------------------------------------------
     {"phrase": "sync my config", "expect": "claude-config-sync"},

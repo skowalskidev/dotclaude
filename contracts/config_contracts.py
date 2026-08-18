@@ -789,6 +789,22 @@ CONTRACTS: dict[str, dict] = {
             "every run is a nuisance rather than a feature.",
         ],
     },
+    "skills/sk/skills/meta-cleanup-worktrees/SKILL.md": {
+        "mission": "Simon's finished worktrees, branches and their Claude sessions get cleared away without any work-in-progress ever being lost, so a machine full of dead workspaces becomes just the live ones.",
+        "purpose": "Safely remove DONE (merged, clean, idle) worktrees + branches for a repo and name the Conductor sessions to archive.",
+        "criteria": [
+            "Removes a worktree/branch ONLY when its branch is ancestor-merged into origin/<default> OR "
+            "its PR is gh-MERGED (the OR covers squash and rebase merges).",
+            "BLOCKS any worktree that is dirty, has unpushed or local-only commits, has a live session "
+            "cwd'd in it, has an open or closed-unmerged PR, or is the current or main checkout.",
+            "Never --force on git worktree remove, and never git branch -D unless gh already confirmed MERGED.",
+            "Lists and CONFIRMS before deleting; remote-branch deletion is a separate extra-confirmed step, off by default.",
+            "Verifies cleanup against on-disk storage, not just git worktree list, and names the "
+            "Conductor sessions (codename + alias) for Simon to archive without touching the Claude UI.",
+            "Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh and points to process.md + "
+            "dev-server-hygiene.md; does not restate them.",
+        ],
+    },
     "skills/sk/skills/meta-report-standup-weekly/SKILL.md": {
         "mission": "Simon walks into standup with a 45-second script he did not have to write or remember.",
         "purpose": "Builds the spoken Last week / Today / Next standup bullets from the record of a "

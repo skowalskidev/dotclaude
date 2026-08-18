@@ -32,8 +32,8 @@ PREFIXES: dict[str, str] = {
     "ship-": "Getting a change out and reporting on it: PR, review, the end report.",
     "test-": "Verifying something behaves: driving the UI, pacing a human through a flow.",
     "maintenance-code-": "Improving code that already exists: cleanup, performance.",
-    "meta-": "Reporting on Simon's own work rather than on a change: what he did over a period, "
-             "written for a person to read or say.",
+    "meta-": "About Simon's own work and dev environment rather than a code change: reporting what he "
+             "did over a period, or housekeeping his workspaces and history.",
 }
 
 # Skills allowed to carry no prefix. An exception has to be declared here rather than just happening.
