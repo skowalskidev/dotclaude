@@ -54,7 +54,8 @@ directory afterwards.
 **`/sk:work-hyperspeed` is a two-level layer ON TOP of this** — an OUTER human relay (you paste each
 slice into its own session) where each session runs the INNER superspeed on its own slice where it makes
 sense, assembling from pushed branches off a shared START commit. It goes wider than one run's caps at
-the cost of a manual relay. `/sk:work-warpspeed` is its VM/VPS evolution (not built).
+the cost of a manual relay. `/sk:work-warpspeed` (TODO) is the third layer on top of that — the same relay spread across VMs/VPSs on
+DIFFERENT accounts/orgs, the only tier that breaks the per-org rate ceiling.
 
 **Honest limits:** measured at 22-120s per round on one machine, one account, one repo. The reconcile
 stage was not in the benchmark, so its cost is not in those numbers.

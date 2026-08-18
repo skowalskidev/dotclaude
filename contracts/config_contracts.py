@@ -467,10 +467,11 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/work-warpspeed/SKILL.md": {
-        "mission": "The VM/VPS evolution is captured as a TODO so it is not re-invented, and Simon is sent to the working /sk:work-hyperspeed until it exists.",
-        "purpose": "Placeholder for running hyperspeed parts on separate VMs/VPSs. Not built.",
+        "mission": "The outermost, account/org-spanning layer of the parallel stack is captured as a TODO so it is not re-invented, and Simon is sent to the working /sk:work-hyperspeed until it exists.",
+        "purpose": "Placeholder for the third layer: a whole hyperspeed relay spread across VMs/VPSs on different accounts/orgs. Not built.",
         "criteria": [
-            "Runs nothing; it explains the plan and points at /sk:work-hyperspeed.",
+            "Frames the three-level stack (warpspeed on top of hyperspeed on top of superspeed); runs "
+            "nothing and points at /sk:work-hyperspeed.",
             "States the honest blocker: Anthropic limits key on the org, so more machines on one "
             "account add no throughput; the win needs separate accounts, per references/parallelization.md.",
         ],
