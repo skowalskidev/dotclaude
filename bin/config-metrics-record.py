@@ -77,6 +77,19 @@ def _boundary(cwd: str, ident: dict) -> str:
     return "personal"
 
 
+def _repo(cwd: str) -> str:
+    """The repo NAME (basename only — never the full path, org, or any content), for tagging which
+    context a part is used in. Both boundaries carry it; work sessions still drop their request text."""
+    try:
+        top = subprocess.run(["git", "-C", cwd or ".", "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=3).stdout.strip()
+        if top:
+            return os.path.basename(top)
+    except Exception:
+        pass
+    return os.path.basename(cwd) if cwd else "unknown"
+
+
 def _content_blocks(rec: dict):
     msg = rec.get("message")
     c = msg.get("content") if isinstance(msg, dict) else rec.get("content")
@@ -178,6 +191,7 @@ def main() -> int:
 
     ident = _identity()
     boundary = _boundary(cwd, ident)
+    repo = _repo(cwd)
     try:
         write_events = _load_writer()
     except Exception:
@@ -185,6 +199,8 @@ def main() -> int:
 
     events = parse_transcript(transcript, session_id, boundary)
     machine = os.uname().nodename if hasattr(os, "uname") else "unknown"
+    for e in events:
+        e["repo"] = repo
 
     if events:
         try:
@@ -194,7 +210,7 @@ def main() -> int:
     # Session metadata doc.
     try:
         write_events("sessions", [{
-            "session_id": session_id, "machine": machine, "boundary": boundary,
+            "session_id": session_id, "machine": machine, "boundary": boundary, "repo": repo,
             "end_reason": end_reason, "event_count": len(events),
         }])
     except Exception:

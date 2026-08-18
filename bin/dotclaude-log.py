@@ -64,10 +64,10 @@ def _iso(dt: _dt.datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _stamp(event: dict) -> dict:
+def _stamp(event: dict, strict: bool = True) -> dict:
     """Add ts/expireAt if absent; honor the event's boundary for intent redaction."""
     allow_intent = event.get("boundary") != "work"
-    e = minimize_event(event, allow_intent=allow_intent)
+    e = minimize_event(event, allow_intent=allow_intent, strict=strict)
     e.setdefault("schema_version", 1)
     e.setdefault("ts", _iso(_now()))
     e.setdefault("expireAt", _iso(_now() + _dt.timedelta(days=RETENTION_DAYS)))
@@ -163,10 +163,10 @@ def _drain_outbox(db) -> int:
     return written
 
 
-def write_events(collection: str, events: list[dict]) -> dict:
+def write_events(collection: str, events: list[dict], strict: bool = True) -> dict:
     """Minimize + stamp events, append to outbox, then best-effort flush. Never raises.
-    Returns a small health summary (used by pipeline_health)."""
-    events = [_stamp(e) for e in events if isinstance(e, dict)]
+    strict=False keeps trusted counts-only log schemas (see minimize_event). Returns a health summary."""
+    events = [_stamp(e, strict=strict) for e in events if isinstance(e, dict)]
     _append_outbox(collection, events)
     health = {"queued": len(events), "flushed": 0, "sink": "outbox"}
     db = _firestore_client()

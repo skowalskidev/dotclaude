@@ -358,7 +358,103 @@ def write_aggregates(db, rows: list[dict]) -> None:
         pass
 
 
+def _sibling(mod_file: str, name: str):
+    spec = importlib.util.spec_from_file_location(name, os.path.join(_HERE, mod_file))
+    m = importlib.util.module_from_spec(spec)  # type: ignore
+    spec.loader.exec_module(m)  # type: ignore
+    return m
+
+
+def import_logs() -> int:
+    """One-time: push legacy ~/.claude/logs/*.jsonl into their Firestore collections, then soft-
+    archive the local files to logs/migrated/. Nothing is deleted (soft-archive policy)."""
+    writer = _sibling("dotclaude-log.py", "dotclaude_log").write_events
+    logs_dir = os.path.join(_CLAUDE, "logs")
+    mapping = {
+        "retro-triggers.jsonl": "retro_triggers",
+        "intent-reconcile.jsonl": "intent_reconcile",
+        "isolate-runs.jsonl": "isolate_runs",
+    }
+    moved = 0
+    archive = os.path.join(logs_dir, "migrated")
+    for fname, coll in mapping.items():
+        path = os.path.join(logs_dir, fname)
+        if not os.path.exists(path):
+            continue
+        rows = []
+        for ln in open(path, encoding="utf-8"):
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                rows.append(json.loads(ln))
+            except Exception:
+                continue
+        if rows:
+            writer(coll, rows, strict=False)  # trusted counts-only schema; keep fields, scrub strings
+            print("imported %d rows -> %s" % (len(rows), coll))
+        try:
+            os.makedirs(archive, exist_ok=True)
+            os.rename(path, os.path.join(archive, fname))
+            moved += 1
+        except Exception:
+            pass
+    print("import-logs done: %d files soft-archived to logs/migrated/" % moved)
+    return 0
+
+
+def backfill(days: int = 30, cap: int = 8000) -> int:
+    """Seed usage from historical transcripts (bounded, personal-boundary only, capped to respect the
+    free-tier write quota). Reuses the recorder's parser so backfilled events match live ones."""
+    rec = _sibling("config-metrics-record.py", "config_metrics_record")
+    writer = _sibling("dotclaude-log.py", "dotclaude_log").write_events
+    ident = rec._identity()
+    proj_dir = os.path.join(_CLAUDE, "projects")
+    if not os.path.isdir(proj_dir):
+        print("no projects/ dir to backfill from")
+        return 0
+    import time
+    cutoff = time.time() - days * 86400
+    files = []
+    for root, _, fs in os.walk(proj_dir):
+        for f in fs:
+            if f.endswith(".jsonl"):
+                p = os.path.join(root, f)
+                try:
+                    if os.path.getmtime(p) >= cutoff:
+                        files.append(p)
+                except Exception:
+                    pass
+    files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+    total = 0
+    for p in files:
+        if total >= cap:
+            print("backfill cap %d reached; stopping (run again for older data)" % cap)
+            break
+        cwd_guess = "/" + os.path.basename(os.path.dirname(p)).replace("-", "/")
+        boundary = rec._boundary(cwd_guess, ident)
+        sid = "backfill_" + os.path.splitext(os.path.basename(p))[0][:20]
+        events = rec.parse_transcript(p, sid, boundary)
+        # Historical cwd reconstruction is imperfect, so never trust it to gate request text:
+        # backfill stores the config-part SIGNAL only, dropping intent unconditionally.
+        for e in events:
+            e.pop("intent", None)
+        if events:
+            writer("session_events", events)
+            total += len(events)
+    print("backfill: wrote %d events from %d transcripts (last %d days)" % (total, len(files), days))
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if "--import-logs" in argv:
+        return import_logs()
+    if "--backfill" in argv:
+        i = argv.index("--backfill")
+        days = 30
+        if i + 1 < len(argv) and argv[i + 1].isdigit():
+            days = int(argv[i + 1])
+        return backfill(days=days)
     want_html = "--html" in argv
     html_path = DASHBOARD
     if want_html:

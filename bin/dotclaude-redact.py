@@ -74,22 +74,29 @@ def redact_text(s: str) -> str:
 _ALLOWED_FIELDS: set[str] = {
     "schema_version", "seq", "ts", "session_id", "machine", "boundary", "end_reason",
     "kind", "part_type", "part_name", "tool_name", "outcome", "error_type", "count",
-    "expireAt", "captured_at", "optimized", "started", "ended", "event_count", "outbox_depth",
+    "expireAt", "captured_at", "optimized", "started", "ended", "event_count", "outbox_depth", "repo",
     # run-analytics fields (from superspeed), all non-content metrics
     "run_id", "slices", "duration_ms", "tokens", "cache", "findings_count", "instrumentation_gaps",
 }
 _INTENT_CAP = 2000  # chars; the request SHAPE, not a transcript dump
 
 
-def minimize_event(event: dict, *, allow_intent: bool = True) -> dict:
-    """Return a new event holding only need-to-know fields, secrets/PII scrubbed, content dropped.
+def minimize_event(event: dict, *, allow_intent: bool = True, strict: bool = True) -> dict:
+    """Return a new event, secrets/PII scrubbed.
 
-    allow_intent=False (work-boundary sessions) drops the free-text `intent` entirely — work request
-    text must never reach the personal metrics project; only the config-part signal survives.
-    Fail-closed: any field not on the allowlist and not the handled `intent` is dropped.
+    strict=True (default, for session events parsed from a transcript): keep ONLY need-to-know
+    allowlist fields, drop everything else fail-closed (file contents, command bodies, payloads,
+    unknown fields). `intent` is scrubbed + capped, and dropped entirely when allow_intent=False
+    (work-boundary sessions) so work request text never reaches the personal metrics project.
+
+    strict=False (for importing the config's own counts-only logs — retro_triggers, intent_reconcile,
+    isolate_runs — whose every field is a count or a signature/repo name by design): keep all fields,
+    but still secret/PII-scrub every string value. No content flows through these, so no field-drop.
     """
     if not isinstance(event, dict):
         return {}
+    if not strict:
+        return {k: (redact_text(v) if isinstance(v, str) else v) for k, v in event.items()}
     out: dict = {}
     for k, v in event.items():
         if k in _ALLOWED_FIELDS:

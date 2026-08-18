@@ -36,6 +36,8 @@ SAFETY: set[str] = {
     "hooks/background-process-guard.py",
     "hooks/browser-launch-guard.py",
     "hooks/git-commit-guard.py",
+    # The intake gate is a compliance guard: its "denials" are the gate arming by design, not misfires.
+    "hooks/task-intake.sh",
     # Compliance / correctness gates — low fire count, high cost-of-absence
     "hooks/config-contract.test.py",
     "contracts/config_contracts.py",
