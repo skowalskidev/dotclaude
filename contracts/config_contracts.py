@@ -457,7 +457,7 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/work-hyperspeed/SKILL.md": {
-        "mission": "A dividing task finishes across as many hand-run sessions as Simon can open, assembled from clean branches, each part pasteable into a cold session with no prior context, and the skill gets better every round.",
+        "mission": "A dividing task finishes across as many hand-run sessions as Simon can open, assembled from clean branches (or gathered from each part's reported path when parts produce standalone untracked artifacts), each part pasteable into a cold session with no prior context, and the skill gets better every round.",
         "purpose": "Manual, branch-based parallel harness: one plan file of self-contained parts pasted into separate sessions, assembled from their pushed branches.",
         "criteria": [
             "Commits and pushes a clean START commit that every part branches from, before any part is written.",
@@ -476,6 +476,9 @@ CONTRACTS: dict[str, dict] = {
             "the full harness autonomously (full-detailed-workflow + inner /sk:work-superspeed where it "
             "sub-divides + isolate-env + ship-report) and reports done only after ship-report confirms "
             "its accept criteria.",
+            "Supports a standalone-artifact variant: when parts produce untracked files (not tracked "
+            "code), each writes to its OWN worktree and reports the absolute path, and assembly GATHERS "
+            "those paths into one collection dir instead of merging branches.",
         ],
     },
     "skills/sk/skills/work-warpspeed/SKILL.md": {

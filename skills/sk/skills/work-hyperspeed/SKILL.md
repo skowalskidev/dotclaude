@@ -180,6 +180,28 @@ Simon relays the branches:
   round's plan file, and repeat Steps 3-6 until the whole task is done. Say plainly, each round, what is
   done and what parts remain.
 
+## Variant — standalone / gitignored artifacts (no branches to merge)
+
+When the parts produce UNTRACKED artifacts (gitignored mockups, reports, build outputs) rather than
+tracked code, there are no branches to assemble — so the git ritual is REPLACED, not skipped:
+
+- **Steps 1 & 4 (START commit, branch off START):** dropped. There is no START and no per-part branch.
+  Each part still runs its task and self-verifies its `accept`/goals; there is just no git diff to review.
+- **Output path — write to your OWN worktree, NEVER a hardcoded sibling.** Each part writes its artifact
+  to `<its-own-repo-root>/.context/<run-id>/<file>` — the worktree the session is actually in. Do NOT
+  pin one participant worktree's absolute path into every part: the sessions run in DIFFERENT worktrees,
+  so a fixed sibling path scatters the output (rr-mockups-r1 put 3 artifacts in one worktree and 1 in
+  another because the path was pinned to a single worktree).
+- **Report the ABSOLUTE path** in the report block's `paths:` — this is what makes the gather deterministic.
+- **Step 5 (assemble) becomes GATHER:** copy every reported `paths:` into ONE collection dir in the
+  orchestrator's own worktree (`.context/<run-id>/collected/`), then compare/review there. No merge, no seams.
+- **Keep them gitignored — do NOT commit exploratory artifacts.** They live in `.context` and are
+  disposable; forcing them into git history is noise. The branch-assembly default (Steps 1/4/5/6) is for
+  tracked CODE; this variant is for everything else.
+
+TEST: after the round, every reported artifact path resolves to a real file AND a copy of it sits in the
+one collection dir, whichever worktree produced it.
+
 ## The report-back block (fixed format each part prints)
 
 Each part ENDS by printing exactly this, so Simon can copy it verbatim and the orchestrator can parse it:
