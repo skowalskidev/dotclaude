@@ -50,8 +50,11 @@ DO let Generate run with nothing selected. A no-pick-plus-comment (a question, a
 response. DON'T gate Generate on a selection — that is how a real answer gets thrown away.
 
 DO make every keystroke impossible to lose — all three, always:
-- **Persist every field on input:** write EVERY input — every radio and every textarea — to localStorage
-  on each change, and restore on load, so a reload or an accidental close keeps all of it.
+- **Hold every field in in-memory state as the source of truth:** keep EVERY input — every radio and
+  every textarea — in one JS state object the Generate block reads from. Do NOT use
+  localStorage/sessionStorage: they are BLOCKED in the Claude artifact sandbox and fail silently. The
+  always-visible block below, not browser storage, is what makes the input impossible to lose — so tell
+  Simon to copy it before he reloads.
 - **Always-visible block:** Generate renders into a visible, selectable, readonly textarea, so Simon can
   select-all and Cmd-C by hand even if the button does nothing.
 - **Copy that reports:** the Copy button tries `navigator.clipboard.writeText`, falls back to

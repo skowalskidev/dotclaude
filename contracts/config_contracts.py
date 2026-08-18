@@ -713,18 +713,30 @@ CONTRACTS: dict[str, dict] = {
             "Offers a variant gallery whose picks and per-variant keep/change comments use the "
             "response contract from /sk:work-ask-reply-in-full-before-after-artifact, docked compact "
             "and collapsed so it never covers the mockup.",
-            "Browsable at two zooms: a bird's-eye grid of variant thumbnails (3 per row) that click "
-            "into a full view with next/prev and back-to-grid, variants separated by TYPE, and a HUD "
-            "always showing the type, variant N-of-M and the version being viewed.",
-            "Flashes the CHANGED region of a variant once when it opens, with a 'what's new' button "
-            "to re-flash on demand — never a looping animation that fights the screen.",
-            "Shareable to a non-Simon recipient: the artifact guides them to select + comment, then "
-            "generates a self-contained block (extending the /sk:work-ask-reply contract) that tells "
-            "THEIR Claude to update or recreate the artifact as a new author-attributed version and "
-            "pass it back.",
-            "Keeps every version inside the artifact as attributed history (v1 author, v2 recipient, "
-            "…), switchable from the HUD, each showing its author's variants + picks + comments; "
-            "never flattens an old version away.",
+            "Ships as a self-contained HTML FILE for a collaborative/versioned/multi-screenshot "
+            "round-trip, or a Claude artifact URL only when small and un-gated — the artifact's size "
+            "ceiling, blocked localStorage and Team-can't-publish-publicly limits pick the medium.",
+            "Keeps all state in an embedded <script id=spec type=application/json> data island and "
+            "renders the UI from it; nothing user-visible exists outside #spec, so a rebuild is "
+            "re-render-from-data (loss-free), not re-describe.",
+            "Compresses screenshots (WebP, downscaled, capped) so the document fits the output cap — "
+            "never a full-res PNG base64 — and never uses localStorage/sessionStorage (blocked in the "
+            "artifact sandbox); state is in-memory + #spec.",
+            "Browses overview-first: a bird's-eye grid (3/row) into a focus view with a persistent "
+            "filmstrip, keyboard nav and a present/full-screen mode; variants separated by TYPE; a HUD "
+            "always showing type, variant N-of-M and version.",
+            "Compares 3-up side-by-side and diffs two versions at the FIELD level (green added / "
+            "yellow modified / red removed) from #spec — what even raster tools cannot do on their "
+            "own content.",
+            "Lets a reviewer pin comments to element ids (survive reflow), resolve them, and set an "
+            "Approve/Request-changes verdict; flashes a change ONCE then holds a static marker, "
+            "respecting prefers-reduced-motion.",
+            "The copy-paste hand-off block IS the complete build spec: the verbatim #spec in an XML "
+            "frame (task/spec/build/invariants/selfcheck) that forbids elisions and re-embeds #spec "
+            "verbatim, so another Claude rebuilds with nothing dropped.",
+            "Keeps every version inside #spec as attributed history (v1 author, v2 recipient), "
+            "switchable from the HUD; a recipient's Claude edits the file or regenerates from the "
+            "block into a new attributed version, and never flattens an old one.",
             "Diffs every overlaid and new-state component against a real render before showing him, "
             "and when a divergence traces to the skill folds the fix forward through "
             "/sk:claude-config-update. That is the self-healing-config loop.",
@@ -851,7 +863,7 @@ CONTRACTS: dict[str, dict] = {
             "Builds an artifact via artifact-design with explainer + before/after + verdict cards grouped into sections, not chat prose.",
             "Every card and every section is selectable and carries a comment field.",
             "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",
-            "Persists every input field (radios and textareas) to localStorage on change and restores on load, and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
+            "Holds every input (radios and textareas) in in-memory JS state — never localStorage/sessionStorage, blocked in the artifact sandbox — and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
             "A submit-to-chat button appears only when artifact-capabilities confirms a post-back path; the copy-paste block always stands alone.",
         ],
     },
