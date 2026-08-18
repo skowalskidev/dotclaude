@@ -1233,15 +1233,9 @@ CONTRACTS: dict[str, dict] = {
             "Writes the computed rollup to aggregates so the local and hosted console read one result.",
         ],
     },
-    "contracts/part_criticality.py": {
-        "mission": "A part that is quiet by design is never mistaken for a dead part to fix.",
-        "purpose": "Tag safety/compliance parts (warranted-dormant) and deliberate stubs (planned), for the metrics report.",
-        "criteria": [
-            "Data only, no logic beyond the lookup — like skill_naming.py.",
-            "Every tagged path names a real, contract-covered part; a parity check forbids stale tags.",
-            "Holds two sets: SAFETY (warranted low usage) and STUB (not built yet).",
-        ],
-    },
+    # contracts/part_criticality.py needs no entry — contracts/*.py are the test's own inputs, exempt
+    # like skill_naming.py and routing_scenarios.py; check_metrics_criticality_tags_name_real_parts
+    # guards its correctness instead.
     "hooks/config-metrics-log.sh": {
         "mission": "Every session's usage is recorded without the recording ever slowing or failing the session.",
         "purpose": "SessionEnd: hand the transcript to the metrics recorder under the right interpreter.",

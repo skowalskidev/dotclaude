@@ -182,6 +182,17 @@ CRITERIA: list[tuple[str, str]] = [
      "commits for a long time at ~38% compliance, so the written rule is not the control; this "
      "hook is. A hook that rejects a legitimate message would get bypassed with --no-verify, which "
      "also skips the SECRET gate, so the must-accept half matters more than the must-reject half."),
+    ("metrics-log-detects-without-acting",
+     "The metrics SessionEnd collector records and nothing else: exit 0, no stdout/stderr (unread "
+     "output is noise or a crash), and no config edits. A telemetry hook that acts is the failure "
+     "rules/security.md forbids for unattended hooks."),
+    ("metrics-criticality-tags-name-real-parts",
+     "Every part tagged safety or stub in part_criticality.py names a real file, so a renamed or "
+     "removed part cannot leave a stale tag that silently exempts the wrong thing from the dead bar."),
+    ("metrics-inventory-matches-contract-coverage",
+     "The metrics aggregator derives its parts list from config_contracts.py, never a hardcoded "
+     "copy, so a part added via /sk:claude-config-update is scored automatically. Parity with the "
+     "contract coverage set is asserted, so the inventory can never silently drift."),
 ]
 
 CRITERION_IDS = [cid for cid, _ in CRITERIA]
@@ -788,6 +799,59 @@ def _declared_config_parts() -> set[str]:
             parts.add(str(p.relative_to(ROOT)))
     tracked = _tracked_files()
     return {p for p in parts if p in tracked} if tracked else parts
+
+
+def check_metrics_log_detects_without_acting() -> None:
+    """The metrics SessionEnd collector records, never acts: no stdout/stderr (unread output = noise
+    or crash), exit 0, and no edits to config. Mirrors retro-trigger-log's detect-without-acting."""
+    hook = ROOT / "hooks" / "config-metrics-log.sh"
+    check(hook.exists() and os.access(hook, os.X_OK),
+          "hooks/config-metrics-log.sh is missing or not executable.")
+    if not hook.exists():
+        return
+    with tempfile.TemporaryDirectory() as td:
+        home = Path(td) / "home"
+        home.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps({"transcript_path": "/nonexistent.jsonl", "session_id": "t",
+                              "reason": "clear", "cwd": "/tmp/x"})
+        p = subprocess.run(["bash", str(hook)], input=payload, capture_output=True,
+                           text=True, env={**os.environ, "HOME": str(home)})
+        check(p.returncode == 0, f"Collector exited nonzero ({p.returncode}); it must never fail a session.")
+        check(p.stdout == "" and p.stderr == "",
+              f"Collector emitted output; SessionEnd output is unread. stdout={p.stdout!r} stderr={p.stderr!r}")
+
+
+def check_metrics_criticality_tags_name_real_parts() -> None:
+    """Every part tagged in part_criticality.py must be a real file — no stale safety/stub tags."""
+    pc = ROOT / "contracts" / "part_criticality.py"
+    if not pc.exists():
+        return
+    ns: dict = {}
+    exec(compile(pc.read_text(), str(pc), "exec"), ns)  # data-only module, safe to exec
+    tagged = ns.get("ALL_TAGGED", set())
+    missing = sorted(t for t in tagged if not (ROOT / t).exists())
+    check(not missing, f"part_criticality.py tags parts that do not exist: {missing}")
+
+
+def check_metrics_inventory_matches_contract_coverage() -> None:
+    """The metrics aggregator must derive its parts list from config_contracts.py, never a hardcoded
+    copy — so a newly-added part is always scored. Asserts parity: config-metrics.py._contracts_parts()
+    == the scored subset of CONTRACTS keys."""
+    agg = ROOT / "bin" / "config-metrics.py"
+    contracts_py = ROOT / "contracts" / "config_contracts.py"
+    if not agg.exists() or not contracts_py.exists():
+        return
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("config_metrics_probe", agg)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    derived = set(mod._contracts_parts())
+    cns: dict = {}
+    exec(compile(contracts_py.read_text(), str(contracts_py), "exec"), cns)
+    scored = {k for k in cns.get("CONTRACTS", {}) if k.endswith((".md", ".py", ".sh", ".json"))}
+    check(derived == scored,
+          f"Metrics inventory drifted from contract coverage. "
+          f"only-in-aggregator={sorted(derived - scored)} only-in-contracts={sorted(scored - derived)}")
 
 
 def check_contracts_every_config_part_declares_its_purpose() -> None:
