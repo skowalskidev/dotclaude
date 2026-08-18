@@ -431,6 +431,19 @@ if rows:
               f" Split the slowest slice next run.")
 PYEOF
 
+# Durable run capture: record that this run happened (pending optimization) in the metrics store, so
+# the optimization opportunity is not use-it-or-lose-it. A later pass reads runs where optimized=false
+# and clears the backlog in aggregate. Best-effort, never fails the dispatch.
+if [ -f "$HOME/.claude/bin/dotclaude-log.py" ]; then
+  SPY="$HOME/.config/claude-metrics-venv/bin/python"; [ -x "$SPY" ] || SPY="$(command -v python3 || true)"
+  if [ -n "$SPY" ]; then
+    _nslices="$(ls -1 "$OUT/slices" 2>/dev/null | wc -l | tr -d ' ')"
+    printf '{"run_id":"%s","captured_at":"%s","optimized":false,"slices":%s,"kind":"run"}' \
+      "$(basename "$OUT")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${_nslices:-0}" \
+      | "$SPY" "$HOME/.claude/bin/dotclaude-log.py" runs >/dev/null 2>&1 || true
+  fi
+fi
+
 log "logs: $OUT"
 log ""
 log "NEXT, in order. Do not stop after step 1; the run is only finished at step 3."

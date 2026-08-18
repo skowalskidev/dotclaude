@@ -253,13 +253,19 @@ note)
     c_src="$(count '· sources$')";        [ -n "$c_src" ] || c_src=0
     c_piv="$(count '· pivot$')";          [ -n "$c_piv" ] || c_piv=0
     forced=false; [ -e "$STATE/$SID.stopblock" ] && forced=true
-    mkdir -p "$LOGDIR" 2>/dev/null && jq -n -c \
+    rline="$(jq -n -c \
       --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
       --arg repo "$(basename "$(dirname "$(dirname "$LEDGER")")")" \
       --argjson asks "$c_asks" --argjson sources "$c_src" --argjson pivots "$c_piv" \
       --argjson forced "$forced" \
-      '{ts:$ts,repo:$repo,asks:$asks,sources:$sources,pivots:$pivots,stop_forced:$forced}' \
-      >> "$LOGDIR/intent-reconcile.jsonl" 2>/dev/null || true
+      '{ts:$ts,repo:$repo,asks:$asks,sources:$sources,pivots:$pivots,stop_forced:$forced}' 2>/dev/null)"
+    # ONE home: route through the shared writer (metrics store, else local outbox), never both.
+    RPY="$HOME/.config/claude-metrics-venv/bin/python"; [ -x "$RPY" ] || RPY="$(command -v python3 || true)"
+    if [ -n "$rline" ] && [ -n "$RPY" ] && [ -f "$HOME/.claude/bin/dotclaude-log.py" ]; then
+      printf '%s' "$rline" | "$RPY" "$HOME/.claude/bin/dotclaude-log.py" intent_reconcile >/dev/null 2>&1 || true
+    elif [ -n "$rline" ]; then
+      mkdir -p "$LOGDIR" 2>/dev/null && printf '%s\n' "$rline" >> "$LOGDIR/intent-reconcile.jsonl" 2>/dev/null || true
+    fi
   fi
 
   echo "Appended $kind to $LEDGER"

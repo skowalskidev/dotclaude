@@ -1009,7 +1009,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Writes one JSON line and nothing else. Never proposes, prompts, or edits.",
             "Silent when nothing triggered, and when the transcript is missing.",
-            "Writes only under ~/.claude/logs/.",
+            "Routes its line through the shared writer to the metrics store, or the local outbox when "
+            "no project is configured, or the legacy log when no interpreter is present. Never both.",
             "Stays on SessionEnd. A Stop hook would have to BLOCK to be seen, and blocking Stop "
             "hooks are a documented session-burner with a model-set marker.",
             "Records counts and signature names only. Never prompt text or file contents.",
@@ -1169,9 +1170,9 @@ CONTRACTS: dict[str, dict] = {
             "inherited map is a real event and trusting it boots a fresh workspace on another lane.",
             "Keeps no state outside the worktree and its own trimmed log. State inside the worktree is "
             "what makes an orphaned record under ~/.claude structurally impossible.",
-            "Its log RECORDS ONLY: it must never block, fail or alter a run, and it trims itself. "
-            "Nothing else in logs/ is rotated and security-guard.log reached 640K after its writer was "
-            "retired.",
+            "Its log RECORDS ONLY: it routes the run line through the shared metrics writer (or the "
+            "self-trimming local log when no interpreter is present) and must never block, fail or "
+            "alter a run.",
             "A config change is proposed only on a pattern that RECURS across runs, never on one run, "
             "and never auto-applied.",
         ],

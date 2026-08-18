@@ -57,10 +57,8 @@ total=$((blocked_work + blocked_crown + intake_denied + perm_denied))
 # Nothing worth recording. Silence keeps the log signal-dense.
 [ "$total" -gt 0 ] || exit 0
 
-mkdir -p "$LOG_DIR" 2>/dev/null || exit 0
-
 # Built with jq so a path or reason containing a quote cannot corrupt the line.
-jq -n -c \
+line="$(jq -n -c \
   --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   --arg session "$session" \
   --arg reason "$reason" \
@@ -71,7 +69,17 @@ jq -n -c \
   --argjson permission_denials "$perm_denied" \
   '{ts:$ts, session:$session, end_reason:$reason, cwd:$cwd,
     guard_denials:$guard_denials, crown_denials:$crown_denials,
-    intake_gate:$intake_gate, permission_denials:$permission_denials}' \
-  >> "$LOG" 2>/dev/null || true
+    intake_gate:$intake_gate, permission_denials:$permission_denials}' 2>/dev/null)"
+[ -n "$line" ] || exit 0
+
+# ONE home: route through the shared writer, which lands it in the dotclaude-metrics `retro_triggers`
+# collection, or the local outbox when no project is configured (zero-setup still works, never both).
+PY="$HOME/.config/claude-metrics-venv/bin/python"; [ -x "$PY" ] || PY="$(command -v python3 || true)"
+if [ -n "$PY" ] && [ -f "$HOME/.claude/bin/dotclaude-log.py" ]; then
+  printf '%s' "$line" | "$PY" "$HOME/.claude/bin/dotclaude-log.py" retro_triggers >/dev/null 2>&1 || true
+else
+  # No interpreter/writer available: fall back to the legacy local line so nothing is lost.
+  mkdir -p "$LOG_DIR" 2>/dev/null && printf '%s\n' "$line" >> "$LOG" 2>/dev/null || true
+fi
 
 exit 0

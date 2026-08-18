@@ -300,7 +300,7 @@ sweep() {
 log_run() {
   command -v jq >/dev/null 2>&1 || return 0
   mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || return 0
-  jq -n -c \
+  iline="$(jq -n -c \
     --arg ts "$(TZ=UTC date +%Y-%m-%dT%H:%M:%SZ)" \
     --arg session "${CONDUCTOR_SESSION_ID:-${CLAUDE_SESSION_ID:-unknown}}" \
     --arg cwd "$WS" \
@@ -327,8 +327,18 @@ log_run() {
       services_discovered:$services_discovered,
       sweep:{reaped:$reaped, killed_orphan:$killed_orphan, orphans_found:$orphans_found,
              reported_unclaimed:$reported_unclaimed},
-      blind_spots:$blind_spots}' >> "$LOG_FILE" 2>/dev/null || return 0
+      blind_spots:$blind_spots}' 2>/dev/null)"
+  [ -n "$iline" ] || return 0
 
+  # ONE home: route through the shared writer (metrics store, else local outbox), never both.
+  IPY="$HOME/.config/claude-metrics-venv/bin/python"; [ -x "$IPY" ] || IPY="$(command -v python3 || true)"
+  if [ -n "$IPY" ] && [ -f "$HOME/.claude/bin/dotclaude-log.py" ]; then
+    printf '%s' "$iline" | "$IPY" "$HOME/.claude/bin/dotclaude-log.py" isolate_runs >/dev/null 2>&1 || return 0
+    return 0
+  fi
+
+  # Fallback: no interpreter/writer — keep the self-trimming local log so nothing is lost.
+  printf '%s\n' "$iline" >> "$LOG_FILE" 2>/dev/null || return 0
   lines="$(wc -l < "$LOG_FILE" 2>/dev/null | tr -d ' ')"
   if [ -n "$lines" ] && [ "$lines" -gt "$LOG_KEEP" ] 2>/dev/null; then
     tail -n "$LOG_KEEP" "$LOG_FILE" > "$LOG_FILE.tmp" 2>/dev/null && mv "$LOG_FILE.tmp" "$LOG_FILE"
