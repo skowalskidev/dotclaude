@@ -61,6 +61,7 @@ Your accounts live only in the untracked overlay files (`identity.local.json`, `
 | `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here) — work/personal `CODEX_HOME` switch |
 | `dotfiles/gitignore_global` | The live `~/.gitignore_global` (symlinked here), git's `core.excludesFile` — personal/secret patterns plus `.context/`, so the agent scratch dir is ignored in every repo without touching any committed `.gitignore` |
 | `hooks/config-status.sh` | SessionStart hook — flags uncommitted config so Claude offers to sync |
+| `hooks/worktree-freshness.sh` | SessionStart hook — warns once when this worktree's branch is 10+ commits behind main, so stale-base work is caught before it starts rather than at merge. Detects and reports only |
 | `hooks/orphan-worker-sweep.sh` | SessionStart hook — reports (never kills) orphaned framework dev-tool worker processes machine-wide (PID 1 parent + interpreter/dev-tool match + cwd inside a git checkout). Detection delegates to `bin/kill-orphan-workers.sh --list` |
 | `bin/kill-orphan-workers.sh` | Clears the orphans `hooks/orphan-worker-sweep.sh` reports — kills the whole process family (not just the parent, which only reparents its children), re-scans for survivors, escalates to `-9`, verifies. `--dry-run` / `--list` / no-arg |
 | `hooks/port-registry-sweep.sh` | SessionStart hook — reconciles the shared port registry and reports (never kills) who holds which local dev port. Silent when nothing is claimed |

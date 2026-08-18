@@ -1237,6 +1237,16 @@ CONTRACTS: dict[str, dict] = {
     # contracts/part_criticality.py needs no entry — contracts/*.py are the test's own inputs, exempt
     # like skill_naming.py and routing_scenarios.py; check_metrics_criticality_tags_name_real_parts
     # guards its correctness instead.
+    "hooks/worktree-freshness.sh": {
+        "mission": "Stale-base work is caught at session start, not discovered commits later at merge time.",
+        "purpose": "SessionStart: warn once when this worktree's branch has fallen well behind main.",
+        "criteria": [
+            "Detection and reporting only. Injects one context note; never edits, rebases, or blocks.",
+            "Fires only inside a linked worktree, never the main checkout.",
+            "Warns only when the branch is 10+ commits behind main/master; silent otherwise.",
+            "Emits valid SessionStart additionalContext JSON, and stays silent when git is absent.",
+        ],
+    },
     "hooks/config-metrics-log.sh": {
         "mission": "Every session's usage is recorded without the recording ever slowing or failing the session.",
         "purpose": "SessionEnd: hand the transcript to the metrics recorder under the right interpreter.",

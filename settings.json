@@ -184,6 +184,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/worktree-freshness.sh",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionEnd": [

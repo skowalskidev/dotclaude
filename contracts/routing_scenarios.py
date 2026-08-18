@@ -250,5 +250,5 @@ HOOK_ROUTING: list[dict] = [
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,
      "expect": ["config-status.sh", "session-connectors.sh", "orphan-worker-sweep.sh",
-                "port-registry-sweep.sh", "session-identity.sh"]},
+                "port-registry-sweep.sh", "session-identity.sh", "worktree-freshness.sh"]},
 ]
