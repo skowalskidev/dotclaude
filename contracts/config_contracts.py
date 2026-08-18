@@ -814,6 +814,22 @@ CONTRACTS: dict[str, dict] = {
             "every run is a nuisance rather than a feature.",
         ],
     },
+    "skills/sk/skills/meta-dotclaude-copilot-start-here-for-any-task/SKILL.md": {
+        "mission": "Simon calls ONE skill for any task and never has to remember which of 25+ fits — it routes, shows how far along he is at every level, and finishes with no skill forgotten and no tangent dropped.",
+        "purpose": "The single user-invocable front door: route a task to the right skills via skill-stack.md, present the plan, and drive it to a verified finish with an always-on progress bar.",
+        "criteria": [
+            "Routes via references/skill-stack.md and verifies every named skill is installed before "
+            "planning on it; never restates the map or a skill's method.",
+            "Keeps an always-on progress bar — the harness Task list as canonical tracker plus a compact "
+            "text bar echoed each response — with nested sub-progress for a sub-skill's multi-step process.",
+            "A tangent (a discovered fix, a mid-run ask) is a QUEUED task per process.md: handled, then "
+            "the main thread RESUMES; nothing is dropped.",
+            "Callable at any stage: re-reads the tracker and continues where the plan left off, never "
+            "restarting done work.",
+            "Reuses skill-stack.md + the intake gate + process.md; owns the entry point, the progress "
+            "bar, verifying skill names, and the resume.",
+        ],
+    },
     "skills/sk/skills/meta-cleanup-worktrees/SKILL.md": {
         "mission": "Simon's finished worktrees, branches and their Claude sessions get cleared away without any work-in-progress ever being lost, so a machine full of dead workspaces becomes just the live ones.",
         "purpose": "Safely remove DONE (merged, clean, idle) worktrees + branches for a repo and name the Conductor sessions to archive.",

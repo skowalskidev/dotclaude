@@ -134,6 +134,11 @@ SCENARIOS: list[dict] = [
     {"phrase": "tidy up my worktrees", "expect": "meta-cleanup-worktrees"},
     {"phrase": "delete merged branches", "expect": "meta-cleanup-worktrees"},
     {"phrase": "which sessions can I archive", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "start here", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "what should I use for this", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "run this the right way", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "just handle this", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "which skills for this task", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
 
     # --- The config itself ---------------------------------------------------------
     {"phrase": "sync my config", "expect": "claude-config-sync"},

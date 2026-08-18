@@ -44,13 +44,14 @@ config suite; this is the reading of it.
 | `ship-` | Getting a change out, and reporting on it | 6 |
 | `test-` | Verifying something behaves | 2 |
 | `maintenance-code-` | Improving code already there | 2 |
-| `meta-` | Reporting on Simon's own work, and housekeeping his dev environment | 2 |
+| `meta-` | Reporting on his work, housekeeping his environment, and routing tasks to skills | 3 |
 | (none) | `setup-connectors`, already verb-first | 1 |
 
 ## The map
 
 | Task shape | Spine (Simon's) | Stacks on top | Why the stack earns its place |
 |---|---|---|---|
+| ANY task — you don't know or don't want to pick which skill | `/sk:meta-dotclaude-copilot-start-here-for-any-task` | (routes to everything below) | The single front door: reads the task, routes it to the right skills via THIS table, verifies they're installed, presents the plan, and drives it to a verified finish with an always-on progress bar (overall + nested sub-progress), resuming the main thread after any tangent. Reuses the intake gate + `rules/process.md`; owns the entry point, the progress bar, and the resume. Call it whenever you'd otherwise have to remember which skill fits. |
 | A ticket or idea, before deciding to build it | `/sk:work-does-this-make-sense-to-build` | `[gstack] /office-hours` only for a brand-new product idea | Different questions. The spine checks an existing proposal against evidence and can refute parts of it; `/office-hours` is a YC-style Socratic pass on demand for a product that does not exist yet. Do not run both on a ticket. |
 | Any substantial or multi-step build | `/sk:work-full-detailed-workflow` | — | Already points at every reference catalog. Do not stack a second planner on it. Runs AFTER the build/no-build call, not instead of it. |
 | Work that splits into 3-5 independent pieces to run at once | `/sk:work-superspeed` | `/sk:claude-config-self-optimize-analysis-after-run` after every run | Measured 2026-08-06: parallel `claude -p` sessions beat in-session subagents in all 4 configs and all 14 reps, by a fixed ~33s. The follow-up skill reads the run's logs and says how to cut the next partition better. Do NOT reach for it to speed up one long serial task; the toll it saves is under 1% of an hour. |
