@@ -203,12 +203,18 @@ iframes render (a `file://` page cannot iframe sibling files). Build it with the
 - **Keep/comment + an Approve / Request-changes verdict per variant**, using the response contract of
   `/sk:work-ask-reply-in-full-before-after-artifact`.
 - **A QUIET version box** (per § versioning) — each consolidation checkpoint is a version, newest active.
+- **Tile height scales with the column count:** 1 column = one variant fills the screen and must FIT
+  without overflow (leave room for the header + tile cap so a single tile needs no page scroll); 2 =
+  ~half screen; 3 = a cozy default (~340px). Switching the focused variant RESETS its scroll to the top.
+- **Place the floating HUD OFF the mockup's own chrome** — a corner clear of the app's action buttons,
+  raised above the filmstrip in focus (it once sat over the app's Upgrade / Buy-Credits buttons).
 
 **CLASS-OF-BUG to avoid: an id selector that sets `display` on a view overrides the `.view{display:none}`
 toggle.** `#compare{display:flex}` kept an empty pane displayed over the grid on ALL views — a whole
 "blank grid" was actually a gray overlay on top. Scope every view's display to its `.show` class
 (`#compare.show{display:flex}`), and when a view looks blank, `elementFromPoint` the empty area before
-assuming lost content. Verify the gallery in the browser before handing it over.
+assuming lost content. Verify the gallery in the browser before handing it over — and cache-bust the
+reload (`?t=`) or a served gallery hands you the stale file mid-iteration.
 
 ## Compare — side by side, and diff what changed between versions
 
