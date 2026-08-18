@@ -28,18 +28,30 @@ Structure every thing under discussion as a CARD, grouped into SECTIONS (tiers):
   of the change (real config or code, side by side). Omit for a card that is pure explanation.
 - **Verdict / why** — one line: the call and the reason.
 
-## Make it selectable and commentable
-DO give EVERY card a select control (a checkbox or toggle: include / yes / add-this) AND a comment
-textarea. DO give every SECTION a select-all control AND its own comment textarea, so Simon can act on
-one item or a whole section.
+## Make it selectable — a CHOICE is a radio, an INCLUDE is a checkbox (checked by default)
+Two different decisions look identical if you give them the same control, and Simon has confused them.
+Give each its own:
+- **A CHOICE among mutually-exclusive options (pick ONE — option A vs B vs C)** → RADIO buttons in a
+  named group, visually distinct (radio dots, exactly one selectable), so it reads instantly as "pick one
+  of these," never as an include toggle. Pre-select the recommended option.
+- **An INCLUDE / EXCLUDE edit (apply this change or not)** → a CHECKBOX, DEFAULT CHECKED. Every proposed
+  edit starts applied; Simon UNCHECKS the ones he does not want (opt-out, not opt-in) — the default set
+  is the recommendation, and unchecking is the exception.
+- **DON'T use a checkbox for a pick-one choice, or a radio for an include** — that mismatch is the exact
+  confusion this fixes.
+DO give EVERY card a comment textarea, and every SECTION a select-all (over its checkboxes) plus its own
+comment textarea, so Simon can act on one item or a whole section.
+TEST: a pick-one choice shows radio buttons with one pre-selected; every apply/edit checkbox starts
+checked; the two controls never look the same.
 
 ## The response contract — never lose a keystroke
 DO include a "Generate my response" button whose self-contained JS assembles ONE delimited,
 copy-pasteable block, shown in a readonly box with a Copy button. The block MUST carry, with zero
 ambiguity:
 - a header naming the source artifact,
-- **Selected:** each chosen item as `item — section — comment`,
-- **Not selected:** each rejected item AND any comment typed on it, same `item — section — comment` shape,
+- **Choices:** each radio group with the option Simon picked, as `group → chosen — comment`,
+- **Kept edits:** each checkbox left CHECKED (the default), as `edit — section — comment`,
+- **Dropped edits:** each checkbox Simon UNCHECKED, plus any comment on it, same shape,
 - **Section comments:** any whole-section notes.
 
 DO put EVERY non-empty input into the block — every selection AND every comment, on selected cards and

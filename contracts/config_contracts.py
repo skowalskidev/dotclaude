@@ -879,6 +879,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Builds an artifact (visual craft applied directly, no separate design skill) with explainer + before/after + verdict cards grouped into sections, not chat prose.",
             "Every card and every section is selectable and carries a comment field.",
+            "Renders a pick-one choice as RADIO buttons (one pre-selected) and an apply/include edit as "
+            "a CHECKBOX defaulting to CHECKED (opt-out); the two controls never look the same.",
             "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",
             "Holds every input (radios and textareas) in in-memory JS state — never localStorage/sessionStorage, blocked in the artifact sandbox — and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
             "A submit-to-chat button appears only when the runtime is known to support a post-back (a claude.ai artifact; a Claude Code terminal HTML file has none); the copy-paste block always stands alone.",
