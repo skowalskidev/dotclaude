@@ -144,8 +144,9 @@ instruction. Do NOT hand only the plan-file path and make him extract the parts 
 first-run confusion this skill exists to remove. TEST: Simon can run the round by copying blocks out of
 the chat, never opening the plan file.
 
-**Start each block with a cross-verifiable session line — the FIRST line INSIDE the fence is
-`Session <n> (<part-name>)`**, matching the block's header label and the report block's `part:`. A new
+**Start each block with a cross-verifiable session line — the FIRST line INSIDE the fence is a clean
+title `Session <n> (<part-name>):` on its own line (the instruction follows below it)**, matching the
+block's header label and the report block's `part:`. A new
 session auto-names itself from its first prompt line, so this makes the name land logically ("Session 1
 (Command Center)") and lets Simon cross-reference a report block to its session by number at a glance.
 **Keep the blocks as plain fenced code-blocks** — the terminal's own copy button flashes "Copied"
