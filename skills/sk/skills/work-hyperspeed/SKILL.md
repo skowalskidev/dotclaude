@@ -12,6 +12,18 @@ The INNER layer is superspeed: each of those sessions fans its OWN slice out wit
 where it makes sense. So the parallelism multiplies — N hand-run sessions, each fanning out again —
 which is why it goes wider than superspeed alone.
 
+## Tell Simon how it runs, before the first paste — a first-timer cannot infer it
+
+Nothing MOVES to another session. THIS session is the orchestrator and STAYS PUT — it holds the whole
+partition and does the assembly. Simon opens N NEW sessions himself, pastes ONE ready-made block into
+each, and they run IN PARALLEL; each prints a report block he copies back HERE. State exactly that, in
+his words, as the FIRST thing you say — before the plan, before any paste — because a first run reads
+"parts into separate sessions" as "this chat is about to move elsewhere" and stalls on it: e.g. "this
+session stays here as the orchestrator and assembles everything; you open N new sessions, paste one
+block I hand you into each, they run at once, then you paste their short report blocks back to me."
+TEST: before the first handoff, Simon has been told three things plainly — the orchestrator stays, the
+sessions run in parallel, and the blocks arrive from you ready to paste (not a file to go extract from).
+
 ## Why two levels, honestly
 
 `references/parallelization.md` is the source for the win and its limits — read it, don't restate it.
@@ -70,8 +82,13 @@ itself sub-divides is fine, because its session will superspeed it (Step 3, item
 ## Step 3 — write ONE plan file, split into self-contained parts
 
 Write it to `.context/hyperspeed/<run-id>/plan.md` — durable per `rules/process.md` (survives a
-restart, never `/tmp`). **Hand Simon the file's ABSOLUTE path.** The file opens with the shared goal
-and the START SHA, then one `## PART <n> — <name>` section per slice.
+restart, never `/tmp`). The file opens with the shared goal and the START SHA, then one
+`## PART <n> — <name>` section per slice.
+
+**The plan file is the DURABLE RECORD, not the handoff.** Hand Simon its ABSOLUTE path AND present each
+part as a ready-to-paste block in chat (Step 4) — never just give the path and tell him to open it and
+pull the parts out. He should be able to copy a block straight into a new session without touching the
+file at all.
 
 **Every part is pasteable into a COLD session with zero other context.** Each part section carries, in
 this order:
@@ -107,7 +124,15 @@ this order:
 TEST: a part pasted into a brand-new session, with nothing else, can reach `accept`, push its branch,
 and print its report block.
 
-## Step 4 — Simon pastes each part; parts report their location
+## Step 4 — hand over ready-to-paste blocks; parts report their location
+
+**Present each part directly in chat as its own clearly-labelled, fenced copy-paste block** — one per
+parallel session, headed with which session it goes in (e.g. "► Paste into session 1 (Command Center)")
+— so Simon copies a block straight into a new session. Each block is self-contained: pointing to the
+durable plan file and the shared inputs by ABSOLUTE path is fine, but the block itself carries the whole
+instruction. Do NOT hand only the plan-file path and make him extract the parts himself — that is the
+first-run confusion this skill exists to remove. TEST: Simon can run the round by copying blocks out of
+the chat, never opening the plan file.
 
 Open one session per part — a separate Conductor workspace is the intended home, so each part gets its
 own worktree and branch off START without fighting the others over the checkout (and its own port lane
