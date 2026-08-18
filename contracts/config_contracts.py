@@ -465,6 +465,9 @@ CONTRACTS: dict[str, dict] = {
             "ritual, the repo setup ritual, and a fixed report-back block — pasteable into a cold session.",
             "Assembles by merging the reported branches, deletes them local and remote, and tells Simon "
             "to archive the sessions (it cannot touch the Claude UI).",
+            "Reconciles a run's full footprint at cleanup, not just branches: removes/prunes part "
+            "worktrees, sweeps orphan dev-servers, port lanes and stray claude -p slices, and each part "
+            "self-tears-down its processes before reporting done.",
             "Shares the slice-cutting and reconcile craft with references/parallelization.md and "
             "/sk:work-superspeed; does not restate it.",
             "Records each round in a reconcile.json (same schema and causes as /sk:work-superspeed), "

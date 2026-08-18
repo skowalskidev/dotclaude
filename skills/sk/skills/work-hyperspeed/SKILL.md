@@ -118,7 +118,12 @@ this order:
    ```
 5. **The repo setup ritual**, lifted from the project's `CLAUDE.md` and `CLAUDE.local.md` (e.g. Node
    version, `yarn install`, any build a fresh worktree needs) — the part must not have to go find it.
-6. **The report-back block** (§ below): the part PRINTS it as its last action so Simon can copy it.
+6. **Tear down, THEN print the report block.** As its LAST actions the part (a) tears down everything it
+   started — its harness dev servers, its port lane, and any inner `/sk:work-superspeed` `claude -p`
+   slices — per `rules/process.md` § "Clean up after yourself" and `references/dev-server-hygiene.md`, so
+   the finished session holds no live processes and archiving only reaps its idle `claude`; then
+   (b) PRINTS the report-back block (§ below) so Simon can copy it. TEST: after DONE, `pgrep` for the
+   part's servers and its `claude -p` slices returns nothing.
 7. **The leaf-worker boundary:** you own only your `owns` files — never edit a `forbid` file to make
    your slice pass. If the work genuinely needs one, or you get stuck, that is a `BLOCKED.md` in the
    repo root (what and why) and a stop, not an edit.
@@ -173,10 +178,24 @@ Simon relays the branches:
 
 ## Step 6 — clean up, then loop
 
-- **Delete every merged part branch, local and remote** (`git branch -D hs/<run>/*`,
+Cleanup is not done when the branches are merged — a run leaves BRANCHES, WORKTREES and PROCESSES
+across N sessions, and all three are torn down here every round, per `rules/process.md` § "Clean up
+after yourself" and `references/dev-server-hygiene.md`.
+
+- **Branches — delete every merged part branch, local and remote** (`git branch -D hs/<run>/*`,
   `git push origin --delete <branch>`). The orchestrator owns branch cleanup.
-- **Tell Simon to archive the Claude sessions.** The orchestrator cannot touch the Claude UI, so it
-  names the sessions/workspaces to archive; Simon archives them.
+- **Worktrees — remove each part's worktree, then prune.** `git worktree remove` any worktree the
+  orchestrator itself created; NAME each Conductor workspace (the default, Conductor-managed home) for
+  Simon to archive — archiving removes the worktree AND reaps that session's idle process. Then
+  `git worktree prune` and reconcile `git worktree list` against what should remain.
+- **Processes — sweep the machine for what the run left.** Each part self-cleans its servers, port lane
+  and inner `claude -p` slices at finish (Step 3, item 6); at reconciliation run
+  `bin/kill-orphan-workers.sh` for any BURNING dev-server orphan a killed session left, release held
+  port lanes (`bin/port-registry.sh`), and check `pgrep -fl 'claude -p'` for stray inner slices. The
+  orchestrator cannot close an interactive session, so it NAMES each idle session for Simon to archive —
+  the one action that reaps the session's own `claude` process.
+- TEST: at hand-back `git worktree list` shows no `hs/<run>` worktrees, `git branch` no merged part
+  branches, and `pgrep -fl 'next-router-worker|vitest|jest'` lists only what the orchestrator started.
 - **If work remains, loop:** the assembled branch is the new START. Commit + push it, write the next
   round's plan file, and repeat Steps 3-6 until the whole task is done. Say plainly, each round, what is
   done and what parts remain.
