@@ -1,6 +1,6 @@
 ---
 name: ship-mockup-before-after
-description: Show Simon what a planned change will LOOK like, before it is built, as a clickable before/after preview instead of a plan he has to read and imagine. Builds a dev-only route inside the project that renders the change with the project's OWN components, one preview per ticket or plan part, each citing the validated plan it came from and flagging anything that changed after validation. Use for "mock this up", "show me before and after", "what will this look like", "preview the plan", "I want to see it before you build it", or whenever a plan proposes a visible change. Then, once he approves it, this same skill owns the implementation: it inventories every difference from the mockup file, wires each one's call site, proves each on the real screen, and only then deletes the preview. Use it again for "implement the mockup", "build what I approved", or "the screen doesn't match the mockup".
+description: Show Simon what a planned change will LOOK like, before it is built, as a shareable before/after artifact on Claude instead of a plan he has to read and imagine. Builds a standalone artifact that is pixel-identical to the real app — a real screenshot of the target screen as the BEFORE, an HTML/CSS overlay sized from the real components' MEASURED styles as the AFTER — one per ticket or plan part, each citing the validated plan it came from and flagging anything that changed after validation. Independent of the app: it ships to a Claude URL and needs nothing running to view or share. Use for "mock this up", "show me before and after", "what will this look like", "preview the plan", "I want to see it before you build it", or whenever a plan proposes a visible change. Then, once he approves it, this same skill owns the implementation: it inventories every difference from the artifact, wires each one's call site, proves each on the real screen. Use it again for "implement the mockup", "build what I approved", or "the screen doesn't match the mockup".
 argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 ---
 
@@ -10,86 +10,122 @@ argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 He cannot, so he approves something he has not seen and corrects it after it is built, which is the
 expensive end. A preview moves every correction to before the work.
 
-**DO build the preview as a dev-only route INSIDE the project, using the project's own components.**
-**DON'T hand-write HTML, and DON'T publish an artifact, for anything that has a real screen.** Both
-were tried on 2026-08-10 and both were rejected, in his words: *"it's not looking like the real app"*,
+**DO ship the preview as a standalone, shareable Claude artifact, built from real app pixels.**
+**DON'T hand-write the screen from scratch, and DON'T build a dev route just to view it.** A rebuilt
+screen is always nearly right, and nearly right is what wastes the round — the artifact and the
+hand-rebuild were both rejected on 2026-08-10, in his words: *"it's not looking like the real app"*,
 then *"still not reusing existing components... I want you to use the exact components not remake
-them"*. A rebuilt screen is always nearly right, and nearly right is what wastes the round.
+them"*. The rule that survives both rejections: **the mockup's fidelity comes from the real app, never
+from eyeballing.** An artifact that starts from a real screenshot and measured real-component styles
+IS exact, and it wins the medium — one Claude URL, shareable, needing nothing running to open.
 
-An artifact stays correct for a change with NO screen — a schema, a prompt harness, a pipeline
-ordering. There, diagram the before and after. The rule is the medium follows the subject.
+A change with NO screen — a schema, a prompt harness, a pipeline ordering — has nothing to screenshot;
+diagram the before and after in the artifact instead. The rule is the medium follows the subject.
 
-## The shape that worked
+## Capture the BEFORE from the real app
 
-```
-app/<routes-dir>/mockup-<subject>/page.tsx   + data.ts
-```
+**DO screenshot the target screen at a FIXED viewport, in one theme, populated with realistic data.** A
+seeded demo is fine and preferred — seed the screen and everything it references with realistic values
+(plausible names, lengths, counts) so it looks like the app in real use. Record the route, viewport
+size and theme in the artifact's own comments. That raster is the substrate the AFTER sits on, so every
+pixel around the change stays true to the app.
+**DON'T screenshot placeholder, lorem or empty-stub content.** The wrapping, truncation and populated
+states are the whole reason to look, and only realistic content shows them.
 
-**DO gate it on development** — `if (process.env.NODE_ENV !== "development") notFound();` — so it
-cannot ship even if the deletion is forgotten.
+## Measure the real components — never eyeball the AFTER
 
-**DO put it where the app's own layout wraps it**, so the sidebar, top bar and theme come for free
-rather than being rebuilt.
+**DO measure the real rendered components before drawing anything** — `getComputedStyle` and
+`getBoundingClientRect` for box size, font, colour, spacing, border-radius, shadow — and size the
+AFTER from those exact values. The app itself is the render rig; stand up a scratch route ONLY when a
+component the AFTER needs is not reachable on any real screen.
+**DON'T set a dimension, colour or font in the overlay by eye.** Eyeballing is the nearly-right failure
+that got the rebuild rejected; a measured value cannot be nearly right.
+TEST: every dimension and colour in the overlay traces to a value you measured this run.
 
-**DO give every preview a BEFORE/AFTER toggle**, defaulting to AFTER. Before is what the code does
+## Render the AFTER: overlay a screen, storyboard a flow
+
+**DO overlay the change on the BEFORE screenshot when it is a single screen** — HTML/CSS positioned and
+sized from the measured values, changing ONLY the region the plan touches. Everything outside the change
+stays the untouched screenshot, so it is real pixels by construction.
+**DON'T re-render the parts that did not change.** Re-drawing them re-introduces the exact nearly-right
+rebuild this skill exists to avoid.
+
+**DO make it a WALKABLE storyboard when the change is a flow** — every step the user passes through,
+each new state built from the measured component styles, each state the app already renders reused as a
+real screenshot. Wire the buttons, fields and steps so he advances through them himself.
+
+## Walk every state — simulated, seeded, no real requests
+
+**DO cover every step of the proposed journey**, enumerated from `references/user-journey-review.md`
+(first contact → set-up → trigger → the wait → the result, and the empty, loading and error state of
+every surface). He can only tell you which parts need changing if he can reach every state; a first
+screen with nothing beyond it sends the fix back to after the build — the exact cost this skill removes.
+**DON'T stop at the first state, and DON'T leave a button dead.**
+**DO simulate every transition with local state and seeded data** — no network, no persistence, no auth,
+no real requests. He is walking the flow, not operating a live app.
+
+## Assemble the artifact
+
+**DO make it self-contained** — the screenshot embedded as a `data:` URI, all CSS and JS inline —
+because the artifact CSP blocks every external request. Load the `artifact-design` skill before
+writing the page, and give it a title, a favicon, a theme-aware palette and a responsive layout.
+
+**DO give the artifact a BEFORE/AFTER toggle defaulting to AFTER.** Before is what the screen does
 today; after is the proposal. He compares in one click instead of holding two screens in his head.
 
-**DO float every mockup control over the app — fixed, high z-index, styled with NONE of the project's
+**DO float every mockup control OVER the screen — fixed, high z-index, styled with NONE of the app's
 tokens.** A dark pill in a corner with a `MOCKUP` label reads instantly as scaffolding.
-**DON'T put a control inside a real component.** The before/after toggle went into a node header
-first and immediately read as a shipped feature: *"it should be a floating mockup interface element,
-not part of the app"*. A preview whose scaffolding is indistinguishable from the product teaches him
-the wrong thing about what was built, and screenshots as if the control were real.
-
-## Use the real components. All of them.
-
-**DO import the actual components — the shells, the headers, the inputs, the cards, the buttons.**
-**DON'T re-create a single one, however small.** The bar at the top of a panel is a real component
-with real state; a div that looks like it is a lie that costs a round.
-
-**DO stub the context rather than the components** when a component needs a provider. Read what it
-actually consumes first: on 2026-08-10 a node shell needed exactly one field, so a one-field cast
-replaced standing up an entire fake context.
-
-**DO use real data**, read out of the project's own database or fixtures, and say in the file where
-it came from and when. Invented copy hides the wrapping, the truncation and the empty states that
-are the whole reason to look.
-
-**DO reuse existing behaviour rather than reimplementing it in the preview.** If the preview needs
-a component to change, CHANGE THE COMPONENT — that change is part of the work anyway, and a preview
-that forks it proves nothing about the real screen.
+**DON'T style a control to look like part of the app.** A preview whose scaffolding is
+indistinguishable from the product teaches him the wrong thing about what was built.
 
 ## Cite where each part came from
 
-**DO put a sources line on every preview**, naming the validated plan part, ticket or decision it
-implements, by link.
+**DO put a sources line in the artifact**, naming the validated plan part, ticket or decision each
+visible difference implements, by link.
 **DON'T show a change with no source.** Anything unsourced is scope you invented, and this is the
 cheapest moment to notice.
 
-**DO refute, in the preview's own comments, any part that changed after validation** — what the plan
+**DO refute, in the artifact's own comments, any part that changed after validation** — what the plan
 said, what it is now, and what the evidence was. He validated the plan; a silent divergence spends
 that trust.
 
 TEST: every visible difference between before and after traces to a named source, or is explicitly
 marked as a refutation with its reason.
 
-## Keep it quick
+## Let him choose among variants, and say what to keep
 
-**DO limit it to what can be judged by eye** — layout, hierarchy, wording, density, state. Wire no
-network, no persistence, no auth.
-**DON'T build interactivity beyond selecting and toggling.** He is looking, not operating.
+**DO make a GALLERY of variants he browses** when the mockup exists for him to choose among them — a
+grid of options, each selectable (one or more), each with a comment box for what to keep from it and
+what to change.
+**DON'T make him read a variant's name and type it back.** The picks and comments ARE the decision.
 
-**DO make a GALLERY of options selectable in the page** when the mockup exists for him to choose among
-them — a grid of variants, not a single before/after. Click a card to toggle it (the component's own
-selected/active state plus a checkbox), a fixed bar lists the picks, and a Copy button puts them on the
-clipboard; persist the set to localStorage so a long compare does not lose it.
-**DON'T make him read each option's name and type it back.** That transcription is the error the mockup
-exists to remove; the picks ARE the decision the gallery is for.
-TEST: he selects the options he wants and hands you the exact list without typing a name.
+**DO assemble the picks and comments with the response contract from
+`/sk:work-ask-reply-in-full-before-after-artifact`**, so he hands back exactly what he selected and
+commented without typing a variant name.
 
-**DO iterate on the preview until he approves it.** Then the second half of this skill starts.
+**DO dock that panel COMPACT and collapsed, so it never covers the mockup.** He opens it after
+browsing, and the options stay fully visible while he decides.
+**DON'T float it over the screen he is judging.**
+TEST: he picks one or more variants, comments keep-or-change on each, opens the panel and copies, and
+the block names every pick, every rejection and every comment.
 
-## After he approves: implement it, prove it matches, then delete it
+## Check it against the real app, and fold the fix forward
+
+**DO diff every overlaid and new-state component against a real render before showing him** — screenshot
+the same component in the app at the same viewport and seed, and compare size, font, colour, spacing and
+radius. A difference means the overlay measured the wrong value or missed one; fix it against the
+measurement, never by nudging pixels.
+**DON'T show a mockup you have not checked against the real app.** Nearly-right is the whole failure, and
+the real render is the ground truth that catches it.
+
+**DO fix the CLASS and fold it forward.** When a divergence traces to how this skill works — a
+measurement it skips, a token it never reads, a state it forgets — propose the durable fix to this skill
+through `/sk:claude-config-update` so the next mockup is exact from the first render. That is the
+`self-healing-config` loop.
+
+**DO iterate on the artifact until he approves it.** Then the second half of this skill starts.
+
+## After he approves: implement it, prove it matches
 
 **A mockup is only worth what ships.** On 2026-08-11 an approved mockup was called implemented three
 separate times with three different details still missing, and each was found by Simon opening the
@@ -99,9 +135,11 @@ failure this half exists to make impossible.
 
 ### Build the inventory BEFORE writing any code
 
-**DO re-read the approved mockup file top to bottom and write every visible difference as a numbered
+**DO re-read the approved artifact top to bottom and write every visible difference as a numbered
 row.** Each row names three things: what changes, the file that must change, and **the CALL SITE that
-must pass it**. Rows come out of the file, never out of your memory of the round.
+must pass it**. Rows come out of the artifact, never out of your memory of the round. Walk every
+storyboard step, not just the entry screen — a state reached only by clicking through is the one most
+likely to be missed.
 
 **DO treat the third column as the real work.** A component that grows a prop no caller passes is the
 DEFAULT outcome, not an edge case: the component changes, every test passes, the screen does not move.
@@ -112,10 +150,10 @@ instances, all of them shaped identically.
 **DO give every row a mechanical check** — a DOM query, a count, a computed style, a `data-testid` —
 that returns a value you can read, in one line. Not "looks right".
 
-**DON'T let a row exist only in the mockup's markup.** A control the mockup renders that no plan,
+**DON'T let a row exist only in the artifact's markup.** A control the artifact renders that no plan,
 ticket or slice ever specified is still a row, and it is the one most likely to be dropped: the
 Regenerate button was in the approved mockup, in nobody's spec, and absent from the screen through
-three rounds of being told the work was done. Sweep the mockup for controls before sweeping the plan.
+three rounds of being told the work was done. Sweep the artifact for controls before sweeping the plan.
 
 **When the work is fanned out, ownership follows the row, not the component.** One slice owns a
 change AND its call site, or the wiring is stated as the reconciler's job. A slice that changes a
@@ -132,12 +170,12 @@ the failure looked like all three times.
 
 TEST: every row has a value next to it. A row with no value is an unimplemented row.
 
-**DO delete the mockup route only once every row is green**, in the same change that lands the work. A
-preview kept past that drifts from the screen it claims to show; one deleted before it is proven takes
-the checklist with it.
+**DO tear down any scratch render rig you stood up to measure** — a temporary route or harness — in
+the change that lands the work. Nothing else needs deleting: the artifact lives on Claude, not in the
+repo, so there is no dev route to clean up.
 
 ## Report
 
-Give him the URL, one line on what changed between before and after, and the open questions as a
-numbered list — the things you genuinely cannot decide for him, each with the option you would pick.
+Give him the artifact URL, one line on what changed between before and after, and the open questions as
+a numbered list — the things you genuinely cannot decide for him, each with the option you would pick.
 **DON'T ask him about anything the preview already answers.**

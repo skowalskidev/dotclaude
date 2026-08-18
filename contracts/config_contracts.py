@@ -681,46 +681,54 @@ CONTRACTS: dict[str, dict] = {
     "skills/sk/skills/ship-mockup-before-after/SKILL.md": {
         "mission": "The screen Simon approved is the screen that ships — he judges it by looking "
                    "before the work, and never has to find a missing detail by looking after it.",
-        "purpose": "Builds a dev-only before/after preview of a planned change inside the project, "
-                   "using the project's own components, one per ticket or plan part.",
+        "purpose": "Publishes a standalone, shareable Claude artifact of a planned change before/after "
+                   "— a real screenshot plus the real components' measured styles, walkable as a "
+                   "storyboard — one per ticket or plan part.",
         "criteria": [
-            "Builds the preview as a route INSIDE the project, never hand-written HTML and never a "
-            "published artifact, whenever the change has a real screen. Both alternatives were "
-            "tried on 2026-08-10 and rejected: a rebuilt screen is always nearly right, and nearly "
-            "right is what costs the round.",
-            "Uses the EXACT components, including the small ones. A bar or tile that merely looks "
-            "right is a lie that reads as a real preview.",
-            "Stubs the CONTEXT rather than the components, after reading what a component actually "
-            "consumes — one field is common, a whole fake context almost never needed.",
-            "Reads real data out of the project's own store and records where and when it came "
-            "from. Invented copy hides the wrapping, truncation and empty states worth looking at.",
-            "Carries a BEFORE/AFTER toggle defaulting to after, so two screens are compared in a "
-            "click rather than held in the head.",
-            "Floats every mockup control OVER the app, fixed and using none of the project's tokens. "
-            "A control placed inside a real component reads as a shipped feature and screenshots as "
-            "though it were one.",
-            "Cites the validated plan part behind every visible difference, and refutes in comments "
-            "anything that changed after validation, with the evidence. Unsourced difference is "
-            "invented scope, and this is the cheapest moment to catch it.",
-            "Gated on development and deleted in the change that lands the work. A preview kept "
-            "past sign-off drifts from the screen it claims to show.",
-            "Changes a component when the preview needs it changed, rather than forking it. A "
-            "forked copy proves nothing about the real screen.",
-            "Derives a numbered inventory FROM THE APPROVED MOCKUP FILE before writing any code, "
-            "each row naming what changes, the file, and the CALL SITE that must pass it. A "
-            "component that grows a prop no caller passes is the default outcome, not an edge "
-            "case: three landed in one round on 2026-08-11, all shaped identically.",
-            "Sweeps the mockup's own markup for controls no plan or slice ever specified, because "
-            "an unspecified control is the row most likely to be dropped — the Regenerate button "
-            "survived three rounds of being reported done.",
+            "Ships a self-contained shareable Claude artifact for a change with a real screen, never "
+            "a dev route to view it and never HTML rebuilt by eye. Fidelity comes from real pixels; "
+            "both alternatives were rejected 2026-08-10.",
+            "Captures the BEFORE as a screenshot of the target screen at a fixed viewport, populated "
+            "with realistic data — a seeded demo counts — never placeholder, lorem or empty-stub "
+            "content, which hide the states worth looking at.",
+            "Measures the real components (getComputedStyle, getBoundingClientRect: size, font, "
+            "colour, spacing, radius) and sizes the AFTER from those values. Every dimension and "
+            "colour in the overlay traces to a measured value, never eyeballed.",
+            "Overlays only the region the plan touches on the screenshot for a single-screen change; "
+            "the rest stays untouched real pixels. Re-rendering the unchanged parts re-introduces "
+            "the nearly-right rebuild.",
+            "Renders a flow as a WALKABLE storyboard covering every step and state from "
+            "references/user-journey-review.md, empty, loading and error included, so he reaches "
+            "every state rather than the first screen alone.",
+            "Simulates every transition with local state and seeded data — no network, no "
+            "persistence, no auth, no real requests. He walks the flow, he does not operate a live "
+            "app.",
+            "Embeds the screenshot as a data URI with inline CSS/JS for the artifact CSP, and loads "
+            "artifact-design before writing the page.",
+            "Carries a BEFORE/AFTER toggle defaulting to after, floated over the screen using none "
+            "of the app's tokens, so scaffolding never reads as a shipped feature.",
+            "Cites the validated plan part behind every visible difference and refutes in comments "
+            "anything that changed after validation. Unsourced difference is invented scope, and "
+            "this is the cheapest moment to catch it.",
+            "Offers a variant gallery whose picks and per-variant keep/change comments use the "
+            "response contract from /sk:work-ask-reply-in-full-before-after-artifact, docked compact "
+            "and collapsed so it never covers the mockup.",
+            "Diffs every overlaid and new-state component against a real render before showing him, "
+            "and when a divergence traces to the skill folds the fix forward through "
+            "/sk:claude-config-update. That is the self-healing-config loop.",
+            "Derives a numbered inventory FROM THE APPROVED ARTIFACT before writing code — each row "
+            "naming what changes, the file, and the CALL SITE, across every storyboard step. A prop "
+            "no caller passes is the default: three landed identically 2026-08-11.",
+            "Sweeps the artifact's own markup for controls no plan or slice ever specified, the row "
+            "most likely to be dropped — the Regenerate button survived three rounds of being "
+            "reported done.",
             "Gives every row a mechanical check returning a readable value, runs it against the "
             "REAL screen, and reports the value. A comparison made from memory cannot see what the "
             "comparer forgot, which is the whole failure mode.",
-            "Deletes the route only once every row is green. Earlier takes the checklist with it; "
-            "later drifts from the screen it claims to show.",
-            "Makes a gallery of options selectable in the page — click to toggle, a fixed bar "
-            "listing the picks, a Copy button, persisted to localStorage — so the user hands over "
-            "the exact picks without typing a name.",
+            "Tears down any scratch render rig stood up to measure and leaves nothing in the repo, "
+            "since the artifact lives on Claude. There is no dev route to delete.",
+            "Changes a component when the mockup needs it changed rather than forking it. A forked "
+            "copy proves nothing about the real screen.",
         ],
     },
     "skills/sk/skills/work-preview-on-phone/SKILL.md": {
