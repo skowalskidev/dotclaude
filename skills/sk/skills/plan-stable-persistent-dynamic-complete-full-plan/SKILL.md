@@ -1,6 +1,6 @@
 ---
 name: plan-stable-persistent-dynamic-complete-full-plan
-description: Keep ONE living, source-of-truth plan file instead of re-writing or re-explaining the plan every time it changes. It updates only the SECTIONS a request touches (surgical edits, so the plan never drifts or needs re-reading whole), prepends a dated Changelog entry naming what changed, and shows you ONLY the changed section(s) in chat as the delta — so you read the change, not the whole document. It stays LOCKED in plan-mode: every new request, correction or idea folds back into the single plan, and it does NOT implement until you explicitly confirm ("implement" / "start building" / "go build" / "the plan is confirmed"). On confirmation it asks whether to break the plan into Linear tickets, then hands off to /sk:work-full-detailed-workflow automatically. The plan lives at .context/<slug>-plan.md (durable, survives a restart). Use for "keep a single plan", "stop making me re-read the plan", "just update the plan", "one source of truth plan", "living plan", "stay in plan mode until I say go", or /sk:plan-stable-persistent-dynamic-complete-full-plan. Reuses references/planning-and-tracking.md for what a complete plan contains.
+description: Keep ONE living, source-of-truth plan file instead of re-writing or re-explaining the plan every time it changes. It updates only the SECTIONS a request touches (surgical edits, so the plan never drifts or needs re-reading whole), prepends a dated Changelog entry naming what changed, and shows you ONLY the changed section(s) in chat as the delta — so you read the change, not the whole document. It stays LOCKED in plan-mode: every new request, correction or idea folds back into the single plan, and it does NOT implement until you explicitly confirm ("implement" / "start building" / "go build" / "the plan is confirmed"). On confirmation it asks whether to break the plan into Linear tickets, then hands off to /sk:work-full-detailed-workflow automatically. Every plan change is backed with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) for clarity, and any visible change is offered as a clickable preview (/sk:ship-mockup-before-after). The plan lives at .context/<slug>-plan.md (durable, survives a restart). Use for "keep a single plan", "stop making me re-read the plan", "just update the plan", "one source of truth plan", "living plan", "stay in plan mode until I say go", or /sk:plan-stable-persistent-dynamic-complete-full-plan. Reuses references/planning-and-tracking.md for what a complete plan contains.
 argument-hint: "[the plan's subject, or the update to fold in]"
 ---
 
@@ -54,12 +54,21 @@ A new requirement, a correction, an answer to a question, a new idea — each is
    causes drift and forces a re-read.
 3. **Prepend a Changelog entry:** `### rev N · <today, from `date +%F`> · <one line>` naming each changed
    section (its `## anchor`), what changed, and WHY.
-4. **Show Simon ONLY the delta in chat** — the changed section(s) in full under a `What changed (rev N)`
-   header, nothing else. He reads the change; the file stays the complete source of truth he can open
-   any time.
+4. **Show Simon ONLY the delta in chat, backed by a before/after.** Present the changed section(s) via
+   `/sk:work-ask-reply-in-full-before-after-artifact` — the section BEFORE and AFTER the change, with a
+   verdict and a comment box — so every plan change is CLARIFIED as before→after and Simon can accept,
+   adjust or comment on it, not just read it. Nothing else in chat; the file stays the complete source of
+   truth he can open any time.
 
 TEST: after an update, Simon can act from the chat delta alone, and the repo still has exactly ONE plan
 file with one new Changelog entry.
+
+## Preview visible changes — `/sk:ship-mockup-before-after`
+
+When the plan proposes a VISIBLE change (a screen, a component, a layout, a flow the user sees), offer
+Simon a clickable BEFORE/AFTER preview via `/sk:ship-mockup-before-after` — rendered with the project's
+own components — so he previews it before anything is built. Still in plan-mode: the preview is a mockup
+that cites the plan section it came from, never the implementation.
 
 ## Plan-mode lock — do NOT implement until confirmed
 

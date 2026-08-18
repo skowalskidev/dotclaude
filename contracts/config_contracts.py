@@ -453,6 +453,7 @@ CONTRACTS: dict[str, dict] = {
             "Stays in plan-mode — every request folds into the plan, nothing is implemented — until an explicit confirmation ('implement'/'go build'/'the plan is confirmed').",
             "On confirmation it asks whether to encode the plan into tickets, then hands off to /sk:work-full-detailed-workflow automatically.",
             "Reuses references/planning-and-tracking.md for the plan's content; does not restate it.",
+            "Backs every plan change with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) and offers a clickable preview (/sk:ship-mockup-before-after) for visible changes; does not restate either.",
         ],
     },
     "skills/sk/skills/work-hyperspeed/SKILL.md": {
