@@ -23,6 +23,16 @@ exact, and it needs nothing running to open or share.
 A change with NO screen — a schema, a prompt harness, a pipeline ordering — has nothing to screenshot;
 diagram the before and after instead. The rule is the medium follows the subject.
 
+**When the screen ALREADY EXISTS, the BEFORE is that real screen — always.** A "blind", "exploratory"
+or "independent-directions" round is free to reinvent the LAYOUT, but it NEVER licenses a fabricated,
+generic, or from-memory before/after. The BEFORE is the real screenshot (or the real component
+measured); the AFTER's tokens, chrome and theme trace to the measured real app; only the layout is
+open. The no-screen escape above is ONLY for a surface that does not exist yet. Round 1 of the RR
+redesign was run blind with zero app grounding and every direction was rejected for not looking like
+the product — the exploration belongs in the layout, not in the fidelity. TEST: the BEFORE traces to
+the real screen, and every colour/font/radius/theme in the AFTER traces to a measured value, even in a
+blind round.
+
 ## Choose the medium — a downloadable HTML FILE, or a Claude artifact URL
 
 The deliverable is one self-contained HTML document; ship it as whichever medium serves THIS mockup.
@@ -117,8 +127,9 @@ no real requests. He is walking the flow, not operating a live app.
 
 **DO make it self-contained** — screenshots as compressed `data:` URIs, all CSS and JS inline — so the
 one file (or the CSP-locked artifact) needs no external request. Apply the visual craft directly — no
-separate design skill to load: give the page a title, a favicon, a theme-aware light+dark palette, a
-responsive layout, and realistic seeded content (never lorem).
+separate design skill to load: give the page a title, a favicon, a palette and theme support that MATCH
+THE REAL APP'S — measure it, and if the app wires no dark theme, the mockup is light-only; never impose
+a light+dark the product does not have — a responsive layout, and realistic seeded content (never lorem).
 **DO keep ALL state in-memory and in `#spec`; NEVER use `localStorage`/`sessionStorage`.** They are
 blocked in the artifact sandbox and fail silently; the embedded `#spec` is the durable record either way.
 
