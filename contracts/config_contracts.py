@@ -720,6 +720,9 @@ CONTRACTS: dict[str, dict] = {
             "Ships as a self-contained HTML FILE for a collaborative/versioned/multi-screenshot "
             "round-trip, or a Claude artifact URL only when small and un-gated — the artifact's size "
             "ceiling, blocked localStorage and Team-can't-publish-publicly limits pick the medium.",
+            "The consolidation gallery over N fanned-out files opens from file:// with no server — every "
+            "mockup inlined as srcdoc, never iframed from sibling paths — so a recipient sees rendered "
+            "tiles, not blank ones with the server off.",
             "Keeps all state in an embedded <script id=spec type=application/json> data island and "
             "renders the UI from it; nothing user-visible exists outside #spec, so a rebuild is "
             "re-render-from-data (loss-free), not re-describe.",

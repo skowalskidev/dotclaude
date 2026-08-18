@@ -20,6 +20,13 @@ them"*. The rule that survives both rejections: **the mockup's fidelity comes fr
 from eyeballing.** A document that starts from a real screenshot and measured real-component styles IS
 exact, and it needs nothing running to open or share.
 
+**DO make EVERY deliverable open from `file://` with no server — self-contained, no external requests,
+no sibling-file dependencies — whether it is one `#spec` document or the consolidation gallery over many
+files (§ below).** The same anti-pattern as the dev route above, one level up: a gallery that needs
+`http://localhost` to show its tiles hands a recipient blank tiles.
+TEST: with every server off, opening the file renders it fully. A deliverable that needs a running
+server is not shareable and is not done.
+
 A change with NO screen — a schema, a prompt harness, a pipeline ordering — has nothing to screenshot;
 diagram the before and after instead. The rule is the medium follows the subject.
 
@@ -184,8 +191,20 @@ TEST: at any moment the HUD names the type, the variant position (N of M), and t
 ## The consolidation gallery (many self-contained files → one review surface)
 
 When a fan-out (e.g. `/sk:work-hyperspeed`) produces N self-contained mockup FILES rather than one
-`#spec` document, the gather builds ONE review gallery over them — served over http so same-origin
-iframes render (a `file://` page cannot iframe sibling files). Build it with these controls BY DEFAULT:
+`#spec` document, the gather builds ONE review gallery over them.
+
+**DO make that gallery a self-contained single file BY DEFAULT — INLINE every mockup into it.** Embed
+each file's HTML in a `<script type="application/json" id="mocks">` island and point each iframe at
+`fr.srcdoc=MOCKS[key]`, never `fr.src=<sibling-path>`. `about:srcdoc` is same-origin to the gallery, so
+every tile renders from `file://` AND the gallery's cross-frame controls still reach in.
+**DON'T hand over a gallery that iframes sibling files over `http://localhost`** — `file://` blocks
+cross-origin iframes, so a recipient who opens it gets blank tiles (the fix that re-inlined
+`gallery-share.html`: 8 mockups inlined, verified rendering on `file://` with zero server). Serving over
+http is a DEV convenience for fast cache-busted refresh while you edit the mockups; RE-INLINE before
+handoff so the at-rest deliverable always opens standalone.
+TEST: open the gallery from `file://` with the server OFF — every tile still renders.
+
+Build it with these controls BY DEFAULT:
 
 - **Bird's-eye GRID with CONFIGURABLE columns (1 / 2 / 3 per row).** Each tile is a small DESKTOP view —
   render the mockup at ~1440px and scale it to fit the tile; NEVER render it narrow (that trips the
@@ -213,8 +232,9 @@ iframes render (a `file://` page cannot iframe sibling files). Build it with the
 toggle.** `#compare{display:flex}` kept an empty pane displayed over the grid on ALL views — a whole
 "blank grid" was actually a gray overlay on top. Scope every view's display to its `.show` class
 (`#compare.show{display:flex}`), and when a view looks blank, `elementFromPoint` the empty area before
-assuming lost content. Verify the gallery in the browser before handing it over — and cache-bust the
-reload (`?t=`) or a served gallery hands you the stale file mid-iteration.
+assuming lost content. Verify the gallery in the browser before handing it over — including a `file://`
+open with the server off — and cache-bust the reload (`?t=`) or a served gallery hands you the stale
+file mid-iteration.
 
 ## Compare — side by side, and diff what changed between versions
 
