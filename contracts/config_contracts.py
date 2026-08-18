@@ -444,6 +444,17 @@ CONTRACTS: dict[str, dict] = {
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
         ],
     },
+    "skills/sk/skills/plan-stable-persistent-dynamic-complete-full-plan/SKILL.md": {
+        "mission": "Simon reads only what changed, never the whole plan again, and no request slips into code before he confirms — because there is exactly one living plan that stays in plan-mode until he says go.",
+        "purpose": "Maintain ONE durable source-of-truth plan, update only the sections a request touches, highlight the delta, lock plan-mode until confirmed, then ask about tickets and hand off.",
+        "criteria": [
+            "One plan file at .context/<slug>-plan.md; a request updates only the sections it touches, never a wholesale rewrite.",
+            "Every update prepends a dated Changelog entry and shows Simon ONLY the changed section(s) as the delta in chat.",
+            "Stays in plan-mode — every request folds into the plan, nothing is implemented — until an explicit confirmation ('implement'/'go build'/'the plan is confirmed').",
+            "On confirmation it asks whether to encode the plan into tickets, then hands off to /sk:work-full-detailed-workflow automatically.",
+            "Reuses references/planning-and-tracking.md for the plan's content; does not restate it.",
+        ],
+    },
     "skills/sk/skills/work-hyperspeed/SKILL.md": {
         "mission": "A dividing task finishes across as many hand-run sessions as Simon can open, assembled from clean branches, each part pasteable into a cold session with no prior context, and the skill gets better every round.",
         "purpose": "Manual, branch-based parallel harness: one plan file of self-contained parts pasted into separate sessions, assembled from their pushed branches.",
