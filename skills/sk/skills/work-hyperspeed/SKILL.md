@@ -98,9 +98,11 @@ this order:
    its `owns` (may edit), `reads` (read-only), `forbid` (the look-alikes another part owns), an
    `accept` line, and a runnable `verify` command scoped to its owned files.
 3. **Run the slice through the full harness — autonomously, and superspeed WITHIN it.** The session
-   drives its slice with `/sk:work-full-detailed-workflow` (the spine already takes a port lane via
-   `/sk:work-isolate-environment` and closes with
-   `/sk:ship-report-and-ensure-correct-user-system-journey`), and **fans its OWN slice out with
+   drives its slice with the spine skill that fits the part's TASK SHAPE (per `references/skill-stack.md`)
+   — `/sk:work-full-detailed-workflow` for a code/build slice (it takes a port lane via
+   `/sk:work-isolate-environment` and closes with `/sk:ship-report-and-ensure-correct-user-system-journey`),
+   `/sk:ship-mockup-before-after` for a design mockup, the matching design/review skill for those —
+   and **fans its OWN slice out with
    `/sk:work-superspeed` where that slice sub-divides into 3-5+ independent pieces** — this is the inner
    layer, hyperspeed on top of superspeed. It runs UNATTENDED: this spec IS the ratified plan (no
    sign-off to wait for), the `accept` line is the criteria ship-report judges against, and it asks
@@ -121,6 +123,14 @@ this order:
    your slice pass. If the work genuinely needs one, or you get stuck, that is a `BLOCKED.md` in the
    repo root (what and why) and a stop, not an edit.
 
+**Every skill name a part tells its session to load must be VERIFIED installed FIRST.** Glob it —
+`find -L ~/.claude/skills -name SKILL.md` — or confirm it in the runtime skill listing before you write
+it into a part; never write a skill name from memory. One wrong or non-existent name in the shared
+template derails ALL parallel sessions at once, and you only find out after paying for N sessions (e.g.
+the mockup run told every session to load a non-existent `artifact-design`; the installed mockup flow was
+`/sk:ship-mockup-before-after`). TEST: every `/sk:` name across all parts resolves to an installed
+SKILL.md before the plan is handed over.
+
 TEST: a part pasted into a brand-new session, with nothing else, can reach `accept`, push its branch,
 and print its report block.
 
@@ -133,6 +143,15 @@ durable plan file and the shared inputs by ABSOLUTE path is fine, but the block 
 instruction. Do NOT hand only the plan-file path and make him extract the parts himself — that is the
 first-run confusion this skill exists to remove. TEST: Simon can run the round by copying blocks out of
 the chat, never opening the plan file.
+
+**Start each block with a cross-verifiable session line — the FIRST line INSIDE the fence is
+`Session <n> (<part-name>)`**, matching the block's header label and the report block's `part:`. A new
+session auto-names itself from its first prompt line, so this makes the name land logically ("Session 1
+(Command Center)") and lets Simon cross-reference a report block to its session by number at a glance.
+**Keep the blocks as plain fenced code-blocks** — the terminal's own copy button flashes "Copied"
+natively, so the copy-state affordance needs nothing built; don't spin up a separate HTML card just for
+that. TEST: for every part, the session's auto-name, its header label, and its report block's `part:`
+all name the same direction.
 
 Open one session per part — a separate Conductor workspace is the intended home, so each part gets its
 own worktree and branch off START without fighting the others over the checkout (and its own port lane

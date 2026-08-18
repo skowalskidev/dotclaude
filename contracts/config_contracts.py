@@ -703,8 +703,9 @@ CONTRACTS: dict[str, dict] = {
             "Simulates every transition with local state and seeded data — no network, no "
             "persistence, no auth, no real requests. He walks the flow, he does not operate a live "
             "app.",
-            "Embeds the screenshot as a data URI with inline CSS/JS for the artifact CSP, and loads "
-            "artifact-design before writing the page.",
+            "Embeds the screenshot as a compressed data URI with inline CSS/JS for the artifact CSP, "
+            "and applies the visual craft directly (theme-aware, self-contained, real content) rather "
+            "than loading a separate design skill.",
             "Carries a BEFORE/AFTER toggle defaulting to after, floated over the screen using none "
             "of the app's tokens, so scaffolding never reads as a shipped feature.",
             "Cites the validated plan part behind every visible difference and refutes in comments "
@@ -860,11 +861,11 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon acts on a reply he did not understand: he reads it, picks from it, comments, and hands his exact choices back with no ambiguity.",
         "purpose": "Answer a confusing or multi-option reply as an interactive before/after decision artifact Simon selects and comments on.",
         "criteria": [
-            "Builds an artifact via artifact-design with explainer + before/after + verdict cards grouped into sections, not chat prose.",
+            "Builds an artifact (visual craft applied directly, no separate design skill) with explainer + before/after + verdict cards grouped into sections, not chat prose.",
             "Every card and every section is selectable and carries a comment field.",
             "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",
             "Holds every input (radios and textareas) in in-memory JS state — never localStorage/sessionStorage, blocked in the artifact sandbox — and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
-            "A submit-to-chat button appears only when artifact-capabilities confirms a post-back path; the copy-paste block always stands alone.",
+            "A submit-to-chat button appears only when the runtime is known to support a post-back (a claude.ai artifact; a Claude Code terminal HTML file has none); the copy-paste block always stands alone.",
         ],
     },
     "skills/sk/skills/claude-config-sync/SKILL.md": {

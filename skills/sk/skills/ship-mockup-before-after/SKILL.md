@@ -116,8 +116,9 @@ no real requests. He is walking the flow, not operating a live app.
 ## Assemble the document
 
 **DO make it self-contained** — screenshots as compressed `data:` URIs, all CSS and JS inline — so the
-one file (or the CSP-locked artifact) needs no external request. Load the `artifact-design` skill before
-writing the page, and give it a title, a favicon, a theme-aware palette and a responsive layout.
+one file (or the CSP-locked artifact) needs no external request. Apply the visual craft directly — no
+separate design skill to load: give the page a title, a favicon, a theme-aware light+dark palette, a
+responsive layout, and realistic seeded content (never lorem).
 **DO keep ALL state in-memory and in `#spec`; NEVER use `localStorage`/`sessionStorage`.** They are
 blocked in the artifact sandbox and fail silently; the embedded `#spec` is the durable record either way.
 

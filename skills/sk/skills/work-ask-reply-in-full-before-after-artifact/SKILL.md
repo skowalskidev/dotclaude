@@ -17,9 +17,10 @@ to choose among. Answer with a BUILT artifact he reads, selects from, and commen
 chat prose. Reference format: the "Borrowed Parts" artifact (explainer + before/after + verdict cards).
 
 ## Build it
-DO load `artifact-design` first for the visual craft (theme-aware light+dark, self-contained, real
-content never lorem), then build. DO load `artifact-capabilities` before wiring any submit-to-chat
-button, to see what this user's runtime allows.
+DO apply the visual craft directly — no separate design skill to load: theme-aware light+dark,
+self-contained (all CSS/JS inline), real content never lorem. The copy-paste response block (below) is
+the default, always-available path; a submit-to-chat button is added only when the runtime is already
+known to support a post-back to chat (see § Submit-to-chat).
 
 Structure every thing under discussion as a CARD, grouped into SECTIONS (tiers):
 - **What it does** — FIRST, a plain-English explainer that assumes Simon does NOT know the jargon.
@@ -65,9 +66,10 @@ DO keep that JS free of external calls, so it works with zero runtime capabiliti
 always-available path; never make it the fallback.
 
 ## Submit-to-chat — only when the runtime allows
-DO wire a "Submit to chat" button ONLY when `artifact-capabilities` confirms a post-back capability
-exists; it emits the SAME block. Absent that, the copy-paste block stands alone. Never make submit the
-only path.
+DO wire a "Submit to chat" button ONLY when the runtime is already known to support a post-back to chat
+(e.g. a claude.ai artifact); it emits the SAME block. A Claude Code terminal artifact — an HTML file
+opened in the browser — has no such post-back, so there the copy-paste block stands alone. Never make
+submit the only path.
 
 ## Hand-off
 The artifact is the deliverable. Simon pastes his response block (or submits it) and the chat acts on
