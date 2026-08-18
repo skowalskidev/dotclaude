@@ -33,6 +33,17 @@ the product — the exploration belongs in the layout, not in the fidelity. TEST
 the real screen, and every colour/font/radius/theme in the AFTER traces to a measured value, even in a
 blind round.
 
+## Ask for the direction FIRST — reference images
+
+Before designing an AFTER, ASK the user for reference images of interfaces they like — it is the
+fastest route to a direction they accept and it stops you inventing one they reject. Suggest they
+browse **Dribbble** (dribbble.com) and copy-paste the shots or directions they want to emulate (app
+screenshots work too). Ground the AFTER in those references — reproduce their layout, hierarchy and
+component patterns — alongside the real app's measured tokens. When references exist, PASS EVERY ONE to
+each builder by absolute path and have the builder READ them before designing; a reference that
+silently never reaches a builder wastes the whole round, so **FAIL LOUD** — stop and report which
+reference is missing — rather than building without it.
+
 ## Choose the medium — a downloadable HTML FILE, or a Claude artifact URL
 
 The deliverable is one self-contained HTML document; ship it as whichever medium serves THIS mockup.
