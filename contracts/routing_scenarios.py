@@ -37,6 +37,11 @@ SCENARIOS: list[dict] = [
     # --- Frontend ------------------------------------------------------------------
     {"phrase": "check my UI change in the browser", "expect": "test-eyeball"},
     {"phrase": "go eyeball", "expect": "test-eyeball"},
+    {"phrase": "screenshot the changes", "expect": "ship-screenshot-changes"},
+    {"phrase": "doc the new UI", "expect": "ship-screenshot-changes"},
+    {"phrase": "grab screenshots of what changed", "expect": "ship-screenshot-changes"},
+    {"phrase": "capture the new screens", "expect": "ship-screenshot-changes"},
+    {"phrase": "post the screenshots to the PR", "expect": "ship-screenshot-changes"},
 
     # --- Testing with Simon --------------------------------------------------------
     {"phrase": "let's test this together", "expect": "test-copilot"},

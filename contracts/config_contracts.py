@@ -443,14 +443,26 @@ CONTRACTS: dict[str, dict] = {
             "guarantee of correctness.",
         ],
     },
-    "skills/sk/skills/test-eyeball/SKILL.md": {
-        "mission": "A change Simon can see is confirmed working in a real browser before he is asked to look at it.",
-        "purpose": "Drives the changed frontend in a real browser, fixes, loops, screenshots.",
+    "skills/sk/skills/ship-screenshot-changes/SKILL.md": {
+        "mission": "Simon can picture the new UI in the state a user sees it — for docs or a PR — in one fast pass, without waiting for a bug-hunt loop.",
+        "purpose": "Screenshot the changed frontend surfaces in a real browser with realistic inputs, hand them back, and opt-in post them to the PR.",
         "criteria": [
-            "Runs as a loop until clean, not a one-shot.",
+            "Screenshots each CHANGED surface (from git diff), seeded into the state a user would see "
+            "it, with realistic example inputs, saved inside a workspace root — no bug-hunt, no edge "
+            "fuzzing, no fix-loop.",
             "Posts screenshots to the PR only opt-in (open PR + Simon confirms) and GitHub-native — "
             "gh --attach or the user-attachments CDN upload, git-only detached-ref as fallback, never "
             "an external host; fails loud and verifies the images render (not camo-broken).",
+            "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
+        ],
+    },
+    "skills/sk/skills/test-eyeball/SKILL.md": {
+        "mission": "A change Simon can see is confirmed working in a real browser before he is asked to look at it.",
+        "purpose": "Drives the changed frontend hard (edge inputs, bug-hunt, fix-loop) on top of /sk:ship-screenshot-changes's capture.",
+        "criteria": [
+            "Runs as a loop until clean, not a one-shot.",
+            "Reuses /sk:ship-screenshot-changes for the capture and the opt-in PR post; adds only "
+            "edge-input fuzzing, bug-hunt, the fix-loop and the journey-review, and does not restate them.",
         ],
     },
     "skills/sk/skills/work-full-detailed-workflow/SKILL.md": {

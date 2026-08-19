@@ -41,7 +41,7 @@ config suite; this is the reading of it.
 | `claude-config-` | Changes `~/.claude` itself | 4 |
 | `work-` | Starting or running a piece of work | 10 |
 | `plan-` | Researching and deciding before building | 2 |
-| `ship-` | Getting a change out, and reporting on it | 6 |
+| `ship-` | Getting a change out, and reporting on it | 7 |
 | `test-` | Verifying something behaves | 2 |
 | `maintenance-code-` | Improving code already there | 2 |
 | `meta-` | Reporting on his work, housekeeping his environment, and routing tasks to skills | 3 |
@@ -66,7 +66,8 @@ config suite; this is the reading of it.
 | Walking a flow as a user, pre-ship UX pass | `/sk:ship-review` (Step 6 alone) | — | Its journey pass reads `references/user-journey-review.md`. Run Step 6 on its own when no code review is wanted; there is no separate journey command. |
 | Security review | — | `/security-review` (built-in) | Reviews pending changes on the branch. `rules/security.md` governs what Claude may DO; this reviews what was written. |
 | New UI, before writing any of it | — | `[gstack] /design-consultation` | Establishes the system (type, colour, spacing, motion) before code exists. |
-| UI built, needs a designer's eye | `/sk:test-eyeball` | `[gstack] /design-review`, then `[impeccable] /audit` → `/normalize` → `/polish` | `/sk:test-eyeball` drives the real browser and fixes what breaks; the others judge what merely looks wrong. Different failure modes. Note `process.md`: do NOT auto-launch the browser, ask first. |
+| UI built, needs a designer's eye | `/sk:test-eyeball` | `[gstack] /design-review`, then `[impeccable] /audit` → `/normalize` → `/polish` | `/sk:test-eyeball` drives the real browser and fixes what breaks (reusing `/sk:ship-screenshot-changes` for the capture); the others judge what merely looks wrong. Different failure modes. Note `process.md`: do NOT auto-launch the browser, ask first. |
+| Screenshotting the changed UI for docs or a PR, no bug-hunt | `/sk:ship-screenshot-changes` | — | Seeds each changed surface into the state a user sees it, screenshots it with realistic inputs, hands them back opened in Finder, and — opt-in, GitHub-native only — posts them onto the PR. `/sk:test-eyeball` REUSES it for the capture and PR-post and adds the edge-fuzzing bug-hunt loop on top; call this directly when you only want the new screens pictured fast, with no QA sweep. |
 | Testing a flow with Simon watching | `/sk:test-copilot` | — | Paces him through the journey one step at a time while watching instrumented logs. Nothing stacks usefully. |
 | Performance / Core Web Vitals | `/sk:maintenance-code-optimize-app` | `[gstack] /benchmark` | The spine measures on a production build and applies fixes; `/benchmark` catches regressions after. |
 | Opening a PR | `/sk:ship-pr` | `[gstack] /ship` or `/land-and-deploy` | `/sk:ship-pr` owns the Deploy-TLDR body standard. The gstack ones own the mechanics (version bump, changelog, merge). |
