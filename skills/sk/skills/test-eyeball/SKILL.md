@@ -1,6 +1,6 @@
 ---
 name: test-eyeball
-description: Drive the changed frontend in a real debug browser with example inputs, find + fix bugs, loop until a clean pass, then hand back screenshots for a human to eyeball. Use for "go eyeball / QA / check my UI change in the browser".
+description: Drive the changed frontend in a real debug browser with example inputs, find + fix bugs, loop until a clean pass, then hand back screenshots for a human to eyeball — and, when Simon confirms, POST those screenshots onto the branch's open PR (opt-in, GitHub-native: the user-attachments CDN, or a git-only detached-ref fallback, never an external host). Use for "go eyeball / QA / check my UI change in the browser", or "post the QA screenshots to the PR".
 argument-hint: [optional focus, e.g. "the RR SMS preview"]
 ---
 
@@ -79,6 +79,53 @@ so I can review the whole branch's impact in order.
 
 **Finally, `open` the screenshots directory in Finder** (macOS: `open "<abs path to the
 screenshots dir>"`) so I can flip through them without hunting for the files.
+
+## Step 5 — Post the screenshots to the PR (OPT-IN, GitHub-only)
+
+By default the screenshots are handed back locally (Step 4). Post them ONTO the PR only when BOTH hold:
+the branch has an OPEN PR (`gh pr view --json number,url,isDraft`) AND Simon says yes — posting to a work
+PR is outward-facing (ptrandev sees it). ASK first; never auto-post.
+
+**GitHub-only — never an external host.** In a PRIVATE repo (a work repo usually is), GitHub's Camo proxy
+can't authenticate: `raw.githubusercontent.com`, release assets and external hosts all render as a BROKEN image
+in a comment. Only two URL forms render inline in a private-repo comment, and both live on github.com.
+Post via the first that works, and FAIL LOUD (non-zero, drop to the next) — never post broken-image markdown:
+
+1. **`gh pr comment <n> --attach <shot.png> … --body <md>`** if the installed `gh` supports `--attach`
+   (`gh pr comment --help | grep -q -- --attach`). Official path; it uploads to GitHub's `user-attachments`
+   CDN for you. Nothing enters the repo.
+2. **Else upload each shot to the user-attachments CDN yourself** (the same CDN `--attach` uses) with a
+   PAT/OAuth user token — NOT a GitHub App token (those 404) — and embed the returned URLs:
+   ```bash
+   TOKEN=$(gh auth token); REPO_ID=$(gh api "repos/$REPO" --jq .id); BODY="### QA screenshots"
+   for F in <shots>; do
+     URL=$(curl -sf "https://uploads.github.com/user-attachments/assets?name=$(basename "$F")&content_type=$(file -b --mime-type "$F")&repository_id=$REPO_ID" \
+       -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" --data-binary "@$F" | jq -r '.href // .url') \
+       || { echo "CDN UPLOAD FAILED for $F"; exit 1; }
+     BODY="$BODY"$'\n\n'"**$(basename "$F")**"$'\n'"![$(basename "$F")]($URL)"
+   done
+   gh pr comment "$PR" --repo "$REPO" --body "$BODY"
+   ```
+   This keeps NOTHING in the repo — survives merge/squash/branch-delete, needs no pruning. Its one risk:
+   the endpoint is undocumented, so `curl -sf` fails on any non-2xx and drops to (3).
+3. **Else (CDN refused) the git-only detached-ref fallback** (ptrandev's `ui-walkthrough` method — still
+   github.com, but the blobs live in the repo). Hash each PNG into a blob with a SCRATCH index (never
+   touch the working tree), assemble a tree, `commit-tree` an ORPHAN commit, and
+   `git push origin <commit>:refs/test-eyeball/pr-<n>-<sha>` (FLAT, hyphenated — a nested ref name
+   collides). Embed `github.com/<owner>/<repo>/raw/<commit>/<file>` (the viewer's session cookie authorizes
+   it; github.com URLs aren't camo-rewritten, so it renders in private). **Check the push EXIT CODE, never
+   its output or the URL** — a rejected push still transfers the objects, so the blob is fetchable while the
+   ref was never created. If the custom ref is 403'd (some git proxies allow only `refs/heads/*`), retry as
+   `refs/heads/claude/test-eyeball-pr-<n>-<sha>`. This leaves blobs in the repo forever — cap at ≤ 8 images
+   and prune closed PRs' refs later (`git ls-remote origin 'refs/test-eyeball/*'` → `git push origin --delete <ref>`).
+
+**VERIFY before reporting done** — read the posted comment's rendered HTML and confirm the images are there
+and NOT camo-broken:
+```bash
+gh api -H "Accept: application/vnd.github.full+json" "repos/$REPO/issues/comments/<id>" --jq '.body_html' > /tmp/c.html
+grep -c 'camo.githubusercontent' /tmp/c.html   # expect 0; nonzero = renders broken
+```
+TEST: the PR comment shows every posted screenshot inline, and nothing was hosted outside github.com.
 
 ## chrome-devtools tips (save time)
 
