@@ -128,16 +128,22 @@ this order:
 4. **The git ritual, verbatim and copy-pasteable:**
    ```bash
    git fetch origin
-   git switch -c hs/<run-id>/<part-name> <START-SHA>
+   git switch -c hs/<run-id>/<part-name> <START-SHA>   # a Conductor workspace is already on its own
+   # branch off START — keep that one instead of switching; either way it must sit on <START-SHA>
    # …do the work…
    git add -A && git commit -F <msg-file>     # -F, never -m
    git push -u origin HEAD
    ```
+   Whichever branch you land on, REPORT its EXACT name (item 6) — the orchestrator cleans up by the
+   reported name, never by an `hs/` pattern, because Conductor names its workspace branch itself.
 5. **The repo setup ritual**, lifted from the project's `CLAUDE.md` and `CLAUDE.local.md` (e.g. Node
    version, `yarn install`, any build a fresh worktree needs) — the part must not have to go find it.
 6. **Report status to the SHARED file (primary), tear down, THEN print the block (fallback).** The
-   part's block carries its `<STATUS_DIR>` absolute path (from Step 1). As its FIRST action it writes
-   `<STATUS_DIR>/<part-name>.json` = `{"status":"working","part":"<name>"}`. As its LAST actions it
+   part's block carries its `<STATUS_DIR>` absolute path (from Step 1). As its FIRST action AFTER the
+   branch-off-START ritual (item 4) it writes `<STATUS_DIR>/<part-name>.json` =
+   `{"status":"working","part":"<name>","branch":"<the branch it just landed on>"}` — recording the
+   branch NOW, not only at done, so that even a mid-work death leaves the branch name for the orchestrator
+   to find and clean, since a Conductor branch name cannot be reconstructed by pattern. As its LAST actions it
    (a) tears down everything it started — its harness dev servers, its port lane, and any inner
    `/sk:work-superspeed` `claude -p` slices — per `rules/process.md` § "Clean up after yourself" and
    `references/dev-server-hygiene.md`, so the finished session holds no live processes and archiving only
@@ -227,12 +233,25 @@ part's `branch` and `paths` from `$STATUS_DIR/*.json` (the poll already confirme
 
 ## Step 6 — clean up, then loop
 
-Cleanup is not done when the branches are merged — a run leaves BRANCHES, WORKTREES and PROCESSES
-across N sessions, and all three are torn down here every round, per `rules/process.md` § "Clean up
-after yourself" and `references/dev-server-hygiene.md`.
+Cleanup runs in the SAME turn as the assembly (Step 5) — a merged assembly branch is a checkpoint, not
+the finish (`rules/process.md` § "run to completion"), so do NOT report "assembled" and end the turn with
+the branches and worktrees still lying around. The run is DONE only when this reconcile's TEST passes. A
+run leaves BRANCHES, WORKTREES and PROCESSES across N sessions, and all three are torn down here every
+round, per `rules/process.md` § "Clean up after yourself" and `references/dev-server-hygiene.md`.
 
-- **Branches — delete every merged part branch, local and remote** (`git branch -D hs/<run>/*`,
-  `git push origin --delete <branch>`). The orchestrator owns branch cleanup.
+- **Branches — delete each part branch BY ITS REPORTED NAME, local and remote.** Read the `branch` field
+  from every `$STATUS_DIR/*.json` (Step 5 already has them). Do NOT glob `hs/<run>/*`: the parts run in
+  Conductor workspaces, which NAME the branch themselves (`skowalskidev/<workspace>`, not `hs/...`), so a
+  name pattern matches nothing and the branches pile up unseen — and a shell glob cannot expand branch
+  names anyway. For each reported branch, prove it merged into the assembly branch
+  (`git merge-base --is-ancestor <part-branch> <assembly-branch>`), then `git branch -D <part-branch>`
+  and, if it was pushed, `git push origin --delete <part-branch>`. Use `-D` after that gate, never `-d`
+  (its merge check is HEAD-relative and refuses a genuinely-merged branch in a stale worktree) — the rule
+  is `references/git-pr-deploy.md` § "Deleting a merged branch safely". The orchestrator owns this. **Also
+  delete the run's own START branch** when Step 1 created a fresh `hs/<run-id>` (NOT a pre-existing feature
+  branch you were already on): once the final assembly supersedes it, `git merge-base --is-ancestor <start>
+  <assembly>` then `git branch -D` local and remote — same for any superseded prior-round assembly branch,
+  or `hs/<run-id>` accumulates one dead branch per run.
 - **Worktrees — remove each part's worktree, then prune.** `git worktree remove` any worktree the
   orchestrator itself created; NAME each Conductor workspace (the default, Conductor-managed home) for
   Simon to archive — archiving removes the worktree AND reaps that session's idle process. Then
@@ -243,8 +262,17 @@ after yourself" and `references/dev-server-hygiene.md`.
   port lanes (`bin/port-registry.sh`), and check `pgrep -fl 'claude -p'` for stray inner slices. The
   orchestrator cannot close an interactive session, so it NAMES each idle session for Simon to archive —
   the one action that reaps the session's own `claude` process.
-- TEST: at hand-back `git worktree list` shows no `hs/<run>` worktrees, `git branch` no merged part
-  branches, and `pgrep -fl 'next-router-worker|vitest|jest'` lists only what the orchestrator started.
+- **Backstop — sweep anything a run leaks with `/sk:meta-cleanup-worktrees`.** A Conductor workspace that
+  Simon archives leaves its branch behind, and a session that dies before self-cleaning leaves a worktree;
+  that skill discovers merged branch-only orphans and idle worktrees for this repo and clears them safely.
+  Run it if the TEST below still shows residue after the per-part cleanup. **If the ORCHESTRATOR itself
+  died mid-run**, the run's `.context/hyperspeed/<run-id>/status/*.json` still names every part's branch
+  (recorded at working-state, Step 3 item 6), so recovery reads those names and cleans by them — the
+  branches are not lost just because assembly never ran.
+- TEST: at hand-back, NONE of the reported part branches survive — for every `$STATUS_DIR/*.json`
+  `branch`, `git show-ref --verify --quiet refs/heads/<branch>` fails and it is gone from
+  `origin` — `git worktree list` shows no part worktree, and `pgrep -fl 'next-router-worker|vitest|jest'`
+  lists only what the orchestrator started.
 - **If work remains, loop:** the assembled branch is the new START. Commit + push it, write the next
   round's plan file, and repeat Steps 3-6 until the whole task is done. Say plainly, each round, what is
   done and what parts remain.

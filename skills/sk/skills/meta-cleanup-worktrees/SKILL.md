@@ -44,6 +44,34 @@ just-deleted remote branch can linger in the listing.
 Then `ls` the workspaces parent dir on disk and reconcile against the listing — git stops listing a
 worktree once its metadata is pruned while the checkout still sits on disk (`dev-server-hygiene.md`).
 
+**Also enumerate BRANCH-ONLY orphans — merged local branches whose worktree is already gone.** This is
+the most common leftover: Conductor (or a `git worktree remove`) reaps the workspace but leaves the
+branch behind, so it never appears in `git worktree list` and a run that enumerates only worktrees never
+sees it. That is exactly how a batch of merged part-branches accumulates unseen. List the local heads
+that have NO worktree, and explicitly drop the default branch — `comm` does NOT exclude it on its own (it
+drops out only when checked out somewhere, and the main checkout may sit on a feature branch, which would
+otherwise offer local `master` for deletion):
+
+```bash
+DEF=$(git symbolic-ref --short refs/remotes/origin/HEAD | sed 's#^origin/##')   # e.g. master
+comm -23 <(git for-each-ref --format='%(refname:short)' refs/heads | sort) \
+         <(git worktree list --porcelain | awk '/^branch /{sub("refs/heads/","",$2); print $2}' | sort) \
+  | grep -vxF "$DEF"      # never the default; the current branch is already dropped (it has this worktree)
+```
+
+Each that PASSES the merge gate (Step 3 #1) is a 🌱 branch-only candidate. It STILL has a local-only
+question when the gate passed ONLY via gh `MERGED` (a squash/rebase tip can carry post-merge commits that
+are in no default branch) — apply `references/git-pr-deploy.md` §'s pushed check before `-D`. One that
+FAILS the gate is left untouched and unlisted: it is a live branch someone may resume, not a leftover.
+
+**A REMOTE part branch is the OWNING run's job, not a repo-wide purge.** A hyperspeed part that pushed
+then had its workspace archived leaves a branch on origin — but hyperspeed Step 6 deletes that remote by
+the name it recorded (even for an aborted run, from its status dir). Do NOT enumerate every
+remote-head-with-no-local here and offer it: on a shared team remote that is HUNDREDS of other people's
+branches (measured), and deleting one is a destructive shared-remote write against work you don't own.
+meta-cleanup only ever deletes the REMOTE COUNTERPART of a LOCAL orphan it is already removing, and only
+as Step 4's separate extra-confirmed step.
+
 ## Step 3 — the SAFE gate (ALL must hold, or BLOCK with a printed reason)
 
 A worktree is removable only if EVERY check passes:
@@ -62,22 +90,33 @@ A worktree is removable only if EVERY check passes:
    `bin/port-registry.sh reap`.
 5. **Not the current worktree, not the main checkout.**
 
-A PR that is CLOSED-but-not-merged is NOT merged → BLOCK. A merged branch with NO worktree is a
-branch-only cleanup candidate (`git branch -d`, no worktree to remove).
+A PR that is CLOSED-but-not-merged is NOT merged → BLOCK. A merged branch with NO worktree is a 🌱
+branch-only candidate (Step 2 enumerates these): the merge gate applies, plus — if it passed only via
+gh `MERGED`, not ancestry — the pushed check from `references/git-pr-deploy.md` §, since there is no
+worktree to read local-only commits from. Then `git branch -D`; no worktree to remove.
 
 ## Step 4 — present and CONFIRM (never delete unprompted)
 
 Show a table, grouped: ✅ removable · ⛔ blocked (with the exact reason) · 🌱 branch-only. Then use
-AskUserQuestion and act ONLY on Simon's yes. Deleting the REMOTE branch is a SEPARATE, extra-confirmed
-step (it is a shared-remote write) and is OFF by default.
+AskUserQuestion and act ONLY on Simon's yes. Deleting the REMOTE counterpart of a ✅/🌱 local orphan being
+removed is a SEPARATE, extra-confirmed step — it is a shared-remote write — and is OFF by default.
 
 ## Step 5 — remove, safely (only after yes)
 
 For each confirmed-removable worktree:
 
 - `git worktree remove <path>` — NEVER `--force`. Its refusal on a dirty or locked tree is the seatbelt.
-- `git branch -d <branch>` — refuses if unmerged. Use `-D` ONLY when gh already confirmed `MERGED` (the
-  squash case), never otherwise.
+- For a dir that is ON DISK but git NO LONGER tracks (Step 2's reconcile caught it; `git worktree remove`
+  errors "is not a working tree"): confirm it is idle (`lsof -nP -d cwd | grep -F <path>`, Step 3 #4) and
+  under `~/conductor/workspaces/<project>/`, then `rm -rf <path>` — only after an explicit EXTRA confirm,
+  since git cannot manage it. This is the directory half of an archived workspace that left both a branch
+  and its on-disk tree.
+- Delete the branch with `git branch -D <branch>`, but ONLY after Step 3 #1's merge gate passed. Do NOT
+  reach for `git branch -d` as the "safe" form here: its merged test is against the CURRENT HEAD, so a
+  stale worktree (HEAD behind the default branch) makes it REFUSE a branch genuinely merged to
+  `origin/<default>` — a false negative that leaves the leftover uncleaned. The Step 3 gate (ancestor of
+  `origin/<default>` OR gh `MERGED`) is the real seatbelt; `references/git-pr-deploy.md` § "Deleting a
+  merged branch safely" owns this rule. Never `-D` a branch that did not pass the gate.
 - Remote branch, only if extra-confirmed: `git push origin --delete <branch>`.
 
 Then once, at the end: `git worktree prune -v` (reclaims the removed entries + any `fallow-*` scratch
@@ -100,5 +139,14 @@ The skill cannot touch the Conductor/Claude UI. For each removed worktree, repor
 Squash/rebase merge (OR-in gh `MERGED`) · no-upstream branch (fall back to `origin/<default>`) · the
 current worktree and main checkout (hard-excluded) · merged-but-running (block on a live session) ·
 merged-but-idle-shell (warn) · dirty tree (never `--force`) · detached HEAD (skip branch logic) · PR
-closed-not-merged (block) · branch without a worktree (`branch -d` only) · `lsof +D` hangs (use
+closed-not-merged (block) · **branch-only orphan whose worktree is already archived (Step 2 enumerates
+merged heads-with-no-worktree, or it is never seen — the usual leftover)** · **`git branch -d` is
+HEAD-relative, so a stale worktree makes it refuse a genuinely-merged branch (gate on `origin/<default>`
+ancestry, then `-D`)** · **local `master` enumerated when the main checkout sits on a feature branch
+(filter `$DEF` out of the branch-only `comm`, never rely on it being checked out)** · **gh-`MERGED` alone
+does not prove containment — a squash/rebase tip carrying post-merge commits needs the pushed check
+before `-D`** · **a remote part branch is the owning run's job (hyperspeed Step 6, by recorded name) —
+meta-cleanup deletes only the remote COUNTERPART of a local orphan it removes, extra-confirmed, never a
+repo-wide remote purge (a shared remote is hundreds of others' branches)** · **on-disk dir git no longer
+tracks — `git worktree remove` errors; idle-check then `rm -rf`, extra-confirmed** · `lsof +D` hangs (use
 `-d cwd`) · stale/duplicate session symlinks (verify the target codename still has a worktree).

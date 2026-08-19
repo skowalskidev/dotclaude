@@ -213,6 +213,9 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
+            "Owns the safe merged-branch-deletion rule (gate on origin/<default> ancestry OR gh-MERGED-"
+            "plus-pushed, then git branch -D; -d is HEAD-relative and unreliable from a stale worktree); "
+            "/sk:meta-cleanup-worktrees and /sk:work-hyperspeed point here and never restate the mechanism.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
             "The issue tracker is kept In-Progress and PR-linked both ways; only tickets the PR "
             "delivers are linked.",
@@ -492,8 +495,10 @@ CONTRACTS: dict[str, dict] = {
             "Commits and pushes a clean START commit that every part branches from, before any part is written.",
             "Each part is self-contained: whole shared context, owned files, the git branch-off-START "
             "ritual, the repo setup ritual, and a fixed report-back block — pasteable into a cold session.",
-            "Assembles by merging the reported branches, deletes them local and remote, and tells Simon "
-            "to archive the sessions (it cannot touch the Claude UI).",
+            "Assembles by merging the reported branches, then in the SAME turn deletes each part branch "
+            "BY ITS REPORTED NAME (never an hs/<run>/* glob — Conductor names branches itself) local and "
+            "remote after proving it merged into the assembly branch, points to /sk:meta-cleanup-worktrees "
+            "as the leak backstop, and tells Simon to archive the sessions (it cannot touch the Claude UI).",
             "Parts write status + output location to a shared file in this run's own "
             ".context/hyperspeed/<run-id>/status/ (DRY, per-session, so concurrent runs from different "
             "sessions never clash); the orchestrator POLLS it via a backgrounded wait-loop that shows a "
@@ -881,7 +886,12 @@ CONTRACTS: dict[str, dict] = {
             "its PR is gh-MERGED (the OR covers squash and rebase merges).",
             "BLOCKS any worktree that is dirty, has unpushed or local-only commits, has a live session "
             "cwd'd in it, has an open or closed-unmerged PR, or is the current or main checkout.",
-            "Never --force on git worktree remove, and never git branch -D unless gh already confirmed MERGED.",
+            "Discovers branch-only orphans whose worktree is already archived — merged local heads-with-"
+            "no-worktree, with the default branch filtered out even when it is not checked out — not only "
+            "git worktree list, so the usual leftover gets caught.",
+            "Never --force on git worktree remove; deletes a branch with git branch -D only after the "
+            "merge gate passes (ancestor of origin/<default>, or gh-MERGED AND fully pushed), because git "
+            "branch -d's HEAD-relative check falsely refuses a merged branch from a stale worktree.",
             "Lists and CONFIRMS before deleting; remote-branch deletion is a separate extra-confirmed step, off by default.",
             "Verifies cleanup against on-disk storage, not just git worktree list, and names the "
             "Conductor sessions (codename + alias) for Simon to archive without touching the Claude UI.",

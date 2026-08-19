@@ -64,6 +64,30 @@ cannot:
 - Build and run with the project's documented commands to verify before declaring done.
 - When finished: fix everything with no loose ends, create a draft PR, then tear down all processes and clean up the environment for other testing.
 
+## Deleting a merged branch safely — the gate is the seatbelt, not `-d`
+
+`git branch -d` decides "merged?" against the CURRENT HEAD (or the branch's upstream), NOT against the
+default branch. So in a stale worktree — HEAD sitting behind `master` — `-d` REFUSES a branch that is
+already merged to `origin/master`, and the refusal reads exactly like a real "unmerged." Observed: a
+252-commit-behind worktree refused six branches whose tips WERE `origin/master`; the branches were
+genuine merged leftovers and `-d` could not clear them. So prove the merge yourself, then force:
+
+1. **Gate on the default branch, not HEAD.** `git merge-base --is-ancestor <branch> origin/<default>`
+   (exit 0 = every commit on the branch is already in the default branch), OR — for a squash/rebase
+   merge, which is not an ancestor — `gh pr view <branch> --json state -q .state` is `MERGED`. Resolve
+   `<default>` with `git symbolic-ref --short refs/remotes/origin/HEAD`.
+2. **If the gate passed only via gh `MERGED` (not ancestry), also prove nothing local-only.** A squash
+   or rebase merge puts a REWRITTEN commit into the default branch, so the branch's own tip is not
+   contained in it — and if that tip carries commits added AFTER the merge, `gh MERGED` is still true
+   while those commits live nowhere else. So when ancestry failed, additionally require the tip fully
+   pushed: `git rev-list --count <upstream>..<branch>` is `0` (or `origin/<default>..<branch>` if there
+   is no upstream). If commits remain, do NOT `-D` — they are unmerged work the PR state hid.
+3. **Only once a gate above holds, delete with `git branch -D <branch>`.** The gate is the seatbelt, so
+   `-D` here is safe and correct, and it is the only form that works from a stale worktree. `-d` is not
+   a safety upgrade over this; it is an unreliable HEAD-relative check that produces false negatives.
+4. **Never `-D` a branch no gate passed.** Without the ancestry (or gh-`MERGED`-plus-pushed) proof, `-D`
+   really can drop unmerged commits — the proof is what makes it safe, not the flag.
+
 ## Deployment tracking
 
 - Keep a running list of everything that must be applied at deploy time — prod configs, indexes, rules, functions, env vars — so nothing is missed when shipping.
