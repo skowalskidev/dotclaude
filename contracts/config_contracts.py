@@ -465,6 +465,10 @@ CONTRACTS: dict[str, dict] = {
             "ritual, the repo setup ritual, and a fixed report-back block — pasteable into a cold session.",
             "Assembles by merging the reported branches, deletes them local and remote, and tells Simon "
             "to archive the sessions (it cannot touch the Claude UI).",
+            "Parts write status + output location to a shared file in this run's own "
+            ".context/hyperspeed/<run-id>/status/ (DRY, per-session, so concurrent runs from different "
+            "sessions never clash); the orchestrator POLLS it via a backgrounded wait-loop and never "
+            "needs a relay — Simon only pastes the starter blocks and archives the sessions.",
             "Reconciles a run's full footprint at cleanup, not just branches: removes/prunes part "
             "worktrees, sweeps orphan dev-servers, port lanes and stray claude -p slices, and each part "
             "self-tears-down its processes before reporting done.",

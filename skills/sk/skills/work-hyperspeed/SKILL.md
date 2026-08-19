@@ -1,6 +1,6 @@
 ---
 name: work-hyperspeed
-description: Two-level, hand-run parallelism that sits ON TOP OF /sk:work-superspeed, not in place of it. The OUTER layer is you: the orchestrator commits a clean START commit and writes ONE durable plan file split into fully self-contained paste-and-forget parts (each carries the whole shared context, its owned files, the git branch-off-START ritual, the repo setup steps, and a fixed report-back block), and you paste each part into its own separate Claude session. The INNER layer is superspeed: each session runs its slice through /sk:work-full-detailed-workflow and fans its OWN slice out with /sk:work-superspeed where it makes sense, then proves its goals with /sk:ship-report-and-ensure-correct-user-system-journey before printing its branch + output paths. You relay those back; the orchestrator merges the branches, deletes them, tells you to archive the sessions, and loops until done. Use for "hyperspeed", "I'll paste the parts into separate sessions myself", "split this into paste-and-forget parts", "hand-parallelise this", or when you want more parallelism than one superspeed run's caps. /sk:work-warpspeed is the third layer on top of this (many VMs/VPSs on different accounts/orgs), not built yet; the slice-cutting craft is shared and lives in references/parallelization.md.
+description: Two-level, hand-run parallelism that sits ON TOP OF /sk:work-superspeed, not in place of it. The OUTER layer is you: the orchestrator commits a clean START commit and writes ONE durable plan file split into fully self-contained paste-and-forget parts (each carries the whole shared context, its owned files, the git branch-off-START ritual, the repo setup steps, and a fixed report-back block), and you paste each part into its own separate Claude session. The INNER layer is superspeed: each session runs its slice through /sk:work-full-detailed-workflow and fans its OWN slice out with /sk:work-superspeed where it makes sense, then proves its goals with /sk:ship-report-and-ensure-correct-user-system-journey and writes its status + output location to a shared file in this run's own dir. The orchestrator POLLS that file, so you NEVER relay anything back — your only actions are pasting the starter block into each session and archiving the sessions at the end; the orchestrator knows when all are done, merges the branches, deletes them, and cleans up. Use for "hyperspeed", "I'll paste the parts into separate sessions myself", "split this into paste-and-forget parts", "hand-parallelise this", or when you want more parallelism than one superspeed run's caps. /sk:work-warpspeed is the third layer on top of this (many VMs/VPSs on different accounts/orgs), not built yet; the slice-cutting craft is shared and lives in references/parallelization.md.
 argument-hint: "[the task to hand-parallelise]"
 ---
 
@@ -16,13 +16,15 @@ which is why it goes wider than superspeed alone.
 
 Nothing MOVES to another session. THIS session is the orchestrator and STAYS PUT — it holds the whole
 partition and does the assembly. Simon opens N NEW sessions himself, pastes ONE ready-made block into
-each, and they run IN PARALLEL; each prints a report block he copies back HERE. State exactly that, in
-his words, as the FIRST thing you say — before the plan, before any paste — because a first run reads
-"parts into separate sessions" as "this chat is about to move elsewhere" and stalls on it: e.g. "this
-session stays here as the orchestrator and assembles everything; you open N new sessions, paste one
-block I hand you into each, they run at once, then you paste their short report blocks back to me."
+each, and they run IN PARALLEL; each reports its own status to a shared file THIS session POLLS, so
+Simon copies NOTHING back. State exactly that, in his words, as the FIRST thing you say — before the
+plan, before any paste — because a first run reads "parts into separate sessions" as "this chat is about
+to move elsewhere" and stalls on it: e.g. "this session stays here as the orchestrator and assembles
+everything; you open N new sessions and paste one block I hand you into each, they run at once and
+report to me automatically, and your only other job is to archive the sessions once I say they're done."
 TEST: before the first handoff, Simon has been told three things plainly — the orchestrator stays, the
-sessions run in parallel, and the blocks arrive from you ready to paste (not a file to go extract from).
+sessions run in parallel, and he never copies anything back (I poll the shared status; his only end
+action is archiving).
 
 ## Why two levels, honestly
 
@@ -43,17 +45,17 @@ a raw throughput multiplier. Genuine multiplication needs different accounts/org
 
 Simon drives the pasting; you drive the cutting and assembly. GUIDE him through it the way
 `/sk:test-copilot` runs a journey — the shared contract is `references/human-pacing.md`: keep the plan
-in the file, give him ONE handoff at a time with a progress marker ("round 1 · 3 parts to paste, then
-relay back"), signal the hand-off, and WAIT for his relay before the next move. The Steps below are the
-CONTENT of those handoffs, not a wall to paste at him. Each round is one overview line, then: paste
-handoff → wait → assemble → cleanup handoff → next round.
+in the file, give him ONE handoff at a time with a progress marker ("round 1 · 3 parts to paste, then I
+poll till done"), signal the hand-off, and WAIT while the poll runs before the next move. The Steps
+below are the CONTENT of those handoffs, not a wall to paste at him. Each round is one overview line,
+then: paste handoff → poll → assemble → cleanup handoff → next round.
 
 ## Step 0 — decide whether to fan out at all
 
 Same test as superspeed (`references/parallelization.md` § "decide whether to fan out"): only fan out
 work that splits into slices touching DISJOINT files, at 3-5+ slices. If it does not divide, work in
 one session — every part hitting the same file is the indivisible-task failure. If a slice is under a
-minute, don't make it a part; the relay overhead is a paste and a copy-back per part.
+minute, don't make it a part; the overhead is a paste per part (the orchestrator polls the rest).
 
 ## Step 1 — commit and push a clean START, before anything else
 
@@ -69,6 +71,21 @@ git add -A && git commit -F <msg-file>   # only if dirty; -F, never -m (git-pr-d
 git push -u origin HEAD
 git rev-parse HEAD               # ← the START SHA every part fetches and branches from
 ```
+
+**Also create the SHARED STATUS dir the parts report to and you POLL — put it INSIDE this run's own
+dir, `.context/hyperspeed/<run-id>/status/`, right beside the plan file, and hand each part its ABSOLUTE
+path.** Co-locating it there keeps all of a run's state in ONE place (DRY/SRP) and means two hyperspeed
+runs from DIFFERENT orchestrator sessions NEVER clash — each writes under its own worktree's own
+`<run-id>`, never a shared global path. Give each run a UNIQUE `<run-id>`.
+
+```bash
+mkdir -p .context/hyperspeed/<run-id>/status
+STATUS_DIR="$(git rev-parse --show-toplevel)/.context/hyperspeed/<run-id>/status"   # absolute; into every part
+```
+
+The parts (in OTHER worktrees, same machine) write their status file there by that absolute path; you
+paste the parts and forget them, and THIS session watches `$STATUS_DIR`. That watch is what removes the
+manual relay (§ Step 4.5).
 
 ## Step 2 — cut the task (shared craft, not restated)
 
@@ -118,12 +135,18 @@ this order:
    ```
 5. **The repo setup ritual**, lifted from the project's `CLAUDE.md` and `CLAUDE.local.md` (e.g. Node
    version, `yarn install`, any build a fresh worktree needs) — the part must not have to go find it.
-6. **Tear down, THEN print the report block.** As its LAST actions the part (a) tears down everything it
-   started — its harness dev servers, its port lane, and any inner `/sk:work-superspeed` `claude -p`
-   slices — per `rules/process.md` § "Clean up after yourself" and `references/dev-server-hygiene.md`, so
-   the finished session holds no live processes and archiving only reaps its idle `claude`; then
-   (b) PRINTS the report-back block (§ below) so Simon can copy it. TEST: after DONE, `pgrep` for the
-   part's servers and its `claude -p` slices returns nothing.
+6. **Report status to the SHARED file (primary), tear down, THEN print the block (fallback).** The
+   part's block carries its `<STATUS_DIR>` absolute path (from Step 1). As its FIRST action it writes
+   `<STATUS_DIR>/<part-name>.json` = `{"status":"working","part":"<name>"}`. As its LAST actions it
+   (a) tears down everything it started — its harness dev servers, its port lane, and any inner
+   `/sk:work-superspeed` `claude -p` slices — per `rules/process.md` § "Clean up after yourself" and
+   `references/dev-server-hygiene.md`, so the finished session holds no live processes and archiving only
+   reaps its idle `claude`; (b) OVERWRITES its status file with
+   `{"status":"done","part":"<name>","branch":"<branch>","paths":[<absolute outputs>],"goals":"met|not-met"}`
+   — or `{"status":"blocked","part":"<name>","reason":"<why>"}` if it stops — which is what the
+   orchestrator POLLS, so Simon never relays; then (c) PRINTS the report-back block (§ below) as a
+   FALLBACK for the rare case the shared write failed. TEST: after DONE, `<STATUS_DIR>/<part-name>.json`
+   reads `done`, and `pgrep` for the part's servers and its `claude -p` slices returns nothing.
 7. **The leaf-worker boundary:** you own only your `owns` files — never edit a `forbid` file to make
    your slice pass. If the work genuinely needs one, or you get stuck, that is a `BLOCKED.md` in the
    repo root (what and why) and a stop, not an edit.
@@ -161,14 +184,33 @@ all name the same direction.
 
 Open one session per part — a separate Conductor workspace is the intended home, so each part gets its
 own worktree and branch off START without fighting the others over the checkout (and its own port lane
-when its harness boots a server). Paste the part, forget it. Each session runs the full harness on its
-slice (Step 3, item 3); when it finishes it prints its report block. Copy every block back to the
-orchestrator in one message.
+when its harness boots a server). Paste the part, forget it — that is Simon's ONLY action per part. Each
+session runs the full harness on its slice (Step 3, item 3) and writes its status to `$STATUS_DIR`; the
+orchestrator POLLS that dir (Step 4.5), so Simon copies NOTHING back. The printed report block is only a
+fallback he pastes if the orchestrator reports a part's status file never arrived.
+
+## Step 4.5 — POLL the shared status until every part reports (this replaces the relay)
+
+The orchestrator watches `$STATUS_DIR` and knows when all N parts are done — Simon does nothing here.
+Run a BACKGROUNDED wait-loop that exits when every part's file says `done` or `blocked` (or a timeout
+fires); the harness wakes the orchestrator on exit, and it proceeds to assemble.
+
+```bash
+S="$STATUS_DIR"; N=<part-count>; DEADLINE=$((SECONDS+3600))   # 60-min ceiling; raise for long slices
+until [ "$(grep -lE '"status" *: *"(done|blocked)"' "$S"/*.json 2>/dev/null | wc -l | tr -d ' ')" -ge "$N" ] \
+   || [ $SECONDS -ge $DEADLINE ]; do sleep 15; done
+echo "REPORTED:"; for f in "$S"/*.json 2>/dev/null; do echo "  $(basename "$f"): $(grep -o '"status" *: *"[a-z]*"' "$f")"; done
+```
+
+Run it with the Bash tool's `run_in_background`, so this session is free until it wakes. On the wake,
+read every `$STATUS_DIR/*.json`: any part still `working` or absent at the deadline is a STUCK part —
+name it for Simon (its session may need a look) and assemble what did report; a `blocked` part is the
+design working, handled in Step 5.
 
 ## Step 5 — assemble, warm, in the orchestrator session
 
-Do NOT spawn a fresh session; the orchestrator holds the partition and the reasoning already. When
-Simon relays the branches:
+Do NOT spawn a fresh session; the orchestrator holds the partition and the reasoning already. Read each
+part's `branch` and `paths` from `$STATUS_DIR/*.json` (the poll already confirmed them done):
 
 1. `git fetch origin` all reported branches.
 2. Create an assembly branch off START and merge each part branch into it, in a stable order.
@@ -205,16 +247,19 @@ after yourself" and `references/dev-server-hygiene.md`.
 When the parts produce UNTRACKED artifacts (gitignored mockups, reports, build outputs) rather than
 tracked code, there are no branches to assemble — so the git ritual is REPLACED, not skipped:
 
-- **Steps 1 & 4 (START commit, branch off START):** dropped. There is no START and no per-part branch.
-  Each part still runs its task and self-verifies its `accept`/goals; there is just no git diff to review.
+- **Steps 1 & 4 (START commit, branch off START):** the git bits are dropped — no START, no per-part
+  branch, no diff to review. The SHARED STATUS dir + polling (Step 1's status setup and Step 4.5) STAY:
+  each part still writes `working` → `done`/`blocked` + its `paths` to `$STATUS_DIR`, and the orchestrator
+  still polls, so Simon still copies nothing back.
 - **Output path — write to your OWN worktree, NEVER a hardcoded sibling.** Each part writes its artifact
   to `<its-own-repo-root>/.context/<run-id>/<file>` — the worktree the session is actually in. Do NOT
   pin one participant worktree's absolute path into every part: the sessions run in DIFFERENT worktrees,
   so a fixed sibling path scatters the output (rr-mockups-r1 put 3 artifacts in one worktree and 1 in
   another because the path was pinned to a single worktree).
 - **Report the ABSOLUTE path** in the report block's `paths:` — this is what makes the gather deterministic.
-- **Step 5 (assemble) becomes GATHER:** copy every reported `paths:` into ONE collection dir in the
-  orchestrator's own worktree (`.context/<run-id>/collected/`), then compare/review there. No merge, no seams.
+- **Step 5 (assemble) becomes GATHER:** read each part's `paths` from `$STATUS_DIR/*.json` and copy
+  every one into ONE collection dir in the orchestrator's own worktree (`.context/<run-id>/collected/`),
+  then compare/review there. No merge, no seams.
 - **Keep them gitignored — do NOT commit exploratory artifacts.** They live in `.context` and are
   disposable; forcing them into git history is noise. The branch-assembly default (Steps 1/4/5/6) is for
   tracked CODE; this variant is for everything else.
@@ -222,21 +267,24 @@ tracked code, there are no branches to assemble — so the git ritual is REPLACE
 TEST: after the round, every reported artifact path resolves to a real file AND a copy of it sits in the
 one collection dir, whichever worktree produced it.
 
-## The report-back block (fixed format each part prints)
+## The report-back block (the FALLBACK mirror of the status file)
 
-Each part ENDS by printing exactly this, so Simon can copy it verbatim and the orchestrator can parse it:
+The part's PRIMARY report is the JSON it writes to `<STATUS_DIR>/<part-name>.json` (Step 3, item 6),
+which the orchestrator polls. It ALSO prints this block — the same fields in plain text — as a FALLBACK
+Simon pastes only if the orchestrator says a part's status file never arrived:
 
 ```
 HYPERSPEED PART DONE
 run: <run-id>
 part: <part-name>
 branch: <branch-name> (pushed: yes|no)
-paths: <comma-separated output files this part created or changed>
+paths: <comma-separated ABSOLUTE output paths this part created or changed>
 goals: met | not-met (ship-report verdict)
 status: done | blocked
 ```
 
-A `blocked` part prints `status: blocked` and the reason, and leaves `BLOCKED.md` in the repo root.
+A `blocked` part sets `status: blocked` + the reason in BOTH the status file and this block, and leaves
+`BLOCKED.md` in the repo root.
 
 ## Self-improvement — every round, like superspeed
 
@@ -245,8 +293,8 @@ fixed file's cause, analyse every run, heal only what RECURS — is shared and d
 `references/parallelization.md` § "Self-improving a parallel run". Reuse it. Two hyperspeed-specifics:
 
 - **Write the round's log to `.context/hyperspeed/<run-id>/reconcile.json`** (durable per
-  `rules/process.md`), in that section's schema, plus `parts`, `rounds` and each part's report block so
-  the analysis sees the partition, not only the fixes. Run
+  `rules/process.md`), in that section's schema, plus `parts`, `rounds` and each part's status file (the
+  run's `status/` dir sits right beside this log) so the analysis sees the partition, not only the fixes. Run
   `/sk:claude-config-self-optimize-analysis-after-run <run-dir>` after each round.
 - **A hand-run round leaves reconcile + partition data, not `claude -p` token/timing telemetry**, so the
   analyser judges partition quality and rework, not idle-capacity. That is the honest limit, and it is
