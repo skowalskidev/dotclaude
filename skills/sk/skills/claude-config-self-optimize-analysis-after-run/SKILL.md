@@ -32,7 +32,7 @@ That yields idle capacity, imbalance ratio, cache read/write ratio, achieved con
 leaks, duplicated reads, reconcile rework, failed slices, and a fan-out-worth-it verdict.
 
 **Clear the durable backlog, not just the newest run.** Every dispatch records a `runs` row with
-`optimized: false` in the `dotclaude-metrics` store, so an un-analysed run is never lost when you skip
+`optimized: false` in the `dotclaude` store, so an un-analysed run is never lost when you skip
 this step. When you do run it, also pull the backlog and analyse it in aggregate — a finding that
 recurs across runs is a config defect, not a one-off:
 
@@ -41,7 +41,7 @@ recurs across runs is a config defect, not a one-off:
 import firebase_admin, os
 from firebase_admin import credentials, firestore
 from google.cloud.firestore_v1.base_query import FieldFilter
-app=firebase_admin.initialize_app(credentials.Certificate(os.path.expanduser("~/.config/firebase-keys/dotclaude-metrics.json")))
+app=firebase_admin.initialize_app(credentials.Certificate(os.path.expanduser("~/.config/firebase-keys/dotclaude.json")))
 db=firestore.client(app)
 for d in db.collection("runs").where(filter=FieldFilter("optimized","==",False)).stream():
     print(d.id, d.to_dict())

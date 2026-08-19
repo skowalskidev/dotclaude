@@ -1257,7 +1257,7 @@ CONTRACTS: dict[str, dict] = {
             "Silent and non-blocking when the recorder or interpreter is absent.",
         ],
     },
-    "references/dotclaude-metrics-setup.md": {
+    "references/dotclaude-setup.md": {
         "mission": "Anyone forking the public template can stand up their own metrics project with nothing of the author's leaked.",
         "purpose": "Generic, placeholder-only setup for the dotclaude metrics project and its rules.",
         "criteria": [

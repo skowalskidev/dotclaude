@@ -31,9 +31,9 @@ error — the system just collects nothing until you provision a project.
    gcloud projects add-iam-policy-binding $PROJ --member="serviceAccount:$SA" \
      --role="roles/datastore.user" --account=$ACC --condition=None
    mkdir -p ~/.config/firebase-keys
-   gcloud iam service-accounts keys create ~/.config/firebase-keys/dotclaude-metrics.json \
+   gcloud iam service-accounts keys create ~/.config/firebase-keys/dotclaude.json \
      --iam-account=$SA --project=$PROJ --account=$ACC
-   chmod 600 ~/.config/firebase-keys/dotclaude-metrics.json
+   chmod 600 ~/.config/firebase-keys/dotclaude.json
    ```
    Rotate this key at least every 90 days.
 
@@ -74,7 +74,7 @@ Every doc carries an `expireAt` field. Two ways to expire old data:
 
 ## Config knobs (environment, all optional)
 
-- `CLAUDE_METRICS_SA_KEY` — key path (default `~/.config/firebase-keys/dotclaude-metrics.json`).
+- `CLAUDE_METRICS_SA_KEY` — key path (default `~/.config/firebase-keys/dotclaude.json`).
 - `CLAUDE_METRICS_PROJECT` — expected project id; if set, the writer refuses to write to any other
   project (fail-closed). If unset, it trusts the key's own `project_id`.
 - `CLAUDE_METRICS_RETENTION_DAYS` — TTL horizon (default 365).

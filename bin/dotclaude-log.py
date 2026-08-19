@@ -47,7 +47,7 @@ minimize_event = _load_redact()
 
 _HOME = os.path.expanduser("~")
 KEY_PATH = os.environ.get("CLAUDE_METRICS_SA_KEY") or os.path.join(
-    _HOME, ".config", "firebase-keys", "dotclaude-metrics.json"
+    _HOME, ".config", "firebase-keys", "dotclaude.json"
 )
 OUTBOX = os.environ.get("CLAUDE_METRICS_OUTBOX") or os.path.join(_HOME, ".claude", "metrics", "outbox.jsonl")
 RETENTION_DAYS = int(os.environ.get("CLAUDE_METRICS_RETENTION_DAYS", "365"))
@@ -105,7 +105,7 @@ def _firestore_client():
     except Exception:
         return None  # firebase-admin not installed (default state) → outbox only
     try:
-        app_name = "dotclaude-metrics"
+        app_name = "dotclaude"
         try:
             app = firebase_admin.get_app(app_name)
         except ValueError:

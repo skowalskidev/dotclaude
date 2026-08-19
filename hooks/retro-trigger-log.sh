@@ -72,7 +72,7 @@ line="$(jq -n -c \
     intake_gate:$intake_gate, permission_denials:$permission_denials}' 2>/dev/null)"
 [ -n "$line" ] || exit 0
 
-# ONE home: route through the shared writer, which lands it in the dotclaude-metrics `retro_triggers`
+# ONE home: route through the shared writer, which lands it in the dotclaude `retro_triggers`
 # collection, or the local outbox when no project is configured (zero-setup still works, never both).
 PY="$HOME/.config/claude-metrics-venv/bin/python"; [ -x "$PY" ] || PY="$(command -v python3 || true)"
 if [ -n "$PY" ] && [ -f "$HOME/.claude/bin/dotclaude-log.py" ]; then

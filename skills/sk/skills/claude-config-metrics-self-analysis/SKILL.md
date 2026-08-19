@@ -1,6 +1,6 @@
 ---
 name: claude-config-metrics-self-analysis
-description: Run self analysis on Simon's dotclaude config from real usage metrics — surface the underused and silently dead parts, show which parts of my config are dead or barely used and the inputs that should reach them, and judge whether each low-usage part is warranted or a broken trigger to fix. Reads the dotclaude-metrics store (per-part usage, error and denial rates, recency, run backlog), scores every part two-axis (reachable × used), and proposes a trigger FIX so a dead part gets used — never a removal by default. Use for "run config self analysis", "surface underused config parts", "which parts of my config are dead", "config metrics", "what config is not being used", "analyse my config usage", "self optimise the config from metrics", or /sk:claude-config-metrics-self-analysis.
+description: Run self analysis on Simon's dotclaude config from real usage metrics — surface the underused and silently dead parts, show which parts of my config are dead or barely used and the inputs that should reach them, and judge whether each low-usage part is warranted or a broken trigger to fix. Reads the dotclaude store (per-part usage, error and denial rates, recency, run backlog), scores every part two-axis (reachable × used), and proposes a trigger FIX so a dead part gets used — never a removal by default. Use for "run config self analysis", "surface underused config parts", "which parts of my config are dead", "config metrics", "what config is not being used", "analyse my config usage", "self optimise the config from metrics", or /sk:claude-config-metrics-self-analysis.
 disable-model-invocation: false
 argument-hint: "[optional focus, e.g. 'skills', 'hooks', 'just the dead ones']"
 ---
@@ -8,7 +8,7 @@ argument-hint: "[optional focus, e.g. 'skills', 'hooks', 'just the dead ones']"
 # Self-analyse the dotclaude config from real usage metrics
 
 The premise: the config has ~80 parts and no one knows which actually get used. This reads the
-dotclaude-metrics store, scores every part, and — for the dead and underused ones — decides the FIX
+dotclaude store, scores every part, and — for the dead and underused ones — decides the FIX
 that would make them get used. It proposes; it never edits. Every change routes through
 `/sk:claude-config-update`.
 
@@ -26,7 +26,7 @@ insight, now driven by data instead of a sample of one.
    It loads the canonical parts list from `contracts/config_contracts.py` (so a newly-added part is
    always included), reads usage from the store, scores two-axis, writes `aggregates/latest`, and
    writes the HTML console. If it says no project is reachable, stop and point at
-   `references/dotclaude-metrics-setup.md`.
+   `references/dotclaude-setup.md`.
 
 2. **Read the two axes, not the count alone.** A part is `dead` only when it is BOTH unreachable AND
    unused. A reachable part with zero usage is an `instrumentation-gap` (suspected) or `new/unmeasured`

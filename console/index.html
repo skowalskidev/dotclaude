@@ -5,13 +5,13 @@
 <title>dotclaude config metrics</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!--
-  Hosted metrics console for the dotclaude-metrics project. Owner-only:
+  Hosted metrics console for the dotclaude project. Owner-only:
   Firebase Auth Google sign-in gates it, and the Firestore rules allow reading `aggregates/*`
-  ONLY to the owner (see references/dotclaude-metrics-setup.md). Raw session_events stay deny-all,
+  ONLY to the owner (see references/dotclaude-setup.md). Raw session_events stay deny-all,
   so this page never sees them — only the computed rollup the Python aggregator wrote.
 
   Committed source carries PLACEHOLDERS. The real Firebase web config is injected at deploy time from
-  machine-local config (~/.config/dotclaude-metrics/), so nothing project-specific is committed to the
+  machine-local config (~/.config/dotclaude/), so nothing project-specific is committed to the
   public template.
 -->
 <style>

@@ -7,7 +7,7 @@ calls (like superspeed-analyse.py backs its skill). It:
   - loads the canonical parts list from contracts/config_contracts.py (never a hardcoded copy — so a
     part added via /sk:claude-config-update appears here automatically; a parity check enforces it),
   - reads part_criticality.py (safety / planned-stub tags),
-  - reads usage from the dotclaude-metrics store (session_events + local outbox), aggregating on read,
+  - reads usage from the dotclaude store (session_events + local outbox), aggregating on read,
   - computes reachability (the static axis) so "dead" needs unreachable AND unused,
   - classifies each part: hot | healthy | underused | dead | erroring | instrumentation-gap |
     new/unmeasured | safety(healthy-by-design) | planned/stub,
@@ -148,19 +148,19 @@ def _grep_blob(dirs: list[str]) -> str:
 # ---------------------------------------------------------------------------- usage (from the store)
 def _firestore():
     key = os.environ.get("CLAUDE_METRICS_SA_KEY") or os.path.join(
-        _HOME, ".config", "firebase-keys", "dotclaude-metrics.json")
+        _HOME, ".config", "firebase-keys", "dotclaude.json")
     if not os.path.exists(key):
         return None
     try:
         import firebase_admin
         from firebase_admin import credentials, firestore
         try:
-            app = firebase_admin.get_app("dotclaude-metrics-read")
+            app = firebase_admin.get_app("dotclaude-read")
         except ValueError:
             with open(key) as fh:
                 proj = json.load(fh).get("project_id")
             app = firebase_admin.initialize_app(credentials.Certificate(key),
-                                                {"projectId": proj}, name="dotclaude-metrics-read")
+                                                {"projectId": proj}, name="dotclaude-read")
         return firestore.client(app)
     except Exception:
         return None
@@ -277,7 +277,7 @@ def print_scoreboard(rows: list[dict], have_store: bool) -> None:
     rows = sorted(rows, key=lambda r: (order.get(r["classification"], 9), -r["uses"]))
     if not have_store:
         print("⚠  No metrics project reachable — showing config inventory only (0 usage). "
-              "Configure dotclaude-metrics (see references/dotclaude-metrics-setup.md) to collect data.\n")
+              "Configure dotclaude (see references/dotclaude-setup.md) to collect data.\n")
     from collections import Counter
     counts = Counter(r["classification"] for r in rows)
     print("dotclaude config metrics — %d parts" % len(rows))
@@ -335,7 +335,7 @@ tr.dead td,tr.erroring td{color:#dc2626}tr.safety td,tr.hot td{color:var(--mut)}
 section{margin-top:28px}
 </style></head><body>
 <h1>dotclaude config metrics</h1>
-<p class=sub>per-part usage &amp; health · best/worst · classification. Data from dotclaude-metrics.</p>
+<p class=sub>per-part usage &amp; health · best/worst · classification. Data from dotclaude.</p>
 <div>{{CHIPS}}</div>
 <section><h2>Most used</h2>{{BARS}}</section>
 <section><h2>All parts</h2>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Parse one ended session's transcript into minimized metric events → dotclaude-metrics.
+"""Parse one ended session's transcript into minimized metric events → dotclaude.
 
 Called by the SessionEnd hook (config-metrics-log.sh) with the hook payload on stdin
 ({transcript_path, session_id, reason, cwd}). It walks the transcript ONCE and emits, per session:

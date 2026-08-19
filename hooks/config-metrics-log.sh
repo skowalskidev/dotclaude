@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # config-metrics-log.sh
 # SessionEnd hook: hand the ended session's transcript to the metrics recorder, which parses it into
-# minimized per-part events and writes them to the dotclaude-metrics store (or the local outbox when
+# minimized per-part events and writes them to the dotclaude store (or the local outbox when
 # no project is configured). DETECTION AND REPORTING ONLY — it records data and nothing else: never
 # proposes, never prompts, never edits. Same hard separation as retro-trigger-log.sh.
 #
