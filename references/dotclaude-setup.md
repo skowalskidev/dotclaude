@@ -16,12 +16,15 @@ error — the system just collects nothing until you provision a project.
 
 ## One-time setup (your own personal account)
 
-1. **Create a dedicated project** (any id; keep it separate from any work project):
+1. **Create a dedicated project + Firestore** (any id; keep it separate from any work project):
    ```bash
-   firebase projects:create YOUR-METRICS-PROJECT --account you@example.com
+   PROJ=YOUR-METRICS-PROJECT; ACC=you@example.com
+   firebase projects:create $PROJ --display-name "your name" --account $ACC
+   gcloud services enable firestore.googleapis.com identitytoolkit.googleapis.com --project=$PROJ --account=$ACC
+   gcloud firestore databases create --location=us-central1 --type=firestore-native --project=$PROJ --account=$ACC
    ```
-   Enable **Firestore (Native mode)**; enable billing if you want TTL auto-deletion (stays within the
-   free quota).
+   The Firestore create can 404 for a minute right after the API is enabled (propagation) — just
+   retry. Billing is NOT required (TTL is the only thing that needs it; use `--prune` instead, below).
 
 2. **Least-privilege service account + key** (personal account):
    ```bash
@@ -43,25 +46,32 @@ error — the system just collects nothing until you provision a project.
    ~/.config/claude-metrics-venv/bin/pip install firebase-admin
    ```
 
-4. **Lock the Firestore rules** — raw events server-only, computed aggregates owner-read:
+4. **Lock the Firestore rules** — every raw collection server-only, computed aggregates owner-read.
+   List ALL seven raw collections explicitly (an unlisted path defaults to deny, but be explicit):
    ```
    rules_version = '2';
    service cloud.firestore {
-     match /databases/{db}/documents {
-       match /sessions/{d}        { allow read, write: if false; }
-       match /session_events/{d}  { allow read, write: if false; }
-       match /runs/{d}            { allow read, write: if false; }
-       match /pipeline_health/{d} { allow read, write: if false; }
+     match /databases/{database}/documents {
+       match /sessions/{d}         { allow read, write: if false; }
+       match /session_events/{d}   { allow read, write: if false; }
+       match /runs/{d}             { allow read, write: if false; }
+       match /retro_triggers/{d}   { allow read, write: if false; }
+       match /intent_reconcile/{d} { allow read, write: if false; }
+       match /isolate_runs/{d}     { allow read, write: if false; }
+       match /pipeline_health/{d}  { allow read, write: if false; }
        match /aggregates/{d} {
          allow read: if request.auth != null
-                     && request.auth.uid == "YOUR-AUTH-UID"
+                     && request.auth.token.email == "you@example.com"
                      && request.auth.token.email_verified == true;
          allow write: if false;   // Admin SDK only
        }
      }
    }
    ```
-   The Admin SDK bypasses these, so the collectors still write.
+   Deploy with `firebase deploy --only firestore:rules` (needs a machine-local `firebase.json` +
+   `.firebaserc` pinning the project). The Admin SDK bypasses these, so the collectors still write.
+   (Match on the verified email — simplest for a single owner; switch to `request.auth.uid == "..."`
+   if you prefer the immutable id.)
 
 ## Retention
 
@@ -115,12 +125,18 @@ Mirrors a well-secured Firebase project. None of these need billing.
   ```bash
   gcloud services enable firebaseappcheck.googleapis.com recaptchaenterprise.googleapis.com --project=P
   gcloud recaptcha keys create --web --domains=YOUR-PROJECT.web.app --integration-type=score --project=P
+  # The firebaseappcheck admin API needs BOTH an auth token AND the x-goog-user-project header
+  # (without it you get a quota-project 403). Base: https://firebaseappcheck.googleapis.com/v1
+  TOKEN=$(gcloud auth print-access-token --account $ACC)
+  H=(-H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: P" -H "Content-Type: application/json")
   # register the returned site key with App Check, then enforce it on Firestore:
-  curl -X PATCH ".../projects/P/apps/APP_ID/recaptchaEnterpriseConfig?updateMask=siteKey" -d '{"siteKey":"..."}'
-  curl -X PATCH ".../projects/P/services/firestore.googleapis.com?updateMask=enforcementMode" -d '{"enforcementMode":"ENFORCED"}'
+  curl "${H[@]}" -X PATCH ".../v1/projects/P/apps/APP_ID/recaptchaEnterpriseConfig?updateMask=siteKey" -d '{"siteKey":"..."}'
+  curl "${H[@]}" -X PATCH ".../v1/projects/P/services/firestore.googleapis.com?updateMask=enforcementMode" -d '{"enforcementMode":"ENFORCED"}'
   ```
-  Init it in the client with `ReCaptchaEnterpriseProvider(siteKey)`. The Admin SDK bypasses
-  enforcement, so the collectors keep writing.
+  Init it in the client with `ReCaptchaEnterpriseProvider(siteKey)` (import `firebase-app-check.js`,
+  `initializeAppCheck` before the first Firestore call). The Admin SDK bypasses enforcement, so the
+  collectors keep writing. Auth's Identity Toolkit admin API needs the same `x-goog-user-project`
+  header, and its config only exists AFTER you click Authentication → Get started once in the console.
 - **Restrict the web API key** to your domains + the Firebase APIs only (the key is public by design,
   but restricting it limits misuse):
   ```bash
@@ -134,3 +150,13 @@ Mirrors a well-secured Firebase project. None of these need billing.
 - **Enforce email verification** in the owner rule (`email_verified == true`, above).
 - **Deny-all raw collections; owner-read aggregates only** (the rules above). Verify with an
   unauthenticated read — it must return HTTP 403.
+
+## Seed + verify
+
+- **Seed** (optional, so the console isn't empty): `config-metrics.py --backfill 2` replays recent
+  transcripts (signal only), and `--import-logs` ships the legacy `logs/*.jsonl` into the store.
+- **Verify security**: an unauthenticated `GET` of any collection returns HTTP 403; the Admin SDK
+  (collectors) still reads/writes after App Check is enforced.
+- **Note on billing/TTL**: linking billing can fail with a project-quota error if your billing account
+  is already at its project limit — that's why `--prune` exists (no billing needed). `expireAt` is
+  stamped regardless, so a real TTL policy works retroactively if you enable billing later.
