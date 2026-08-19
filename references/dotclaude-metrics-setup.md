@@ -89,6 +89,48 @@ never their request text — work content never reaches a personal project.
 
 ## The hosted console (optional)
 
-To view the dashboard from anywhere, deploy `console/` to Firebase Hosting with the Auth Google
-provider + App Check enabled and the owner-UID rule above. The client reads only `aggregates/*`. Until
-then, `bin/config-metrics.py --html` writes a self-contained local `metrics/dashboard.html`.
+View the dashboard from anywhere. `bin/config-metrics.py --html` always writes a self-contained local
+`metrics/dashboard.html`; the hosted version adds owner-only remote access. It reads only
+`aggregates/*` (raw collections stay deny-all).
+
+1. **Create a web app + get its config:**
+   ```bash
+   firebase apps:create web "metrics-console" --project YOUR-METRICS-PROJECT --account you@example.com
+   firebase apps:sdkconfig web --project YOUR-METRICS-PROJECT --account you@example.com
+   ```
+2. **Enable Auth** — in the Firebase console, Authentication → Get started → enable **Google** (set a
+   support email). (Auth cannot be initialized headlessly on a fresh project; this is the one console
+   step. Afterwards, providers can be toggled via the Identity Toolkit admin API.)
+3. **Owner-read rule** on `aggregates` — match your verified email (or UID):
+   `allow read: if request.auth.token.email == "you@example.com" && request.auth.token.email_verified == true;`
+4. **Deploy** — inject the web config (and App Check site key, below) into `console/index.html`, write
+   it to a machine-local `public/`, and `firebase deploy --only hosting,firestore:rules`.
+
+## Harden the project (do all of these)
+
+Mirrors a well-secured Firebase project. None of these need billing.
+
+- **App Check (reCAPTCHA Enterprise)** — attests every client request comes from your real app, so the
+  public apiKey alone cannot mint a valid token:
+  ```bash
+  gcloud services enable firebaseappcheck.googleapis.com recaptchaenterprise.googleapis.com --project=P
+  gcloud recaptcha keys create --web --domains=YOUR-PROJECT.web.app --integration-type=score --project=P
+  # register the returned site key with App Check, then enforce it on Firestore:
+  curl -X PATCH ".../projects/P/apps/APP_ID/recaptchaEnterpriseConfig?updateMask=siteKey" -d '{"siteKey":"..."}'
+  curl -X PATCH ".../projects/P/services/firestore.googleapis.com?updateMask=enforcementMode" -d '{"enforcementMode":"ENFORCED"}'
+  ```
+  Init it in the client with `ReCaptchaEnterpriseProvider(siteKey)`. The Admin SDK bypasses
+  enforcement, so the collectors keep writing.
+- **Restrict the web API key** to your domains + the Firebase APIs only (the key is public by design,
+  but restricting it limits misuse):
+  ```bash
+  gcloud services api-keys update KEY_ID --allowed-referrers="https://YOUR-PROJECT.web.app/*,http://localhost:*" \
+    --api-target=service=identitytoolkit.googleapis.com --api-target=service=securetoken.googleapis.com \
+    --api-target=service=firestore.googleapis.com --api-target=service=firebaseappcheck.googleapis.com \
+    --api-target=service=recaptchaenterprise.googleapis.com --api-target=service=firebaseinstallations.googleapis.com
+  ```
+- **Least-privilege service account** — `roles/datastore.user` only (done in step 2 of setup). It cannot
+  read Auth users or touch anything but Firestore.
+- **Enforce email verification** in the owner rule (`email_verified == true`, above).
+- **Deny-all raw collections; owner-read aggregates only** (the rules above). Verify with an
+  unauthenticated read — it must return HTTP 403.

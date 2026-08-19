@@ -47,15 +47,25 @@ section{margin-top:28px}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-check.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, getDoc }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Injected at deploy from machine-local config; PLACEHOLDER in the committed template.
+// Injected at deploy from machine-local config; PLACEHOLDERS in the committed template.
 const firebaseConfig = __FIREBASE_CONFIG__;
+const appCheckSiteKey = "__APPCHECK_SITE_KEY__";
 
 const app = initializeApp(firebaseConfig);
+// App Check: attest every Firestore/Auth request comes from this real app (reCAPTCHA Enterprise),
+// so even with the public apiKey a bot/script cannot mint a valid token. Defense-in-depth on top of
+// the owner-only Firestore rules.
+initializeAppCheck(app, {
+  provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
+  isTokenAutoRefreshEnabled: true,
+});
 const auth = getAuth(app);
 const db = getFirestore(app);
 const $ = id => document.getElementById(id);
