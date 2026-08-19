@@ -42,15 +42,10 @@ applied through to a verified finish — resuming the main thread after any tang
 
 ## Step 3 — the ALWAYS-ON progress bar
 
-Simon must always see how far along he is, at every level.
-
-- **Canonical tracker: the harness Task list** (TaskCreate/TaskUpdate) — one task per plan step, marked
-  in_progress / completed as they go, so the native live checklist shows the state.
-- **Echo a compact text bar in EVERY response:** `▓▓▓▓░░░░ 4/8 · now: <step> (<skill>)`. When a sub-skill
-  runs its own multi-step process (e.g. `/sk:work-full-detailed-workflow`, `/sk:work-superspeed`), show
-  its SUB-progress nested: `└ work-full-detailed-workflow ▓▓░░ 2/4 · tests`.
-- Update the bar whenever a step or sub-step changes state.
-  TEST: at any moment Simon can read the bar and know the overall position AND the current sub-process's.
+Simon must always see how far along he is, at every level. The format, the Task-list-as-canonical-tracker
+and the nested sub-progress convention are `references/progress-bar.md`'s — read it there, don't restate
+it. Here the steps ARE the plan's stages, and a sub-skill (`/sk:work-full-detailed-workflow`,
+`/sk:work-superspeed`) shows its own nested bar under the main one.
 
 ## Step 4 — RUN it, applying each skill at its stage
 

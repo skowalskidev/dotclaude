@@ -189,23 +189,30 @@ session runs the full harness on its slice (Step 3, item 3) and writes its statu
 orchestrator POLLS that dir (Step 4.5), so Simon copies NOTHING back. The printed report block is only a
 fallback he pastes if the orchestrator reports a part's status file never arrived.
 
-## Step 4.5 — POLL the shared status until every part reports (this replaces the relay)
+## Step 4.5 — POLL the shared status, with a PROGRESS BAR, until every part reports
 
-The orchestrator watches `$STATUS_DIR` and knows when all N parts are done — Simon does nothing here.
-Run a BACKGROUNDED wait-loop that exits when every part's file says `done` or `blocked` (or a timeout
-fires); the harness wakes the orchestrator on exit, and it proceeds to assemble.
+The orchestrator watches `$STATUS_DIR` — Simon does nothing here but watch progress. SHOW it per
+`references/progress-bar.md`: mirror the parts to the harness Task list (one task per part, marked
+`completed` as its status flips to `done`) as the canonical tracker, and print the compact bar each poll
+tick. Run the wait-loop BACKGROUNDED (`run_in_background`) so this session is free; its ticking output IS
+the live bar, and the harness wakes the orchestrator when every part is `done`/`blocked` or the timeout
+fires.
 
 ```bash
 S="$STATUS_DIR"; N=<part-count>; DEADLINE=$((SECONDS+3600))   # 60-min ceiling; raise for long slices
-until [ "$(grep -lE '"status" *: *"(done|blocked)"' "$S"/*.json 2>/dev/null | wc -l | tr -d ' ')" -ge "$N" ] \
-   || [ $SECONDS -ge $DEADLINE ]; do sleep 15; done
-echo "REPORTED:"; for f in "$S"/*.json 2>/dev/null; do echo "  $(basename "$f"): $(grep -o '"status" *: *"[a-z]*"' "$f")"; done
+bar(){ local d=$1 t=$2 f=$(( d*8/(t>0?t:1) )) i o=""; for ((i=0;i<8;i++)); do [ $i -lt $f ] && o+="▓" || o+="░"; done; echo "$o $d/$t parts reported · $(date +%H:%M:%S)"; }
+while :; do
+  d=$(grep -lE '"status" *: *"(done|blocked)"' "$S"/*.json 2>/dev/null | wc -l | tr -d ' ')
+  bar "$d" "$N"
+  { [ "$d" -ge "$N" ] || [ $SECONDS -ge $DEADLINE ]; } && break
+  sleep 15
+done
+echo "REPORTED:"; for f in "$S"/*.json; do echo "  $(basename "$f"): $(grep -o '"status" *: *"[a-z]*"' "$f")"; done
 ```
 
-Run it with the Bash tool's `run_in_background`, so this session is free until it wakes. On the wake,
-read every `$STATUS_DIR/*.json`: any part still `working` or absent at the deadline is a STUCK part —
-name it for Simon (its session may need a look) and assemble what did report; a `blocked` part is the
-design working, handled in Step 5.
+On the wake, read every `$STATUS_DIR/*.json`: any part still `working` or absent at the deadline is a
+STUCK part — name it for Simon (its session may need a look) and assemble what did report; a `blocked`
+part is the design working, handled in Step 5.
 
 ## Step 5 — assemble, warm, in the orchestrator session
 

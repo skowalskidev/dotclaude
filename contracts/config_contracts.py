@@ -228,6 +228,18 @@ CONTRACTS: dict[str, dict] = {
             "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
         ],
     },
+    "references/progress-bar.md": {
+        "mission": "Simon always knows how far along a run is — overall and inside a sub-process — from one line, without asking.",
+        "purpose": "The one convention for showing progress: the harness Task list as canonical tracker, a compact text bar, and nested sub-progress.",
+        "criteria": [
+            "The harness Task list is the canonical tracker (one task per step); a compact ▓▓░ N/M · "
+            "now:X bar is echoed alongside it, each response and each poll tick.",
+            "A sub-process shows its own nested bar under the main one; both update the moment a step "
+            "changes state, not at the end.",
+            "Owned here; /sk:meta-dotclaude-copilot and /sk:work-hyperspeed point to it and do not "
+            "restate the format.",
+        ],
+    },
     "references/parallelization.md": {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
@@ -467,8 +479,9 @@ CONTRACTS: dict[str, dict] = {
             "to archive the sessions (it cannot touch the Claude UI).",
             "Parts write status + output location to a shared file in this run's own "
             ".context/hyperspeed/<run-id>/status/ (DRY, per-session, so concurrent runs from different "
-            "sessions never clash); the orchestrator POLLS it via a backgrounded wait-loop and never "
-            "needs a relay — Simon only pastes the starter blocks and archives the sessions.",
+            "sessions never clash); the orchestrator POLLS it via a backgrounded wait-loop that shows a "
+            "progress bar (references/progress-bar.md) and never needs a relay — Simon only pastes the "
+            "starter blocks and archives the sessions.",
             "Reconciles a run's full footprint at cleanup, not just branches: removes/prunes part "
             "worktrees, sweeps orphan dev-servers, port lanes and stray claude -p slices, and each part "
             "self-tears-down its processes before reporting done.",
@@ -833,8 +846,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Routes via references/skill-stack.md and verifies every named skill is installed before "
             "planning on it; never restates the map or a skill's method.",
-            "Keeps an always-on progress bar — the harness Task list as canonical tracker plus a compact "
-            "text bar echoed each response — with nested sub-progress for a sub-skill's multi-step process.",
+            "Keeps an always-on progress bar per references/progress-bar.md (harness Task list + compact "
+            "text bar + nested sub-progress for a sub-skill); does not restate the format.",
             "A tangent (a discovered fix, a mid-run ask) is a QUEUED task per process.md: handled, then "
             "the main thread RESUMES; nothing is dropped.",
             "Callable at any stage: re-reads the tracker and continues where the plan left off, never "
