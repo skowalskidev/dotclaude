@@ -987,9 +987,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/git-commit-guard.py": {
-        "mission": "Claude never commits or pushes on the default branch, and never commits with -m or a heredoc.",
-        "purpose": "PreToolUse: blocks a default-branch commit/push and an inline -m/heredoc commit.",
+        "mission": "Claude never commits or pushes on the default branch, never merges a PR into it off a general instruction, and never commits with -m or a heredoc.",
+        "purpose": "PreToolUse: blocks a default-branch commit/push, a gh pr merge, and an inline -m/heredoc commit.",
         "criteria": [
+            "Blocks `gh pr merge` (into the remote default branch) unless CLAUDE_ALLOW_PR_MERGE=1 "
+            "(env or inline); a general 'merge everything'/'continue' is never a yes for a specific "
+            "merge, and the deny requires explicit per-PR confirmation plus a CI-green check.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
             "hook's env OR prefixed inline on the command; exempts the ~/.claude config repo, "
             "which lives on main by design.",

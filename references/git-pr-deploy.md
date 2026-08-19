@@ -64,6 +64,28 @@ cannot:
 - Build and run with the project's documented commands to verify before declaring done.
 - When finished: fix everything with no loose ends, create a draft PR, then tear down all processes and clean up the environment for other testing.
 
+## Merging to the default branch — a general instruction is never a yes for a specific merge
+
+**DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
+branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
+specific irreversible merge. `hooks/git-commit-guard.py` hard-blocks `gh pr merge` and default-branch
+pushes; clear it with `CLAUDE_ALLOW_PR_MERGE=1` (or `CLAUDE_ALLOW_MAIN_COMMIT=1` for a push) only once
+the user has confirmed that exact merge.
+**DON'T admin-override a required review, and DON'T merge for the user when handing them the PR is the
+safer move.** The fix for the incident where 8 PRs (two on red CI) went into remote master off "merge
+everything, no loose ends."
+
+**DO verify CI is genuinely GREEN on the exact head commit before any merge** — read the actual
+per-check conclusions (`gh pr view <n> --json statusCheckRollup`): every required check SUCCESS, none
+FAILURE/PENDING/incomplete.
+**DON'T trust a truncated summary.** A `SKIPPED:3,SUCC…` glance hid a `test-unit-serverless FAILURE`
+and the red PR merged; a merge on red CI breaks the default branch for everyone.
+
+**DO re-verify the ASSEMBLED result when several PRs touching the same file merge together.** Each
+PR's own CI is green against its base, not against the others: a textual auto-merge can duplicate a
+symbol (two PRs each adding the same `const` or object key → a TS "cannot redeclare"/TS1117 that fails
+the whole build), and no individual PR's CI catches it.
+
 ## Deleting a merged branch safely — the gate is the seatbelt, not `-d`
 
 `git branch -d` decides "merged?" against the CURRENT HEAD (or the branch's upstream), NOT against the

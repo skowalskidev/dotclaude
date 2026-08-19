@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """
-Deny TWO git mistakes Claude makes that no other layer catches:
+Deny THREE git mistakes Claude makes that no other layer catches:
+
+  0. `gh pr merge` — merging a PR into the remote default branch. This is the action that once
+     merged 8 PRs (two on red CI) into master off a general "merge everything, no loose ends".
+     `git-commit-guard` covered `git push` to main/master, but `gh pr merge` contains neither "git"
+     nor "push" so it slipped straight through. A general instruction ("merge everything" / "proceed"
+     / "continue") is NEVER a yes for a SPECIFIC merge; confirm the PR and verify CI is actually
+     green, or set CLAUDE_ALLOW_PR_MERGE=1 once the user has confirmed THIS merge.
 
   1. Committing or pushing on the default branch (main / master). rules/process.md: "If on the
      default branch, create a branch first", and feedback_no_master_commits: never commit/push to
@@ -91,15 +98,35 @@ def main() -> int:
     if payload.get("tool_name") != "Bash":
         return 0
     command = payload.get("tool_input", {}).get("command", "")
-    if not isinstance(command, str) or "git" not in command:
+    if not isinstance(command, str) or ("git" not in command and "gh " not in command):
         return 0
     cwd = payload.get("cwd") or os.getcwd()
 
     for seg in segments(command):
         is_commit = re.search(r"\bgit\b.*\bcommit\b", seg) is not None
         is_push = re.search(r"\bgit\b.*\bpush\b", seg) is not None
-        if not (is_commit or is_push):
+        is_gh_merge = re.search(r"\bgh\s+pr\s+merge\b", seg) is not None
+        if not (is_commit or is_push or is_gh_merge):
             continue
+
+        # 0. `gh pr merge` merges into the remote default branch — the action that once merged 8 PRs
+        # (two on red CI) into master off a general "merge everything". A general instruction is never
+        # a yes for a specific merge, so block unless the user confirmed THIS merge (the flag in the
+        # hook's env OR prefixed inline). The deny message is what tells Claude to get that yes.
+        if is_gh_merge:
+            allow_merge = os.environ.get("CLAUDE_ALLOW_PR_MERGE") == "1" or bool(
+                re.search(r"\bCLAUDE_ALLOW_PR_MERGE=1\b", command)
+            )
+            if not allow_merge:
+                return deny(
+                    "Blocked: `gh pr merge` merges a PR into the remote default branch. A general "
+                    "'merge everything' / 'proceed' / 'continue' is NEVER authorization for a "
+                    "specific merge — get the user's explicit yes naming THIS PR, and verify CI is "
+                    "genuinely green first (`gh pr view <n> --json statusCheckRollup`: every required "
+                    "check SUCCESS, none FAILURE/PENDING — never a truncated summary). Never "
+                    "admin-override a required review; prefer handing the merge to the user. If the "
+                    "user confirmed THIS merge, prefix CLAUDE_ALLOW_PR_MERGE=1."
+                )
 
         # 1. Default-branch protection (the config repo is exempt — it lives on main by design).
         # The override counts whether the flag is in the hook's OWN env OR prefixed inline on the
