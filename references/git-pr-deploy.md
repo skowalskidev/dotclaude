@@ -70,7 +70,15 @@ cannot:
 default branch. So in a stale worktree — HEAD sitting behind `master` — `-d` REFUSES a branch that is
 already merged to `origin/master`, and the refusal reads exactly like a real "unmerged." Observed: a
 252-commit-behind worktree refused six branches whose tips WERE `origin/master`; the branches were
-genuine merged leftovers and `-d` could not clear them. So prove the merge yourself, then force:
+genuine merged leftovers and `-d` could not clear them.
+
+**First, confirm with the user — always.** Removing a branch or worktree is destructive and not cleanly
+reversible, so present the exact list you propose to remove and get an explicit yes; never delete
+unprompted. The gate below proves a deletion is SAFE; the user still decides WHETHER to make it, and may
+veto any item. The cleanup flows that use this rule carry it as their confirm step —
+`/sk:meta-cleanup-worktrees` (Step 4) and `/sk:work-hyperspeed` (Step 6).
+
+Then prove the merge yourself, and force:
 
 1. **Gate on the default branch, not HEAD.** `git merge-base --is-ancestor <branch> origin/<default>`
    (exit 0 = every commit on the branch is already in the default branch), OR — for a squash/rebase

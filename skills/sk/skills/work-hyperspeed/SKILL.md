@@ -239,6 +239,13 @@ the branches and worktrees still lying around. The run is DONE only when this re
 run leaves BRANCHES, WORKTREES and PROCESSES across N sessions, and all three are torn down here every
 round, per `rules/process.md` § "Clean up after yourself" and `references/dev-server-hygiene.md`.
 
+- **Confirm before deleting — present the list, wait for a yes.** Before removing ANYTHING, show Simon
+  the exact set you propose to delete — every reported part branch, the run's START branch, and each part
+  worktree — and get his explicit yes; never delete unprompted, even though the gate proves each is merged
+  (`references/git-pr-deploy.md` § "Deleting a merged branch safely"). This is one paced handoff
+  (`references/human-pacing.md`): show the list, WAIT, then delete only the batch he approved. He can veto
+  any item — keep it and move on. (Remote-branch deletion is part of what he approves; it is a shared-remote
+  write.)
 - **Branches — delete each part branch BY ITS REPORTED NAME, local and remote.** Read the `branch` field
   from every `$STATUS_DIR/*.json` (Step 5 already has them). Do NOT glob `hs/<run>/*`: the parts run in
   Conductor workspaces, which NAME the branch themselves (`skowalskidev/<workspace>`, not `hs/...`), so a

@@ -213,9 +213,9 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
-            "Owns the safe merged-branch-deletion rule (gate on origin/<default> ancestry OR gh-MERGED-"
-            "plus-pushed, then git branch -D; -d is HEAD-relative and unreliable from a stale worktree); "
-            "/sk:meta-cleanup-worktrees and /sk:work-hyperspeed point here and never restate the mechanism.",
+            "Owns the safe merged-branch-deletion rule: confirm with the user first (never delete "
+            "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed, then git branch -D "
+            "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
             "The issue tracker is kept In-Progress and PR-linked both ways; only tickets the PR "
             "delivers are linked.",
@@ -499,6 +499,8 @@ CONTRACTS: dict[str, dict] = {
             "BY ITS REPORTED NAME (never an hs/<run>/* glob — Conductor names branches itself) local and "
             "remote after proving it merged into the assembly branch, points to /sk:meta-cleanup-worktrees "
             "as the leak backstop, and tells Simon to archive the sessions (it cannot touch the Claude UI).",
+            "Confirms with Simon before deleting any branch or worktree — presents the exact list (part "
+            "branches, START branch, part worktrees) and waits for his explicit yes; never deletes unprompted.",
             "Parts write status + output location to a shared file in this run's own "
             ".context/hyperspeed/<run-id>/status/ (DRY, per-session, so concurrent runs from different "
             "sessions never clash); the orchestrator POLLS it via a backgrounded wait-loop that shows a "
