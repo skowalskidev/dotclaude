@@ -446,7 +446,44 @@ def backfill(days: int = 30, cap: int = 8000) -> int:
     return 0
 
 
+def prune() -> int:
+    """Delete docs whose expireAt has passed — the billing-free equivalent of a Firestore TTL policy.
+    The Admin SDK bypasses the TTL/billing requirement; plain deletes are free within quota. Run it
+    periodically (nothing expires until the retention horizon, so it is a no-op until then)."""
+    db = _firestore()
+    if db is None:
+        print("no metrics project reachable — nothing to prune")
+        return 0
+    import datetime as dt
+    from google.cloud.firestore_v1.base_query import FieldFilter
+    now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    collections = ["session_events", "sessions", "runs", "retro_triggers",
+                   "intent_reconcile", "isolate_runs", "pipeline_health"]
+    total = 0
+    for coll in collections:
+        deleted = 0
+        while True:
+            docs = list(db.collection(coll)
+                        .where(filter=FieldFilter("expireAt", "<", now)).limit(400).stream())
+            if not docs:
+                break
+            batch = db.batch()
+            for d in docs:
+                batch.delete(d.reference)
+            batch.commit()
+            deleted += len(docs)
+            if len(docs) < 400:
+                break
+        if deleted:
+            print("pruned %d expired docs from %s" % (deleted, coll))
+        total += deleted
+    print("prune done: %d expired docs deleted (billing-free TTL equivalent)" % total)
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if "--prune" in argv:
+        return prune()
     if "--import-logs" in argv:
         return import_logs()
     if "--backfill" in argv:

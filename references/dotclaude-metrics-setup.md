@@ -61,8 +61,16 @@ error — the system just collects nothing until you provision a project.
      }
    }
    ```
-   The Admin SDK bypasses these, so the collectors still write. Add a TTL policy on the `expireAt`
-   field for `sessions`, `session_events`, `runs`, `pipeline_health`.
+   The Admin SDK bypasses these, so the collectors still write.
+
+## Retention
+
+Every doc carries an `expireAt` field. Two ways to expire old data:
+- **Firestore TTL policy** (needs billing enabled): `gcloud firestore fields ttls update expireAt
+  --collection-group=<coll> --enable-ttl`. Auto-deletes within ~24h of expiry.
+- **Billing-free equivalent** (no billing needed): `config-metrics.py --prune` deletes expired docs
+  via the Admin SDK (plain deletes are free within quota). Run it periodically; it is a no-op until
+  the retention horizon passes. Use this when the project's billing account is at its project quota.
 
 ## Config knobs (environment, all optional)
 
