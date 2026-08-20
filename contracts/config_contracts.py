@@ -500,7 +500,8 @@ CONTRACTS: dict[str, dict] = {
             "Assembles by merging the reported branches, then in the SAME turn deletes each part branch "
             "BY ITS REPORTED NAME (never an hs/<run>/* glob — Conductor names branches itself) local and "
             "remote after proving it merged into the assembly branch, points to /sk:meta-cleanup-worktrees "
-            "as the leak backstop, and tells Simon to archive the sessions (it cannot touch the Claude UI).",
+            "as the leak backstop, and tells Simon to archive the sessions by their branch name (what the "
+            "Conductor session shorthand shows), since it cannot touch the Claude UI.",
             "Confirms with Simon before deleting any branch or worktree — presents the exact list (part "
             "branches, START branch, part worktrees) and waits for his explicit yes; never deletes unprompted.",
             "Parts write status + output location to a shared file in this run's own "

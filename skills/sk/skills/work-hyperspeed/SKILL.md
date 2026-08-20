@@ -264,14 +264,17 @@ round, per `rules/process.md` § "Clean up after yourself" and `references/dev-s
   or `hs/<run-id>` accumulates one dead branch per run.
 - **Worktrees — remove each part's worktree, then prune.** `git worktree remove` any worktree the
   orchestrator itself created; NAME each Conductor workspace (the default, Conductor-managed home) for
-  Simon to archive — archiving removes the worktree AND reaps that session's idle process. Then
+  Simon to archive, identifying it by its branch name (what the session shorthand shows) — archiving
+  removes the worktree AND reaps that session's idle process. Then
   `git worktree prune` and reconcile `git worktree list` against what should remain.
 - **Processes — sweep the machine for what the run left.** Each part self-cleans its servers, port lane
   and inner `claude -p` slices at finish (Step 3, item 6); at reconciliation run
   `bin/kill-orphan-workers.sh` for any BURNING dev-server orphan a killed session left, release held
   port lanes (`bin/port-registry.sh`), and check `pgrep -fl 'claude -p'` for stray inner slices. The
-  orchestrator cannot close an interactive session, so it NAMES each idle session for Simon to archive —
-  the one action that reaps the session's own `claude` process.
+  orchestrator cannot close an interactive session, so it NAMES each idle session for Simon to archive
+  BY ITS BRANCH NAME (the `branch` field from its status file) — that branch is what the Conductor session
+  shorthand shows, so it is how Simon matches the archive action to the right session. Archiving is the
+  one action that reaps the session's own `claude` process.
 - **Backstop — sweep anything a run leaks with `/sk:meta-cleanup-worktrees`.** A Conductor workspace that
   Simon archives leaves its branch behind, and a session that dies before self-cleaning leaves a worktree;
   that skill discovers merged branch-only orphans and idle worktrees for this repo and clears them safely.
