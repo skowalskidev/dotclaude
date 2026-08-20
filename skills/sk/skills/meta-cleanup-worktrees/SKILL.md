@@ -106,6 +106,10 @@ removed is a SEPARATE, extra-confirmed step — it is a shared-remote write — 
 For each confirmed-removable worktree:
 
 - `git worktree remove <path>` — NEVER `--force`. Its refusal on a dirty or locked tree is the seatbelt.
+  It DELETES the worktree's whole tree, `node_modules` included (tens of thousands of files), so it runs
+  for MINUTES — give it a long timeout. A short cap (e.g. 60s) kills it mid-delete and leaves the worktree
+  `prunable` with the dir still on disk; finish that one by `git worktree prune` then `rm -rf <path>`
+  (idle-checked, as in the on-disk-dir bullet below).
 - For a dir that is ON DISK but git NO LONGER tracks (Step 2's reconcile caught it; `git worktree remove`
   errors "is not a working tree"): confirm it is idle (`lsof -nP -d cwd | grep -F <path>`, Step 3 #4) and
   under `~/conductor/workspaces/<project>/`, then `rm -rf <path>` — only after an explicit EXTRA confirm,
@@ -148,5 +152,8 @@ does not prove containment — a squash/rebase tip carrying post-merge commits n
 before `-D`** · **a remote part branch is the owning run's job (hyperspeed Step 6, by recorded name) —
 meta-cleanup deletes only the remote COUNTERPART of a local orphan it removes, extra-confirmed, never a
 repo-wide remote purge (a shared remote is hundreds of others' branches)** · **on-disk dir git no longer
-tracks — `git worktree remove` errors; idle-check then `rm -rf`, extra-confirmed** · `lsof +D` hangs (use
+tracks — `git worktree remove` errors; idle-check then `rm -rf`, extra-confirmed** · **`git worktree
+remove` is SLOW (deletes `node_modules`, tens of thousands of files) — long timeout; a short cap kills it
+mid-delete and the worktree goes `prunable` with the dir left on disk, finish with `prune` + `rm -rf`** ·
+`lsof +D` hangs (use
 `-d cwd`) · stale/duplicate session symlinks (verify the target codename still has a worktree).
