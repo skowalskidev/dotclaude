@@ -2,7 +2,8 @@
 
 A user-scope MCP for verifying UI changes in a **real, logged-in browser** — the live-eyes complement to automated tests (Playwright/Cypress/etc.). Use it to sanity-check a flow visually, grab screenshots, and inspect real network calls; keep automated specs as the committed regression coverage.
 
-**Setup:** launch Chrome with `--remote-debugging-port=9222` using a profile that's **already signed in** (a fresh/debug profile lands on the login screen). The MCP attaches to that session.
+**Setup:** launch Chrome as a SEPARATE instance with its OWN `--user-data-dir`, never your everyday profile:
+`open -na "Google Chrome" --args --remote-debugging-port=9222 --user-data-dir="$HOME/.chrome-<project>-debug" --no-first-run --no-default-browser-check <url>`. The dedicated profile is what makes the port open reliably: passing `--remote-debugging-port` while Chrome is ALREADY running on that profile just hands the flag to the running instance (it owns the profile's singleton lock), which never opens the port — `DevToolsActivePort` is never written, nothing binds 9222, and the MCP fails with "Could not connect". So poll until `curl -s http://127.0.0.1:9222/json/version` succeeds before attaching. A dedicated profile starts logged OUT, so sign in ONCE in that window; it persists the session across runs. The MCP attaches to that instance.
 
 **Core loop:** `navigate_page` → `wait_for({text:[…]})` → `take_snapshot` (accessibility tree with `uid`s) → act via `click({uid})` / `fill` / `evaluate_script` → `take_screenshot`. `take_screenshot` accepts `{filePath}` (save straight to disk, e.g. for PR screenshots) and `{fullPage}`. Inspect the backend with `list_network_requests` + `get_network_request({reqid})` (status, request/response headers incl. bearer token, body).
 
