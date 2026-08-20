@@ -274,10 +274,12 @@ round, per `rules/process.md` § "Clean up after yourself" and `references/dev-s
   <assembly>` then `git branch -D` local and remote — same for any superseded prior-round assembly branch,
   or `hs/<run-id>` accumulates one dead branch per run.
 - **Worktrees — remove each part's worktree, then prune.** `git worktree remove` any worktree the
-  orchestrator itself created; NAME each Conductor workspace (the default, Conductor-managed home) for
-  Simon to archive, identifying it by its branch name (what the session shorthand shows) — archiving
-  removes the worktree AND reaps that session's idle process. Then
-  `git worktree prune` and reconcile `git worktree list` against what should remain.
+  orchestrator itself created — it deletes the worktree's `node_modules` (tens of thousands of files) and
+  runs for MINUTES, so give it a long timeout; a short cap kills it mid-delete and leaves the worktree
+  `prunable` with the dir on disk (finish with `git worktree prune` then `rm -rf`). NAME each Conductor
+  workspace (the default, Conductor-managed home) for Simon to archive, identifying it by its branch name
+  (what the session shorthand shows) — archiving removes the worktree AND reaps that session's idle
+  process. Then `git worktree prune` and reconcile `git worktree list` against what should remain.
 - **Processes — sweep the machine for what the run left.** Each part self-cleans its servers, port lane
   and inner `claude -p` slices at finish (Step 3, item 6); at reconciliation run
   `bin/kill-orphan-workers.sh` for any BURNING dev-server orphan a killed session left, release held
