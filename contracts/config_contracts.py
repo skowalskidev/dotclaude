@@ -272,6 +272,9 @@ CONTRACTS: dict[str, dict] = {
             "Every out-of-code surface the work touches (edge/CDN, a design tool, a third-party "
             "console, a dashboard) is asked for before the plan, and each ticket names the inputs "
             "its implementer must obtain.",
+            "Before a ticket goes to a build, every decision it depends on is resolved INTO the ticket "
+            "(the option chosen plus a one-line why) and every requirement is present, so a builder that "
+            "cannot ask — a cloud session, a parallel part, a teammate — misses nothing and guesses nothing.",
         ],
     },
     "references/research.md": {

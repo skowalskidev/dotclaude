@@ -83,6 +83,27 @@ silently missing.
   references, that out-of-code config, a sample payload — so the downstream agent asks Simon for them
   instead of guessing. A ticket that needs a mockup and does not say so produces a confidently wrong build.
 
+## Before building, the ticket is a complete, decision-resolved spec — the builder cannot ask
+
+The thing that builds a ticket is increasingly NOT the session that planned it: a Claude Code cloud
+session, a parallel `/sk:work-hyperspeed` part, a teammate, or you three days later. None of them can
+ask a follow-up mid-build, so every fork left open becomes a confident wrong choice and every
+requirement left only in chat becomes a missed point.
+
+- **DO resolve every decision the build depends on BEFORE it starts, and write the resolution INTO the
+  ticket** — the option chosen and a one-line why, not the open question. A fork recorded as "TBD", or
+  left in the chat log, is one the builder picks blind.
+- **DO make the ticket carry every requirement and acceptance criterion the build must satisfy**, so a
+  builder reading only the ticket misses nothing. Run § "Re-check the plan against the original source
+  material" and § "Scope a feature across every surface it touches" against the TICKET, not just the plan.
+- **The full plan narrative stays in chat / `.context/`, never auto-posted as a ticket comment.** What
+  goes INTO the ticket is the resolved decisions, the acceptance criteria, and the context linking it to
+  the other tickets — with Simon's sign-off, and only what he actually stated or approved, never invented
+  detail. His approval on the plan is what licenses writing it into a work ticket.
+- TEST: hand a cold build session ONLY the ticket and it can build without one follow-up — every fork
+  has a recorded verdict (option + why) and every requirement is present. A ticket with an open decision
+  is not ready to build.
+
 ## Track every ask to completion — never drop items
 
 Owned by **`~/.claude/rules/process.md` § "Track every task to completion"**, which is always-on and
