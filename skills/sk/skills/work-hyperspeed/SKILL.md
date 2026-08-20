@@ -114,11 +114,14 @@ this order:
 2. **This part's task**, written as a rule not an example (`rules/process.md` § "Fix the CLASS"), with
    its `owns` (may edit), `reads` (read-only), `forbid` (the look-alikes another part owns), an
    `accept` line, and a runnable `verify` command scoped to its owned files.
-3. **Run the slice through the full harness — autonomously, and superspeed WITHIN it.** The session
-   drives its slice with the spine skill that fits the part's TASK SHAPE (per `references/skill-stack.md`)
-   — `/sk:work-full-detailed-workflow` for a code/build slice (it takes a port lane via
-   `/sk:work-isolate-environment` and closes with `/sk:ship-report-and-ensure-correct-user-system-journey`),
-   `/sk:ship-mockup-before-after` for a design mockup, the matching design/review skill for those —
+3. **Run the slice through the full harness — autonomously, and superspeed WITHIN it.** The part's FIRST
+   instruction to its session is to invoke `/sk:meta-dotclaude-copilot-start-here-for-any-task` — the
+   single front door that routes the slice to the right spine per `references/skill-stack.md` and drives
+   it to a verified finish — so each session reaches its full potential without Simon ever going in to
+   remind it. That front door lands a code/build slice on `/sk:work-full-detailed-workflow` (which takes a
+   port lane via `/sk:work-isolate-environment` and closes with
+   `/sk:ship-report-and-ensure-correct-user-system-journey`), and a design mockup on
+   `/sk:ship-mockup-before-after`, the matching design/review skill for those —
    and **fans its OWN slice out with
    `/sk:work-superspeed` where that slice sub-divides into 3-5+ independent pieces** — this is the inner
    layer, hyperspeed on top of superspeed. It runs UNATTENDED: this spec IS the ratified plan (no
@@ -336,8 +339,14 @@ fixed file's cause, analyse every run, heal only what RECURS — is shared and d
 
 - **Write the round's log to `.context/hyperspeed/<run-id>/reconcile.json`** (durable per
   `rules/process.md`), in that section's schema, plus `parts`, `rounds` and each part's status file (the
-  run's `status/` dir sits right beside this log) so the analysis sees the partition, not only the fixes. Run
-  `/sk:claude-config-self-optimize-analysis-after-run <run-dir>` after each round.
+  run's `status/` dir sits right beside this log) so the analysis sees the partition, not only the fixes.
+  **Then emit a compact run row to the dotclaude store, so the parallel engine stops being invisible to
+  the optimizer** (`bin/superspeed-analyse.py` and `bin/superspeed-dispatch.sh` currently read `uses:0`
+  because they execute in headless slices that never report back): pipe a summary — `run_id`,
+  `kind:"hyperspeed"`, `parts`, `rounds`, the rework count, `optimized:false`, and `boundary` — to the
+  ONE shared writer, `echo '<event-json>' | ~/.claude/bin/dotclaude-log.py runs`. That `runs` collection
+  is exactly what `/sk:claude-config-self-optimize-analysis-after-run`'s backlog query already reads, so
+  this closes the loop (nothing writes `runs` today). Run that analysis `<run-dir>` after each round.
 - **A hand-run round leaves reconcile + partition data, not `claude -p` token/timing telemetry**, so the
   analyser judges partition quality and rework, not idle-capacity. That is the honest limit, and it is
   enough to cut the next partition better.

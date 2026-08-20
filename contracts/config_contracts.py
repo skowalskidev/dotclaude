@@ -142,6 +142,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "The task-shape-to-skill map lives in references/skill-stack.md, not duplicated here.",
             "Third-party skills are always labelled with their repo.",
+            "A skill that fits is INVOKED via the Skill tool and FOLLOWED, never reconstructed from "
+            "memory — a paraphrase drifts from the tested procedure and records zero uses.",
         ],
     },
     "rules/ui-conventions.md": {
@@ -512,8 +514,10 @@ CONTRACTS: dict[str, dict] = {
             "Shares the slice-cutting and reconcile craft with references/parallelization.md and "
             "/sk:work-superspeed; does not restate it.",
             "Records each round in a reconcile.json (same schema and causes as /sk:work-superspeed), "
-            "analyses it with /sk:claude-config-self-optimize-analysis-after-run, and folds only "
-            "recurring findings into this skill via the self-healing gate.",
+            "emits a compact run row to the dotclaude `runs` collection via bin/dotclaude-log.py so the "
+            "parallel engine is not invisible to the optimizer, analyses it with "
+            "/sk:claude-config-self-optimize-analysis-after-run, and folds only recurring findings into "
+            "this skill via the self-healing gate.",
             "Guides Simon as a paced co-pilot session (references/human-pacing.md): one handoff at a "
             "time, signal, wait; the plan file holds the rest.",
             "Two levels, not a replacement for superspeed: each hand-run part runs its slice through "

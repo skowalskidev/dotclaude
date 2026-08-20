@@ -22,8 +22,8 @@ every skill is invoked as `/<plugin>:<skill>` and **typing the prefix in the sla
 - The bare prefix is a **menu filter only, not a runnable command** — pressing enter on `/sk` alone
   gives "Unknown command". Always complete to the full `/sk:<skill>` / `/sk-work:<skill>` name.
 
-**Name a new skill `<group>-<what-it-does>`**, group first so typing it narrows the menu. Groups are
-data in `contracts/skill_naming.py`; the principle is in `references/code-best-practices.md`.
+**Name a new skill `<group>-<what-it-does>`** (group first, so typing it narrows the menu). Groups live
+in `contracts/skill_naming.py`.
 
 Rules (verified against the official Claude Code docs):
 - New personal skills go in `~/.claude/skills/sk/skills/<name>/SKILL.md`. Never put my skills loose in
@@ -37,9 +37,8 @@ Rules (verified against the official Claude Code docs):
   existing SKILL.md files are picked up live.
 
 ### [sk] / [sk-work] — my own skills (not enumerated here)
-My personal (`sk`) and work (`sk-work`) skills aren't listed here — a hardcoded list only
-goes stale (it already did). Their names + descriptions surface at runtime; see "Use one of my own
-skills when it fits" under Workflow Rules. Source dirs: `~/.claude/skills/sk/`, `~/.claude/skills/sk-work/`.
+Not listed — a hardcoded list goes stale. Names + descriptions surface at runtime (see "Use one of my
+own skills when it fits"). Source: `~/.claude/skills/sk/`, `~/.claude/skills/sk-work/`.
 
 ### Third-party skill packs (surface at runtime — curated usage in Workflow Rules)
 Installed under `~/.claude/skills/`, discoverable in the runtime skill list (a hardcoded per-skill list only goes stale):
@@ -65,11 +64,14 @@ a task, check whether one of these skills fits the scenario; if one clearly appl
 proactively — without me typing the command — and say which one and why. If none fits, don't force it:
 using them is optional, driven by the task at hand.
 
+**When one fits — Simon named it, or its trigger fired — INVOKE it via the Skill tool and FOLLOW its
+steps; never reconstruct it from memory** (a paraphrase drifts from the tested procedure and records
+zero uses, since the metrics recorder only logs a Skill tool-call as a use — the run that
+hand-reconstructed `/sk:work-hyperspeed` skipped its polling, reconcile log and teardown, and logged
+`uses:1`).
+
 ### Other repos' skills (manual — suggest, don't auto-run)
-- Before new UI work: always start with [gstack] /design-consultation
-- After building: always run [gstack] /design-review
-- Before going live: always chain [impeccable] /audit → /normalize → /polish
-- For debugging: always use [gstack] /investigate before attempting fixes
-- For brand consistency: load [agency-agents] design-brand-guardian.md as context
-- When asked which skill to use: explain the repo source, how to invoke it, and why it fits
-- When listing skills, read them from the runtime skill list (and `~/.claude/skills/`), grouped by repo — not from a hardcoded copy; show what's actually installed.
+Which third-party skill stacks on which task shape (the design chain, `/investigate` before fixes,
+brand-guardian as context) lives in `references/skill-stack.md`, not duplicated here. Never auto-run
+them; when asked which to use or when listing, name the repo + how to invoke, read from the runtime
+list, and show what is actually installed.
