@@ -139,8 +139,19 @@ this order:
    ```
    Whichever branch you land on, REPORT its EXACT name (item 6) — the orchestrator cleans up by the
    reported name, never by an `hs/` pattern, because Conductor names its workspace branch itself.
-5. **The repo setup ritual**, lifted from the project's `CLAUDE.md` and `CLAUDE.local.md` (e.g. Node
-   version, `yarn install`, any build a fresh worktree needs) — the part must not have to go find it.
+5. **The repo setup ritual — reproduce the project's fresh-worktree section VERBATIM**, lifted from its
+   `CLAUDE.md` / `CLAUDE.local.md`: EVERY step it lists (node pin, `yarn install`, the prebuild of shared
+   packages, any native/`go` build), not just `install`. A missing step fails CRYPTICALLY — an omitted
+   shared-package prebuild surfaces as a module-resolve error (a shared workspace package unresolved on a
+   config import) that masquerades as N unrelated test-file *load* failures, so the session blames the PR
+   instead of its own setup. TEST: every step in the project's fresh-worktree docs appears in the block's
+   setup ritual. And when a step is a LONG (>120s) install, run it BACKGROUNDED (`run_in_background`) and
+   verify success by a durable ARTIFACT (e.g. `node_modules/.yarn-state.yml` plus a key dep present),
+   never by a process or exit signal that lies: `cmd | tail; echo $?` reports the pipe tail's exit; a
+   FOREGROUND run gets backgrounded by the harness at 120s, cutting the install mid-link and falsely
+   reporting exit 0; `pgrep -f "yarn install"` self-matches the wait loop; a completion-regex misses the
+   tool's real final line ("Done with warnings in 22m 17s"). Detect a long command's success by its
+   durable output, not its process, a masked exit code, or brittle text matching.
 6. **Report status to the SHARED file (primary), tear down, THEN print the block (fallback).** The
    part's block carries its `<STATUS_DIR>` absolute path (from Step 1). As its FIRST action AFTER the
    branch-off-START ritual (item 4) it writes `<STATUS_DIR>/<part-name>.json` =
