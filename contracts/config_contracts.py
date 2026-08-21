@@ -1288,6 +1288,7 @@ CONTRACTS: dict[str, dict] = {
             "Reports safety and planned/stub parts (from part_criticality.py) as expected-dormant, never as defects.",
             "Denial rates carry a Wilson lower bound and a low_confidence flag below 20 events.",
             "Runs without a store: prints the inventory and a configure-a-project notice, never errors.",
+            "Reads the store incrementally from a persisted cumulative tally (aggregates/tally): a one-time cold seed, then only events at/after the watermark — never a full re-scan per run.",
             "Writes the computed rollup to aggregates so the local and hosted console read one result.",
         ],
     },

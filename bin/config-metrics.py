@@ -7,7 +7,9 @@ calls (like superspeed-analyse.py backs its skill). It:
   - loads the canonical parts list from contracts/config_contracts.py (never a hardcoded copy — so a
     part added via /sk:claude-config-update appears here automatically; a parity check enforces it),
   - reads part_criticality.py (safety / planned-stub tags),
-  - reads usage from the dotclaude store (session_events + local outbox), aggregating on read,
+  - reads usage from the dotclaude store INCREMENTALLY: a persisted cumulative tally
+    (aggregates/tally) plus only the session_events at/after its watermark, never a full re-scan,
+    then layers the local outbox on top for scoring,
   - computes reachability (the static axis) so "dead" needs unreachable AND unused,
   - classifies each part: hot | healthy | underused | dead | erroring | instrumentation-gap |
     new/unmeasured | safety(healthy-by-design) | planned/stub,
@@ -166,14 +168,33 @@ def _firestore():
         return None
 
 
-def _events_from_store(db) -> list[dict]:
+TALLY_DOC = "tally"  # aggregates/tally — the persisted cumulative counts + read watermark
+
+
+def _apply_event(counts: dict, e: dict) -> None:
+    """Fold one event into the per-part-name tally, by the same rules score() has always used."""
+    name = e.get("part_name")
+    if not name:
+        return
+    c = counts.setdefault(name, {"uses": 0, "errs": 0, "denials": 0, "last": ""})
+    kind = e.get("kind")
+    ts = e.get("ts", "")
+    if kind in ("tool_call", "prompt"):
+        c["uses"] += int(e.get("count", 1) or 1)
+    elif kind == "error":
+        c["errs"] += 1
+    elif kind == "hook_deny":
+        c["denials"] += int(e.get("count", 1) or 1)
+    if ts and ts > c["last"]:
+        c["last"] = ts
+
+
+def _outbox_events() -> list[dict]:
+    """Events still queued locally, not yet flushed to Firestore. Layered on top of the persisted
+    tally for scoring only — never merged into it, since they flush to the store and get counted from
+    there on a later run (safe on this single-writer machine: the shared outbox drains atomically, so
+    the watermark never overtakes an event still sitting in it)."""
     events: list[dict] = []
-    if db is not None:
-        try:
-            events = [d.to_dict() for d in db.collection("session_events").stream()]
-        except Exception:
-            events = []
-    # include anything still queued locally
     if os.path.exists(OUTBOX):
         try:
             for ln in open(OUTBOX, encoding="utf-8"):
@@ -186,6 +207,99 @@ def _events_from_store(db) -> list[dict]:
         except Exception:
             pass
     return events
+
+
+def _load_tally(db) -> dict:
+    """The persisted cumulative tally: {watermark ts, counts{name:{uses,errs,denials,last}},
+    watermark_ids[]}. Empty shell when absent (cold start) or unreadable — never raises."""
+    shell = {"watermark": "", "counts": {}, "watermark_ids": []}
+    if db is None:
+        return shell
+    try:
+        snap = db.collection("aggregates").document(TALLY_DOC).get()
+        if snap.exists:
+            d = snap.to_dict() or {}
+            return {"watermark": d.get("watermark", "") or "",
+                    "counts": d.get("counts", {}) or {},
+                    "watermark_ids": d.get("watermark_ids", []) or []}
+    except Exception:
+        pass
+    return shell
+
+
+def _fetch_since(db, tally: dict) -> tuple[list[dict], list[str]]:
+    """Only the session_events not yet folded into the tally. Cold start (no watermark) streams the
+    whole collection ONCE to seed it; every run after reads just ts >= watermark, minus the boundary
+    ids already counted. Returns (event dicts, their doc ids), aligned. Never raises — a store error
+    (e.g. quota) degrades to nothing new, exactly as the old full read did."""
+    if db is None:
+        return [], []
+    try:
+        col = db.collection("session_events")
+        wm = tally.get("watermark", "")
+        if not wm:
+            docs = list(col.stream())  # cold seed — the one and only full read
+        else:
+            from google.cloud.firestore_v1.base_query import FieldFilter
+            docs = list(col.where(filter=FieldFilter("ts", ">=", wm)).stream())
+        seen = set(tally.get("watermark_ids", []))
+        events, ids = [], []
+        for d in docs:
+            if d.id in seen:
+                continue  # boundary event already counted last run
+            events.append(d.to_dict())
+            ids.append(d.id)
+        return events, ids
+    except Exception:
+        return [], []
+
+
+def _advance_and_merge(tally: dict, events: list[dict], ids: list[str]) -> None:
+    """Fold new store events into the cumulative tally and advance the read watermark. watermark_ids
+    holds every id at exactly the watermark second, so the next ts>=watermark re-read skips them
+    instead of double-counting the boundary."""
+    for e in events:
+        _apply_event(tally["counts"], e)
+    if not events:
+        return
+    old_wm = tally.get("watermark", "")
+    max_ts = max((e.get("ts", "") for e in events if e.get("ts")), default=old_wm)
+    if not max_ts:
+        return
+    ids_at_max = [i for e, i in zip(events, ids) if e.get("ts", "") == max_ts]
+    if max_ts == old_wm:
+        tally["watermark_ids"] = sorted(set(tally.get("watermark_ids", [])) | set(ids_at_max))
+    else:
+        tally["watermark_ids"] = ids_at_max
+    tally["watermark"] = max_ts
+
+
+def _save_tally(db, tally: dict) -> None:
+    if db is None:
+        return
+    try:
+        db.collection("aggregates").document(TALLY_DOC).set({
+            "watermark": tally.get("watermark", ""),
+            "counts": tally.get("counts", {}),
+            "watermark_ids": tally.get("watermark_ids", []),
+            "schema_version": 1,
+        })
+    except Exception:
+        pass
+
+
+def _counts_for_scoring(db) -> dict:
+    """The cumulative per-part-name tally to score from: the persisted tally advanced by any new
+    store events (and persisted back), then the local outbox layered on top for this run only."""
+    tally = _load_tally(db)
+    new_events, new_ids = _fetch_since(db, tally)
+    if new_events:
+        _advance_and_merge(tally, new_events, new_ids)
+        _save_tally(db, tally)
+    counts = {k: dict(v) for k, v in tally.get("counts", {}).items()}  # copy — keep outbox out of the tally
+    for e in _outbox_events():
+        _apply_event(counts, e)
+    return counts
 
 
 def _wilson_low(pos: int, n: int) -> float:
@@ -201,33 +315,18 @@ def _wilson_low(pos: int, n: int) -> float:
 
 
 # ---------------------------------------------------------------------------- scoring
-def score(parts: list[str], events: list[dict], reach: dict[str, bool], crit) -> list[dict]:
-    # tally usage by part_name
-    uses: dict[str, int] = {}
-    errs: dict[str, int] = {}
-    denials: dict[str, int] = {}
-    last: dict[str, str] = {}
-    for e in events:
-        name = e.get("part_name")
-        if not name:
-            continue
-        kind = e.get("kind")
-        ts = e.get("ts", "")
-        if kind in ("tool_call", "prompt"):
-            uses[name] = uses.get(name, 0) + int(e.get("count", 1) or 1)
-        elif kind == "error":
-            errs[name] = errs.get(name, 0) + 1
-        elif kind == "hook_deny":
-            denials[name] = denials.get(name, 0) + int(e.get("count", 1) or 1)
-        if ts and ts > last.get(name, ""):
-            last[name] = ts
+def score(parts: list[str], counts: dict, reach: dict[str, bool], crit) -> list[dict]:
+    # counts is the cumulative per-part-name tally: {name: {uses, errs, denials, last}}
+    def _c(name: str) -> dict:
+        return counts.get(name, {})
 
     rows = []
     for p in parts:
         uname = _part_name_for_usage(p)
-        u = uses.get(uname, 0)
-        er = errs.get(uname, 0)
-        dn = denials.get(p, 0) + denials.get(uname, 0)  # hooks keyed by full path
+        u = _c(uname).get("uses", 0)
+        er = _c(uname).get("errs", 0)
+        dn = _c(p).get("denials", 0) + _c(uname).get("denials", 0)  # hooks keyed by full path
+        last = {uname: _c(uname).get("last", "")}
         total = u + dn
         deny_rate = _wilson_low(dn, total) if total else 0.0
         reachable = reach.get(p, True)
@@ -506,8 +605,8 @@ def main(argv: list[str]) -> int:
     crit = _criticality()
     reach = _reachability(parts)
     db = _firestore()
-    events = _events_from_store(db)
-    rows = score(parts, events, reach, crit)
+    counts = _counts_for_scoring(db)
+    rows = score(parts, counts, reach, crit)
 
     print_scoreboard(rows, have_store=(db is not None))
     write_aggregates(db, rows)
