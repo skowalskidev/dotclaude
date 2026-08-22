@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures a screenshot of each, hands them back (opened in Finder), and — opt-in, only with an open PR and Simon's yes — posts them onto the PR (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", or "post the screenshots to the PR". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — opt-in, only with an open PR and Simon's yes — posts them onto the PR (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [optional focus, e.g. "the new dashboard section"]
 ---
 
@@ -13,8 +13,12 @@ new things pictured, without waiting for a full QA sweep.
 
 ## Step 0 — Log in to the running app (project-specific)
 
-**For project-specific test-login instructions (test accounts + hands-off, password-free auth), read
-that project's `CLAUDE.local.md` first.** Never type a real password into a login form; use the
+**Read `~/.claude/references/browser-debugging.md` AND the project's `CLAUDE.local.md` FIRST — before
+improvising any auth.** They are the definitive login+screenshot how-to; the reference holds the pattern
+that actually works and the project file holds the test account + token recipe. Reaching for a hand-rolled
+session instead is the trap: a session written straight into browser storage usually does NOT restore
+(the app's own auth listener never fires, so a client guard still bounces you), which burns a long time
+before you read the docs that already answer it. Never type a real password into a login form; use the
 project's documented token/impersonate recipe. If the project has no recipe, get a logged-in session the
 cheapest safe way (attach to an already-signed-in debug Chrome, or ask for a one-time manual login in the
 debug window) and add the recipe you worked out to that project's `CLAUDE.local.md` so it's instant next time.
@@ -25,7 +29,9 @@ Debug browser = chrome-devtools MCP attached to a Chrome launched with
 **Take a lane before booting anything, and before claiming 9222.** Several sessions run at once and all
 want the same ports, so `~/.claude/bin/port-slot.sh` gives this worktree its own set and
 `~/.claude/references/dev-server-hygiene.md` has the protocol (preflight, identity handshake, teardown).
-Without it the app you screenshot may be another branch's.
+Without it the app you screenshot may be another branch's. **On teardown, scope every process-kill to
+THIS worktree's/session's path** — a broad pattern (the app or repo name) can match and kill another
+running session's server.
 
 ## Step 1 — Figure out what changed
 
@@ -48,10 +54,40 @@ inputs visible; that shot IS the documentation. Save screenshots INSIDE a worksp
 e.g. `.context/…`), never `/tmp`. Use `evaluate_script` for DOM/state, not `take_snapshot` (which dumps
 tens of KB). No edge inputs, no bug-hunt here — `/sk:test-eyeball` adds those.
 
+**Circle the change so the reviewer sees what moved.** A bare surface shot makes them hunt for it. From
+the changed element's `getBoundingClientRect()`, inject a fixed-position overlay `<div>` sized to it (a
+few px border, rounded corners, a soft box-shadow ring, `pointer-events:none`, top `z-index`) plus a
+small label naming the change; `take_screenshot({filePath})`; then remove the overlay. One colour for
+AFTER, another for BEFORE. A box + label reads faster than an arrow. Works for any element in any UI.
+
+**Capture BEFORE and AFTER of each change, not just the end state — the reviewer wants the delta.**
+- A visual/style change (colour, spacing, border): AFTER is the live element; for BEFORE, force the
+  element back to its previous value with an inline override and screenshot, then restore. Guardrails
+  that hold in any framework that re-renders: set the property and screenshot in immediate succession
+  (a re-render wipes an inline style), set it with top priority (`element.style.setProperty(prop, val,
+  'important')`), override EVERY property that composites (e.g. both the background colour and any
+  background image/gradient), and target the EXACT element carrying the changed style — an ancestor can
+  match the computed value by coincidence, so confirm with `getComputedStyle` that it actually changed
+  before shooting.
+- A structural/DOM change: render BEFORE from the pre-change code (`git stash`, or check out the base
+  commit), screenshot, then restore.
+- Name each pair `ba-<n>-<surface>-BEFORE.png` / `-AFTER.png`. If the app has themes (light/dark) and
+  the change reads differently between them, shoot the theme where the difference is clearest — a subtle
+  change can be near-invisible in one and obvious in the other.
+
+**Watch for a style scoped to a subtree that a portalled overlay escapes.** Overlays (dialogs, modals,
+dropdowns, tooltips) are commonly portalled to the document root, OUTSIDE the element a scoped token/class
+is defined on — so a value referencing that token resolves to nothing there and the element renders
+unstyled or transparent. If a changed fill screenshots blank INSIDE an overlay, that is the bug, not a
+capture glitch: the value must be defined at a scope the portal inherits (the document root), not only on
+the app-root element. Capturing the real overlay state is how this class of bug surfaces; unit tests miss
+it.
+
 ## Step 4 — Hand them back
 
-Show the screenshot of each changed surface with the example inputs visible, list what each shows, and
-`open` the screenshots directory in Finder (macOS: `open "<abs path>"`) so Simon can flip through them.
+Show the annotated shot of each changed surface (its BEFORE/AFTER pair where captured) with the example
+inputs visible, list what each shows, and `open` the screenshots directory in Finder (macOS:
+`open "<abs path>"`) so Simon can flip through them.
 **When the branch is large/consolidated** (spans many surfaces), also give a compact TOUR table
 (Area · What changed · Where to find it · What to look at) — brief but complete, no word vomit.
 

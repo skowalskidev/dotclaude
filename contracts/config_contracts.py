@@ -458,6 +458,9 @@ CONTRACTS: dict[str, dict] = {
             "Screenshots each CHANGED surface (from git diff), seeded into the state a user would see "
             "it, with realistic example inputs, saved inside a workspace root — no bug-hunt, no edge "
             "fuzzing, no fix-loop.",
+            "Circles each change with a rounded-rectangle callout and, for a visual change, captures a "
+            "BEFORE/AFTER pair (old value vs new) — stated generically for any UI, not overfit to one "
+            "framework or token.",
             "Posts screenshots to the PR only opt-in (open PR + Simon confirms) and GitHub-native — "
             "gh --attach or the user-attachments CDN upload, git-only detached-ref as fallback, never "
             "an external host; fails loud and verifies the images render (not camo-broken).",
