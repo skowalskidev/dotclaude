@@ -17,7 +17,8 @@ Read each catalog when its stage is in play:
 - **Plan & track** → `~/.claude/references/planning-and-tracking.md` — plan first (user-journey TLDR +
   tracker + questions consolidated, re-checked against the original tickets so nothing drops), verify
   foundation pillars before building (real code + online + an empirical spike), a DYNAMIC checklist
-  that absorbs emergent work and tracks every ask to completion, and the worktree's
+  that absorbs emergent work and tracks every ask to completion — committed stage by stage as a
+  resumable checkpoint so a quota/usage cut-off costs one stage, not the run — and the worktree's
   `.context/intent-ledger.md` — the hook records every ask verbatim; you record the sources, the plan
   he ratified, each pivot, and the closing reconciliation of asked against built.
 - **Parallelize & delegate** → `~/.claude/references/parallelization.md` — fan out across tasks AND

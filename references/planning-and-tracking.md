@@ -117,6 +117,24 @@ Durability tiers, most durable first: the ticket/tracker outlives everything; th
 the ticket before teardown (§ Promotion before teardown below). The survives-a-restart guarantee and
 the no-`/tmp` rule are process.md's, above.
 
+## Make long work resumable after a quota/usage cut-off — commit stages, resume from them
+
+DO commit every finished-and-verified STAGE of a long multi-stage task as its own green,
+self-contained checkpoint (one logical unit per commit), and keep a durable STAGE-CHECKLIST in the
+worktree's `.context/` — the plan, the restore point, one line per stage marked done as it lands.
+WHY: a usage/quota limit can end the session mid-run; a committed stage plus a durable tracker means
+the cut-off costs one stage, not the run. This is the resilience reason behind commit-when-done and
+phased-execution (`rules/process.md`), stated here as the concrete artifact — not a second copy of
+those rules.
+
+DO, when Simon says "complete the interrupted task" after a reset, reconstruct where you left off
+from `git log` + the `.context/` stage-checklist + the working tree BEFORE doing anything, and
+continue from the first unfinished stage — never redo a committed one (process.md § phased-execution's
+resume rule).
+
+TEST: at any point mid-run, the last finished stage is a commit AND the `.context/` checklist names
+it, so a fresh session resumes from git alone with no lost stage.
+
 ## The intent ledger — the record of what was asked, and whether it got built
 
 `hooks/intent-ledger.sh` appends every prompt verbatim to `.context/intent-ledger.md` at the worktree
