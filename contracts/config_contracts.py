@@ -515,8 +515,9 @@ CONTRACTS: dict[str, dict] = {
             "Reconciles a run's full footprint at cleanup, not just branches: removes/prunes part "
             "worktrees, sweeps orphan dev-servers, port lanes and stray claude -p slices, and each part "
             "self-tears-down its processes before reporting done.",
-            "Shares the slice-cutting and reconcile craft with references/parallelization.md and "
-            "/sk:work-superspeed; does not restate it.",
+            "Shares the slice-cutting and reconcile craft AND the hand-run session handoff unit (START "
+            "commit, paste-block skeleton, status POLL) with references/parallelization.md and "
+            "/sk:work-superspeed; composes them, does not restate them.",
             "Records each round in a reconcile.json (same schema and causes as /sk:work-superspeed), "
             "emits a compact run row to the dotclaude `runs` collection via bin/dotclaude-log.py so the "
             "parallel engine is not invisible to the optimizer, analyses it with "
@@ -531,6 +532,25 @@ CONTRACTS: dict[str, dict] = {
             "Supports a standalone-artifact variant: when parts produce untracked files (not tracked "
             "code), each writes to its OWN worktree and reports the absolute path, and assembly GATHERS "
             "those paths into one collection dir instead of merging branches.",
+        ],
+    },
+    "skills/sk/skills/work-split-session-in-parallel-branch-offshoot/SKILL.md": {
+        "mission": "A spur-of-the-moment idea runs as one parallel session off the main work, is held for Simon to eyeball on finish, and is merged or binned only on his explicit call — never auto-merged.",
+        "purpose": "Lightweight single-session offshoot: spin one idea off onto its own branch in a new session, hold it for review, merge or discard on Simon's word.",
+        "criteria": [
+            "Runs exactly ONE spun-off session, not a 3-5+ fan-out; a dividing task is sent to "
+            "/sk:work-hyperspeed instead.",
+            "Composes the shared handoff unit in references/parallelization.md (START commit, "
+            "paste-and-forget block, shared-status POLL) with one part; does not restate it.",
+            "The part branches off START, writes working->done to the run's STATUS_DIR, and reports its "
+            "branch plus the absolute path of anything viewable it produced.",
+            "On done it HOLDS: surfaces the branch and artifact to Simon for an eyeball and never merges "
+            "on its own.",
+            "Merges or deletes the offshoot only on Simon's explicit call: on merge, fetch+merge+gate then "
+            "offer cleanup; on bin, delete the branch (local+remote) and worktree without merging, "
+            "confirming the list first.",
+            "Paces the finish as a human-paced handoff (references/human-pacing.md): surface, wait, act "
+            "on his word.",
         ],
     },
     "skills/sk/skills/work-warpspeed/SKILL.md": {

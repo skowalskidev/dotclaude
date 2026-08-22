@@ -85,6 +85,91 @@ for a one-off spends more than it saves and DEGRADES the next run. Only a findin
 runs (check the prior run's log) is durable enough to become a rule; a single run's symptom is a
 re-partition note, not a config change. Silence is the default.
 
+## The hand-run session handoff — START, paste-block, poll (shared)
+
+`/sk:work-hyperspeed` and `/sk:work-split-session-in-parallel-branch-offshoot` both build on ONE unit:
+a clean START commit, a self-contained paste-and-forget block per spun-off session, and a shared status
+file the orchestrator polls. Hyperspeed runs the unit N times and ASSEMBLES; the offshoot runs it ONCE
+and HOLDS. This section OWNS the unit; each skill composes it and adds only its own finish. Put
+`<harness>` = `hyperspeed` or `offshoot` in the paths so two runs never share a dir, and give each run a
+UNIQUE `<run-id>`.
+
+### 1. Commit + push a clean START
+Every spun-off session branches from ONE commit so it starts identical (and, for hyperspeed, assembles
+cleanly). If the tree is dirty, commit it (one logical unit; `references/git-pr-deploy.md` owns the
+message). If on the default branch, branch first — never branch off `master`/`main`. Push, and record the
+START SHA; it goes VERBATIM into every paste block.
+```bash
+git switch -c <harness>/<run-id>          # if not already on a feature branch
+git add -A && git commit -F <msg-file>    # only if dirty; -F, never -m (git-pr-deploy.md)
+git push -u origin HEAD
+git rev-parse HEAD                        # ← the START SHA each session fetches and branches from
+```
+
+### 2. Create the shared STATUS dir
+Put it INSIDE this run's own dir, `.context/<harness>/<run-id>/status/`, beside the plan file, and hand
+each session its ABSOLUTE path. Co-locating keeps a run's state in ONE place and means two runs from
+different orchestrator sessions never clash.
+```bash
+mkdir -p .context/<harness>/<run-id>/status
+STATUS_DIR="$(git rev-parse --show-toplevel)/.context/<harness>/<run-id>/status"   # absolute; into each block
+```
+
+### 3. The self-contained paste-block skeleton
+Each spun-off session gets ONE block, pasteable into a COLD session with zero other context. It carries,
+in order: a first-line title `Session <n> (<name>):`; the front-door invoke
+`/sk:meta-dotclaude-copilot-start-here-for-any-task` so the slice runs the right harness autonomously and
+asks nothing; the git branch-off-START ritual below; the repo's fresh-worktree setup ritual reproduced
+VERBATIM from its `CLAUDE.md`/`CLAUDE.local.md` (EVERY step, not just install); a FIRST action writing
+`{"status":"working","part":"<name>","branch":"<branch>"}` to `<STATUS_DIR>/<name>.json` (branch recorded
+NOW so a mid-work death still leaves it); a LAST action that tears down everything it started then
+OVERWRITES the file with `{"status":"done","part":"<name>","branch":"<branch>","paths":[<absolute
+outputs>],"goals":"met|not-met"}` (or `{"status":"blocked","part":"<name>","reason":"<why>"}`); and, after
+that, the fallback report block (§ below) printed in case the status write failed. Every `/sk:` name a
+block loads must be VERIFIED installed first (`find -L ~/.claude/skills -name SKILL.md`) — one wrong name
+derails every session at once.
+```bash
+git fetch origin
+git switch -c <harness>/<run-id>/<name> <START-SHA>   # a Conductor workspace is already on its own branch
+# off START — keep that one instead; either way it must sit on <START-SHA>. REPORT the exact branch name
+# (Conductor names its own), so the orchestrator cleans up by the reported name, never by a pattern.
+# …do the work…
+git add -A && git commit -F <msg-file>     # -F, never -m
+git push -u origin HEAD
+```
+
+### 4. Poll the shared status, with a progress bar
+The orchestrator watches `$STATUS_DIR` — Simon only watches progress. Mirror the sessions to the harness
+Task list (one task each, `completed` as its status flips to `done`) and print the compact bar per tick
+(`references/progress-bar.md`). Run the loop BACKGROUNDED (`run_in_background`) so the session stays free.
+```bash
+S="$STATUS_DIR"; N=<count>; DEADLINE=$((SECONDS+3600))   # 60-min ceiling; raise for long slices
+bar(){ local d=$1 t=$2 f=$(( d*8/(t>0?t:1) )) i o=""; for ((i=0;i<8;i++)); do [ $i -lt $f ] && o+="▓" || o+="░"; done; echo "$o $d/$t reported · $(date +%H:%M:%S)"; }
+while :; do
+  d=$(grep -lE '"status" *: *"(done|blocked)"' "$S"/*.json 2>/dev/null | wc -l | tr -d ' ')
+  bar "$d" "$N"
+  { [ "$d" -ge "$N" ] || [ $SECONDS -ge $DEADLINE ]; } && break
+  sleep 15
+done
+echo "REPORTED:"; for f in "$S"/*.json; do echo "  $(basename "$f"): $(grep -o '"status" *: *"[a-z]*"' "$f")"; done
+```
+Any session still `working` or absent at the deadline is STUCK — name it for Simon; a `blocked` one is a
+real stop with a reason.
+
+### The fallback report block
+The PRIMARY report is the JSON in `<STATUS_DIR>/<name>.json`; each session ALSO prints this same-field
+plaintext, which Simon pastes ONLY if the orchestrator says the status file never arrived:
+```
+PART DONE
+run: <run-id>
+part: <name>
+branch: <branch-name> (pushed: yes|no)
+paths: <comma-separated ABSOLUTE output paths created or changed>
+goals: met | not-met
+status: done | blocked
+```
+A `blocked` session sets `status: blocked` + reason in BOTH places and leaves `BLOCKED.md` in the repo root.
+
 ## Parallelize across tasks AND stages
 - Default to fanning work out across parallel agents whenever it's safe and speeds things up — wherever the pieces are genuinely independent (disjoint files, no shared state, no same-account/CLI clashes).
 - Parallelize across BOTH tasks and stages, not just many agents on one stage — run independent tasks and independent pipeline stages concurrently wherever they don't clash on shared state.

@@ -279,12 +279,23 @@ Before touching the file, show the user exactly what will change:
 - Keep the file coherent — additions read as if they were always there, same formatting and altitude.
 - **Do not bloat.** If an addition overlaps an existing line, merge them into one sharper line rather than
   stacking both. A skill that doubles in size per correction stops being usable.
+- **DO extract a mechanic a NEW skill shares with an existing part into ONE SSOT, and point both at it.**
+  When the new skill reuses a sibling's plumbing (a git ritual, a poll loop, a handoff shape), move that
+  mechanic into the `references/*.md` catalog that owns the domain, trim the sibling to a pointer, and have
+  the new skill compose the same section — a legitimate cross-file refactor, not scope-creep.
+  **DON'T leave a pointer that names a sibling's step by NUMBER** ("its Steps 1-4"): it drifts the moment
+  the sibling is re-sectioned. (the fix for a new offshoot skill that first pointed at "hyperspeed's Steps
+  1-4"; the shared START+paste-block+poll handoff moved to `references/parallelization.md` and both skills
+  now compose it.) TEST: the new skill names no sibling's step by number, and any mechanic two parts share
+  appears in exactly one file.
 - Update the frontmatter `description` ONLY if the new learning changes when the skill should trigger;
   otherwise leave it.
 - **Keep the `~/.claude/CLAUDE.md` index honest.** It carries a one-line summary per `rules/*.md` and
   `references/*.md`. If the addition broadens what a file covers (or adds a new one), update that line in
   the same pass — a stale index is how the wrong target gets picked next time.
-- Change only the target file. Never edit another skill, and never widen the edit into an unrelated cleanup.
+- Change only the target file — plus, when a new part shares a mechanic with a sibling, the SSOT
+  extraction above (move the mechanic to a reference, trim the sibling to a pointer). Never widen the edit
+  into an UNRELATED cleanup.
 
 ## Step 6b · Keep the tests in step with the config, then run them
 

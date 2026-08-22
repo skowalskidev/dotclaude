@@ -59,33 +59,11 @@ minute, don't make it a part; the overhead is a paste per part (the orchestrator
 
 ## Step 1 — commit and push a clean START, before anything else
 
-Every part branches from ONE commit so they all start identical and assemble cleanly.
-
-1. If the tree is dirty, commit it (one logical unit; `references/git-pr-deploy.md` owns the message).
-2. If you are on the default branch, branch first — never make parts branch off `master`/`main`.
-3. Push it, and record the START: its SHA and its remote branch. This SHA goes VERBATIM into every part.
-
-```bash
-git switch -c hs/<run-id>        # if not already on a feature branch
-git add -A && git commit -F <msg-file>   # only if dirty; -F, never -m (git-pr-deploy.md)
-git push -u origin HEAD
-git rev-parse HEAD               # ← the START SHA every part fetches and branches from
-```
-
-**Also create the SHARED STATUS dir the parts report to and you POLL — put it INSIDE this run's own
-dir, `.context/hyperspeed/<run-id>/status/`, right beside the plan file, and hand each part its ABSOLUTE
-path.** Co-locating it there keeps all of a run's state in ONE place (DRY/SRP) and means two hyperspeed
-runs from DIFFERENT orchestrator sessions NEVER clash — each writes under its own worktree's own
-`<run-id>`, never a shared global path. Give each run a UNIQUE `<run-id>`.
-
-```bash
-mkdir -p .context/hyperspeed/<run-id>/status
-STATUS_DIR="$(git rev-parse --show-toplevel)/.context/hyperspeed/<run-id>/status"   # absolute; into every part
-```
-
-The parts (in OTHER worktrees, same machine) write their status file there by that absolute path; you
-paste the parts and forget them, and THIS session watches `$STATUS_DIR`. That watch is what removes the
-manual relay (§ Step 4.5).
+Every part branches from ONE commit so they all start identical and assemble cleanly. Do the clean-START
+commit+push and create the shared `STATUS_DIR` per `references/parallelization.md` § "The hand-run session
+handoff" steps 1–2, with `<harness>` = `hyperspeed`. The START SHA goes VERBATIM into every part; each
+part writes its status under `$STATUS_DIR` and THIS session watches it (§ Step 4.5), which is what removes
+the manual relay.
 
 ## Step 2 — cut the task (shared craft, not restated)
 
@@ -128,17 +106,10 @@ this order:
    sign-off to wait for), the `accept` line is the criteria ship-report judges against, and it asks
    NOTHING. It prints its report block only AFTER ship-report confirms the slice's goals are met, so the
    orchestrator assembles verified work.
-4. **The git ritual, verbatim and copy-pasteable:**
-   ```bash
-   git fetch origin
-   git switch -c hs/<run-id>/<part-name> <START-SHA>   # a Conductor workspace is already on its own
-   # branch off START — keep that one instead of switching; either way it must sit on <START-SHA>
-   # …do the work…
-   git add -A && git commit -F <msg-file>     # -F, never -m
-   git push -u origin HEAD
-   ```
-   Whichever branch you land on, REPORT its EXACT name (item 6) — the orchestrator cleans up by the
-   reported name, never by an `hs/` pattern, because Conductor names its workspace branch itself.
+4. **The git ritual** — the branch-off-START ritual from `references/parallelization.md` § "The hand-run
+   session handoff" step 3, with `<harness>` = `hyperspeed`. Whichever branch you land on, REPORT its
+   EXACT name (item 6) — the orchestrator cleans up by the reported name, never by an `hs/` pattern,
+   because Conductor names its workspace branch itself.
 5. **The repo setup ritual — reproduce the project's fresh-worktree section VERBATIM**, lifted from its
    `CLAUDE.md` / `CLAUDE.local.md`: EVERY step it lists (node pin, `yarn install`, the prebuild of shared
    packages, any native/`go` build), not just `install`. A missing step fails CRYPTICALLY — an omitted
@@ -211,28 +182,11 @@ fallback he pastes if the orchestrator reports a part's status file never arrive
 
 ## Step 4.5 — POLL the shared status, with a PROGRESS BAR, until every part reports
 
-The orchestrator watches `$STATUS_DIR` — Simon does nothing here but watch progress. SHOW it per
-`references/progress-bar.md`: mirror the parts to the harness Task list (one task per part, marked
-`completed` as its status flips to `done`) as the canonical tracker, and print the compact bar each poll
-tick. Run the wait-loop BACKGROUNDED (`run_in_background`) so this session is free; its ticking output IS
-the live bar, and the harness wakes the orchestrator when every part is `done`/`blocked` or the timeout
-fires.
-
-```bash
-S="$STATUS_DIR"; N=<part-count>; DEADLINE=$((SECONDS+3600))   # 60-min ceiling; raise for long slices
-bar(){ local d=$1 t=$2 f=$(( d*8/(t>0?t:1) )) i o=""; for ((i=0;i<8;i++)); do [ $i -lt $f ] && o+="▓" || o+="░"; done; echo "$o $d/$t parts reported · $(date +%H:%M:%S)"; }
-while :; do
-  d=$(grep -lE '"status" *: *"(done|blocked)"' "$S"/*.json 2>/dev/null | wc -l | tr -d ' ')
-  bar "$d" "$N"
-  { [ "$d" -ge "$N" ] || [ $SECONDS -ge $DEADLINE ]; } && break
-  sleep 15
-done
-echo "REPORTED:"; for f in "$S"/*.json; do echo "  $(basename "$f"): $(grep -o '"status" *: *"[a-z]*"' "$f")"; done
-```
-
-On the wake, read every `$STATUS_DIR/*.json`: any part still `working` or absent at the deadline is a
-STUCK part — name it for Simon (its session may need a look) and assemble what did report; a `blocked`
-part is the design working, handled in Step 5.
+Poll `$STATUS_DIR` per `references/parallelization.md` § "The hand-run session handoff" step 4, with
+`N` = part count. Run the wait-loop BACKGROUNDED so this session is free; the harness wakes the
+orchestrator when every part is `done`/`blocked` or the timeout fires. On the wake, any part still
+`working` or absent at the deadline is a STUCK part — name it for Simon (its session may need a look) and
+assemble what did report; a `blocked` part is the design working, handled in Step 5.
 
 ## Step 5 — assemble, warm, in the orchestrator session
 
@@ -331,21 +285,10 @@ one collection dir, whichever worktree produced it.
 ## The report-back block (the FALLBACK mirror of the status file)
 
 The part's PRIMARY report is the JSON it writes to `<STATUS_DIR>/<part-name>.json` (Step 3, item 6),
-which the orchestrator polls. It ALSO prints this block — the same fields in plain text — as a FALLBACK
-Simon pastes only if the orchestrator says a part's status file never arrived:
-
-```
-HYPERSPEED PART DONE
-run: <run-id>
-part: <part-name>
-branch: <branch-name> (pushed: yes|no)
-paths: <comma-separated ABSOLUTE output paths this part created or changed>
-goals: met | not-met (ship-report verdict)
-status: done | blocked
-```
-
-A `blocked` part sets `status: blocked` + the reason in BOTH the status file and this block, and leaves
-`BLOCKED.md` in the repo root.
+which the orchestrator polls. It ALSO prints the fallback report block — same fields in plain text —
+from `references/parallelization.md` § "The fallback report block", pasted only if the orchestrator says
+a part's status file never arrived. A `blocked` part sets `status: blocked` + the reason in BOTH the
+status file and that block, and leaves `BLOCKED.md` in the repo root.
 
 ## Self-improvement — every round, like superspeed
 
