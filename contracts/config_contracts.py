@@ -907,6 +907,8 @@ CONTRACTS: dict[str, dict] = {
             "the main thread RESUMES; nothing is dropped.",
             "Callable at any stage: re-reads the tracker and continues where the plan left off, never "
             "restarting done work.",
+            "Drives the finish to leave the work refactored/centralised/DRY-SRP (one owner per shared "
+            "value/behaviour/component) per rules/engineering-standards.md before the bar reads 100%.",
             "Reuses skill-stack.md + the intake gate + process.md; owns the entry point, the progress "
             "bar, verifying skill names, and the resume.",
         ],
