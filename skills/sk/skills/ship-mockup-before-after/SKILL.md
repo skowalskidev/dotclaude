@@ -119,6 +119,11 @@ route ONLY when a component the AFTER needs is not reachable on any real screen.
 that got the rebuild rejected; a measured value cannot be nearly right.
 TEST: every dimension and colour in the overlay traces to a value you measured this run.
 
+**DO give every inline SVG icon an explicit width/height** — or a clamping rule on its container
+(`.x svg{ width:16px; height:16px; flex:0 0 auto }`). An SVG authored with only a `viewBox` and no
+dimensions expands to fill its flex parent, so a nav "+" renders as a full-width square. TEST: no
+reconstructed icon renders larger than its measured size.
+
 ## Render the AFTER: overlay a screen, storyboard a flow
 
 **DO overlay the change on the BEFORE screenshot when it is a single screen** — HTML/CSS positioned and
@@ -371,6 +376,13 @@ radius. A difference means the overlay measured the wrong value or missed one; f
 measurement, never by nudging pixels.
 **DON'T show a mockup you have not checked against the real app.** Nearly-right is the whole failure, and
 the real render is the ground truth that catches it.
+
+**DO open the finished mockup where its JavaScript actually RUNS, and look at it, before handing it
+over** — a real browser, or copy it into the project / serve it over http. A mockup file written to a
+scratch dir OUTSIDE the project renders as a STATIC snapshot in the preview pane: the `<script>` never
+executes, so the JS-built grid, overlay and controls are invisible there and a blown-up icon or overflow
+ships unseen. TEST: you have viewed the rendered mockup with JS run and confirmed no icon is oversized
+and nothing overflows, before sending.
 
 **DO fix the CLASS and fold it forward.** When a divergence traces to how this skill works — a
 measurement it skips, a token it never reads, a state it forgets — propose the durable fix to this skill
