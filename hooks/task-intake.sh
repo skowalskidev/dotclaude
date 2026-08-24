@@ -144,6 +144,15 @@ submit)
   LOWER="$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')"
   LEN=${#PROMPT}
 
+  # 0. Automated system / background-task notifications are NOT a task opening. They arrive on
+  #    UserPromptSubmit too — a completed background command, a Stop-hook nudge, a system reminder —
+  #    long enough to trip the length arm below, which RE-ARMED a gate the real opening prompt had
+  #    already disarmed and deadlocked an unattended run that could not answer AskUserQuestion.
+  #    Treat one as a follow-up event inside the running task: never arm on it.
+  if printf '%s' "$LOWER" | grep -qE 'system notification - not user input|<task-notification>|automated background-task event|stop hook feedback'; then
+    exit 0
+  fi
+
   # 1. Standing authorization to run unattended. The user says this when handing the session over
   #    for the night; stopping to ask would defeat the whole point of them saying it.
   # The phrasings below are collected from real handovers, not imagined. "i wont be here to answer

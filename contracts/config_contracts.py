@@ -1155,6 +1155,9 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Proposes skills for a new task; blocks fan-out until Simon confirms.",
         "criteria": [
             "Arms on a task opening, stays quiet for follow-ups inside it.",
+            "Does not arm on an automated system/background-task notification (a completed background "
+            "command, a Stop-hook nudge) — those are follow-up events, not task openings; arming on one "
+            "re-armed a gate the opening prompt had already disarmed and deadlocked an unattended run.",
             "Fails safe: a stale marker self-clears, because a gate that deadlocks is worse than none.",
             "Its task-opening proposal prompts choosing HOW to run the work, not only which skill: "
             "parallelise independent work, via /sk:work-superspeed at 3-5+ independent slices, "
