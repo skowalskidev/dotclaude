@@ -123,7 +123,15 @@ this order:
    FOREGROUND run gets backgrounded by the harness at 120s, cutting the install mid-link and falsely
    reporting exit 0; `pgrep -f "yarn install"` self-matches the wait loop; a completion-regex misses the
    tool's real final line ("Done with warnings in 22m 17s"). Detect a long command's success by its
-   durable output, not its process, a masked exit code, or brittle text matching. And REUSE the
+   durable output, not its process, a masked exit code, or brittle text matching. On a shared box a bare
+   `pgrep -f "yarn install"` / `"turbo build"` also matches OTHER worktrees' processes, so key every
+   liveness check off the PID you launched or an artifact under THIS worktree, never a machine-wide
+   process name (the fix for a wait loop that hung on a sibling worktree's `turbo build`). When that
+   artifact stays ABSENT though the command returned, the LINK step failed silently — on a reused
+   worktree usually a stale `node_modules/@scope/<pkg>` symlink from a prior partial install that fails
+   the relink with `EEXIST` while fetch still logs "Completed"; `rm -rf node_modules` and re-run, then
+   re-check (the fix for an install that "exited 0" through a piped tail but had logged "Failed with
+   errors" and written no state file). And REUSE the
    orchestrator's build instead of a cold rebuild: classify this slice by DELIVERABLE (a typecheck+test
    slice skips the app build and any native/`go` build; only a bundle/e2e/dev-boot slice needs them), run
    the IDENTICAL build command the orchestrator warmed so unchanged packages restore from the shared
