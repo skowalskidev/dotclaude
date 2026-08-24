@@ -122,7 +122,13 @@ this order:
    FOREGROUND run gets backgrounded by the harness at 120s, cutting the install mid-link and falsely
    reporting exit 0; `pgrep -f "yarn install"` self-matches the wait loop; a completion-regex misses the
    tool's real final line ("Done with warnings in 22m 17s"). Detect a long command's success by its
-   durable output, not its process, a masked exit code, or brittle text matching.
+   durable output, not its process, a masked exit code, or brittle text matching. And REUSE the
+   orchestrator's build instead of a cold rebuild: classify this slice by DELIVERABLE (a typecheck+test
+   slice skips the app build and any native/`go` build; only a bundle/e2e/dev-boot slice needs them), run
+   the IDENTICAL build command the orchestrator warmed so unchanged packages restore from the shared
+   cross-worktree cache, rebuild only what your diff touched, and never share `node_modules` — the
+   mechanism is `references/parallelization.md` § "Parallelize verification". The project's COMMITTED
+   `CLAUDE.md` carries the concrete cache/build recipe; read it before building.
 6. **Report status to the SHARED file (primary), tear down, THEN print the block (fallback).** The
    part's block carries its `<STATUS_DIR>` absolute path (from Step 1). As its FIRST action AFTER the
    branch-off-START ritual (item 4) it writes `<STATUS_DIR>/<part-name>.json` =
@@ -136,8 +142,11 @@ this order:
    `{"status":"done","part":"<name>","branch":"<branch>","paths":[<absolute outputs>],"goals":"met|not-met"}`
    — or `{"status":"blocked","part":"<name>","reason":"<why>"}` if it stops — which is what the
    orchestrator POLLS, so Simon never relays; then (c) PRINTS the report-back block (§ below) as a
-   FALLBACK for the rare case the shared write failed. TEST: after DONE, `<STATUS_DIR>/<part-name>.json`
-   reads `done`, and `pgrep` for the part's servers and its `claude -p` slices returns nothing.
+   FALLBACK for the rare case the shared write failed. Throughout, it keeps the TIMESTAMPED phase log +
+   FRICTION report beside its status file (`references/parallelization.md` § "The hand-run session
+   handoff") so the orchestrator can diagnose the bottleneck and self-improve. TEST: after DONE,
+   `<STATUS_DIR>/<part-name>.json` reads `done`, and `pgrep` for the part's servers and its `claude -p`
+   slices returns nothing.
 7. **The leaf-worker boundary:** you own only your `owns` files — never edit a `forbid` file to make
    your slice pass. If the work genuinely needs one, or you get stuck, that is a `BLOCKED.md` in the
    repo root (what and why) and a stop, not an edit.
@@ -294,8 +303,14 @@ status file and that block, and leaves `BLOCKED.md` in the repo root.
 
 Mediocre at first, good over rounds, the way `/sk:work-superspeed` got there. The loop — record each
 fixed file's cause, analyse every run, heal only what RECURS — is shared and defined in
-`references/parallelization.md` § "Self-improving a parallel run". Reuse it. Two hyperspeed-specifics:
+`references/parallelization.md` § "Self-improving a parallel run". Reuse it. Three hyperspeed-specifics:
 
+- **Harvest the workers' friction + timings and self-diagnose the bottleneck after EVERY round**, then
+  improve in two tiers — auto-bake fixes into the next round's blocks, and propose the recurring one ROUTED
+  to its owner (the project's committed `CLAUDE.md`, its `CLAUDE.local.md`, or this config) via the
+  ask-first gate — all per `references/parallelization.md` § "Self-improving a parallel run". The build
+  wall is the bottleneck the timings usually expose; its fix is the cache-reuse in Step 3 item 5, and a
+  recurring gap (the project's committed `CLAUDE.md` missing its cache recipe) is a durable proposal.
 - **Write the round's log to `.context/hyperspeed/<run-id>/reconcile.json`** (durable per
   `rules/process.md`), in that section's schema, plus `parts`, `rounds` and each part's status file (the
   run's `status/` dir sits right beside this log) so the analysis sees the partition, not only the fixes.

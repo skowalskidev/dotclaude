@@ -85,6 +85,26 @@ for a one-off spends more than it saves and DEGRADES the next run. Only a findin
 runs (check the prior run's log) is durable enough to become a rule; a single run's symptom is a
 re-partition note, not a config change. Silence is the default.
 
+**Harvest each worker's friction + timings, self-diagnose the bottleneck after EVERY run, and route the
+fix to its right home.** Beyond the `reconcile.json` causes, read every worker's `<name>.friction.md` and
+timestamped `<name>.log` (§ "The hand-run session handoff") alongside its result. Diagnose the BOTTLENECK
+from the timestamps — which phase (install / build / the work) ate the wall-clock — and the frictions
+that RECUR. Then improve in two tiers:
+- **Within the run (AUTOMATIC, no config edit):** fold each round's friction fixes and the right setup
+  into the NEXT round's worker blocks — bake the correct instruction in, or point the workers at the
+  project's `CLAUDE.md`/`CLAUDE.local.md` (and `~/.claude`) to read BEFORE they start — so round N+1 is
+  not tripped by what tripped round N.
+- **Across runs, ROUTED to the home that OWNS the fact (ASK-FIRST, per `rules/self-healing-config.md`):**
+  a friction or bottleneck that RECURS is durable enough to fix at source, and it goes to the ONE home
+  that owns that fact so it stays DRY and reproducible — a PROJECT setup/build fact (how THIS repo builds,
+  warms, what is heavy) to the project's COMMITTED `CLAUDE.md` so every worker and teammate gets it; a
+  machine-local fact to that project's `CLAUDE.local.md`; a GENERIC-methodology fact (the pattern itself)
+  to this reference. Each lands through `/sk:claude-config-update`'s gate; a run never edits any of them
+  silently. The system handles ANY future setup step without changing the methodology — the worker reads
+  the project's own setup section verbatim (whatever steps it lists), the friction surfaces when that
+  section is wrong or stale, and the fix is routed to whichever home — dotclaude or the project's own docs
+  — keeps it correct. This is the same auto-analyse-never-auto-optimize rule, now fed by worker friction.
+
 ## The hand-run session handoff — START, paste-block, poll (shared)
 
 `/sk:work-hyperspeed` and `/sk:work-split-session-in-parallel-branch-offshoot` both build on ONE unit:
@@ -125,7 +145,13 @@ VERBATIM from its `CLAUDE.md`/`CLAUDE.local.md` (EVERY step, not just install); 
 NOW so a mid-work death still leaves it); a LAST action that tears down everything it started then
 OVERWRITES the file with `{"status":"done","part":"<name>","branch":"<branch>","paths":[<absolute
 outputs>],"goals":"met|not-met"}` (or `{"status":"blocked","part":"<name>","reason":"<why>"}`); and, after
-that, the fallback report block (§ below) printed in case the status write failed. Every `/sk:` name a
+that, the fallback report block (§ below) printed in case the status write failed. Throughout, it also
+keeps a TIMESTAMPED phase log and a FRICTION report beside its status file: `<STATUS_DIR>/<name>.log` gets
+a UTC timestamp at each phase boundary (install start/end, build start/end, work start/end) so the
+orchestrator sees WHERE the wall-clock went; `<STATUS_DIR>/<name>.friction.md` lists everything that
+slowed it or it had to fix (a node_modules symlink, a missing setup step, a cold rebuild that should have
+been a cache hit), each with the fix and the instruction that would have avoided it — this is what the
+self-improve loop harvests. Every `/sk:` name a
 block loads must be VERIFIED installed first (`find -L ~/.claude/skills -name SKILL.md`) — one wrong name
 derails every session at once.
 ```bash
@@ -188,6 +214,20 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   Everything downstream of it runs concurrently.
 - **Only rebuild a shared dependency when that dependency actually changed.** Track what you touched. A
   needless rebuild of one shared package measured ~54s per cycle on one repo.
+- **A fresh-worktree worker REUSES the orchestrator's build — it does not rebuild cold.** A worktree
+  worker (hyperspeed/offshoot, or a teammate/cloud session in a fresh checkout) starts bare, so the reflex
+  is a full cold rebuild — the wall. Instead: the orchestrator WARMS the build once at START; each worker
+  runs the IDENTICAL build command so unchanged packages restore from the build tool's cross-worktree
+  cache (a HIT), rebuilding ONLY the packages its own diff touched. Classify the slice by DELIVERABLE
+  first — a typecheck+unit-test slice needs no app build and no native/`go` build at all, only
+  cache-restored libs; reserve a full app build for a bundle/e2e/dev-boot slice. VERIFY the hits (dry-run
+  the build), never assume. NEVER share one `node_modules` across worktrees: a monorepo's internal-package
+  symlinks are relative, so worktree B silently runs worktree A's source — a correctness bug, not a
+  slowdown; each worktree installs its own (sped by the package manager's global cache / hardlinks). The
+  CONCRETE per-project recipe — the build command, the env that must match, which cache, which packages
+  are heavy — belongs in the PROJECT's COMMITTED `CLAUDE.md`, so ANY worker on the repo (teammate, cloud,
+  worktree) gets it and it stays reproducible; read it BEFORE building, and if it is missing or stale that
+  gap is what the self-improve loop routes back into it.
 - **Background the long pole and keep working.** A dependency install or a first cold build blocks nothing
   you are currently editing — start it detached and carry on with files that don't need it.
 - **Expect sublinear speedup.** Parallel jobs contend for CPU: three checks measured 104s serial vs 56s

@@ -253,8 +253,14 @@ CONTRACTS: dict[str, dict] = {
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
-            "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring); superspeed and "
-            "hyperspeed point to it, not restate it.",
+            "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
+            "worker's friction + timestamped log to self-diagnose the bottleneck and improve in two tiers "
+            "— auto next-round, ask-first routed to the fact's owner); superspeed and hyperspeed point to "
+            "it, not restate it.",
+            "A fresh-worktree worker reuses the orchestrator's warmed build via the cross-worktree cache "
+            "(rebuilding only its diff's packages, skipping the build for typecheck+test slices) and never "
+            "shares one node_modules; the concrete per-project recipe lives in the project's committed "
+            "CLAUDE.md, which the worker reads before building.",
         ],
     },
     "references/planning-and-tracking.md": {
@@ -526,6 +532,10 @@ CONTRACTS: dict[str, dict] = {
             "parallel engine is not invisible to the optimizer, analyses it with "
             "/sk:claude-config-self-optimize-analysis-after-run, and folds only recurring findings into "
             "this skill via the self-healing gate.",
+            "Workers keep a timestamped phase log + friction report; the orchestrator harvests them to "
+            "self-diagnose the bottleneck each round and has workers reuse the shared build cache instead "
+            "of cold-rebuilding, routing any recurring durable fix to its owner (the project's committed "
+            "CLAUDE.md, etc.) via the ask-first gate.",
             "Guides Simon as a paced co-pilot session (references/human-pacing.md): one handoff at a "
             "time, signal, wait; the plan file holds the rest.",
             "Two levels, not a replacement for superspeed: each hand-run part runs its slice through "
