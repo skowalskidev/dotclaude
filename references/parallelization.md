@@ -169,6 +169,9 @@ git switch -c <harness>/<run-id>/<name> <START-SHA>   # a Conductor workspace is
 # …do the work…
 git add -A && git commit -F <msg-file>     # -F, never -m
 git push -u origin HEAD
+# Stacked off a feature base? The pre-push gate may diff against master and false-positive on an
+# INHERITED base finding — prove clean vs your base and push --no-verify (§ "Parallelize verification"),
+# after running the project's ci:lint/prettier yourself, since --no-verify skips them.
 ```
 
 ### 4. Poll the shared status, with a progress bar
@@ -261,8 +264,10 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   `--base origin/<feature-base>`; a finding present on the base is INHERITED, not yours. Prove your diff
   clean against the correct base, and when a pre-push hook diffs against `master` and fails on a base-only
   finding, push `--no-verify` after proving clean — never edit a forbidden base file to satisfy a gate
-  (that breaks the leaf boundary). TEST: every gate a stacked slice runs names its own base, and no
-  base-owned file is in the slice's diff.
+  (that breaks the leaf boundary). `--no-verify` ALSO skips the pre-push lint/prettier/typecheck, so run
+  the project's OWN ci:lint gate yourself before pushing — a green framework build (`next build`, etc.) can
+  apply a different lint config than `ci:lint` and pass while `ci:lint` fails. TEST: every gate a stacked
+  slice runs names its own base, and no base-owned file is in the slice's diff.
 - **Read the failure before rerunning.** A cascade almost always has one root cause at the top and N
   consequences below it. Fix the top one and re-run once, rather than reacting to the tail.
 
