@@ -117,7 +117,8 @@ this order:
    config import) that masquerades as N unrelated test-file *load* failures, so the session blames the PR
    instead of its own setup. TEST: every step in the project's fresh-worktree docs appears in the block's
    setup ritual. And when a step is a LONG (>120s) install, run it BACKGROUNDED (`run_in_background`) and
-   verify success by a durable ARTIFACT (e.g. `node_modules/.yarn-state.yml` plus a key dep present),
+   verify success by a durable ARTIFACT (the workspace-ROOT `node_modules/.yarn-state.yml`; a hoisted dep
+   sits in ROOT `node_modules`, not `apps/<app>/node_modules`, so checking the app path gives a false MISSING),
    never by a process or exit signal that lies: `cmd | tail; echo $?` reports the pipe tail's exit; a
    FOREGROUND run gets backgrounded by the harness at 120s, cutting the install mid-link and falsely
    reporting exit 0; `pgrep -f "yarn install"` self-matches the wait loop; a completion-regex misses the

@@ -139,8 +139,13 @@ STATUS_DIR="$(git rev-parse --show-toplevel)/.context/<harness>/<run-id>/status"
 Each spun-off session gets ONE block, pasteable into a COLD session with zero other context. It carries,
 in order: a first-line title `Session <n> (<name>):`; the front-door invoke
 `/sk:meta-dotclaude-copilot-start-here-for-any-task` so the slice runs the right harness autonomously and
-asks nothing; the git branch-off-START ritual below; the repo's fresh-worktree setup ritual reproduced
-VERBATIM from its `CLAUDE.md`/`CLAUDE.local.md` (EVERY step, not just install); a FIRST action writing
+asks nothing — STATE in the block that the task-intake gate is pre-satisfied (this spec IS the ratified
+plan) so the session does NOT call `AskUserQuestion`, which blocks a headless worker forever; the git
+branch-off-START ritual below; the repo's fresh-worktree setup ritual reproduced
+VERBATIM from its `CLAUDE.md`/`CLAUDE.local.md` (EVERY step, not just install) — a version manager repoints
+`node`, NOT the `yarn`/`npm` binary, so ASSERT the package manager runs under the pinned runtime (`yarn
+node -v`, or invoke the pinned release directly, e.g. `node .yarn/releases/yarn-<ver>.cjs install`) before a
+native install; a FIRST action writing
 `{"status":"working","part":"<name>","branch":"<branch>"}` to `<STATUS_DIR>/<name>.json` (branch recorded
 NOW so a mid-work death still leaves it); a LAST action that tears down everything it started then
 OVERWRITES the file with `{"status":"done","part":"<name>","branch":"<branch>","paths":[<absolute
@@ -157,7 +162,9 @@ derails every session at once.
 ```bash
 git fetch origin
 git switch -c <harness>/<run-id>/<name> <START-SHA>   # a Conductor workspace is already on its own branch
-# off START — keep that one instead; either way it must sit on <START-SHA>. REPORT the exact branch name
+# off START — keep that one instead. CONFIRM it sits on START before working: git merge-base HEAD
+# <START-SHA> must equal <START-SHA>; if not (Conductor often branches off the DEFAULT tip, not START),
+# git reset --hard <START-SHA> — safe, the worktree is fresh and clean. REPORT the exact branch name
 # (Conductor names its own), so the orchestrator cleans up by the reported name, never by a pattern.
 # …do the work…
 git add -A && git commit -F <msg-file>     # -F, never -m
@@ -228,6 +235,12 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   are heavy — belongs in the PROJECT's COMMITTED `CLAUDE.md`, so ANY worker on the repo (teammate, cloud,
   worktree) gets it and it stays reproducible; read it BEFORE building, and if it is missing or stale that
   gap is what the self-improve loop routes back into it.
+- **Warm the package-manager cache once BEFORE fanning out; expect concurrent cold installs to contend.**
+  The orchestrator's own START install populates the shared global cache, so each worker's install is
+  FETCH-warm — but the per-worktree LINK + native-build step is CPU-bound and does NOT share, so N cold
+  installs at once thrash one box (one run measured ~18m for 4 concurrent vs a few minutes alone). Dispatch
+  workers only AFTER the orchestrator's install has warmed the cache; on a small box, stagger them. TEST: no
+  worker install starts before the orchestrator's cache-warming install finishes.
 - **Background the long pole and keep working.** A dependency install or a first cold build blocks nothing
   you are currently editing — start it detached and carry on with files that don't need it.
 - **Expect sublinear speedup.** Parallel jobs contend for CPU: three checks measured 104s serial vs 56s
@@ -244,6 +257,12 @@ them as parallel tool calls rather than chaining them into one sequential shell 
 - **Triage before reacting to a failure.** Separate YOUR errors from pre-existing and environmental ones
   FIRST — an unbuilt shared dependency can emit hundreds of spurious errors with nothing to do with your
   change. Filter by path, or take a baseline on a clean tree, before reading a single line.
+- **A slice stacked off a feature base gates against THAT base, not `master`.** Run the project gate with
+  `--base origin/<feature-base>`; a finding present on the base is INHERITED, not yours. Prove your diff
+  clean against the correct base, and when a pre-push hook diffs against `master` and fails on a base-only
+  finding, push `--no-verify` after proving clean — never edit a forbidden base file to satisfy a gate
+  (that breaks the leaf boundary). TEST: every gate a stacked slice runs names its own base, and no
+  base-owned file is in the slice's diff.
 - **Read the failure before rerunning.** A cascade almost always has one root cause at the top and N
   consequences below it. Fix the top one and re-run once, rather than reacting to the tail.
 
