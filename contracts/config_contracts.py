@@ -545,6 +545,10 @@ CONTRACTS: dict[str, dict] = {
             "Supports a standalone-artifact variant: when parts produce untracked files (not tracked "
             "code), each writes to its OWN worktree and reports the absolute path, and assembly GATHERS "
             "those paths into one collection dir instead of merging branches.",
+            "Before finishing a stuck/interrupted part itself in its worktree (edit/build/commit/push), "
+            "the orchestrator checks for a live session owning that worktree (a claude process cwd'd there) "
+            "and yields if one is running; it adopts a part only when its session is provably dead, and "
+            "commits on the part's own branch.",
         ],
     },
     "skills/sk/skills/work-split-session-in-parallel-branch-offshoot/SKILL.md": {

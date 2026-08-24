@@ -206,6 +206,18 @@ orchestrator when every part is `done`/`blocked` or the timeout fires. On the wa
 `working` or absent at the deadline is a STUCK part — name it for Simon (its session may need a look) and
 assemble what did report; a `blocked` part is the design working, handled in Step 5.
 
+**Before the orchestrator finishes a STUCK part ITSELF — editing, building, committing or pushing in
+its worktree — run a live-session check there and YIELD if one is running.** A part that didn't report
+`done` is often not dead: the OUTER layer is hand-run, so Simon can re-open that part's Conductor session
+to finish it, and two actors mutating one worktree corrupt the WIP. Detect the owner with
+`lsof -a -d cwd -c claude | grep <worktree>` (a claude process cwd'd there) or a build/test running in it;
+if present, touch NOTHING in that worktree — name it for Simon and let its own session finish and push (it
+writes `done`). Adopt a part only when its session is provably DEAD, and even then commit on the part's own
+branch. TEST: the live-session check ran and found none before the orchestrator writes anything in a part's
+worktree. (The fix for a restart that killed two parts mid-work: Simon re-opened their sessions to
+self-finish while the orchestrator also started finishing them, colliding on one worktree's files and the
+other's build.)
+
 ## Step 5 — assemble, warm, in the orchestrator session
 
 Do NOT spawn a fresh session; the orchestrator holds the partition and the reasoning already. Read each
@@ -215,7 +227,9 @@ part's `branch` and `paths` from `$STATUS_DIR/*.json` (the poll already confirme
 2. Create an assembly branch off START and merge each part branch into it, in a stable order.
 3. Fix the seams, then run the project gate ONCE over the whole tree — the reconcile craft is
    superspeed Step 3 (`/sk:work-superspeed`); read it there, don't restate it.
-4. Read any `BLOCKED.md` a part pushed and finish that work yourself.
+4. Read any `BLOCKED.md` a part pushed and finish that work yourself — but ONLY for a part whose worktree
+   has NO live session (the Step 4.5 live-session check). Never edit, build or push in a worktree a session
+   still owns.
 
 ## Step 6 — clean up, then loop
 
