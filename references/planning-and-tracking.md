@@ -29,6 +29,13 @@ explicitly dropped is simply no longer in the document, and the plan still reads
 
 - **Keep the source material to hand for the whole task** — the tickets as written, and the original
   request. Not a summary of them; re-read the originals.
+- **Read the WHOLE ticket, not just its description field** — the description AND every comment (the
+  top-level discussion AND the inline/anchored comments, which carry a `quotedText` snippet of the text
+  they annotate) AND its attachments and linked docs. Decisions, corrections, scope changes and revised
+  acceptance criteria routinely land in the comments, not the description, so a description-only read
+  schedules stale or already-answered work (e.g. a ticket surveyed by its description alone reads as
+  unbuilt when a comment already handed it off or narrowed it). TEST: a per-ticket verdict whose
+  evidence traces only to the description, never to a comment or attachment, has not read the ticket.
 - **Before proposing any plan, go through it against every source item** and account for each one:
   carried in, deliberately dropped (say who decided that and when), or superseded. Anything with no
   verdict is a dropped requirement, not an omission.
