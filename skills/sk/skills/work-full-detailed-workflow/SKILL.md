@@ -40,7 +40,9 @@ Read each catalog when its stage is in play:
   journey and what changed on this branch, cross-checked for mismatches. `/sk:ship-report-and-ensure-correct-user-system-journey` assembles it, then checks it against the plan's criteria and closes the gaps.
 
 Always-on rules in your `~/.claude/rules/*.md` (auto-loaded) also apply and are NOT repeated here: copy
-quality / anti-AI-copy, response & TLDR format, the security guard, versions, data-archive, UI conventions.
+quality / anti-AI-copy, response & TLDR format, the security guard, versions, data-archive, UI conventions,
+the living plan as the rail (`rules/living-plan.md`) — read `.context/<slug>-plan.md` first, keep it
+current, reconcile against it.
 
 **Top-view game plan for any run:**
 1. **Research first** (`references/research.md`) — always, before planning. Simon should never have to

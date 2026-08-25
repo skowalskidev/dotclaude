@@ -38,21 +38,14 @@ Whenever I'm making a factual claim about someone else's product (a comparison t
 
 ### Research online BEFORE retrying — don't grind on a brick wall
 When something fails and the cause isn't obvious, **search online (WebSearch/WebFetch, official docs,
-GitHub issues) BEFORE trying the same class of fix again.** Two failed attempts at the same wall is
-the trigger to stop and research — not ten. Blindly retrying variations of a broken approach wastes
-far more time than a 30-second search that surfaces the real cause (a known dependency bug, an ESM
-issue, a platform quirk, a version incompatibility). This is not a last resort — it's the *second*
-step after the first failure, and often the first step for anything involving an unfamiliar library,
-error code, platform behavior, or "why won't this load."
-- Concrete triggers to go research immediately: an opaque error code (`ERR_REQUIRE_ESM`,
-  `auth/internal-error`, a stack trace deep in `node_modules`), a "works in prod but not dev" (or
-  vice-versa) split, a dependency/module-load failure, or any "I've tried this 2+ times and it still
-  fails."
-- Prefer diagnosing the ROOT cause (read the failing package's code, check its GitHub issues, verify
-  version compatibility) over piling on workarounds. A pinned version or one-line real fix beats three
-  layers of hacks around a symptom.
-- If online research can't be done (no tool access), say so and ask me to paste the docs/issue —
-  don't silently keep grinding.
+GitHub issues) BEFORE trying the same class of fix again.** Two failed attempts at the same wall is the
+trigger to stop and research — not ten. It's not a last resort: it's the *second* step after the first
+failure, and often the first step for anything with an unfamiliar library or an opaque error code
+(`ERR_REQUIRE_ESM`, a stack trace deep in `node_modules`), a "works in prod but not dev" split, or a
+dependency/module-load failure. Diagnose the ROOT cause (read the failing package's code, its GitHub
+issues, verify version compatibility) over piling on workarounds — a pinned version or one-line real fix
+beats three layers of hacks around a symptom. If research can't be done (no tool access), say so and ask
+me to paste the docs/issue — don't silently keep grinding.
 
 ### Fix the CLASS of failure, not the one instance I reported
 When I report something wrong with produced output (a bad render, a wrong answer, a broken page), my
@@ -75,12 +68,10 @@ schema or rules change), and any decision that forks the implementation. Then wo
 completion without stopping.
 
 Front-load what is PREDICTABLE from reading the task. This does not forbid interrupting me later — if
-something genuinely unexpected turns up, or a new fork appears where guessing wrong would waste the
-work, ask then; I am not always away. What it forbids is hitting a foreseeable blocker mid-run and
-stalling on it when it could have been requested at the start.
-
-Compatible with questions-at-the-END (`communication.md`): the up-front asks still go in ONE
-consolidated block at the end of that first response, not scattered through it.
+something unexpected turns up, or a new fork appears where guessing wrong would waste the work, ask then;
+I am not always away. What it forbids is hitting a foreseeable blocker mid-run and stalling on it when it
+could have been requested at the start. The up-front asks still go in ONE block at the end of that first
+response, per questions-at-the-END (`communication.md`).
 
 ### Plan and get sign-off for big work
 For large or multi-file changes, **plan first and get my approval before executing** — use plan mode,
@@ -88,45 +79,41 @@ present the approach, and confirm scope/decisions (AskUserQuestion) before writi
 a big refactor or migration on assumptions.
 
 ### Track every task to completion — don't drop items
-When a request has multiple tasks (or you spin off sub-tasks), write them ALL — and the decisions behind
+When a request has multiple tasks (or you spin off sub-tasks), write them ALL — with the decisions behind
 them — into a checklist that survives a RESTART: a ticket or the worktree's `.context/`, never `/tmp` or
-memory. Tick each off only when genuinely done and verified. At the END, re-check against the original
-request and finish anything not done — a long multi-part ask is where items get silently forgotten, and
-the checklist is the guard. Never imply full completion when part is outstanding; say plainly what remains.
+memory. Tick each off only when genuinely done and verified; the checklist is the guard against a long
+multi-part ask silently dropping an item. Never imply full completion when part is outstanding; say
+plainly what remains.
 
 ### A message that arrives mid-run is a QUEUED task, not an interrupt
-When a new request lands while you are already working, add it to the checklist and keep going — never
-drop the current task to serve it, and never make me label it. Say in one line where it landed: running
-now in parallel (independent of the current work) or queued next (it isn't). Only treat it as an
-interrupt if it says stop, or if it changes the work already in flight.
+When a new request lands mid-work, add it to the checklist and keep going — never drop the current task
+to serve it, and never make me label it. Say in one line where it landed: running now in parallel
+(independent) or queued next. Treat it as an interrupt only if it says stop, or changes work already in
+flight.
 
 ### "Run to completion" means DON'T END THE TURN — a progress report is not a deliverable
 
 When I've said run to completion, finish everything, don't stop, or I'm stepping away, the turn ends
-when the WORK is done. Not when a batch is done, not when there's something tidy to report.
+when the WORK is done — not when a batch is done, not when there's something tidy to report. I've had to
+say "go" three times in one session to un-stick this: a checkpoint is reached, the summary is worth
+writing, and the summary becomes the end of the turn. **Committing at checkpoints is a git instruction,
+not a conversational one.** Commit, then keep working in the same turn; never trade remaining work for a
+status update.
 
-The failure is specific and I've had to say "go" or "keep going" three times in one session to
-un-stick it: a checkpoint gets reached, the summary is genuinely worth writing, and the summary
-becomes the end of the turn. **Committing at checkpoints is a git instruction, not a conversational
-one.** Commit, then keep working in the same turn. Never trade remaining work for a status update.
+Two things that look like permission to stop and are not: **a clean verification** (green tests mean the
+batch is safe to build on, not that the job is over) and **a long turn** (length is not a stopping
+condition, nor is "a good place to pause").
 
-Two things that look like permission to stop and are not:
-- **A clean verification.** Green tests mean the batch is safe to build on, not that the job is over.
-- **A long turn.** Length is not a stopping condition. Neither is "this is a good place to pause."
+The ONLY reasons to end early: everything on the list is genuinely done; a blocker needs something only I
+can give (a credential, a prod authorization, a decision where guessing wrong wastes the work); or I
+interrupt. On a blocker, do every other item first and stop with that one named. If you find yourself
+writing "say the word and I'll continue" — that's the bug. Continue.
 
-The ONLY reasons to end early: everything on the list is genuinely done; a blocker needs something
-only I can give (a credential, a prod authorization, a decision where guessing wrong wastes the
-work); or I interrupt. In the blocker case, do every other item first and stop with that one named.
-
-If you find yourself writing "say the word and I'll continue" — that's the bug. Continue.
-
-**Work in fix → verify → fix loops until a clean pass.** One round of fixes is not the end of the job:
-re-run whatever found the problems (the tests, the build, the audit, the review, the browser pass) and
-fix what the new run surfaces, then run it again. Keep looping until a full pass comes back clean with
-nothing outstanding — verification generates new work, and stopping after the first fix round is how a
-"done" lands with known loose ends in it. If a loop stops converging (the same class of failure keeps
-reappearing, or a fix needs a decision only I can make), stop and tell me where it stands rather than
-looping indefinitely.
+**Work in fix → verify → fix loops until a clean pass.** Re-run whatever found the problems (tests, build,
+audit, review, browser pass) and fix what the new run surfaces, then run it again — verification generates
+new work, and stopping after the first fix round is how a "done" lands with known loose ends. If a loop
+stops converging (the same failure recurs, or a fix needs a decision only I can make), stop and tell me
+where it stands.
 
 ### Prove every point of the ask was built, before handing back
 

@@ -18,6 +18,8 @@ applied through to a verified finish — resuming the main thread after any tang
   user-invocable FRONT DOOR that makes routing deliberate and drives it to the end.
 - **`rules/process.md` owns** run-to-completion, "a mid-run message is a QUEUED task not an interrupt,"
   track-every-task-to-completion, and commit-when-done. Point to it; do not restate it.
+- **`rules/living-plan.md` owns** the living plan as the rail — read `.context/<slug>-plan.md` first,
+  keep it current while working, reconcile against it at the end. Point to it; do not restate it.
 - **This skill OWNS**: the single entry point, the always-on progress bar, verifying each routed skill is
   installed, and resuming skills after a tangent.
 
@@ -78,6 +80,7 @@ A tangent WILL arise — a bug surfaces, a todo-fix is discovered, Simon asks fo
 
 ## Callable at any stage
 
-Re-invoke this at any point — hand it the stage you are resuming, or nothing. It reads the tracker (the
-Task list + `.context/`), works out where the plan left off, and continues from there without restarting
-done work.
+Re-invoke this at any point — Simon calls it with EVERY message. Each call re-reads the living plan
+(`rules/living-plan.md`: `.context/<slug>-plan.md`) and the tracker (the Task list + `.context/`), folds
+the new message into the plan, works out where the plan left off, and continues from there — it never
+restarts done work.

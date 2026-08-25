@@ -35,6 +35,9 @@ STABLE within a plan so an update targets ONE section, not the whole doc:
 - `## Tasks` — the work breakdown (the unit tickets are cut from).
 - `## Decisions & rationale`
 - `## Risks & assumptions`
+- `## Related tickets & update plan` — every related ticket + its live state + how the plan relates; a
+  refutation (with evidence) for anything dropped or superseded; and a plan to update the tickets on
+  confirmation.
 - `## Out of scope`
 - `## Sources` — the tickets/links this plan is judged against (or `prompt-derived`).
 

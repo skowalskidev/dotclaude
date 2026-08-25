@@ -136,6 +136,20 @@ CONTRACTS: dict[str, dict] = {
             "A proposed fix keeps that part's contract true, or changes the contract out loud.",
         ],
     },
+    "rules/living-plan.md": {
+        "mission": "No ask drops and no 'done' is reported against memory, because one durable plan file is the rail every task reads, updates, and is judged against.",
+        "purpose": "The living plan (.context/<slug>-plan.md) is the source of truth every task reads "
+                   "first, keeps current while working, and reconciles against at hand-back.",
+        "criteria": [
+            "Every substantive/multi-step task reads .context/<slug>-plan.md before building, and "
+            "creates one via /sk:plan-stable-persistent-dynamic-complete-full-plan when none exists.",
+            "Points to /sk:plan-stable-persistent-dynamic-complete-full-plan for the file lifecycle and "
+            "references/planning-and-tracking.md for plan contents; does not restate either.",
+            "Points to rules/process.md for the completion half (track every ask to done); does not "
+            "restate it.",
+            "The plan reflects every ask as it lands, and hand-back reconciles each of its asks to a verdict.",
+        ],
+    },
     "rules/skills-workflow.md": {
         "mission": "Simon never has to remember a skill exists, and never gets one from the wrong repo silently.",
         "purpose": "Repo-prefix labelling and when to reach for which skill.",
@@ -488,6 +502,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
+            "Names rules/living-plan.md among the always-on rules it does not restate.",
         ],
     },
     "skills/sk/skills/plan-stable-persistent-dynamic-complete-full-plan/SKILL.md": {
@@ -500,6 +515,9 @@ CONTRACTS: dict[str, dict] = {
             "On confirmation it asks whether to encode the plan into tickets, then hands off to /sk:work-full-detailed-workflow automatically.",
             "Reuses references/planning-and-tracking.md for the plan's content; does not restate it.",
             "Backs every plan change with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) and offers a clickable preview (/sk:ship-mockup-before-after) for visible changes; does not restate either.",
+            "Its stable skeleton includes a '## Related tickets & update plan' section: every related "
+            "ticket + live state, a refutation with evidence for anything dropped/superseded, and a plan "
+            "to update the tickets on confirmation.",
         ],
     },
     "skills/sk/skills/work-hyperspeed/SKILL.md": {
@@ -921,6 +939,8 @@ CONTRACTS: dict[str, dict] = {
             "the main thread RESUMES; nothing is dropped.",
             "Callable at any stage: re-reads the tracker and continues where the plan left off, never "
             "restarting done work.",
+            "Points to rules/living-plan.md; re-invocable on EVERY message — re-reads .context/<slug>-plan.md, "
+            "folds the new message in, continues, never restarts done work.",
             "Drives the finish to leave the work refactored/centralised/DRY-SRP (one owner per shared "
             "value/behaviour/component) per rules/engineering-standards.md before the bar reads 100%.",
             "Reuses skill-stack.md + the intake gate + process.md; owns the entry point, the progress "
