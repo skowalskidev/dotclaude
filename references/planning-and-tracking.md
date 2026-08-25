@@ -6,21 +6,29 @@ Reference catalog for how to plan work and track it to completion. Pulled in by 
 - Before implementing anything, produce the complete plan first — with all implementation details — in the tracker, then implement.
 - Alongside the detailed plan, always give a top-view, human-readable game plan in a few short numbered steps (1. 2. 3.).
 - Keep the plan that connects all the pieces together in one main ticket; spin the work off into subtasks.
-- At the top of every plan and every ticket, open with the user-journey TLDR described in the next section, before any detail.
+- At the top of every plan and every ticket, open with the user AND system journey (current trajectory) described in the next section, before any detail.
+- Every ticket the plan names is a full clickable link (the Linear issue URL, e.g. `https://linear.app/<org>/issue/<ID>/...`), never a bare id, so each stays checkable from the plan.
 - Consolidate every question — clarifications, decisions, confirmations — into ONE section directly below the TLDR; never scatter questions through the plan body or bury them mid-detail.
 - Ensure no context loss across tickets — tickets must not become incompatible with each other when merged. Each ticket carries the context of how it relates to the rest.
 - Order follow-up tickets by priority; each must include testing instructions, how it relates to the rest, and exactly what part of the app breaks if it doesn't work.
 - If work is blocked on an unreliable or non-developer contributor (no published branch, or their work is wrong), take it over: cancel/supersede their ticket with a comment linking the new ticket that solves it, and fold the work into the plan.
 
-## Open every plan with the user-journey TLDR
+## Open every plan with the user AND system journey (current trajectory)
 
-The first thing in any plan, ticket or PR body is the user-journey block: what the user does and
-sees, from the moment the feature becomes reachable to the moment they get the result. It goes ABOVE
-the technical detail, always, not only when it is asked for.
+The first thing in any plan is TWO journeys, one above the other, ABOVE the technical detail: the
+**user journey** (what the user does and sees) and the **system journey** (what the machine does, in
+order, including where it stops early). A ticket or PR body opens with them too.
 
-The format is owned by `~/.claude/references/tldr-report-formats.md` § "Block 1 · User journey" —
-read it there. It is what makes a proposal judgeable before it is built: a plan described in
-components reads as fine right up until someone tries to use it.
+Both reflect the plan's CURRENT TRAJECTORY — what it would do if built now, applying every confirmed
+decision AND the recommended default for each still-open question — labelled as such, so the reader
+sees where it is heading, not only what is locked. Keep both in sync on EVERY change: a decision that
+resolves, or a default that shifts, updates the journeys at the top in the SAME edit. They are DERIVED
+from the resolved plan, so they never drift from it (`rules/engineering-standards.md` § single-source-of-truth).
+
+The format is owned by `~/.claude/references/tldr-report-formats.md` § Block 1 (user) + Block 2
+(system), including the cross-check between them — read it there, don't restate it. It is what makes a
+proposal judgeable before it is built: a plan described in components reads as fine right up until
+someone tries to use it.
 
 ## Re-check the plan against the original source material, twice
 

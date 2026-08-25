@@ -29,17 +29,24 @@ STABLE within a plan so an update targets ONE section, not the whole doc:
 
 - `## Changelog` — newest first, at the very top.
 - `## Status` — `PLANNING (locked)` | `CONFIRMED`; one line.
-- `## Goal & user-journey TLDR`
+- `## Goal & user journey (current trajectory)` — the goal + the user journey, per `references/tldr-report-formats.md` Block 1.
+- `## System journey (current trajectory)` — what the machine does, in order, and where it stops early, per `references/tldr-report-formats.md` Block 2.
 - `## Open questions` — Simon's decisions, each with a proposed default.
 - `## Approach`
 - `## Tasks` — the work breakdown (the unit tickets are cut from).
 - `## Decisions & rationale`
 - `## Risks & assumptions`
-- `## Related tickets & update plan` — every related ticket + its live state + how the plan relates; a
-  refutation (with evidence) for anything dropped or superseded; and a plan to update the tickets on
-  confirmation.
+- `## Related tickets & update plan` — every related ticket as a full clickable Linear link + its live
+  state + how the plan relates; a refutation (with evidence) for anything dropped or superseded; and a plan
+  to update the tickets on confirmation.
 - `## Out of scope`
 - `## Sources` — the tickets/links this plan is judged against (or `prompt-derived`).
+
+Both journeys at the top reflect the plan's CURRENT TRAJECTORY — every confirmed decision AND the
+recommended default for each still-open question, labelled as such — and are kept in sync on EVERY update
+(a resolved decision or shifted default rewrites them in the same edit, since they are DERIVED from the
+resolved plan). The rule and the two-journey format are `references/planning-and-tracking.md` +
+`references/tldr-report-formats.md`'s; don't restate them.
 
 ## First invocation — create the plan, show it once
 

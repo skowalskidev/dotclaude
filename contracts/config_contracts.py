@@ -284,9 +284,12 @@ CONTRACTS: dict[str, dict] = {
             "Names the durability tiers — the ticket outlives all, .context/ survives a restart but "
             "dies with the worktree — and promotes decisions and human input to the ticket before teardown.",
             "A feature is scoped across discoverability and docs, not just its mechanism.",
-            "Every plan, ticket and PR body OPENS with the user-journey block, above the technical "
-            "detail. The format itself moved to references/tldr-report-formats.md; this file owns "
-            "when it is required, not what it looks like.",
+            "Every plan opens with BOTH the user journey AND the system journey (a ticket and PR body "
+            "too), above the technical detail, reflecting the plan's current trajectory (confirmed "
+            "decisions + recommended defaults for open questions) and kept in sync on every change. The "
+            "format moved to references/tldr-report-formats.md Blocks 1+2; this file owns when it is "
+            "required, not what it looks like.",
+            "Every ticket the plan names is a full clickable Linear link, never a bare id.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every out-of-code surface the work touches (edge/CDN, a design tool, a third-party "
@@ -519,8 +522,11 @@ CONTRACTS: dict[str, dict] = {
             "Reuses references/planning-and-tracking.md for the plan's content; does not restate it.",
             "Backs every plan change with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) and offers a clickable preview (/sk:ship-mockup-before-after) for visible changes; does not restate either.",
             "Its stable skeleton includes a '## Related tickets & update plan' section: every related "
-            "ticket + live state, a refutation with evidence for anything dropped/superseded, and a plan "
-            "to update the tickets on confirmation.",
+            "ticket as a full Linear link + live state, a refutation with evidence for anything "
+            "dropped/superseded, and a plan to update the tickets on confirmation.",
+            "Its skeleton opens with BOTH a user journey AND a system journey reflecting the current "
+            "trajectory (confirmed + recommended-default answers), kept in sync on every update; format per "
+            "references/tldr-report-formats.md Blocks 1+2 and planning-and-tracking.md, not restated.",
         ],
     },
     "skills/sk/skills/work-hyperspeed/SKILL.md": {

@@ -10,8 +10,8 @@ the both-ways check for redundant clutter and missing information, no AI-soundin
 `rules/communication.md` owns where questions go. Don't restate either here.
 
 Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (all three), `/sk:ship-pr` (user journey and system journey in the PR body),
-`/sk:work-full-detailed-workflow` and `references/planning-and-tracking.md` (the user journey opens every
-plan). One owner, so a format fixed once is fixed everywhere.
+`/sk:work-full-detailed-workflow` and `references/planning-and-tracking.md` (Block 1 AND Block 2 open every
+plan, reflecting its current trajectory). One owner, so a format fixed once is fixed everywhere.
 
 ## The glance test — what all three blocks must pass
 
