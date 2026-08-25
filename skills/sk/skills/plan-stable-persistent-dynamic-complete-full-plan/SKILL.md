@@ -27,7 +27,6 @@ the completeness bar met before it can be confirmed).
 Give the file fixed section anchors from the start. Adjust which sections exist per task, but keep them
 STABLE within a plan so an update targets ONE section, not the whole doc:
 
-- `## Changelog` — newest first, at the very top.
 - `## Status` — `PLANNING (locked)` | `CONFIRMED`; one line.
 - `## Goal & user journey (current trajectory)` — the goal + the user journey, per `references/tldr-report-formats.md` Block 1.
 - `## System journey (current trajectory)` — what the machine does, in order, and where it stops early, per `references/tldr-report-formats.md` Block 2.
@@ -41,6 +40,8 @@ STABLE within a plan so an update targets ONE section, not the whole doc:
   to update the tickets on confirmation.
 - `## Out of scope`
 - `## Sources` — the tickets/links this plan is judged against (or `prompt-derived`).
+- `## Changelog` — newest first, at the very BOTTOM (the journeys own the top; a reader sees the current
+  state first, the revision history last).
 
 Both journeys at the top reflect the plan's CURRENT TRAJECTORY — every confirmed decision AND the
 recommended default for each still-open question, labelled as such — and are kept in sync on EVERY update
@@ -62,8 +63,8 @@ A new requirement, a correction, an answer to a question, a new idea — each is
    (and log it).
 2. **Edit ONLY those sections in place.** Never rewrite an untouched section — that is exactly what
    causes drift and forces a re-read.
-3. **Prepend a Changelog entry:** `### rev N · <today, from `date +%F`> · <one line>` naming each changed
-   section (its `## anchor`), what changed, and WHY.
+3. **Add a Changelog entry — newest-first, at the top of the bottom `## Changelog` section:** `### rev N ·
+   <today, from `date +%F`> · <one line>` naming each changed section (its `## anchor`), what changed, and WHY.
 4. **Show Simon ONLY the delta in chat, backed by a before/after.** Present the changed section(s) via
    `/sk:work-ask-reply-in-full-before-after-artifact` — the section BEFORE and AFTER the change, with a
    verdict and a comment box — so every plan change is CLARIFIED as before→after and Simon can accept,
