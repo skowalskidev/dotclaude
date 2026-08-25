@@ -454,6 +454,9 @@ CONTRACTS: dict[str, dict] = {
             "asserts whatever the code already does and reports green forever.",
             "A deliberately dropped, refuted or deferred part is part of the baseline and is never "
             "built back. The verdict names who decided and when.",
+            "Consults the living plan (.context/<slug>-plan.md) from "
+            "/sk:plan-stable-persistent-dynamic-complete-full-plan as a baseline source when present, per "
+            "rules/living-plan.md.",
             "Each criterion is judged by an INDEPENDENT pass that defaults to not-met and is given "
             "the code but not the session narrative. Self-assessment by the context that wrote the "
             "report is the failure this exists to prevent.",

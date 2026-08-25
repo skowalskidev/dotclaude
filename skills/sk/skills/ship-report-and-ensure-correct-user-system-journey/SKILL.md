@@ -74,7 +74,9 @@ then add anything else here. Tag every criterion with the source it came from, a
 by link, in the output.
 
 1. A ticket id, plan path or branch passed in the arguments.
-2. `.context/<TICKET>-plan.md` in the repo.
+2. `.context/<slug>-plan.md` in the repo — the living plan from
+   `/sk:plan-stable-persistent-dynamic-complete-full-plan` (ticket- or slug-named); authoritative when
+   present, per `rules/living-plan.md`.
 3. The Linear ticket or tickets named by the branch, the commits or the PR body — acceptance criteria
    AND the comments, because that is where a build, refute or defer verdict was recorded.
 4. The plan file for this workspace under `~/.claude/plans/`.
