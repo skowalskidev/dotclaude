@@ -14,10 +14,16 @@ The always-on `~/.claude/rules/*.md` apply throughout: `process.md` (run-to-comp
 commit-when-done, track-every-task, ask before booting a browser), `living-plan.md`,
 `engineering-standards.md`, `security.md`.
 
+**Safe to run on several branches at once.** Each run writes ONLY its own branch and its own PR +
+tickets; a fix that belongs to another PR is handed to that owner via
+`/sk:ship-check-merge-readiness`'s cross-owner discipline, never applied across branches.
+
 **The stages, in order:**
 
-0. **Establish state.** The PR number, branch, worktree, base, draft flag, behind/ahead master; the
-   authoritative ticket list from the PR body; the full diff surface (`git diff <base>...HEAD`).
+0. **Establish state, then sync the branch.** The PR number, branch, worktree, base, draft flag,
+   behind/ahead master; the authoritative ticket list from the PR body; the full diff surface
+   (`git diff <base>...HEAD`). PUSH the PR's own branch to origin so it is current — CI, the review,
+   and merge-readiness all read the pushed state. NEVER push, merge into, or otherwise write master.
 1. **`/sk:plan-stable-persistent-dynamic-complete-full-plan`** — fold every ticket and criterion into
    the living plan; reconcile against it at stage 9.
 2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the

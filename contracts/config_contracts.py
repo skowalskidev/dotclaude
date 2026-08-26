@@ -434,6 +434,8 @@ CONTRACTS: dict[str, dict] = {
             "tickets.",
             "Fires the browser legs (/sk:test-eyeball, /sk:test-copilot) only when the diff changes UI, "
             "and asks first, per the no-auto-browser rule; it never boots a browser by default.",
+            "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
+            "several branches at once, each writing only its own branch and its own PR + tickets.",
         ],
     },
     "skills/sk/skills/ship-check-merge-readiness/SKILL.md": {
@@ -451,6 +453,9 @@ CONTRACTS: dict[str, dict] = {
             "index-before-functions), so the human never has to ask whether it ships.",
             "A cross-owner gap is kept in the owner's scope: a ticket, a comment, and an explicit "
             "blocking line in the Deploy TLDR — never completed unilaterally.",
+            "Runs safely one-per-branch when several execute at once: each touches only its own "
+            "branch, a cross-owner fix is a ticket + comment + blocking line on the owner's PR, and "
+            "the assembled PR-set includes drafts, not only ready PRs.",
         ],
     },
     "skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md": {

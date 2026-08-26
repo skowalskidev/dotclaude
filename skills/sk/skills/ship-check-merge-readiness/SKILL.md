@@ -10,17 +10,18 @@ off an old master, a sibling PR merged the engine it depends on, and once both l
 disagree — or it silently needs a change in someone else's PR that nobody tracked. "My tests
 pass" is not "the assembled system works."
 
-The end state you are checking for: **every open PR involved, once merged onto today's master,
-works together — nothing missing, nothing double-owned, and every cross-owner gap is tracked
+The end state you are checking for: **every open or draft PR involved, once merged onto today's
+master, works together — nothing missing, nothing double-owned, and every cross-owner gap is tracked
 and flagged as blocking.**
 
 ## Step 1 — Establish the real current state (never trust the branch in isolation)
 
 - `git fetch origin` and resolve **current** master (`git rev-parse origin/master`). The PR's
   own merge-base is usually stale; that staleness is the whole problem.
-- List the PR, its stack (base chain), and **every open PR it needs, depends on, or influences**
-  — the ones that touch the same subsystem, the same hot files, or a contract it consumes.
-  `gh pr list`, plus read the PR's own "Coordination"/"depends on" notes and the ticket.
+- List the PR, its stack (base chain), and **every open OR DRAFT PR it needs, depends on, or
+  influences** — the ones that touch the same subsystem, the same hot files, or a contract it
+  consumes. A draft sibling still lands and can conflict, so it counts in the assembled end state
+  (`gh pr list` includes drafts). Plus read the PR's own "Coordination"/"depends on" notes and the ticket.
 - For each, record: merged-or-open, what it changed, and whether it is on master yet.
 
 ## Step 2 — Draft the PR, then rebase onto up-to-date master, resolve for correctness
@@ -160,6 +161,11 @@ the verdict already answered it.
 - **Own your scope, track the rest.** The point is not to do everyone's work — it is to leave
   nothing untracked. A cross-owner gap with no ticket + no blocking flag is the defect this skill
   exists to prevent.
+- **Safe to run concurrently, one run per branch.** When several ship-check runs execute at once
+  (Simon runs `/sk:ship-full-detailed-workflow` across many branches), each OWNS ONLY ITS OWN branch —
+  never edit, rebase, commit to, or push a sibling branch. A fix that belongs to another PR is a
+  ticket + a comment + a BLOCKING TLDR line on THAT PR, never a commit on its branch. That is what
+  lets N runs coexist without clobbering each other.
 - **A ship-check run itself triggers self-healing** (`rules/self-healing-config.md`): fold any new
   pitfall this run surfaced back into this skill via `/sk:claude-config-update` before handing back.
 - **Read the other side's real code**, not the types on this side, before asserting a contract
