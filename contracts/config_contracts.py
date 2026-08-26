@@ -1118,8 +1118,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Blocks only the launch/navigate tools (new_page, navigate_page); the rest are inert "
             "without a page and stay allowed.",
-            "Overridable with CLAUDE_ALLOW_BROWSER=1 when Simon said yes or a skill carries his "
-            "standing authorization.",
+            "Overridable two ways when Simon said yes or a skill carries his standing authorization: "
+            "CLAUDE_ALLOW_BROWSER=1, or the ~/.claude/.browser-authorized sentinel that an authorized "
+            "browser skill drops and removes at teardown.",
             "Fails open on a malformed payload.",
         ],
     },

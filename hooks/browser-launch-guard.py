@@ -41,6 +41,11 @@ def main() -> int:
         return 0
     if os.environ.get("CLAUDE_ALLOW_BROWSER") == "1":
         return 0
+    # An authorized browser skill (/sk:ship-screenshot-changes, /sk:test-eyeball) drops this sentinel
+    # when it takes its port lane and removes it at teardown, so a user-approved browser run is allowed
+    # without a manual env var. Mirrors hooks/config-edit-guard.py's authorization sentinel.
+    if os.path.exists(os.path.expanduser("~/.claude/.browser-authorized")):
+        return 0
 
     print(json.dumps({
         "hookSpecificOutput": {
@@ -52,7 +57,8 @@ def main() -> int:
                 "work is done.\n"
                 "If they said yes, asked for screenshots / browser verification, or a skill carries "
                 "their standing authorization (e.g. the ship-report test phase), set "
-                "CLAUDE_ALLOW_BROWSER=1 for the session. Static checks (grep, reading rendered "
+                "CLAUDE_ALLOW_BROWSER=1 for the session, or touch ~/.claude/.browser-authorized (the "
+                "sentinel an authorized browser skill sets). Static checks (grep, reading rendered "
                 "output, layout math) never need this."
             ),
         }

@@ -33,6 +33,11 @@ Without it the app you screenshot may be another branch's. **On teardown, scope 
 THIS worktree's/session's path** — a broad pattern (the app or repo name) can match and kill another
 running session's server.
 
+**Authorize the browser before driving it: `touch ~/.claude/.browser-authorized`.** That sentinel is
+what `hooks/browser-launch-guard.py` reads to allow `navigate_page`/`new_page` — invoking this skill IS
+the user's approval, so drop it here rather than making them set an env var. `rm -f
+~/.claude/.browser-authorized` in the teardown step, so the guard returns to blocking an unrequested launch.
+
 ## Step 1 — Figure out what changed
 
 `git diff` the branch vs its base. List the exact frontend surfaces the change touches (routes,
