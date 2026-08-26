@@ -122,6 +122,13 @@ SCENARIOS: list[dict] = [
     {"phrase": "check that these stacked PRs merge together onto master", "expect": "ship-check-merge-readiness"},
     {"phrase": "are these open PRs ready to ship to prod as-is", "expect": "ship-check-merge-readiness"},
     #
+    # ship-full-detailed-workflow — the ORCHESTRATOR that runs the whole ship sweep on a finished PR
+    # (the SHIP counterpart to work-full-detailed-workflow). Distinct from the single-purpose ship-*
+    # skills it composes: the discriminating language is the WHOLE sweep — "all the pr skills", "the
+    # full ship workflow", "cover the whole diff and every ticket then ship".
+    {"phrase": "drive this finished PR through the whole verify-and-ship sweep", "expect": "ship-full-detailed-workflow"},
+    {"phrase": "cover the whole diff and all its tickets then ship it", "expect": "ship-full-detailed-workflow"},
+    #
     # The third group is the test phase. A verdict's evidence is a committed test rather than a
     # file:line, so he reaches for the skill in test language too. Neither phrase appears verbatim in
     # any other skill's description, so neither needs an `also_matches`.

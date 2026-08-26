@@ -416,6 +416,26 @@ CONTRACTS: dict[str, dict] = {
             "Self-improves at the end via /sk:claude-config-update and proposes nothing when the run was clean.",
         ],
     },
+    "skills/sk/skills/ship-full-detailed-workflow/SKILL.md": {
+        "mission": "A finished PR is proven to cover every ticket and the whole diff — each criterion "
+                   "backed by a committed test, both journeys verified, every thread resolved — and "
+                   "lands with a deploy sequence Simon can run, without him tracking which stage got "
+                   "skipped.",
+        "purpose": "Drives a finished PR or branch through the whole ship sequence: assemble onto "
+                   "master, verify criteria + journeys with a test per verdict, multi-model + security "
+                   "review, resolve threads, screenshot, meet the Deploy-TLDR standard, reconcile.",
+        "criteria": [
+            "Composes /sk:ship-check-merge-readiness, "
+            "/sk:ship-report-and-ensure-correct-user-system-journey, /sk:ship-review, "
+            "/sk:ship-resolve-pr-comments, /sk:ship-screenshot-changes and /sk:ship-pr; does not "
+            "re-explain them. The SHIP counterpart to /sk:work-full-detailed-workflow.",
+            "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
+            "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
+            "tickets.",
+            "Fires the browser legs (/sk:test-eyeball, /sk:test-copilot) only when the diff changes UI, "
+            "and asks first, per the no-auto-browser rule; it never boots a browser by default.",
+        ],
+    },
     "skills/sk/skills/ship-check-merge-readiness/SKILL.md": {
         "mission": "Every open PR in a set, once merged onto today's master, works together — nothing "
                    "missing, nothing double-owned, every cross-owner gap tracked and flagged blocking — "
