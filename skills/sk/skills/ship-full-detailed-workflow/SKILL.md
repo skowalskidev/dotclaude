@@ -30,7 +30,11 @@ tickets; a fix that belongs to another PR is handed to that owner via
    rest.
 3. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine. Verify the user + system
    journeys AND every ticket's acceptance criteria against the merged diff, one committed test per
-   verdict, close gaps in fix→verify loops. When it splits into 3-5+ independent tickets, fan the
+   verdict, close gaps in fix→verify loops. The exhaustive automated coverage + Claude-judge over the
+   WHOLE diff is `/sk:test-automated-full-matrix` (run it here — it enumerates every feature, writes the
+   missing tests over happy path + edges, judges intent + UX, and saves + posts the matrix to the PR);
+   ship-report's per-ticket verdicts read that matrix rather than re-deriving coverage. When it splits
+   into 3-5+ independent tickets, fan the
    per-ticket verification out — one adversarial verifier per ticket reading the real code against its
    criteria — via a Workflow or `/sk:work-superspeed` / `/sk:work-hyperspeed`
    (`references/parallelization.md`).

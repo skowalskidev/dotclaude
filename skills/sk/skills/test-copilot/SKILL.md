@@ -109,30 +109,18 @@ only what is off the path being tested (a login, an unrelated account setting).
 
 ---
 
-## Phase 2 — Claude's solo pass. Exhaust the machine first.
+## Phase 2 — the machine pass: run `/sk:test-automated-full-matrix`
 
-Earn the ask (`rules/communication.md`): a machine-catchable defect never reaches him. Run and **fix**:
+Earn the ask (`rules/communication.md`): a machine-catchable defect never reaches him. So exhaust the
+machine first by running **`/sk:test-automated-full-matrix`** on the change — it OWNS the full automated
+matrix (every feature enumerated, Stage-1 deterministic tests written + run over happy path and edges,
+Stage-2 Claude-as-judge, saved and posted to the PR). Do NOT restate that method here; this skill is the
+human half, and the two are distinct.
 
-- build, typecheck, lint, unit + integration tests
-- every route renders: status, no error boundary, expected landmark present
-- **the three states AI forgets, on every surface: EMPTY, LOADING, ERROR** — verify each exists
-- every control has a working handler; every disabled control states why
-- every stated prerequisite is reachable from where the user is told to do it
-- if a debug browser is available, do an `/sk:test-eyeball`-style pass first
-
-Loop until clean. Simon's session must start on a build that already passes every machine check.
-
-**Then produce the table that IS his task list:**
-
-| Cannot be automated | Why | What Simon must do |
-|---|---|---|
-
-Naming the missing capability turns each gap into a backlog item, and forces you to maximise the
-automated slice before asking for hands. Never fake a blocked path with a network mock — assert
-the largest verifiable slice (e.g. the buttons render) and hand over only the irreducible
-remainder.
-
-Report the solo pass as a short list of what you checked and fixed. Don't narrate commands.
+What comes back IS his task list: every feature the matrix marks **NEEDS-DRIVING** — a rendered
+interaction a unit test structurally cannot reach — is what you pace him through in Phase 4. Loop the
+matrix to green (every GAP filled with a test) before his session starts, so his eyes are spent only on
+the human-judgment remainder, never on a defect a test could have caught.
 
 ---
 

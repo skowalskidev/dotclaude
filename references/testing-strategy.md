@@ -99,6 +99,50 @@ bypasses for anything blocking a fast loop:
 - **Sequence slow whole-repo gates to protect the iteration loop** — run them once before the
   final commit, not after every commit.
 
+## The full automated test matrix — two stages, run unattended
+
+The exhaustive-coverage method behind `/sk:test-automated-full-matrix`. That skill runs this
+AUTONOMOUSLY — no human in the loop, no pacing — so it is safe to leave on a diff overnight. Its users
+(`/sk:test-copilot`'s machine pass, `/sk:ship-full-detailed-workflow`, `/sk:work-full-detailed-workflow`)
+run it and read its matrix; none of them restate the method.
+
+**Enumerate every feature the diff added; a feature is a matrix ROW, not a file.** Build the work-list
+from `git diff <base>...HEAD` cross-referenced with the plan's acceptance criteria
+(`/sk:plan-stable-persistent-dynamic-complete-full-plan`) and the Linear tickets — code with no
+criterion, or a criterion with no code, is itself a finding. The deliverable is a MATRIX: one row per
+feature — `feature · layer (frontend/backend) · Stage-1 test(file) · Stage-2 judgment · verdict
+(COVERED / GAP / NEEDS-DRIVING)`. Every feature ends with a verdict; a feature with no row is a hole.
+Cover the WHOLE diff — every changed file's features, backend, frontend, tests and docs included; never
+sample down to the "high-risk" files and eyeball the rest. TEST: the matrix's row set equals the diff's
+feature set, and the run states "N of N features covered".
+
+**Stage 1 — deterministic tests, on every feature.** Run its unit/integration/e2e coverage, happy path
+AND edge cases (empty, huge, unicode, concurrent, boundary, the auth guard). Where a feature has no
+test, WRITE one that fails against broken code — the job is that every feature ends covered, not a
+report that one was not. Deterministic checks (schema, id-shape, bounds) run first: cheapest, catch the
+most. A rendered frontend interaction a unit test structurally cannot reach is marked NEEDS-DRIVING and
+handed to `/sk:test-copilot`, never faked green with a network mock.
+
+**Stage 2 — Claude as the judge, on top of green.** A passing assertion proves the code does what
+someone thought to assert; it never proves the feature does what it was FOR. So for each feature — with
+extra, multi-step reasoning for a complex or multi-call one — Claude reads the real inputs, outputs and
+the trajectory (the writes, branches and tool calls it took) and judges two things: does this satisfy
+the feature's stated INTENT and acceptance criteria, and would a first-time USER find the result
+sensible. Judge even when Stage 1 is green — an invisible loading spinner and a lane that never polls
+both pass every unit test. Run several INDEPENDENT lenses (correctness, the money/data path, the user's
+read) rather than one long verbose pass, and default a lens to "fails" when unsure: an LLM judge carries
+position, verbosity and self-preference bias, so redundancy under diverse lenses is the mitigation. This
+is the 2026 default — an LLM judge agrees with human reviewers ~85% of the time, higher than two humans
+agree with each other. Sources: openlayer.com/blog/llm-as-judge-evaluation-guide,
+confident-ai.com/blog/why-llm-as-a-judge-is-the-best-llm-evaluation-method, deepeval.com/blog/llm-as-a-judge.
+
+**Fan out, save, post.** The features are disjoint, so fan the two stages out per-feature — via
+`/sk:work-hyperspeed` at 3-5+ slices, else an in-session Workflow under the concurrency cap
+(`references/parallelization.md`). SAVE the matrix under the run's `.context/`, and POST it to the PR's
+tests section, GitHub-native, on the posting rails `/sk:ship-screenshot-changes` Step 5 owns — so the
+coverage and judgments live on the PR, not only in a transcript. Run the same deterministic stage in CI
+to block regressions.
+
 ## Failure classes automated tests structurally cannot catch
 
 Worth an explicit check whenever the change touches one:

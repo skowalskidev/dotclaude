@@ -378,6 +378,28 @@ CONTRACTS: dict[str, dict] = {
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
+            "Runs /sk:test-automated-full-matrix for its machine pass (Phase 2) rather than restating "
+            "the automated method; the two skills are distinct (human journey vs autonomous matrix).",
+        ],
+    },
+    "skills/sk/skills/test-automated-full-matrix/SKILL.md": {
+        "mission": "Every feature a finished diff added ends with a verdict — a written test and a "
+                   "Claude-judged read against its intent and a user's eyes — posted to the PR, with "
+                   "no human in the loop, so a diff can be tested exhaustively while Simon sleeps.",
+        "purpose": "Autonomously runs the full two-stage automated test matrix over a diff/PR: Stage-1 "
+                   "deterministic tests (writing the missing ones), Stage-2 Claude-as-judge, saved and "
+                   "posted to the PR.",
+        "criteria": [
+            "Runs AUTONOMOUSLY — no AskUserQuestion, no human step — so it is safe to leave overnight; "
+            "distinct from /sk:test-copilot, the human journey, which runs THIS for its machine pass.",
+            "Enumerates EVERY feature in the diff (git diff + plan criteria + Linear) as a matrix row; "
+            "a feature with no row is a hole. Covers the whole diff, never samples down.",
+            "Two stages per feature: Stage-1 deterministic tests (happy path + edges, writes the "
+            "missing one); Stage-2 Claude-as-judge against intent + acceptance criteria + user-sense, "
+            "even when Stage-1 is green, on several independent bias-mitigated lenses.",
+            "The METHOD lives in references/testing-strategy.md; this skill points at it and does not "
+            "restate it. Fans out via /sk:work-hyperspeed.",
+            "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
         ],
     },
     "skills/sk/skills/work-does-this-make-sense-to-build/SKILL.md": {

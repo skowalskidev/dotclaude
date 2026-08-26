@@ -50,6 +50,12 @@ SCENARIOS: list[dict] = [
     {"phrase": "walk me through testing", "expect": "test-copilot"},
     {"phrase": "my tests pass but the app is broken", "expect": "test-copilot"},
 
+    # --- Automated full test matrix (autonomous, overnight) ------------------------
+    {"phrase": "run the full automated test matrix", "expect": "test-automated-full-matrix"},
+    {"phrase": "test this diff exhaustively", "expect": "test-automated-full-matrix"},
+    {"phrase": "test this PR overnight unattended", "expect": "test-automated-full-matrix"},
+    {"phrase": "automated coverage and judge posted to the PR", "expect": "test-automated-full-matrix"},
+
     # --- Copilot agile build -------------------------------------------------------
     {"phrase": "let's do this in an agile loop", "expect": "work-copilot-agile-build"},
     {"phrase": "preview it with fake data first", "expect": "work-copilot-agile-build"},
