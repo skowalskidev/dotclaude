@@ -137,6 +137,11 @@ broken-image markdown:
    images and prune closed PRs' refs later (`git ls-remote origin 'refs/screenshot-changes/*'` →
    `git push origin --delete <ref>`).
 
+**Empirically the installed `gh` has lacked `--attach`, so option 2 (the CDN) is the proven path — go
+to it as soon as the `--attach` probe comes back empty, rather than re-deriving it. Its returned URLs
+resolve to `private-user-images.githubusercontent.com`, which is NOT camo-proxied, so the VERIFY grep
+below reads 0.**
+
 **VERIFY before reporting done** — read the posted comment's rendered HTML and confirm the images are there
 and NOT camo-broken:
 ```bash

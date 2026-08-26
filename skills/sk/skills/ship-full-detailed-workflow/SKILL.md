@@ -39,7 +39,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    dial or allowlist relaxation, or an injection surface.
 6. **`/sk:ship-resolve-pr-comments`** — drive EVERY open review thread to a verdict; never hand back a
    list to chase.
-7. **`/sk:ship-screenshot-changes`** — when the diff changes a frontend surface.
+7. **`/sk:ship-screenshot-changes`** — when the diff changes a frontend surface: capture each changed
+   surface AND post them onto the PR (opt-in, GitHub-native). Plan the post from the start of the
+   sweep, not as an end-of-run afterthought.
 8. **`/sk:ship-pr`** — the PR body carries the Deploy-TLDR.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
