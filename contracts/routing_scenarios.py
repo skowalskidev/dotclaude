@@ -135,6 +135,14 @@ SCENARIOS: list[dict] = [
     {"phrase": "drive this finished PR through the whole verify-and-ship sweep", "expect": "ship-full-detailed-workflow"},
     {"phrase": "cover the whole diff and all its tickets then ship it", "expect": "ship-full-detailed-workflow"},
     #
+    # work-consolidate-supersede-branches-prs — collapsing SEVERAL branches/PRs + the base into ONE new
+    # superseding draft PR (every branch's changes propagate both ways) and building extra asks on top.
+    # Discriminator: MULTIPLE inputs becoming a new SUPERSEDING branch, not assembling one PR onto master
+    # (ship-check-merge-readiness) or shipping one finished PR (ship-full-detailed-workflow).
+    {"phrase": "consolidate these branches into one that supersedes them", "expect": "work-consolidate-supersede-branches-prs"},
+    {"phrase": "combine these PRs into one new draft PR and build this on top", "expect": "work-consolidate-supersede-branches-prs"},
+    {"phrase": "merge these branches onto each other and master then supersede both PRs", "expect": "work-consolidate-supersede-branches-prs"},
+    #
     # The third group is the test phase. A verdict's evidence is a committed test rather than a
     # file:line, so he reaches for the skill in test language too. Neither phrase appears verbatim in
     # any other skill's description, so neither needs an `also_matches`.

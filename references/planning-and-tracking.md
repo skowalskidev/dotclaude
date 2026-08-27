@@ -132,6 +132,19 @@ Durability tiers, most durable first: the ticket/tracker outlives everything; th
 the ticket before teardown (§ Promotion before teardown below). The survives-a-restart guarantee and
 the no-`/tmp` rule are process.md's, above.
 
+## Every flow writes into the ONE living plan — including verify, test, review, merge and ship
+
+DO route EVERY flow's output back into the single living plan (`.context/<slug>-plan.md`), not only the
+build's: a test matrix's per-feature verdicts, a review's findings, a merge's conflict decisions and a
+ship-report's per-ask verdicts all land IN the plan as they are produced. WHY: the plan is the ONE report
+Claude reads at the start of the next turn and updates, so a verdict left only in a transcript, a
+workflow's return value, or a side file is one the next turn cannot see — and the work drifts off its
+rail. This is `rules/living-plan.md`'s always-on rule applied to the flows that only VERIFY, not just the
+ones that build; a verify/test/review flow is a substantive flow, so it reads the plan first and
+reconciles its findings into it exactly as a build does.
+TEST: after any test/review/ship pass, the plan holds each verdict and finding it produced, none
+stranded in a transcript or a workflow result.
+
 ## Make long work resumable after a quota/usage cut-off — commit stages, resume from them
 
 DO commit every finished-and-verified STAGE of a long multi-stage task as its own green,

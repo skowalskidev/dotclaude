@@ -136,6 +136,14 @@ is the 2026 default — an LLM judge agrees with human reviewers ~85% of the tim
 agree with each other. Sources: openlayer.com/blog/llm-as-judge-evaluation-guide,
 confident-ai.com/blog/why-llm-as-a-judge-is-the-best-llm-evaluation-method, deepeval.com/blog/llm-as-a-judge.
 
+**Stage 2 covers the WHOLE diff — every feature, including one already GREEN under automated tests and
+one a unit test structurally cannot reach.** A rendered frontend surface is fully judgeable from its
+code, props and render logic without a browser: what it shows in each state, from what data. So the
+"unreachable by a unit test" NEEDS-DRIVING label is a STAGE-1 (deterministic-reachability) marker ONLY —
+it never exempts a surface from the Stage-2 reasoning judgment. Reason over that surface from its code; a
+surface stays NEEDS-DRIVING for only the pixel/animation/feel a code pass genuinely cannot settle, not
+the whole thing. (the fix for a run that punted every frontend render to a browser wholesale.)
+
 **Fan out, save, post.** The features are disjoint, so fan the two stages out per-feature — via
 `/sk:work-hyperspeed` at 3-5+ slices, else an in-session Workflow under the concurrency cap
 (`references/parallelization.md`). SAVE the matrix under the run's `.context/`, and POST it to the PR's

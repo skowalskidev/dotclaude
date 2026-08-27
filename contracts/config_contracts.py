@@ -480,6 +480,27 @@ CONTRACTS: dict[str, dict] = {
             "the assembled PR-set includes drafts, not only ready PRs.",
         ],
     },
+    "skills/sk/skills/work-consolidate-supersede-branches-prs/SKILL.md": {
+        "mission": "Several branches (and their PRs, if any) plus the latest base become ONE new branch "
+                   "that supersedes them all: every branch's changes propagate both ways, the base is "
+                   "brought current, the extra asks are built, and it ships as a draft PR (or bare branch) "
+                   "that closes the originals — the base never touched, every decision flagged.",
+        "purpose": "Consolidates several branches/PRs + the current base into one superseding draft PR, "
+                   "resolving every merge conflict for behaviour and building any additional asks on top.",
+        "criteria": [
+            "Merges on git ground truth (a trial merge enumerates the real conflict set) and verifies the "
+            "auto-merges SEMANTICALLY (build + typecheck + the affected suite + reading files both branches "
+            "edited in the same function), not just marker-free.",
+            "Resolves every conflict for behaviour by type (import union / keep-both test suites / keep-both "
+            "intents or the canonical side), and catches + flags the one side-pick that would silently "
+            "revert a fix the other side shipped.",
+            "Never merges/pushes/writes the base; leaves the new PR DRAFT; closes each superseded PR with a "
+            "comment linking the new one.",
+            "Clears the inherited dead-code scan to 0 (delete / export-the-leaked-type / justified "
+            "suppression / flag-if-unwired) and reconciles every ask to a verdict + committed-test evidence "
+            "at hand-back.",
+        ],
+    },
     "skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md": {
         "mission": "Every point of Simon's ask is provably built, backed by a test, before the work is handed back.",
         "purpose": "Assembles the end-of-work report (user journey, system journey, mismatches, "
