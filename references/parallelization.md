@@ -74,9 +74,13 @@ use this loop; it is defined ONCE here and neither restates it.
 Recording all three as one number gets two of them the wrong prescription — measured across two
 consecutive runs whose identical rework counts came from opposite causes.
 
-**Analyse every run, then heal only what RECURS.** Run
-`/sk:claude-config-self-optimize-analysis-after-run <run-dir>` on completion — an event, not a cron, so
-it stays inside `rules/self-healing-config.md`'s no-periodic-scan line. It reads what the run left and
+**Analyse every run, then heal only what RECURS.** AUTO-run
+`/sk:claude-config-self-optimize-analysis-after-run <run-dir>` BACKGROUNDED as the orchestrator's FINAL
+action once the round's learnings are in (after assembly + cleanup), unprompted — never wait to be asked,
+so the loop closes on every run, not only when Simon remembers. It is an event, not a cron, so it stays
+inside `rules/self-healing-config.md`'s no-periodic-scan line, and it emits the run's `runs` row to the
+dotclaude store with `parts`/`rounds`/`rework` POPULATED from `reconcile.json` (TEST: the emitted row
+carries no null partition field — 2 prior runs logged all-null and taught the optimizer nothing). It reads what the run left and
 proposes durable fixes, including to the skill itself. But **auto-analyse, never auto-optimize:** the
 run analyses itself, it does not change the config on its own — an edit still goes through the
 self-healing propose-and-confirm gate, and most runs propose NOTHING. Weigh every candidate against the
@@ -148,24 +152,34 @@ node -v`, or invoke the pinned release directly, e.g. `node .yarn/releases/yarn-
 native install; a FIRST action writing
 `{"status":"working","part":"<name>","branch":"<branch>"}` to `<STATUS_DIR>/<name>.json` (branch recorded
 NOW so a mid-work death still leaves it); a LAST action that tears down everything it started then
-OVERWRITES the file with `{"status":"done","part":"<name>","branch":"<branch>","paths":[<absolute
-outputs>],"goals":"met|not-met"}` (or `{"status":"blocked","part":"<name>","reason":"<why>"}`); and, after
-that, the fallback report block (§ below) printed in case the status write failed. Throughout, it also
-keeps a TIMESTAMPED phase log and a FRICTION report beside its status file: `<STATUS_DIR>/<name>.log` gets
-a UTC timestamp at each phase boundary (install start/end, build start/end, work start/end) so the
-orchestrator sees WHERE the wall-clock went; `<STATUS_DIR>/<name>.friction.md` lists everything that
-slowed it or it had to fix (a node_modules symlink, a missing setup step, a cold rebuild that should have
-been a cache hit), each with the fix and the instruction that would have avoided it — this is what the
-self-improve loop harvests. Every `/sk:` name a
+OVERWRITES the file with the FROZEN done shape — these keys ONLY, these types, so the orchestrator
+parses N files uniformly instead of guessing each part's dialect: `{"status":"done","part":"<name>",
+"branch":"<branch>","commit":"<pushed SHA, a STRING, keyed `commit` not `commits`>","paths":[<absolute
+outputs>],"goals":"met|not-met","notes":"<one line, a STRING never an object>"}` (or
+`{"status":"blocked","part":"<name>","branch":"<branch>","reason":"<why>"}`); and, after that, the
+fallback report block (§ below) printed in case the status write failed. TEST: the N `<name>.json` files
+share ONE key-set; a part that keyed `commits`, dropped `goals`, or made `notes` an object broke the
+schema. Throughout, it ALSO writes two files the self-improve loop needs, and — load-bearing — the
+orchestrator MUST copy BOTH instructions into every generated block verbatim: summarising this section
+down into a paste-block is exactly where they get silently dropped (three hyperspeed rounds ran with
+neither, so the analyser saw "no slices" and the dotclaude row logged all-null — the loop learned
+nothing). `<STATUS_DIR>/<name>.log` gets a UTC timestamp at each phase boundary (install start/end, build
+start/end, work start/end) so the orchestrator sees WHERE the wall-clock went; `<STATUS_DIR>/<name>.friction.md`
+lists everything that slowed it or it had to fix (a node_modules symlink, a missing setup step, a cold
+rebuild that should have been a cache hit), each with the fix and the instruction that would have avoided
+it — this is what the self-improve loop harvests. TEST: after a round, every part left a non-empty `.log`
+beside its `.json`; a missing one means the block template omitted the instruction. Every `/sk:` name a
 block loads must be VERIFIED installed first (`find -L ~/.claude/skills -name SKILL.md`) — one wrong name
 derails every session at once.
 ```bash
 git fetch origin
-git switch -c <harness>/<run-id>/<name> <START-SHA>   # a Conductor workspace is already on its own branch
-# off START — keep that one instead. CONFIRM it sits on START before working: git merge-base HEAD
-# <START-SHA> must equal <START-SHA>; if not (Conductor often branches off the DEFAULT tip, not START),
-# git reset --hard <START-SHA> — safe, the worktree is fresh and clean. REPORT the exact branch name
-# (Conductor names its own), so the orchestrator cleans up by the reported name, never by a pattern.
+git switch -c <harness>/<run-id>/<name> <START-SHA>   # a Conductor workspace already has its own branch,
+# usually off the DEFAULT tip, NOT START — so ALWAYS `git reset --hard <START-SHA>` first (the worktree is
+# fresh + clean, so it is safe), then ASSERT `git rev-parse HEAD` == <START-SHA> before any work; do not
+# trust that it sits on START. THEN assert every owned file EXISTS at START (`git cat-file -e <START-SHA>:<path>`
+# per file): a part whose owns were deleted upstream is DEAD ON ARRIVAL — report it covered-by-absorption and
+# stop, never rebuild the deleted files. REPORT the exact branch name (Conductor names its own) so the
+# orchestrator cleans up by the reported name, never by a pattern.
 # …do the work…
 git add -A && git commit -F <msg-file>     # -F, never -m
 git push -u origin HEAD
