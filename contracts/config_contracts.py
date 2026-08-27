@@ -552,6 +552,9 @@ CONTRACTS: dict[str, dict] = {
             "Screenshots each CHANGED surface (from git diff), seeded into the state a user would see "
             "it, with realistic example inputs, saved inside a workspace root — no bug-hunt, no edge "
             "fuzzing, no fix-loop.",
+            "Has a JOURNEY mode: captures a user FLOW as an ordered numbered sequence (step-<n> shots), "
+            "the steps derived from the user journey (/sk:ship-report + references/user-journey-review.md), "
+            "and posts them in step order — coexisting with the changed-surfaces mode, not replacing it.",
             "Circles each change with a rounded-rectangle callout and, for a visual change, captures a "
             "BEFORE/AFTER pair (old value vs new) — stated generically for any UI, not overfit to one "
             "framework or token.",

@@ -44,6 +44,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "post the screenshots to the PR", "expect": "ship-screenshot-changes"},
     {"phrase": "circle the changes", "expect": "ship-screenshot-changes"},
     {"phrase": "before and after screenshots of the change", "expect": "ship-screenshot-changes"},
+    {"phrase": "screenshot the user flow", "expect": "ship-screenshot-changes"},
+    {"phrase": "screenshot the user journey", "expect": "ship-screenshot-changes"},
 
     # --- Testing with Simon --------------------------------------------------------
     {"phrase": "let's test this together", "expect": "test-copilot"},

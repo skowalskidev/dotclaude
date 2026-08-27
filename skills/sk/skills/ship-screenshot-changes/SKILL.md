@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — opt-in, only with an open PR and Simon's yes — posts them onto the PR (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — opt-in, only with an open PR and Simon's yes — posts them onto the PR (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [optional focus, e.g. "the new dashboard section"]
 ---
 
@@ -88,6 +88,19 @@ capture glitch: the value must be defined at a scope the portal inherits (the do
 the app-root element. Capturing the real overlay state is how this class of bug surfaces; unit tests miss
 it.
 
+### Journey mode — capture the flow as ordered steps (for a user FLOW)
+
+When the change is a FLOW the user walks (connect → pick → confirm → done), isolated surface shots don't
+show the flow — capture it as an ORDERED SEQUENCE. Derive the steps from the user journey, never invent
+them: `/sk:ship-report-and-ensure-correct-user-system-journey` writes the user journey for the diff, and
+`~/.claude/references/user-journey-review.md` is how it's walked as a first-time user. Drive the flow
+through those numbered steps in order and `take_screenshot({filePath})` at EACH — the entry state, each
+meaningful interaction (the click that advances it), and the end state — named `step-<n>-<label>.png` so
+the files sort into the flow. Callout the element that changed at each step, as in surface mode. TEST:
+the shot set, read in filename order, replays the journey with no step missing. Surface mode (Step 3)
+still runs for any changed surface a linear flow doesn't reach; the two modes coexist — run journey mode
+for the flow, surface mode for the rest.
+
 ## Step 4 — Hand them back
 
 Show the annotated shot of each changed surface (its BEFORE/AFTER pair where captured) with the example
@@ -100,7 +113,8 @@ inputs visible, list what each shows, and `open` the screenshots directory in Fi
 
 By default the screenshots are handed back locally (Step 4). Post them ONTO the PR only when BOTH hold:
 the branch has an OPEN PR (`gh pr view --json number,url,isDraft`) AND Simon says yes — posting to a work
-PR is outward-facing (the reviewer sees it). ASK first; never auto-post.
+PR is outward-facing (the reviewer sees it). ASK first; never auto-post. For journey mode, post the step
+shots in filename (step) order, each captioned with its step, so the comment reads as the flow top to bottom.
 
 **GitHub-only — never an external host.** In a PRIVATE repo (a work repo usually is), GitHub's Camo proxy
 can't authenticate: `raw.githubusercontent.com`, release assets and external hosts all render as a BROKEN
