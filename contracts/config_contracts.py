@@ -1161,6 +1161,10 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Blocks only the launch/navigate tools (new_page, navigate_page); the rest are inert "
             "without a page and stay allowed.",
+            "Gates ONLY a launch/navigate to the LOCAL app under verification (localhost / 127.0.0.1 "
+            "/ 0.0.0.0 / [::1] / *.localhost). A non-local URL (github.com, external docs, a remote "
+            "dev deploy) and a back/forward/reload with no URL are allowed without the override — "
+            "browsing the web is not frontend verification.",
             "Overridable two ways when Simon said yes or a skill carries his standing authorization: "
             "CLAUDE_ALLOW_BROWSER=1, or the ~/.claude/.browser-authorized sentinel that an authorized "
             "browser skill drops and removes at teardown.",
