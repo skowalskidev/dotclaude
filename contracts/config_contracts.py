@@ -952,6 +952,15 @@ CONTRACTS: dict[str, dict] = {
             "iframe.srcdoc, Current restoring the pristine capture), never a second "
             "*-mockup/*-redesign/*-variants .html sibling; a second file for the same surface, so he "
             "can no longer flip between versions of any part of the page in one place, is the violation.",
+            "Writes every rebuild in place to ONE canonical path per surface — a fixed filename, or a "
+            "stable mockup.html alias resolving to the current build — so the link Simon bookmarks opens "
+            "byte-identical every iteration; a rename to a -redesign/-variants/-gallery file that makes "
+            "him re-find it is the violation.",
+            "Offers multiple variants only while an open question is unresolved; the moment Simon picks "
+            "one — or when the change was a decided edit from the start — the chosen design becomes the "
+            "default the mockup opens on and every superseded design is demoted to a labelled "
+            "before-reference. A decided change left as one of N equal options, or a mockup still "
+            "defaulting to the superseded design, is the violation.",
             "Diffs every overlaid and new-state component against a real render before showing him, "
             "and when a divergence traces to the skill folds the fix forward through "
             "/sk:claude-config-update. That is the self-healing-config loop.",

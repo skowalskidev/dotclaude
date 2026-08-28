@@ -60,6 +60,40 @@ TEST: after any mockup iteration, the surface still has exactly ONE mockup file 
 is reachable as a variant/version toggle inside it; a second `*-mockup`/`*-redesign`/`*-variants` `.html`
 file for the same surface is the violation.
 
+## One stable link — the mockup's path never changes across iterations
+
+**DO give the surface's mockup ONE canonical entry point whose path never changes — a fixed filename, or
+a stable alias like `mockup.html` that always resolves to the current build — and write every rebuild IN
+PLACE to that same path.** Simon bookmarks it once and hits refresh; the link he opened last round opens
+this round's build.
+**DON'T rename the file, and DON'T point "the current version" at a new filename across iterations** — no
+`-redesign` today, `-variants` tomorrow, `-gallery` the day after. A renamed file breaks the bookmark and
+sends him hunting for the new one every round.
+WHY: the single-file discipline (§ above) exists so he flips between versions in ONE place; a path that
+moves defeats it before he even opens the file.
+DEFAULT: one fixed path per surface, forever; a rebuild writes over it, never beside it under a new name.
+TEST: the path Simon opens is byte-identical across every iteration (the fix for a mockup he had to
+re-find when a `-redesign` file became a `-variants` file became a `-gallery` file); a rebuild that makes
+him find a new filename is the violation.
+
+## Variants while EXPLORING; a DECISION collapses to a default
+
+**DO offer multiple variants to choose from ONLY while an open question is still open.** The moment Simon
+picks one — or when the change was a decided edit from the start, never an exploration — make the chosen
+design the DEFAULT the mockup OPENS ON, and demote every superseded design to a labelled `Before — …`
+reference.
+**DON'T keep a decided change as one equal option among many, and DON'T leave the mockup opening on the
+old design after a decision.** Once he picks "severity-tiered list" it is THE view, not option 4 of 10; a
+2→4 tab split that was decided up front opens on the 4-tab design, not as a "Current vs New" toggle
+defaulting to the 2-tab.
+WHY: a settled design shown as one equal option reads as still-open and invites re-litigating what he
+already decided.
+DEFAULT: exploring → N variants; a decision, or a decided-from-the-start edit → the chosen design is the
+open-on default, the old kept only as a before-reference.
+TEST: after Simon states a decision, the mockup opens by default on the chosen/decided design with the
+old kept only as a labelled before-reference; a decided change presented as one of N equal options, or a
+mockup still defaulting to the superseded design, is the violation.
+
 ## Ask for the direction FIRST — reference images
 
 Before designing an AFTER, ASK the user for reference images of interfaces they like — it is the
