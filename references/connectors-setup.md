@@ -61,9 +61,14 @@ specific glue is an optional Conductor `scripts.setup` in a WORK repo's machine-
 Fields:
 - `name` — the MCP server name (becomes `mcp__<name>__*` tool prefix) or a CLI/label.
 - `kind` — **OPEN string, adapter-backed** (not a closed enum). Shipped adapters: `mcp-http`,
-  `mcp-stdio`, `cli`, `api` (a.k.a. `service-key`), `env` (runtime secret-manager, e.g. AWS dogfood).
-  A new type = one new adapter case in `bin/connectors-provision.sh` + `hooks/work-resource-guard.sh`;
-  nothing else changes.
+  `mcp-stdio`, `cli`, `api` (a.k.a. `service-key`), `env` (runtime secret-manager, e.g. AWS dogfood),
+  `claude-connector` (a claude.ai account-level connector — loaded from claude.ai connector settings in
+  every session, NEVER registered by the engine; readiness is `account`, and the boundary guard matches
+  on its live server-id `name`, e.g. `mcp__<id>__*`. Use when the connector is configured in claude.ai,
+  not via `claude mcp add-json`; no `mcp` block, and no guard change is needed since the guard is already
+  name/boundary-driven and kind-agnostic).
+  A new type = one new adapter case in `bin/connectors-provision.sh` (+ `hooks/work-resource-guard.sh`
+  only if it needs kind-specific guard logic); nothing else changes.
 - `env` — variant: `dev`|`prod`|`sandbox`|`production`|… A platform may have several records (Firebase
   dev + prod; Stripe sandbox + production), all usable at once.
 - `boundary` — `work`|`personal`; the guard enforces it. Defaults to the manifest `boundary`.
@@ -84,8 +89,8 @@ Fields:
 ## Adapters (the per-`kind` behaviors the engine calls)
 
 Each `kind` implements the same five behaviors:
-1. **provision** — make it available (mcp-*: `claude mcp add-json -s local`; api/cli/env: no-op).
-2. **readiness** — is it usable now? (mcp-*: registered + not needs-auth; cli: logged-in profile; api/env: key/secret present).
+1. **provision** — make it available (mcp-*: `claude mcp add-json -s local`; api/cli/env/claude-connector: no-op).
+2. **readiness** — is it usable now? (mcp-*: registered + not needs-auth; cli: logged-in profile; api/env: key/secret present; claude-connector: `account` — loaded from claude.ai settings, so present whenever the session has it).
 3. **auth-steps** — the numbered fix (from `auth.steps`), which is also how the key gets created.
 4. **boundary-guard** — deny in the wrong boundary; deny writes when `readOnly`/`gated` (handled data-driven in the guard).
 5. **secret-location** — where the key lives (for `permissions.deny` + the readiness check).

@@ -18,7 +18,10 @@
 #   connectors-provision.sh --manifest [DIR] print the resolved manifest path (or nothing)
 #
 # Adapters by connector.kind: mcp-http | mcp-stdio (registered as MCP servers); api | service-key |
-# cli | env (no MCP registration — readiness is reported by --check, setup is via the auth-gate/doctor).
+# cli | env | claude-connector (no MCP registration — readiness is reported by --check, setup is via the
+# auth-gate/doctor). claude-connector is a claude.ai account-level connector loaded from claude.ai
+# connector settings, NOT via `claude mcp add-json` — the engine never registers it; the boundary guard
+# matches on its live server-id `name`.
 # A new kind = add a case below. See ~/.claude/references/connectors-setup.md for the schema.
 set -u
 
@@ -96,6 +99,7 @@ if [ "$mode" = "check" ]; then
       api|service-key) if [ -n "$spath" ] && [ -f "$(expand_tilde "$spath")" ]; then status="key-present"; else status="key-missing"; fi ;;
       cli) status="cli" ;;
       env) status="env" ;;
+      claude-connector) status="account" ;;   # claude.ai account-level connector; loaded from claude.ai settings, not registered here
     esac
     if [ -n "$spath" ] && [ "$kind" != api ] && [ "$kind" != service-key ]; then
       [ -f "$(expand_tilde "$spath")" ] || status="$status,key-missing"
@@ -142,7 +146,7 @@ while IFS= read -r c; do
         echo "  ! 'claude' CLI not on PATH; cannot register $name" >&2
       fi
       ;;
-    api|service-key|cli|env) : ;;   # no MCP registration; readiness is via --check and the auth-gate/doctor
+    api|service-key|cli|env|claude-connector) : ;;   # no MCP registration; readiness is via --check and the auth-gate/doctor
     *) echo "  ? unknown kind '$kind' for $name (add an adapter in connectors-provision.sh)" >&2 ;;
   esac
 done < <(jq -c '.connectors[]?' "$manifest" 2>/dev/null)
