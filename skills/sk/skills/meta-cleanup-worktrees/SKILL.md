@@ -1,6 +1,6 @@
 ---
 name: meta-cleanup-worktrees
-description: Safely clean up DONE git worktrees and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. It lists and CONFIRMS before it deletes anything, never force-deletes, and BLOCKS any worktree with a live session, uncommitted changes, unpushed commits, or an open/unmerged PR. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "clean up merged worktrees", "remove done worktrees and branches", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
+description: Safely clean up DONE git worktrees and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. It lists and CONFIRMS before it deletes anything, never force-deletes, and BLOCKS any worktree with a live session, uncommitted changes, unpushed commits, or an open/unmerged PR. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "clean up merged worktrees", "remove done worktrees and branches", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
 argument-hint: "[optional repo path; defaults to the current repo]"
 ---
 
@@ -98,8 +98,21 @@ worktree to read local-only commits from. Then `git branch -D`; no worktree to r
 ## Step 4 — present and CONFIRM (never delete unprompted)
 
 Show a table, grouped: ✅ removable · ⛔ blocked (with the exact reason) · 🌱 branch-only. Then use
-AskUserQuestion and act ONLY on Simon's yes. Deleting the REMOTE counterpart of a ✅/🌱 local orphan being
-removed is a SEPARATE, extra-confirmed step — it is a shared-remote write — and is OFF by default.
+AskUserQuestion and act ONLY on Simon's yes.
+
+**Honor an explicit keep-list.** When Simon names branches or worktrees to keep, HARD-EXCLUDE them from
+every removable group before presenting — above the gate, even for ones the gate would already block.
+
+**Offer the merged remote counterparts as their OWN opt-in question — do NOT stay silent.** For every
+✅/🌱 local orphan being removed whose `origin/<branch>` is ALSO ancestor-merged into `origin/<default>`
+(`git rev-list --count origin/<default>..origin/<branch>` is `0`), list those remotes and ASK whether to
+delete them too. It is a separate shared-remote write, so it defaults to no — but SURFACE it in the same
+gate, never omit it and make Simon ask.
+
+**Only the user's OWN remote branches.** A shared remote holds teammates' branches, so before offering a
+remote confirm its tip author is Simon's: `git log -1 --format='%ae %an' origin/<branch>` matches his git
+author (the `skowalskidev` GitHub identity / a `simon@` email). NEVER offer or delete a remote branch
+someone else authored, even when it is the counterpart of a local orphan Simon is removing.
 
 ## Step 5 — remove, safely (only after yes)
 
@@ -121,7 +134,8 @@ For each confirmed-removable worktree:
   `origin/<default>` — a false negative that leaves the leftover uncleaned. The Step 3 gate (ancestor of
   `origin/<default>` OR gh `MERGED`) is the real seatbelt; `references/git-pr-deploy.md` § "Deleting a
   merged branch safely" owns this rule. Never `-D` a branch that did not pass the gate.
-- Remote branch, only if extra-confirmed: `git push origin --delete <branch>`.
+- Remote branch, only if extra-confirmed AND its tip author is Simon's (Step 4's `%ae %an` check):
+  `git push origin --delete <branch> …` (batch them in one push). Never a branch someone else authored.
 
 Then once, at the end: `git worktree prune -v` (reclaims the removed entries + any `fallow-*` scratch
 worktrees git has already orphaned). VERIFY against disk: `ls` the workspaces dir AND `git worktree list`
@@ -151,7 +165,10 @@ ancestry, then `-D`)** · **local `master` enumerated when the main checkout sit
 does not prove containment — a squash/rebase tip carrying post-merge commits needs the pushed check
 before `-D`** · **a remote part branch is the owning run's job (hyperspeed Step 6, by recorded name) —
 meta-cleanup deletes only the remote COUNTERPART of a local orphan it removes, extra-confirmed, never a
-repo-wide remote purge (a shared remote is hundreds of others' branches)** · **on-disk dir git no longer
+repo-wide remote purge (a shared remote is hundreds of others' branches)** · **keep-list Simon names is
+hard-excluded ABOVE the gate** · **the merged-remote-counterpart offer is SURFACED in the gate, never
+left for Simon to ask** · **a remote counterpart authored by a TEAMMATE is never offered or deleted —
+only Simon's own, by `%ae %an` tip author** · **on-disk dir git no longer
 tracks — `git worktree remove` errors; idle-check then `rm -rf`, extra-confirmed** · **`git worktree
 remove` is SLOW (deletes `node_modules`, tens of thousands of files) — long timeout; a short cap kills it
 mid-delete and the worktree goes `prunable` with the dir left on disk, finish with `prune` + `rm -rf`** ·

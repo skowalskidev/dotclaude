@@ -1041,7 +1041,10 @@ CONTRACTS: dict[str, dict] = {
             "Never --force on git worktree remove; deletes a branch with git branch -D only after the "
             "merge gate passes (ancestor of origin/<default>, or gh-MERGED AND fully pushed), because git "
             "branch -d's HEAD-relative check falsely refuses a merged branch from a stale worktree.",
-            "Lists and CONFIRMS before deleting; remote-branch deletion is a separate extra-confirmed step, off by default.",
+            "Lists and CONFIRMS before deleting, and hard-excludes any keep-list Simon names above the "
+            "gate; remote-branch deletion is a separate extra-confirmed step, surfaced as its own opt-in "
+            "question in the gate (never left for Simon to ask) and restricted to branches Simon himself "
+            "authored (tip author %ae %an), never a teammate's.",
             "Verifies cleanup against on-disk storage, not just git worktree list, and names the "
             "Conductor sessions (codename + alias) for Simon to archive without touching the Claude UI.",
             "Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh and points to process.md + "
