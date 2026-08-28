@@ -111,14 +111,19 @@ land, in what order, and what would have broken otherwise.
 - Report: is-it-ready per PR, the assembled deploy order, every cross-owner ticket filed with its
   blocking flag, and anything still open that only the human can settle. Flip to ready only when
   the assembly holds and every blocking dependency is tracked.
-- **Three execution traps quietly break the proof — check each.** (1) A PR stacked on a non-default
+- **Four execution traps quietly break the proof — check each.** (1) A PR stacked on a non-default
   branch has its heavy CI jobs SKIPPED (only the PR targeting the default branch runs the full suite);
   skipped ≠ passed, so verify the stacked branches LOCALLY (build + suites + static gate). (2) A gate
   fix can INTRODUCE a new finding — extracting a helper to cut complexity creates a duplication finding,
   a test's alias-path mock string trips an unlisted-dependency check — so re-run the static gate after
   EACH fix and iterate to clean, one fix is not the end. (3) A pre-push hook can fail on an unrelated
   missing local tool (a linter binary nobody installed) and block every push; run the one gate that
-  matters manually, push `--no-verify`, and flag the environment gap.
+  matters manually, push `--no-verify`, and flag the environment gap. (4) A sibling branch checked out
+  in a git worktree UNDER the repo root (`.claude/worktrees/<name>/`) makes the primary checkout's suite
+  LIE: unless the project's test globber excludes that path, running from the main checkout globs BOTH
+  its own tests and the worktree's copies and double-counts (one run read 680 tests where the real count
+  was 362). Verify the assembled tree IN the worktree, treat a reported test count that exceeds the
+  on-disk test-file count as the tell, and fix the project by excluding the worktree path from its test config.
 
 ## Step 6 — Drive every open thread to a decisive ship-ready verdict
 
