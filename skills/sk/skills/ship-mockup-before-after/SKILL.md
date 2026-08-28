@@ -95,6 +95,21 @@ comment; re-running `render(spec)` reproduces the mockup exactly.
 
 ## Capture the BEFORE from the real app
 
+**DO CAPTURE an existing screen as a 1:1 self-contained HTML first — that capture IS the before-base,
+not a screenshot to rebuild from.** A headless real browser (Playwright) authenticates via the project's
+own auth path and navigates to the seeded screen; then SingleFile (gildas-lormeau) serialized IN-PAGE —
+inject its `single-file-bundle.js` with `addScriptTag`, call `singlefile.getPageData({ blockScripts:true,
+… })` — inlines every stylesheet, font and image as a `data:` URI. The output opens from `file://` with
+ZERO external requests and is pixel-identical to the live render, because it IS the render, not a
+re-description of it.
+**DON'T rebuild an existing screen from component code + measured styles.** A rebuild drifts on exactly
+the details invisible to the rebuilder: the fix for a mockup that showed a fabricated "$1,088/Pending"
+where the real account read "Free access", and dropped a real banner and two table rows — each caught
+only by capturing the real page. Reserve the screenshot-raster + measured-styles path below for a surface
+that does NOT exist yet, or for building the AFTER overlay on top of a capture.
+TEST: for an existing screen, the before-base opens offline with 0 external requests and every string on
+it traces to the live render, not to a component read.
+
 **DO screenshot the target screen at a FIXED viewport, in one theme, populated with realistic data.** A
 seeded demo is fine and preferred — seed the screen and everything it references with realistic values
 (plausible names, lengths, counts) so it looks like the app in real use. Record the route, viewport
@@ -108,6 +123,35 @@ states are the whole reason to look, and only realistic content shows them.
 own; a downscaled WebP is roughly 40x smaller. Cap inlined screenshots at about 1-3 and keep the total
 base64 well under the model's output cap, or the document cannot be rewritten in one turn. Prefer
 rendering a state from measured-style DATA over screenshotting it wherever the state is reachable.
+
+**DO fan out the capture across parallel agents and separate seeded accounts by default.** Each
+persona/state is an independent seed→capture, so run them at once — one agent per state, on its own
+seeded account where two or more exist, falling back to a sequential re-seed on ONE account only when no
+second account is available. Parallelise the other independent steps (seeding, verifying, the per-tile
+checks) the same way.
+TEST: N persona states are captured by N concurrent agents, not a serial loop, whenever N accounts exist.
+
+**DO offer real PRODUCTION merchant profiles as preview personas when the value is seeing REAL data.**
+Read a merchant's owner-scoped records from prod with a READ-ONLY key (never write to prod, never
+authenticate as a prod user), copy them into a dev account with the owner id remapped, and capture on
+DEV — so the page renders the real data under dev auth while prod stays untouched. Copy EVERY collection
+the screen reads, not the obvious ones: a page that reconciles money reads more than the funnel does (the
+fix for a capture that showed "0 recovered" in the funnel while the commission card read $1,617 — a
+rolling measurement snapshot plus its `saves` subcollection were the missing sources; grep the page's
+hooks for every read before copying). Preserve the doc IDs any cross-doc reconcile depends on (a snapshot
+row keyed to an enrollment id), and write a connected-state stand-in for a live provider connection that
+cannot be copied. Capture the TAB that shows the data — a merchant whose primary tab is empty renders its
+real numbers on another tab, so click into it before serializing.
+TEST: the dev-rendered page reconciles to the same numbers prod shows, and prod received zero writes.
+
+**DO re-inject a SMALL interaction layer into a static capture so the components that COLLAPSE or toggle
+still work.** SingleFile strips the app's JS, so the capture is frozen — but the rendered DOM keeps its
+`data-testid`s and framework classes, so a tiny injected script re-wires the interactions whose content
+is present in the captured DOM (a collapsible panel: on the header's `data-testid` click, toggle the
+framework collapse body). An interaction whose target content is NOT in the capture — a TAB whose other
+view never rendered — needs a per-tab capture (capture each tab state, swap between them), not a re-wire.
+TEST: the injected layer toggles the collapsible in the captured page; a tab-switch either swaps between
+per-tab captures or is left frozen with a note, never a dead control.
 
 ## Measure the real components — never eyeball the AFTER
 
@@ -389,7 +433,11 @@ measurement it skips, a token it never reads, a state it forgets — propose the
 through `/sk:claude-config-update` so the next mockup is exact from the first render. That is the
 `self-healing-config` loop.
 
-**DO iterate on the mockup until he approves it.** Then the second half of this skill starts.
+**DO iterate on the mockup until he EXPLICITLY confirms implementation — mockup-only, no platform
+changes, in a loop.** Every change he asks for lands in the MOCKUP (re-capture, re-inject, edit the
+spec), never in the app, and the loop continues until he says to implement in his own words ("implement",
+"build it", "go build", "the mockup is approved"). A green mockup he has not signed off is not approval;
+do not touch app source before the word. Then the second half of this skill starts.
 
 ## After he approves: implement it, prove it matches
 

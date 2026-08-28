@@ -871,16 +871,21 @@ CONTRACTS: dict[str, dict] = {
     "skills/sk/skills/ship-mockup-before-after/SKILL.md": {
         "mission": "The screen Simon approved is the screen that ships — he judges it by looking "
                    "before the work, and never has to find a missing detail by looking after it.",
-        "purpose": "Publishes a standalone, shareable Claude artifact of a planned change before/after "
-                   "— a real screenshot plus the real components' measured styles, walkable as a "
-                   "storyboard — one per ticket or plan part.",
+        "purpose": "Publishes a standalone, shareable before/after of a planned change — an existing "
+                   "screen captured 1:1 as self-contained HTML (Playwright + SingleFile), or a real "
+                   "screenshot plus the real components' measured styles for a new surface or the AFTER "
+                   "overlay, walkable as a storyboard — one per ticket or plan part.",
         "criteria": [
             "Ships a self-contained shareable Claude artifact for a change with a real screen, never "
             "a dev route to view it and never HTML rebuilt by eye. Fidelity comes from real pixels; "
             "both alternatives were rejected 2026-08-10.",
-            "Captures the BEFORE as a screenshot of the target screen at a fixed viewport, populated "
-            "with realistic data — a seeded demo counts — never placeholder, lorem or empty-stub "
-            "content, which hide the states worth looking at.",
+            "Captures the BEFORE of an existing screen as a 1:1 self-contained HTML (Playwright auth "
+            "plus SingleFile serialize) that opens offline with zero external requests and is "
+            "pixel-identical to the live render, never rebuilt from component code by eye; a screenshot "
+            "at a fixed viewport with realistic seeded data is the fallback for a new surface or an "
+            "AFTER overlay, never placeholder, lorem or empty-stub content. Fans out multiple states "
+            "across parallel agents and separate seeded accounts, a sequential re-seed on one account "
+            "as the fallback.",
             "Measures the real components (getComputedStyle, getBoundingClientRect: size, font, "
             "colour, spacing, radius) and sizes the AFTER from those values. Every dimension and "
             "colour in the overlay traces to a measured value, never eyeballed.",
@@ -898,6 +903,16 @@ CONTRACTS: dict[str, dict] = {
             "than loading a separate design skill.",
             "Carries a BEFORE/AFTER toggle defaulting to after, floated over the screen using none "
             "of the app's tokens, so scaffolding never reads as a shipped feature.",
+            "Offers real PRODUCTION merchant profiles as preview personas by reading their "
+            "owner-scoped records with a read-only key, copying to a dev account with the owner "
+            "remapped, and capturing on DEV — prod never written or authed; copies every collection "
+            "the page reads, not just the funnel's, so the dev render reconciles to prod's numbers.",
+            "Re-injects a small interaction layer into a static capture so a collapsible or toggle "
+            "component still works, re-wiring the DOM's surviving data-testids and framework classes; "
+            "a tab whose other view never rendered needs a per-tab capture, never a dead control.",
+            "Iterates on the mockup only, no platform changes, in a loop until the user explicitly "
+            "confirms implementation in his own words; a green mockup unsigned-off is not approval, and "
+            "app source stays untouched before the word.",
             "Cites the validated plan part behind every visible difference and refutes in comments "
             "anything that changed after validation. Unsourced difference is invented scope, and "
             "this is the cheapest moment to catch it.",
