@@ -40,6 +40,26 @@ the product — the exploration belongs in the layout, not in the fidelity. TEST
 the real screen, and every colour/font/radius/theme in the AFTER traces to a measured value, even in a
 blind round.
 
+## One mockup file per surface — a new exploration is a new variant, never a new file
+
+**DO keep every exploration for one surface inside the SINGLE existing mockup file for that surface: a
+new idea, a section redesign, or "another version of X" is a new switchable variant (or version) added
+to that one file.** The file runs N switch axes at once — a PERSONA / data axis (which captured page or
+seeded state is shown) and a per-section DESIGN-VARIANT axis (each region's alternative designs). A
+section variant is swapped INTO the live captured page in context via a nested `iframe.srcdoc`, and the
+`Current` option restores the pristine capture, so a redesign is judged against the real surrounding
+page. Adding "versions of another part of the page" is adding another SECTION entry on the design axis,
+still in the one file.
+**DON'T create a second mockup file for a new idea, a section redesign, or another version** — no
+`*-redesign.html`, no `*-variants.html` sibling. A second file splits the exploration so he can no
+longer flip between versions of any part of the page in one place, which is the whole reason the single
+file exists. The fix for exactly that: fold both spun-off files back into the one gallery, where the
+redesigned region is just one more SECTION with its variants on the design axis.
+DEFAULT: one mockup file per surface, forever; every later exploration lands in it as a variant/version.
+TEST: after any mockup iteration, the surface still has exactly ONE mockup file and the new exploration
+is reachable as a variant/version toggle inside it; a second `*-mockup`/`*-redesign`/`*-variants` `.html`
+file for the same surface is the violation.
+
 ## Ask for the direction FIRST — reference images
 
 Before designing an AFTER, ASK the user for reference images of interfaces they like — it is the

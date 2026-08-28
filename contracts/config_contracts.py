@@ -946,6 +946,12 @@ CONTRACTS: dict[str, dict] = {
             "Keeps every version inside #spec as attributed history (v1 author, v2 recipient), "
             "switchable from the HUD; a recipient's Claude edits the file or regenerates from the "
             "block into a new attributed version, and never flattens an old one.",
+            "One mockup FILE per surface, forever: a new idea, a section redesign, or another "
+            "version of X lands in that one file as a switchable variant/version across its axes (a "
+            "persona/data axis and a per-section design-variant axis swapped in context via nested "
+            "iframe.srcdoc, Current restoring the pristine capture), never a second "
+            "*-mockup/*-redesign/*-variants .html sibling; a second file for the same surface, so he "
+            "can no longer flip between versions of any part of the page in one place, is the violation.",
             "Diffs every overlaid and new-state component against a real render before showing him, "
             "and when a divergence traces to the skill folds the fix forward through "
             "/sk:claude-config-update. That is the self-healing-config loop.",
