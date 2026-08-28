@@ -1091,6 +1091,40 @@ CONTRACTS: dict[str, dict] = {
             "A submit-to-chat button appears only when the runtime is known to support a post-back (a claude.ai artifact; a Claude Code terminal HTML file has none); the copy-paste block always stands alone.",
         ],
     },
+    "skills/sk/skills/work-humanize-copy-side-by-side/SKILL.md": {
+        "mission": "Simon rewrites an interface's copy in his own voice against the real screen, and "
+                   "every reworded string lands back in the source it came from, verified, while "
+                   "untouched copy is left exactly as it was.",
+        "purpose": "Extracts every user-facing copy string from a TSX interface, shows the real screen "
+                   "1:1 beside editable fields seeded with the originals in one self-contained HTML "
+                   "file, and writes the reworded strings back into the .tsx/.ts source.",
+        "criteria": [
+            "Extracts only user-facing copy from the target TSX/TS — JSX text and copy-bearing props "
+            "(aria-label, alt, placeholder, title, label) and copy-bearing data/const files — never "
+            "URLs, class names, styles, ids or route literals.",
+            "Records each string with a file-unique anchor (original plus enclosing context and "
+            "occurrence) so apply re-finds the exact location, and de-duplicates by (file, anchor), "
+            "never by text, so identical words in two places stay two entries.",
+            "Shows the LEFT pane as the real rendered screen captured 1:1 — a compressed screenshot "
+            "with numbered anchors — never a reconstruction rebuilt from the extracted markup.",
+            "Seeds every RIGHT-pane field with its original text and shows the original alongside, so "
+            "an untouched field already holds the original and apply is a blanket overwrite with no "
+            "diffing.",
+            "Pairs each right-pane field to its left-pane anchor by matching number and hover/focus "
+            "highlight, and scrolls the anchor into view on focus.",
+            "Ships ONE self-contained HTML file whose entire state is the embedded #spec data island; "
+            "nothing user-visible exists outside #spec, reusing /sk:ship-mockup-before-after's "
+            "mechanics rather than restating them.",
+            "Writes each reworded string back at its anchor with a unique match, STOPS and reports any "
+            "entry whose match is not unique rather than guessing, and preserves JSX/TS escaping so no "
+            "rewrite breaks the parse.",
+            "Verifies every written value is present in source and runs the project build and lint "
+            "after applying, reporting strings extracted / reworded / written / skipped with each "
+            "skipped entry's reason.",
+            "Leaves the words to Simon: seeds voice suggestions from rules/copy-quality.md only on "
+            "request and never auto-rewrites his copy.",
+        ],
+    },
     "skills/sk/skills/claude-config-sync/SKILL.md": {
         "mission": "Every config change reaches the private mirror, and no secret ever does.",
         "purpose": "Safe commit and push of this repo.",

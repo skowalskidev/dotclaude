@@ -241,6 +241,15 @@ SCENARIOS: list[dict] = [
     {"phrase": "make it selectable so I can pick and comment", "expect": "work-ask-reply-in-full-before-after-artifact"},
     {"phrase": "give me an interactive before and after artifact", "expect": "work-ask-reply-in-full-before-after-artifact"},
 
+    # --- Rewording an interface's copy in your own voice ---------------------------
+    # Two-pane tool: real screen 1:1 on the left, editable copy fields on the right, writes back to
+    # source. Distinct from the before/after skills (those judge a design change or pick options; this
+    # one edits the text itself). Phrases embed verbatim in the description, so routing matches by build.
+    {"phrase": "humanize this copy", "expect": "work-humanize-copy-side-by-side"},
+    {"phrase": "reword the landing in my voice", "expect": "work-humanize-copy-side-by-side"},
+    {"phrase": "side-by-side copy editor", "expect": "work-humanize-copy-side-by-side"},
+    {"phrase": "let me rewrite the UI text", "expect": "work-humanize-copy-side-by-side"},
+
     # No scenario for your work-skills plugin's timesheet skill (e.g. sk-work): it lives in the untracked work/ directory and
     # is outside this suite's scope. Its routing is not asserted here.
 
