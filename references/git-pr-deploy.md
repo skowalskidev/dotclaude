@@ -55,15 +55,10 @@ cannot:
 - Merge/rebase the latest default branch in before working, and re-evaluate the plan against what changed (e.g., redesigns that must now be used).
 - Resolve all merge conflicts by merging the default branch into the feature/base branch before merging the PR.
 - Fix all PR review comments: fix the code, reply inline, and resolve the threads.
-- **Keep the issue tracker in lockstep with the branch, and name the branch + PR from the ticket.**
-  On starting a ticket, assign it to Simon and set it In Progress, and NAME THE BRANCH from the ticket
-  so the tracker auto-links it: the branch MUST carry the ticket CODE plus a title slug (e.g. `AD-39`
-  → `AD-39-audit-product-features-for-landing-page-messaging`; the bare code at minimum) — the code in
-  the branch name is what links the branch to the ticket. Match the PR TITLE to the ticket title, and
-  put the ticket LINK in the PR body. On opening the PR, link the PR and the ticket both ways so the
-  tracker syncs the ticket's status from the PR (In Progress → In Review), and tick each acceptance
-  criterion as its work is verified, not at the end. Link ONLY the tickets this PR actually delivers —
-  a linked ticket's status flips with the PR, so an unrelated link wrongly moves that ticket.
+- **Keep the ticket, branch, and PR in lockstep — the routine is `references/ticket-lifecycle.md`.**
+  Set the ticket In Progress on start, name the branch from the ticket code + title slug (auto-links it),
+  match the PR title to the ticket title, put the ticket link in the PR body, and link only the tickets
+  the PR delivers. That reference owns the routine; apply it on any task that carries a ticket.
 - When adopting someone else's branch: check whether it reinvents logic that already exists; run full review tooling on it and fix all findings with no loose ends; verify none of it breaks existing behavior; compare it against the reference implementation for missing parts (tests, error handling, logging) and add them.
 - Build and run with the project's documented commands to verify before declaring done.
 - When finished: fix everything with no loose ends, create a draft PR, then tear down all processes and clean up the environment for other testing.

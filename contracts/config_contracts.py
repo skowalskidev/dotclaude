@@ -233,8 +233,16 @@ CONTRACTS: dict[str, dict] = {
             "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
-            "The issue tracker is kept In-Progress and PR-linked both ways; only tickets the PR "
-            "delivers are linked.",
+            "Points to references/ticket-lifecycle.md for the ticket to branch to PR lifecycle; does "
+            "not own it.",
+        ],
+    },
+    "references/ticket-lifecycle.md": {
+        "mission": "A tracker ticket is never left behind its code: it goes In Progress at the start of any task that touches it, and the branch, PR, and status stay in lockstep to the merge.",
+        "purpose": "The ONE owner of the ticket to branch to PR lifecycle; skills and references/git-pr-deploy.md point here rather than restating it.",
+        "criteria": [
+            "Owns the routine: In Progress on start, branch named from the ticket code plus a title slug, PR title matches the ticket, ticket link in the PR body, status kept current, only delivered tickets linked.",
+            "The routine applies on any task that carries a ticket, not only a build or ship one.",
         ],
     },
     "references/human-pacing.md": {
