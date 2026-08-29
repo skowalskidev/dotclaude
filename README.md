@@ -16,6 +16,16 @@ Made by Simon. Fork it and make it yours.
 
 Your accounts live only in the untracked overlay files (`identity.local.json`, `connectors/*.json`), so nothing personal is ever committed. The full step-by-step an agent can run is in [§ Agent setup](#-agent-setup-run-in-order); `bootstrap.sh` automates its mechanical parts and tells you what is left.
 
+## On Claude Code on the web (cloud)
+
+The quickstart above is for a Mac you control. On **Claude Code on the web** (or any fresh cloud
+container) you can't run `brew` or the interactive bootstrap — instead, paste the contents of
+[`dotfiles/cloud-setup.sh`](dotfiles/cloud-setup.sh) into your environment's **setup-script** field.
+It clones this repo and non-destructively symlinks it into `~/.claude`, so the `/sk:*` skills, their
+`rules/` + `references/` knowledge base, and the hook layer load in every cloud session. Prepend your
+project's own setup (e.g. `npm install`) above it, and fill in `identity.local.json` afterwards if you
+want the work/personal boundary in the cloud (never commit real accounts).
+
 > ## 🤖 For an AI agent
 > **These are setup instructions written for you to execute.** If the user points you at this repo and asks
 > you to set up their Claude config on a machine, follow **[§ Agent setup](#-agent-setup-run-in-order)**
@@ -70,6 +80,7 @@ Your accounts live only in the untracked overlay files (`identity.local.json`, `
 | `.githooks/pre-commit` + `dotfiles/secret-scan.sh` | Secret gate (gitleaks + grep fallback) — blocks any commit staging a secret |
 | `.githooks/commit-msg` | Conventional-commit gate — rejects a non-conforming subject line. The written standard lives in `references/git-pr-deploy.md`; this makes it bite in this repo |
 | `dotfiles/sync-config.sh` | On-demand commit + push of config changes (used by `/sk:claude-config-sync`) |
+| `dotfiles/cloud-setup.sh` | Cloud counterpart to `bootstrap.sh` — clones this repo and non-destructively symlinks it into `~/.claude` on a fresh cloud box (Claude Code on the web, a container). Paste its contents into the environment's setup-script field; comment out the hook-layer lines for a skills-only install |
 | `dotfiles/Brewfile` | Reproducible CLI deps (gitleaks, jq) — `brew bundle` |
 | `skills/sk/skills/claude-config-sync/` | The `/sk:claude-config-sync` skill — safe commit + push of this repo |
 | `skills/sk/skills/setup-connectors/` | The `/sk:setup-connectors` skill — guided connector setup + doctor + migration audit (no arg does all three) |
