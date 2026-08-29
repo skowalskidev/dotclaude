@@ -9,6 +9,16 @@ When a task involves a project-tracker ticket — a pasted Linear/tracker link, 
 is the example; the same routine holds for any tracker whose connector is set up (`rules/connectors.md`
 + `references/connectors-setup.md` own the ACCESS; this file owns the WORKFLOW).
 
+## Read the whole ticket, in parallel, before you plan
+DO fetch EVERY part of each ticket up front and in PARALLEL — the title, the full description, every
+screenshot/attachment (embedded images AND attached files), the COMMENTS, and any linked/related issues
+— firing one call per part in a single batch, before planning or writing code. A description read alone
+is not the ticket: the build/refute/defer/scope decisions and the corrections live in the comments, and
+the visual context lives in the screenshots (down them while the signed URLs are fresh). For a BATCH of
+tickets, fetch all parts of all of them in one parallel wave, not one ticket at a time.
+TEST: before the plan exists, every ticket has had its comments AND its attachments fetched, not just its
+description. Reading only the description, and skipping the comments, is the miss this prevents.
+
 ## Start it before writing code
 DO assign the ticket to Simon and move it to In Progress the moment the task is identified, not at the
 end. A ticket left in its old status while its code is being written is the failure this prevents.
