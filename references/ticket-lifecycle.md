@@ -32,5 +32,14 @@ DO match the PR TITLE to the ticket title, and put the ticket LINK in the PR bod
 ## Keep the status current, not batched at the end
 DO transition the ticket as the work does: In Progress at start → In Review when the PR opens; tick each
 acceptance criterion as its work is verified, not all at the end.
+DO update the tracker WITHOUT being asked — it is part of "done", never a closing question and never
+bundled into the push/PR gate. At hand-back, post the outcome onto EACH delivered ticket (what was built
+plus the acceptance-criterion verdict) and move its status as far as it honestly goes. Holding the PUSH
+and the PR when unasked (`references/git-pr-deploy.md`) does NOT hold the ticket's verdict comment and
+status move — those are a separate, ungated step that still lands. Parking "shall I update the tickets?"
+as a question, or writing the verdicts only into a hand-back report while the tickets stay untouched, is
+the miss (e.g. a whole batch judged Met but every ticket left in Backlog).
+TEST: at hand-back every delivered ticket carries a verdict comment and a current status. A run that
+lists verdicts but leaves the tracker untouched, or asks whether to update it, broke this.
 DO link ONLY the tickets this PR actually delivers — a linked ticket's status flips with the PR, so an
 unrelated link wrongly moves that ticket.
