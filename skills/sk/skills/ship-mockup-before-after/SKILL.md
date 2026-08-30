@@ -78,6 +78,19 @@ him find a new filename is the violation.
 
 ## Variants while EXPLORING; a DECISION collapses to a default
 
+**DO turn every design option you would otherwise ASK about into a VARIANT in the mockup — the user picks
+from the mockup's own variant switcher + pick/comment UI, never from a chat question.** Whenever you can
+see two or more ways to do a design thing (a shape, a layout, a scroll model, a colour, a placement),
+build ALL of them as variants and ship them together in the one mockup. A design suggestion is a variant,
+not a question.
+**DON'T ask a design-decision question in chat — no AskUserQuestion "A or B?", "which layout?", "which
+colour?".** Showing beats asking; that is the whole point of a mockup. Only forks a mockup CANNOT answer
+stay chat questions (build-now-vs-mock-first, which repo, a credential, prod approval).
+DEFAULT: N design options → N variants in the mockup; zero design-choice questions in chat.
+TEST: every option you considered is a variant in the mockup and no chat message asks the user to choose
+between design alternatives (the fix for asking a sidebar A/B and a scroll model in chat instead of
+rendering them as variants).
+
 **DO offer multiple variants to choose from ONLY while an open question is still open.** The moment Simon
 picks one — or when the change was a decided edit from the start, never an exploration — make the chosen
 design the DEFAULT the mockup OPENS ON, and demote every superseded design to a labelled `Before — …`
