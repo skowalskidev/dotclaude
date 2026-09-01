@@ -50,6 +50,17 @@ cannot:
 
 ## Git, PRs, integration
 
+- **I own PR and remote operations — never do or raise them unprompted (the trigger is in
+  `rules/process.md`).** After the local commit, STOP. Do NOT push, open a PR, flip a PR ready/draft,
+  request or add reviewers, add/remove labels, edit a PR body, comment on a PR, or merge — UNLESS I ask
+  for that exact op, or a skill whose defined flow performs PR ops is running (e.g. `/sk:ship-pr`,
+  `/sk:ship-screenshot-changes`, `/sk:ship-resolve-pr-comments`, `/sk:ship-full-detailed-workflow`),
+  which I authorized by invoking it. And DON'T talk about PRs to me — no ready-flip prompts,
+  held-for-you PR next-steps, or reviewer nudges — unless I ask about the PR; I run PR ops on my own
+  cadence or tell you to. Merge is separately gated below (never without an explicit ask). This gates
+  only the PR/remote layer; the local commit-when-done authorization is unchanged. TEST: a hand-back
+  reports what was built and stops, carrying no PR next-step, ready-flip prompt, or reviewer ask I
+  didn't request.
 - Read the project's CLAUDE.md AND CLAUDE.local.md and relevant plan docs at the start of the task — the
   local file carries machine-local setup, test accounts and secrets-by-reference the committed one omits.
 - Merge/rebase the latest default branch in before working, and re-evaluate the plan against what changed (e.g., redesigns that must now be used).
@@ -61,7 +72,7 @@ cannot:
   the PR delivers. That reference owns the routine; apply it on any task that carries a ticket.
 - When adopting someone else's branch: check whether it reinvents logic that already exists; run full review tooling on it and fix all findings with no loose ends; verify none of it breaks existing behavior; compare it against the reference implementation for missing parts (tests, error handling, logging) and add them.
 - Build and run with the project's documented commands to verify before declaring done.
-- When finished: fix everything with no loose ends, create a draft PR, then tear down all processes and clean up the environment for other testing.
+- When finished: fix everything with no loose ends, commit, then tear down all processes and clean up the environment for other testing. Open/flip a PR only when I ask or a `sk:ship-*` skill does it (see the PR-ops rule at the top of this section).
 
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 

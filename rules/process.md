@@ -129,22 +129,21 @@ TEST: every ask in the ledger has a verdict against it. A missing verdict is a m
 **When a task is complete and verified, commit it — you do NOT need to ask first.** This is standing
 authorization overriding any default "only commit when asked" behavior. Before committing, run the
 project's build + tests (unless docs-only) and confirm they pass. If on the default branch (`main`),
-create a branch first. Use conventional commit messages in the imperative mood. Do NOT push or open
-PRs unless I ask — commit only; "merge into main"/"land" is likewise a LOCAL merge, not a
-remote push (`references/git-pr-deploy.md`). Never commit or disturb my uncommitted WIP in the main
-checkout when working in a worktree.
+create a branch first. Use conventional commit messages in the imperative mood. Never commit or
+disturb my uncommitted WIP in the main checkout when working in a worktree.
 
-**Write a message that is navigable a year from now.** Subject
-`<type>(<scope>): <imperative, lower-case, no period, <72 chars>`; body says WHY, never what, because
-the diff already says what. One logical unit per commit: if the body needs "and also", split it. The
-full standard, including what a body must answer, is in `~/.claude/references/git-pr-deploy.md` —
-which also owns the never-`-m`-always-`-F` rule. `~/.claude/.githooks/commit-msg` enforces the
-subject in the config repo; nothing enforces it anywhere else, so it is on you there.
+**Commit only — I own PR and remote operations; never do or raise them unprompted.** After the local
+commit, STOP: no push, PR open/flip/draft/merge, reviewer or label change, PR edit/comment, or
+unprompted PR next-step talk — unless I ask, or a `sk:ship-*` skill whose flow does PR ops is running.
+Merge always needs an explicit ask. Detail + the op list: `references/git-pr-deploy.md`.
 
-**Commit after EACH stage, not in a batch.** As soon as one coherent logical unit — a task, fix,
-feature, phase, milestone, or approved slice of a copilot loop — is complete and verified, commit it
-before moving on. Several at once → one commit each, never one combined at the end. TEST: at most one
-finished logical unit sits uncommitted in a green tree.
+**Write a navigable commit, one per stage.** Subject
+`<type>(<scope>): <imperative, lower-case, no period, <72 chars>`; body says WHY, never what. ONE
+logical unit per commit — a finished task/fix/phase/milestone/copilot-slice, committed before the next;
+if the body needs "and also", split it, and several done → one commit each. Full standard + the
+never-`-m`-always-`-F` rule: `~/.claude/references/git-pr-deploy.md` (`.githooks/commit-msg` enforces
+the subject in the config repo only). TEST: at most one finished logical unit sits uncommitted in a
+green tree.
 
 ### Phased execution — only when I ask for it
 Run-to-completion above is the DEFAULT and stays it. But when I say to work in phases (or to space the
