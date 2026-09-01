@@ -130,8 +130,9 @@ TEST: every ask in the ledger has a verdict against it. A missing verdict is a m
 authorization overriding any default "only commit when asked" behavior. Before committing, run the
 project's build + tests (unless docs-only) and confirm they pass. If on the default branch (`main`),
 create a branch first. Use conventional commit messages in the imperative mood. Do NOT push or open
-PRs unless I ask — commit only. Never commit or disturb my uncommitted WIP in the main checkout when
-working in a worktree.
+PRs unless I ask — commit only; "merge into main"/"land" is likewise a LOCAL merge, not a
+remote push (`references/git-pr-deploy.md`). Never commit or disturb my uncommitted WIP in the main
+checkout when working in a worktree.
 
 **Write a message that is navigable a year from now.** Subject
 `<type>(<scope>): <imperative, lower-case, no period, <72 chars>`; body says WHY, never what, because
@@ -142,9 +143,8 @@ subject in the config repo; nothing enforces it anywhere else, so it is on you t
 
 **Commit after EACH stage, not in a batch.** As soon as one coherent logical unit — a task, fix,
 feature, phase, milestone, or approved slice of a copilot loop — is complete and verified, commit it
-before moving on; each commit is one logical unit. When I hand you several at once, one commit each,
-never a single combined commit at the end. TEST: at most one finished logical unit sits uncommitted in
-a green tree.
+before moving on. Several at once → one commit each, never one combined at the end. TEST: at most one
+finished logical unit sits uncommitted in a green tree.
 
 ### Phased execution — only when I ask for it
 Run-to-completion above is the DEFAULT and stays it. But when I say to work in phases (or to space the

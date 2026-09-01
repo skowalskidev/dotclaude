@@ -85,6 +85,17 @@ PR's own CI is green against its base, not against the others: a textual auto-me
 symbol (two PRs each adding the same `const` or object key → a TS "cannot redeclare"/TS1117 that fails
 the whole build), and no individual PR's CI catches it.
 
+**DO treat "merge into main"/"land"/"propagate"/"integrate" as a LOCAL merge, and read the MAIN
+CHECKOUT's actual main before integrating — not the worktree's `origin/main`.** A worktree's
+`origin/main` (and the SessionStart freshness hook's "N behind main" comparison) can be stale while the
+main checkout's LOCAL main is far ahead with unpushed work.
+**DON'T "fast-forward" origin/main from a worktree to land work.** It only fast-forwards the STALE
+remote ref, silently diverging origin from the real integration point and forcing a conflicting
+`git pull` on the user (the fix for a worktree that pushed its branch to origin/main while the main
+checkout held 53 unpushed commits of other work — the pull then hit merge conflicts). Merge locally and
+hand back; push only on an explicit "push" for that action. TEST: after an integration task the only ref
+that moved is a local branch; origin is untouched unless the user said "push".
+
 ## Deleting a merged branch safely — the gate is the seatbelt, not `-d`
 
 `git branch -d` decides "merged?" against the CURRENT HEAD (or the branch's upstream), NOT against the
