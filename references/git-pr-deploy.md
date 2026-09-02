@@ -107,6 +107,15 @@ checkout held 53 unpushed commits of other work — the pull then hit merge conf
 hand back; push only on an explicit "push" for that action. TEST: after an integration task the only ref
 that moved is a local branch; origin is untouched unless the user said "push".
 
+**DO integrate a branch by MERGING it — a merge commit that keeps the branch tip as an ancestor of the
+target — so `git branch --merged` and `git merge-base --is-ancestor <branch> main` later PROVE it landed.**
+The user wants to SEE, unambiguously, that a branch was merged in.
+**DON'T rebase, squash, or re-implement a branch's work into the target when the source branch will
+outlive the merge.** Those rewrite patch-ids, so `git cherry` reads all `+` and the source branch shows as
+UNMERGED even though its work is in — the exact ambiguity that made two finished feature branches look like
+unmerged work at cleanup time. If a squash/rebase is genuinely wanted, delete the source branch in the SAME
+step so no ref is left behind claiming to be unmerged.
+
 ## Deleting a merged branch safely — the gate is the seatbelt, not `-d`
 
 `git branch -d` decides "merged?" against the CURRENT HEAD (or the branch's upstream), NOT against the
