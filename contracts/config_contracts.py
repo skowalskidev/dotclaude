@@ -1130,6 +1130,17 @@ CONTRACTS: dict[str, dict] = {
             "A submit-to-chat button appears only when the runtime is known to support a post-back (a claude.ai artifact; a Claude Code terminal HTML file has none); the copy-paste block always stands alone.",
         ],
     },
+    "skills/sk/skills/work-ask-reply-tldr/SKILL.md": {
+        "mission": "Simon reads the first line of a reply and has what he needs — a decision, an attention item, or a flat yes/no — with nothing he must scroll past.",
+        "purpose": "A response-format toggle that makes every subsequent reply bare-metal TLDR — only the answer, open decisions, blockers and attention items — until Simon says otherwise.",
+        "criteria": [
+            "Leads with the answer or the decision owed in ONE line, then at most a few short bullets.",
+            "Includes only the direct answer, open decisions, blockers, what needs his input, and attention items (a risk or surprising result); cuts narration, recap, celebration and restated headings.",
+            "Answers a closed question flatly ('none' / 'done' / '1 left: X') with no status essay in front of it.",
+            "Stays active across replies until Simon asks for verbose/full detail, then returns to terse.",
+            "Reuses rules/communication.md as the source of truth (answer-first, questions-at-END, five Ws) rather than restating it.",
+        ],
+    },
     "skills/sk/skills/work-humanize-copy-side-by-side/SKILL.md": {
         "mission": "Simon rewrites an interface's copy in his own voice against the real screen, and "
                    "every reworded string lands back in the source it came from, verified, while "

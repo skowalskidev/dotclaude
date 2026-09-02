@@ -241,6 +241,15 @@ SCENARIOS: list[dict] = [
     {"phrase": "make it selectable so I can pick and comment", "expect": "work-ask-reply-in-full-before-after-artifact"},
     {"phrase": "give me an interactive before and after artifact", "expect": "work-ask-reply-in-full-before-after-artifact"},
 
+    # --- Terse, decision-only reply mode -------------------------------------------
+    # A response-format toggle: bare-metal answers, only what needs his decision or attention, until
+    # told otherwise. Distinct from the before/after artifact above (that BUILDS a selectable artifact
+    # to explain a confusing reply; this just makes the prose terse).
+    {"phrase": "reply in tldr from now on", "expect": "work-ask-reply-tldr"},
+    {"phrase": "just the answer, no paragraphs", "expect": "work-ask-reply-tldr"},
+    {"phrase": "stop the paragraphs, give me clear-cut answers", "expect": "work-ask-reply-tldr"},
+    {"phrase": "only tell me what needs my decision", "expect": "work-ask-reply-tldr"},
+
     # --- Rewording an interface's copy in your own voice ---------------------------
     # Two-pane tool: real screen 1:1 on the left, editable copy fields on the right, writes back to
     # source. Distinct from the before/after skills (those judge a design change or pick options; this
