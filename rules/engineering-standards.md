@@ -1,33 +1,31 @@
 # Engineering standards
 
-Baseline engineering conventions that apply across all projects: versioning, mainstream tool choice, single source of truth, legacy support, and data deletion.
+Baseline engineering conventions that apply across all projects.
 
 ## Versions — start with the latest stable
 
-When starting a new project, scaffolding, or adding tooling, **default to the latest stable
-versions** of the runtime and dependencies (not whatever a template happens to pin). For anything
-that deploys to a managed platform (Firebase / Google Cloud, Vercel, AWS, etc.), pick the newest
-version that platform **actually supports** — verify by browsing the platform's current docs/release
-notes rather than assuming. Prefer current LTS for runtimes.
+**Default to the latest stable versions** of the runtime and deps when scaffolding or adding tooling,
+not whatever a template pins. For a managed platform (Firebase / Google Cloud, Vercel, AWS), pick the
+newest version it **actually supports** — verify against its current docs, don't assume. Prefer current
+LTS for runtimes.
 
 **Before adding or upgrading a major dependency** (React, Node, Firebase, Next.js, Tailwind,
-TypeScript, etc.), **research the current latest-stable version online first** — don't rely on
-training-data memory of version numbers, which drifts. Confirm the version exists, is stable (not
-alpha/RC), and is compatible with the rest of the stack and the deploy target before pinning it.
+TypeScript), **research the latest-stable version online first** — training-data version numbers drift.
+Confirm it exists, is stable (not alpha/RC), and is compatible with the stack and deploy target before
+pinning.
 
 **Encode the versions in the repo so they're reproducible:**
-- **Node:** add a `.nvmrc` pinning the exact version (e.g. `24.18.0`) so `nvm use` selects it, and
-  set `engines.node` in `package.json` as a floor (e.g. `>=22`). Keep local dev, `.nvmrc`, and any
-  serverless runtime pin (e.g. Firebase `functions/package.json` `engines.node`) consistent.
-- **Toolchain quirks:** newer tools sometimes need a newer Node than the project's old default
-  (e.g. Vitest 4's rolldown needs Node ≥20.12 for `node:util`'s `styleText`). Pin up, document the
-  requirement, and tell me to `nvm use`.
-- Other ecosystems: pin equivalently (`.python-version`/`pyproject` for Python, `.tool-versions` for
-  asdf/mise, `packageManager` for the package manager, etc.).
+- **Node:** a `.nvmrc` pinning the exact version (e.g. `24.18.0`) for `nvm use`, plus `engines.node` as
+  a floor (e.g. `>=22`). Keep local dev, `.nvmrc`, and any serverless pin (Firebase
+  `functions/package.json` `engines.node`) consistent.
+- **Toolchain quirks:** a newer tool can need a newer Node than the project's default (e.g. Vitest 4's
+  rolldown needs Node ≥20.12 for `node:util`'s `styleText`) — pin up, document it, tell me to `nvm use`.
+- Other ecosystems pin equivalently (`.python-version`/`pyproject`, `.tool-versions` for asdf/mise,
+  `packageManager`).
 
-When bumping deps to "latest", apply the upgrade, then **build + test to verify**, and watch for
-peer-dependency ceilings (e.g. `firebase-functions@7` peer-requires `firebase-admin <=13`) — pin
-back anything the ecosystem doesn't support yet and tell me which and why.
+When bumping to "latest", apply then **build + test to verify**, and watch peer-dependency ceilings
+(e.g. `firebase-functions@7` peer-requires `firebase-admin <=13`) — pin back what the ecosystem doesn't
+support yet and tell me which and why.
 
 ## Choose mainstream, widely-adopted tools
 
@@ -134,6 +132,12 @@ extraction that leaves each call site re-wiring its own state has not done the j
   new code be the ONLY path. If a zero-downtime migration genuinely needs a transitional
   read (expand→migrate→contract across a deploy), say so explicitly and schedule the
   contract step; the end state still has zero legacy/dead code.
+- **Lock in ONE variant; never ship the A/B toggle.** A dev-panel toggle, feature flag, two live
+  paths, or mockup options all count. Build the chosen one (undecided → STOP and ask me,
+  AskUserQuestion), then delete the loser AND its wiring — toggle, alternate branch, dead CSS/storage,
+  loser-only test — in the SAME change. Both paths wired is dead code (e.g. a mobile layout left
+  "vertical" vs "horizontal" behind a dev toggle). TEST: after, a grep for the switch or dropped
+  variant returns only the kept value.
 
 ## Data deletion — soft-archive, never hard-delete (default for user-facing deletes)
 

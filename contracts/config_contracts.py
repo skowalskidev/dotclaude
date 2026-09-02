@@ -90,6 +90,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns the adoption bar that gates any new tool or pack.",
             "Harden-fully: never trade protection for a working app; narrow the guard instead.",
+            "Variant indecision never ships: locking in an A/B removes the loser and its toggle in the same change.",
         ],
     },
     "rules/process.md": {
