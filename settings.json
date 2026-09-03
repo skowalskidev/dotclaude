@@ -71,6 +71,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/config-edit-guard.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/worktree-path-guard.py",
+            "timeout": 10
           }
         ]
       }

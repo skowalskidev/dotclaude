@@ -1230,6 +1230,21 @@ CONTRACTS: dict[str, dict] = {
             "that breaks the session gets switched off.",
         ],
     },
+    "hooks/worktree-path-guard.py": {
+        "mission": "An edit from inside a worktree never silently lands in the main checkout by using the main repo's absolute path.",
+        "purpose": "PreToolUse: asks (not a hard deny) before an Edit/Write from a worktree session that targets the main checkout or a sibling worktree.",
+        "criteria": [
+            "Fires only when the session cwd is under `<main>/.claude/worktrees/<name>/` AND the "
+            "resolved target is under the main root but OUTSIDE this worktree (the main tree or a "
+            "sibling worktree); emits permissionDecision 'ask', never 'deny', since a main-checkout "
+            "edit from a worktree is occasionally intentional.",
+            "Never fires when not in a worktree, for a target under this worktree, for a relative "
+            "path (resolved against the worktree cwd), for a target outside the repo (~/.claude, "
+            "/tmp), or for a non-edit tool.",
+            "Fails open on a malformed payload or an unresolvable cwd/path. A guard that breaks the "
+            "session gets switched off.",
+        ],
+    },
     "hooks/git-commit-guard.py": {
         "mission": "Claude never commits or pushes on the default branch, never merges a PR into it off a general instruction, and never commits with -m or a heredoc.",
         "purpose": "PreToolUse: blocks a default-branch commit/push, a gh pr merge, and an inline -m/heredoc commit.",

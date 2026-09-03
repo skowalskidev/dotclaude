@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — opt-in, only with an open PR and Simon's yes — posts them onto the PR (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — opt-in, only with an open PR and Simon's yes — posts them (desktop + mobile per surface) onto the PR (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [optional focus, e.g. "the new dashboard section"]
 ---
 
@@ -80,6 +80,17 @@ AFTER, another for BEFORE. A box + label reads faster than an arrow. Works for a
   the change reads differently between them, shoot the theme where the difference is clearest — a subtle
   change can be near-invisible in one and obvious in the other.
 
+**Capture every surface at BOTH desktop AND mobile — mobile is where the layout re-flows (cards stack,
+tables collapse, a two-column hero becomes one), so a desktop-only shot hides half the change.** For each
+surface take one shot at the desktop width and one at a mobile viewport (390×844, the app's mobile
+breakpoint), named `<surface>-desktop.png` / `<surface>-mobile.png` (a before/after pair becomes
+`ba-<n>-<surface>-BEFORE-desktop|mobile.png` / `-AFTER-desktop|mobile.png`; a journey step
+`step-<n>-<label>-desktop|mobile.png`). Set the mobile viewport EXPLICITLY with a Playwright/CDP device
+viewport (or the framework's mobile project) — NEVER `resize_page`: window width is unreliable
+(`browser-debugging.md`), so a resized window silently shoots at desktop width and the "mobile" file is a
+duplicate. TEST: every captured surface has both a `-desktop` and a `-mobile` file, and the mobile file's
+`window.innerWidth` was 390, not the desktop width.
+
 **Watch for a style scoped to a subtree that a portalled overlay escapes.** Overlays (dialogs, modals,
 dropdowns, tooltips) are commonly portalled to the document root, OUTSIDE the element a scoped token/class
 is defined on — so a value referencing that token resolves to nothing there and the element renders
@@ -115,6 +126,11 @@ By default the screenshots are handed back locally (Step 4). Post them ONTO the 
 the branch has an OPEN PR (`gh pr view --json number,url,isDraft`) AND Simon says yes — posting to a work
 PR is outward-facing (the reviewer sees it). ASK first; never auto-post. For journey mode, post the step
 shots in filename (step) order, each captioned with its step, so the comment reads as the flow top to bottom.
+
+**Post BOTH the desktop and the mobile shot of each surface, grouped per surface** — a `**<surface>**`
+heading with its Desktop image then its Mobile image (before/after: BEFORE then AFTER, each with its
+desktop+mobile) — so the reviewer sees the responsive result, not only the wide layout. TEST: for every
+surface posted, the comment carries its `-desktop` AND its `-mobile` image under one heading.
 
 **GitHub-only — never an external host.** In a PRIVATE repo (a work repo usually is), GitHub's Camo proxy
 can't authenticate: `raw.githubusercontent.com`, release assets and external hosts all render as a BROKEN

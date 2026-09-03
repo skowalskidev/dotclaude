@@ -286,9 +286,9 @@ HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Agent", "expect": ["task-intake.sh"]},
     {"event": "PreToolUse", "tool": "Workflow", "expect": ["task-intake.sh"]},
     {"event": "PreToolUse", "tool": "Read", "expect": []},
-    # The config edit-guard fires only on the edit tools, never on Bash or Read.
-    {"event": "PreToolUse", "tool": "Edit", "expect": ["config-edit-guard.py"]},
-    {"event": "PreToolUse", "tool": "Write", "expect": ["config-edit-guard.py"]},
+    # The config edit-guard and the worktree-path guard fire on the edit tools, never on Bash or Read.
+    {"event": "PreToolUse", "tool": "Edit", "expect": ["config-edit-guard.py", "worktree-path-guard.py"]},
+    {"event": "PreToolUse", "tool": "Write", "expect": ["config-edit-guard.py", "worktree-path-guard.py"]},
     {"event": "PostToolUse", "tool": "AskUserQuestion", "expect": ["task-intake.sh"]},
     # The variant that broke it. Conductor sessions only ever expose this form.
     {"event": "PostToolUse", "tool": "mcp__conductor__AskUserQuestion",
