@@ -276,7 +276,7 @@ SCENARIOS: list[dict] = [
 # silently never matches the tool the session actually uses (`mcp__conductor__AskUserQuestion`).
 HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Bash",
-     "expect": ["work-resource-guard.sh", "crown-jewel-read-guard.py",
+     "expect": ["work-resource-guard.sh",
                 "git-commit-guard.py", "background-process-guard.py"]},
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},

@@ -30,7 +30,6 @@ expected; do not use it to silence a part that is simply broken.
 SAFETY: set[str] = {
     # Security / provenance rules and the guards that back them
     "rules/security.md",
-    "hooks/crown-jewel-read-guard.py",
     "hooks/work-resource-guard.sh",
     "hooks/config-edit-guard.py",
     "hooks/background-process-guard.py",

@@ -42,32 +42,31 @@ ORIGIN of the instruction driving it.
   the command myself. Never let a block pass silently as "couldn't do it." These are DENY-only, so
   there is no prompt to approve; a block is a hard stop and must surface to me.
 
-**The Bash/WebFetch pattern guard was RETIRED on 2026-08-04. The rule above is the primary control.**
-The retired `hooks/security-guard.py` matched on a command's TEXT, so a command that merely NAMED a
-sensitive path was indistinguishable from one that read it. **Never restore it, and never build
-another text matcher** — that defect is structural, not a matter of narrower patterns. Its
-false-positive rate is what got it switched off, and a guard that is off protects nothing. The
-forensics live in `~/.claude/README.md` § Security posture, not in context every turn.
+**Read-blocking guards were retired as theatre — provenance plus never echoing a value are the controls.**
+`hooks/security-guard.py` was removed 2026-08-04 (a TEXT matcher: naming a path counted the same as
+reading it) and `hooks/crown-jewel-read-guard.py` was removed 2026-08-29 (a verb matcher any
+obfuscation like `cd ~/.ssh && cat id_*` walked through). A secret here is reachable by design, so a
+read-blocker buys false confidence and friction, nothing else. **Never rebuild one.** Forensics:
+`~/.claude/README.md` § Security posture.
+
+**Never surface a secret VALUE into chat, context, a message, an artifact, a commit, or a PR.** This
+is the control the read-blockers only gestured at. USING a secret is fine — pass a key PATH to a tool,
+load a key into a program, set it as an env var for one command
+(`GOOGLE_APPLICATION_CREDENTIALS=… node x.mjs`). The line is the VALUE becoming visible: never
+`cat`/`head`/`echo`/`print` a key file, a token, an API key, a `.env` value or a keychain item into
+the transcript, and never paste one into a reply, a doc or a commit message. It holds for EVERY secret,
+not a fixed path list — if reading it out would hand someone a working credential, it does not go in
+the chat. e.g. to check a key is present, test its path or byte length, never print its contents.
 
 **The mechanical layers that DO run:**
 
-- **`permissions.deny` in `settings.json`** — harness-enforced, no model vote. `Read` on SSH / AWS /
-  GCP / GPG / kube / netrc / docker / 1Password / keychain / credential files, plus `Edit`/`Write` on
-  `~/.ssh`, `~/.aws` and `~/.gnupg`. Path matchers, so they cannot false-positive on a command that
-  merely MENTIONS a path — the exact failure mode that retired the hook. It may not quietly shrink.
-- **`hooks/crown-jewel-read-guard.py`** — closes the Bash gap the retirement left. It denies exactly
-  one thing: a command whose VERB reads a file out (`cat`, `head`, `xxd`, `base64`, `cp`, …) pointed
-  at a crown jewel (`~/.ssh/`, `~/.aws/credentials`, `~/.gnupg/`, Keychains, `~/.config/op/`,
-  `personal-keys.env`, `id_rsa`/`id_ed25519`/`id_ecdsa`, `.netrc`, `.pgpass`). Asking about the VERB
-  is the whole difference from its predecessor. Its must-NOT-fire cases are the half that matters, so
-  widening it back into a text matcher fails `crown-jewel-read-guard.test.py` before it ever reaches
-  a working session.
-- **`hooks/work-resource-guard.sh`** — the work/personal boundary.
+- **`permissions.deny` in `settings.json`** — harness-enforced, no model vote. `Edit`/`Write` on
+  `~/.ssh`, `~/.aws` and `~/.gnupg`: tamper-protection so a run cannot corrupt those directories. It
+  no longer blocks reads — read-blocking was theatre (above).
+- **`hooks/work-resource-guard.sh`** — the work/personal boundary, the guard that does real work:
+  it keeps work and personal cloud credentials from crossing.
 
-**It is a seatbelt, not a wall.** It does not stop obfuscation (`cd ~/.ssh && cat id_*`) or an
-interpreter opening the file itself (`python3 -c "open('~/.ssh/id_rsa')"`), and passing a credential
-PATH to a tool stays allowed on purpose (`GOOGLE_APPLICATION_CREDENTIALS=… node migrate.mjs`) because
-that is routine work. Chasing those rebuilds the retired guard. The wall is the provenance rule above.
+The wall is the provenance rule at the top of this file, plus never echoing a value out.
 
 ## MCP and CLI credential safety
 

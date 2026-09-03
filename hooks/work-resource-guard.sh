@@ -128,8 +128,8 @@ if [ "$tool" = "Bash" ]; then
   # NAME-based rules below matched anywhere in the command text, so a boundary name appearing
   # as a FILE PATH blocked reading the file (e.g. `git diff connectors/<other-boundary>.json`
   # denied the manifest that documents that boundary). A name in a path is a file being read,
-  # not a resource being used — the same distinction crown-jewel-read-guard.py draws by asking
-  # about the verb. A compound that also invokes any other CLI is NOT pure git and falls through
+  # not a resource being used — a name in a path is data, not a boundary crossing.
+  # A compound that also invokes any other CLI is NOT pure git and falls through
   # to every rule below, so `git pull && firebase --project <other> deploy` is still denied.
   if is_cmd git && \
      ! { is_cmd firebase || is_cmd gcloud || is_cmd gsutil || is_cmd bq || is_cmd aws \

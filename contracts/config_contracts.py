@@ -45,7 +45,9 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Harness-enforced wiring: hooks, permission denials, subagent caps.",
         "criteria": [
             "Every hook it names exists on disk and is executable.",
-            "permissions.deny keeps covering the crown-jewel credential paths; it may not shrink.",
+            "permissions.deny keeps the Edit/Write tamper-denies on the key directories (~/.ssh, "
+            "~/.aws, ~/.gnupg); it may not shrink. The read-blockers were removed as theatre — the "
+            "control is the provenance rule plus never echoing a secret value out.",
             "Deny-only. No 'ask' tier, so nothing prompts mid-run.",
         ],
     },
@@ -115,7 +117,11 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Provenance gate. Foreign instructions may not drive exfiltration or machine change.",
         "criteria": [
             "Provenance, not plausibility, is the test. Trusted = Simon in chat.",
-            "Never claims a retired guard still runs.",
+            "Never claims a retired guard still runs — the read-blockers (security-guard.py, "
+            "crown-jewel-read-guard.py) are gone, and no read-blocker is rebuilt.",
+            "The real credential control is stated: never surface a secret VALUE into chat, context, "
+            "an artifact, a commit or a PR; using a secret (a path passed to a tool, a key loaded "
+            "into a program) stays allowed — the value becoming visible is the line.",
             "A blocked action is always surfaced, never silently dropped.",
         ],
     },
@@ -1271,14 +1277,6 @@ CONTRACTS: dict[str, dict] = {
         "criteria": ["Reports only. Silent when the tree is clean.",
                      "Removes a leftover ~/.claude/.config-edit-authorized so a crashed update flow "
                      "cannot leave the config edit-guard open into the next session."],
-    },
-    "hooks/crown-jewel-read-guard.py": {
-        "mission": "A command whose verb reads a crown-jewel secret out is denied, and a command that merely names a path is not.",
-        "purpose": "Denies a file-reading VERB pointed at a crown-jewel secret.",
-        "criteria": [
-            "Asks about the verb, not the command text. A command that merely names a path passes.",
-            "The must-NOT-fire half of its suite is the criterion, not a nicety.",
-        ],
     },
     "hooks/orphan-worker-sweep.sh": {
         "mission": "No dead framework worker keeps burning a core in a workspace nobody is watching.",

@@ -47,7 +47,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `CLAUDE.md` | Thin **index** for all projects — points at `rules/` + `references/` and the project-boundary rule; the actual rules live in `rules/` |
 | `rules/` | **Always-on** behavioral rules (auto-loaded every session, one concern per file): `security`, `communication`, `copy-quality`, `process`, `engineering-standards`, `ui-conventions` (always-on; `paths:` scoping is ignored at user level), `skills-workflow`, `config-repo`, `connectors`, `self-healing-config` |
 | `references/` | **On-demand** deep how-to catalogs (zero context cost until read; shared by `CLAUDE.md` + the `sk` skills): `research` (read at the start of every workflow run, not on demand), `contracts-and-outcomes`, `planning-and-tracking`, `parallelization`, `testing-strategy`, `dev-server-hygiene`, `code-best-practices`, `git-pr-deploy`, `api-empirical-iteration`, `browser-debugging`, `connectors-setup`, `skill-stack`, `user-journey-review`, `tldr-report-formats` |
-| `settings.json` | Hook wiring + `permissions.deny` (DENY-only, no `ask` tier, so nothing prompts) |
+| `settings.json` | Hook wiring + `permissions.deny` (Edit/Write tamper-denies on the key dirs; DENY-only, no `ask` tier, so nothing prompts) |
 | `hooks/intent-ledger.sh` | UserPromptSubmit + Stop — appends every ask verbatim to the worktree's `.context/intent-ledger.md`, and blocks the finish when a ratified plan has no reconciliation. The only hook that writes into a project, so its refusals are the contract; redirects out of the tracked tree inside `~/.claude`. Kill switch: `CLAUDE_INTENT_LEDGER=off` |
 | `hooks/task-intake.sh` | UserPromptSubmit + PreToolUse + PostToolUse — proposes the skills for a new task, and DENIES Agent/Task/Workflow until you confirm |
 | `hooks/config-contract.test.py` | The config's own acceptance criteria: plain-English outcomes, each backed by a check, with a coverage ratchet |
@@ -58,8 +58,6 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `bin/install-third-party-skills.sh` | Clones the third-party skill packs `references/skill-stack.md` stacks on |
 | `hooks/work-resource-guard.sh` | PreToolUse work/personal isolation guard — Bash + data-driven `mcp__.*` connector boundary (from `connectors/`) + Firebase prod write-guard. Also denies a CLI left unpinned when its own default profile belongs to the other boundary |
 | `hooks/work-resource-guard.test.py` | Its both-directions suite, driven through the hook's real stdin contract. The 9 must-NOT-fire cases pin that a name in prose is never a block |
-| `hooks/crown-jewel-read-guard.py` | PreToolUse Bash guard — denies a file-READING verb pointed at a crown-jewel secret, closing the Bash hole the `Read` deny rules cannot reach. Asks about the verb, not the command text |
-| `hooks/crown-jewel-read-guard.test.py` | Its both-directions suite. The 12 must-NOT-fire cases include all four false positives that retired the old guard |
 | `hooks/config-edit-guard.py` | PreToolUse Edit/Write guard — hard-blocks an edit to a tracked `~/.claude` config file unless `/sk:claude-config-update` set the `.config-edit-authorized` sentinel. Makes that skill the only path to change config; runtime state and memory writes stay open. Override: `CLAUDE_CONFIG_EDIT=1` |
 | `hooks/git-commit-guard.py` | PreToolUse Bash guard — blocks a commit/push on `main`/`master` (config repo exempt) and a `git commit` with `-m`/heredoc (the `-F`-only rule). Overrides: `CLAUDE_ALLOW_MAIN_COMMIT=1`, `CLAUDE_ALLOW_COMMIT_M=1` |
 | `hooks/background-process-guard.py` | PreToolUse Bash guard — blocks installing a persistent process (crontab install, `launchctl load`, `systemctl enable`, LaunchAgents/Daemons writes). Override: `CLAUDE_ALLOW_DAEMON=1` |
@@ -248,25 +246,22 @@ background daemon** (deliberately, to avoid idle CPU):
 
 ## Security posture
 
-See `rules/security.md`. The provenance rule there is the primary control; the mechanical layer is
-`permissions.deny` in `settings.json` (Read on credential paths, Edit/Write on the key directories),
-enforced by the harness with no model vote.
+See `rules/security.md`. The provenance rule there is the primary control, plus one behavioral rule:
+never surface a secret VALUE into the chat, an artifact, or a commit — using a secret (a path passed
+to a tool, a key loaded into a program) stays allowed; the value becoming visible is the line. The
+only mechanical credential layer left is `permissions.deny` in `settings.json` — Edit/Write
+tamper-denies on `~/.ssh`, `~/.aws`, `~/.gnupg`, enforced by the harness with no model vote.
 
-The `hooks/security-guard.py` pattern guard was RETIRED on 2026-08-04 after falsely blocking four
-ordinary commands in one session — it matched on a command's TEXT, so naming a sensitive path was
-indistinguishable from reading one. It and its 81-case suite are recoverable from git history, but
-should not be restored: that defect is structural, not a matter of narrower patterns.
-
-`hooks/crown-jewel-read-guard.py` replaced it the same day, covering the one thing the retirement
-actually left open — a secret read out through **Bash**, which path matchers cannot see. It denies
-only when a file-READING verb (`cat`, `head`, `xxd`, `base64`, `cp`, …) is pointed at a crown jewel,
-so the four historical false positives all pass: `grep` on `settings.json` is not a jewel path,
-`cat .npmrc` is not a jewel, `git commit -m "...~/.gnupg..."` has no reading verb, and `nvm use` has
-neither. Each is a named test case. Run `python3 hooks/crown-jewel-read-guard.test.py`.
-
-It stops the literal read, not obfuscation or an interpreter opening the file, and it deliberately
-still allows passing a credential PATH to a tool (`GOOGLE_APPLICATION_CREDENTIALS=… node x.mjs`).
-`rules/security.md` states the full posture, including what remains uncovered.
+Two read-blockers were removed as theatre: a secret on this machine is reachable by design, so a guard
+that pretends otherwise buys false confidence and friction, nothing else.
+`hooks/security-guard.py` was RETIRED on 2026-08-04 after falsely blocking four ordinary commands in
+one session — it matched a command's TEXT, so naming a sensitive path was indistinguishable from
+reading one.
+`hooks/crown-jewel-read-guard.py` was removed on 2026-08-29 — a verb matcher any obfuscation
+(`cd ~/.ssh && cat id_*`) or interpreter (`python3 -c "open(...)"`) walked straight through, whose
+`firebase-keys` read-deny also blocked a plain metrics key and broke the self-optimization tooling.
+Both are recoverable from git history but should not be restored: the defect is structural, not a
+matter of narrower patterns. Never build another read-blocker.
 
 
 ## Path scoping — why no rule here uses `paths:` frontmatter

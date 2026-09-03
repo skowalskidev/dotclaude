@@ -110,9 +110,10 @@ and (if it exposes tools) to the guard. The manifest, skill, and auth-gate need 
 | Personal API keys | `~/.config/personal-keys.env`, chmod 600 |
 | Per-project runtime keys (personal) | that project's gitignored `.env.local`, chmod 600, symlinked into worktrees |
 
-`settings.json` `permissions.deny` blocks Claude's own Read of `~/.config/firebase-keys/**` (and the
-other crown-jewel paths); the firebase process still reads them. `hooks/crown-jewel-read-guard.py`
-closes the same hole for Bash — its 25-case suite is the regression test.
+Claude may read `~/.config/firebase-keys/**` and the other credential paths — the read-blockers were
+removed as theatre (`rules/security.md`), since a secret here is reachable by design. The control is
+never surfacing a secret VALUE into the chat: load a key into the firebase process or pass its path to
+a tool, never `cat`/`echo` it into the transcript, a message, or a commit.
 
 **Rotate rather than relocate.** When a key turns up somewhere it shouldn't be, the fix is: tighten the
 mode, move it under `~/.config/**` or the project's gitignored env file, and mint a fresh one from

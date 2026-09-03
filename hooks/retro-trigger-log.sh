@@ -49,11 +49,10 @@ cwd="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
 count() { local n; n="$(grep -c "$1" "$transcript" 2>/dev/null || true)"; printf '%s' "${n:-0}"; }
 
 blocked_work=$(count 'Blocked: ')
-blocked_crown=$(count 'crown-jewel')
 intake_denied=$(count 'TASK INTAKE GATE')
 perm_denied=$(count 'permissionDecision":"deny')
 
-total=$((blocked_work + blocked_crown + intake_denied + perm_denied))
+total=$((blocked_work + intake_denied + perm_denied))
 # Nothing worth recording. Silence keeps the log signal-dense.
 [ "$total" -gt 0 ] || exit 0
 
@@ -64,11 +63,10 @@ line="$(jq -n -c \
   --arg reason "$reason" \
   --arg cwd "$cwd" \
   --argjson guard_denials "$blocked_work" \
-  --argjson crown_denials "$blocked_crown" \
   --argjson intake_gate "$intake_denied" \
   --argjson permission_denials "$perm_denied" \
   '{ts:$ts, session:$session, end_reason:$reason, cwd:$cwd,
-    guard_denials:$guard_denials, crown_denials:$crown_denials,
+    guard_denials:$guard_denials,
     intake_gate:$intake_gate, permission_denials:$permission_denials}' 2>/dev/null)"
 [ -n "$line" ] || exit 0
 

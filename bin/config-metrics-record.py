@@ -39,7 +39,6 @@ def _load_writer():
 
 # Guard denial signatures → the hook part that owns them (mirrors retro-trigger-log.sh's grep).
 _DENY_SIGNATURES = {
-    "crown-jewel": "hooks/crown-jewel-read-guard.py",
     "TASK INTAKE GATE": "hooks/task-intake.sh",
     "Blocked:": "hooks/work-resource-guard.sh",
     "config-edit-guard": "hooks/config-edit-guard.py",

@@ -79,10 +79,10 @@ CRITERIA: list[tuple[str, str]] = [
 
     # --- Credential protection ---------------------------------------------------------
     ("secrets-crown-jewel-paths-denied",
-     "settings.json still denies Read on every crown-jewel credential path, and Edit/Write on the "
-     "key directories. This is the whole mechanical control now that the pattern guard is retired, "
-     "so it may not quietly shrink. Path matchers cannot false-positive on a command that merely "
-     "MENTIONS a path, which is the failure mode that retired the hook."),
+     "settings.json keeps the Edit/Write tamper-denies on the key directories (~/.ssh, ~/.aws, "
+     "~/.gnupg), so a run cannot corrupt them. The Read-blockers were removed as theatre — a secret "
+     "on this machine is reachable by design — so the real control is the provenance rule plus never "
+     "echoing a secret value out (rules/security.md). This tamper set may not quietly shrink."),
     ("secrets-retired-guard-leaves-no-dangling-claim",
      "Nothing in the config claims the retired security-guard.py still runs. A doc promising "
      "protection that no longer exists is worse than an admitted gap, because it stops anyone "
@@ -135,11 +135,6 @@ CRITERIA: list[tuple[str, str]] = [
     ("secrets-no-credential-material-tracked",
      "No tracked file in the repo contains credential-shaped material. This repo is pushed to "
      "GitHub, so a leak here is a published leak."),
-    ("security-bash-guard-blocks-reads-without-false-positives",
-     "The Bash crown-jewel guard blocks a literal secret read AND stays silent on ordinary work — "
-     "including the four commands that got its predecessor retired. A guard that annoys gets "
-     "switched off, and a guard that is off protects nothing, so the must-not-fire half is the "
-     "criterion, not a nicety."),
     ("naming-skills-carry-a-declared-group-prefix",
      "Every skill is named <group>-<what-it-does> using a prefix declared in "
      "contracts/skill_naming.py, or is a declared exception. A flat list of 16 is one you have to "
@@ -330,40 +325,41 @@ def check_structure_one_owner_per_concern() -> None:
 
 
 def check_secrets_crown_jewel_paths_denied() -> None:
-    """The pattern guard is retired, so these path rules are the entire mechanical control."""
+    """Read-blocking was retired as theatre (a secret here is reachable by design). What remains is
+    tamper-protection: Edit/Write on the key directories, so a run cannot corrupt them."""
     deny = settings().get("permissions", {}).get("deny", [])
     required = [
-        "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)", "Read(~/.config/gcloud/**)",
-        "Read(~/Library/Keychains/**)", "Read(~/.claude/.credentials.json)",
-        "Read(~/.config/op/**)", "Read(~/.config/firebase-keys/**)",
-        "Read(**/id_rsa)", "Read(**/id_ed25519)", "Read(**/personal-keys.env)",
         "Edit(~/.ssh/**)", "Edit(~/.aws/**)", "Edit(~/.gnupg/**)",
         "Write(~/.ssh/**)", "Write(~/.aws/**)", "Write(~/.gnupg/**)",
     ]
     for rule in required:
         check(rule in deny,
-              f"settings.json no longer denies {rule}. With security-guard.py retired this list is "
-              f"the whole mechanical control over credential files — it may not quietly shrink.")
+              f"settings.json no longer denies {rule}. The Edit/Write tamper-denies on the key "
+              f"directories are the one mechanical credential control kept after the read-blockers "
+              f"were removed — they may not quietly shrink.")
 
 
 def check_secrets_retired_guard_leaves_no_dangling_claim() -> None:
-    """A doc promising protection that no longer runs is worse than an admitted gap."""
+    """A doc promising protection that no longer runs is worse than an admitted gap. Covers both
+    retired read-blockers: security-guard.py (2026-08-04) and crown-jewel-read-guard.py (2026-08-29)."""
+    retired = ("security-guard", "crown-jewel-read-guard")
     live = {c for c in hook_commands()}
-    check(not any("security-guard.py" in c for c in live),
-          "settings.json still wires security-guard.py, which has been removed from hooks/.")
-    check(not (ROOT / "hooks" / "security-guard.py").exists(),
-          "hooks/security-guard.py is back on disk but the config says it was retired. Pick one.")
+    for name in retired:
+        check(not any(f"{name}.py" in c for c in live),
+              f"settings.json still wires {name}.py, which has been removed from hooks/.")
+        check(not (ROOT / "hooks" / f"{name}.py").exists(),
+              f"hooks/{name}.py is back on disk but the config says it was retired. Pick one.")
 
-    # Any prose still describing it as live. A line explaining that it was RETIRED is the point of
-    # the change and must not trip this, so those are allowed by keyword.
+    # Any prose still describing a retired guard as live. A line explaining that it was RETIRED is the
+    # point of the change and must not trip this, so those are allowed by keyword.
     RETIRED_CONTEXT = re.compile(r"retir|remov|delet|no longer|was\b|former|history|restor", re.I)
     for sub in ("rules", "references"):
         for p in (ROOT / sub).glob("*.md"):
             for i, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-                if "security-guard" not in line:
+                if not any(name in line for name in retired):
                     continue
                 check(RETIRED_CONTEXT.search(line) is not None,
-                      f"{sub}/{p.name}:{i} still describes security-guard as live: {line.strip()[:90]}")
+                      f"{sub}/{p.name}:{i} still describes a retired guard as live: {line.strip()[:90]}")
 
 
 def check_intake_arms_on_a_task_opening() -> None:
@@ -533,27 +529,6 @@ def check_secrets_gitignore_is_an_allowlist() -> None:
     check(re.search(r"^\s*/?\*\s*$", gi, re.M) is not None or re.search(r"^\s*\*\s*$", gi, re.M) is not None,
           ".gitignore is not an allowlist (no bare `*` line). ~/.claude is where Claude Code writes "
           "runtime state, so a denylist means the next directory it invents gets committed.")
-
-
-def check_security_bash_guard_blocks_reads_without_false_positives() -> None:
-    """Runs the guard's own both-directions suite, so there is one home for the cases."""
-    suite = ROOT / "hooks" / "crown-jewel-read-guard.test.py"
-    check(suite.exists(), f"{suite.name} is missing — the guard would be unproven")
-    if not suite.exists():
-        return
-    result = subprocess.run(
-        [sys.executable, str(suite)], capture_output=True, text=True, timeout=60
-    )
-    check(
-        result.returncode == 0,
-        "crown-jewel-read-guard.test.py failed:\n" + (result.stdout or result.stderr).strip(),
-    )
-    # The suite passing is not enough on its own: it must still be TESTING both directions.
-    src = suite.read_text()
-    check("MUST_NOT_FIRE" in src and src.count('("') >= 20,
-          "the guard suite lost its must-not-fire half, which is the half that keeps it usable")
-    for fp in ["cat .npmrc", "nvm use", "~/.gnupg is denied", "settings.json"]:
-        check(fp in src, f"the historical false positive {fp!r} is no longer a test case")
 
 
 def check_secrets_no_credential_material_tracked() -> None:
@@ -729,7 +704,7 @@ def check_retro_log_detects_without_acting() -> None:
 
         # Triggered: exactly one line, no stdout, nothing outside logs/.
         dirty = base / "dirty.jsonl"
-        dirty.write_text("noise\nBlocked: work resource\ncrown-jewel read denied\n")
+        dirty.write_text("noise\nBlocked: work resource\n")
         h1 = base / "home1"
         p = run_hook(str(dirty), h1)
         check(p.stdout == "" and p.stderr == "",
@@ -741,7 +716,7 @@ def check_retro_log_detects_without_acting() -> None:
         if lines:
             try:
                 row = json.loads(lines[0])
-                check(row.get("guard_denials") == 1 and row.get("crown_denials") == 1,
+                check(row.get("guard_denials") == 1,
                       f"Counts wrong: {row}. A renamed guard message silently zeroes a count.")
             except json.JSONDecodeError as e:
                 check(False, f"Log line is not valid JSON ({e}): {lines[0]!r}")

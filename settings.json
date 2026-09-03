@@ -6,22 +6,6 @@
   },
   "permissions": {
     "deny": [
-      "Read(~/.ssh/**)",
-      "Read(~/.aws/**)",
-      "Read(~/.gnupg/**)",
-      "Read(~/.config/gcloud/**)",
-      "Read(~/.kube/config)",
-      "Read(~/.netrc)",
-      "Read(~/.pgpass)",
-      "Read(~/.docker/config.json)",
-      "Read(~/Library/Keychains/**)",
-      "Read(~/.claude/.credentials.json)",
-      "Read(~/.config/op/**)",
-      "Read(~/.config/firebase-keys/**)",
-      "Read(**/id_rsa)",
-      "Read(**/id_ed25519)",
-      "Read(**/id_ecdsa)",
-      "Read(**/personal-keys.env)",
       "Edit(~/.ssh/**)",
       "Edit(~/.aws/**)",
       "Edit(~/.gnupg/**)",
@@ -38,11 +22,6 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/work-resource-guard.sh"
-          },
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/crown-jewel-read-guard.py",
-            "timeout": 10
           },
           {
             "type": "command",
