@@ -23,8 +23,11 @@ worked on. Conservative by construction: it LISTS and CONFIRMS before deleting, 
 
 ## Scope
 
-This repo only. Conductor worktrees under `~/conductor/workspaces/<project>/*`. Never the main checkout,
-never the current worktree, never a detached-HEAD or non-Conductor worktree.
+This repo only — every worktree `git worktree list` reports for it, wherever it lives. Don't hardcode a
+root: this machine keeps worktrees under `<repo>/.claude/worktrees/`, other setups under
+`~/conductor/workspaces/<project>/*`, and filtering to one prefix silently no-ops the whole run on the
+other layout. The safety is the EXCLUSIONS plus the gate, never a path prefix: never the main checkout,
+never the current worktree, never a detached-HEAD worktree.
 
 ## Step 1 — refresh the merge state (one network read)
 
@@ -34,15 +37,18 @@ just-deleted remote branch can linger in the listing.
 
 ## Step 2 — enumerate candidates
 
-`git worktree list --porcelain`. Keep only paths under `~/conductor/workspaces/<project>/`. HARD-EXCLUDE:
+`git worktree list --porcelain` — it lists every worktree wherever it lives, so derive candidates from
+it directly, never by filtering to a hardcoded path prefix (that filter is what no-ops the run on a
+`.claude/worktrees/` layout). HARD-EXCLUDE:
 
 - the MAIN checkout: `dirname "$(git rev-parse --git-common-dir)"`
 - the CURRENT worktree: `git rev-parse --show-toplevel`
 - any detached-HEAD worktree (no branch to reason about)
-- anything outside the Conductor workspaces dir
 
-Then `ls` the workspaces parent dir on disk and reconcile against the listing — git stops listing a
-worktree once its metadata is pruned while the checkout still sits on disk (`dev-server-hygiene.md`).
+Then `ls` the common parent of the listed worktrees on disk (the `.claude/worktrees/` or
+`~/conductor/workspaces/<project>/` dir, whichever this repo uses) and reconcile against the listing —
+git stops listing a worktree once its metadata is pruned while the checkout still sits on disk
+(`dev-server-hygiene.md`).
 
 **Also enumerate BRANCH-ONLY orphans — merged local branches whose worktree is already gone.** This is
 the most common leftover: Conductor (or a `git worktree remove`) reaps the workspace but leaves the
@@ -125,7 +131,8 @@ For each confirmed-removable worktree:
   (idle-checked, as in the on-disk-dir bullet below).
 - For a dir that is ON DISK but git NO LONGER tracks (Step 2's reconcile caught it; `git worktree remove`
   errors "is not a working tree"): confirm it is idle (`lsof -nP -d cwd | grep -F <path>`, Step 3 #4) and
-  under `~/conductor/workspaces/<project>/`, then `rm -rf <path>` — only after an explicit EXTRA confirm,
+  under the repo's worktrees dir (`.claude/worktrees/` or `~/conductor/workspaces/<project>/`), then
+  `rm -rf <path>` — only after an explicit EXTRA confirm,
   since git cannot manage it. This is the directory half of an archived workspace that left both a branch
   and its on-disk tree.
 - Delete the branch with `git branch -D <branch>`, but ONLY after Step 3 #1's merge gate passed. Do NOT
@@ -143,14 +150,18 @@ must both agree the removed ones are gone (storage-vs-listing).
 
 ## Step 6 — name the sessions for Simon to archive
 
-The skill cannot touch the Conductor/Claude UI. For each removed worktree, report:
+The skill cannot touch the Conductor/Claude UI. Applies ONLY when a worktree was actually removed — on a
+run that only deleted branch orphans (the `.claude/worktrees/` case, where nothing archivable was
+touched), there is nothing to name, so say so and stop. For each removed worktree, report:
 `Archive Conductor workspace <codename> (alias <friendly-name>)`.
 
 - `<codename>` = the last path segment of the worktree (the reliable key).
 - `<friendly-name>` = reverse-lookup the `~/conductor/workspaces/<project>/*` symlinks for one whose
   target is `<codename>`. A codename may carry several or stale aliases — the codename is authoritative,
   the alias is a readable hint. Verify the symlink's target codename still had a worktree. Simon archives
-  them from the Conductor app.
+  them from the Conductor app. On a `.claude/worktrees/` layout there is no alias symlink and no
+  Conductor workspace — the codename IS the dir and the "session" is a live Claude session, so report
+  the codename alone and skip the alias lookup.
 
 ## The gotchas this skill must never trip
 

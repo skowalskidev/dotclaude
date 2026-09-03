@@ -1068,7 +1068,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/meta-cleanup-worktrees/SKILL.md": {
         "mission": "Simon's finished worktrees, branches and their Claude sessions get cleared away without any work-in-progress ever being lost, so a machine full of dead workspaces becomes just the live ones.",
-        "purpose": "Safely remove DONE (merged, clean, idle) worktrees + branches for a repo and name the Conductor sessions to archive.",
+        "purpose": "Safely remove DONE (merged, clean, idle) worktrees + branches for a repo, wherever its worktrees live, and name the sessions to archive.",
         "criteria": [
             "Removes a worktree/branch ONLY when its branch is ancestor-merged into origin/<default> OR "
             "its PR is gh-MERGED (the OR covers squash and rebase merges).",
@@ -1084,8 +1084,12 @@ CONTRACTS: dict[str, dict] = {
             "gate; remote-branch deletion is a separate extra-confirmed step, surfaced as its own opt-in "
             "question in the gate (never left for Simon to ask) and restricted to branches Simon himself "
             "authored (tip author %ae %an), never a teammate's.",
+            "Enumerates worktrees from git worktree list wherever they live — never a hardcoded "
+            "~/conductor path prefix, which silently no-ops the whole run on a .claude/worktrees/ "
+            "layout; the safety is the exclusions (main, current, detached) plus the gate.",
             "Verifies cleanup against on-disk storage, not just git worktree list, and names the "
-            "Conductor sessions (codename + alias) for Simon to archive without touching the Claude UI.",
+            "sessions (codename, plus a Conductor alias when that layout has one) for Simon to "
+            "archive without touching the Claude UI.",
             "Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh and points to process.md + "
             "dev-server-hygiene.md; does not restate them.",
         ],
