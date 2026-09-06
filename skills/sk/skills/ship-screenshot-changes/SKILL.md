@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — opt-in, only with an open PR and Simon's yes — posts them (desktop + mobile per surface) onto the PR (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — whenever the branch has an open PR — posts them (desktop + mobile per surface) onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [optional focus, e.g. "the new dashboard section"]
 ---
 
@@ -120,12 +120,16 @@ inputs visible, list what each shows, and `open` the screenshots directory in Fi
 **When the branch is large/consolidated** (spans many surfaces), also give a compact TOUR table
 (Area · What changed · Where to find it · What to look at) — brief but complete, no word vomit.
 
-## Step 5 — Post them to the PR (OPT-IN, GitHub-only)
+## Step 5 — Post them to the PR (ALWAYS when a PR is open; GitHub-only)
 
-By default the screenshots are handed back locally (Step 4). Post them ONTO the PR only when BOTH hold:
-the branch has an OPEN PR (`gh pr view --json number,url,isDraft`) AND Simon says yes — posting to a work
-PR is outward-facing (the reviewer sees it). ASK first; never auto-post. For journey mode, post the step
-shots in filename (step) order, each captioned with its step, so the comment reads as the flow top to bottom.
+When the branch has an OPEN PR (`gh pr view --json number,url,isDraft`), ALWAYS post the screenshots
+onto it — this is the default final step of the capture, not an opt-in. Do NOT ask first, and do NOT
+stop at handing them back locally or leaving a text reference to them in the PR body: a frontend diff
+whose open PR has no posted screenshots is the failure this step exists to prevent. (No open PR → Step
+4's local hand-back is the whole job; posting is standing authorization only for a PR that exists.) For
+journey mode, post the step shots in filename (step) order, each captioned with its step, so the comment
+reads as the flow top to bottom. TEST: every open PR whose diff changed a frontend surface carries the
+posted screenshots (verified inline below), never only a local hand-back or a body reference to them.
 
 **Post BOTH the desktop and the mobile shot of each surface, grouped per surface** — a `**<surface>**`
 heading with its Desktop image then its Mobile image (before/after: BEFORE then AFTER, each with its

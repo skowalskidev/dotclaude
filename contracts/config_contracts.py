@@ -169,11 +169,14 @@ CONTRACTS: dict[str, dict] = {
     },
     "rules/ui-conventions.md": {
         "mission": "A screen Simon opens is scannable at a glance, because it carries labels rather than paragraphs.",
-        "purpose": "Button order and helper-text restraint for UI work.",
+        "purpose": "Button order and label-first helper-text restraint for UI work.",
         "criteria": [
             "No `paths:` frontmatter. It is silently ignored at user level, which made this file "
             "never load at all.",
             "Carries a scope line so non-UI tasks skip it.",
+            "Label-first is a self-standing DO/DON'T system rule applied when a region is BUILT, not "
+            "only when edited: a section/card/modal/step region ships with its title alone, and a "
+            "second block only when it names a cost/data/wrong-choice consequence.",
         ],
     },
     # --- On-demand reference catalogs ----------------------------------------------
@@ -562,7 +565,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/ship-screenshot-changes/SKILL.md": {
         "mission": "Simon can picture the new UI in the state a user sees it — for docs or a PR — in one fast pass, without waiting for a bug-hunt loop.",
-        "purpose": "Screenshot the changed frontend surfaces in a real browser with realistic inputs, hand them back, and opt-in post them to the PR.",
+        "purpose": "Screenshot the changed frontend surfaces in a real browser with realistic inputs, hand them back, and post them to the PR by default whenever one is open.",
         "criteria": [
             "Screenshots each CHANGED surface (from git diff), seeded into the state a user would see "
             "it, with realistic example inputs, saved inside a workspace root — no bug-hunt, no edge "
@@ -573,9 +576,10 @@ CONTRACTS: dict[str, dict] = {
             "Circles each change with a rounded-rectangle callout and, for a visual change, captures a "
             "BEFORE/AFTER pair (old value vs new) — stated generically for any UI, not overfit to one "
             "framework or token.",
-            "Posts screenshots to the PR only opt-in (open PR + Simon confirms) and GitHub-native — "
-            "gh --attach or the user-attachments CDN upload, git-only detached-ref as fallback, never "
-            "an external host; fails loud and verifies the images render (not camo-broken).",
+            "Posts screenshots to the PR by DEFAULT whenever a PR is open (never opt-in, never only a "
+            "body text reference) and GitHub-native — gh --attach or the user-attachments CDN upload, "
+            "git-only detached-ref as fallback, never an external host; fails loud and verifies the "
+            "images render (not camo-broken).",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],
     },
@@ -584,7 +588,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Drives the changed frontend hard (edge inputs, bug-hunt, fix-loop) on top of /sk:ship-screenshot-changes's capture.",
         "criteria": [
             "Runs as a loop until clean, not a one-shot.",
-            "Reuses /sk:ship-screenshot-changes for the capture and the opt-in PR post; adds only "
+            "Reuses /sk:ship-screenshot-changes for the capture and the default PR post; adds only "
             "edge-input fuzzing, bug-hunt, the fix-loop and the journey-review, and does not restate them.",
         ],
     },

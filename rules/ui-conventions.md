@@ -21,18 +21,21 @@ shadcn `AlertDialog` already does this (`AlertDialogCancel` then `AlertDialogAct
 same order in custom `DialogFooter`s and inline edit controls. (Vertical stacks are exempt — this is
 about left/right horizontal pairs.)
 
-### Default to a label. Cut the NUMBER of text blocks, never just their length.
+### Label-first is the default for every region — new and edited (system rule)
 
-**Count the prose blocks in a region before and after your edit. If the count didn't drop, you
-compressed instead of deleting and the screen is still cluttered.**
+A "region" = any titled block (section/card header, modal, step, settings row). The default holds when
+a region is BUILT, not only edited — never left for a later sweep.
 
-- **One text block per region, and it is a LABEL: 2-5 words, no verb.** "Read from Acme". "Voice".
-  "3 locations". Never a sentence.
-- **A sentence is allowed only when it states behaviour invisible on screen AND losing it costs
-  money, data, or a wrong choice.** One line, once, never a second under it.
-- **Detail needed occasionally goes behind a disclosure.** Label + Details toggle; the paragraph
-  moves inside.
-- **Delete outright, do not shorten, any block that restates a label, a placeholder, an adjacent
-  control, or what a clickable thing obviously does.** Four clickable cards need no "pick one".
-- A container's subtitle must hold for every state it renders: a modal description written for the
-  first step goes stale when a later step replaces the body under it.
+**DO** default every region to one LABEL — its title alone, 2-5 words, no verb ("Voice").
+**DO** add a second block (`subtitle`/`description=`, or a `<p>` under the title) ONLY when it states
+behaviour invisible on screen whose loss costs money, data, or a wrong choice — a price, a dry-run
+"nothing was billed", an upload limit, a consent target. One line, once.
+**DO** put occasional detail behind a disclosure (Details toggle), not inline.
+**DON'T** ship a block that restates the title, a label, an adjacent control, or what a clickable thing
+obviously does — new or edited. Delete it, don't shorten it; four cards need no "pick one".
+**DON'T** let a container's subtitle go stale: a first-step description must still hold when a later
+step replaces the body.
+
+TEST: a title+subtitle region has NO subtitle, or one naming a cost/data/wrong-choice consequence.
+Count blocks before/after — no drop means you compressed, not deleted. e.g. the app-wide sweep kept
+only the billing, consent, dry-run and upload-limit subtitles.
