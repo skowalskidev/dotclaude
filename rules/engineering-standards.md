@@ -1,7 +1,5 @@
 # Engineering standards
 
-Baseline engineering conventions that apply across all projects.
-
 ## Versions — start with the latest stable
 
 **Default to the latest stable versions** of the runtime and deps when scaffolding or adding tooling,
@@ -44,7 +42,6 @@ security risk, not a recommendation.
   workaround, a config, a technique. Prefer the community-proven answer (heavily upvoted, officially
   documented, or from a high-adoption project) over a clever fix from an obscure or low-star source.
   Read SEVERAL sources before settling, and prefer the vendor's own docs over a blog restating them.
-- Complements "claims about third parties must come from primary sources" in `process.md`.
 
 ## Harden fully — never trade protection against a working app
 
@@ -132,12 +129,13 @@ extraction that leaves each call site re-wiring its own state has not done the j
   new code be the ONLY path. If a zero-downtime migration genuinely needs a transitional
   read (expand→migrate→contract across a deploy), say so explicitly and schedule the
   contract step; the end state still has zero legacy/dead code.
-- **Lock in ONE variant; never ship the A/B toggle.** A dev-panel toggle, feature flag, two live
-  paths, or mockup options all count. Build the chosen one (undecided → STOP and ask me,
-  AskUserQuestion), then delete the loser AND its wiring — toggle, alternate branch, dead CSS/storage,
-  loser-only test — in the SAME change. Both paths wired is dead code (e.g. a mobile layout left
-  "vertical" vs "horizontal" behind a dev toggle). TEST: after, a grep for the switch or dropped
-  variant returns only the kept value.
+- **Lock in ONE variant the moment it's picked; never ship the A/B toggle.** A toggle, flag, persisted
+  setting, two live paths, or mockup options all count. Build the chosen one (undecided → STOP and ask
+  me). The instant it ships — chosen, defaulted, or dev-panel-picked and merged — hardcode it and delete
+  every loser AND the selection mechanism (toggle, branch, dead CSS/storage, persisted setting + its
+  strip-migration, loser-only test) in THAT change, never a later pass. TEST: a grep for the switch or
+  any dropped variant returns only the kept value. (e.g. a persisted dev-panel A/B for a mobile wordmark
+  shipped live and flickered on SSR hydration.)
 
 ## Data deletion — soft-archive, never hard-delete (default for user-facing deletes)
 
