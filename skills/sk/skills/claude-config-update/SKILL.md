@@ -26,6 +26,11 @@ this flow is how it gets done, without being asked to use it.
 Never skip the confirmation gate (Step 5). Never edit a file you weren't asked to. Never make a skill
 narrower — a learning from one task must not overfit the skill to that task.
 
+**Run config changes in PARALLEL — never block the main deliverable.** When a `~/.claude` config change
+is asked for DURING another task, dispatch this flow to a background/parallel agent and keep the main
+thread on its own deliverable; default config changes to non-blocking. e.g. a config-update requested
+mid-branch runs in a background agent while the main thread finishes the branch.
+
 **Scope: the user's OWN PRIVATE config only** — five families of target.
 
 The name is deliberate on both halves. **Config**, not "skill", because the config outgrew skills — an
