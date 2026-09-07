@@ -43,6 +43,11 @@ SCENARIOS: list[dict] = [
     # --- Frontend ------------------------------------------------------------------
     {"phrase": "check my UI change in the browser", "expect": "test-eyeball"},
     {"phrase": "go eyeball", "expect": "test-eyeball"},
+    {"phrase": "verify against prod data", "expect": "ship-verify-with-prod-data"},
+    {"phrase": "check it works for all accounts with real data", "expect": "ship-verify-with-prod-data"},
+    {"phrase": "make sure this will not regress on production", "expect": "ship-verify-with-prod-data"},
+    {"phrase": "look at recent data from all accounts", "expect": "ship-verify-with-prod-data"},
+    {"phrase": "does this add up across accounts", "expect": "ship-verify-with-prod-data"},
     {"phrase": "screenshot the changes", "expect": "ship-screenshot-changes"},
     {"phrase": "doc the new UI", "expect": "ship-screenshot-changes"},
     {"phrase": "grab screenshots of what changed", "expect": "ship-screenshot-changes"},

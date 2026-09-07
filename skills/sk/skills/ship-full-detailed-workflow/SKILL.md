@@ -53,6 +53,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    hand back a per-ticket verdict report.
 
 **Conditional legs — fire when the PR calls for them, not by default:**
+- `/sk:ship-verify-with-prod-data` — when the diff changes a data/money-facing surface, prove it
+  reconciles against real prod data across ALL accounts (part of stage 3's verification, before stage 7's
+  screenshots).
 - `/sk:test-eyeball` — hammer the changed UI in a real browser (stage 3's journey leg, autonomous).
 - `/sk:test-copilot` — a human-driven UI test; opt-in, because `process.md` says ask before a browser.
 - `/sk:work-isolate-environment` — a port lane when a stage boots a server.

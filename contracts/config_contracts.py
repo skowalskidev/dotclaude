@@ -602,6 +602,38 @@ CONTRACTS: dict[str, dict] = {
             "guarantee of correctness.",
         ],
     },
+    "skills/sk/skills/ship-verify-with-prod-data/SKILL.md": {
+        "mission": "A data-facing change is proven correct against every prod account's real data, and any regression caught, before it ships — not after a merchant sees a wrong number.",
+        "purpose": "Reads prod read-only, recomputes what a data surface would show for every account with "
+                   "recent data under the new code, confirms the figures reconcile, classifies each "
+                   "discrepancy as a code bug or a deploy/data-skew, and supplies a user-run backfill "
+                   "proven first on a seedable dev account.",
+        "criteria": [
+            "Fires only when the diff changes how a surface reads, derives, reconciles or enumerates "
+            "stored data; names the exact figure(s) whose correctness depends on real per-account "
+            "data, else declares it does not apply.",
+            "Verifies EVERY account the surface serves, taken from the surface's own enumeration "
+            "source and ranked by recent activity, not a single hand-picked account. Checking one "
+            "hides a break on the accounts or rails it does not cover.",
+            "Reads prod READ-ONLY through the provisioned path (rules/connectors.md); a prod write "
+            "needs Simon's per-write go-ahead. Recomputes each figure from the raw source docs under "
+            "the NEW code, never trusting the deployed surface's current OLD-code output.",
+            "Confirms the figures that must agree resolve to ONE source or predicate — recomputed "
+            "independently and landing on the same number — per account.",
+            "Labels each discrepancy a code bug or a deploy/data-skew with the real doc as evidence, "
+            "and proposes a schema/migration ONLY after confirming the field is genuinely absent on "
+            "prod, because changing data is hard to reverse.",
+            "Hands Simon the backfill/recompute command plus deploy order to run on prod himself, "
+            "proven first by running the identical script on a seedable dev account and re-reading "
+            "until that account reconciles.",
+            "Before screenshots, re-runs the new writer's recompute on the seed dev account so the "
+            "capture shows the new figures, not the deploy-skew fallback; hands the capture to "
+            "/sk:ship-screenshot-changes.",
+            "Composes /sk:ship-screenshot-changes and feeds "
+            "/sk:ship-report-and-ensure-correct-user-system-journey a real-data verdict; does not "
+            "restate them.",
+        ],
+    },
     "skills/sk/skills/ship-screenshot-changes/SKILL.md": {
         "mission": "Simon can picture the new UI in the state a user sees it — for docs or a PR — in one fast pass, without waiting for a bug-hunt loop.",
         "purpose": "Screenshot the changed frontend surfaces in a real browser with realistic inputs, hand them back, and post them to the PR by default whenever one is open.",
