@@ -132,6 +132,11 @@ Durability tiers, most durable first: the ticket/tracker outlives everything; th
 the ticket before teardown (§ Promotion before teardown below). The survives-a-restart guarantee and
 the no-`/tmp` rule are process.md's, above.
 
+## Shared observable dashboard
+
+DO compose `references/workflow-loops.md` for the plan’s status projection and execution mode.
+Keep it current after each substantive transition. TEST: the dashboard revision matches the plan.
+
 ## Every flow writes into the ONE living plan — including verify, test, review, merge and ship
 
 DO route EVERY flow's output back into the single living plan (`.context/<slug>-plan.md`), not only the

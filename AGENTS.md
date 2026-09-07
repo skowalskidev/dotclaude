@@ -16,3 +16,11 @@ execute the steps in order; they're idempotent.
 - When Simon's config changes, commit it here via the **`/sk:claude-config-sync`** skill (reviews the diff +
   secret-scans first), or `git -C ~/.claude add -A && git -C ~/.claude commit && git -C ~/.claude push`.
   A `gitleaks` pre-commit hook + the allowlist `.gitignore` block any staged secret. No background daemon.
+
+## Shared workflow dashboard
+
+Read `ABOUT.md` for the user-facing overview and `references/workflow-loops.md` for the protocol.
+Keep the thin entry skills `work-gauntlet-loop` and `work-ralph-loop` in the `sk` plugin.
+Keep shared runtime in `bin/workflow-dashboard.*`; plan and mockup skills compose the same catalog.
+Run `python3 hooks/config-contract.test.py` after changes; it includes the dashboard runtime tests.
+Use the test-only intake state override in that suite so verification cannot clear live session gates.

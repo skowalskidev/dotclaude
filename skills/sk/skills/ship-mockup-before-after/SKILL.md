@@ -107,16 +107,13 @@ TEST: after Simon states a decision, the mockup opens by default on the chosen/d
 old kept only as a labelled before-reference; a decided change presented as one of N equal options, or a
 mockup still defaulting to the superseded design, is the violation.
 
-## Ask for the direction FIRST — reference images
+## Direction and target approval
 
-Before designing an AFTER, ASK the user for reference images of interfaces they like — it is the
-fastest route to a direction they accept and it stops you inventing one they reject. Suggest they
-browse **Dribbble** (dribbble.com) and copy-paste the shots or directions they want to emulate (app
-screenshots work too). Ground the AFTER in those references — reproduce their layout, hierarchy and
-component patterns — alongside the real app's measured tokens. When references exist, PASS EVERY ONE to
-each builder by absolute path and have the builder READ them before designing; a reference that
-silently never reaches a builder wastes the whole round, so **FAIL LOUD** — stop and report which
-reference is missing — rather than building without it.
+DO use the shared dashboard protocol's Reference setup: supplied images, named platforms or none.
+Draft the target from those inputs and the real product context, iterate with Simon, and freeze his
+approved design revision as the implementation's reference. Missing screenshots never block drafting.
+Pass every supplied or approved artifact by absolute path to builders and have them read it.
+TEST: the implementation is judged against the approved target, not a later unapproved proposal.
 
 ## Choose the medium — a downloadable HTML FILE, or a Claude artifact URL
 
@@ -257,100 +254,25 @@ screen with nothing beyond it sends the fix back to after the build — the exac
 **DO simulate every transition with local state and seeded data** — no network, no persistence, no auth,
 no real requests. He is walking the flow, not operating a live app.
 
-## Assemble the document
+## Assemble and navigate through the shared dashboard
 
-**DO make it self-contained** — screenshots as compressed `data:` URIs, all CSS and JS inline — so the
-one file (or the CSP-locked artifact) needs no external request. Apply the visual craft directly — no
-separate design skill to load: give the page a title, a favicon, a palette and theme support that MATCH
-THE REAL APP'S — measure it, and if the app wires no dark theme, the mockup is light-only; never impose
-a light+dark the product does not have — a responsive layout, and realistic seeded content (never lorem).
-**DO keep ALL state in-memory and in `#spec`; NEVER use `localStorage`/`sessionStorage`.** They are
-blocked in the artifact sandbox and fail silently; the embedded `#spec` is the durable record either way.
+DO read `references/workflow-loops.md`. Use its template for the task overview and stable entry
+point; put each surface in a left-nav section with Before, named Reference / target and Current.
+Keep the plan as the task record and each surface's `#spec` as its design record. Update the plan's
+asset paths and source references after each capture, proposal, implementation and judgement.
+TEST: the plan view and mockup view use the identical dashboard shell.
 
-**DO give the document a BEFORE/AFTER toggle defaulting to AFTER.** Before is what the screen does
-today; after is the proposal. He compares in one click instead of holding two screens in his head.
+DO retain the surface's full data island, versions, variants, persona axes and pinned feedback in
+one self-contained asset. Inline it in the target panel; let that surface's editing controls keep
+working there. Keep the shared shell quiet and neutral, and the captured product pixels unchanged.
+When connecting an existing review, rebuild its canonical entry point in place and preserve its
+complete data island inside the embedded asset before replacing any chrome.
+TEST: every previous version, selection and comment is reachable after connecting the dashboard.
 
-**DO float every mockup control OVER the screen — fixed, high z-index, styled with NONE of the app's
-tokens.** A dark pill in a corner with a `MOCKUP` label reads instantly as scaffolding.
-**DON'T style a control to look like part of the app.** A preview whose scaffolding is
-indistinguishable from the product teaches him the wrong thing about what was built.
-
-## Browse the variants — grid, focus, filmstrip, present mode
-
-Overview first, then focus (Shneiderman's mantra): a bird's-eye view lets him get his head around the
-whole set before drilling in.
-
-**DO open on a BIRD'S-EYE grid — variants as thumbnails, 3 to a row — so he decides at a glance which to
-look at closely.** Each thumbnail is the variant's AFTER, labelled and selectable right there.
-**DON'T make him scroll past full-size variants to compare them.** Comparing is the whole job of the
-grid; a stacked scroll defeats it.
-
-**DO click a thumbnail into a FULL view**, and keep a PERSISTENT thumbnail filmstrip (a rail) visible in
-focus mode with the current variant highlighted, so orientation is free. Add next/previous, a "back to
-grid" control, and keyboard nav (←/→ move, Esc back to grid, Home/End first/last).
-
-**DO offer a PRESENT / full-screen mode that hides all chrome, with fit / fill / 100% scaling**, so a
-mockup is judged uncovered by UI.
-
-**DO SEPARATE variants by TYPE — tabs or titled lanes, each type its own section** (the dashboard's
-variants in one, the modal's in another), so several different changes live in one document without
-blurring together. Keep types to a handful; a type is a chunk, a variant is an item inside it.
-
-**DO put secondary detail (specs, notes, rationale) behind a per-variant DETAILS drawer** — progressive
-disclosure keeps the canvas clean.
-
-**DO float a HUD — fixed, high z-index, styled with NONE of the app's tokens — that ALWAYS shows where he
-is:** the current type, variant N of M within it, the current VERSION, and quick nav. He never loses
-his place.
-TEST: at any moment the HUD names the type, the variant position (N of M), and the version being viewed.
-
-## The consolidation gallery (many self-contained files → one review surface)
-
-When a fan-out (e.g. `/sk:work-hyperspeed`) produces N self-contained mockup FILES rather than one
-`#spec` document, the gather builds ONE review gallery over them.
-
-**DO make that gallery a self-contained single file BY DEFAULT — INLINE every mockup into it.** Embed
-each file's HTML in a `<script type="application/json" id="mocks">` island and point each iframe at
-`fr.srcdoc=MOCKS[key]`, never `fr.src=<sibling-path>`. `about:srcdoc` is same-origin to the gallery, so
-every tile renders from `file://` AND the gallery's cross-frame controls still reach in.
-**DON'T hand over a gallery that iframes sibling files over `http://localhost`** — `file://` blocks
-cross-origin iframes, so a recipient who opens it gets blank tiles (the fix that re-inlined
-`gallery-share.html`: 8 mockups inlined, verified rendering on `file://` with zero server). Serving over
-http is a DEV convenience for fast cache-busted refresh while you edit the mockups; RE-INLINE before
-handoff so the at-rest deliverable always opens standalone.
-TEST: open the gallery from `file://` with the server OFF — every tile still renders.
-
-Build it with these controls BY DEFAULT:
-
-- **Bird's-eye GRID with CONFIGURABLE columns (1 / 2 / 3 per row).** Each tile is a small DESKTOP view —
-  render the mockup at ~1440px and scale it to fit the tile; NEVER render it narrow (that trips the
-  mockup's own mobile breakpoint and looks squished). On a column change, re-scale to the new tile width.
-- **Each tile SCROLLS INDEPENDENTLY** — scale the full page into a `scaleinner` sized to the scaled
-  height, tile `overflow-y:auto`, iframe `pointer-events:none` so the wheel scrolls the tile and a click
-  opens it. He can then scroll two tiles to different sections and compare them.
-- **A GLOBAL VIEW (before/after) + SURFACE nav that drives ALL tiles at once.** The fanned-out parts are
-  CONTENT-ONLY (no per-part HUD) and expose `[data-mode="before|after"]` + CONSISTENT `[data-surface]`
-  values; the gallery hides each part's own control bar and clicks those hooks in every tile, so
-  "switch all variants to surface X" is one click.
-- **Click a tile → FOCUS** (full-size, filmstrip rail, ←/→/Esc/Home/End) → **Present** (full-screen).
-- **A FLOATING HUD** — fixed, styled with none of the app's tokens — showing view · variant N of M ·
-  version. NEVER put it inside the header: a wide header scrolls it off-screen and reads as "no HUD".
-- **Keep/comment + an Approve / Request-changes verdict per variant**, using the response contract of
-  `/sk:work-ask-reply-in-full-before-after-artifact`.
-- **A QUIET version box** (per § versioning) — each consolidation checkpoint is a version, newest active.
-- **Tile height scales with the column count:** 1 column = one variant fills the screen and must FIT
-  without overflow (leave room for the header + tile cap so a single tile needs no page scroll); 2 =
-  ~half screen; 3 = a cozy default (~340px). Switching the focused variant RESETS its scroll to the top.
-- **Place the floating HUD OFF the mockup's own chrome** — a corner clear of the app's action buttons,
-  raised above the filmstrip in focus (it once sat over the app's Upgrade / Buy-Credits buttons).
-
-**CLASS-OF-BUG to avoid: an id selector that sets `display` on a view overrides the `.view{display:none}`
-toggle.** `#compare{display:flex}` kept an empty pane displayed over the grid on ALL views — a whole
-"blank grid" was actually a gray overlay on top. Scope every view's display to its `.show` class
-(`#compare.show{display:flex}`), and when a view looks blank, `elementFromPoint` the empty area before
-assuming lost content. Verify the gallery in the browser before handing it over — including a `file://`
-open with the server off — and cache-bust the reload (`?t=`) or a served gallery hands you the stale
-file mid-iteration.
+DO put the approved proposal in Target and a real implementation capture in Current. Before approval,
+Current displays verified progress or Not started. A proposal never counts as implementation evidence.
+DO keep detailed version comparisons and the review round-trip below inside the surface asset; the
+shared shell owns section navigation, progress, presentation and offline export.
 
 ## Compare — side by side, and diff what changed between versions
 

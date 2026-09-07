@@ -29,6 +29,12 @@ cannot land without someone stating how it gets reached.
 """
 
 SCENARIOS: list[dict] = [
+    {"phrase": "gauntlet loop", "expect": "work-gauntlet-loop"},
+    {"phrase": "ralph loop", "expect": "work-ralph-loop"},
+    {"phrase": "fresh worker per task", "expect": "work-ralph-loop"},
+    {"phrase": "finish every plan item", "expect": "work-ralph-loop"},
+    {"phrase": "live progress dashboard", "expect": "work-gauntlet-loop"},
+    {"phrase": "independent judge", "expect": "work-gauntlet-loop"},
     # --- Repo and code -------------------------------------------------------------
     {"phrase": "clean up the repo", "expect": "maintenance-code-cleanup-repo"},
     {"phrase": "find dead code", "expect": "maintenance-code-cleanup-repo"},

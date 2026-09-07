@@ -31,6 +31,45 @@ nothing at runtime.
 """
 
 CONTRACTS: dict[str, dict] = {
+    "references/workflow-loops.md": {
+        "mission": "Simon sees current progress in one familiar interface while every required outcome is verified.",
+        "purpose": "Shared dashboard, state, execution adapter and independent judge protocol.",
+        "criteria": [
+            "Keep one plan and one shared renderer across current and Ralph execution; switching modes preserves IDs and evidence.",
+            "Require fresh workers for Ralph and separate fresh judges for Gauntlet; unavailable delegation remains blocked.",
+            "Require verified criteria and current-revision judge evidence for completion; budgets and cancellation never count as done.",
+            "Retain standalone offline export and live updates with explicit connection failure; retain all embedded mockup versions and feedback.",
+            "Accept screenshots, platform names or no references; freeze explicit user approval of an AI-drafted target before judging implementation against it.",
+        ],
+    },
+    "skills/sk/skills/work-gauntlet-loop/SKILL.md": {
+        "mission": "Simon starts or resumes verified work with one command and can see every remaining gap.",
+        "purpose": "Work-group Gauntlet entry choosing an execution skill and applying shared judgement.",
+        "criteria": [
+            "Ask for run options before dispatch; accept explicit invocation options as answers and record the selected values before running.",
+            "Display this run’s recorded options read-only, with no editable selectors or generated start command in the dashboard.",
+            "Preserve planning authorization and use the shared dashboard template and runtime tests.",
+            "Select the existing workflow or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor.",
+        ],
+    },
+    "skills/sk/skills/work-ralph-loop/SKILL.md": {
+        "mission": "Simon completes every verified plan item without losing context between fresh workers.",
+        "purpose": "Standalone or composed Ralph execution entry using the shared loop protocol.",
+        "criteria": [
+            "Fix the engine to Ralph; ask options on direct invocation and reuse the supervisor’s confirmed answer when composed.",
+            "Run one fresh worker per ready item, verify results and preserve durable learnings in the same plan.",
+            "Keep one supervisor, judge owner, options answer, viewer and iteration budget per invocation.",
+        ],
+    },
+    "bin/workflow-dashboard.py": {
+        "mission": "Simon sees truthful task progress through one reusable live and portable viewer.",
+        "purpose": "Shared state validation, atomic update and HTML serving engine.",
+        "criteria": [
+            "Load bin/workflow-dashboard.html and use one plan across execution modes.",
+            "Reject unconfirmed running state, incomplete criteria, stale or self-approved judgements and conflicting revisions.",
+            "Validate assets before advancing the plan and inline them for offline export.",
+        ],
+    },
     # --- Top-level -----------------------------------------------------------------
     "CLAUDE.md": {
         "mission": "Claude finds the right rule in one hop on every turn, without the index itself spending context.",
@@ -608,8 +647,9 @@ CONTRACTS: dict[str, dict] = {
             "One plan file at .context/<slug>-plan.md; a request updates only the sections it touches, never a wholesale rewrite.",
             "Every update prepends a dated Changelog entry and shows Simon ONLY the changed section(s) as the delta in chat.",
             "Stays in plan-mode — every request folds into the plan, nothing is implemented — until an explicit confirmation ('implement'/'go build'/'the plan is confirmed').",
-            "On confirmation it asks whether to encode the plan into tickets, then hands off to /sk:work-full-detailed-workflow automatically.",
+            "On confirmation it asks whether to encode the plan into tickets, then continues the selected current or Ralph execution through the shared dashboard protocol.",
             "Reuses references/planning-and-tracking.md for the plan's content; does not restate it.",
+            "Uses references/workflow-loops.md for the shared live overview and preserves the same plan when changing execution modes.",
             "Backs every plan change with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) and offers a clickable preview (/sk:ship-mockup-before-after) for visible changes; does not restate either.",
             "Its stable skeleton includes a '## Related tickets & update plan' section: every related "
             "ticket as a full Linear link + live state, a refutation with evidence for anything "
@@ -920,8 +960,7 @@ CONTRACTS: dict[str, dict] = {
             "Embeds the screenshot as a compressed data URI with inline CSS/JS for the artifact CSP, "
             "and applies the visual craft directly (theme-aware, self-contained, real content) rather "
             "than loading a separate design skill.",
-            "Carries a BEFORE/AFTER toggle defaulting to after, floated over the screen using none "
-            "of the app's tokens, so scaffolding never reads as a shipped feature.",
+            "Uses the shared dashboard shell with Before, named Target and Current panels; keeps specialist design controls inside the embedded surface asset.",
             "Offers real PRODUCTION merchant profiles as preview personas by reading their "
             "owner-scoped records with a read-only key, copying to a dev account with the owner "
             "remapped, and capturing on DEV — prod never written or authed; copies every collection "
@@ -950,9 +989,7 @@ CONTRACTS: dict[str, dict] = {
             "Compresses screenshots (WebP, downscaled, capped) so the document fits the output cap — "
             "never a full-res PNG base64 — and never uses localStorage/sessionStorage (blocked in the "
             "artifact sandbox); state is in-memory + #spec.",
-            "Browses overview-first: a bird's-eye grid (3/row) into a focus view with a persistent "
-            "filmstrip, keyboard nav and a present/full-screen mode; variants separated by TYPE; a HUD "
-            "always showing type, variant N-of-M and version.",
+            "Uses left section navigation for the overview; retains grid, focus, filmstrip, version HUD and specialist comparison controls inside the embedded surface at its captured viewport.",
             "Compares 3-up side-by-side and diffs two versions at the FIELD level (green added / "
             "yellow modified / red removed) from #spec — what even raster tools cannot do on their "
             "own content.",
@@ -1371,6 +1408,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon never has to name a skill, and never hits a predictable blocker that could have been front-loaded.",
         "purpose": "Proposes skills for a new task; blocks fan-out until Simon confirms.",
         "criteria": [
+            "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",
             "Does not arm on an automated system/background-task notification (a completed background "
             "command, a Stop-hook nudge) — those are follow-up events, not task openings; arming on one "

@@ -44,6 +44,8 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(os.environ.get("CLAUDE_CONFIG_ROOT", Path.home() / ".claude"))
+_INTAKE_TEMP = tempfile.TemporaryDirectory(prefix="claude-intake-tests-")
+INTAKE_TEST_DIR = Path(_INTAKE_TEMP.name)
 
 # Skill plugins this suite governs. TRACKED ones only, deliberately.
 #
@@ -63,6 +65,8 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("dashboard-runtime-preserves-completion",
+     "The shared dashboard rejects unsupported state, false completion, stale judges and lost updates; exports portable evidence."),
     # --- Structure: the shape config-repo.md promises ---------------------------------
     ("structure-claude-md-is-an-index",
      "CLAUDE.md stays a thin index. It loads in full on every session in every project, so length "
@@ -238,12 +242,13 @@ def intake(mode: str, payload: dict, env: dict | None = None) -> str:
     e.pop("CLAUDE_INTAKE_GATE", None)
     if env:
         e.update(env)
+    e["CLAUDE_INTAKE_STATE_DIR"] = str(INTAKE_TEST_DIR)
     p = run([str(ROOT / "hooks" / "task-intake.sh"), mode], input=json.dumps(payload), env=e)
     return (p.stdout or "") + (p.stderr or "")
 
 
 def clear_markers() -> None:
-    d = ROOT / ".session-intake"
+    d = INTAKE_TEST_DIR
     if d.is_dir():
         for f in d.glob("*.armed"):
             f.unlink(missing_ok=True)
@@ -367,7 +372,7 @@ def check_intake_arms_on_a_task_opening() -> None:
     out = intake("submit", {"session_id": "contract-a", "prompt": "refactor the billing module"})
     check("TASK INTAKE GATE" in out,
           "A task-opening prompt did not arm the intake gate or inject the protocol.")
-    check((ROOT / ".session-intake" / "contract-a.armed").exists(),
+    check((INTAKE_TEST_DIR / "contract-a.armed").exists(),
           "The intake gate injected its protocol but wrote no marker, so nothing is actually blocked.")
     clear_markers()
 
@@ -389,9 +394,9 @@ def check_intake_blocks_runaway_fanout() -> None:
 def check_intake_answering_disarms() -> None:
     clear_markers()
     intake("submit", {"session_id": "contract-c", "prompt": "migrate the database schema"})
-    check((ROOT / ".session-intake" / "contract-c.armed").exists(), "gate did not arm for the disarm test")
+    check((INTAKE_TEST_DIR / "contract-c.armed").exists(), "gate did not arm for the disarm test")
     intake("answered", {"session_id": "contract-c", "tool_name": "AskUserQuestion"})
-    check(not (ROOT / ".session-intake" / "contract-c.armed").exists(),
+    check(not (INTAKE_TEST_DIR / "contract-c.armed").exists(),
           "AskUserQuestion did not disarm the intake gate, so Claude stays blocked after the user answers.")
     out = intake("guard", {"session_id": "contract-c", "tool_name": "Agent"})
     check(out.strip() == "", "Agent is still denied after the gate was disarmed.")
@@ -431,8 +436,8 @@ def check_intake_has_an_off_switch() -> None:
     out = intake("submit", {"session_id": "contract-f", "prompt": "refactor everything now"},
                  env={"CLAUDE_INTAKE_GATE": "off"})
     check(out.strip() == "", "CLAUDE_INTAKE_GATE=off did not stop the intake gate arming.")
-    (ROOT / ".session-intake").mkdir(exist_ok=True)
-    (ROOT / ".session-intake" / "contract-f.armed").touch()
+    (INTAKE_TEST_DIR).mkdir(exist_ok=True)
+    (INTAKE_TEST_DIR / "contract-f.armed").touch()
     out = intake("guard", {"session_id": "contract-f", "tool_name": "Agent"},
                  env={"CLAUDE_INTAKE_GATE": "off"})
     check(out.strip() == "",
@@ -941,6 +946,14 @@ def check_commits_conventional_subject_enforced() -> None:
                   f"commit-msg {'rejected' if want_ok else 'accepted'} {subject!r}. "
                   + ("A false rejection pushes you to --no-verify, which also skips the secret "
                      "gate." if want_ok else "This is the shape the hook exists to stop."))
+
+
+def check_dashboard_runtime_preserves_completion() -> None:
+    package = ROOT / "bin"
+    for name in ("workflow-dashboard.py", "workflow-dashboard.html", "workflow-dashboard.test.py"):
+        check((package / name).is_file(), f"Missing dashboard runtime file: {name}")
+    result = run(["/usr/bin/python3", str(package / "workflow-dashboard.test.py")])
+    check(result.returncode == 0, "Dashboard runtime regression: " + result.stdout + result.stderr)
 
 
 # The coverage ratchet: a criterion with no check, or a check with no criterion, is a bug.

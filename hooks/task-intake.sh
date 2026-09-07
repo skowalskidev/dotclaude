@@ -44,7 +44,7 @@
 set -uo pipefail
 
 MODE="${1:-submit}"
-STATE_DIR="$HOME/.claude/.session-intake"
+STATE_DIR="${CLAUDE_INTAKE_STATE_DIR:-$HOME/.claude/.session-intake}"
 INPUT="$(cat)"
 
 # Off-switch, checked in every mode so it disables the whole mechanism, not just the arming.

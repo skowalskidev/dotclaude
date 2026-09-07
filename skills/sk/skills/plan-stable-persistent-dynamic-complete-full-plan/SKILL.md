@@ -1,6 +1,6 @@
 ---
 name: plan-stable-persistent-dynamic-complete-full-plan
-description: Keep ONE living, source-of-truth plan file instead of re-writing or re-explaining the plan every time it changes. It updates only the SECTIONS a request touches (surgical edits, so the plan never drifts or needs re-reading whole), prepends a dated Changelog entry naming what changed, and shows you ONLY the changed section(s) in chat as the delta — so you read the change, not the whole document. It stays LOCKED in plan-mode: every new request, correction or idea folds back into the single plan, and it does NOT implement until you explicitly confirm ("implement" / "start building" / "go build" / "the plan is confirmed"). On confirmation it asks whether to break the plan into Linear tickets, then hands off to /sk:work-full-detailed-workflow automatically. Every plan change is backed with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) for clarity, and any visible change is offered as a clickable preview (/sk:ship-mockup-before-after). The plan lives at .context/<slug>-plan.md (durable, survives a restart). Use for "keep a single plan", "stop making me re-read the plan", "just update the plan", "one source of truth plan", "living plan", "stay in plan mode until I say go", or /sk:plan-stable-persistent-dynamic-complete-full-plan. Reuses references/planning-and-tracking.md for what a complete plan contains.
+description: Keep ONE living, source-of-truth plan file instead of re-writing or re-explaining the plan every time it changes. It updates only the SECTIONS a request touches (surgical edits, so the plan never drifts or needs re-reading whole), prepends a dated Changelog entry naming what changed, and shows you ONLY the changed section(s) in chat as the delta — so you read the change, not the whole document. It stays LOCKED in plan-mode: every new request, correction or idea folds back into the single plan, and it does NOT implement until you explicitly confirm ("implement" / "start building" / "go build" / "the plan is confirmed"). On confirmation it asks whether to break the plan into Linear tickets, then continues the selected current or Ralph execution mode automatically. Every plan change is backed with a before/after artifact (/sk:work-ask-reply-in-full-before-after-artifact) for clarity, and any visible change is offered as a clickable preview (/sk:ship-mockup-before-after). The plan lives at .context/<slug>-plan.md (durable, survives a restart). Use for "keep a single plan", "stop making me re-read the plan", "just update the plan", "one source of truth plan", "living plan", "stay in plan mode until I say go", or /sk:plan-stable-persistent-dynamic-complete-full-plan. Reuses references/planning-and-tracking.md for what a complete plan contains.
 argument-hint: "[the plan's subject, or the update to fold in]"
 ---
 
@@ -22,6 +22,12 @@ the completeness bar met before it can be confirmed).
   `references/planning-and-tracking.md`'s job. Read it there. This skill owns the FILE LIFECYCLE, not the
   plan's contents.
 
+## Shared dashboard
+
+DO read `references/workflow-loops.md`. Use its shared renderer for the live plan overview,
+Before / named target / Current evidence, and read-only selected run options. Keep the plan as the source of truth.
+TEST: changing execution mode preserves this plan and every section ID.
+
 ## The stable skeleton (so edits stay surgical)
 
 Give the file fixed section anchors from the start. Adjust which sections exist per task, but keep them
@@ -32,7 +38,9 @@ STABLE within a plan so an update targets ONE section, not the whole doc:
 - `## System journey (current trajectory)` — what the machine does, in order, and where it stops early, per `references/tldr-report-formats.md` Block 2.
 - `## Open questions` — Simon's decisions, each with a proposed default.
 - `## Approach`
-- `## Tasks` — the work breakdown (the unit tickets are cut from).
+- `## Tasks` — task scope and dependencies; status and criteria live in `## Dashboard state`.
+- `## Dashboard state` — the shared renderer’s single state block.
+- `## Execution notes` — durable learnings and resume context.
 - `## Decisions & rationale`
 - `## Risks & assumptions`
 - `## Related tickets & update plan` — every related ticket as a full clickable Linear link + its live
@@ -52,8 +60,8 @@ resolved plan). The rule and the two-journey format are `references/planning-and
 ## First invocation — create the plan, show it once
 
 Create the file with the skeleton, fill it from the request and `references/planning-and-tracking.md`,
-set `## Status` to `PLANNING (locked)`, and show the WHOLE plan in chat this once — the only time Simon
-reads it whole. Then wait.
+set `## Status` to `PLANNING (locked)`, and open the shared dashboard. Give Simon its stable link and
+the one-line next decision; keep the full plan available through its file link. Then wait.
 
 ## Every later request — surgical, logged, delta-in-chat
 
@@ -103,6 +111,7 @@ that cites the plan section it came from, never the implementation.
    ordered by priority, each with its testing steps and how it relates to the rest) and the project's own
    ticket conventions in its `CLAUDE.md`; link them, and keep the plan file as the connecting source of
    truth. Do NOT auto-post the plan as ticket comments unprompted.
-3. **Hand off to `/sk:work-full-detailed-workflow` automatically** with the plan file (and the tickets,
-   if created) as its input — no second command needed. The plan file stays the source of truth the
-   build and the end report are judged against.
+3. **Continue the selected execution mode** from Dashboard state. For current execution, hand off to
+   `/sk:work-full-detailed-workflow`; for Ralph, hand off to `/sk:work-ralph-loop`. Use the shared
+   upfront options interview if choices are unconfirmed; otherwise reuse the recorded answer. Carry
+   the same plan, confirmed options and ticket inputs. Keep any enabled judge active over either mode; no second command is needed.
