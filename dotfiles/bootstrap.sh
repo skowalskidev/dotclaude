@@ -2,7 +2,8 @@
 # bootstrap.sh — set this config up from scratch, or check an existing setup.
 #
 # The runnable companion to README section "Agent setup". It does the SAFE, idempotent wiring itself
-# (executable bits, dotfile symlinks, the repo-local secret-scan gate, the identity-overlay scaffold)
+# (executable bits, Claude/Codex skill links, dotfile symlinks, the repo-local secret-scan gate,
+# the identity-overlay scaffold)
 # and GUIDES you through the rest — installing dependencies, filling in your accounts, connectors and
 # secrets — printing the exact command for each and FAILING LOUD (exit 1) until nothing is missing.
 #
@@ -34,7 +35,7 @@ link_safe() {
   elif [ -e "$link" ] && [ ! -L "$link" ]; then
     todo "~/$name exists as a real file — back it up, then: ln -sf \"$target\" \"$link\""
   else
-    ln -sf "$target" "$link" && did "linked ~/$name"
+    ln -sfn "$target" "$link" && did "linked ~/$name"
   fi
 }
 
@@ -71,6 +72,11 @@ echo
 echo "3. Wiring"
 chmod +x "$ROOT"/hooks/*.sh "$ROOT"/hooks/*.py "$ROOT"/.githooks/* 2>/dev/null && did "hooks + git-hooks made executable"
 git -C "$ROOT" config core.hooksPath .githooks 2>/dev/null && did "secret-scan + commit-msg gate enabled (core.hooksPath)"
+mkdir -p "$HOME/.agents/skills"
+for plugin in "$ROOT"/skills/sk "$ROOT"/skills/sk-*; do
+  [ -e "$plugin" ] || continue
+  link_safe "$plugin" "$HOME/.agents/skills/${plugin##*/}"
+done
 link_safe "$ROOT/dotfiles/zsh-work-codex.zsh" "$HOME/.zsh-work-codex.zsh"
 if [ -f "$ROOT/dotfiles/gitignore_global" ]; then
   link_safe "$ROOT/dotfiles/gitignore_global" "$HOME/.gitignore_global"

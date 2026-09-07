@@ -11,7 +11,9 @@ fail() { printf '  FAIL %s\n' "$1"; FAIL=1; }
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 ROOT="$TMP/repo"; SBHOME="$TMP/home"
-mkdir -p "$ROOT/dotfiles" "$ROOT/hooks" "$ROOT/.githooks" "$ROOT/connectors" "$SBHOME"
+mkdir -p "$ROOT/dotfiles" "$ROOT/hooks" "$ROOT/.githooks" "$ROOT/connectors" \
+  "$ROOT/skills/sk/skills/example" "$ROOT/skills/sk-work/skills/example" \
+  "$ROOT/skills/gstack" "$SBHOME"
 cp "$HERE/bootstrap.sh" "$ROOT/dotfiles/bootstrap.sh"
 cp "$HERE/../identity.example.json" "$ROOT/identity.example.json"
 cp "$HERE/gitignore_global" "$ROOT/dotfiles/gitignore_global" 2>/dev/null || printf '*.key\n' > "$ROOT/dotfiles/gitignore_global"
@@ -31,6 +33,15 @@ out="$(run)"; rc=$?
                 || fail "exited 0 with an unfinished setup"
 printf '%s\n' "$out" | grep -q 'TODO.*identity.local.json' \
   && pass "flags the freshly-created overlay as needing edits" || fail "did not flag the new overlay"
+[ -L "$SBHOME/.agents/skills/sk" ] && [ "$(readlink "$SBHOME/.agents/skills/sk")" = "$ROOT/skills/sk" ] \
+  && pass "symlinks the canonical personal skills into ~/.agents/skills for Codex" \
+  || fail "did not expose the canonical personal skills to Codex"
+[ -L "$SBHOME/.agents/skills/sk-work" ] && [ "$(readlink "$SBHOME/.agents/skills/sk-work")" = "$ROOT/skills/sk-work" ] \
+  && pass "symlinks machine-local sk-* plugins into ~/.agents/skills for Codex" \
+  || fail "did not expose a machine-local sk-* plugin to Codex"
+[ ! -e "$SBHOME/.agents/skills/gstack" ] \
+  && pass "does not link unrelated skill packs into Codex" \
+  || fail "linked an unrelated skill pack into Codex"
 
 # 2) The scaffolded copy still holds the template placeholders -> still flagged unfinished.
 printf '%s\n' "$(run)" | grep -q 'TODO.*placeholder' \

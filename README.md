@@ -10,7 +10,7 @@ Made by Simon. Fork it and make it yours.
 
 1. Clone it to `~/.claude`: `git clone https://github.com/skowalskidev/dotclaude.git ~/.claude` (or clone elsewhere and point Claude Code at it).
 2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq).
-3. Run `bash dotfiles/bootstrap.sh`. It wires the safe parts (dotfile symlinks, hook bits, the secret-scan gate), scaffolds `identity.local.json` from the template, then prints a checklist of anything left to do and **fails loud until it is all done**. Re-run it until it says `Ready`.
+3. Run `bash dotfiles/bootstrap.sh`. It wires the safe parts (Claude + Codex skill links, dotfile symlinks, hook bits, the secret-scan gate), scaffolds `identity.local.json` from the template, then prints a checklist of anything left to do and **fails loud until it is all done**. Re-run it until it says `Ready`.
 4. Edit `identity.local.json` with your own accounts: the git-origin substring that marks a WORK repo, your work and personal emails, and your work and personal cloud projects. Untracked, so it is never pushed; it drives the work/personal guard and the boundary context injected each session.
 5. Set up connectors per project with `/sk:setup-connectors` (or copy `connectors/example.json.example` to `connectors/<project>.json`). Schema and steps in `references/connectors-setup.md`.
 
@@ -21,8 +21,9 @@ Your accounts live only in the untracked overlay files (`identity.local.json`, `
 The quickstart above is for a Mac you control. On **Claude Code on the web** (or any fresh cloud
 container) you can't run `brew` or the interactive bootstrap — instead, paste the contents of
 [`dotfiles/cloud-setup.sh`](dotfiles/cloud-setup.sh) into your environment's **setup-script** field.
-It clones this repo and non-destructively symlinks it into `~/.claude`, so the `/sk:*` skills, their
-`rules/` + `references/` knowledge base, and the hook layer load in every cloud session. Prepend your
+It clones this repo and non-destructively symlinks it into `~/.claude` and `~/.agents/skills`, so the
+`/sk:*` skills load in Claude Code and Codex while their `rules/` + `references/` knowledge base and
+hook layer load in Claude Code. Prepend your
 project's own setup (e.g. `npm install`) above it, and fill in `identity.local.json` afterwards if you
 want the work/personal boundary in the cloud (never commit real accounts).
 
@@ -65,7 +66,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
-| `skills/sk/` | My personal (`/sk:*`) skill plugin. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
+| `skills/sk/` | My personal (`/sk:*`) skill plugin. Claude Code reads it here; `bootstrap.sh` symlinks it into `~/.agents/skills/` for Codex. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
 | `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here) — work/personal `CODEX_HOME` switch |
 | `dotfiles/gitignore_global` | The live `~/.gitignore_global` (symlinked here), git's `core.excludesFile` — personal/secret patterns plus `.context/`, so the agent scratch dir is ignored in every repo without touching any committed `.gitignore` |
 | `hooks/config-status.sh` | SessionStart hook — flags uncommitted config so Claude offers to sync |
@@ -125,12 +126,23 @@ want the work/personal boundary in the cloud (never commit real accounts).
      git fetch origin && git checkout -f main         # ASK THE USER — overwrites tracked config files
      ```
    - Then run `bash ~/.claude/dotfiles/bootstrap.sh`: it does steps 2–4 and 6 below (the safe, idempotent parts) and prints a fail-loud checklist of the rest. The steps below are what it automates, plus the human-judgment parts (secrets, shell edits) it leaves to you.
-2. **Symlink + wire the shell snippet.**
+2. **Expose your `sk` plugins to Codex, then wire the shell snippet.** Keep the plugin directories under
+   `~/.claude/skills` as the single source of truth; Codex receives symlinks, never copies. The `sk-*`
+   glob also exposes any machine-local work plugin after you restore it:
    ```bash
+   mkdir -p ~/.agents/skills
+   for plugin in ~/.claude/skills/sk ~/.claude/skills/sk-*; do
+     [ -e "$plugin" ] || continue
+     ln -sfn "$plugin" ~/.agents/skills/"${plugin##*/}"
+   done
    ln -sf ~/.claude/dotfiles/zsh-work-codex.zsh ~/.zsh-work-codex.zsh
    ln -sf ~/.claude/dotfiles/gitignore_global ~/.gitignore_global
    git config --global core.excludesFile ~/.gitignore_global
    ```
+   Codex loads these plugins from `~/.agents/skills`; Claude Code continues to load them from
+   `~/.claude/skills`. Restart open Codex or Conductor sessions after first wiring so their skill
+   catalogs refresh. Updating a skill under `~/.claude/skills` updates both agents immediately through
+   the symlink.
    Ensure this exact line is present in **both** `~/.zprofile` and `~/.zshrc` (append if missing — ask the user before editing their shell files):
    ```bash
    [ -f "$HOME/.zsh-work-codex.zsh" ] && source "$HOME/.zsh-work-codex.zsh"
@@ -167,6 +179,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 8. **Verify (idempotent checks — all should pass):**
    ```bash
    /usr/bin/python3 ~/.claude/hooks/config-contract.test.py  # every criterion passes
+   find -L ~/.agents/skills/sk -name SKILL.md                 # lists the canonical skills through the link
    readlink ~/.zsh-work-codex.zsh                            # -> $HOME/.claude/dotfiles/zsh-work-codex.zsh
    git -C ~/.claude status --short                           # clean working tree
    ```
