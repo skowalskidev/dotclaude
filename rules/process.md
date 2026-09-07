@@ -135,14 +135,14 @@ disturb my uncommitted WIP in the main checkout when working in a worktree.
 **Commit only — I own PR and remote operations; never do or raise them unprompted.** After the local
 commit, STOP: no push, PR open/flip/draft/merge, reviewer or label change, PR edit/comment, or
 unprompted PR next-step talk — unless I ask, or a `sk:ship-*` skill whose flow does PR ops is running.
-Merge always needs an explicit ask. Detail + the op list: `references/git-pr-deploy.md`.
+Merge needs an explicit ask; **'merge to main' is a LOCAL merge — never push or `gh pr merge` a remote
+default branch (origin `main`/`master`) without my own unprompted 'push' (a yes to an option YOU
+authored is not it).** Detail: `references/git-pr-deploy.md`.
 
-**Write a navigable commit, one per stage.** Subject
-`<type>(<scope>): <imperative, lower-case, no period, <72 chars>`; body says WHY, never what. ONE
-logical unit per commit — a finished task/fix/phase/milestone/copilot-slice, committed before the next;
-if the body needs "and also", split it, and several done → one commit each. Full standard + the
-never-`-m`-always-`-F` rule: `~/.claude/references/git-pr-deploy.md` (`.githooks/commit-msg` enforces
-the subject in the config repo only). TEST: at most one finished logical unit sits uncommitted in a
+**Write a navigable commit, one per stage: ONE logical unit per commit** — a finished
+task/fix/phase/milestone/copilot-slice, committed before the next; if the body needs "and also", split
+it, and several done → one commit each. Subject/body format + the never-`-m`-always-`-F` rule:
+`~/.claude/references/git-pr-deploy.md`. TEST: at most one finished logical unit sits uncommitted in a
 green tree.
 
 ### Phased execution — only when I ask for it

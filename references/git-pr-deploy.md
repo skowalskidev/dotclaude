@@ -81,6 +81,12 @@ branch.** A general "merge everything", "proceed", or "continue" authorizes the 
 specific irreversible merge. `hooks/git-commit-guard.py` hard-blocks `gh pr merge` and default-branch
 pushes; clear it with `CLAUDE_ALLOW_PR_MERGE=1` (or `CLAUDE_ALLOW_MAIN_COMMIT=1` for a push) only once
 the user has confirmed that exact merge.
+**DON'T treat a yes to an AskUserQuestion option or plan YOU authored as that confirmation, and DON'T
+author an option that pushes/merges a remote default branch in the first place.** The confirmation must
+be the user's OWN unprompted "push"/"merge" for THAT action; offering "push to main" as a pickable
+option and clearing the override on the click is the same mistake wearing a consent sticker — the click
+is your idea, not theirs. (the fix for a "merge to main" answered by clicking a self-authored "push to
+main (deploys)" option, which then fast-forward-pushed origin/main and triggered a prod deploy.)
 **DON'T admin-override a required review, and DON'T merge for the user when handing them the PR is the
 safer move.** The fix for the incident where 8 PRs (two on red CI) went into remote master off "merge
 everything, no loose ends."
