@@ -11,7 +11,7 @@
 @media(max-width:760px){.shell{display:block}aside{height:auto;position:static;padding:18px;border-right:0;border-bottom:1px solid var(--line);gap:14px}.wordmark{display:none}.summary{padding:0 0 12px}.percentage{font-size:34px;margin:5px 0}.summary p{margin-top:7px}nav{display:flex;gap:5px;overflow-x:auto}nav button{min-width:150px;padding:10px}.sidebar-bottom{display:none}main{padding:20px 16px;gap:20px}.panels{grid-template-columns:1fr}.canvas{min-height:220px}.text-content{padding:25px}.big-symbol{margin-bottom:25px}.panel-caption{min-height:0}.topbar{align-items:flex-start}.actions{flex-wrap:wrap}.tag{font-size:9px}h1{font-size:30px}.present .panels{grid-template-columns:1fr}.footer{align-items:flex-start}.project{max-width:150px}.image-dialog{height:80vh}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
 @media print{aside,.actions,.footer,.topbar{display:none!important}.shell{display:block}main{padding:0}.canvas{min-height:260px}.panels{break-inside:avoid}}
-.mock-stage{width:100%;height:100%;min-height:340px;position:relative;overflow:hidden}.mock-stage iframe{position:absolute;top:0;left:0;transform-origin:top left;border:0;background:white}.mock-preview{pointer-events:none}.open-mock{position:absolute;bottom:12px;right:12px;background:var(--paper);z-index:2;font-size:12px}.mock-dialog{width:96vw;height:94vh;max-width:none;padding:14px;overflow:hidden}.mock-dialog .mock-stage{height:calc(100% - 48px);min-height:0;margin-top:8px}.mock-dialog .actions{justify-content:space-between}.draft-note{font-size:12px;color:var(--warn)}
+.mock-stage{width:100%;height:100%;min-height:340px;position:relative;overflow:hidden}.mock-stage iframe{position:absolute;top:0;left:0;transform-origin:top left;border:0;background:white}.mock-preview{pointer-events:none}.open-mock{position:absolute;bottom:12px;right:12px;background:var(--paper);z-index:2;font-size:12px}.mock-dialog{display:flex;flex-direction:column;width:96vw;height:94vh;max-width:none;padding:14px;overflow:hidden}.mock-dialog>.actions{flex:0 0 auto;justify-content:space-between}.mock-dialog .mock-stage{flex:1 1 auto;min-height:0;width:100%;height:100%;display:flex;flex-direction:column;margin-top:8px;overflow:hidden}.mock-dialog .mock-stage iframe{position:static;flex:1 1 auto;min-height:0;width:100%;height:100%;transform:none}.draft-note{font-size:12px;color:var(--warn)}
 .run-values{display:grid;grid-template-columns:160px 1fr;gap:14px 18px;font-size:14px;margin:24px 0}.run-values dt{color:var(--muted)}.run-values dd{margin:0;overflow-wrap:anywhere}@media(max-width:500px){.run-values{grid-template-columns:1fr;gap:6px}.run-values dd{margin-bottom:12px}}
 </style>
 </head>
@@ -40,6 +40,16 @@ function mountFrame(parent,a,sectionId,key,interactive){
  const frame=el('iframe');frame.title=a.label;if(!interactive)frame.className='mock-preview';
  const policy='<meta id="dashboard-frame-policy" http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data:; font-src data:; frame-src about:; connect-src \'none\'; form-action \'none\'">';
  frame.srcdoc=policy+a.html+bridge;parent.append(frame);frameBindings.set(frame,{asset:a,sectionId,key,revision:spec.revision});
+ if(interactive){
+  // The modal (only interactive caller) fills its bounded flex container at true 1:1 pixel
+  // size — see the .mock-dialog CSS — instead of the panel thumbnails' CSS-scale-to-a-fixed-
+  // design-viewport below. A transform-scaled iframe still reports its UNSCALED size as its
+  // own innerHeight, so an embedded page doing its own "fit to my real viewport" math (the
+  // mockup shell) was being lied to about how much room it had, and this dialog's own
+  // overflow:hidden then clipped whatever spilled past the lie. No JS sizing needed here:
+  // width/height:100% on a flex:1;min-height:0 child tracks the container on every resize.
+  return frame;
+ }
  const width=a.viewport?.width||1440,height=a.viewport?.height||900;
  const size=()=>{const scale=parent.clientWidth/width;frame.style.width=width+'px';frame.style.height=Math.max(height,parent.clientHeight/scale)+'px';frame.style.transform='scale('+scale+')'};
  new ResizeObserver(size).observe(parent);requestAnimationFrame(size);return frame;

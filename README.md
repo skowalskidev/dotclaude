@@ -65,17 +65,17 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/browser-launch-guard.py` | PreToolUse guard on `mcp__chrome-devtools__*` — blocks the page-launch tools (`new_page`, `navigate_page`) so a frontend change is not auto-verified in the browser without asking. Override: `CLAUDE_ALLOW_BROWSER=1` |
 | `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
-| `bin/agent_runtime.py` + `bin/codex-launch.py` | Native Codex adapter and executable; reads shared sources at launch/event time and keeps work/personal profiles separate |
+| `bin/agent_runtime.py` + `bin/codex-launch.py` | Native Codex adapter and executable; enforces subscription-only inference and separate project connector boundaries |
 | `bin/agent_setup.py` + `bin/codex_print.py` | Full Claude/Full Astra dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
-| `dotfiles/codex-AGENTS.md` | One native instruction entrypoint linked into both Codex homes |
+| `dotfiles/codex-AGENTS.md` | Native instruction entrypoint linked into the Codex subscription home |
 | `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
 | `skills/sk/skills/work-gauntlet-loop/` | `/sk:work-gauntlet-loop` — choose existing workflow or Ralph upfront, with independent judgement |
 | `skills/sk/skills/work-ralph-loop/` | `/sk:work-ralph-loop` — direct or composed fresh-worker completion |
 | `references/workflow-loops.md` + `bin/workflow-dashboard.*` | Shared loop protocol and live/offline viewer used by both entry skills, the permanent plan and mockups |
-| `bin/mockup-shell.html` + `bin/mockup-build.py` (+ `bin/mockup-shell.test.py`, `bin/mockup-synthetic-spec.json`) | The one spec-driven shell every `/sk:ship-mockup-before-after` mockup is built through (viewport-first stage, one collapsible rail, presentation mode, hint bar; every switch tears the old mount down and opens the target's default state); the builder inlines a `spec.json` and extracts it back losslessly; the Playwright test proves the switch reset against the synthetic spec |
+| `bin/mockup-shell.html` + `bin/mockup-build.py` (+ `bin/mockup-shell.test.py`, `bin/mockup-synthetic-spec.json`) | The one spec-driven shell every `/sk:ship-mockup-before-after` mockup is built through (viewport-first stage, one collapsible rail, presentation mode, hint bar; every switch tears the old mount down and opens the target's default state); the builder inlines a `spec.json` and extracts it back losslessly; the Playwright test proves the switch reset and the one-Before rail grouping against the synthetic spec |
 | `skills/sk/` | My personal (`/sk:*`) skill plugin. Claude Code reads it here; `bootstrap.sh` symlinks it into `~/.agents/skills/` for Codex. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
-| `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here) — work/personal `CODEX_HOME` switch and `codex` launcher function |
+| `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here), subscription `CODEX_HOME` and `codex` launcher function |
 | `dotfiles/gitignore_global` | The live `~/.gitignore_global` (symlinked here), git's `core.excludesFile` — personal/secret patterns plus `.context/`, so the agent scratch dir is ignored in every repo without touching any committed `.gitignore` |
 | `hooks/config-status.sh` | SessionStart hook — flags uncommitted config so Claude offers to sync |
 | `hooks/worktree-freshness.sh` | SessionStart hook — warns once when this worktree's branch is 10+ commits behind main, so stale-base work is caught before it starts rather than at merge. Detects and reports only |
@@ -119,10 +119,10 @@ between the agents. Standalone ChatGPT conversations do not load files from your
 
 ### Install on a Mac
 
-1. Install Codex on PATH and Python 3.11+ (`python3 --version`). Keep existing Codex account/provider
-   configuration in its native home. Fill in `identity.local.json` and your untracked project manifests.
-2. Run `bash ~/.claude/dotfiles/bootstrap.sh`. It links skills and the native AGENTS.md into both
-   `~/.codex` and `~/.codex-work`. If an AGENTS.md already exists, review it first, then run
+1. Install Codex on PATH and Python 3.11+ (`python3 --version`). Use the existing ChatGPT login in
+   `~/.codex`. Fill in `identity.local.json` and your untracked project manifests.
+2. Run `bash ~/.claude/dotfiles/bootstrap.sh`. It links skills and the native AGENTS.md into
+   `~/.codex`. If an AGENTS.md already exists, review it first, then run
    `python3 ~/.claude/bin/agent_runtime.py install --replace`. This archives the old file once and
    creates the link. It never copies or changes authentication files.
 3. Source the shell snippet described below. Its `codex` function uses
@@ -138,9 +138,10 @@ between the agents. Standalone ChatGPT conversations do not load files from your
    `Not logged in`, run `~/.claude/bin/codex-launch.py mcp login <server-name>` and select the correct
    account in the browser. Claude's OAuth session does not authenticate Codex.
 
-Work repositories select `~/.codex-work`; personal repositories select `~/.codex`, using
-`identity.local.json`. The launcher resolves the workspace before selecting the profile, so terminal
-and Conductor launches agree. It preserves model/provider settings in those homes. Set `AGENT_CODEX_BIN`
+Every Codex role uses the ChatGPT subscription in `~/.codex`, including work projects and reviews.
+There is no API-review exception. `identity.local.json` still selects work/personal service boundaries.
+Read `references/agent-hosts.md` for billing enforcement and login recovery. The old `~/.codex-work`
+API credentials remain unused and untouched. Set `AGENT_CODEX_BIN`
 to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
 shell function and therefore bypasses manifest projection; use the launcher for setup and diagnosis.
 
@@ -159,8 +160,8 @@ Put `-p` or `--print` first to select print mode. Use `codex --profile <name>` f
 other native commands pass through unchanged. Full Astra remains the selected worker model setup.
 
 `bin/codex_print.py` provides the print-mode adapter; `bin/agent_setup.py` validates saved setup/model
-choices. No new credential is required by the wrapper: existing native authentication and connector
-routing remain unchanged. Model entitlement is checked by the real runtime, never inferred from fixtures.
+choices. Existing ChatGPT authentication is reused; missing subscription access stops the run instead
+of falling back to API billing. Model entitlement is checked by the real runtime, never inferred from fixtures.
 Run `python3 ~/.claude/bin/agent_setup.test.py` for offline wrapper/dispatch/telemetry regression tests.
 
 ### What updates automatically
@@ -171,7 +172,7 @@ Run `python3 ~/.claude/bin/agent_setup.test.py` for offline wrapper/dispatch/tel
 | `skills/sk/` | Both hosts discover the same files through links. Restart if the skill catalog is stale. |
 | `settings.json` hook commands | Claude's native hook loader; Codex's dispatcher reads the current wiring on each event. New event definitions require a process restart and native trust review. |
 | `connectors/<project>.json` | The Codex launcher projects the current manifest on every process launch. Claude's connector provisioner consumes the same manifest through its native registration path. |
-| `identity.local.json` | Both hosts use the same identity source. Restart Codex when changing the selected credential home. |
+| `identity.local.json` | Both hosts use the same project identity source. Restart Codex when changing service boundaries. |
 
 Codex writes no copied rules or connector settings. Its per-profile `.agent-runtime/` receipt stores
 only names it has managed, so removed manifest connectors are disabled even if an older native
@@ -193,12 +194,12 @@ python3 ~/.claude/bin/agent_runtime.test.py
 
 The doctor prints the matched manifest and expected credential home without exposing secret values.
 Check authentication through the launcher's `mcp list`; declared/registered is not authenticated.
-If instructions are missing, check for `AGENTS.override.md`, verify both instruction links, and confirm
+If instructions are missing, check for `AGENTS.override.md`, verify the native instruction link, and confirm
 Conductor uses the launcher. If hooks are absent, check `/hooks` trust. If CLI results differ from the
 agent, check its credential home and restart the process through the launcher.
 
 The tests use temporary homes and fake executables. They verify rule, hook and connector changes,
-profile isolation, patch guards, installation, and preservation of credential files without model calls.
+subscription billing, connector isolation, patch guards, installation, and preservation of credential files without model calls.
 Native adapter details and verified upstream references live in `references/agent-hosts.md`.
 
 ## 🤖 Agent setup (run in order)
@@ -288,9 +289,9 @@ Native adapter details and verified upstream references live in `references/agen
 
 ### Secrets to recreate (ask the user — never fabricate)
 These live **outside** this repo and are **not** committed. Prompt the user for each; never invent one.
-- `~/.codex-work/` — WORK Codex home (apikey auth). Recreate: `CODEX_HOME=~/.codex-work codex login`, or set a work `OPENAI_API_KEY` with `auth_mode=apikey`.
+- `~/.codex/` contains the Codex ChatGPT login. Check `~/.claude/bin/codex-launch.py login status`; if missing, run `~/.claude/bin/codex-launch.py login` and complete ChatGPT sign-in. Never recreate API-key auth for workers or reviews.
 - `~/.claude.json` — Claude Code's main config (MCP servers, OAuth). Reconfigure MCP servers with `claude mcp`.
-- The `pal` MCP server's `.env` (work OpenAI/Gemini keys) — separate repo, ask the user.
+- Existing `pal` keys are not used for agent workers or reviews. Do not recreate a paid model-API review path.
 - Firebase / service-account keys — referenced by path in `CLAUDE.md`; ask the user to place them.
 - Connector credentials (work), set up per project by **`/sk:setup-connectors`** (see `rules/connectors.md` + `references/connectors-setup.md`). All live OUTSIDE this repo. Each connector's manifest carries the exact recreate steps in its `auth.steps`; those are the source of truth, not this list:
   - `~/.config/gcloud-work/` — the WORK gcloud config home. Keeping it separate from the default `~/.config/gcloud` (personal) is what stops the work account and its ADC leaking into personal projects. Recreate with the steps in your work connector manifest (`connectors/example.json.example` shows the shape; `references/connectors-setup.md` documents it).

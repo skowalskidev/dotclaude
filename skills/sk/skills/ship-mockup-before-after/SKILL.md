@@ -173,6 +173,10 @@ else.
 switcher) and DON'T fork the shell into the mockup file.** Bespoke chrome shifts every round and hides the
 mockup (the fix for a grid landing page that made Simon scroll around to find the actual mockup,
 2026-09-08).
+**DO mark exactly ONE variant `role: "before"` and every earlier round `superseded: true`; never label a
+variant "Before — superseded".** The rail then reads Before, then the distinct after-variants of this round,
+then a collapsed "Earlier rounds (N)" (the fix for a rail of eight "Before" rows Simon could not tell apart,
+2026-09-08). TEST: the rail shows one Before row; superseded rows are hidden until the disclosure opens.
 **DO keep the built file at or under 12 MB (the dashboard's asset ceiling) and at 0 external requests:**
 store each `data:` URI once in `#spec.assets` and reference it from captures as `@@ASSET:id@@`, and drop
 font families the captures never apply.

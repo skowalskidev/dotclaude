@@ -80,6 +80,18 @@ body.is-presenting .mock-stagewrap{background:#000;}
 .mock-variant-item.active .dot{background:var(--color-primary);}
 .mock-variant-item .lbl{flex:1;min-width:0;}
 .mock-variant-item .badge{font-size:9px;font-weight:700;text-transform:uppercase;background:var(--color-primary);color:#fff;padding:1px 6px;border-radius:16px;flex:0 0 auto;}
+.mock-variant-item .badge.mock-badge-before{background:var(--color-text-secondary);}
+.mock-earlier-rounds{margin-top:2px;}
+.mock-earlier-rounds summary{cursor:pointer;font-size:11.5px;color:var(--color-text-secondary);padding:7px 8px;list-style:none;}
+.mock-earlier-rounds summary::-webkit-details-marker{display:none;}
+.mock-earlier-rounds summary:before{content:"\25B8";display:inline-block;width:1em;transition:transform .1s ease;}
+.mock-earlier-rounds[open] summary:before{transform:rotate(90deg);}
+.mock-earlier-rounds .mock-variant-item{margin-left:6px;}
+/* Our own .mock-variant-item{display:flex} is an AUTHOR rule, so it beats the UA
+   stylesheet's default "hide a closed <details>'s non-summary children" regardless of
+   selector specificity (author origin always wins over user-agent origin). Restate the
+   hide explicitly so a superseded row is actually invisible until the disclosure opens. */
+.mock-earlier-rounds:not([open]) .mock-variant-item{display:none;}
 .mock-persona-row{display:flex;gap:6px;}
 .mock-persona-row button{flex:1;}
 .mock-version-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);}
@@ -153,11 +165,90 @@ function latestVersion(){ return versions()[versions().length - 1]; }
 function findVersion(id){ return versions().find(function(v){ return v.id === id; }) || latestVersion(); }
 function activeVersion(){ return findVersion(state.versionId); }
 function currentVariantIds(){ return activeVersion().variantIds || SPEC.manifest.variantIds; }
+// ---- Round grouping: Before / current-after / superseded-earlier-rounds ----
+// A variant spec entry may carry:
+//   role: "before"     — marks THE ONE variant that is the pre-change baseline. At most
+//                         one variant should carry this per version; if none does, a
+//                         version/manifest-level `beforeVariantId` (a pre-existing
+//                         convention some specs already recorded) is used as a fallback.
+//   superseded: true    — marks a variant from an earlier round that a later round
+//                         replaced. Superseded variants are never the default, are
+//                         collapsed into "Earlier rounds" in the rail, and are skipped
+//                         by ←/→ + presentation-mode stepping unless already selected.
+// Legacy specs recorded a superseded round as a `variantLabelOverrides` entry (or a
+// base label) literally prefixed "Before — superseded: …" instead of a boolean — that
+// prefix is treated as `superseded: true` and stripped from the displayed label so the
+// rail never shows the raw legacy prefix.
+var LEGACY_SUPERSEDED_PREFIX = /^Before — superseded:?\s*/;
+function baseVariantSpec(id){ return (SPEC.variants || {})[id] || {}; }
+function isLegacySupersededLabel(label){ return typeof label === 'string' && LEGACY_SUPERSEDED_PREFIX.test(label); }
+function stripSupersededPrefix(label){
+  return typeof label === 'string' ? label.replace(LEGACY_SUPERSEDED_PREFIX, '') : label;
+}
+function isVariantSuperseded(id){
+  var base = baseVariantSpec(id);
+  if (base.superseded === true) return true;
+  var v = activeVersion();
+  var override = v.variantLabelOverrides && v.variantLabelOverrides[id];
+  if (isLegacySupersededLabel(override)) return true;
+  if (isLegacySupersededLabel(base.label)) return true;
+  return false;
+}
+function beforeVariantId(){
+  var ids = currentVariantIds();
+  var declared = ids.filter(function(id){ return baseVariantSpec(id).role === 'before'; });
+  if (declared.length) return declared[0];
+  var v = activeVersion();
+  var legacy = (v && v.beforeVariantId) || SPEC.manifest.beforeVariantId;
+  return (legacy && ids.indexOf(legacy) > -1) ? legacy : null;
+}
+// { beforeId, current: [...non-superseded, non-before...], superseded: [...] } — the
+// single grouping every rail/compare/stepping consumer below reads, so "which round is
+// this variant in" has exactly one owner.
+function variantGroups(){
+  var ids = currentVariantIds();
+  var beforeId = beforeVariantId();
+  var current = [], superseded = [];
+  ids.forEach(function(id){
+    if (id === beforeId) return;
+    (isVariantSuperseded(id) ? superseded : current).push(id);
+  });
+  return { beforeId: beforeId, current: current, superseded: superseded };
+}
+// The ids ←/→ and presentation-mode stepping cycle through: Before + current variants,
+// plus the active variant itself if it happens to be a superseded one already selected
+// (via the "Earlier rounds" disclosure) — so stepping away from it still lands somewhere
+// adjacent instead of jumping straight past every superseded row.
+function cyclableVariantIds(){
+  var g = variantGroups();
+  var list = g.beforeId ? [g.beforeId].concat(g.current) : g.current.slice();
+  if (g.superseded.indexOf(state.activeVariant) > -1 && list.indexOf(state.activeVariant) === -1) {
+    list.push(state.activeVariant);
+  }
+  return list;
+}
+// The default variant on open (and after a version switch) is always the manifest/version
+// default — but never a superseded one; a misconfigured spec falls back to Before, then the
+// first current variant, rather than silently opening on a round that was replaced.
+function resolveDefaultVariant(v){
+  var candidate = (v && v.defaultVariant) || SPEC.manifest.defaultVariant;
+  if (candidate && !isVariantSuperseded(candidate)) return candidate;
+  var g = variantGroups();
+  return g.beforeId || g.current[0] || candidate;
+}
+// Compare/diff variant pickers list current variants first (Before leads them), with any
+// superseded ones appended under the same list/group rather than a separate section.
+function compareOrderIds(){
+  var g = variantGroups();
+  var head = g.beforeId ? [g.beforeId].concat(g.current) : g.current.slice();
+  return head.concat(g.superseded);
+}
 function variantDef(id){
   var base = (SPEC.variants || {})[id] || { label: id, why: '' };
   var v = activeVersion();
   var override = v.variantLabelOverrides && v.variantLabelOverrides[id];
-  return override ? Object.assign({}, base, { label: override }) : base;
+  var label = stripSupersededPrefix(override != null ? override : base.label);
+  return Object.assign({}, base, { label: label });
 }
 function ensureRuntime(v){
   if (!v.runtime) v.runtime = { selections: {}, comments: {}, verdicts: {}, pins: {} };
@@ -179,10 +270,11 @@ var state = {
   pinMode: false,
   railCollapsed: !!(SPEC.shell && SPEC.shell.railCollapsed),
   presenting: false,
-  hintDismissed: false
+  hintDismissed: false,
+  earlierRoundsOpen: false // "Earlier rounds" disclosure in the rail — collapsed by default
 };
-state.activeVariant = activeVersion().defaultVariant || SPEC.manifest.defaultVariant;
-state.compareIds = currentVariantIds().slice(0, 3);
+state.activeVariant = resolveDefaultVariant(activeVersion());
+state.compareIds = compareOrderIds().slice(0, 3);
 var RUNTIME = ensureRuntime(activeVersion());
 
 function prefersReducedMotion(){
@@ -328,7 +420,7 @@ document.getElementById('mock-hint-close').addEventListener('click', function(){
 function renderStagebar(){
   var bar = document.getElementById('mock-stagebar');
   var def = variantDef(state.activeVariant);
-  var isDefault = state.activeVariant === (activeVersion().defaultVariant || SPEC.manifest.defaultVariant);
+  var isDefault = state.activeVariant === resolveDefaultVariant(activeVersion());
   bar.innerHTML =
     '<strong style="font-size:12.5px;color:var(--color-text);">' + esc(def.label || state.activeVariant) + '</strong>' +
     (isDefault ? '<span class="mock-btn" style="pointer-events:none;background:var(--color-primary);color:#fff;border-color:var(--color-primary);">Default</span>' : '') +
@@ -487,13 +579,27 @@ function renderRail(){
   wireRail(body);
   document.getElementById('mock-rail').classList.toggle('is-collapsed', state.railCollapsed);
 }
+function variantItemHtml(id, opts){
+  opts = opts || {};
+  var def = variantDef(id);
+  var badges = '';
+  if (opts.isBefore) badges += ' <span class="badge mock-badge-before">Before</span>';
+  if (opts.defId && id === opts.defId) badges += ' <span class="badge">Default</span>';
+  return '<div class="mock-variant-item' + (id === state.activeVariant ? ' active' : '') + '" data-pick-variant="' + id + '"><span class="dot"></span><span class="lbl">' + esc(def.label || id) + badges + '</span></div>';
+}
 function sectionVariants(){
-  var ids = currentVariantIds();
-  var defId = activeVersion().defaultVariant || SPEC.manifest.defaultVariant;
-  return '<div class="mock-section"><h4>Variants (\u2190/\u2192)</h4>' + ids.map(function(id){
-    var def = variantDef(id);
-    return '<div class="mock-variant-item' + (id === state.activeVariant ? ' active' : '') + '" data-pick-variant="' + id + '"><span class="dot"></span><span class="lbl">' + esc(def.label || id) + (id === defId ? ' <span class="badge">Default</span>' : '') + '</span></div>';
-  }).join('') + '</div>';
+  var g = variantGroups();
+  var defId = resolveDefaultVariant(activeVersion());
+  var html = '<div class="mock-section"><h4>Variants (\u2190/\u2192)</h4>';
+  if (g.beforeId) html += variantItemHtml(g.beforeId, { isBefore: true, defId: defId });
+  html += g.current.map(function(id){ return variantItemHtml(id, { defId: defId }); }).join('');
+  if (g.superseded.length) {
+    html += '<details class="mock-earlier-rounds"' + (state.earlierRoundsOpen ? ' open' : '') + '>' +
+      '<summary>Earlier rounds (' + g.superseded.length + ')</summary>' +
+      g.superseded.map(function(id){ return variantItemHtml(id, { defId: defId }); }).join('') +
+      '</details>';
+  }
+  return html + '</div>';
 }
 function sectionPersona(){
   return '<div class="mock-section"><h4>Persona</h4><div class="mock-persona-row">' + PERSONAS.map(function(p){
@@ -518,7 +624,7 @@ function sectionWalk(){
   }).join('') + '</div>';
 }
 function sectionCompareDiff(){
-  var ids = currentVariantIds();
+  var ids = compareOrderIds();
   return '<div class="mock-section"><h4>Compare &amp; diff</h4>' +
     '<div style="display:flex;gap:6px;margin-bottom:8px;">' +
       '<button type="button" class="mock-btn' + (state.view === 'compare' ? ' active' : '') + '" id="mock-view-compare">Compare</button>' +
@@ -573,9 +679,9 @@ function wireRail(body){
   if (vsel) vsel.addEventListener('change', function(){
     state.versionId = vsel.value;
     RUNTIME = ensureRuntime(activeVersion());
-    state.activeVariant = activeVersion().defaultVariant || SPEC.manifest.defaultVariant;
+    state.activeVariant = resolveDefaultVariant(activeVersion());
     state.activeStateId = null;
-    state.compareIds = currentVariantIds().slice(0, 3);
+    state.compareIds = compareOrderIds().slice(0, 3);
     renderAll();
   });
   body.querySelectorAll('[data-goto-state]').forEach(function(el){
@@ -600,6 +706,8 @@ function wireRail(body){
   var vreq = body.querySelector('#mock-verdict-request'), vapp = body.querySelector('#mock-verdict-approve');
   if (vreq) vreq.addEventListener('click', function(){ RUNTIME.verdicts[state.activeVariant] = RUNTIME.verdicts[state.activeVariant] === 'request' ? null : 'request'; renderRail(); });
   if (vapp) vapp.addEventListener('click', function(){ RUNTIME.verdicts[state.activeVariant] = RUNTIME.verdicts[state.activeVariant] === 'approve' ? null : 'approve'; renderRail(); });
+  var earlierDetails = body.querySelector('.mock-earlier-rounds');
+  if (earlierDetails) earlierDetails.addEventListener('toggle', function(){ state.earlierRoundsOpen = earlierDetails.open; });
   var pinToggle = body.querySelector('#mock-pin-toggle');
   if (pinToggle) pinToggle.addEventListener('click', function(){ state.pinMode = !state.pinMode; renderRail(); });
   var ho = body.querySelector('#mock-handoff-text');
@@ -667,7 +775,7 @@ function renderHud(){
 }
 
 function stepVariant(delta){
-  var ids = currentVariantIds();
+  var ids = cyclableVariantIds();
   var idx = ids.indexOf(state.activeVariant);
   if (idx === -1) idx = 0;
   idx = (idx + delta + ids.length) % ids.length;

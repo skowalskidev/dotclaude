@@ -11,6 +11,12 @@ spec = importlib.util.spec_from_file_location('dashboard', Path(__file__).with_n
 d = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d)
 
+try:
+    from playwright.sync_api import sync_playwright
+    HAVE_PLAYWRIGHT = True
+except ImportError:
+    HAVE_PLAYWRIGHT = False
+
 
 def fixture():
     return {'schemaVersion': 1, 'title': 'Test task', 'engine': 'current', 'gauntlet': True,
@@ -131,6 +137,63 @@ class DashboardTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Missing asset'): d.render(p)
             p.write_text(block+block)
             with self.assertRaisesRegex(ValueError, 'exactly one'): d.read_plan(p)
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT,
+        "Python 'playwright' package not installed for /usr/bin/python3. Run with: "
+        "python3 -m venv /tmp/pw-venv && /tmp/pw-venv/bin/pip install playwright==1.58.0 && "
+        "/tmp/pw-venv/bin/python workflow-dashboard.test.py")
+    def test_mock_dialog_iframe_fills_visible_area_without_clipping(self):
+        """Regression: the mock-dialog's iframe used to be CSS-scaled (transform) to a fixed
+        design viewport, so its own contentWindow.innerHeight lied about how much room it had
+        and the dialog's overflow:hidden clipped whatever an embedded self-fitting page (the
+        mockup shell) rendered past that lie. The iframe must now fill its bounded flex
+        container at true 1:1 size on any modal size, so its innerHeight is never a lie."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'mock.html').write_text('<!doctype html><html><body>Mock content</body></html>')
+            p = base / 'task-plan.md'
+            s = fixture()
+            s['sections'][0]['target'] = {'kind': 'html', 'label': 'Mock', 'path': 'mock.html',
+                                           'source': 'Capture', 'viewport': {'width': 1440, 'height': 900}}
+            p.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            out = base / 'dashboard.html'
+            out.write_text(d.render(p))
+
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch()
+                for width, height in [(1900, 1010), (1440, 900)]:
+                    page = browser.new_page(viewport={'width': width, 'height': height})
+                    page.goto(out.as_uri())
+                    page.wait_for_timeout(200)
+                    page.click('.open-mock')
+                    page.wait_for_timeout(200)
+                    geo = page.evaluate(
+                        """() => {
+                            const dialog = document.getElementById('mock-dialog');
+                            const iframe = dialog.querySelector('iframe');
+                            const dr = dialog.getBoundingClientRect();
+                            const ir = iframe.getBoundingClientRect();
+                            return {
+                                dialogBottom: dr.bottom,
+                                iframeBottom: ir.bottom,
+                                iframeHeight: ir.height,
+                                contentInnerHeight: iframe.contentWindow.innerHeight,
+                            };
+                        }"""
+                    )
+                    self.assertLessEqual(
+                        geo['iframeBottom'], geo['dialogBottom'] + 0.5,
+                        f"at {width}x{height}: iframe bottom {geo['iframeBottom']} overruns "
+                        f"the modal's visible bottom {geo['dialogBottom']} — {geo}",
+                    )
+                    self.assertAlmostEqual(
+                        geo['contentInnerHeight'], geo['iframeHeight'], delta=1,
+                        msg=f"at {width}x{height}: iframe.contentWindow.innerHeight "
+                            f"({geo['contentInnerHeight']}) must equal the iframe's own "
+                            f"rendered height ({geo['iframeHeight']}) — {geo}",
+                    )
+                    page.close()
+                browser.close()
 
 
 if __name__ == '__main__': unittest.main()

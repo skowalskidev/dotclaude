@@ -36,7 +36,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Native Codex launch, context, hook and installation adapter.",
         "criteria": [
             "Read rules, settings and connector manifests from the canonical source at invocation time.",
-            "Keep work and personal credential homes separate and reject a mismatched session boundary.",
+            "Use the existing ChatGPT subscription for every Codex role; preserve work/personal service boundaries and reject a mismatched session boundary.",
+            "Block cached API authentication and CLI billing overrides; strip inherited API environment and pin the native subscription endpoint without modifying credentials.",
             "Disable on-demand connectors and retired manifest-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
@@ -112,7 +113,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Builds every /sk:ship-mockup-before-after deliverable by inlining a spec.json into the generic bin/mockup-shell.html, and extracts the spec back out.",
         "criteria": [
             "Load bin/mockup-shell.html, which renders entirely from the embedded #spec JSON and carries no project-specific strings.",
-            "Fill the viewport with the active variant on open, fitting by the smaller of the width and height ratios, re-fitting whenever the stage resizes (host iframe, rail collapse) and never clipping (stage scrolls as the fallback); keep every control in one collapsible right rail; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
+            "Fill the viewport with the active variant on open, fitting by the smaller of the width and height ratios, re-fitting whenever the stage resizes (host iframe, rail collapse) and never clipping (stage scrolls as the fallback); keep every control in one collapsible right rail whose Variants list shows exactly one Before (role: before), then the current after-variants, with superseded rounds (superseded: true or a legacy 'Before — superseded' label) under a collapsed Earlier rounds disclosure that arrow keys skip; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
             "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
             "Tear down the outgoing mount on every variant, persona, version, view, state-walk or presentation switch and open the target at its default state (a state walk mounts a fresh document at that state) with exactly one iframe and exactly one highlighted active state row; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
         ],
@@ -124,6 +125,7 @@ CONTRACTS: dict[str, dict] = {
             "Load bin/workflow-dashboard.html and use one plan across execution modes.",
             "Reject unconfirmed running state, incomplete criteria, stale or self-approved judgements and conflicting revisions.",
             "Validate assets before advancing the plan and inline them for offline export.",
+            "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped; bin/workflow-dashboard.test.py proves it at 1900x1010 and 1440x900.",
         ],
     },
     # --- Top-level -----------------------------------------------------------------
@@ -860,10 +862,10 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/ship-review/SKILL.md": {
-        "mission": "A defect several models and a cold user-journey pass would each catch is caught before the PR opens.",
-        "purpose": "Multi-model pre-PR review plus the user-journey pass, work/personal aware.",
+        "mission": "Independent reviewers and a cold user-journey pass catch defects before the PR opens without API-billed inference.",
+        "purpose": "Subscription-backed pre-PR review plus the user-journey pass, work/personal aware.",
         "criteria": [
-            "Work and personal review resources never cross.",
+            "Use the selected subscription setup for every review pass; preserve project service boundaries and never use API keys, pal or direct paid model APIs.",
             "Carries the journey pass as a step, reading references/user-journey-review.md rather "
             "than restating it. The reviewers judge the diff; only that pass judges whether a person "
             "can get through what the diff produced.",
@@ -1518,9 +1520,10 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/work-resource-guard.sh": {
-        "mission": "A work credential never touches a personal project and vice versa, enforced rather than remembered.",
+        "mission": "Work and personal service credentials never cross; model inference uses the shared subscription instead of API billing.",
         "purpose": "Enforces the work/personal boundary on Bash and MCP tools.",
         "criteria": [
+            "Allow the shared Codex subscription in either project boundary; block pal and direct paid model review calls without offering API fallback.",
             "Data-driven from connectors/*.json, not hard-coded.",
             "git commands stay unblocked so staging AND inspection always work, including a path "
             "that carries the other boundary's name. A compound that also invokes another CLI is "

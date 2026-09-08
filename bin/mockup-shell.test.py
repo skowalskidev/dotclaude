@@ -334,6 +334,115 @@ def main():
                 stray_gone,
             )
 
+            # --- 9. Round grouping: exactly one Before row, superseded rows collapsed into
+            #        "Earlier rounds" until opened, arrow-key stepping skips them, and a
+            #        legacy "Before — superseded: ..." label loses its prefix on display.
+            #        synthetic-spec.json: alpha carries role:"before", gamma is marked
+            #        superseded via a v1 variantLabelOverrides entry using the legacy prefix.
+            page.click('[data-pick-variant="alpha"]')
+            page.wait_for_timeout(150)
+
+            before_badges = page.eval_on_selector_all(
+                ".mock-badge-before",
+                "els => els.map(e => e.closest('.mock-variant-item').getAttribute('data-pick-variant'))",
+            )
+            check(
+                "exactly one Before row, on alpha (spec's role:\"before\" variant)",
+                before_badges == ["alpha"],
+                json.dumps(before_badges),
+            )
+
+            gamma_visible_before_open = page.eval_on_selector(
+                '[data-pick-variant="gamma"]', "e => e.offsetParent !== null"
+            )
+            check(
+                "gamma (superseded) is hidden in the rail before the disclosure opens",
+                gamma_visible_before_open is False,
+            )
+
+            summary_text = page.eval_on_selector(".mock-earlier-rounds summary", "e => e.textContent")
+            check(
+                "the collapsed disclosure names the superseded count",
+                summary_text == "Earlier rounds (1)",
+                summary_text,
+            )
+
+            arrow_order = []
+            for _ in range(3):
+                arrow_order.append(
+                    page.eval_on_selector(".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')")
+                )
+                page.keyboard.press("ArrowRight")
+                page.wait_for_timeout(120)
+            check(
+                "←/→ stepping cycles Before + current variants only, never gamma while collapsed",
+                arrow_order == ["alpha", "beta", "alpha"],
+                json.dumps(arrow_order),
+            )
+
+            page.click(".mock-earlier-rounds summary")
+            page.wait_for_timeout(150)
+            gamma_visible_after_open = page.eval_on_selector(
+                '[data-pick-variant="gamma"]', "e => e.offsetParent !== null"
+            )
+            check(
+                "opening the disclosure reveals gamma",
+                gamma_visible_after_open is True,
+            )
+
+            gamma_label = page.eval_on_selector('[data-pick-variant="gamma"] .lbl', "e => e.textContent.trim()")
+            check(
+                "gamma's legacy 'Before — superseded: ...' override displays with the prefix stripped",
+                gamma_label == "Gamma — earlier round two",
+                gamma_label,
+            )
+
+            page.click('[data-pick-variant="gamma"]')
+            page.wait_for_timeout(150)
+            active_after_pick = page.eval_on_selector(".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')")
+            check(
+                "a superseded variant is still selectable from the open disclosure",
+                active_after_pick == "gamma",
+                active_after_pick,
+            )
+
+            page.keyboard.press("ArrowRight")
+            page.wait_for_timeout(150)
+            active_after_step_away = page.eval_on_selector(
+                ".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')"
+            )
+            check(
+                "stepping away from an already-selected superseded variant lands on Before, not another superseded row",
+                active_after_step_away == "alpha",
+                active_after_step_away,
+            )
+
+            compare_order = page.evaluate(
+                """() => {
+                    document.getElementById('mock-view-compare').click();
+                    return Array.from(document.querySelectorAll('[data-compare-toggle]'))
+                        .map(e => e.getAttribute('data-compare-toggle'));
+                }"""
+            )
+            check(
+                "the Compare picker lists current variants first, superseded (gamma) last under the same list",
+                compare_order == ["alpha", "beta", "gamma"],
+                json.dumps(compare_order),
+            )
+            page.click("#mock-view-focus")
+            page.wait_for_timeout(150)
+
+            page.reload()
+            page.wait_for_timeout(300)
+            default_after_reload = page.evaluate(
+                "() => document.querySelector('.mock-variant-item.active').getAttribute('data-pick-variant')"
+            )
+            check(
+                "the default variant on open is the manifest default (alpha), never a superseded one",
+                default_after_reload == "alpha",
+                default_after_reload,
+            )
+
             # --- 8. Fit never clips a wide-short host frame; refits the mounted iframe on a
             #        stage-only resize (no reload); resizing back matches a fresh load. ---
             DESKTOP_W, DESKTOP_H = 1440, 900  # the desktop persona's natural size (synthetic-spec.json)
