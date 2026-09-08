@@ -420,6 +420,60 @@ class RuntimeTests(unittest.TestCase):
             runtime.install(home, replace=True)
         self.assertEqual((home / 'AGENTS.md').read_text(), 'current')
 
+    def stub_binary(self, path, executable=True):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('#!/bin/sh\nexit 0\n')
+        path.chmod(0o700 if executable else 0o600)
+        return path
+
+    def test_launcher_selects_newest_stable_conductor_binary_before_path(self):
+        directory = self.base / 'Conductor binaries'
+        expected = self.stub_binary(directory / 'codex/0.153.2/codex')
+        for version in ('0.99.0', '0.142.5', '0.154.0-alpha.1'):
+            self.stub_binary(directory / 'codex' / version / 'codex')
+        self.stub_binary(directory / 'codex/0.154.0/codex', executable=False)
+        self.stub_binary(self.base / 'path/codex')
+        with patch.dict(os.environ, {'CONDUCTOR_AGENT_BINARIES_DIR': str(directory),
+                                     'PATH': str(self.base / 'path')}):
+            self.assertEqual(runtime.executable(), str(expected.resolve()))
+
+    def test_launcher_finds_conductor_binary_without_host_environment(self):
+        directory = self.home / 'Library/Application Support/com.conductor.app/agent-binaries'
+        expected = self.stub_binary(directory / 'codex/0.153.2/codex')
+        self.assertEqual(runtime.executable(), str(expected.resolve()))
+
+    def test_launcher_explicit_binary_wins_over_conductor(self):
+        directory = self.base / 'conductor'
+        self.stub_binary(directory / 'codex/0.153.2/codex')
+        expected = self.stub_binary(self.base / 'explicit-codex')
+        with patch.dict(os.environ, {'CONDUCTOR_AGENT_BINARIES_DIR': str(directory),
+                                     'AGENT_CODEX_BIN': str(expected)}):
+            self.assertEqual(runtime.executable(), str(expected.resolve()))
+
+    def test_launcher_invalid_explicit_binary_does_not_fall_back(self):
+        self.stub_binary(self.base / 'path/codex')
+        with patch.dict(os.environ, {'AGENT_CODEX_BIN': str(self.base / 'missing'),
+                                     'PATH': str(self.base / 'path')}):
+            with self.assertRaisesRegex(ValueError, 'Codex executable not found'):
+                runtime.executable()
+
+    def test_launcher_falls_back_to_path_without_bundled_binary(self):
+        expected = self.stub_binary(self.base / 'path/codex')
+        with patch.dict(os.environ, {'CONDUCTOR_AGENT_BINARIES_DIR': str(self.base / 'missing'),
+                                     'PATH': str(expected.parent)}):
+            self.assertEqual(runtime.executable(), str(expected.resolve()))
+
+    def test_launcher_skips_its_own_symlink_in_conductor_directory(self):
+        directory = self.base / 'conductor'
+        own = self.stub_binary(self.root / 'bin/codex-launch.py')
+        link = directory / 'codex/0.153.2/codex'
+        link.parent.mkdir(parents=True)
+        link.symlink_to(own)
+        expected = self.stub_binary(self.base / 'path/codex')
+        with patch.dict(os.environ, {'CONDUCTOR_AGENT_BINARIES_DIR': str(directory),
+                                     'PATH': str(expected.parent)}):
+            self.assertEqual(runtime.executable(), str(expected.resolve()))
+
     def test_launcher_executes_only_explicit_fixture_binary(self):
         self.manifest(match=[str(self.cwd)], connectors=[self.connector()])
         binary = self.base / 'stub-codex'

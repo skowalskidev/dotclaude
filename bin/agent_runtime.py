@@ -181,6 +181,14 @@ def executable():
     own = (ROOT / 'bin/codex-launch.py').resolve()
     explicit = os.environ.get('AGENT_CODEX_BIN')
     candidates = [explicit] if explicit else [str(Path(part) / 'codex') for part in os.get_exec_path()]
+    if not explicit:
+        directory = Path(os.environ.get('CONDUCTOR_AGENT_BINARIES_DIR') or
+                         Path.home() / 'Library/Application Support/com.conductor.app/agent-binaries')
+        bundled = [path for path in (directory / 'codex').glob('*/codex')
+                   if re.fullmatch(r'\d+\.\d+\.\d+', path.parent.name)]
+        bundled.sort(key=lambda path: tuple(int(part) for part in path.parent.name.split('.')),
+                     reverse=True)
+        candidates = [str(path) for path in bundled] + candidates
     for name in candidates:
         if name and Path(name).is_file() and os.access(name, os.X_OK) and Path(name).resolve() != own:
             return str(Path(name).resolve())
