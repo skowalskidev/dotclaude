@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: about:; font-src data:; connect-src 'none'; frame-src about: data:; base-uri 'none'; form-action 'none'">
+<title>Mockup</title>
+<style>
+:root{
+  --color-primary:#2857E5; --color-text:#1A1D26; --color-text-secondary:#5B5F6B;
+  --color-hover-bg:#F6F6F4; --color-border:#E7E6E2; --color-page-bg:#FCFCFB;
+  --font-family:-apple-system,"system-ui","Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-sm:8px; --radius-pill:16px; --shadow-sm:0 1px 2px rgba(16,24,40,.06);
+  --rail-width:300px; --rail-collapsed-width:40px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;height:100%;background:#EEF0F3;color:var(--color-text);font-family:var(--font-family);}
+button,select,textarea,input{font:inherit;}
+button{cursor:pointer;}
+#mock-app{height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.mock-hint{flex:0 0 auto;display:flex;align-items:center;gap:10px;background:var(--color-text);color:#fff;font-size:12px;padding:7px 14px;}
+.mock-hint span{flex:1;}
+.mock-hint button{background:none;border:none;color:#fff;opacity:.75;font-size:14px;line-height:1;padding:2px 4px;}
+.mock-hint button:hover{opacity:1;}
+.mock-hint.is-hidden{display:none;}
+.mock-body{flex:1 1 auto;display:flex;min-height:0;}
+.mock-stagewrap{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;background:#DDE1E7;position:relative;}
+.mock-stagebar{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:6px 10px;background:#fff;border-bottom:1px solid var(--color-border);font-size:12px;color:var(--color-text-secondary);flex-wrap:wrap;}
+.mock-stagebar .grow{flex:1;}
+.mock-stagebar select{font:inherit;font-size:12px;border:1px solid var(--color-border);border-radius:6px;padding:3px 6px;background:#fff;color:var(--color-text);}
+.mock-btn{font-family:inherit;font-size:12px;border:1px solid var(--color-border);border-radius:var(--radius-pill);padding:4px 11px;background:#fff;color:var(--color-text);}
+.mock-btn:hover{background:var(--color-hover-bg);}
+.mock-btn.primary{background:var(--color-primary);color:#fff;border-color:var(--color-primary);}
+.mock-btn.active{background:var(--color-text);color:#fff;border-color:var(--color-text);}
+.mock-stage{flex:1 1 auto;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:0;}
+.mock-stage.is-centered{align-items:center;}
+.mock-frame-wrap{position:relative;overflow:hidden;flex:0 0 auto;background:#fff;box-shadow:0 1px 4px rgba(16,24,40,.15);}
+.mock-frame-wrap iframe{position:absolute;top:0;left:0;transform-origin:top left;border:0;display:block;background:#fff;}
+.mock-compare-row{display:flex;gap:14px;padding:16px;overflow:auto;width:100%;}
+.mock-compare-col{flex:1 1 300px;min-width:260px;max-width:480px;display:flex;flex-direction:column;gap:6px;}
+.mock-compare-col h5{margin:0;font-size:12px;font-weight:600;}
+.mock-compare-frame{border:1px solid var(--color-border);border-radius:8px;overflow:hidden;background:#fff;position:relative;height:360px;}
+.mock-compare-frame iframe{position:absolute;top:0;left:0;transform-origin:top left;border:0;}
+.mock-diff-wrap{padding:16px;overflow:auto;width:100%;max-width:900px;margin:0 auto;}
+.mock-diff-picker{display:flex;gap:10px;align-items:center;margin-bottom:14px;font-size:12px;}
+.mock-diff-picker select{font:inherit;font-size:12px;border:1px solid var(--color-border);border-radius:6px;padding:4px 8px;}
+.mock-diff-row{display:flex;gap:8px;padding:5px 8px;border-bottom:1px solid var(--color-border);font-size:12px;font-family:ui-monospace,monospace;background:#fff;}
+.mock-diff-row.added{background:#EAF7ED;}
+.mock-diff-row.removed{background:#FBEAEA;text-decoration:line-through;}
+.mock-diff-row.modified{background:#FFF6E0;}
+.mock-diff-empty{background:#fff;border:1px solid var(--color-border);border-radius:8px;padding:22px;text-align:center;color:var(--color-text-secondary);font-size:13px;}
+.mock-hud{position:fixed;left:14px;bottom:14px;background:rgba(26,29,38,.85);color:#fff;font-size:11px;padding:6px 12px;border-radius:16px;z-index:200;display:none;}
+body.is-presenting .mock-hud{display:block;}
+body.is-presenting .mock-rail,body.is-presenting .mock-hint,body.is-presenting .mock-stagebar{display:none;}
+body.is-presenting .mock-stagewrap{background:#000;}
+.mock-rail{flex:0 0 auto;width:var(--rail-width);border-left:1px solid var(--color-border);background:#fff;display:flex;flex-direction:column;overflow:hidden;transition:width .12s ease;}
+.mock-rail.is-collapsed{width:var(--rail-collapsed-width);}
+.mock-rail-toggle{flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end;padding:6px;border-bottom:1px solid var(--color-border);}
+.mock-rail.is-collapsed .mock-rail-toggle{justify-content:center;}
+.mock-rail-toggle button{background:none;border:none;color:var(--color-text-secondary);font-size:14px;padding:4px 8px;}
+.mock-rail-body{flex:1 1 auto;overflow:auto;padding:0 0 16px;}
+.mock-rail.is-collapsed .mock-rail-body{display:none;}
+.mock-rail.is-collapsed .mock-rail-icons{display:flex;}
+.mock-rail-icons{display:none;flex-direction:column;align-items:center;gap:14px;padding-top:10px;}
+.mock-rail-icons button{background:none;border:none;font-size:16px;color:var(--color-text-secondary);padding:4px;}
+.mock-rail-icons button:hover{color:var(--color-text);}
+.mock-section{border-bottom:1px solid var(--color-border);padding:12px 14px;}
+.mock-section h4{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--color-text-secondary);}
+.mock-variant-item{display:flex;align-items:flex-start;gap:8px;padding:7px 8px;border-radius:6px;cursor:pointer;font-size:12.5px;line-height:1.35;}
+.mock-variant-item:hover{background:var(--color-hover-bg);}
+.mock-variant-item.active{background:#EEF2FD;color:var(--color-primary);}
+.mock-variant-item .dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;background:var(--color-border);margin-top:5px;}
+.mock-variant-item.active .dot{background:var(--color-primary);}
+.mock-variant-item .lbl{flex:1;min-width:0;}
+.mock-variant-item .badge{font-size:9px;font-weight:700;text-transform:uppercase;background:var(--color-primary);color:#fff;padding:1px 6px;border-radius:16px;flex:0 0 auto;}
+.mock-persona-row{display:flex;gap:6px;}
+.mock-persona-row button{flex:1;}
+.mock-version-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);}
+.mock-walk-btn{display:block;width:100%;text-align:left;font-family:inherit;font-size:12px;background:var(--color-hover-bg);border:none;border-radius:6px;padding:7px 9px;margin-bottom:5px;cursor:pointer;color:var(--color-text);}
+.mock-walk-btn:hover{background:#EDEDEA;}
+.mock-check-row{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 0;}
+.mock-comment{width:100%;font-family:inherit;font-size:11.5px;border:1px solid var(--color-border);border-radius:6px;padding:6px 8px;resize:vertical;min-height:40px;margin-top:4px;}
+.mock-verdict-row{display:flex;gap:6px;margin-top:6px;}
+.mock-verdict-btn{flex:1;font-size:11px;padding:4px 6px;border-radius:16px;border:1px solid var(--color-border);background:#fff;}
+.mock-verdict-btn.active-approve{background:#E8F6EC;border-color:#8FCB9E;color:#1E7A34;}
+.mock-verdict-btn.active-request{background:#FDF2F2;border-color:#F3C6C6;color:#8A2E2E;}
+.mock-pin-item{font-size:11.5px;border-bottom:1px solid var(--color-border);padding:6px 0;}
+.mock-pin-item:last-child{border-bottom:none;}
+.mock-sources{font-size:11px;color:var(--color-text-secondary);}
+.mock-sources li{margin-bottom:4px;}
+.mock-handoff textarea{width:100%;height:120px;font-family:ui-monospace,monospace;font-size:10px;border:1px solid var(--color-border);border-radius:6px;padding:8px;}
+.mock-pin-dot{position:absolute;width:18px;height:18px;border-radius:50% 50% 50% 0;background:var(--color-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;transform:translate(-50%,-100%) rotate(45deg);cursor:pointer;z-index:35;pointer-events:auto;}
+.mock-pin-dot span{transform:rotate(-45deg);}
+@media (prefers-reduced-motion: reduce){ * { animation-duration:.001ms !important; } }
+</style>
+</head>
+<body>
+<div id="mock-app">
+  <div class="mock-hint" id="mock-hint"><span id="mock-hint-text"></span><button type="button" id="mock-hint-close" aria-label="Dismiss">&#10005;</button></div>
+  <div class="mock-body">
+    <div class="mock-stagewrap">
+      <div class="mock-stagebar" id="mock-stagebar"></div>
+      <div class="mock-stage" id="mock-stage"></div>
+    </div>
+    <div class="mock-rail" id="mock-rail">
+      <div class="mock-rail-toggle"><button type="button" id="mock-rail-toggle-btn" aria-label="Collapse rail">&#9656;</button></div>
+      <div class="mock-rail-icons" id="mock-rail-icons"></div>
+      <div class="mock-rail-body" id="mock-rail-body"></div>
+    </div>
+  </div>
+</div>
+<div class="mock-hud" id="mock-hud"></div>
+<script id="spec" type="application/json">__MOCKUP_SPEC__</script>
+<script>
+(function(){
+'use strict';
+var SPEC = JSON.parse(document.getElementById('spec').textContent);
+
+function kebab(s){ return s.replace(/([A-Z])/g, '-$1').toLowerCase(); }
+(function applyTokens(){
+  var root = document.documentElement.style;
+  var tokens = SPEC.designTokens || {};
+  Object.keys(tokens).forEach(function(k){ root.setProperty('--' + kebab(k), String(tokens[k])); });
+})();
+
+var PERSONAS = (SPEC.personas && SPEC.personas.length) ? SPEC.personas : [
+  { id: 'desktop', label: 'Desktop', w: 1440, h: 900 },
+  { id: 'mobile', label: 'Mobile', w: 390, h: 844 }
+];
+function personaOf(id){ return PERSONAS.find(function(p){ return p.id === id; }) || PERSONAS[0]; }
+var ASSETS = SPEC.assets || {};
+var ASSET_RE = /@@ASSET:([a-zA-Z0-9_]+)@@/g;
+var resolveCache = {};
+function resolveAssets(raw, cacheKey){
+  if (resolveCache[cacheKey]) return resolveCache[cacheKey];
+  var out = raw.replace(ASSET_RE, function(_, id){ return ASSETS[id] || ''; });
+  resolveCache[cacheKey] = out;
+  return out;
+}
+function esc(s){ var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+function pinAnchorAttr(){ return (SPEC.shell && SPEC.shell.pinAnchorAttr) || 'data-mockup-anchor'; }
+
+function versions(){ return SPEC.versions || []; }
+function latestVersion(){ return versions()[versions().length - 1]; }
+function findVersion(id){ return versions().find(function(v){ return v.id === id; }) || latestVersion(); }
+function activeVersion(){ return findVersion(state.versionId); }
+function currentVariantIds(){ return activeVersion().variantIds || SPEC.manifest.variantIds; }
+function variantDef(id){
+  var base = (SPEC.variants || {})[id] || { label: id, why: '' };
+  var v = activeVersion();
+  var override = v.variantLabelOverrides && v.variantLabelOverrides[id];
+  return override ? Object.assign({}, base, { label: override }) : base;
+}
+function ensureRuntime(v){
+  if (!v.runtime) v.runtime = { selections: {}, comments: {}, verdicts: {}, pins: {} };
+  if (!v.runtime.selections) v.runtime.selections = {};
+  if (!v.runtime.comments) v.runtime.comments = {};
+  if (!v.runtime.verdicts) v.runtime.verdicts = {};
+  if (!v.runtime.pins) v.runtime.pins = {};
+  (v.variantIds || SPEC.manifest.variantIds).forEach(function(id){
+    if (!v.runtime.pins[id]) v.runtime.pins[id] = { desktop: [], mobile: [] };
+  });
+  return v.runtime;
+}
+
+var state = {
+  view: 'focus', // focus | compare | diff
+  persona: 'desktop',
+  versionId: latestVersion().id,
+  pinMode: false,
+  railCollapsed: !!(SPEC.shell && SPEC.shell.railCollapsed),
+  presenting: false,
+  hintDismissed: false
+};
+state.activeVariant = activeVersion().defaultVariant || SPEC.manifest.defaultVariant;
+state.compareIds = currentVariantIds().slice(0, 3);
+var RUNTIME = ensureRuntime(activeVersion());
+
+function prefersReducedMotion(){
+  try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+}
+
+// ---- iframe hosting ----
+var liveIframes = {}; // key -> {iframe, variantId, persona}
+function buildIframeForCapture(variantId, persona, onReady){
+  var def = SPEC.variants[variantId] || {};
+  var raw = (def.captures && def.captures[persona]) || '';
+  var iframe = document.createElement('iframe');
+  iframe.setAttribute('title', (def.label || variantId) + ' \u2014 ' + persona);
+  var p = personaOf(persona);
+  iframe.style.width = p.w + 'px';
+  iframe.style.height = p.h + 'px';
+  if (!raw) {
+    iframe.srcdoc = '<body style="font-family:sans-serif;color:#5B5F6B;display:flex;align-items:center;justify-content:center;height:100%;margin:0;font-size:13px;">Not captured for ' + esc(persona) + '</body>';
+  } else {
+    iframe.srcdoc = resolveAssets(raw, variantId + ':' + persona);
+  }
+  iframe.addEventListener('load', function(){
+    if (onReady) onReady(iframe);
+  });
+  return iframe;
+}
+function postToIframe(iframe, msg){
+  try { iframe.contentWindow.postMessage(msg, '*'); } catch (e) {}
+}
+function flashInIframe(iframe, selector, staticOnly){
+  if (!iframe || !iframe.isConnected) return;
+  var doc;
+  try { doc = iframe.contentDocument; } catch (e) { return; }
+  if (!doc || !selector) return;
+  var el = doc.querySelector(selector);
+  if (!el) return;
+  el.style.transition = 'outline-color .3s ease';
+  if (staticOnly) { el.style.outline = '2px solid rgba(40,87,229,.35)'; el.style.outlineOffset = '2px'; return; }
+  el.style.outline = '3px solid rgba(40,87,229,1)';
+  el.style.outlineOffset = '2px';
+  setTimeout(function(){ el.style.outline = '2px solid rgba(40,87,229,.35)'; }, 1200);
+}
+
+function fitFrame(containerEl, wrapEl, iframeEl, naturalW, naturalH, mode){
+  // Measure the STAGE (containerEl), never the wrap being resized: the wrap's iframe child
+  // is position:absolute, so the wrap has no intrinsic size until this function sets one —
+  // reading the wrap's own clientWidth/Height here would read back whatever this function set
+  // last time (or 0 on first paint), never the space actually available to scale into.
+  var availW = containerEl.clientWidth, availH = containerEl.clientHeight;
+  var scale = mode === 'width' ? (availW / naturalW) : Math.min(availW / naturalW, availH / naturalH, 1);
+  if (!isFinite(scale) || scale <= 0) scale = 1;
+  iframeEl.style.transform = 'scale(' + scale + ')';
+  wrapEl.style.width = Math.round(naturalW * scale) + 'px';
+  wrapEl.style.height = Math.round(naturalH * scale) + 'px';
+}
+
+// ---- Hint bar ----
+function renderHint(){
+  var bar = document.getElementById('mock-hint');
+  var text = (SPEC.shell && SPEC.shell.hintText) || 'Browse variants in the rail, pin comments on anything, pick your favorites and hand back your verdict.';
+  document.getElementById('mock-hint-text').textContent = text;
+  bar.classList.toggle('is-hidden', state.hintDismissed);
+}
+document.getElementById('mock-hint-close').addEventListener('click', function(){ state.hintDismissed = true; renderHint(); });
+
+// ---- Stage ----
+function renderStagebar(){
+  var bar = document.getElementById('mock-stagebar');
+  var def = variantDef(state.activeVariant);
+  var isDefault = state.activeVariant === (activeVersion().defaultVariant || SPEC.manifest.defaultVariant);
+  bar.innerHTML =
+    '<strong style="font-size:12.5px;color:var(--color-text);">' + esc(def.label || state.activeVariant) + '</strong>' +
+    (isDefault ? '<span class="mock-btn" style="pointer-events:none;background:var(--color-primary);color:#fff;border-color:var(--color-primary);">Default</span>' : '') +
+    '<span class="grow"></span>' +
+    '<button type="button" class="mock-btn" id="mock-whatsnew-btn">What\u2019s new \u21bb</button>' +
+    '<button type="button" class="mock-btn" id="mock-present-btn">Present \u21d7</button>';
+  document.getElementById('mock-whatsnew-btn').addEventListener('click', function(){
+    var entry = liveIframes.focus;
+    if (entry) flashInIframe(entry.iframe, (SPEC.variants[state.activeVariant] || {}).flashSelector);
+  });
+  document.getElementById('mock-present-btn').addEventListener('click', enterPresentation);
+}
+
+function renderStage(){
+  var stage = document.getElementById('mock-stage');
+  stage.innerHTML = '';
+  stage.classList.toggle('is-centered', state.view === 'focus');
+  if (state.view === 'compare') { renderCompareStage(stage); return; }
+  if (state.view === 'diff') { renderDiffStage(stage); return; }
+  renderFocusStage(stage);
+}
+function renderFocusStage(stage){
+  var p = personaOf(state.persona);
+  var wrap = document.createElement('div');
+  wrap.className = 'mock-frame-wrap';
+  stage.appendChild(wrap);
+  var iframe = buildIframeForCapture(state.activeVariant, state.persona, function(){
+    fitFrame(stage, wrap, iframe, p.w, p.h, 'fit');
+    var def = SPEC.variants[state.activeVariant] || {};
+    if (!prefersReducedMotion()) setTimeout(function(){ flashInIframe(iframe, def.flashSelector, false); }, 220);
+    else flashInIframe(iframe, def.flashSelector, true);
+  });
+  wrap.appendChild(iframe);
+  liveIframes.focus = { iframe: iframe, variantId: state.activeVariant, persona: state.persona };
+  stage.addEventListener('mousedown', onStageClickForPin, { once: false });
+  window.addEventListener('resize', debounce(function(){ if (state.view === 'focus') fitFrame(stage, wrap, iframe, p.w, p.h, 'fit'); }, 150));
+}
+function renderCompareStage(stage){
+  var row = document.createElement('div');
+  row.className = 'mock-compare-row';
+  stage.appendChild(row);
+  var p = personaOf(state.persona);
+  state.compareIds.slice(0, 4).forEach(function(id){
+    var col = document.createElement('div');
+    col.className = 'mock-compare-col';
+    var def = variantDef(id);
+    col.innerHTML = '<h5>' + esc(def.label || id) + '</h5><div class="mock-compare-frame"></div>';
+    row.appendChild(col);
+    var frameHost = col.querySelector('.mock-compare-frame');
+    var iframe = buildIframeForCapture(id, state.persona, function(){
+      var scale = frameHost.clientWidth / p.w;
+      iframe.style.transform = 'scale(' + scale + ')';
+    });
+    frameHost.appendChild(iframe);
+  });
+}
+function deepDiff(a, b, pathPrefix, rows){
+  a = a || {}; b = b || {};
+  var keys = Array.from(new Set(Object.keys(a).concat(Object.keys(b))));
+  keys.sort().forEach(function(k){
+    var path = pathPrefix ? pathPrefix + '.' + k : k;
+    var av = a[k], bv = b[k];
+    var aHas = Object.prototype.hasOwnProperty.call(a, k), bHas = Object.prototype.hasOwnProperty.call(b, k);
+    if (aHas && !bHas) { rows.push({ path: path, kind: 'removed', text: JSON.stringify(av) }); return; }
+    if (!aHas && bHas) { rows.push({ path: path, kind: 'added', text: JSON.stringify(bv) }); return; }
+    if (av && bv && typeof av === 'object' && typeof bv === 'object' && !Array.isArray(av) && !Array.isArray(bv)) {
+      deepDiff(av, bv, path, rows); return;
+    }
+    var as = JSON.stringify(av), bs = JSON.stringify(bv);
+    if (as !== bs) rows.push({ path: path, kind: 'modified', text: as + '  \u2192  ' + bs });
+  });
+  return rows;
+}
+function renderDiffStage(stage){
+  var wrap = document.createElement('div');
+  wrap.className = 'mock-diff-wrap';
+  var vs = versions();
+  var fromId = state.diffFrom || (vs[vs.length - 2] || vs[0]).id;
+  var toId = state.diffTo || vs[vs.length - 1].id;
+  wrap.innerHTML =
+    '<div class="mock-diff-picker">Compare <select id="mock-diff-from"></select> \u2192 <select id="mock-diff-to"></select></div>' +
+    '<div id="mock-diff-rows"></div>';
+  stage.appendChild(wrap);
+  var fromSel = wrap.querySelector('#mock-diff-from'), toSel = wrap.querySelector('#mock-diff-to');
+  [fromSel, toSel].forEach(function(sel){
+    sel.innerHTML = vs.map(function(v){ return '<option value="' + v.id + '">' + v.id + ' \u2014 ' + esc(v.author) + '</option>'; }).join('');
+  });
+  fromSel.value = fromId; toSel.value = toId;
+  function draw(){
+    var fv = findVersion(fromSel.value), tv = findVersion(toSel.value);
+    var rows = deepDiff(fv.diffData || {}, tv.diffData || {}, '', []);
+    var out = wrap.querySelector('#mock-diff-rows');
+    if (!fv.diffData && !tv.diffData) { out.innerHTML = '<div class="mock-diff-empty">No diff data recorded for these versions.</div>'; return; }
+    if (!rows.length) { out.innerHTML = '<div class="mock-diff-empty">No differences.</div>'; return; }
+    out.innerHTML = rows.map(function(r){ return '<div class="mock-diff-row ' + r.kind + '">' + esc(r.path) + ': ' + esc(r.text) + '</div>'; }).join('');
+  }
+  fromSel.addEventListener('change', draw); toSel.addEventListener('change', draw);
+  draw();
+}
+function debounce(fn, ms){ var t; return function(){ var a = arguments; clearTimeout(t); t = setTimeout(function(){ fn.apply(null, a); }, ms); }; }
+
+// ---- Pins ----
+function onStageClickForPin(e){
+  if (!state.pinMode) return;
+  var entry = liveIframes.focus;
+  if (!entry) return;
+  var wrap = entry.iframe.parentElement;
+  var rect = wrap.getBoundingClientRect();
+  var scale = entry.iframe.getBoundingClientRect().width / entry.iframe.offsetWidth || 1;
+  var x = (e.clientX - rect.left) / scale, y = (e.clientY - rect.top) / scale;
+  var doc;
+  try { doc = entry.iframe.contentDocument; } catch (err) { return; }
+  var el = doc.elementFromPoint(x, y);
+  var anchorEl = el && el.closest ? el.closest('[' + pinAnchorAttr() + ']') : null;
+  var anchorVal = anchorEl ? anchorEl.getAttribute(pinAnchorAttr()) : null;
+  var comment = window.prompt('Pin comment' + (anchorVal ? ' (anchored to "' + anchorVal + '")' : '') + ':');
+  if (comment == null || !comment.trim()) return;
+  var pins = RUNTIME.pins[state.activeVariant] || (RUNTIME.pins[state.activeVariant] = { desktop: [], mobile: [] });
+  if (!pins[state.persona]) pins[state.persona] = [];
+  pins[state.persona].push({ anchor: anchorVal, x: x, y: y, text: comment, resolved: false });
+  state.pinMode = false;
+  renderAll();
+}
+
+// ---- Rail ----
+function renderRail(){
+  var body = document.getElementById('mock-rail-body');
+  var icons = document.getElementById('mock-rail-icons');
+  icons.innerHTML = ['\u25A4','\u26FA','\u23F1','\u2192','\u2194','\u270E','\u21C6'].map(function(ic){ return '<button type="button" title="Expand">' + ic + '</button>'; }).join('');
+  Array.from(icons.querySelectorAll('button')).forEach(function(b){ b.addEventListener('click', toggleRail); });
+
+  var s = '';
+  s += sectionVariants();
+  s += sectionPersona();
+  s += sectionVersion();
+  s += sectionWalk();
+  s += sectionCompareDiff();
+  s += sectionFeedback();
+  s += sectionHandoff();
+  s += sectionSources();
+  body.innerHTML = s;
+  wireRail(body);
+  document.getElementById('mock-rail').classList.toggle('is-collapsed', state.railCollapsed);
+}
+function sectionVariants(){
+  var ids = currentVariantIds();
+  var defId = activeVersion().defaultVariant || SPEC.manifest.defaultVariant;
+  return '<div class="mock-section"><h4>Variants (\u2190/\u2192)</h4>' + ids.map(function(id){
+    var def = variantDef(id);
+    return '<div class="mock-variant-item' + (id === state.activeVariant ? ' active' : '') + '" data-pick-variant="' + id + '"><span class="dot"></span><span class="lbl">' + esc(def.label || id) + (id === defId ? ' <span class="badge">Default</span>' : '') + '</span></div>';
+  }).join('') + '</div>';
+}
+function sectionPersona(){
+  return '<div class="mock-section"><h4>Persona</h4><div class="mock-persona-row">' + PERSONAS.map(function(p){
+    return '<button type="button" class="mock-btn' + (state.persona === p.id ? ' active' : '') + '" data-pick-persona="' + p.id + '">' + esc(p.label) + '</button>';
+  }).join('') + '</div></div>';
+}
+function sectionVersion(){
+  return '<div class="mock-section"><h4>Version</h4><div class="mock-version-row"><select id="mock-version-select">' +
+    versions().map(function(v){ return '<option value="' + v.id + '"' + (v.id === state.versionId ? ' selected' : '') + '>' + v.id + ' \u2014 ' + esc(v.author) + ', ' + esc(v.date) + '</option>'; }).join('') +
+    '</select></div></div>';
+}
+function sectionWalk(){
+  var def = SPEC.variants[state.activeVariant] || {};
+  var states = def.states || [];
+  if (!states.length) return '<div class="mock-section"><h4>Walk the states</h4><div style="font-size:12px;color:var(--color-text-secondary);">No states listed for this variant.</div></div>';
+  return '<div class="mock-section"><h4>Walk the states</h4>' + states.map(function(st, i){
+    return '<button type="button" class="mock-walk-btn" data-goto-state="' + esc(st.id) + '">' + (i + 1) + '. ' + esc(st.label) + '</button>';
+  }).join('') + '</div>';
+}
+function sectionCompareDiff(){
+  var ids = currentVariantIds();
+  return '<div class="mock-section"><h4>Compare &amp; diff</h4>' +
+    '<div style="display:flex;gap:6px;margin-bottom:8px;">' +
+      '<button type="button" class="mock-btn' + (state.view === 'compare' ? ' active' : '') + '" id="mock-view-compare">Compare</button>' +
+      '<button type="button" class="mock-btn' + (state.view === 'diff' ? ' active' : '') + '" id="mock-view-diff">Diff</button>' +
+      '<button type="button" class="mock-btn' + (state.view === 'focus' ? ' active' : '') + '" id="mock-view-focus">Focus</button>' +
+    '</div>' +
+    (state.view === 'compare' ? ids.map(function(id){
+      return '<label class="mock-check-row"><input type="checkbox" data-compare-toggle="' + id + '"' + (state.compareIds.indexOf(id) > -1 ? ' checked' : '') + '> ' + esc(variantDef(id).label || id) + '</label>';
+    }).join('') : '') +
+    '</div>';
+}
+function sectionFeedback(){
+  var id = state.activeVariant;
+  var comment = RUNTIME.comments[id] || '';
+  var verdict = RUNTIME.verdicts[id];
+  var pins = (RUNTIME.pins[id] && RUNTIME.pins[id][state.persona]) || [];
+  var out = '<div class="mock-section"><h4>Feedback</h4>' +
+    '<label class="mock-check-row"><input type="checkbox" id="mock-select-variant"' + (RUNTIME.selections[id] ? ' checked' : '') + '> Select this one</label>' +
+    '<textarea class="mock-comment" id="mock-comment-box" placeholder="What to keep, what to change\u2026">' + esc(comment) + '</textarea>' +
+    '<div class="mock-verdict-row"><button type="button" class="mock-verdict-btn' + (verdict === 'request' ? ' active-request' : '') + '" id="mock-verdict-request">Request changes</button><button type="button" class="mock-verdict-btn' + (verdict === 'approve' ? ' active-approve' : '') + '" id="mock-verdict-approve">Approve</button></div>' +
+    '<button type="button" class="mock-btn" id="mock-pin-toggle" style="margin-top:8px;width:100%;' + (state.pinMode ? 'background:var(--color-primary);color:#fff;' : '') + '">' + (state.pinMode ? 'Click the stage to pin \u00b7 cancel' : '+ Add a pin') + '</button>';
+  if (pins.length) {
+    out += '<div style="margin-top:8px;">' + pins.map(function(p){ return '<div class="mock-pin-item">' + esc(p.text) + (p.anchor ? ' <em style="color:var(--color-text-secondary);">(' + esc(p.anchor) + ')</em>' : '') + '</div>'; }).join('') + '</div>';
+  }
+  out += '</div>';
+  return out;
+}
+function sectionHandoff(){
+  return '<div class="mock-section mock-handoff"><h4>Hand-off</h4>' +
+    '<textarea id="mock-handoff-text" readonly></textarea>' +
+    '<div style="display:flex;gap:6px;margin-top:6px;"><button type="button" class="mock-btn" id="mock-handoff-copy">Copy</button><button type="button" class="mock-btn" id="mock-save-html">Save HTML \u2193</button></div>' +
+    '</div>';
+}
+function sectionSources(){
+  var sources = SPEC.sources || [];
+  if (!sources.length) return '';
+  return '<div class="mock-section"><h4>Sources</h4><ul class="mock-sources">' + sources.map(function(s){ return '<li>' + esc(s) + '</li>'; }).join('') + '</ul></div>';
+}
+function handoffText(){
+  var specJson = JSON.stringify(SPEC);
+  return '<task>\nRebuild a versioned UI mockup from the spec below. The <spec> JSON is the SINGLE SOURCE OF TRUTH.\nRender it exactly. Do NOT paraphrase, summarise, invent, reorder, or drop any field.\nProduce ONE self-contained HTML file. No external calls; inline or pin every dependency.\n</task>\n<spec>' + specJson + '</spec>\n<build>\n1. Embed <spec> unchanged as <script type="application/json" id="spec">.\n2. render(spec): build the stage, rail, compare/diff and comment UI PURELY from #spec.\n3. Nothing user-visible may exist outside #spec; style only from designTokens.\n</build>\n<invariants>\n- Output the ENTIRE file. No placeholders, no "// unchanged", no elisions.\n- Every string in #spec must appear in the rendered output.\n- versions rendered == manifest.versionCount; all manifest.variantIds present.\n- When handing back, RE-EMBED the updated #spec verbatim \u2014 never a prose description.\n</invariants>\n<selfcheck>\nBefore returning: parse #spec from your own output, assert the three invariants, report each PASS/FAIL.\n</selfcheck>';
+}
+
+function wireRail(body){
+  body.querySelectorAll('[data-pick-variant]').forEach(function(el){
+    el.addEventListener('click', function(){ state.activeVariant = el.getAttribute('data-pick-variant'); state.view = 'focus'; renderAll(); });
+  });
+  body.querySelectorAll('[data-pick-persona]').forEach(function(el){
+    el.addEventListener('click', function(){ state.persona = el.getAttribute('data-pick-persona'); renderAll(); });
+  });
+  var vsel = body.querySelector('#mock-version-select');
+  if (vsel) vsel.addEventListener('change', function(){
+    state.versionId = vsel.value;
+    RUNTIME = ensureRuntime(activeVersion());
+    state.activeVariant = activeVersion().defaultVariant || SPEC.manifest.defaultVariant;
+    state.compareIds = currentVariantIds().slice(0, 3);
+    renderAll();
+  });
+  body.querySelectorAll('[data-goto-state]').forEach(function(el){
+    el.addEventListener('click', function(){
+      var entry = liveIframes.focus;
+      if (entry) postToIframe(entry.iframe, { type: 'mockup:goto-state', stateId: el.getAttribute('data-goto-state') });
+    });
+  });
+  var cbtn = body.querySelector('#mock-view-compare'), dbtn = body.querySelector('#mock-view-diff'), fbtn = body.querySelector('#mock-view-focus');
+  if (cbtn) cbtn.addEventListener('click', function(){ state.view = 'compare'; renderAll(); });
+  if (dbtn) dbtn.addEventListener('click', function(){ state.view = 'diff'; renderAll(); });
+  if (fbtn) fbtn.addEventListener('click', function(){ state.view = 'focus'; renderAll(); });
+  body.querySelectorAll('[data-compare-toggle]').forEach(function(el){
+    el.addEventListener('change', function(){
+      var id = el.getAttribute('data-compare-toggle');
+      if (el.checked) { if (state.compareIds.indexOf(id) === -1 && state.compareIds.length < 4) state.compareIds.push(id); else if (state.compareIds.length >= 4) { el.checked = false; return; } }
+      else state.compareIds = state.compareIds.filter(function(x){ return x !== id; });
+      renderStage();
+    });
+  });
+  var selBox = body.querySelector('#mock-select-variant');
+  if (selBox) selBox.addEventListener('change', function(){ RUNTIME.selections[state.activeVariant] = selBox.checked; });
+  var cbox = body.querySelector('#mock-comment-box');
+  if (cbox) cbox.addEventListener('input', function(){ RUNTIME.comments[state.activeVariant] = cbox.value; });
+  var vreq = body.querySelector('#mock-verdict-request'), vapp = body.querySelector('#mock-verdict-approve');
+  if (vreq) vreq.addEventListener('click', function(){ RUNTIME.verdicts[state.activeVariant] = RUNTIME.verdicts[state.activeVariant] === 'request' ? null : 'request'; renderRail(); });
+  if (vapp) vapp.addEventListener('click', function(){ RUNTIME.verdicts[state.activeVariant] = RUNTIME.verdicts[state.activeVariant] === 'approve' ? null : 'approve'; renderRail(); });
+  var pinToggle = body.querySelector('#mock-pin-toggle');
+  if (pinToggle) pinToggle.addEventListener('click', function(){ state.pinMode = !state.pinMode; renderRail(); });
+  var ho = body.querySelector('#mock-handoff-text');
+  if (ho) ho.value = handoffText();
+  var hoCopy = body.querySelector('#mock-handoff-copy');
+  if (hoCopy) hoCopy.addEventListener('click', function(){
+    ho.focus(); ho.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    try { navigator.clipboard && navigator.clipboard.writeText(ho.value); } catch (e) {}
+    hoCopy.textContent = 'Copied \u2713'; setTimeout(function(){ hoCopy.textContent = 'Copy'; }, 1400);
+  });
+  var saveBtn = body.querySelector('#mock-save-html');
+  if (saveBtn) saveBtn.addEventListener('click', saveHtml);
+}
+function toggleRail(){ state.railCollapsed = !state.railCollapsed; renderRail(); }
+document.getElementById('mock-rail-toggle-btn').addEventListener('click', toggleRail);
+
+function saveHtml(){
+  var clone = document.documentElement.cloneNode(true);
+  var specText = JSON.stringify(SPEC).replace(/</g, '\\u003c').replace(/&/g, '\\u0026');
+  clone.querySelector('#spec').textContent = specText;
+  var blob = new Blob(['<!doctype html>\n' + clone.outerHTML], { type: 'text/html' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = 'mockup.html'; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+
+// ---- Presentation mode ----
+function enterPresentation(){ state.presenting = true; document.body.classList.add('is-presenting'); renderHud(); }
+function exitPresentation(){ state.presenting = false; document.body.classList.remove('is-presenting'); }
+function renderHud(){
+  var def = variantDef(state.activeVariant);
+  document.getElementById('mock-hud').textContent = (def.label || state.activeVariant) + ' \u00b7 ' + personaOf(state.persona).label;
+}
+
+function stepVariant(delta){
+  var ids = currentVariantIds();
+  var idx = ids.indexOf(state.activeVariant);
+  if (idx === -1) idx = 0;
+  idx = (idx + delta + ids.length) % ids.length;
+  state.activeVariant = ids[idx];
+  state.view = 'focus';
+  renderAll();
+}
+document.addEventListener('keydown', function(e){
+  var tag = (e.target && e.target.tagName) || '';
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (e.key === 'ArrowLeft') { stepVariant(-1); }
+  else if (e.key === 'ArrowRight') { stepVariant(1); }
+  else if (e.key === 'p' || e.key === 'P') { if (state.presenting) exitPresentation(); else enterPresentation(); renderAll(); }
+  else if (e.key === 'Escape' && state.presenting) { exitPresentation(); renderAll(); }
+});
+
+function renderAll(){
+  renderHint();
+  renderStagebar();
+  renderStage();
+  renderRail();
+  if (state.presenting) renderHud();
+}
+
+// A variant's own capture may ask the shell to switch variant (e.g. an in-page
+// link or menu item that leads to another surface). Generic: any capture can
+// post this, the shell does not know or care what triggered it.
+window.addEventListener('message', function(e){
+  if (!e.data || e.data.type !== 'mockup:navigate-variant') return;
+  if (!SPEC.variants[e.data.variantId]) return;
+  state.activeVariant = e.data.variantId;
+  state.view = 'focus';
+  renderAll();
+});
+
+renderAll();
+})();
+</script>
+</body>
+</html>

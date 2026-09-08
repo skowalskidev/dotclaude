@@ -40,6 +40,7 @@ CONTRACTS: dict[str, dict] = {
             "Disable on-demand connectors and retired manifest-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
+            "Resolve explicit binary overrides first, then installed stable Conductor binaries in descending version order, then PATH; skip non-executable files and the launcher itself.",
         ],
     },
     "bin/codex-launch.py": {
@@ -84,6 +85,15 @@ CONTRACTS: dict[str, dict] = {
             "Fix the engine to Ralph; ask options on direct invocation and reuse the supervisor’s confirmed answer when composed.",
             "Run one fresh worker per ready item, verify results and preserve durable learnings in the same plan.",
             "Keep one supervisor, judge owner, options answer, viewer and iteration budget per invocation.",
+        ],
+    },
+    "bin/mockup-build.py": {
+        "mission": "Simon opens any mockup and sees the design itself first, in one familiar shell that never shifts between rounds.",
+        "purpose": "Builds every /sk:ship-mockup-before-after deliverable by inlining a spec.json into the generic bin/mockup-shell.html, and extracts the spec back out.",
+        "criteria": [
+            "Load bin/mockup-shell.html, which renders entirely from the embedded #spec JSON and carries no project-specific strings.",
+            "Fill the viewport with the active variant on open; keep every control in one collapsible right rail; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
+            "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
         ],
     },
     "bin/workflow-dashboard.py": {
@@ -1032,8 +1042,12 @@ CONTRACTS: dict[str, dict] = {
             "anything that changed after validation. Unsourced difference is invented scope, and "
             "this is the cheapest moment to catch it.",
             "Offers a variant gallery whose picks and per-variant keep/change comments use the "
-            "response contract from /sk:work-ask-reply-in-full-before-after-artifact, docked compact "
-            "and collapsed so it never covers the mockup.",
+            "response contract from /sk:work-ask-reply-in-full-before-after-artifact, held in the "
+            "shell rail's Feedback section so it never covers the mockup.",
+            "Builds every mockup file through bin/mockup-build.py and bin/mockup-shell.html (mockup "
+            "fills the viewport on open, one collapsible rail, presentation mode, hint bar, no grid "
+            "landing page or intro modal); the file stays at or under 12 MB with 0 external requests "
+            "and round-trips through --extract byte-identically.",
             "Ships as a self-contained HTML FILE for a collaborative/versioned/multi-screenshot "
             "round-trip, or a Claude artifact URL only when small and un-gated — the artifact's size "
             "ceiling, blocked localStorage and Team-can't-publish-publicly limits pick the medium.",

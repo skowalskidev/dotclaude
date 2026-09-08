@@ -157,6 +157,29 @@ UI" (lossy — verbatim structured data survives an LLM round-trip 91% vs 14% fo
 TEST: with the render layer deleted, `#spec` alone still holds every variant, version, selection and
 comment; re-running `render(spec)` reproduces the mockup exactly.
 
+## One shell for every mockup: build it through `bin/mockup-build.py`, never hand-roll the chrome
+
+**DO build every mockup file by inlining its `#spec` into `~/.claude/bin/mockup-shell.html` with
+`python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>` (`--extract <mockup.html> <spec.json>` to
+edit an existing one), so every mockup opens and behaves the same way.** The shell owns the chrome: the
+active variant fills the viewport on open (desktop persona scaled to fit, mobile centred at 390 px), ONE
+right rail (300 px, collapsible to a 40 px icon strip) holding Variants (←/→ keys), Persona, Version
+stepper, Walk the states, Compare + Diff, Feedback (picks, comments, pins, verdict) and Hand-off, a
+full-screen presentation mode (`p`; arrow keys step variants and states; corner HUD), a one-line
+dismissible hint bar, and the What's-new flash. The `#spec` supplies content only: variants, captures,
+states, tokens, assets, versions, feedback; its `shell` block sets `hintText` and `railCollapsed`, nothing
+else.
+**DON'T write per-mockup chrome (a grid landing page, an intro modal, a floating panel, a bespoke variant
+switcher) and DON'T fork the shell into the mockup file.** Bespoke chrome shifts every round and hides the
+mockup (the fix for a grid landing page that made Simon scroll around to find the actual mockup,
+2026-09-08).
+**DO keep the built file at or under 12 MB (the dashboard's asset ceiling) and at 0 external requests:**
+store each `data:` URI once in `#spec.assets` and reference it from captures as `@@ASSET:id@@`, and drop
+font families the captures never apply.
+TEST: `mockup-build.py --extract` on the shipped file yields a spec that rebuilds it byte-identically; at
+1440×900 the mockup is fully visible on open with no scroll; `p` enters presentation mode; a synthetic
+two-variant spec renders in the same shell; the file is ≤12 MB with 0 external requests.
+
 ## Capture the BEFORE from the real app
 
 **DO CAPTURE an existing screen as a 1:1 self-contained HTML first — that capture IS the before-base,
@@ -310,7 +333,8 @@ x/y, so the pin survives a reflow — with a resolve/done state, and an explicit
 changes** verdict per variant. Pins, resolve and an approve/request-changes verdict are the feedback
 reviewers actually rely on.
 
-**DO dock the picks/comments panel COMPACT and collapsed, so it never covers the mockup.**
+**DO keep the picks/comments/pins/verdict panel in the shell rail's Feedback section, collapsed by
+default, so it never covers the mockup.**
 **DON'T float it over the screen he is judging.**
 TEST: he selects variants, comments and pins keep-or-change on each, sets a verdict, opens the panel and
 copies, and the block names every pick, rejection, pinned comment and verdict.
@@ -321,9 +345,9 @@ The document goes to someone who is NOT Simon — a stakeholder, a teammate — 
 picks and change requests. Send the FILE (their Claude edits it directly, loss-free), or the artifact
 URL when it is small and un-gated.
 
-**DO make the document GUIDE a first-time recipient.** A short, dismissible intro on open explains: browse
-the variants (grid → full view), select the ones you like, pin comments for changes, and set a verdict.
-The guidance is part of the document; the recipient needs no briefing from Simon.
+**DO make the document GUIDE a first-time recipient.** The shell's one-line dismissible hint bar (never a
+modal) says: browse the variants in the rail, select the ones you like, pin comments for changes, and set a
+verdict. The guidance is part of the document; the recipient needs no briefing from Simon.
 
 **DO make the copy-paste hand-off block BE the complete build spec — the verbatim `#spec` in an XML
 instruction frame**, so nothing degrades on the round-trip:
@@ -383,10 +407,10 @@ progression.
 
 **The newest version is always active; older versions are for looking back only** — open on the latest
 version's variants. **Keep the version control COMPACT and quiet — it is NOT a primary interface
-element:** a small, low-prominence affordance in a corner (a tiny `v4 ▾` stepper), visually quieter than
-the variant switcher, that never obscures the design and is reached only on demand. TEST: the version
-control is a small corner affordance, the newest version is active on open, and switching to an older
-version shows that version's grouped variants intact.
+element:** the shell rail's small version stepper, visually quieter than the variant list, that never
+obscures the design and is reached only on demand. TEST: the version control is the rail's small stepper,
+the newest version is active on open, and switching to an older version shows that version's grouped
+variants intact.
 
 ## Cite where each part came from
 
