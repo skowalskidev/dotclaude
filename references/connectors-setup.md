@@ -17,9 +17,11 @@ the provisioner/guard.
   own `auth.steps`, kept `chmod 600`, and regenerated when needed — the provider's IAM is the source of
   truth, so there is no second copy to rotate, sync or leak. Don't propose adding a secret manager.
 
-Application-agnostic: works under the official Claude app, the CLI, and Conductor. The only harness-
-specific glue is an optional Conductor `scripts.setup` in a WORK repo's machine-local
-`.conductor/settings.local.toml` that calls the provisioner at workspace creation.
+Use `references/agent-hosts.md` for native Codex configuration. Both hosts consume these manifests;
+Claude uses native local registration, while the Codex launcher reads the current definitions before
+starting the process. Codex has no manually maintained mirror of a manifest. The native adapter's
+ownership receipt stores server names only, so deleted entries cannot fall back to old registrations.
+Keep host-specific authentication separate. A Conductor workspace does not merge the hosts' MCP stores.
 
 ## Manifest schema (`connectors/<project>.json`, plain JSON — no comments, jq-parseable)
 
@@ -75,7 +77,7 @@ Fields:
 - `readOnly` — true = must not mutate (e.g. prod read). `gated` — writes require explicit per-write ok.
 - `enabledOnDemand` — NOT provisioned by default; only enabled when required (e.g. a prod-write pathway).
 - `ephemeral` — torn down after use (materialized key removed).
-- `mcp` — for `mcp-*` kinds, the exact object passed to `claude mcp add-json` (stdio: command/args/env;
+- `mcp` — for `mcp-*` kinds, the canonical transport object (stdio: command/args/env;
   http: type+url). `~` in `env` values and `args` is expanded to `$HOME` at provision time.
 - `secret` — `{ path }`: where this connector's key file lives. A DECLARATION, not a fetch instruction.
   `--check` reports `key-present`/`key-missing` from it, provisioning warns when it is absent, and the
@@ -89,7 +91,7 @@ Fields:
 ## Adapters (the per-`kind` behaviors the engine calls)
 
 Each `kind` implements the same five behaviors:
-1. **provision** — make it available (mcp-*: `claude mcp add-json -s local`; api/cli/env/claude-connector: no-op).
+1. **provision** — make it available (Claude mcp-*: `claude mcp add-json -s local`; Codex: native launch-time projection; api/cli/env/claude-connector: no-op).
 2. **readiness** — is it usable now? (mcp-*: registered + not needs-auth; cli: logged-in profile; api/env: key/secret present; claude-connector: `account` — loaded from claude.ai settings, so present whenever the session has it).
 3. **auth-steps** — the numbered fix (from `auth.steps`), which is also how the key gets created.
 4. **boundary-guard** — deny in the wrong boundary; deny writes when `readOnly`/`gated` (handled data-driven in the guard).

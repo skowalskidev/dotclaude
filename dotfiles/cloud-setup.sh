@@ -35,7 +35,7 @@ link "$DOT/skills/sk" "$CC/skills/sk"
 link "$DOT/skills/sk" "$AGENT_SKILLS/sk"
 
 # 3. The knowledge base the skills READ (must sit at the ~/.claude ROOT, not inside the plugin).
-for item in CLAUDE.md rules references contracts connectors AGENTS.md; do link "$DOT/$item" "$CC/$item"; done
+for item in CLAUDE.md rules references contracts connectors AGENTS.md dotfiles; do link "$DOT/$item" "$CC/$item"; done
 
 # 4. The guard / hook layer (SessionStart + PreToolUse). Proven to exit 0 on Linux, and the
 #    task-intake gate auto-allows Agent/Workflow in cloud (child) sessions. Comment these three
@@ -43,6 +43,9 @@ for item in CLAUDE.md rules references contracts connectors AGENTS.md; do link "
 link "$DOT/hooks"         "$CC/hooks"
 link "$DOT/bin"           "$CC/bin"
 link "$DOT/settings.json" "$CC/settings.json"
+
+# Native Codex instructions share the same source; an existing local file requires review.
+python3 "$DOT/bin/agent_runtime.py" install
 
 # 5. Identity overlay (untracked). Scaffolded from the template so the work/personal guard has a file;
 #    EDIT ~/dotclaude/identity.local.json with your real accounts. NEVER commit real accounts/secrets.

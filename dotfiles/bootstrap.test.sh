@@ -13,8 +13,10 @@ TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 ROOT="$TMP/repo"; SBHOME="$TMP/home"
 mkdir -p "$ROOT/dotfiles" "$ROOT/hooks" "$ROOT/.githooks" "$ROOT/connectors" \
   "$ROOT/skills/sk/skills/example" "$ROOT/skills/sk-work/skills/example" \
-  "$ROOT/skills/gstack" "$SBHOME"
+  "$ROOT/skills/gstack" "$ROOT/bin" "$SBHOME"
 cp "$HERE/bootstrap.sh" "$ROOT/dotfiles/bootstrap.sh"
+cp "$HERE/../bin/agent_runtime.py" "$ROOT/bin/agent_runtime.py"
+cp "$HERE/codex-AGENTS.md" "$ROOT/dotfiles/codex-AGENTS.md"
 cp "$HERE/../identity.example.json" "$ROOT/identity.example.json"
 cp "$HERE/gitignore_global" "$ROOT/dotfiles/gitignore_global" 2>/dev/null || printf '*.key\n' > "$ROOT/dotfiles/gitignore_global"
 cp "$HERE/zsh-work-codex.zsh" "$ROOT/dotfiles/zsh-work-codex.zsh" 2>/dev/null || printf '# stub\n' > "$ROOT/dotfiles/zsh-work-codex.zsh"
@@ -42,6 +44,9 @@ printf '%s\n' "$out" | grep -q 'TODO.*identity.local.json' \
 [ ! -e "$SBHOME/.agents/skills/gstack" ] \
   && pass "does not link unrelated skill packs into Codex" \
   || fail "linked an unrelated skill pack into Codex"
+[ -L "$SBHOME/.codex/AGENTS.md" ] && [ -L "$SBHOME/.codex-work/AGENTS.md" ] \
+  && pass "links native instructions into both Codex homes" \
+  || fail "did not link native instructions into both Codex homes"
 
 # 2) The scaffolded copy still holds the template placeholders -> still flagged unfinished.
 printf '%s\n' "$(run)" | grep -q 'TODO.*placeholder' \

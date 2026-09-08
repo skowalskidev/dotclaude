@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# connectors-provision.sh — generic, idempotent connector provisioner (harness-independent).
+# connectors-provision.sh — per-project connector provisioning and native-host discovery.
 #
 # Reads the per-project manifest ~/.claude/connectors/<project>.json chosen by matching the current
 # git origin, and registers that project's MCP servers at LOCAL scope (claude mcp add-json -s local).
@@ -16,6 +16,7 @@
 #   connectors-provision.sh [DIR]           provision the project at DIR (default: $PWD)
 #   connectors-provision.sh --check [DIR]    print a readiness report (one line per connector), no writes
 #   connectors-provision.sh --manifest [DIR] print the resolved manifest path (or nothing)
+#   connectors-provision.sh --host codex [--check] [DIR] inspect the launch-time Codex projection
 #
 # Adapters by connector.kind: mcp-http | mcp-stdio (registered as MCP servers); api | service-key |
 # cli | env | claude-connector (no MCP registration — readiness is reported by --check, setup is via the
@@ -24,6 +25,20 @@
 # matches on its live server-id `name`.
 # A new kind = add a case below. See ~/.claude/references/connectors-setup.md for the schema.
 set -u
+
+# Codex consumes the manifest at launch; there is no second MCP configuration to update.
+# Keep the Claude registration path below for Claude Code's native local scope.
+if [ "${1:-}" = "--host" ]; then
+  host="${2:-}"; shift 2
+  case "$host" in
+    codex)
+      [ "${1:-}" = "--check" ] && shift
+      exec python3 "$HOME/.claude/bin/agent_runtime.py" doctor --cwd "${1:-$PWD}"
+      ;;
+    claude) ;;
+    *) echo "connectors: unsupported host" >&2; exit 2 ;;
+  esac
+fi
 
 CONN_DIR="$HOME/.claude/connectors"
 CLAUDE_JSON="$HOME/.claude.json"

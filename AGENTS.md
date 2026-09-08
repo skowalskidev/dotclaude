@@ -17,6 +17,14 @@ execute the steps in order; they're idempotent.
   secret-scans first), or `git -C ~/.claude add -A && git -C ~/.claude commit && git -C ~/.claude push`.
   A `gitleaks` pre-commit hook + the allowlist `.gitignore` block any staged secret. No background daemon.
 
+## Native host adapters
+
+Keep shared rules and hook wiring in their existing sources. Read `references/agent-hosts.md`
+before changing native adapters. `bin/agent_runtime.py` projects connector metadata at Codex
+launch and dispatches shared hooks; `dotfiles/codex-AGENTS.md` is the linked native entrypoint.
+Run `python3 bin/agent_runtime.test.py` plus the config contract suite after adapter changes.
+Never copy credentials between Claude, default Codex, and work Codex homes.
+
 ## Shared workflow dashboard
 
 Read `ABOUT.md` for the user-facing overview and `references/workflow-loops.md` for the protocol.

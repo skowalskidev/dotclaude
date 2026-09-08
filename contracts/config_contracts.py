@@ -31,6 +31,31 @@ nothing at runtime.
 """
 
 CONTRACTS: dict[str, dict] = {
+    "bin/agent_runtime.py": {
+        "mission": "Simon starts Codex with current shared instructions and the right project connectors without copying configuration.",
+        "purpose": "Native Codex launch, context, hook and installation adapter.",
+        "criteria": [
+            "Read rules, settings and connector manifests from the canonical source at invocation time.",
+            "Keep work and personal credential homes separate and reject a mismatched session boundary.",
+            "Disable on-demand connectors and retired manifest-owned names; never copy authentication files.",
+            "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
+            "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
+        ],
+    },
+    "bin/codex-launch.py": {
+        "mission": "Simon's terminal and Conductor start Codex through the same current project configuration.",
+        "purpose": "Thin executable entrypoint for the native Codex adapter.",
+        "criteria": ["Delegate to agent_runtime.py without duplicating profile or connector logic."],
+    },
+    "references/agent-hosts.md": {
+        "mission": "Simon can reproduce native Claude and Codex setup and knows exactly when configuration changes take effect.",
+        "purpose": "Native host setup, source ownership, trust, authentication and refresh protocol.",
+        "criteria": [
+            "Name one canonical source for rules, skills, hooks and project connector definitions.",
+            "Distinguish process restart from a new thread and distinguish registered connectors from authenticated tools.",
+            "Keep native trust review explicit and never prescribe a default trust bypass.",
+        ],
+    },
     "references/workflow-loops.md": {
         "mission": "Simon sees current progress in one familiar interface while every required outcome is verified.",
         "purpose": "Shared dashboard, state, execution adapter and independent judge protocol.",

@@ -70,13 +70,18 @@ echo
 
 # 3) Safe wiring — idempotent, reversible, done for you.
 echo "3. Wiring"
-chmod +x "$ROOT"/hooks/*.sh "$ROOT"/hooks/*.py "$ROOT"/.githooks/* 2>/dev/null && did "hooks + git-hooks made executable"
+chmod +x "$ROOT"/hooks/*.sh "$ROOT"/hooks/*.py "$ROOT"/bin/*.py "$ROOT"/.githooks/* 2>/dev/null && did "hooks + launchers + git-hooks made executable"
 git -C "$ROOT" config core.hooksPath .githooks 2>/dev/null && did "secret-scan + commit-msg gate enabled (core.hooksPath)"
 mkdir -p "$HOME/.agents/skills"
 for plugin in "$ROOT"/skills/sk "$ROOT"/skills/sk-*; do
   [ -e "$plugin" ] || continue
   link_safe "$plugin" "$HOME/.agents/skills/${plugin##*/}"
 done
+if have python3; then
+  python3 "$ROOT/bin/agent_runtime.py" install || todo "native Codex instructions need review — see README section Native Codex setup"
+else
+  todo "python3 missing — required for native Codex configuration"
+fi
 link_safe "$ROOT/dotfiles/zsh-work-codex.zsh" "$HOME/.zsh-work-codex.zsh"
 if [ -f "$ROOT/dotfiles/gitignore_global" ]; then
   link_safe "$ROOT/dotfiles/gitignore_global" "$HOME/.gitignore_global"

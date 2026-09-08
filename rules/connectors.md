@@ -5,6 +5,9 @@ across my work and personal projects. Complements `security.md` and `config-repo
 manifest schema live in `references/connectors-setup.md`; each project's connectors are declared in
 `~/.claude/connectors/<project>.json`.
 
+For Codex setup and diagnostics, apply `references/agent-hosts.md`.
+TEST: identify the host, credential home and manifest before diagnosing unavailable tools.
+
 ## Discover the provisioned path FIRST
 
 Before any work that REACHES a project service — auth, login, screenshots, seed/read/write a DB or
@@ -80,8 +83,5 @@ change). No prod data is touched until both happen.
 
 ## Manifest convention (one generic engine, per-project specs)
 
-The engine is generic and lives in `~/.claude` (`bin/connectors-provision.sh`,
-`hooks/session-connectors.sh`, `hooks/work-resource-guard.sh`, `/sk:setup-connectors`). Each project's
-connectors — servers/CLIs, their env, boundary, read/write policy, `auth.steps` — live ONLY in
-`~/.claude/connectors/<project>.json`. Run `/sk:setup-connectors` to set up or repair them, `add` for a
-new one; onboarding a project = drop in a new `<project>.json`. Don't hard-code connector detail elsewhere.
+Keep project detail only in `connectors/<project>.json`; use the shared engines and
+`/sk:setup-connectors` for setup or repair. Follow the manifest schema in the reference above.

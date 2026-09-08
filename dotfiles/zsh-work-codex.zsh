@@ -15,3 +15,7 @@ _work_codex_home() {
 # Re-evaluate on every directory change (interactive), and once now (covers login/non-interactive shells).
 autoload -Uz add-zsh-hook 2>/dev/null && add-zsh-hook chpwd _work_codex_home
 _work_codex_home
+
+# Always resolve the manifest before the real process starts, including `codex mcp login`.
+# Conductor uses this same executable directly; no login-shell initialization is required there.
+codex() { "$HOME/.claude/bin/codex-launch.py" "$@"; }

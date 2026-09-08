@@ -65,6 +65,9 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/browser-launch-guard.py` | PreToolUse guard on `mcp__chrome-devtools__*` — blocks the page-launch tools (`new_page`, `navigate_page`) so a frontend change is not auto-verified in the browser without asking. Override: `CLAUDE_ALLOW_BROWSER=1` |
 | `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
+| `bin/agent_runtime.py` + `bin/codex-launch.py` | Native Codex adapter and executable; reads shared sources at launch/event time and keeps work/personal profiles separate |
+| `dotfiles/codex-AGENTS.md` | One native instruction entrypoint linked into both Codex homes |
+| `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
 | `skills/sk/skills/work-gauntlet-loop/` | `/sk:work-gauntlet-loop` — choose existing workflow or Ralph upfront, with independent judgement |
 | `skills/sk/skills/work-ralph-loop/` | `/sk:work-ralph-loop` — direct or composed fresh-worker completion |
@@ -104,6 +107,78 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `skills/sk/skills/work-preview-on-phone/` | The `/sk:work-preview-on-phone` skill — puts a running dev server on your phone over Tailscale Serve (tailnet-private, never Funnel), binds the server to loopback first so the LAN cannot reach it, clears the silent cross-origin allowlist trap, and mints a dev-only API credential rather than widening production's. Any repo |
 | `skills/sk/skills/work-isolate-environment/` | The `/sk:work-isolate-environment` skill — wires a project so this session's dev stack runs on its own lane of ports (`bin/port-slot.sh` allocates, this decides the per-project knobs). Any repo, personal or work, containerised or host-run |
 | `skills/sk/skills/meta-report-standup-weekly/` | The `/sk:meta-report-standup-weekly` skill — the spoken Monday standup script, sourced from git + `gh` + Linear over a window rather than from you. Collapses commits into outcomes and refuses to call a draft PR shipped |
+
+## Native Codex setup
+
+Codex (including GPT models run through Codex in Conductor) uses the same private configuration as
+Claude Code. Keep editing the canonical files in this repo. Skills and native instructions are linked;
+the launcher reads connector manifests and hook wiring directly. No manual copy or sync step exists
+between the agents. Standalone ChatGPT conversations do not load files from your Mac.
+
+### Install on a Mac
+
+1. Install Codex on PATH and Python 3.11+ (`python3 --version`). Keep existing Codex account/provider
+   configuration in its native home. Fill in `identity.local.json` and your untracked project manifests.
+2. Run `bash ~/.claude/dotfiles/bootstrap.sh`. It links skills and the native AGENTS.md into both
+   `~/.codex` and `~/.codex-work`. If an AGENTS.md already exists, review it first, then run
+   `python3 ~/.claude/bin/agent_runtime.py install --replace`. This archives the old file once and
+   creates the link. It never copies or changes authentication files.
+3. Source the shell snippet described below. Its `codex` function uses
+   `~/.claude/bin/codex-launch.py`; direct invocation works without shell initialization.
+4. For Conductor, run `python3 ~/.claude/bin/agent_runtime.py install --conductor`. This sets only
+   `codex_executable_path` in `~/.conductor/settings.toml`, preserving model/provider preferences and
+   keeping a backup of the prior settings. The equivalent UI is Settings → Storage → Codex executable
+   path: enter the absolute path to `~/.claude/bin/codex-launch.py` (expand `~` to your home directory).
+5. Fully restart Conductor after initial wiring. In each Codex profile, open `/hooks` in the Codex
+   terminal UI to review and trust the native dispatcher definitions. Do not bypass hook trust.
+   The linked AGENTS.md provides the shared instruction entrypoint even before hooks are trusted.
+6. From your project, run `~/.claude/bin/codex-launch.py mcp list`. If an OAuth connector says
+   `Not logged in`, run `~/.claude/bin/codex-launch.py mcp login <server-name>` and select the correct
+   account in the browser. Claude's OAuth session does not authenticate Codex.
+
+Work repositories select `~/.codex-work`; personal repositories select `~/.codex`, using
+`identity.local.json`. The launcher resolves the workspace before selecting the profile, so terminal
+and Conductor launches agree. It preserves model/provider settings in those homes. Set `AGENT_CODEX_BIN`
+to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
+shell function and therefore bypasses manifest projection; use the launcher for setup and diagnosis.
+
+### What updates automatically
+
+| Edit once | Consumers and pickup time |
+| --- | --- |
+| `rules/*.md`, `CLAUDE.md` | Claude's native loader; Codex's linked entrypoint and SessionStart context. Next session, or explicitly re-read during an existing conversation. |
+| `skills/sk/` | Both hosts discover the same files through links. Restart if the skill catalog is stale. |
+| `settings.json` hook commands | Claude's native hook loader; Codex's dispatcher reads the current wiring on each event. New event definitions require a process restart and native trust review. |
+| `connectors/<project>.json` | The Codex launcher projects the current manifest on every process launch. Claude's connector provisioner consumes the same manifest through its native registration path. |
+| `identity.local.json` | Both hosts use the same identity source. Restart Codex when changing the selected credential home. |
+
+Codex writes no copied rules or connector settings. Its per-profile `.agent-runtime/` receipt stores
+only names it has managed, so removed manifest connectors are disabled even if an older native
+registration still exists. On-demand write connectors stay disabled. Unmanaged native connectors keep
+their own settings. Project-specific metadata stays outside team repos; credentials stay in native stores.
+
+Restart the **process**, not just a thread, after connector changes. An existing Codex app-server keeps
+its initial MCP configuration; restart Conductor when necessary. Review changed hook definitions when
+Codex asks. Claude SessionEnd transcript metrics are not ported to Codex, and Claude's permission and
+sandbox settings are not copied into another host.
+
+### Verify or diagnose
+
+```bash
+python3 ~/.claude/bin/agent_runtime.py doctor --cwd /absolute/project/path
+python3 ~/.claude/bin/agent_runtime.test.py
+/usr/bin/python3 ~/.claude/hooks/config-contract.test.py
+```
+
+The doctor prints the matched manifest and expected credential home without exposing secret values.
+Check authentication through the launcher's `mcp list`; declared/registered is not authenticated.
+If instructions are missing, check for `AGENTS.override.md`, verify both instruction links, and confirm
+Conductor uses the launcher. If hooks are absent, check `/hooks` trust. If CLI results differ from the
+agent, check its credential home and restart the process through the launcher.
+
+The tests use temporary homes and fake executables. They verify rule, hook and connector changes,
+profile isolation, patch guards, installation, and preservation of credential files without model calls.
+Native adapter details and verified upstream references live in `references/agent-hosts.md`.
 
 ## 🤖 Agent setup (run in order)
 

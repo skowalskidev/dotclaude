@@ -65,6 +65,8 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("native-codex-shares-canonical-config",
+     "Native Codex reads current shared sources, preserves profile boundaries and propagates hook decisions without copying credentials."),
     ("dashboard-runtime-preserves-completion",
      "The shared dashboard rejects unsupported state, false completion, stale judges and lost updates; exports portable evidence."),
     # --- Structure: the shape config-repo.md promises ---------------------------------
@@ -811,6 +813,13 @@ def check_metrics_criticality_tags_name_real_parts() -> None:
     tagged = ns.get("ALL_TAGGED", set())
     missing = sorted(t for t in tagged if not (ROOT / t).exists())
     check(not missing, f"part_criticality.py tags parts that do not exist: {missing}")
+
+
+def check_native_codex_shares_canonical_config() -> None:
+    # The adapter's isolated TOML round-trip tests use Python 3.11+ (documented in native setup).
+    result = run(["python3", str(ROOT / "bin" / "agent_runtime.test.py")])
+    check(result.returncode == 0,
+          f"Native Codex propagation/boundary suite failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_metrics_inventory_matches_contract_coverage() -> None:
