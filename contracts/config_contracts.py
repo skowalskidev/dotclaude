@@ -43,10 +43,30 @@ CONTRACTS: dict[str, dict] = {
             "Resolve explicit binary overrides first, then installed stable Conductor binaries in descending version order, then PATH; skip non-executable files and the launcher itself.",
         ],
     },
+    "bin/agent_setup.py": {
+        "mission": "Simon's selected setup stays consistent across the whole delegated workflow.",
+        "purpose": "Validate saved setup, orchestrator, worker and reviewer model choices before dispatch.",
+        "criteria": [
+            "Reject missing choices, mismatched models, inherited setup conflicts and per-slice model overrides before launching processes.",
+            "Preserve a saved selection without mutating the input spec; never silently default the provider.",
+        ],
+    },
+    "bin/codex_print.py": {
+        "mission": "Simon can launch independent headless Astra workers without changing authentication or falling back to Claude.",
+        "purpose": "Provide codex -p through native Codex exec and normalize its events.",
+        "criteria": [
+            "Pin gpt-6-astra, preserve native permissions and launcher routing, and pass prompt text without shell interpolation.",
+            "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
+            "Report absent cost and API timing as unknown, and preserve optional raw events.",
+        ],
+    },
     "bin/codex-launch.py": {
         "mission": "Simon's terminal and Conductor start Codex through the same current project configuration.",
         "purpose": "Thin executable entrypoint for the native Codex adapter.",
-        "criteria": ["Delegate to agent_runtime.py without duplicating profile or connector logic."],
+        "criteria": [
+            "Route leading -p or --print to codex_print.py; delegate other arguments unchanged to agent_runtime.py without duplicating profile or connector logic.",
+            "Preserve native --profile, exec, mcp and app-server invocations without interpreting their arguments as print prompts.",
+        ],
     },
     "references/agent-hosts.md": {
         "mission": "Simon can reproduce native Claude and Codex setup and knows exactly when configuration changes take effect.",
@@ -94,7 +114,7 @@ CONTRACTS: dict[str, dict] = {
             "Load bin/mockup-shell.html, which renders entirely from the embedded #spec JSON and carries no project-specific strings.",
             "Fill the viewport with the active variant on open; keep every control in one collapsible right rail; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
             "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
-            "Tear down the outgoing mount on every variant, persona, version, view or presentation switch and open the target at its default state with exactly one iframe; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
+            "Tear down the outgoing mount on every variant, persona, version, view, state-walk or presentation switch and open the target at its default state (a state walk mounts a fresh document at that state) with exactly one iframe and exactly one highlighted active state row; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
         ],
     },
     "bin/workflow-dashboard.py": {
@@ -174,6 +194,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
+            "Ask for Full Claude or Full Astra before delegation unless already selected; retain the choice for all roles and retries without mixing providers.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
@@ -356,6 +377,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
         "criteria": [
+            "Own the setup persistence and model-consistency protocol; distinguish local codex -p print mode from native profile syntax and scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
@@ -414,6 +436,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "The suite proves the thing works and spends nothing doing it.",
         "purpose": "Test structure, gates, and the no-billable-calls guarantee.",
         "criteria": [
+            "Keep review judges on the selected workflow setup through the shared parallelization protocol.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "The project's OWN docs are the source for its test commands, layout and runner, and "
@@ -881,8 +904,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/work-superspeed/SKILL.md": {
         "mission": "A task that genuinely divides finishes sooner AND correct, with Simon uninvolved between dispatch and the gate.",
-        "purpose": "Fan a task across real parallel Claude sessions, reconcile warm, log the run.",
+        "purpose": "Fan a task across the selected Claude or Astra sessions, reconcile warm, log the run.",
         "criteria": [
+            "Reuse the shared setup protocol before dispatch, and carry its selection into reconciliation and retries.",
             "States the measured evidence and its limits: a fixed ~33s advantage, not a multiplier, "
             "so it must keep telling Simon NOT to use it to speed up one long serial task.",
             "Keeps the four rules that came out of the measurement: same directory not worktrees, "
@@ -918,8 +942,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/superspeed-dispatch.sh": {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
-        "purpose": "Engine for /sk:work-superspeed — launches one claude -p per slice in parallel and logs it.",
+        "purpose": "Engine for /sk:work-superspeed — launch one selected Claude or Astra process per slice and log it.",
         "criteria": [
+            "Validate setup consistency before spending; launch only the selected provider and return failure for a failed or incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
             "Verifies each slice by its on-disk artifact, never by exit code "
@@ -932,7 +957,7 @@ CONTRACTS: dict[str, dict] = {
             "Records per-slice PID and start/end. Those timestamps are what let the analyser "
             "attribute LOCAL time (wall minus API) to the command that consumed it, which is the "
             "dominant cost now that dispatch has been measured and ruled out.",
-            "Hands every slice a RUNNABLE `verify` command, refuses to dispatch one the repo's "
+            "Hands every Claude slice a RUNNABLE `verify` command, refuses to dispatch one the repo's "
             "permissions.allow does not cover, and re-runs it after the slice exits to record "
             "verify.txt. Re-reading an accept line is not checking it: measured 2026-08-08, all "
             "four slices of one run were refused 24 times reaching for a non-allowlisted command, "
@@ -963,6 +988,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "The next run is partitioned better than this one, from evidence rather than impression.",
         "purpose": "Turn a superspeed run directory into waste metrics and concrete next actions.",
         "criteria": [
+            "Keep unreported provider cost, API duration and cache writes null in emitted analysis; suppress findings that require those missing measurements.",
             "Every metric prints the action it implies. A number with no action attached is noise.",
             "Reports its own blind spots under INSTRUMENTATION GAPS, so missing log fields surface "
             "instead of looking like a clean run.",

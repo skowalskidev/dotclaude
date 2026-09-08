@@ -18,7 +18,15 @@ file://-openable HTML, drives it with Playwright, and asserts:
      (never two stacked from a torn-down + newly-mounted variant).
   4. The same clean teardown holds across entering AND exiting presentation
      mode with an overlay open.
-  5. A capture that reaches out and appends a node directly to the shell's
+  5. Walking states within ONE variant (a rail click, e.g. modal -> base) is
+     ALSO a full teardown+remount, not a live postMessage into the mounted
+     iframe — so a state's own overlay/bookkeeping can never leak into the
+     next state. Exactly one "Walk the states" row carries `is-active` at a
+     time, before and after every step.
+  6. Presentation-mode arrow keys step through the active variant's STATES
+     (not its sibling variants), each step a clean teardown+remount, and the
+     HUD + rail active-row track every keyboard step too.
+  7. A capture that reaches out and appends a node directly to the shell's
      own <body> (escaping its iframe) gets removed by the shell's guard.
 
 Usage:
@@ -173,7 +181,113 @@ def main():
                 json.dumps(sig_after),
             )
 
-            # --- 4. The shell's own guard removes a node a capture appends to its <body> ---
+            # --- 5. Walking states within ONE variant is a full teardown+remount, not a
+            #        live postMessage: modal -> base leaves 0 overlay traces, 1 iframe. ---
+            page.click('[data-pick-variant="alpha"]')
+            page.wait_for_timeout(150)
+            active_rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
+                ".map(b => b.getAttribute('data-goto-state'))"
+            )
+            check(
+                "alpha's default walk-state row (base) is the sole is-active row on load",
+                active_rows == ["base"],
+                json.dumps(active_rows),
+            )
+
+            page.click('[data-goto-state="modal"]')
+            page.wait_for_timeout(150)
+            sig = overlay_signal(page)
+            active_rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
+                ".map(b => b.getAttribute('data-goto-state'))"
+            )
+            check(
+                "walking to alpha's modal state opens exactly one overlay in a single iframe",
+                sig["iframeCount"] == 1 and sig["openOverlays"] == 1,
+                json.dumps(sig),
+            )
+            check(
+                "the modal walk-state row becomes the sole is-active row",
+                active_rows == ["modal"],
+                json.dumps(active_rows),
+            )
+
+            page.click('[data-goto-state="base"]')
+            page.wait_for_timeout(150)
+            sig = overlay_signal(page)
+            active_rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
+                ".map(b => b.getAttribute('data-goto-state'))"
+            )
+            check(
+                "walking a state back to base is a full remount: 0 overlay traces, 1 iframe",
+                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
+                json.dumps(sig),
+            )
+            check(
+                "the base walk-state row is once again the sole is-active row",
+                active_rows == ["base"],
+                json.dumps(active_rows),
+            )
+
+            # --- 6. Presentation-mode arrow keys step through STATES (not sibling
+            #        variants), each step a clean teardown+remount. ---
+            page.click("#mock-present-btn")  # -> enterPresentation(), resets to alpha's base
+            page.wait_for_timeout(200)
+            sig = overlay_signal(page)
+            check(
+                "entering presentation from alpha resets to its base state, cleanly mounted",
+                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
+                json.dumps(sig),
+            )
+
+            page.keyboard.press("ArrowRight")  # base -> loading
+            page.wait_for_timeout(150)
+            sig = overlay_signal(page)
+            check(
+                "ArrowRight while presenting steps to the next STATE (loading), one clean iframe",
+                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: loading",
+                json.dumps(sig),
+            )
+
+            page.keyboard.press("ArrowRight")  # loading -> modal
+            page.wait_for_timeout(150)
+            sig = overlay_signal(page)
+            hud_text = page.evaluate("() => document.getElementById('mock-hud').textContent")
+            active_rows = page.evaluate(
+                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
+                ".map(b => b.getAttribute('data-goto-state'))"
+            )
+            check(
+                "ArrowRight again reaches the modal state cleanly (fresh mount, exactly 1 overlay)",
+                sig["iframeCount"] == 1 and sig["openOverlays"] == 1 and sig["stateLabel"] == "State: modal",
+                json.dumps(sig),
+            )
+            check(
+                "the HUD reflects the active state while presenting",
+                "Modal open" in hud_text,
+                hud_text,
+            )
+            check(
+                "the rail's active row tracks a keyboard state step too (queryable even though hidden)",
+                active_rows == ["modal"],
+                json.dumps(active_rows),
+            )
+
+            page.keyboard.press("ArrowRight")  # modal -> wraps back to base
+            page.wait_for_timeout(150)
+            sig = overlay_signal(page)
+            check(
+                "ArrowRight wraps back to base; the earlier modal does not survive the remount",
+                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
+                json.dumps(sig),
+            )
+
+            page.keyboard.press("Escape")  # -> exitPresentation()
+            page.wait_for_timeout(150)
+
+            # --- 7. The shell's own guard removes a node a capture appends to its <body> ---
             page.evaluate(
                 """() => {
                     const stray = document.createElement('div');

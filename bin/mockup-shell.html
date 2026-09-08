@@ -76,8 +76,9 @@ body.is-presenting .mock-stagewrap{background:#000;}
 .mock-persona-row{display:flex;gap:6px;}
 .mock-persona-row button{flex:1;}
 .mock-version-row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--color-text-secondary);}
-.mock-walk-btn{display:block;width:100%;text-align:left;font-family:inherit;font-size:12px;background:var(--color-hover-bg);border:none;border-radius:6px;padding:7px 9px;margin-bottom:5px;cursor:pointer;color:var(--color-text);}
+.mock-walk-btn{display:block;width:100%;text-align:left;font-family:inherit;font-size:12px;background:var(--color-hover-bg);border:none;border-left:3px solid transparent;border-radius:6px;padding:7px 9px 7px 6px;margin-bottom:5px;cursor:pointer;color:var(--color-text);}
 .mock-walk-btn:hover{background:#EDEDEA;}
+.mock-walk-btn.is-active{background:#EEF2FD;color:var(--color-primary);border-left-color:var(--color-primary);font-weight:600;}
 .mock-check-row{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 0;}
 .mock-comment{width:100%;font-family:inherit;font-size:11.5px;border:1px solid var(--color-border);border-radius:6px;padding:6px 8px;resize:vertical;min-height:40px;margin-top:4px;}
 .mock-verdict-row{display:flex;gap:6px;margin-top:6px;}
@@ -167,6 +168,7 @@ var state = {
   view: 'focus', // focus | compare | diff
   persona: 'desktop',
   versionId: latestVersion().id,
+  activeStateId: null, // id from the active variant's `states` list, or null for "no explicit walk yet"
   pinMode: false,
   railCollapsed: !!(SPEC.shell && SPEC.shell.railCollapsed),
   presenting: false,
@@ -261,6 +263,16 @@ function buildIframeForCapture(variantId, persona, onReady){
 //   never depends on a capture handling it, since removing the iframe already
 //   stops its scripts — it exists for a capture that also holds an external
 //   handle (e.g. something registered against `window.top`).
+// A "walk the states" step (goToState, below) is a transition like any other:
+// the shell guarantees a FRESH document per state. It never posts
+// 'mockup:goto-state' into an already-mounted, already-interacted-with iframe
+// — it tears the stage down, remounts the variant's iframe from scratch, and
+// sends 'mockup:goto-state' to that freshly-loaded document exactly once, on
+// its 'load' event. A capture's own state bookkeeping (e.g. a stray node it
+// appended to <body> for a previous state, and forgot to remove) can never
+// leak into the next state, because there is no "next state" in the same
+// document — every state gets its own document. Existing captures that only
+// listen for 'mockup:goto-state' keep working unmodified.
 function postToIframe(iframe, msg){
   try { iframe.contentWindow.postMessage(msg, '*'); } catch (e) {}
 }
@@ -335,6 +347,9 @@ function renderFocusStage(stage){
   wrap.className = 'mock-frame-wrap';
   stage.appendChild(wrap);
   var iframe = buildIframeForCapture(state.activeVariant, state.persona, function(){
+    // The one and only 'mockup:goto-state' this fresh document will ever see —
+    // sent once, right after load, never again into this same iframe.
+    if (state.activeStateId) postToIframe(iframe, { type: 'mockup:goto-state', stateId: state.activeStateId });
     fitFrame(stage, wrap, iframe, p.w, p.h, 'fit');
     var def = SPEC.variants[state.activeVariant] || {};
     if (!prefersReducedMotion()) scheduleMountTimer(function(){ flashInIframe(iframe, def.flashSelector, false); }, 220);
@@ -474,8 +489,12 @@ function sectionWalk(){
   var def = SPEC.variants[state.activeVariant] || {};
   var states = def.states || [];
   if (!states.length) return '<div class="mock-section"><h4>Walk the states</h4><div style="font-size:12px;color:var(--color-text-secondary);">No states listed for this variant.</div></div>';
+  // With no explicit walk yet, the variant's own first listed state is the
+  // implicit one it boots into — so exactly one row is always the active row.
+  var activeId = state.activeStateId || states[0].id;
   return '<div class="mock-section"><h4>Walk the states</h4>' + states.map(function(st, i){
-    return '<button type="button" class="mock-walk-btn" data-goto-state="' + esc(st.id) + '">' + (i + 1) + '. ' + esc(st.label) + '</button>';
+    var isActive = st.id === activeId;
+    return '<button type="button" class="mock-walk-btn' + (isActive ? ' is-active' : '') + '" data-goto-state="' + esc(st.id) + '"' + (isActive ? ' aria-current="true"' : '') + '>' + (i + 1) + '. ' + esc(st.label) + '</button>';
   }).join('') + '</div>';
 }
 function sectionCompareDiff(){
@@ -525,7 +544,7 @@ function handoffText(){
 
 function wireRail(body){
   body.querySelectorAll('[data-pick-variant]').forEach(function(el){
-    el.addEventListener('click', function(){ state.activeVariant = el.getAttribute('data-pick-variant'); state.view = 'focus'; renderAll(); });
+    el.addEventListener('click', function(){ state.activeVariant = el.getAttribute('data-pick-variant'); state.activeStateId = null; state.view = 'focus'; renderAll(); });
   });
   body.querySelectorAll('[data-pick-persona]').forEach(function(el){
     el.addEventListener('click', function(){ state.persona = el.getAttribute('data-pick-persona'); renderAll(); });
@@ -535,14 +554,12 @@ function wireRail(body){
     state.versionId = vsel.value;
     RUNTIME = ensureRuntime(activeVersion());
     state.activeVariant = activeVersion().defaultVariant || SPEC.manifest.defaultVariant;
+    state.activeStateId = null;
     state.compareIds = currentVariantIds().slice(0, 3);
     renderAll();
   });
   body.querySelectorAll('[data-goto-state]').forEach(function(el){
-    el.addEventListener('click', function(){
-      var entry = liveIframes.focus;
-      if (entry) postToIframe(entry.iframe, { type: 'mockup:goto-state', stateId: el.getAttribute('data-goto-state') });
-    });
+    el.addEventListener('click', function(){ goToState(el.getAttribute('data-goto-state')); });
   });
   var cbtn = body.querySelector('#mock-view-compare'), dbtn = body.querySelector('#mock-view-diff'), fbtn = body.querySelector('#mock-view-focus');
   if (cbtn) cbtn.addEventListener('click', function(){ state.view = 'compare'; renderAll(); });
@@ -591,18 +608,42 @@ function saveHtml(){
   setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
 }
 
+// ---- Walking states ----
+// A state walk is a transition like every other one in this file (a variant
+// switch, a persona switch, a version switch, entering/exiting presentation):
+// it never posts into the currently-mounted iframe. It sets the target state
+// and re-renders, which tears the stage down and remounts the variant's
+// iframe from scratch — renderFocusStage() then sends 'mockup:goto-state' to
+// that fresh document exactly once, on load. See the message-contract comment
+// above postToIframe() for why this is the only way an overlay can never
+// survive a state change.
+function goToState(stateId){
+  state.activeStateId = stateId;
+  renderAll();
+}
+function currentStateIds(){
+  var def = SPEC.variants[state.activeVariant] || {};
+  return (def.states || []).map(function(s){ return s.id; });
+}
+
 // ---- Presentation mode ----
 // Entering/exiting presentation only toggles chrome visibility via CSS and
 // never touched the stage before — so whatever overlay a variant had open
 // (mid-walkthrough) rode straight into and back out of presentation with it.
-// Routing both through renderStage() gives presentation mode the SAME full
+// Routing both through renderAll() gives presentation mode the SAME full
 // teardown-then-remount as every other transition: a clean default-state
-// mount, never a stale overlay carried across the boundary.
-function enterPresentation(){ state.presenting = true; document.body.classList.add('is-presenting'); renderStage(); renderHud(); }
-function exitPresentation(){ state.presenting = false; document.body.classList.remove('is-presenting'); renderStage(); }
+// mount (activeStateId cleared), never a stale overlay carried across the
+// boundary — a deliberate reset, so presenting always starts from a known
+// state and the rail (queryable even while hidden by CSS) stays in sync.
+function enterPresentation(){ state.presenting = true; state.activeStateId = null; document.body.classList.add('is-presenting'); renderAll(); }
+function exitPresentation(){ state.presenting = false; state.activeStateId = null; document.body.classList.remove('is-presenting'); renderAll(); }
 function renderHud(){
   var def = variantDef(state.activeVariant);
-  document.getElementById('mock-hud').textContent = (def.label || state.activeVariant) + ' \u00b7 ' + personaOf(state.persona).label;
+  var raw = SPEC.variants[state.activeVariant] || {};
+  var activeId = state.activeStateId || (raw.states && raw.states[0] && raw.states[0].id);
+  var st = activeId && (raw.states || []).find(function(s){ return s.id === activeId; });
+  var stateLabel = st ? (' \u00b7 ' + st.label) : '';
+  document.getElementById('mock-hud').textContent = (def.label || state.activeVariant) + ' \u00b7 ' + personaOf(state.persona).label + stateLabel;
 }
 
 function stepVariant(delta){
@@ -611,14 +652,29 @@ function stepVariant(delta){
   if (idx === -1) idx = 0;
   idx = (idx + delta + ids.length) % ids.length;
   state.activeVariant = ids[idx];
+  state.activeStateId = null;
   state.view = 'focus';
   renderAll();
+}
+// In presentation mode the arrow keys step through the active variant's
+// STATES instead of its sibling variants — the same goToState() path a rail
+// click uses, so every step is a full teardown+remount. A variant with no
+// states listed has nothing to step through, so it falls back to stepping
+// variants instead.
+function stepState(delta){
+  var ids = currentStateIds();
+  if (!ids.length) { stepVariant(delta); return; }
+  var activeId = state.activeStateId || ids[0];
+  var idx = ids.indexOf(activeId);
+  if (idx === -1) idx = 0;
+  idx = (idx + delta + ids.length) % ids.length;
+  goToState(ids[idx]);
 }
 document.addEventListener('keydown', function(e){
   var tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-  if (e.key === 'ArrowLeft') { stepVariant(-1); }
-  else if (e.key === 'ArrowRight') { stepVariant(1); }
+  if (e.key === 'ArrowLeft') { if (state.presenting) stepState(-1); else stepVariant(-1); }
+  else if (e.key === 'ArrowRight') { if (state.presenting) stepState(1); else stepVariant(1); }
   else if (e.key === 'p' || e.key === 'P') { if (state.presenting) exitPresentation(); else enterPresentation(); renderAll(); }
   else if (e.key === 'Escape' && state.presenting) { exitPresentation(); renderAll(); }
 });
@@ -653,6 +709,7 @@ window.addEventListener('message', function(e){
   if (!e.data || e.data.type !== 'mockup:navigate-variant') return;
   if (!SPEC.variants[e.data.variantId]) return;
   state.activeVariant = e.data.variantId;
+  state.activeStateId = null;
   state.view = 'focus';
   renderAll();
 });
