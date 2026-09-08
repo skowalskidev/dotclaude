@@ -65,6 +65,8 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("codex-subscription-only-inference",
+     "Codex workers and reviewers use subscription authentication without an API review exception."),
     ("agent-setups-preserve-provider-choice",
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
@@ -822,6 +824,21 @@ def check_native_codex_shares_canonical_config() -> None:
     result = run(["python3", str(ROOT / "bin" / "agent_runtime.test.py")])
     check(result.returncode == 0,
           f"Native Codex propagation/boundary suite failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_codex_subscription_only_inference() -> None:
+    review = (ROOT / "skills/sk/skills/ship-review/SKILL.md").read_text()
+    for retired in ("https://api.openai.com", "https://generativelanguage.googleapis.com",
+                    "pal `codereview`", "pal `challenge`", "~/.codex-work"):
+        check(retired not in review, f"Review policy restored a retired API path: {retired}")
+    check("Reviews have no API-billing exception" in review,
+          "Reviews must state the subscription-only billing requirement")
+    shell = (ROOT / "dotfiles/zsh-work-codex.zsh").read_text()
+    check('export CODEX_HOME="$HOME/.codex"' in shell and '.codex-work' not in shell,
+          "Shell routing must select the subscription home, not the retired work API home")
+    result = run(["python3", str(ROOT / "hooks/work-resource-guard.test.py")])
+    check(result.returncode == 0,
+          f"Subscription/resource guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_agent_setups_preserve_provider_choice() -> None:

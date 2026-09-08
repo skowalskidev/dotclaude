@@ -11,6 +11,7 @@ Never silently mix providers or fall back. The actual orchestrator session/model
 choice; ask Simon to switch sessions/models when it does not. A spec field cannot switch a session.
 **Verify on disk after every batch — never trust an agent's self-report.** Fan out only when the
 pieces are independent and delegation is authorized. Model tiers and headless commands belong below.
+Use subscriptions for all agent roles, reviews included. Billing: `references/agent-hosts.md`.
 → Full detail: **`~/.claude/references/parallelization.md`**.
 
 ### Fan out verification, and only rebuild what changed

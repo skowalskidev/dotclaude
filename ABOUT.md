@@ -7,8 +7,9 @@ This private configuration provides Simon's cross-project skills, rules, hooks a
 
 Both agents use the same rules, references, skills and project connector manifests in this repository.
 Codex receives linked instructions and reads the current connector definitions through its native
-launcher. There are no separately maintained copies to synchronize. Work and personal authentication
-stay in separate native credential homes. The README's Native Codex setup section covers installation,
+launcher. There are no separately maintained copies to synchronize. All Codex roles use the existing
+ChatGPT subscription, including reviews; API billing has no exception. Work and personal service
+credentials stay separate. The README's Native Codex setup section covers installation,
 Conductor, hook trust, authentication and the process restart required for connector changes.
 Claude transcript metrics remain specific to Claude; native Codex hooks reuse the shared behavioral
 checks without claiming those metrics are portable.

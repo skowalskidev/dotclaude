@@ -23,7 +23,8 @@ Keep shared rules and hook wiring in their existing sources. Read `references/ag
 before changing native adapters. `bin/agent_runtime.py` projects connector metadata at Codex
 launch and dispatches shared hooks; `dotfiles/codex-AGENTS.md` is the linked native entrypoint.
 Run `python3 bin/agent_runtime.test.py` plus the config contract suite after adapter changes.
-Never copy credentials between Claude, default Codex, and work Codex homes.
+Use the existing Codex ChatGPT subscription for all roles. Never select the retired work API home
+or copy credentials between stores. Preserve work/personal service boundaries independently of model billing.
 
 ## Shared workflow dashboard
 

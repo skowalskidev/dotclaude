@@ -45,6 +45,16 @@ PERSP = "--project-" + "name=personal-test"
 
 # (label, "work"|"personal", command). The dir is resolved to the matching throwaway repo in main().
 MUST_FIRE = [
+    ("the retired API home is blocked for work too",
+     "work", "CODEX_HOME=~/.codex-work codex review --base master"),
+    ("work reviews cannot use the direct OpenAI API",
+     "work", "curl https://api.openai.com/v1/responses"),
+    ("the old work Gemini key exception is gone",
+     "work", "curl --config ~/pal-mcp-server/request https://generativelanguage.googleapis.com/v1/models"),
+    ("personal reviews cannot use paid model APIs either",
+     "personal", "curl https://api.openai.com/v1/responses"),
+    ("git cannot exempt a following paid model request",
+     "work", "git status && wget https://api.openai.com/v1/responses"),
     ("bare stripe in a personal repo falls through to the WORK [default] profile",
      "personal", "stripe charges list"),
     ("stripe login with no profile writes [default], which is work",
@@ -73,6 +83,14 @@ MUST_FIRE = [
 ]
 
 MUST_NOT_FIRE = [
+    ("work workers share the existing ChatGPT subscription",
+     "work", "codex -p 'implement this'"),
+    ("work reviews share the existing ChatGPT subscription",
+     "work", "codex review --base master"),
+    ("API endpoints in a review prompt are prose",
+     "work", "codex -p 'review api.openai.com and generativelanguage.googleapis.com handling'"),
+    ("subscription documentation is not a paid model API",
+     "work", "curl https://learn.chatgpt.com/docs/auth"),
     ("the personal profile pinned explicitly is the whole point",
      "personal", f"stripe {PERSP} charges list"),
     ("version touches no account",
@@ -110,12 +128,14 @@ def _init_repo(path: Path, origin: str) -> None:
     subprocess.run(["git", "remote", "add", "origin", origin], cwd=path, check=True)
 
 
-def fires(project_dir: Path, identity_file: Path, command: str) -> bool:
-    payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash") -> bool:
+    payload = json.dumps({"tool_name": tool, "tool_input": {"command": command}})
     env = {
         **os.environ,
         "CLAUDE_PROJECT_DIR": str(project_dir),
         "CLAUDE_IDENTITY_FILE": str(identity_file),
+        "HOME": str(identity_file.parent),
+        "CODEX_HOME": str(identity_file.parent / ".codex"),
     }
     out = subprocess.run(
         ["bash", str(GUARD)], input=payload, capture_output=True, text=True, env=env
@@ -132,6 +152,10 @@ def main() -> int:
         _init_repo(personal, f"https://github.com/some-user/{PERSONAL_PROJECT}.git")
         identity_file = root / "identity.local.json"
         identity_file.write_text(json.dumps(IDENTITY))
+        subscription = root / ".codex"
+        subscription.mkdir()
+        (subscription / "auth.json").write_text(json.dumps({
+            "auth_mode": "chatgpt", "tokens": {"access_token": "fixture-only"}}))
         dirs = {"work": work, "personal": personal}
 
         failures = []
@@ -141,12 +165,15 @@ def main() -> int:
         for name, boundary, cmd in MUST_NOT_FIRE:
             if fires(dirs[boundary], identity_file, cmd):
                 failures.append(f"FALSE POSITIVE ({name}): {cmd}")
+        for boundary in dirs:
+            if not fires(dirs[boundary], identity_file, "", "mcp__pal__codereview"):
+                failures.append(f"SHOULD HAVE BLOCKED pal API review in {boundary}")
 
-    total = len(MUST_FIRE) + len(MUST_NOT_FIRE)
+    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + len(dirs)
     for f in failures:
         print(f"FAIL  {f}")
     print(f"\n{total - len(failures)} pass / {len(failures)} fail "
-          f"({len(MUST_FIRE)} must-fire, {len(MUST_NOT_FIRE)} must-not-fire)")
+          f"({len(MUST_FIRE) + len(dirs)} must-fire, {len(MUST_NOT_FIRE)} must-not-fire)")
     return 1 if failures else 0
 
 

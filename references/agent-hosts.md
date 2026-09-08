@@ -3,12 +3,13 @@
 Keep rules, references, skills, identity and project connector manifests under `~/.claude`.
 Use `bin/agent_runtime.py` for the Codex adapter; use `settings.json` for shared hook commands.
 Keep account credentials in each host's own store. Never copy OAuth tokens between hosts or profiles.
+Use the existing ChatGPT subscription in `~/.codex` for every Codex role, including reviews.
 
 ## Instructions and skills
 
 Run `python3 ~/.claude/bin/agent_runtime.py install` once. Add `--conductor` to configure its executable.
 It links the same
-`dotfiles/codex-AGENTS.md` into both `~/.codex/AGENTS.md` and `~/.codex-work/AGENTS.md`.
+`dotfiles/codex-AGENTS.md` into `~/.codex/AGENTS.md`.
 Review an existing AGENTS.md before using `install --replace`; replacement archives it once.
 Keep `AGENTS.override.md` absent unless an intentional temporary override is required.
 Bootstrap retains the existing `~/.agents/skills` links to the canonical skill directories.
@@ -29,7 +30,7 @@ selection. Other invocations, including `exec`, `mcp` and Conductor's `app-serve
 
 Launch with `~/.claude/bin/codex-launch.py`, or `codex` after sourcing the shell snippet.
 In Conductor, set `codex_executable_path` in `~/.conductor/settings.toml` to that absolute path.
-Keep model selection, provider configuration and authentication in native Codex configuration.
+Keep model selection in native Codex configuration; the launcher enforces subscription billing.
 The adapter never replaces built-in model instructions or edits credential files.
 
 Each launch resolves `--cd`, then `CONDUCTOR_WORKSPACE_PATH`, then the current directory;
@@ -43,9 +44,10 @@ newest installed stable Codex under `CONDUCTOR_AGENT_BINARIES_DIR`, or the macOS
 before searching PATH. Non-executable files, prereleases and the launcher itself are skipped.
 TEST: `~/.claude/bin/codex-launch.py --version` reports the selected binary without changing authentication.
 
-Use `identity.local.json` to select the credential home: work origin -> `~/.codex-work`,
-other origins -> `~/.codex`. The session hook rejects a different manifest or boundary inside a running
-process. Start a separate process when switching projects. Keep an explicitly chosen model/provider intact.
+Use `identity.local.json` and git origin to select project connectors, not model billing.
+Both work and personal projects use the same Codex subscription home. Service credentials stay
+boundary-scoped; the session hook rejects another boundary or manifest inside a running process.
+Start a separate process when switching projects. Keep an explicitly chosen model intact.
 
 Restart the Codex process after changing connector definitions or hook event registrations.
 An already-running app-server retains its startup configuration; a new thread in that process
@@ -67,6 +69,20 @@ SessionEnd transcript metrics remain Claude-only until their parsers accept Code
 do not claim parity for those metrics. The adapter does not copy Claude permission/sandbox settings.
 
 ## Connectors and authentication
+
+Require ChatGPT subscription authentication for interactive sessions, workers and reviews. There is
+no API-review exception. `bin/agent_runtime.py` strips API-key/endpoint environment overrides, pins
+native ChatGPT login and the OpenAI subscription endpoint, clears custom providers and rejects CLI
+billing overrides. Missing worker authentication or cached API credentials stop before inference.
+Keep `forced_login_method = "chatgpt"` in `~/.codex/config.toml` for direct native CLI invocations too.
+TEST: API-auth fixtures never reach inference; work-origin workers and reviews use the ChatGPT home.
+The shared resource hook permits that subscription in work projects, blocks pal and direct model-API
+review requests, and keeps the existing cloud/service identity restrictions.
+
+Reuse the existing login: `~/.claude/bin/codex-launch.py login status` must report ChatGPT.
+If it is missing, run `~/.claude/bin/codex-launch.py login` and complete the ChatGPT browser flow.
+Do not read, copy or delete old `~/.codex-work` credentials; that API home is no longer selected.
+Restart Conductor's Codex processes after this billing change; existing processes retain old auth.
 
 Read `references/connectors-setup.md`. The manifest's service/CLI/secret metadata stays authoritative.
 Only supported stdio/HTTP MCP records become native Codex MCP settings; non-MCP records stay metadata.
@@ -95,4 +111,5 @@ Keep the native runtime's trust/auth steps explicit in the hand-back when human 
 - https://www.conductor.build/docs/reference/mcp
 - https://www.conductor.build/docs/troubleshooting/issues
 
-Verified 2026-09-08 with Codex CLI 0.142.5. Use Python 3.11+ for the adapter's TOML round-trip tests.
+Verified 2026-09-08 with Codex CLI 0.153.2, including native auth/config readback without inference.
+Use Python 3.11+ for the adapter's TOML round-trip tests.

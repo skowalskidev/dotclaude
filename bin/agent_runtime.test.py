@@ -98,16 +98,100 @@ class RuntimeTests(unittest.TestCase):
         self.remote = 'git@github.com:WorkOrg/project.git'
         self.manifest(match=['WorkOrg/'], boundary='work')
         self.assertEqual(runtime.project(self.cwd)[2], 'work')
-        self.assertEqual(runtime.overrides(self.cwd)[1], self.home / '.codex-work')
+        self.assertEqual(runtime.overrides(self.cwd)[1], self.home / '.codex')
 
     def test_manifest_boundary_disagreement_fails(self):
         self.manifest(boundary='work')
         with self.assertRaisesRegex(ValueError, 'disagree'):
             runtime.project(self.cwd)
 
-    def test_profile_homes_remain_separate(self):
-        self.assertEqual(runtime.profile_home('personal'), self.home / '.codex')
-        self.assertEqual(runtime.profile_home('work'), self.home / '.codex-work')
+    def test_model_subscription_is_shared_not_selected_by_project_billing(self):
+        self.assertEqual(runtime.subscription_home(), self.home / '.codex')
+        self.remote = 'git@github.com:WorkOrg/project.git'
+        self.assertEqual(runtime.overrides(self.cwd)[1], self.home / '.codex')
+
+    def save_auth(self, value):
+        path = runtime.subscription_home() / 'auth.json'
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(json.dumps(value))
+        return path
+
+    def test_cached_api_auth_is_rejected_without_mutation(self):
+        for auth in ({'auth_mode': 'apikey', 'OPENAI_API_KEY': 'fixture-only'},
+                     {'auth_mode': 'chatgpt', 'OPENAI_API_KEY': 'fixture-only', 'tokens': {}},
+                     {'OPENAI_API_KEY': 'fixture-only'}, [], {'auth_mode': 'workload_identity'}):
+            with self.subTest(auth=auth):
+                path = self.save_auth(auth)
+                before = (path.read_bytes(), path.stat().st_mtime_ns)
+                for args in (['exec', 'task'], ['review'], ['app-server'], ['login', 'status']):
+                    with self.assertRaisesRegex(ValueError, 'saved login is not ChatGPT'):
+                        runtime.check_subscription_auth(args)
+                self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), before)
+
+    def test_absent_or_malformed_subscription_auth_fails_before_inference(self):
+        for args in (['exec', 'task'], ['review'], ['exec', 'review']):
+            with self.subTest(args=args), self.assertRaisesRegex(ValueError, 'sign in'):
+                runtime.check_subscription_auth(args)
+        path = self.save_auth({})
+        path.write_text('invalid-json')
+        with self.assertRaisesRegex(ValueError, 'cannot read saved login'):
+            runtime.check_subscription_auth(['exec', 'task'])
+
+    def test_existing_chatgpt_subscription_is_accepted_for_every_role(self):
+        self.save_auth({'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}})
+        for args in ([], ['exec', 'task'], ['review'], ['exec', 'review'], ['app-server']):
+            with self.subTest(args=args):
+                runtime.check_subscription_auth(args)
+                config = {}
+                for value in runtime.subscription_policy(args)[1::2]:
+                    config.update(tomllib.loads(value))
+                self.assertEqual(config['forced_login_method'], 'chatgpt')
+                self.assertEqual(config['model_provider'], 'openai')
+                self.assertEqual(config['model_providers'], {})
+                self.assertEqual(config['openai_base_url'], 'https://chatgpt.com/backend-api/codex')
+
+    def test_signin_and_help_remain_available_without_credentials(self):
+        for args in (['login'], ['login', 'status'], ['app-server'], ['--help'], ['--version']):
+            runtime.check_subscription_auth(args)
+
+    def test_api_env_and_work_home_never_reach_native_children(self):
+        names = ('OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_API_BASE',
+                 'AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'CODEX_BEARER_TOKEN')
+        with patch.dict(os.environ, dict.fromkeys(names, 'fixture-only') | {
+                'CODEX_HOME': str(self.home / '.codex-work'), 'UNRELATED': 'preserved'}):
+            environment = runtime.subscription_environment()
+            self.assertTrue(all(name not in environment for name in names))
+            self.assertEqual(environment['CODEX_HOME'], str(self.home / '.codex'))
+            self.assertEqual(environment['UNRELATED'], 'preserved')
+            self.assertEqual(os.environ['CODEX_API_KEY'], 'fixture-only')
+
+    def test_billing_overrides_cannot_bypass_policy_including_reviews(self):
+        overrides = ('forced_login_method="api"', 'model_provider="proxy"',
+                     'model_providers.proxy.env_key="SECRET"',
+                     'openai_base_url="https://example.invalid"',
+                     'chatgpt_base_url="https://example.invalid"',
+                     'cli_auth_credentials_store="keyring"', 'preferred_auth_method="apikey"',
+                     '"forced_login_method"="api"')
+        for value in overrides:
+            for form in (['-c', value], ['--config', value], ['--config=' + value], ['-c' + value]):
+                for command in ('exec', 'review', 'app-server'):
+                    with self.subTest(form=form, command=command), self.assertRaises(ValueError):
+                        runtime.subscription_policy([command, *form])
+        for flag in ('--with-api-key', '--oss', '--local-provider=ollama', '--remote=ws://example.invalid'):
+            with self.subTest(flag=flag), self.assertRaises(ValueError):
+                runtime.subscription_policy(['login', flag])
+
+    def test_native_nonbilling_flags_profiles_and_literal_prompts_remain_supported(self):
+        runtime.subscription_policy(['--profile', 'review', '-c', 'model="fixture"', 'exec',
+                                     '--', '--with-api-key'])
+
+    def test_subscription_home_still_rejects_work_personal_boundary_switch(self):
+        marker = self.base / 'must-not-run'
+        self.configure_hook('PreToolUse', self.stub_hook(marker=marker))
+        with patch.dict(os.environ, {'AGENT_CODEX_BOUNDARY': 'work'}):
+            output, _ = runtime.hook('PreToolUse', {'cwd': str(self.cwd)})
+        self.assertEqual(output['hookSpecificOutput']['permissionDecision'], 'deny')
+        self.assertFalse(marker.exists())
 
     def test_conductor_workspace_and_explicit_cd(self):
         with patch.dict(os.environ, {'CONDUCTOR_WORKSPACE_PATH': str(self.cwd)}):
@@ -501,6 +585,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(any(value.startswith('mcp_servers.') for value in output['args']))
 
     def test_launcher_relative_cd_is_not_applied_twice(self):
+        self.save_auth({'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}})
         with patch.object(runtime.sys, 'argv', ['codex-launch.py', '-C', 'workspace', 'exec']), \
              patch.object(runtime.os, 'getcwd', return_value=str(self.base)), \
              patch.object(runtime.os, 'chdir') as change_directory, \

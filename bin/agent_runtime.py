@@ -49,8 +49,56 @@ def project(cwd):
     return path, manifest, boundary
 
 
-def profile_home(boundary):
-    return Path.home() / ('.codex-work' if boundary == 'work' else '.codex')
+def subscription_home():
+    return Path.home() / '.codex'
+
+
+def subscription_policy(args):
+    protected = {'forced_login_method', 'cli_auth_credentials_store', 'model_provider',
+                 'model_providers', 'openai_base_url', 'chatgpt_base_url',
+                 'preferred_auth_method', 'experimental_realtime_ws_base_url'}
+    blocked_flags = {'--with-api-key', '--oss', '--local-provider', '--remote',
+                     '--remote-auth-token-env'}
+    remaining = iter(args)
+    for arg in remaining:
+        if arg == '--':
+            break
+        if arg.split('=', 1)[0] in blocked_flags:
+            raise ValueError('Subscription-only Codex: API login and alternate providers are disabled, including reviews.')
+        value = None
+        if arg in ('-c', '--config'):
+            value = next(remaining, '')
+        elif arg.startswith('--config='):
+            value = arg.split('=', 1)[1]
+        elif arg.startswith('-c') and len(arg) > 2:
+            value = arg[2:].lstrip('=')
+        if value is not None and value.split('=', 1)[0].strip().split('.', 1)[0].strip('\"\'') in protected:
+            raise ValueError('Subscription-only Codex: billing and provider overrides are disabled, including reviews.')
+    settings = {'forced_login_method': 'chatgpt', 'cli_auth_credentials_store': 'file',
+                'model_provider': 'openai', 'model_providers': {},
+                'openai_base_url': 'https://chatgpt.com/backend-api/codex',
+                'chatgpt_base_url': 'https://chatgpt.com/backend-api/'}
+    return [value for key, setting in settings.items() for value in ('-c', key + '=' + toml(setting))]
+
+
+def subscription_environment():
+    environment = dict(os.environ, CODEX_HOME=str(subscription_home()))
+    for name in ('OPENAI_API_KEY', 'CODEX_API_KEY', 'OPENAI_BASE_URL', 'OPENAI_API_BASE',
+                 'AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_ENDPOINT', 'CODEX_BEARER_TOKEN'):
+        environment.pop(name, None)
+    return environment
+
+
+def check_subscription_auth(args):
+    path = subscription_home() / 'auth.json'
+    try:
+        auth = read_json(path)
+    except (ValueError, OSError):
+        raise ValueError('Subscription-only Codex: cannot read saved login; run codex login with ChatGPT.') from None
+    if not isinstance(auth, dict) or auth.get('OPENAI_API_KEY') or auth.get('auth_mode') not in (None, 'chatgpt'):
+        raise ValueError('Subscription-only Codex: saved login is not ChatGPT; no API call was started.')
+    if not auth.get('tokens') and not any(arg in ('login', 'logout', 'app-server', '--help', '-h', '--version', '-V') for arg in args):
+        raise ValueError('Subscription-only Codex: sign in with codex login; no API fallback is allowed.')
 
 
 def launch_cwd(args):
@@ -143,7 +191,7 @@ def overrides(cwd):
             continue
         server = codex_server(connector, boundary)
         result += ['-c', server_key(connector['name']) + '=' + toml(server)]
-    return result, profile_home(boundary)
+    return result, subscription_home()
 
 
 def server_key(name):
@@ -200,15 +248,17 @@ def launch():
         args = sys.argv[1:]
         cwd = launch_cwd(args)
         args = absolute_cwd_args(args, cwd)
+        billing = subscription_policy(args)
+        check_subscription_auth(args)
         config, home = overrides(cwd)
-        manifest_path, _, _ = project(cwd)
-        env = dict(os.environ, CODEX_HOME=str(home), AGENT_CODEX_LAUNCH_CWD=str(cwd),
-                   AGENT_CODEX_MANIFEST=str(manifest_path or ''))
+        manifest_path, _, boundary = project(cwd)
+        env = dict(subscription_environment(), AGENT_CODEX_LAUNCH_CWD=str(cwd),
+                   AGENT_CODEX_MANIFEST=str(manifest_path or ''), AGENT_CODEX_BOUNDARY=boundary)
         # Pass TOML as argv, never shell code. Explicit caller overrides retain native precedence.
         binary = executable()
         config += retired_overrides(cwd, home)
         os.chdir(cwd)
-        os.execve(binary, [binary, *config, *args], env)
+        os.execve(binary, [binary, *config, *billing, *args], env)
     except (ValueError, OSError, json.JSONDecodeError) as error:
         print('agent config: ' + str(error), file=sys.stderr)
         raise SystemExit(1)
@@ -216,9 +266,10 @@ def launch():
 
 def context(cwd):
     path, manifest, boundary = project(cwd)
-    home = profile_home(boundary)
+    home = subscription_home()
     lines = ['Shared agent configuration: ' + str(ROOT),
              'Project boundary: ' + boundary, 'Expected Codex home: ' + str(home),
+             'Model billing: ChatGPT subscription only, including workers and reviews; API fallback disabled.',
              'Connector manifest: ' + (str(path) if path else 'none matched')]
     for connector in manifest.get('connectors', []):
         name = connector['name']
@@ -255,10 +306,11 @@ def adapted_payloads(payload):
 def hook(event, payload):
     cwd = Path(payload.get('cwd') or os.getcwd())
     manifest_path, _, boundary = project(cwd)
-    expected = profile_home(boundary)
+    expected = subscription_home()
     active = Path(os.environ.get('CODEX_HOME', str(Path.home() / '.codex'))).expanduser()
     launch_manifest = os.environ.get('AGENT_CODEX_MANIFEST')
     if (active.resolve() != expected.resolve() or
+            os.environ.get('AGENT_CODEX_BOUNDARY', boundary) != boundary or
             (launch_manifest is not None and launch_manifest != str(manifest_path or ''))):
         message = 'Codex project/profile mismatch. Restart through ~/.claude/bin/codex-launch.py in this workspace.'
         if event == 'PreToolUse':
@@ -368,15 +420,15 @@ def main():
     args = parser.parse_args()
     try:
         if args.action == 'install':
-            for boundary in ('personal', 'work'):
-                install(profile_home(boundary), args.replace)
+            install(subscription_home(), args.replace)
             if args.conductor:
                 configure_conductor()
         elif args.action == 'context':
             print(context(args.cwd))
         elif args.action == 'doctor':
             path, manifest, boundary = project(args.cwd)
-            print('Manifest:', path or 'none', '\nCodex home:', profile_home(boundary))
+            print('Manifest:', path or 'none', '\nCodex home:', subscription_home())
+            print('Model billing: ChatGPT subscription only; no API review exception')
             for conn in manifest.get('connectors', []):
                 state = 'on-demand' if conn.get('enabledOnDemand') else 'manifest-driven; authentication unverified'
                 print(conn['name'], conn['kind'], state, sep='\t')

@@ -118,8 +118,13 @@ def launch():
     binary = str(Path(__file__).with_name('codex-native'))
     os.execv(binary, [binary, *sys.argv[1:]])
 ''')
+        subscription = self.home / '.codex'
+        subscription.mkdir()
+        (subscription / 'auth.json').write_text(json.dumps({
+            'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}}))
         self.calls = self.root / 'calls.jsonl'
         self.env = {'HOME': str(self.home), 'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
+                    'AGENT_CODEX_BIN': str(self.bin / 'codex-native'),
                     'FIXTURE_CALLS': str(self.calls)}
         stub = '''#!/usr/bin/env python3
 import json, os, re, sys, time
@@ -133,6 +138,8 @@ prompt = args[args.index('-p') + 1] if kind == 'claude' else sys.stdin.read()
 with open(os.environ['FIXTURE_CALLS'], 'a') as output:
     output.write(json.dumps({'kind': kind, 'args': args, 'prompt': prompt,
                             'setup': os.environ.get('AGENT_SETUP'), 'pid': os.getpid(),
+                            'home': os.environ.get('CODEX_HOME'),
+                            'api_env_present': bool(os.environ.get('CODEX_API_KEY') or os.environ.get('OPENAI_API_KEY')),
                             'intake': os.environ.get('CLAUDE_INTAKE_GATE'),
                             'ledger': os.environ.get('CLAUDE_INTENT_LEDGER')}) + '\\n')
 if os.environ.get('FIXTURE_SLEEP'):
@@ -201,6 +208,7 @@ print(json.dumps(sys.argv[1:]))
         commands = ((), ('--profile', 'work'), ('--profile', '-p'),
                     ('exec', '--profile', 'work', 'a prompt with -p inside'),
                     ('exec', '-p', 'work', 'native short profile'),
+                    ('review', '--base', 'master'), ('exec', 'review', '--uncommitted'),
                     ('mcp', 'list', '--json'), ('app-server', '--listen', 'stdio://'),
                     ('--help',), ('--version',), ('--', '-p'), ('explain -p',))
         for args in commands:
@@ -208,6 +216,52 @@ print(json.dumps(sys.argv[1:]))
                 result = self.astra_command(*args)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(json.loads(result.stdout), list(args))
+
+    def test_work_worker_uses_subscription_despite_old_api_home_and_environment(self):
+        shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        subprocess.run(['git', 'init', '-q', str(self.repo)], check=True, env=self.env)
+        subprocess.run(['git', '-C', str(self.repo), 'remote', 'add', 'origin',
+                        'https://example.invalid/WorkOrg/project.git'], check=True, env=self.env)
+        (self.root / 'identity.local.json').write_text(json.dumps({'workOrgMatch': 'WorkOrg/'}))
+        old_home = self.home / '.codex-work'
+        old_home.mkdir()
+        old_auth = old_home / 'auth.json'
+        old_auth.write_text(json.dumps({'auth_mode': 'apikey', 'OPENAI_API_KEY': 'fixture-only'}))
+        before = old_auth.read_bytes()
+        self.env.update(CODEX_HOME=str(old_home), CODEX_API_KEY='fixture-only', OPENAI_API_KEY='fixture-only')
+        result = self.astra_command('-p', 'work')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        call = json.loads(self.calls.read_text())
+        self.assertEqual(call['home'], str(self.home / '.codex'))
+        self.assertFalse(call['api_env_present'])
+        self.assertIn('forced_login_method="chatgpt"', call['args'])
+        self.assertIn('openai_base_url="https://chatgpt.com/backend-api/codex"', call['args'])
+        self.assertEqual(old_auth.read_bytes(), before)
+
+    def test_worker_with_api_auth_never_starts_native_inference(self):
+        shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        (self.home / '.codex/auth.json').write_text(json.dumps({
+            'auth_mode': 'apikey', 'OPENAI_API_KEY': 'fixture-only'}))
+        result = self.astra_command('-p', 'work')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Subscription-only', result.stderr)
+        self.assertFalse(self.calls.exists())
+
+    def test_review_uses_real_subscription_launcher_without_api_exception(self):
+        shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        (self.bin / 'codex-native').write_text('''#!/usr/bin/env python3
+import json, os, sys
+print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
+                  'api_env_present': bool(os.environ.get('CODEX_API_KEY'))}))
+''')
+        self.env.update(CODEX_API_KEY='fixture-only', CODEX_HOME=str(self.home / '.codex-work'))
+        result = self.astra_command('review', '--base', 'master')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        call = json.loads(result.stdout)
+        self.assertEqual(call['home'], str(self.home / '.codex'))
+        self.assertFalse(call['api_env_present'])
+        self.assertIn('forced_login_method="chatgpt"', call['args'])
+        self.assertEqual(call['args'][-3:], ['review', '--base', 'master'])
 
     def test_shell_codex_function_uses_print_launcher(self):
         shared = self.home / '.claude'
@@ -302,6 +356,28 @@ print(json.dumps(sys.argv[1:]))
         for name in ('alpha', 'beta'):
             self.assertEqual((output / 'slices' / name / 'status').read_text().strip(), 'ok')
             self.assertTrue((output / 'slices' / name / 'events.jsonl').is_file())
+
+    def test_dispatch_workers_use_real_subscription_launcher(self):
+        shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        subprocess.run(['git', 'init', '-q', str(self.repo)], check=True, env=self.env)
+        subprocess.run(['git', '-C', str(self.repo), 'remote', 'add', 'origin',
+                        'https://example.invalid/WorkOrg/project.git'], check=True, env=self.env)
+        (self.root / 'identity.local.json').write_text(json.dumps({'workOrgMatch': 'WorkOrg/'}))
+        self.env.update(CODEX_HOME=str(self.home / '.codex-work'),
+                        CODEX_API_KEY='fixture-only', OPENAI_API_KEY='fixture-only')
+        result, output = self.dispatch('full-astra', reviewer_model='gpt-6-astra')
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 2)
+        for call in calls:
+            self.assertEqual(call['kind'], 'codex')
+            self.assertEqual(call['home'], str(self.home / '.codex'))
+            self.assertFalse(call['api_env_present'])
+            self.assertIn('gpt-6-astra', call['args'])
+            self.assertIn('forced_login_method="chatgpt"', call['args'])
+            self.assertIn('openai_base_url="https://chatgpt.com/backend-api/codex"', call['args'])
+        for name in ('alpha', 'beta'):
+            self.assertEqual((output / 'slices' / name / 'status').read_text().strip(), 'ok')
 
     def test_missing_choice_stops_before_setup_or_spend(self):
         marker = self.root / 'setup-ran'

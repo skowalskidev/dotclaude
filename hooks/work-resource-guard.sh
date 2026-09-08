@@ -2,10 +2,9 @@
 # work-resource-guard.sh
 # PreToolUse hook enforcing WORK <-> PERSONAL resource isolation (both directions).
 # Work repo == git origin remote contains your work org (identity.local.json "workOrgMatch").
-#   * WORK repos     : block PERSONAL resources (personal Codex CLI, your personal cloud project,
+#   * WORK repos     : block PERSONAL resources (your personal cloud project,
 #                      personal secrets, ~/.config/personal-keys.env, direct personal Gemini API).
-#   * PERSONAL repos : block WORK resources (the `pal` MCP server; the ~/.codex-work Codex
-#                      home; your work email account; your work cloud projects; and firebase
+#   * PERSONAL repos : block WORK resources (your work email account; your work cloud projects; and firebase
 #                      commands while the CLI's active account is the work one).
 # git/gh and gstack's Claude review are allowed everywhere.
 #
@@ -86,11 +85,9 @@ connector_cli_profile() { # $1=CLI name -> the profile THIS project pins for it 
   jq -r --arg n "$1" '.connectors[]? | select(.kind=="cli" and ((.cli.name // "")==$n)) | (.cli.profile // empty)' "$CONN_MANIFEST" 2>/dev/null | head -1
 }
 
-# --- pal MCP tools are a WORK resource (they use the work API keys). Allow only in WORK repos. ---
 case "$tool" in
   mcp__pal__*)
-    [ "$is_work" -eq 1 ] && exit 0
-    deny "Blocked by work/personal isolation: 'pal' holds your WORK API keys, and this is a personal/non-work repo. Work resources must not be used here. Use gstack review + your personal Codex login instead."
+    deny "Subscription-only agents: pal uses API keys. Use the selected Claude or Codex subscription for workers and reviews."
     ;;
 esac
 
@@ -134,8 +131,20 @@ if [ "$tool" = "Bash" ]; then
   if is_cmd git && \
      ! { is_cmd firebase || is_cmd gcloud || is_cmd gsutil || is_cmd bq || is_cmd aws \
          || is_cmd stripe || is_cmd codex || is_cmd gh || is_cmd npx || is_cmd node \
-         || is_cmd python3 || is_cmd curl || is_cmd op || is_cmd sh || is_cmd bash; }; then
+         || is_cmd python3 || is_cmd curl || is_cmd wget || is_cmd op || is_cmd sh || is_cmd bash; }; then
     exit 0
+  fi
+
+  if is_cmd curl || is_cmd wget; then
+    case "$cmd" in
+      *api.openai.com*|*generativelanguage.googleapis.com*)
+        deny "Subscription-only agents: direct paid model APIs are disabled. Use the selected subscription, including reviews." ;;
+    esac
+  fi
+  if is_cmd codex; then
+    case "$cmd" in
+      *codex-work*) deny "Subscription-only Codex: the old API home is retired. Use ~/.claude/bin/codex-launch.py with the existing ChatGPT login." ;;
+    esac
   fi
 
   if [ "$is_work" -eq 1 ]; then
@@ -148,18 +157,8 @@ if [ "$tool" = "Bash" ]; then
     fi
     case "$cmd" in
       *secrets/firebase-keys*) deny "Blocked by work-resource policy: personal service-account key path. Work must use work credentials." ;;
-      *personal-keys.env*)     deny "Blocked by work-resource policy: '~/.config/personal-keys.env' holds your PERSONAL API keys. Work must not read personal keys. Use pal's work-keyed models instead." ;;
+      *personal-keys.env*)     deny "Blocked by work-resource policy: '~/.config/personal-keys.env' holds your PERSONAL API keys. Work must not read personal keys. Agent inference uses subscriptions, not API keys." ;;
       *--project-name=personal*) deny "Blocked by work-resource policy: a Stripe PERSONAL profile (--project-name=personal) in a work repo. Use your work Stripe profile." ;;
-      *generativelanguage.googleapis*)
-        # A direct Gemini API call is allowed in a WORK repo IF it uses the WORK Gemini key,
-        # which lives in your work pal-mcp-server .env — a legit work call references that
-        # path. Any other direct Gemini call (personal-keys.env is already caught above; a
-        # hardcoded or otherwise-sourced key) stays blocked.
-        case "$cmd" in
-          *pal-mcp-server*) : ;;
-          *) deny "Blocked by work-resource policy: direct Gemini API call without the WORK key. In work repos read the key from your work pal-mcp-server .env (or use pal), never a personal/hardcoded key." ;;
-        esac
-        ;;
     esac
 
     # Stripe LIVE (production) writes are gated; live reads are fine.
@@ -167,32 +166,6 @@ if [ "$tool" = "Bash" ]; then
       case "$cmd" in
         *" post "*|*" delete "*|*" post"|*" delete"|*" trigger "*)
           [ "${CLAUDE_PROD_WRITE_OK:-0}" = "1" ] || deny "Blocked: Stripe LIVE/production write. Ask the user FIRST and get explicit confirmation for this exact change; live reads are fine, live writes are gated." ;;
-      esac
-    fi
-
-    if is_cmd codex; then
-      verdict="$(WORK_EMAIL="$WORK_EMAIL" "$PY" -c '
-import json,os,base64
-work_email=os.environ.get("WORK_EMAIL","")
-try:
-    home=os.environ.get("CODEX_HOME") or "~/.codex"
-    d=json.load(open(os.path.join(os.path.expanduser(home),"auth.json")))
-except Exception:
-    print("BAD:no-auth"); raise SystemExit
-if d.get("auth_mode")=="apikey":
-    print("OK"); raise SystemExit
-email=""
-try:
-    t=d.get("tokens",{}).get("id_token","").split(".")[1]; t+="="*(-len(t)%4)
-    email=json.loads(base64.urlsafe_b64decode(t)).get("email","")
-except Exception:
-    pass
-# No work email configured -> cannot judge -> fail open.
-print("OK" if (not work_email or email==work_email) else "BAD:"+(email or "unknown"))
-' 2>/dev/null)"
-      case "$verdict" in
-        OK) : ;;
-        *) deny "Blocked by work-resource policy: the Codex CLI is authenticated as your PERSONAL ChatGPT account (${verdict#BAD:}), not work. Work must not use personal ChatGPT/Codex. Use pal's API models with the work OpenAI key (e.g. 'codereview ... with gpt-5'), or run 'codex login' with your work account / set a work OPENAI_API_KEY (auth_mode=apikey), then retry." ;;
       esac
     fi
 
@@ -213,10 +186,6 @@ print("OK" if (not work_email or email==work_email) else "BAD:"+(email or "unkno
     fi
   else
     # PERSONAL / other repo: block WORK resources (mirror image of the above).
-    case "$cmd" in
-      *codex-work*)       deny "Blocked by personal-resource policy: '~/.codex-work' is your WORK Codex home (work OpenAI key). In a personal repo use your personal Codex (~/.codex) — do not point CODEX_HOME at the work home." ;;
-    esac
-
     # The work account as an ARGUMENT to a CLI that actually switches accounts. Gated on the CLI
     # being invoked, so the address merely appearing in prose — a commit message, a quoted argument,
     # a doc being echoed — is not a block. That is the false-positive class that retired the old

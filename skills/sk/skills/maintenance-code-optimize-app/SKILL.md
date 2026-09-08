@@ -77,9 +77,8 @@ for the pattern, not a hand-picked file list. Sentry's browser SDK needs `https:
 5. Parse the JSON; separate **real findings** from **dev-mode/Lantern artifacts**.
 6. Research any fix online before applying it (Simon's standing rule: verify it's the popular, best-practice
    approach). Prefer the framework's *officially documented* pattern.
-7. Delegate multi-file edits to **Sonnet 4.6** (`claude-sonnet-4-6`) with precise specs; keep
-   planning/verification on the strong model. (Today's-landscape pin; the Agent `model` enum resolves
-   the `sonnet` alias to Sonnet 5 — see `references/parallelization.md`.)
+7. Delegate multi-file edits using the saved setup in `~/.claude/references/parallelization.md`.
+   Keep that setup for planning, workers and verification; check every worker model before dispatch.
 8. `npm run build && npm run test:run && npm run lint`.
 9. **Re-run the audit to prove the fix**, and measure before/after in real bytes.
 10. Commit **one logical unit per commit**, with the measured numbers in the message.

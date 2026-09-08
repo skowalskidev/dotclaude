@@ -66,7 +66,7 @@ config suite; this is the reading of it.
 | Vague intent, no clear scope yet | — | `[gstack] /spec` | Turns "make the dashboard better" into an executable spec before the harness starts. |
 | Something is broken and the cause is not obvious | — | `[gstack] /investigate` | Root-cause first. `process.md` already says research before the second retry; this is the structured version. |
 | Repo or config cleanup | `/sk:maintenance-code-cleanup-repo` | `/simplify`, `[gstack] /health` | `/simplify` (built-in) applies reuse and simplification fixes to the CHANGED code; `/health` gives the quality dashboard. The spine owns the audit-fix-verify loop. |
-| Code review before landing | `/sk:ship-review` | `[gstack] /review` | `/sk:ship-review` is multi-model (Claude + Codex, plus Gemini/GPT-5 on work). `/review` adds a pre-landing pass against the diff. |
+| Code review before landing | `/sk:ship-review` | — | Independent review passes use the workflow's selected subscription setup. No API-billed reviewer exception. |
 | Walking a flow as a user, pre-ship UX pass | `/sk:ship-review` (Step 6 alone) | — | Its journey pass reads `references/user-journey-review.md`. Run Step 6 on its own when no code review is wanted; there is no separate journey command. |
 | Security review | — | `/security-review` (built-in) | Reviews pending changes on the branch. `rules/security.md` governs what Claude may DO; this reviews what was written. |
 | New UI, before writing any of it | — | `[gstack] /design-consultation` | Establishes the system (type, colour, spacing, motion) before code exists. |

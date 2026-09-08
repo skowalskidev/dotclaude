@@ -32,8 +32,9 @@ printf '%s' 'Review the assigned diff' | ~/.claude/bin/codex-launch.py -p --sand
 ```
 
 It starts an independent native Codex `exec --model gpt-6-astra` process through `codex-launch.py`,
-using the existing credential-home and connector routing. It does not create keys, change auth, or
-fall back. Default output is the final answer; JSON output normalizes native events for the dispatcher.
+using the subscription-only policy in `references/agent-hosts.md` and project connector routing.
+It never selects the retired API home, including for review workers. Default output is the final
+answer; JSON output normalizes native events for the dispatcher.
 `--events-file` preserves JSONL. Native permissions and sandboxing still apply; Claude-only permission
 flags are not forwarded. Headless intake/ledger prompts are disabled, not security/trust checks.
 Workers are flat leaves: no nested delegation. `AGENT_SETUP` carries the selection to child launches.

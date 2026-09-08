@@ -44,9 +44,9 @@ printf '%s\n' "$out" | grep -q 'TODO.*identity.local.json' \
 [ ! -e "$SBHOME/.agents/skills/gstack" ] \
   && pass "does not link unrelated skill packs into Codex" \
   || fail "linked an unrelated skill pack into Codex"
-[ -L "$SBHOME/.codex/AGENTS.md" ] && [ -L "$SBHOME/.codex-work/AGENTS.md" ] \
-  && pass "links native instructions into both Codex homes" \
-  || fail "did not link native instructions into both Codex homes"
+[ -L "$SBHOME/.codex/AGENTS.md" ] && [ ! -e "$SBHOME/.codex-work" ] \
+  && pass "links native instructions into the subscription home without creating an API home" \
+  || fail "did not keep bootstrap subscription-only"
 
 # 2) The scaffolded copy still holds the template placeholders -> still flagged unfinished.
 printf '%s\n' "$(run)" | grep -q 'TODO.*placeholder' \

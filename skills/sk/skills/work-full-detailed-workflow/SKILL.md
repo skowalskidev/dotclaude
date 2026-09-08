@@ -22,11 +22,10 @@ Read each catalog when its stage is in play:
   `.context/intent-ledger.md` — the hook records every ask verbatim; you record the sources, the plan
   he ratified, each pivot, and the closing reconciliation of asked against built.
 - **Parallelize & delegate** → `~/.claude/references/parallelization.md` — fan out across tasks AND
-  stages, orchestrate-strong / implement-with-Sonnet-4.6 (`claude-sonnet-4-6`), explicit DO-NOT-TOUCH lists, verify on disk, review
-  the delegated diff.
+  stages using the saved setup for every worker and reviewer. Verify on disk and review the delegated diff.
 - **Test** → `~/.claude/references/testing-strategy.md` — tests first, structured as a tree
   (unit → integration → e2e), gated "needs-resources" suites; the exhaustive full-diff automated
-  matrix (Stage-1 deterministic + Stage-2 Claude-judge, saved + posted to the PR) is
+  matrix (Stage-1 deterministic + Stage-2 judge on the saved setup, saved + posted to the PR) is
   `/sk:test-automated-full-matrix`, run at stage 4.
 - **Dev server & lanes** → `~/.claude/references/dev-server-hygiene.md` — take a LANE before binding a
   port (`bin/port-slot.sh`, or `/sk:work-isolate-environment` to wire a project up), identity-handshake
@@ -57,8 +56,8 @@ current, reconcile against it.
    `prompt-derived`, and his approval is the ratification. That is the common case, not the edge one.
 3. Verify the foundation assumptions (read the real code, check online, run an empirical spike) — and
    read the project's contracts before changing any unit that has one.
-4. Tests first, tree-structured — the exhaustive full-diff coverage runs via `/sk:test-automated-full-matrix` (Stage-1 deterministic + Stage-2 Claude-judge, saved + posted).
-5. Implement — parallel where independent, delegate edits to Sonnet 4.6 (`claude-sonnet-4-6`), verify on disk after each batch.
+4. Tests first, tree-structured — the exhaustive full-diff coverage runs via `/sk:test-automated-full-matrix` (Stage-1 deterministic + Stage-2 judge on the saved setup, saved + posted).
+5. Implement — parallel where independent, delegate edits using the saved setup, verify on disk after each batch.
 6. Observability + failure handling; never fail silently, no dead-end states.
 7. Build/verify with the project's commands, draft PR, tear down scratch, track deploy steps.
 8. Watch the deploy through and loop on what it surfaces; shipping is not done when the merge lands.
