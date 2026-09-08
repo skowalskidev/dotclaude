@@ -2,6 +2,50 @@
 
 How to fan work out — across agents, tasks, and pipeline stages — without clashing or losing quality.
 
+## Choose and preserve the agent setup
+
+Apply the question in `rules/process.md` before any delegated workflow. An explicit choice in the
+current request or the same workflow's living plan answers it; otherwise wait for Simon's choice.
+Save `agent_setup`, the actual `orchestrator_model`, and worker `model` in the plan. Copy them into
+dispatch specs and handoff prompts, including hyperspeed parts, fresh reviewers and loop retries.
+
+| Setup | Orchestrator | Workers and reviewers | Headless entrypoint |
+|---|---|---|---|
+| `full-claude` | Claude (existing strong-model policy) | Claude, with the tiers below | `claude -p` |
+| `full-astra` | `gpt-6-astra` | `gpt-6-astra`, no downshift | `codex -p` |
+
+Full Astra is not Astra coordinating Claude workers. Every role uses Astra. Full Claude keeps every
+role on Claude. If the current host cannot run the selected orchestrator or worker model, stop and
+request the matching session/model; never relabel another GPT model or silently substitute Claude.
+Read the actual session model before recording it; `orchestrator_model` is a declaration, not a model
+switch or independent detection. Native in-session agents may be used only when their model is
+explicitly selected or confirmed to inherit the matching model.
+
+Use `codex -p` as the local equivalent of `claude -p`, with `-p` or `--print` first. Native profile
+selection uses `codex --profile <name>`; other native commands are unchanged. Load the launcher
+function with `source ~/.zsh-work-codex.zsh`, or use its executable form without shell initialization:
+
+```bash
+~/.claude/bin/codex-launch.py -p "Implement the assigned slice"
+printf '%s' 'Review the assigned diff' | ~/.claude/bin/codex-launch.py -p --sandbox read-only
+~/.claude/bin/codex-launch.py -p "Implement the assigned slice" --cd /absolute/repo --output-format json
+```
+
+It starts an independent native Codex `exec --model gpt-6-astra` process through `codex-launch.py`,
+using the existing credential-home and connector routing. It does not create keys, change auth, or
+fall back. Default output is the final answer; JSON output normalizes native events for the dispatcher.
+`--events-file` preserves JSONL. Native permissions and sandboxing still apply; Claude-only permission
+flags are not forwarded. Headless intake/ledger prompts are disabled, not security/trust checks.
+Workers are flat leaves: no nested delegation. `AGENT_SETUP` carries the selection to child launches.
+
+The dispatcher validates the choice and model consistency before setup or model calls, then saves
+the normalized spec with its output. Invalid/missing setup, mixed models, runtime failure, incomplete
+results or absent DONE markers fail the run. Reviews and retries must carry the same saved choice.
+Codex events do not supply the Claude cost/API-duration/cache-write measurements this analyser uses;
+those fields remain null/not reported, not zero-cost or inferred backoff. Use actual process timings
+for overlap. The historical benchmarks and Claude-specific CLI/permission details below describe
+Claude only: they do not establish Astra's speed, cost, cache behavior or subscription access.
+
 ## Separate sessions beat in-session subagents, by a fixed ~33s (MEASURED 2026-08-06)
 
 This section is measurement, not inference, and it supersedes the older subagent-first framing below
@@ -285,7 +329,7 @@ them as parallel tool calls rather than chaining them into one sequential shell 
 - **Read the failure before rerunning.** A cascade almost always has one root cause at the top and N
   consequences below it. Fix the top one and re-run once, rather than reacting to the tail.
 
-## Orchestrate with strong models, implement with smaller ones
+## Full Claude: orchestrate with strong models, implement with smaller ones
 - Act as the orchestrator: do the planning, decomposition, writing the spec sub-agents follow, reviewing, and verifying yourself, on the strong/expensive model. Delegate the actual implementation (file edits) to smaller models.
 - Default implementation tier: **Sonnet 4.6** (`claude-sonnet-4-6`) for substantive code edits. **haiku** ONLY for genuinely mechanical edits — one unambiguous rule, no taste required (a rename, a find/replace with a single correct answer).
 - A "string/label swap" is NOT mechanical if choosing the replacement needs judgement. When in doubt, use Sonnet 4.6 — the token saving is never worth the silent damage.

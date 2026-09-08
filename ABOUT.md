@@ -13,6 +13,12 @@ Conductor, hook trust, authentication and the process restart required for conne
 Claude transcript metrics remain specific to Claude; native Codex hooks reuse the shared behavioral
 checks without claiming those metrics are portable.
 
+Delegated workflows now ask for **Full Claude** or **Full Astra**, then retain that choice for all
+roles and retries in the same workflow. The current orchestrator must match; selecting a setup does
+not switch an already-running model. For independent headless Astra work, load the shell snippet and
+use `codex -p "the task"`. This local shortcut uses the native Codex launcher and existing auth, not
+Claude workers or a new API client. Setup details live in `references/parallelization.md`.
+
 ## Gauntlet dashboard
 
 Invoke [sk] `/sk:work-gauntlet-loop` for Gauntlet, or [sk] `/sk:work-ralph-loop` for standalone Ralph.

@@ -120,6 +120,10 @@ for s in spec.get("slices", []):
         "pid": timing.get("pid"),
         "rc": timing.get("rc"),
         "status": read(f"{sd}/status", "unknown"),
+        "provider": result.get("provider", "claude"),
+        "api_measured": result.get("duration_api_ms") is not None,
+        "cost_measured": result.get("total_cost_usd") is not None,
+        "cache_write_measured": usage.get("cache_creation_input_tokens") is not None,
         "api_s": (result.get("duration_api_ms") or 0) / 1000,
         "turns": result.get("num_turns"),
         "cost": result.get("total_cost_usd") or 0,
@@ -151,16 +155,24 @@ findings = []
 # point also record blind spots (8b does). Initialising it at the point of first REPORT rather
 # than first USE is how a gap raised earlier becomes a NameError instead of a finding.
 gaps = []
+api_measured = all(item["api_measured"] for item in slices)
+cost_measured = all(item["cost_measured"] for item in slices)
+cache_write_measured = all(item["cache_write_measured"] for item in slices)
+total_cost = round(sum(item["cost"] for item in slices), 4) if cost_measured else None
+cost_label = f"${total_cost:.2f}" if total_cost is not None else "not reported"
 
 print(f"\n=== superspeed run: {RUN}")
 print(f"task: {spec.get('task','(none)')}")
-print(f"slices: {len(slices)}   fan-out wall: {fanout}s   total cost: ${sum(s['cost'] for s in slices):.2f}\n")
+print(f"slices: {len(slices)}   fan-out wall: {fanout}s   total cost: {cost_label}\n")
 
 print(f"{'slice':18} {'wall':>6} {'api':>6} {'turns':>6} {'cost$':>7} {'cacheWR':>9} {'cacheRD':>10} {'status':>16}")
 print("-" * 88)
 for s in sorted(slices, key=lambda x: -x["wall"]):
-    print(f"{s['name']:18} {s['wall']:>5}s {s['api_s']:>5.0f}s {str(s['turns']):>6} {s['cost']:>7.2f} "
-          f"{s['cache_write']:>9} {s['cache_read']:>10} {s['status']:>16}")
+    api_label = f"{s['api_s']:.0f}s" if s['api_measured'] else 'n/a'
+    slice_cost = f"{s['cost']:.2f}" if s['cost_measured'] else 'n/a'
+    write_label = str(s['cache_write']) if s['cache_write_measured'] else 'n/a'
+    print(f"{s['name']:18} {s['wall']:>5}s {api_label:>6} {str(s['turns']):>6} {slice_cost:>7} "
+          f"{write_label:>9} {s['cache_read']:>10} {s['status']:>16}")
 
 # 1. IDLE CAPACITY — the dominant waste in every run measured so far.
 idle = sum(slowest - s["wall"] for s in slices)
@@ -192,8 +204,9 @@ if len(walls) >= 3:
 tot_wr = sum(s["cache_write"] for s in slices)
 tot_rd = sum(s["cache_read"] for s in slices)
 ratio_rd = (tot_rd / tot_wr) if tot_wr else 0
-print(f"cache read:write   : {ratio_rd:.2f}  (write {tot_wr:,} / read {tot_rd:,})")
-if ratio_rd < 1.0 and tot_wr > 50000:
+print(f"cache read:write   : {ratio_rd:.2f}  (write {tot_wr:,} / read {tot_rd:,})" if cache_write_measured
+      else f"cache read:write   : not reported (cached reads {tot_rd:,}; cache-write tokens unavailable)")
+if cache_write_measured and ratio_rd < 1.0 and tot_wr > 50000:
     findings.append({
         "metric": "cold_cache", "value": f"{ratio_rd:.2f}", "severity": "medium",
         "action": "Slices are re-reading context rather than sharing it. The prompt cache is scoped to "
@@ -204,6 +217,8 @@ if ratio_rd < 1.0 and tot_wr > 50000:
 
 # 4. THROTTLE / BACKOFF — wall the slice spent NOT talking to the model.
 for s in slices:
+    if not s['api_measured']:
+        continue
     stall = s["wall"] - s["api_s"]
     if s["wall"] >= 30 and stall > 0.5 * s["wall"]:
         findings.append({
@@ -216,8 +231,9 @@ for s in slices:
 # 5. ACHIEVED CONCURRENCY — did fanning out actually overlap anything?
 api_sum = sum(s["api_s"] for s in slices)
 conc = api_sum / fanout if fanout else 0
-print(f"achieved concurrency: {conc:.2f}x  (sum of API time {api_sum:.0f}s inside {fanout}s wall)")
-if conc < 1.5 and len(slices) >= 3:
+print(f"achieved concurrency: {conc:.2f}x  (sum of API time {api_sum:.0f}s inside {fanout}s wall)"
+      if api_measured else "inference concurrency: not reported; use process overlap below")
+if api_measured and conc < 1.5 and len(slices) >= 3:
     findings.append({
         "metric": "low_concurrency", "value": f"{conc:.2f}x", "severity": "high",
         "action": f"{len(slices)} slices produced only {conc:.2f}x overlap. They are serialising. Check "
@@ -374,9 +390,13 @@ if not reconcile:
 if not any(s["changed"] for s in slices):
     gaps.append(("slices/*/DONE.md", "the list of files each slice actually changed. Without it, "
                                      "ownership leaks cannot be detected at all."))
-if not any(s["api_s"] for s in slices):
+if not api_measured:
     gaps.append(("duration_api_ms in result.json", "inference time per slice. Without it, backoff and "
                                                    "local CPU contention are indistinguishable from slow work."))
+if not cost_measured:
+    gaps.append(("total_cost_usd in result.json", "The CLI did not report cost; unknown is not zero."))
+if not cache_write_measured:
+    gaps.append(("cache_creation_input_tokens", "Cache-write tokens are unavailable; no read/write ratio is inferred."))
 if not os.path.exists(f"{RUN}/load.start"):
     gaps.append(("load.start / load.end", "machine load either side of the run. A run measured under "
                                           "load 20 on 8 cores is not comparable to one under load 3."))
@@ -589,6 +609,11 @@ def _forensics(session_id):
 refusals = []
 print("\n--- WHAT EACH SLICE DID LOCALLY (wall minus API) ---")
 for s in sorted(slices, key=lambda x: -(x["wall"] or 0)):
+    if s['provider'] == 'codex' or not s['api_measured']:
+        print(f"\n  {s['name']}: inference timing unavailable; local-time attribution is not computed.")
+        if s['provider'] == 'codex':
+            print("    Native events are in the slice's events.jsonl; Claude transcript analysis does not apply.")
+        continue
     local = (s["wall"] or 0) - (s["api_s"] or 0)
     pct = (local / s["wall"] * 100) if s["wall"] else 0
     print(f"\n  {s['name']}: {local:.0f}s local of {s['wall']}s wall ({pct:.0f}% burning no tokens)")
@@ -689,10 +714,10 @@ if refusals:
 if PRIOR:
     print(f"\n--- VS {PRIOR.get('run')} ---")
     _now = {"idle_pct": round(idle_pct, 1), "fanout_seconds": fanout,
-            "total_cost": round(sum(x["cost"] for x in slices), 4)}
+            "total_cost": total_cost}
     for k, v in _now.items():
         a = PRIOR.get(k)
-        if isinstance(a, (int, float)):
+        if isinstance(a, (int, float)) and isinstance(v, (int, float)):
             print(f"  {k:16} {a} -> {v}  ({v - a:+.4g})")
     _was = {x["metric"] for x in PRIOR.get("findings", [])}
     _now_m = {x["metric"] for x in findings}
@@ -721,11 +746,18 @@ for f in sorted(findings, key=lambda x: {"high": 0, "medium": 1, "low": 2}[x["se
 
 
 out = {
-    "run": RUN, "task": spec.get("task"), "slices": slices,
+    "run": RUN, "task": spec.get("task"),
+    "slices": [dict(item,
+                    cost=item["cost"] if item["cost_measured"] else None,
+                    api_s=item["api_s"] if item["api_measured"] else None,
+                    cache_write=item["cache_write"] if item["cache_write_measured"] else None)
+               for item in slices],
     "fanout_seconds": fanout, "idle_seconds": idle, "idle_pct": round(idle_pct, 1),
-    "achieved_concurrency": round(conc, 2), "cache_read_write_ratio": round(ratio_rd, 2),
+    "achieved_concurrency": round(conc, 2) if api_measured else None,
+    "cache_read_write_ratio": round(ratio_rd, 2) if cache_write_measured else None,
     "parallelism_diagnosis": diag,
-    "total_cost": round(sum(s["cost"] for s in slices), 4),
+    "total_cost": total_cost,
+    "agent_setup": spec.get("agent_setup"),
     "instrumentation_gaps": [w for w, _ in gaps],
     "findings": findings,
 }

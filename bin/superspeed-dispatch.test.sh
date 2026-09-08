@@ -32,6 +32,8 @@ fail() { printf '  FAIL %s\n' "$1"; FAILED=1; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"; pkill -f "$TMP" 2>/dev/null || true' EXIT
+export HOME="$TMP/home"
+mkdir -p "$HOME"
 
 # ---- a fake `claude` that returns instantly -------------------------------------------------------
 # Shaped like the real thing's --output-format json so the dispatcher's jq parsing is exercised
@@ -56,6 +58,8 @@ printf 'placeholder\n' > "$TMP/repo/a.txt"
 cat > "$TMP/spec.json" <<EOF
 {
   "task": "dispatcher exit regression",
+  "agent_setup": "full-claude",
+  "orchestrator_model": "claude-opus-4-8",
   "repo": "$TMP/repo",
   "gate": "true",
   "setup": "none",
@@ -130,7 +134,7 @@ ALLOW
 
 check_stop() {  # $1 = label, $2 = the slices[] JSON
   cat > "$TMP/spec-bad.json" <<EOF
-{ "task": "t", "repo": "$TMP/repo", "setup": "none", "slices": [ $2 ] }
+{ "task": "t", "agent_setup": "full-claude", "orchestrator_model": "claude-opus-4-8", "repo": "$TMP/repo", "setup": "none", "slices": [ $2 ] }
 EOF
   OUT_BAD="$TMP/repo/.superspeed/bad-$RANDOM"
   PATH="$TMP/bin:$PATH" bash "$DISPATCH" "$TMP/spec-bad.json" "$OUT_BAD" > "$TMP/bad.log" 2>&1

@@ -4,13 +4,13 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 
 ## How to work — orchestration & process
 
-### Orchestrate with strong models, implement with smaller ones
-Orchestrate substantial work on the strong model; delegate file edits via the Agent `model` override:
-default **Sonnet 4.6** (`claude-sonnet-4-6`), **`haiku`** for genuinely mechanical edits and simple
-high-volume parallel fan-out (scans, classification).
-**Today's-landscape exception:** pin to Sonnet 4.6 / Opus 4.8 (`claude-opus-4-8`), not the 5-series
-`sonnet`/`opus` aliases; mechanics in `parallelization.md`. **Verify on disk after every batch — never
-trust an agent's self-report.** Fan out across parallel agents when the pieces are independent.
+### Choose one setup for the whole delegated workflow
+Before delegation, ask **“Which setup: Full Claude or Full Astra?”** unless Simon already chose for
+this workflow. Record the choice in its living plan and reuse it for workers, reviewers and retries.
+Never silently mix providers or fall back. The actual orchestrator session/model must match the
+choice; ask Simon to switch sessions/models when it does not. A spec field cannot switch a session.
+**Verify on disk after every batch — never trust an agent's self-report.** Fan out only when the
+pieces are independent and delegation is authorized. Model tiers and headless commands belong below.
 → Full detail: **`~/.claude/references/parallelization.md`**.
 
 ### Fan out verification, and only rebuild what changed

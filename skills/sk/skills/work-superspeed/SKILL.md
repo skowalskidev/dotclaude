@@ -1,6 +1,6 @@
 ---
 name: work-superspeed
-description: Run a task across real parallel Claude sessions instead of in-session subagents, then reconcile in one warm session and log the run so it can be made faster next time. Cuts the work into slices with exclusive file ownership so no two slices do the same job, dispatches each as its own `claude -p` process, verifies every slice on disk, assembles and gates the result, and writes a waste analysis. Use for "run this in parallel", "fan this out", "split this across sessions", "superspeed", or any task that genuinely divides into 3-5 independent pieces. Not for work that does not divide.
+description: Run a task across real parallel Claude or Astra sessions, then reconcile in one warm session and log the run. Select Full Claude or Full Astra for the entire workflow. Cut exclusive file-ownership slices, dispatch each through `claude -p` or `codex -p`, verify on disk, assemble and gate the result, and analyse waste. Use for "run this in parallel", "fan this out", "split this across sessions", "full Astra workers", "superspeed", or any task that genuinely divides into 3-5 independent pieces. Not for work that does not divide.
 argument-hint: "[the task to parallelise]"
 ---
 
@@ -10,6 +10,11 @@ Fan a task out across real parallel sessions, reconcile it warm, and leave a log
 it better next time.
 
 ## Read this before using it
+
+First read `~/.claude/references/parallelization.md` § Choose and preserve the agent setup.
+Ask or reuse the workflow's choice before partitioning; carry it through reconciliation and retries.
+The benchmarks and Claude-specific cache, permission and billing claims here are historical Claude
+evidence, not Astra measurements. Astra uses native Codex permissions and reports unknown telemetry.
 
 The advantage is real but narrow, and it was measured rather than assumed. On 2026-08-06, Claude Code
 2.1.220, Apple M2 8-core, Max plan, four configurations and fourteen reps:
@@ -98,10 +103,12 @@ slowest slice took 451s of a 466s round while three workers sat idle.
    surfaces that consume it in another.
 8. **Give every slice an `accept` line AND a runnable `verify` command.** A slice told only what to
    do cannot tell you it failed, and a slice told only what to *check* still cannot, unless it can
-   execute the check. Headless slices run under `--permission-mode acceptEdits`, which permits edits
+   execute the check. Full Claude slices run under `--permission-mode acceptEdits`, which permits edits
    and NOT Bash, so the only commands they can run are ones the repo has already allowlisted: pick
    `verify` from that list and scope it to the files the slice owns. The dispatcher refuses to
-   dispatch a `verify` no rule allows, for the same reason it refuses a missing `setup`.
+   dispatch a Claude `verify` no rule allows, for the same reason it refuses a missing `setup`.
+   Full Astra keeps native Codex sandbox/exec policy instead of applying Claude permission flags;
+   a denied check is blocked, never silently accepted as verification.
    **`verify: "none"` is only for a slice that writes nothing runnable, never a shortcut.** A
    migration or refactor slice gets a scoped `verify` even when the whole-tree gate runs centrally in
    reconcile: a per-slice `tsc --noEmit` (or a targeted test) on the owned files catches the slice's
@@ -132,6 +139,8 @@ Write it as a spec file:
 ```json
 {
   "task": "one line describing the whole job",
+  "agent_setup": "full-claude",
+  "orchestrator_model": "claude-opus-4-8",
   "repo": "/abs/path/to/repo",
   "gate": "yarn lint && yarn test",
   "setup": "yarn install",
@@ -150,12 +159,18 @@ Write it as a spec file:
 
 ## Step 2 — dispatch
 
+The example is Full Claude. For Full Astra, set `agent_setup` to `full-astra` and both model fields
+to `gpt-6-astra`. Record the actual orchestrator model, not a desired future model; a mismatched
+session must be switched before launching. The shared setup validator rejects missing/mixed choices.
+
 ```bash
 ~/.claude/bin/superspeed-dispatch.sh slices.json .superspeed/run-1
 ```
 
-It launches one `claude -p` per slice in parallel, each with `--model claude-sonnet-4-6`,
-`--permission-mode acceptEdits`, `--output-format json`, and `CLAUDE_INTAKE_GATE=off`.
+Full Claude launches one `claude -p` per slice with the selected Claude model,
+`--permission-mode acceptEdits` and `--output-format json`. Full Astra launches one `codex -p`
+per slice through native Codex, pinned to Astra, with JSON results and separate `events.jsonl`.
+Both disable headless intake/ledger prompts and preserve the chosen setup. Neither falls back.
 
 **The orchestrator sets the tree up once, before any slice starts, and `setup` is mandatory.**
 
@@ -289,6 +304,10 @@ Two things that follow, both worth not re-testing:
 
 ### So the remaining cost is LOCAL work
 
+This attribution requires Claude API-duration and transcript measurements. Astra retains actual
+wall/overlap timing and native events; API duration, cost and cache-write data remain not reported.
+The analyser does not turn missing values into a claim about backoff or inference concurrency.
+
 `local = wall - api` is time a worker is alive and burning zero tokens. That is where a slow run now
 comes from, and the analyser attributes it to the command responsible by reading each slice's
 transcript (`~/.claude/projects/<project>/<session_id>.jsonl`, found via the `session_id` in
@@ -310,7 +329,7 @@ command in `accept`.
 
 ### Also standing
 
-Overlap ratio, pairwise intersection, and a sampler counting live `claude -p` processes each second.
+Overlap ratio, pairwise intersection, and a sampler counting this run's live worker PIDs each second.
 Kept even though the answer came back healthy, because a regression would otherwise be silent, and
 the same timestamps are what make the local-time attribution possible.
 

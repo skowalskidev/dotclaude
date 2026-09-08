@@ -202,6 +202,7 @@ SCENARIOS: list[dict] = [
 
     # --- Parallel execution ----------------------------------------------------------
     {"phrase": "run this in parallel", "expect": "work-superspeed"},
+    {"phrase": "full Astra workers", "expect": "work-superspeed"},
     {"phrase": "fan this out", "expect": "work-superspeed"},
     {"phrase": "split this across sessions", "expect": "work-superspeed"},
     {"phrase": "hyperspeed", "expect": "work-hyperspeed", "also_matches": ["work-warpspeed", "work-split-session-in-parallel-branch-offshoot"]},

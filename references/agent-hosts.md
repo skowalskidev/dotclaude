@@ -19,6 +19,14 @@ Follow the host's higher-priority instructions when a shared rule names another 
 
 ## Launch and refresh
 
+`bin/codex_print.py` supplies the launcher's local `codex -p` print mode using the same native runtime and
+credential routing. It does not replace the interactive host or change its model configuration.
+For Full Claude/Full Astra workflow selection and child-model policy, read
+`references/parallelization.md` § Choose and preserve the agent setup.
+
+Put `-p` or `--print` first for the local print extension; use `--profile` for native profile
+selection. Other invocations, including `exec`, `mcp` and Conductor's `app-server`, pass through.
+
 Launch with `~/.claude/bin/codex-launch.py`, or `codex` after sourcing the shell snippet.
 In Conductor, set `codex_executable_path` in `~/.conductor/settings.toml` to that absolute path.
 Keep model selection, provider configuration and authentication in native Codex configuration.
@@ -29,7 +37,11 @@ matches the git origin to one manifest; and passes current MCP definitions and h
 definitions to the real executable through native `-c` arguments. No projection is written to disk.
 An ownership receipt under the chosen home's `.agent-runtime/` stores server names only; it disables
 removed entries so an obsolete native registration cannot silently become active again.
-Set `AGENT_CODEX_BIN` only when the real Codex binary cannot be found on PATH.
+Use `AGENT_CODEX_BIN` for an explicit executable override. Otherwise the launcher selects the
+newest installed stable Codex under `CONDUCTOR_AGENT_BINARIES_DIR`, or the macOS default
+`~/Library/Application Support/com.conductor.app/agent-binaries` when that variable is absent,
+before searching PATH. Non-executable files, prereleases and the launcher itself are skipped.
+TEST: `~/.claude/bin/codex-launch.py --version` reports the selected binary without changing authentication.
 
 Use `identity.local.json` to select the credential home: work origin -> `~/.codex-work`,
 other origins -> `~/.codex`. The session hook rejects a different manifest or boundary inside a running

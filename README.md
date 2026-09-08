@@ -66,6 +66,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
 | `bin/agent_runtime.py` + `bin/codex-launch.py` | Native Codex adapter and executable; reads shared sources at launch/event time and keeps work/personal profiles separate |
+| `bin/agent_setup.py` + `bin/codex_print.py` | Full Claude/Full Astra dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
 | `dotfiles/codex-AGENTS.md` | One native instruction entrypoint linked into both Codex homes |
 | `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
@@ -74,7 +75,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `references/workflow-loops.md` + `bin/workflow-dashboard.*` | Shared loop protocol and live/offline viewer used by both entry skills, the permanent plan and mockups |
 | `bin/mockup-shell.html` + `bin/mockup-build.py` (+ `bin/mockup-shell.test.py`, `bin/mockup-synthetic-spec.json`) | The one spec-driven shell every `/sk:ship-mockup-before-after` mockup is built through (viewport-first stage, one collapsible rail, presentation mode, hint bar; every switch tears the old mount down and opens the target's default state); the builder inlines a `spec.json` and extracts it back losslessly; the Playwright test proves the switch reset against the synthetic spec |
 | `skills/sk/` | My personal (`/sk:*`) skill plugin. Claude Code reads it here; `bootstrap.sh` symlinks it into `~/.agents/skills/` for Codex. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
-| `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here) — work/personal `CODEX_HOME` switch |
+| `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here) — work/personal `CODEX_HOME` switch and `codex` launcher function |
 | `dotfiles/gitignore_global` | The live `~/.gitignore_global` (symlinked here), git's `core.excludesFile` — personal/secret patterns plus `.context/`, so the agent scratch dir is ignored in every repo without touching any committed `.gitignore` |
 | `hooks/config-status.sh` | SessionStart hook — flags uncommitted config so Claude offers to sync |
 | `hooks/worktree-freshness.sh` | SessionStart hook — warns once when this worktree's branch is 10+ commits behind main, so stale-base work is caught before it starts rather than at merge. Detects and reports only |
@@ -142,6 +143,25 @@ Work repositories select `~/.codex-work`; personal repositories select `~/.codex
 and Conductor launches agree. It preserves model/provider settings in those homes. Set `AGENT_CODEX_BIN`
 to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
 shell function and therefore bypasses manifest projection; use the launcher for setup and diagnosis.
+
+### Full Claude or Full Astra
+
+Delegated workflows ask once which setup to use and retain the selection in their living plan.
+See `references/parallelization.md` for model consistency, dispatch fields and failure behavior.
+The local `codex -p` shortcut starts a separate headless native Codex process, not Claude workers:
+
+```bash
+source ~/.zsh-work-codex.zsh
+codex -p "Implement the assigned task"
+```
+
+Put `-p` or `--print` first to select print mode. Use `codex --profile <name>` for native profiles;
+other native commands pass through unchanged. Full Astra remains the selected worker model setup.
+
+`bin/codex_print.py` provides the print-mode adapter; `bin/agent_setup.py` validates saved setup/model
+choices. No new credential is required by the wrapper: existing native authentication and connector
+routing remain unchanged. Model entitlement is checked by the real runtime, never inferred from fixtures.
+Run `python3 ~/.claude/bin/agent_setup.test.py` for offline wrapper/dispatch/telemetry regression tests.
 
 ### What updates automatically
 

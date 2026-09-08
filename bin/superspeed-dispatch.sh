@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# superspeed-dispatch — fan a task out across real parallel Claude sessions and log everything.
+# superspeed-dispatch — fan out across the selected Claude or Astra sessions and log everything.
 #
 # WHY THIS EXISTS (measured 2026-08-06, Claude Code 2.1.220, Apple M2 8-core, Max plan)
 # Every IN-SESSION parallelism primitive is capped: subagents at 20 concurrent (10 in your
@@ -18,11 +18,13 @@
 # slices.json:
 #   {
 #     "task": "one line describing the whole job",
+#     "agent_setup": "full-claude",            # required: full-claude or full-astra
+#     "orchestrator_model": "claude-opus-4-8",  # required: actual session model, not a switch
 #     "repo": "/abs/path/to/repo",
 #     "gate": "yarn lint && yarn test",          # optional, run by the RECONCILER not by slices
 #     "setup": "yarn install",                    # optional, run ONCE here before any slice starts;
 #                                                 # take it from the repo's CLAUDE.md / CLAUDE.local.md
-#     "model": "claude-sonnet-4-6",               # optional, default claude-sonnet-4-6
+#     "model": "claude-sonnet-4-6",             # optional: Claude default; full-astra pins gpt-6-astra
 #     "slices": [
 #       { "name": "api",
 #         "owns":    ["apps/api/src/routes/foo.ts"],
@@ -47,16 +49,26 @@ set -uo pipefail
 
 SPEC="${1:?usage: superspeed-dispatch.sh <slices.json> [outdir]}"
 OUT="${2:-.superspeed/$(date +%Y%m%d-%H%M%S)}"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 command -v jq >/dev/null 2>&1 || { echo "superspeed: jq is required" >&2; exit 2; }
 [ -f "$SPEC" ] || { echo "superspeed: no such spec: $SPEC" >&2; exit 2; }
-
+RESOLVED_SPEC="$(python3 "$SCRIPT_DIR/agent_setup.py" "$SPEC")" || exit 2
+AGENT_SETUP="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.agent_setup')"
+MODEL="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.model')"
 REPO="$(jq -r '.repo // "."' "$SPEC")"
-MODEL="$(jq -r '.model // "claude-sonnet-4-6"' "$SPEC")"
+REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "superspeed: repo not found" >&2; exit 2; }
+if [ "$AGENT_SETUP" = full-astra ]; then
+  [ -f "$SCRIPT_DIR/codex_print.py" ] && "$SCRIPT_DIR/codex-launch.py" --cd "$REPO" --version >/dev/null || {
+    echo "superspeed: Astra's native Codex launcher is unavailable; no Claude fallback." >&2
+    exit 2
+  }
+else
+  command -v claude >/dev/null 2>&1 || { echo "superspeed: Claude is unavailable; no Astra fallback." >&2; exit 2; }
+fi
+
 TASK="$(jq -r '.task // ""' "$SPEC")"
 N="$(jq '.slices | length' "$SPEC")"
-
-REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "superspeed: repo not found" >&2; exit 2; }
 
 # The run directory MUST live inside the repo. A slice runs with the repo as its working directory and
 # is sandboxed to it, so a run dir anywhere else means every slice fails to write its DONE.md and the
@@ -75,12 +87,13 @@ Slices are sandboxed to the repo working directory and cannot write outside it."
 esac
 
 mkdir -p "$OUT/slices" || exit 2
-cp "$SPEC" "$OUT/spec.json"
+printf '%s\n' "$RESOLVED_SPEC" > "$OUT/spec.json"
+SPEC="$OUT/spec.json"
 
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$OUT/run.log"; }
 loadnow() { sysctl -n vm.loadavg 2>/dev/null | tr -d '{}' | awk '{print $1}' || echo 0; }
 
-log "superspeed start: $N slices, model=$MODEL, repo=$REPO"
+log "superspeed start: $N slices, setup=$AGENT_SETUP, model=$MODEL, repo=$REPO"
 log "task: $TASK"
 [ "$N" -gt 5 ] && log "WARNING: $N slices. Anthropic's guidance and the measured curve both say 3-5; \
 beyond that coordination overhead and machine contention grow faster than the gain."
@@ -198,7 +211,7 @@ for i in $(seq 0 $((N - 1))); do
   # mismatch inside an allowed prefix will still get through, and the slice's own verify.txt is
   # what catches that.
   VERB="$(printf '%s' "$VCMD" | awk '{print $1, $2}')"
-  if [ -n "$ALLOW_SRC" ] && ! jq -r '.permissions.allow[]? // empty' $ALLOW_SRC 2>/dev/null \
+  if [ "$AGENT_SETUP" = full-claude ] && [ -n "$ALLOW_SRC" ] && ! jq -r '.permissions.allow[]? // empty' $ALLOW_SRC 2>/dev/null \
        | sed 's/^Bash(//; s/)$//; s/ *\*$//' | grep -qF -- "${VERB% *}"; then
     {
       echo
@@ -227,8 +240,7 @@ echo "$(loadnow)" > "$OUT/load.start"
 #
 # Two signals, so a wrong clock cannot fake a pass:
 #   1. Per-slice PID + start/end -> overlap ratio, and pairwise interval intersection.
-#   2. A sampler counting live `claude -p` processes each second, observed from outside this script,
-#      so it is the one number that does not depend on what this script believes it did.
+#   2. A sampler checking this run's worker PIDs each second, independent of completion markers.
 #
 # Still worth watching despite the measurement: anthropics/claude-code#53922 documents a server-side
 # concurrency limiter that refuses later sessions with "Server is temporarily limiting requests (not
@@ -236,7 +248,12 @@ echo "$(loadnow)" > "$OUT/load.start"
 CONCURRENCY_LOG="$OUT/concurrency.log"
 (
   while :; do
-    printf '%s %s\n' "$(date +%s)" "$(pgrep -f 'claude -p' 2>/dev/null | wc -l | tr -d ' ')"
+    ACTIVE=0
+    for PID_FILE in "$OUT"/slices/*/worker.pid; do
+      [ -f "$PID_FILE" ] || continue
+      kill -0 "$(cat "$PID_FILE")" 2>/dev/null && ACTIVE=$((ACTIVE + 1))
+    done
+    printf '%s %s\n' "$(date +%s)" "$ACTIVE"
     sleep 1
   done
 ) > "$CONCURRENCY_LOG" 2>/dev/null &
@@ -264,6 +281,8 @@ $(jq -r "if (.slices[$i].forbid // []) | length > 0 then \"\nDO NOT TOUCH (anoth
 EXPECTED RESULT: $(jq -r ".slices[$i].accept // \"the files you own are complete and self-consistent\"" "$SPEC")
 
 RULES
+- This workflow selected $AGENT_SETUP and worker model $MODEL. Keep that setup for this slice.
+  You are a leaf worker: do not launch another worker, reviewer, claude, astra or codex process.
 - The working tree is ALREADY set up: dependencies installed, build usable. Do not install anything,
   do not run a package manager, do not rebuild. The orchestrator did it once before dispatching you.
 - Edit only the files in your OWNS list. If a file you need is not in it — whether another slice owns
@@ -296,12 +315,17 @@ RULES
     S0=$(date +%s)
     # Backgrounded then waited on, ONLY so the real claude PID can be recorded. Behaviour is
     # identical to running it in the foreground. The PID is what the sampler is matched against.
-    CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
-      --model "$MODEL" \
-      --output-format json \
-      --permission-mode acceptEdits \
-      > "$SD/result.json" 2> "$SD/stderr.txt" &
+    if [ "$AGENT_SETUP" = full-astra ]; then
+      AGENT_SETUP="$AGENT_SETUP" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
+        "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --cd "$REPO" --output-format json \
+        --events-file "$SD/events.jsonl" > "$SD/result.json" 2> "$SD/stderr.txt" &
+    else
+      AGENT_SETUP="$AGENT_SETUP" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
+        --model "$MODEL" --output-format json --permission-mode acceptEdits \
+        > "$SD/result.json" 2> "$SD/stderr.txt" &
+    fi
     CPID=$!
+    printf '%s\n' "$CPID" > "$SD/worker.pid"
     wait "$CPID"
     RC=$?
     S1=$(date +%s)
@@ -320,6 +344,7 @@ RULES
     ST=ok
     [ -f "$SD/DONE.md" ] || ST=no-done-marker
     [ -f "$SD/BLOCKED.md" ] && ST=blocked
+    jq -e '.is_error == false' "$SD/result.json" >/dev/null 2>&1 || ST=invalid-result
     [ "$RC" = 0 ] || ST=nonzero-exit
     echo "$ST" > "$SD/status"
 
@@ -373,6 +398,7 @@ log "fan-out complete in $((FANOUT_T1 - RUN_T0))s"
 # that quit seven seconds in. So the artifact is the evidence.
 # Each slice already wrote its own status as it exited (see the fan-out loop). This pass only fills
 # in a slice that never got far enough to write one, and surfaces anything not ok.
+FAILED=0
 for i in $(seq 0 $((N - 1))); do
   NAME="$(jq -r ".slices[$i].name" "$SPEC")"
   SD="$OUT/slices/$NAME"
@@ -384,11 +410,16 @@ for i in $(seq 0 $((N - 1))); do
     echo "$STATUS" > "$SD/status"
   fi
   STATUS="$(cat "$SD/status")"
-  [ "$STATUS" = ok ] || log "  SLICE NEEDS ATTENTION: $NAME -> $STATUS"
+  if [ "$STATUS" != ok ]; then
+    log "  SLICE NEEDS ATTENTION: $NAME -> $STATUS"
+    FAILED=1
+  fi
 done
 
-printf '{"run_start":%d,"fanout_end":%d,"fanout_seconds":%d,"slices":%d,"model":"%s"}\n' \
-  "$RUN_T0" "$FANOUT_T1" "$((FANOUT_T1 - RUN_T0))" "$N" "$MODEL" > "$OUT/run.json"
+jq -n --argjson start "$RUN_T0" --argjson end "$FANOUT_T1" --argjson slices "$N" \
+  --arg model "$MODEL" --arg agent_setup "$AGENT_SETUP" \
+  '{run_start:$start,fanout_end:$end,fanout_seconds:($end-$start),slices:$slices,model:$model,agent_setup:$agent_setup}' \
+  > "$OUT/run.json"
 
 # ---- what actually ran in parallel ----------------------------------------------------------------
 # Printed inline rather than left to the analyser, because the question it answers ("did these really
@@ -454,3 +485,4 @@ log "  3. /sk:claude-config-self-optimize-analysis-after-run $OUT"
 log "     Step 3 is the one that makes the NEXT run faster. Skipping it throws the run's"
 log "     evidence away, and a run whose logs nobody reads teaches nothing."
 echo "$OUT"
+exit "$FAILED"

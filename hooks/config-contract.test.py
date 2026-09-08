@@ -65,6 +65,8 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("agent-setups-preserve-provider-choice",
+     "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
      "Native Codex reads current shared sources, preserves profile boundaries and propagates hook decisions without copying credentials."),
     ("dashboard-runtime-preserves-completion",
@@ -820,6 +822,17 @@ def check_native_codex_shares_canonical_config() -> None:
     result = run(["python3", str(ROOT / "bin" / "agent_runtime.test.py")])
     check(result.returncode == 0,
           f"Native Codex propagation/boundary suite failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_agent_setups_preserve_provider_choice() -> None:
+    for command in (["python3", str(ROOT / "bin" / "agent_setup.test.py")],
+                    ["bash", str(ROOT / "bin" / "superspeed-dispatch.test.sh")]):
+        result = run(command)
+        check(result.returncode == 0,
+              f"Setup/dispatch regression failed:\n{result.stdout}\n{result.stderr}")
+    policy = (ROOT / "rules" / "process.md").read_text()
+    check("Which setup: Full Claude or Full Astra?" in policy,
+          "Shared process policy must ask for the setup before delegation")
 
 
 def check_metrics_inventory_matches_contract_coverage() -> None:

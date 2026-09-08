@@ -123,9 +123,11 @@ report that one was not. Deterministic checks (schema, id-shape, bounds) run fir
 most. A rendered frontend interaction a unit test structurally cannot reach is marked NEEDS-DRIVING and
 handed to `/sk:test-copilot`, never faked green with a network mock.
 
-**Stage 2 — Claude as the judge, on top of green.** A passing assertion proves the code does what
+**Stage 2 — the selected setup's judge, on top of green.** Reuse the saved workflow setup under
+`references/parallelization.md`; a Full Astra review uses Astra, not a Claude default.
+A passing assertion proves the code does what
 someone thought to assert; it never proves the feature does what it was FOR. So for each feature — with
-extra, multi-step reasoning for a complex or multi-call one — Claude reads the real inputs, outputs and
+extra, multi-step reasoning for a complex or multi-call one — the judge reads the real inputs, outputs and
 the trajectory (the writes, branches and tool calls it took) and judges two things: does this satisfy
 the feature's stated INTENT and acceptance criteria, and would a first-time USER find the result
 sensible. Judge even when Stage 1 is green — an invisible loading spinner and a lane that never polls

@@ -1,5 +1,9 @@
 # One plan, two execution modes, one dashboard
 
+Before delegation, apply `references/parallelization.md` § Choose and preserve the agent setup.
+Carry the living plan's selection into every fresh worker, judge and retry; never switch providers
+to get past a failure. Loop engine names describe execution strategy, not the model/provider setup.
+
 DO compose the execution mode and judge independently. Recommend
 `--engine current --judge on`; use `--engine ralph` for fresh-context completion and
 `--judge off` for ordinary verified task tracking. Keep the same plan, section IDs and viewer
