@@ -28,6 +28,13 @@ file://-openable HTML, drives it with Playwright, and asserts:
      HUD + rail active-row track every keyboard step too.
   7. A capture that reaches out and appends a node directly to the shell's
      own <body> (escaping its iframe) gets removed by the shell's guard.
+  8. Reproduces the bug Simon hit embedding a built mockup in a wide-but-short
+     host frame (a modal iframe ~1900x1010, stage ~1600x940 next to the rail):
+     the focus iframe fits within the stage on both axes (never clipped, top-
+     aligned rather than centred), a later resize of the STAGE alone (no page
+     reload) re-fits the same mounted iframe via the ResizeObserver, resizing
+     back to a standalone-sized viewport reproduces the same fit a fresh load
+     would, and the mobile persona keeps its centred layout throughout.
 
 Usage:
     python3 ~/.claude/bin/mockup-shell.test.py
@@ -75,6 +82,30 @@ def overlay_signal(page):
                 } catch (e) { /* cross-origin, shouldn't happen for srcdoc */ }
             }
             return { iframeCount: iframes.length, openOverlays, stateLabel };
+        }"""
+    )
+
+
+def stage_fit_signal(page):
+    """Geometry + alignment + overflow-fallback state for the mounted focus iframe, plus a
+    marker attribute so a caller can tell whether a later resize remounted a NEW iframe
+    (a reload) or re-fit the SAME one (the ResizeObserver/resize-listener path)."""
+    return page.evaluate(
+        """() => {
+            const stage = document.getElementById('mock-stage');
+            const iframe = document.querySelector('#mock-stage iframe');
+            if (!iframe) return null;
+            const stageRect = stage.getBoundingClientRect();
+            const iframeRect = iframe.getBoundingClientRect();
+            const m = iframe.style.transform.match(/scale\\(([-0-9.eE]+)\\)/);
+            return {
+                stageW: stage.clientWidth, stageH: stage.clientHeight,
+                stageBottom: stageRect.bottom, iframeTop: iframeRect.top, iframeBottom: iframeRect.bottom,
+                scale: m ? parseFloat(m[1]) : null,
+                isCentered: stage.classList.contains('is-centered'),
+                overflow: getComputedStyle(stage).overflow,
+                marker: iframe.getAttribute('data-test-marker')
+            };
         }"""
     )
 
@@ -302,6 +333,102 @@ def main():
                 "a node appended directly to the shell body is removed by the MutationObserver guard",
                 stray_gone,
             )
+
+            # --- 8. Fit never clips a wide-short host frame; refits the mounted iframe on a
+            #        stage-only resize (no reload); resizing back matches a fresh load. ---
+            DESKTOP_W, DESKTOP_H = 1440, 900  # the desktop persona's natural size (synthetic-spec.json)
+
+            def expected_fit_scale(stage_w, stage_h):
+                return min(stage_w / DESKTOP_W, stage_h / DESKTOP_H, 1)
+
+            fit_page = browser.new_page(viewport={"width": 1900, "height": 1010})
+            fit_page.goto(out_html.as_uri())
+            fit_page.wait_for_timeout(300)
+            fit_page.evaluate(
+                "() => document.querySelector('#mock-stage iframe').setAttribute('data-test-marker', 'm1')"
+            )
+            sig_a = stage_fit_signal(fit_page)
+            check(
+                "wide-short host (1900x1010, stage ~1600x940): focus iframe never overruns the stage bottom",
+                sig_a is not None and sig_a["iframeBottom"] <= sig_a["stageBottom"] + 0.5,
+                json.dumps(sig_a),
+            )
+            check(
+                "the fitted frame's full natural height is visible without scrolling (min(w,h) fit, not width-only)",
+                abs(sig_a["scale"] - expected_fit_scale(sig_a["stageW"], sig_a["stageH"])) < 0.01
+                and DESKTOP_H * sig_a["scale"] <= sig_a["stageH"] + 0.5,
+                json.dumps(sig_a),
+            )
+            check(
+                "the desktop persona top-aligns (not vertically centred) so overflow always trails at the bottom",
+                sig_a["isCentered"] is False,
+                json.dumps(sig_a),
+            )
+            check(
+                "#mock-stage keeps overflow:auto as the never-clip fallback even when fit already fits",
+                sig_a["overflow"] == "auto",
+                json.dumps(sig_a),
+            )
+
+            fit_page.set_viewport_size({"width": 1200, "height": 700})
+            fit_page.wait_for_timeout(400)
+            sig_b = stage_fit_signal(fit_page)
+            check(
+                "shrinking the STAGE alone (no navigation) re-fits via the ResizeObserver, without a reload",
+                sig_b is not None and sig_b["marker"] == "m1" and sig_b["scale"] != sig_a["scale"],
+                json.dumps({"before": sig_a, "after": sig_b}),
+            )
+            check(
+                "the re-fit scale after shrinking matches min(w,h) for the new stage size",
+                abs(sig_b["scale"] - expected_fit_scale(sig_b["stageW"], sig_b["stageH"])) < 0.01
+                and sig_b["iframeBottom"] <= sig_b["stageBottom"] + 0.5,
+                json.dumps(sig_b),
+            )
+
+            fit_page.set_viewport_size({"width": 1440, "height": 900})
+            fit_page.wait_for_timeout(400)
+            sig_c = stage_fit_signal(fit_page)
+            check(
+                "resizing back to a standalone-sized viewport still re-fits the SAME iframe (no reload)",
+                sig_c is not None and sig_c["marker"] == "m1",
+                json.dumps(sig_c),
+            )
+            check(
+                "…and reproduces exactly the fit a fresh load at that size would compute (regression guard)",
+                abs(sig_c["scale"] - expected_fit_scale(sig_c["stageW"], sig_c["stageH"])) < 0.01
+                and sig_c["iframeBottom"] <= sig_c["stageBottom"] + 0.5,
+                json.dumps(sig_c),
+            )
+
+            # Collapsing the rail changes #mock-stage's own box (width grows) WITHOUT any
+            # window resize at all — the one case a plain window 'resize' listener structurally
+            # cannot catch, and the reason the ResizeObserver is on the stage element itself.
+            sig_before_collapse = stage_fit_signal(fit_page)
+            fit_page.click("#mock-rail-toggle-btn")
+            fit_page.wait_for_timeout(300)
+            sig_collapsed = stage_fit_signal(fit_page)
+            check(
+                "collapsing the rail (no window resize) still re-fits, via the ResizeObserver alone",
+                sig_collapsed is not None
+                and sig_collapsed["marker"] == "m1"
+                and sig_collapsed["stageW"] > sig_before_collapse["stageW"]
+                and sig_collapsed["scale"] != sig_before_collapse["scale"]
+                and abs(sig_collapsed["scale"] - expected_fit_scale(sig_collapsed["stageW"], sig_collapsed["stageH"])) < 0.01,
+                json.dumps({"before": sig_before_collapse, "after": sig_collapsed}),
+            )
+            fit_page.click("#mock-rail-toggle-btn")  # restore, tidy for the persona switch below
+            fit_page.wait_for_timeout(200)
+
+            fit_page.click('[data-pick-persona="mobile"]')
+            fit_page.wait_for_timeout(200)
+            sig_mobile = stage_fit_signal(fit_page)
+            check(
+                "the mobile persona keeps its centred layout (unaffected by the desktop top-align change)",
+                sig_mobile is not None and sig_mobile["isCentered"] is True,
+                json.dumps(sig_mobile),
+            )
+
+            fit_page.close()
 
             browser.close()
 

@@ -112,7 +112,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Builds every /sk:ship-mockup-before-after deliverable by inlining a spec.json into the generic bin/mockup-shell.html, and extracts the spec back out.",
         "criteria": [
             "Load bin/mockup-shell.html, which renders entirely from the embedded #spec JSON and carries no project-specific strings.",
-            "Fill the viewport with the active variant on open; keep every control in one collapsible right rail; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
+            "Fill the viewport with the active variant on open, fitting by the smaller of the width and height ratios, re-fitting whenever the stage resizes (host iframe, rail collapse) and never clipping (stage scrolls as the fallback); keep every control in one collapsible right rail; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
             "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
             "Tear down the outgoing mount on every variant, persona, version, view, state-walk or presentation switch and open the target at its default state (a state walk mounts a fresh document at that state) with exactly one iframe and exactly one highlighted active state row; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
         ],

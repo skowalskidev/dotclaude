@@ -185,7 +185,8 @@ every overlay (modal, sheet, popover, menu) INSIDE its own iframe document. Afte
 `bin/mockup-shell.html`, run `python3 ~/.claude/bin/mockup-shell.test.py` (Playwright) and ship only on
 `ALL PASSED` (the fix for a modal that stayed open on top of the next variant, 2026-09-08).
 TEST: `mockup-build.py --extract` on the shipped file yields a spec that rebuilds it byte-identically; at
-1440×900 the mockup is fully visible on open with no scroll; `p` enters presentation mode; a synthetic
+1440×900 the mockup is fully visible on open with no scroll, and inside a wide-short host iframe (1900×1010)
+the whole capture is still visible (fit uses both axes and re-fits on resize); `p` enters presentation mode; a synthetic
 two-variant spec renders in the same shell; the file is ≤12 MB with 0 external requests; with an overlay
 open, switching variant or toggling presentation shows exactly one iframe at the new target's default
 state (`bin/mockup-shell.test.py` passes).

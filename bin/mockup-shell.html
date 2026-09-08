@@ -33,7 +33,14 @@ button{cursor:pointer;}
 .mock-btn.primary{background:var(--color-primary);color:#fff;border-color:var(--color-primary);}
 .mock-btn.active{background:var(--color-text);color:#fff;border-color:var(--color-text);}
 .mock-stage{flex:1 1 auto;min-height:0;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:0;}
-.mock-stage.is-centered{align-items:center;}
+/* is-centered is only applied for a persona narrow enough that vertical centering rarely
+   overflows (see the JS toggle in renderStage). "safe center" degrades to start-alignment —
+   the same scrollable behaviour as the un-centered default — the moment the content is taller
+   than the stage, instead of silently making the overflow unreachable (align-items:center has
+   no scrollable start-overflow in engines that implement it literally). The plain `center` line
+   stays first so an engine without "safe" support keeps a working (if theoretically clippable)
+   center; overflow:auto on .mock-stage above is the last-resort fallback either way — never clip. */
+.mock-stage.is-centered{align-items:center;align-items:safe center;}
 .mock-frame-wrap{position:relative;overflow:hidden;flex:0 0 auto;background:#fff;box-shadow:0 1px 4px rgba(16,24,40,.15);}
 .mock-frame-wrap iframe{position:absolute;top:0;left:0;transform-origin:top left;border:0;display:block;background:#fff;}
 .mock-compare-row{display:flex;gap:14px;padding:16px;overflow:auto;width:100%;}
@@ -296,6 +303,11 @@ function fitFrame(containerEl, wrapEl, iframeEl, naturalW, naturalH, mode){
   // reading the wrap's own clientWidth/Height here would read back whatever this function set
   // last time (or 0 on first paint), never the space actually available to scale into.
   var availW = containerEl.clientWidth, availH = containerEl.clientHeight;
+  // 'fit' scales by BOTH dimensions (min of the two ratios), never just width — a host that
+  // embeds the shell in a wide-but-short frame (a modal iframe) has less height to give than
+  // its width suggests, and a width-only scale overruns the bottom with nothing to reveal it.
+  // Kept unchanged from before: a persona that already fits (either ratio >= 1) is never
+  // upscaled past 1 — it renders at its natural size, same as always.
   var scale = mode === 'width' ? (availW / naturalW) : Math.min(availW / naturalW, availH / naturalH, 1);
   if (!isFinite(scale) || scale <= 0) scale = 1;
   iframeEl.style.transform = 'scale(' + scale + ')';
@@ -336,7 +348,15 @@ function renderStage(){
   // renderStage (a variant switch, a persona switch, a version switch, or a
   // focus/compare/diff view change) — never patch or reuse what was there.
   teardownStage(stage);
-  stage.classList.toggle('is-centered', state.view === 'focus');
+  // Horizontal centering (justify-content:center, the .mock-stage default) always applies.
+  // Vertical alignment is persona-dependent: a narrow persona (mobile) keeps its centred
+  // look — it's rarely taller than the stage, and .is-centered degrades to safe/scrollable
+  // alignment above if it ever is. A wide persona (desktop) top-aligns instead, so a capture
+  // taller than the stage (a short-but-wide host frame, e.g. a modal iframe) always shows its
+  // TOP and scrolls to reveal the rest, rather than centering and clipping both ends with
+  // nothing on screen to say more is there.
+  var isCompactPersona = personaOf(state.persona).w <= 480;
+  stage.classList.toggle('is-centered', state.view === 'focus' && isCompactPersona);
   if (state.view === 'compare') { renderCompareStage(stage); return; }
   if (state.view === 'diff') { renderDiffStage(stage); return; }
   renderFocusStage(stage);
@@ -693,14 +713,31 @@ function renderAll(){
 // removed. They read `state` and `liveIframes.focus` live at call time, so a
 // single instance stays correct across every future switch.
 document.getElementById('mock-stage').addEventListener('mousedown', onStageClickForPin);
-window.addEventListener('resize', debounce(function(){
+// Re-fit the currently mounted focus iframe to whatever size #mock-stage now has. Shared by
+// the window 'resize' listener AND the ResizeObserver below — either can fire alone (a plain
+// window resize with the stage's own box untouched some other way, or the stage's box changing
+// with the outer window untouched, e.g. a rail collapse), so both call the same function rather
+// than duplicating the lookup + fitFrame call.
+function refitFocusStage(){
   var entry = liveIframes.focus;
   if (state.view !== 'focus' || !entry || !entry.iframe.isConnected) return;
   var stage = document.getElementById('mock-stage');
   var wrap = entry.iframe.parentElement;
   var p = personaOf(entry.persona);
   fitFrame(stage, wrap, entry.iframe, p.w, p.h, 'fit');
-}, 150));
+}
+window.addEventListener('resize', debounce(refitFocusStage, 150));
+// A window 'resize' only fires when the OUTER viewport changes. It never fires when only
+// #mock-stage's own box changes with the window untouched — a rail collapse/expand, or a host
+// that resizes just the iframe it embedded this page in (a modal's opening animation settling
+// after this page has already loaded and fit once). ResizeObserver watches the stage element
+// itself, so any of those re-fits the mounted iframe without a reload. Attached ONCE at init,
+// same discipline as the mousedown listener above. Guard for engines without ResizeObserver —
+// the window listener above is still live either way, so a resize that also changes the outer
+// viewport is always caught even where ResizeObserver is unavailable.
+if (typeof ResizeObserver !== 'undefined') {
+  new ResizeObserver(debounce(refitFocusStage, 50)).observe(document.getElementById('mock-stage'));
+}
 
 // A variant's own capture may ask the shell to switch variant (e.g. an in-page
 // link or menu item that leads to another surface). Generic: any capture can
