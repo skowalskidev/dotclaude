@@ -94,6 +94,7 @@ CONTRACTS: dict[str, dict] = {
             "Load bin/mockup-shell.html, which renders entirely from the embedded #spec JSON and carries no project-specific strings.",
             "Fill the viewport with the active variant on open; keep every control in one collapsible right rail; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
             "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
+            "Tear down the outgoing mount on every variant, persona, version, view or presentation switch and open the target at its default state with exactly one iframe; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
         ],
     },
     "bin/workflow-dashboard.py": {

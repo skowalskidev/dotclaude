@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "manifest": {
+    "title": "Mockup shell — synthetic self-test",
+    "subtitle": "Two variants, two states plus an overlay state each, one pin — proves the shell tears down a modal/bottom-sheet on every switch.",
+    "variantIds": [
+      "alpha",
+      "beta"
+    ],
+    "defaultVariant": "alpha",
+    "versionCount": 1
+  },
+  "designTokens": {
+    "colorPrimary": "#2857E5",
+    "colorText": "#1A1D26",
+    "colorTextSecondary": "#5B5F6B",
+    "colorHoverBg": "#F6F6F4",
+    "colorBorder": "#E7E6E2",
+    "colorPageBg": "#FCFCFB",
+    "fontFamily": "Inter, -apple-system, system-ui, sans-serif"
+  },
+  "assets": {},
+  "sources": [
+    "Synthetic self-test spec, hand-authored to prove the shell is generic."
+  ],
+  "shell": {
+    "hintText": "This is the synthetic self-test: browse Alpha/Beta in the rail, walk their states, pin a comment.",
+    "railCollapsed": false,
+    "pinAnchorAttr": "data-mockup-anchor"
+  },
+  "personas": [
+    {
+      "id": "desktop",
+      "label": "Desktop",
+      "w": 900,
+      "h": 600
+    },
+    {
+      "id": "mobile",
+      "label": "Mobile",
+      "w": 390,
+      "h": 700
+    }
+  ],
+  "variants": {
+    "alpha": {
+      "label": "Alpha — first idea",
+      "why": "Baseline layout.",
+      "flashSelector": "#title",
+      "captures": {
+        "desktop": "<!doctype html><html><head><meta charset=\"utf-8\"><style>\nbody{font-family:sans-serif;margin:0;padding:24px;background:#fff;color:#1A1D26;}\n.card{border:1px solid #E7E6E2;border-radius:8px;padding:16px;max-width:320px;}\n.badge{display:inline-block;background:#2857E5;color:#fff;border-radius:16px;padding:3px 10px;font-size:12px;margin-bottom:8px;}\nh1{font-size:18px;margin:0 0 6px;}\np{font-size:13px;color:#5B5F6B;}\n#state-label{font-weight:600;margin-top:10px;display:block;}\n#alpha-modal{position:fixed;inset:0;background:rgba(20,20,30,.45);display:none;align-items:center;justify-content:center;}#alpha-modal.is-open{display:flex;}#alpha-modal .sheet{background:#fff;border-radius:10px;padding:20px;min-width:240px;box-shadow:0 8px 30px rgba(0,0,0,.25);}\n</style></head><body>\n<div class=\"card\" data-mockup-anchor=\"Alpha-card\">\n<span class=\"badge\">Alpha</span>\n<h1 id=\"title\">Alpha variant</h1>\n<p>Synthetic capture used to prove the generic mockup shell renders, walks states, flashes and accepts pins with no project-specific code.</p>\n<span id=\"state-label\">State: base</span>\n</div>\n<div id=\"alpha-modal\" data-mockup-anchor=\"Alpha-modal\"><div class=\"sheet\"><strong>Alpha modal</strong><p>A modal opened by walking to the modal state.</p></div></div>\n<script>\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:goto-state') return;\n  document.getElementById('state-label').textContent = 'State: ' + e.data.stateId;\n  document.getElementById('alpha-modal').classList.toggle('is-open', e.data.stateId === 'modal');\n});\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:cleanup') return;\n  document.getElementById('state-label').textContent = 'cleaned up';\n});\n</script>\n</body></html>",
+        "mobile": "<!doctype html><html><head><meta charset=\"utf-8\"><style>\nbody{font-family:sans-serif;margin:0;padding:24px;background:#fff;color:#1A1D26;}\n.card{border:1px solid #E7E6E2;border-radius:8px;padding:16px;max-width:320px;}\n.badge{display:inline-block;background:#2857E5;color:#fff;border-radius:16px;padding:3px 10px;font-size:12px;margin-bottom:8px;}\nh1{font-size:18px;margin:0 0 6px;}\np{font-size:13px;color:#5B5F6B;}\n#state-label{font-weight:600;margin-top:10px;display:block;}\n#alpha-modal{position:fixed;inset:0;background:rgba(20,20,30,.45);display:none;align-items:center;justify-content:center;}#alpha-modal.is-open{display:flex;}#alpha-modal .sheet{background:#fff;border-radius:10px;padding:20px;min-width:240px;box-shadow:0 8px 30px rgba(0,0,0,.25);}\n</style></head><body>\n<div class=\"card\" data-mockup-anchor=\"Alpha-card\">\n<span class=\"badge\">Alpha</span>\n<h1 id=\"title\">Alpha variant</h1>\n<p>Synthetic capture used to prove the generic mockup shell renders, walks states, flashes and accepts pins with no project-specific code.</p>\n<span id=\"state-label\">State: base</span>\n</div>\n<div id=\"alpha-modal\" data-mockup-anchor=\"Alpha-modal\"><div class=\"sheet\"><strong>Alpha modal</strong><p>A modal opened by walking to the modal state.</p></div></div>\n<script>\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:goto-state') return;\n  document.getElementById('state-label').textContent = 'State: ' + e.data.stateId;\n  document.getElementById('alpha-modal').classList.toggle('is-open', e.data.stateId === 'modal');\n});\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:cleanup') return;\n  document.getElementById('state-label').textContent = 'cleaned up';\n});\n</script>\n</body></html>"
+      },
+      "states": [
+        {
+          "id": "base",
+          "label": "Base state"
+        },
+        {
+          "id": "loading",
+          "label": "Loading state"
+        },
+        {
+          "id": "modal",
+          "label": "Modal open"
+        }
+      ]
+    },
+    "beta": {
+      "label": "Beta — alternative",
+      "why": "Alternative color and copy.",
+      "flashSelector": "#title",
+      "captures": {
+        "desktop": "<!doctype html><html><head><meta charset=\"utf-8\"><style>\nbody{font-family:sans-serif;margin:0;padding:24px;background:#fff;color:#1A1D26;}\n.card{border:1px solid #E7E6E2;border-radius:8px;padding:16px;max-width:320px;}\n.badge{display:inline-block;background:#1E7A34;color:#fff;border-radius:16px;padding:3px 10px;font-size:12px;margin-bottom:8px;}\nh1{font-size:18px;margin:0 0 6px;}\np{font-size:13px;color:#5B5F6B;}\n#state-label{font-weight:600;margin-top:10px;display:block;}\n#beta-sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #E7E6E2;border-radius:12px 12px 0 0;padding:18px;box-shadow:0 -6px 24px rgba(0,0,0,.18);transform:translateY(100%);transition:transform .15s ease;}#beta-sheet.is-open{transform:translateY(0);}\n</style></head><body>\n<div class=\"card\" data-mockup-anchor=\"Beta-card\">\n<span class=\"badge\">Beta</span>\n<h1 id=\"title\">Beta variant</h1>\n<p>Synthetic capture used to prove the generic mockup shell renders, walks states, flashes and accepts pins with no project-specific code.</p>\n<span id=\"state-label\">State: base</span>\n</div>\n<div id=\"beta-sheet\" data-mockup-anchor=\"Beta-sheet\"><strong>Beta bottom sheet</strong><p>A bottom sheet opened by walking to the bottom_sheet state.</p></div>\n<script>\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:goto-state') return;\n  document.getElementById('state-label').textContent = 'State: ' + e.data.stateId;\n  document.getElementById('beta-sheet').classList.toggle('is-open', e.data.stateId === 'bottom_sheet');\n});\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:cleanup') return;\n  document.getElementById('state-label').textContent = 'cleaned up';\n});\n</script>\n</body></html>",
+        "mobile": "<!doctype html><html><head><meta charset=\"utf-8\"><style>\nbody{font-family:sans-serif;margin:0;padding:24px;background:#fff;color:#1A1D26;}\n.card{border:1px solid #E7E6E2;border-radius:8px;padding:16px;max-width:320px;}\n.badge{display:inline-block;background:#1E7A34;color:#fff;border-radius:16px;padding:3px 10px;font-size:12px;margin-bottom:8px;}\nh1{font-size:18px;margin:0 0 6px;}\np{font-size:13px;color:#5B5F6B;}\n#state-label{font-weight:600;margin-top:10px;display:block;}\n#beta-sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid #E7E6E2;border-radius:12px 12px 0 0;padding:18px;box-shadow:0 -6px 24px rgba(0,0,0,.18);transform:translateY(100%);transition:transform .15s ease;}#beta-sheet.is-open{transform:translateY(0);}\n</style></head><body>\n<div class=\"card\" data-mockup-anchor=\"Beta-card\">\n<span class=\"badge\">Beta</span>\n<h1 id=\"title\">Beta variant</h1>\n<p>Synthetic capture used to prove the generic mockup shell renders, walks states, flashes and accepts pins with no project-specific code.</p>\n<span id=\"state-label\">State: base</span>\n</div>\n<div id=\"beta-sheet\" data-mockup-anchor=\"Beta-sheet\"><strong>Beta bottom sheet</strong><p>A bottom sheet opened by walking to the bottom_sheet state.</p></div>\n<script>\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:goto-state') return;\n  document.getElementById('state-label').textContent = 'State: ' + e.data.stateId;\n  document.getElementById('beta-sheet').classList.toggle('is-open', e.data.stateId === 'bottom_sheet');\n});\nwindow.addEventListener('message', function(e){\n  if (!e.data || e.data.type !== 'mockup:cleanup') return;\n  document.getElementById('state-label').textContent = 'cleaned up';\n});\n</script>\n</body></html>"
+      },
+      "states": [
+        {
+          "id": "base",
+          "label": "Base state"
+        },
+        {
+          "id": "error",
+          "label": "Error state"
+        },
+        {
+          "id": "bottom_sheet",
+          "label": "Bottom sheet open"
+        }
+      ]
+    }
+  },
+  "versions": [
+    {
+      "id": "v1",
+      "author": "Claude (shell self-test)",
+      "date": "2026-09-08",
+      "variantIds": [
+        "alpha",
+        "beta"
+      ],
+      "defaultVariant": "alpha",
+      "diffData": {
+        "layout": "baseline",
+        "colorway": "primary"
+      },
+      "runtime": {
+        "selections": {},
+        "comments": {},
+        "verdicts": {},
+        "pins": {
+          "alpha": {
+            "desktop": [
+              {
+                "anchor": "alpha-card",
+                "x": 40,
+                "y": 40,
+                "text": "Example pin: tighten this copy.",
+                "resolved": false
+              }
+            ],
+            "mobile": []
+          },
+          "beta": {
+            "desktop": [],
+            "mobile": []
+          }
+        }
+      }
+    }
+  ]
+}

@@ -181,7 +181,61 @@ function prefersReducedMotion(){
 }
 
 // ---- iframe hosting ----
-var liveIframes = {}; // key -> {iframe, variantId, persona}
+// A "mount" is everything the currently-displayed stage owns: every live iframe
+// (focus view has one, compare view has several), plus every shell-scheduled
+// timer that touches one of those iframes (e.g. the flash-on-load delay).
+// teardownStage() is the ONE place that retires a mount before the next view
+// (a different variant, persona, version, view, or presentation on/off) mounts
+// its own — so nothing from the outgoing mount can survive into the next one.
+var liveIframes = {}; // key -> {iframe, variantId, persona} (kept for the 'focus' lookups call sites use)
+var mount = { iframes: [], timers: [] };
+function trackMountedIframe(iframe, variantId, persona){ mount.iframes.push({ iframe: iframe, variantId: variantId, persona: persona }); }
+function scheduleMountTimer(fn, ms){
+  var id = setTimeout(function(){
+    mount.timers = mount.timers.filter(function(t){ return t !== id; });
+    fn();
+  }, ms);
+  mount.timers.push(id);
+  return id;
+}
+// Overlays (a modal, a bottom sheet, a popover) belong INSIDE a variant's own
+// iframe document. An iframe is not sandboxed (a capture legitimately needs
+// same-origin access to its own document), which also means a careless or
+// hostile capture COULD reach out via window.top/window.parent and attach a
+// node straight to the shell's own <body> — and a plain stage.innerHTML='' on
+// the next switch would never touch it, since it never lived in the stage.
+// This guard makes that impossible to miss: anything a capture appends
+// directly to the shell body (outside the shell's own #mock-app / #mock-hud)
+// is removed immediately and named in a console warning.
+var SHELL_OWN_ROOT_IDS = { 'mock-app': true, 'mock-hud': true };
+function guardShellBodyFromStrayOverlays(){
+  var observer = new MutationObserver(function(mutations){
+    mutations.forEach(function(m){
+      Array.prototype.forEach.call(m.addedNodes, function(node){
+        if (node.nodeType !== 1 || SHELL_OWN_ROOT_IDS[node.id]) return;
+        console.warn('[mockup-shell] a variant appended a node directly to the shell document instead of its own iframe — removing it so it cannot leak across a switch:', node);
+        node.remove();
+      });
+    });
+  });
+  observer.observe(document.body, { childList: true });
+  return observer;
+}
+guardShellBodyFromStrayOverlays();
+// Full teardown of whatever is currently mounted in the stage. Every
+// transition that changes what the stage shows (variant, persona, version,
+// view, or entering/exiting presentation) MUST call this before mounting the
+// next thing — never reuse or patch an existing iframe across a switch.
+function teardownStage(stageEl){
+  mount.iframes.forEach(function(entry){ postToIframe(entry.iframe, { type: 'mockup:cleanup' }); });
+  mount.timers.forEach(function(id){ clearTimeout(id); });
+  mount.timers = [];
+  mount.iframes = [];
+  liveIframes = {};
+  while (stageEl.firstChild) stageEl.removeChild(stageEl.firstChild);
+  stageEl.scrollTop = 0; stageEl.scrollLeft = 0;
+  try { window.getSelection().removeAllRanges(); } catch (e) {}
+}
 function buildIframeForCapture(variantId, persona, onReady){
   var def = SPEC.variants[variantId] || {};
   var raw = (def.captures && def.captures[persona]) || '';
@@ -200,6 +254,13 @@ function buildIframeForCapture(variantId, persona, onReady){
   });
   return iframe;
 }
+// Message contract a capture may listen for, in addition to 'mockup:goto-state':
+//   mockup:cleanup — sent to the OUTGOING iframe right before teardownStage()
+//   removes it from the DOM, so a capture that started its own timer/interval/
+//   observer gets one last chance to release it. Purely advisory: the shell
+//   never depends on a capture handling it, since removing the iframe already
+//   stops its scripts — it exists for a capture that also holds an external
+//   handle (e.g. something registered against `window.top`).
 function postToIframe(iframe, msg){
   try { iframe.contentWindow.postMessage(msg, '*'); } catch (e) {}
 }
@@ -259,7 +320,10 @@ function renderStagebar(){
 
 function renderStage(){
   var stage = document.getElementById('mock-stage');
-  stage.innerHTML = '';
+  // Full teardown BEFORE mounting the next thing, on every path that reaches
+  // renderStage (a variant switch, a persona switch, a version switch, or a
+  // focus/compare/diff view change) — never patch or reuse what was there.
+  teardownStage(stage);
   stage.classList.toggle('is-centered', state.view === 'focus');
   if (state.view === 'compare') { renderCompareStage(stage); return; }
   if (state.view === 'diff') { renderDiffStage(stage); return; }
@@ -273,13 +337,12 @@ function renderFocusStage(stage){
   var iframe = buildIframeForCapture(state.activeVariant, state.persona, function(){
     fitFrame(stage, wrap, iframe, p.w, p.h, 'fit');
     var def = SPEC.variants[state.activeVariant] || {};
-    if (!prefersReducedMotion()) setTimeout(function(){ flashInIframe(iframe, def.flashSelector, false); }, 220);
+    if (!prefersReducedMotion()) scheduleMountTimer(function(){ flashInIframe(iframe, def.flashSelector, false); }, 220);
     else flashInIframe(iframe, def.flashSelector, true);
   });
   wrap.appendChild(iframe);
   liveIframes.focus = { iframe: iframe, variantId: state.activeVariant, persona: state.persona };
-  stage.addEventListener('mousedown', onStageClickForPin, { once: false });
-  window.addEventListener('resize', debounce(function(){ if (state.view === 'focus') fitFrame(stage, wrap, iframe, p.w, p.h, 'fit'); }, 150));
+  trackMountedIframe(iframe, state.activeVariant, state.persona);
 }
 function renderCompareStage(stage){
   var row = document.createElement('div');
@@ -298,6 +361,7 @@ function renderCompareStage(stage){
       iframe.style.transform = 'scale(' + scale + ')';
     });
     frameHost.appendChild(iframe);
+    trackMountedIframe(iframe, id, state.persona);
   });
 }
 function deepDiff(a, b, pathPrefix, rows){
@@ -528,8 +592,14 @@ function saveHtml(){
 }
 
 // ---- Presentation mode ----
-function enterPresentation(){ state.presenting = true; document.body.classList.add('is-presenting'); renderHud(); }
-function exitPresentation(){ state.presenting = false; document.body.classList.remove('is-presenting'); }
+// Entering/exiting presentation only toggles chrome visibility via CSS and
+// never touched the stage before — so whatever overlay a variant had open
+// (mid-walkthrough) rode straight into and back out of presentation with it.
+// Routing both through renderStage() gives presentation mode the SAME full
+// teardown-then-remount as every other transition: a clean default-state
+// mount, never a stale overlay carried across the boundary.
+function enterPresentation(){ state.presenting = true; document.body.classList.add('is-presenting'); renderStage(); renderHud(); }
+function exitPresentation(){ state.presenting = false; document.body.classList.remove('is-presenting'); renderStage(); }
 function renderHud(){
   var def = variantDef(state.activeVariant);
   document.getElementById('mock-hud').textContent = (def.label || state.activeVariant) + ' \u00b7 ' + personaOf(state.persona).label;
@@ -560,6 +630,21 @@ function renderAll(){
   renderRail();
   if (state.presenting) renderHud();
 }
+
+// These are attached ONCE, not per render: renderFocusStage used to call
+// addEventListener on every mount, so every variant/persona/version switch
+// piled on one more mousedown and one more resize listener that was never
+// removed. They read `state` and `liveIframes.focus` live at call time, so a
+// single instance stays correct across every future switch.
+document.getElementById('mock-stage').addEventListener('mousedown', onStageClickForPin);
+window.addEventListener('resize', debounce(function(){
+  var entry = liveIframes.focus;
+  if (state.view !== 'focus' || !entry || !entry.iframe.isConnected) return;
+  var stage = document.getElementById('mock-stage');
+  var wrap = entry.iframe.parentElement;
+  var p = personaOf(entry.persona);
+  fitFrame(stage, wrap, entry.iframe, p.w, p.h, 'fit');
+}, 150));
 
 // A variant's own capture may ask the shell to switch variant (e.g. an in-page
 // link or menu item that leads to another surface). Generic: any capture can

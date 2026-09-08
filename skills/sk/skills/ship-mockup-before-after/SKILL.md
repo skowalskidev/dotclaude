@@ -176,9 +176,18 @@ mockup (the fix for a grid landing page that made Simon scroll around to find th
 **DO keep the built file at or under 12 MB (the dashboard's asset ceiling) and at 0 external requests:**
 store each `data:` URI once in `#spec.assets` and reference it from captures as `@@ASSET:id@@`, and drop
 font families the captures never apply.
+**DO treat every switch (variant, persona, version, view, presentation on/off) as a full teardown that
+opens the target at its DEFAULT state.** The shell's `teardownStage()` retires the outgoing mount (posts
+`mockup:cleanup` to its iframes, clears shell timers, empties the stage) before the next one mounts;
+a capture that holds its own timer, interval or observer releases it on `mockup:cleanup`, and keeps
+every overlay (modal, sheet, popover, menu) INSIDE its own iframe document. After ANY edit to
+`bin/mockup-shell.html`, run `python3 ~/.claude/bin/mockup-shell.test.py` (Playwright) and ship only on
+`ALL PASSED` (the fix for a modal that stayed open on top of the next variant, 2026-09-08).
 TEST: `mockup-build.py --extract` on the shipped file yields a spec that rebuilds it byte-identically; at
 1440×900 the mockup is fully visible on open with no scroll; `p` enters presentation mode; a synthetic
-two-variant spec renders in the same shell; the file is ≤12 MB with 0 external requests.
+two-variant spec renders in the same shell; the file is ≤12 MB with 0 external requests; with an overlay
+open, switching variant or toggling presentation shows exactly one iframe at the new target's default
+state (`bin/mockup-shell.test.py` passes).
 
 ## Capture the BEFORE from the real app
 
