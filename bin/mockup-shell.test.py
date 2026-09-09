@@ -110,7 +110,25 @@ def stage_fit_signal(page):
     )
 
 
+def source_contract_checks():
+    """Keep the portable deep-link and exact What’s-new target contract durable."""
+    source = (SHELL_DIR / "mockup-shell.html").read_text()
+    check("shell URL route validates version, variant, persona and state",
+          all(token in source for token in ("readShellRoute", "stateExists", "applyShellRoute",
+                                             "new URLSearchParams(location.hash")))
+    check("What’s new uses the declared variant and state target",
+          "function goToWhatsNew()" in source
+          and "version.whatsNewVariantId" in source
+          and "version.whatsNewStateId" in source
+          and "stateExists(targetVariant, version.whatsNewStateId)" in source)
+    check("flash follows the selected state with variant fallback",
+          "currentFlashSelector()" in source
+          and "currentState && currentState.flashSelector" in source
+          and "def.flashSelector" in source)
+
+
 def main():
+    source_contract_checks()
     with tempfile.TemporaryDirectory() as tmp:
         out_html = Path(tmp) / "shell-switch-test.html"
         subprocess.run(

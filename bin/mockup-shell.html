@@ -277,6 +277,75 @@ state.activeVariant = resolveDefaultVariant(activeVersion());
 state.compareIds = compareOrderIds().slice(0, 3);
 var RUNTIME = ensureRuntime(activeVersion());
 
+// The shell's URL is a portable, validated view state.  A link can name a version,
+// variant, persona and optional walkthrough state; values from an older spec revision
+// fall back to the current version's declared defaults instead of mounting stale content.
+function versionById(id){ return versions().find(function(v){ return v.id === id; }) || null; }
+function versionVariantIds(v){ return (v && v.variantIds) || SPEC.manifest.variantIds || []; }
+function stateExists(variantId, stateId){
+  if (!stateId) return false;
+  return ((SPEC.variants[variantId] || {}).states || []).some(function(item){ return item.id === stateId; });
+}
+function readShellRoute(){
+  var params = new URLSearchParams(location.hash.replace(/^#/, ''));
+  return { versionId: params.get('v'), variantId: params.get('variant'), persona: params.get('persona'), stateId: params.get('state') };
+}
+function shellRouteHash(){
+  var params = new URLSearchParams();
+  params.set('v', state.versionId);
+  params.set('variant', state.activeVariant);
+  params.set('persona', state.persona);
+  if (state.activeStateId) params.set('state', state.activeStateId);
+  return '#' + params.toString();
+}
+function publishShellRoute(){
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'mockup:route', route: { v: state.versionId, variant: state.activeVariant, persona: state.persona, state: state.activeStateId || null } }, '*');
+  }
+}
+function syncShellRoute(replace){
+  var hash = shellRouteHash();
+  if (location.hash !== hash) {
+    // about:srcdoc inherits its parent's origin but cannot call History with that parent's URL.
+    // Assigning its fragment works in both an embedded dashboard preview and a standalone file.
+    if (location.protocol === 'about:') location.hash = hash;
+    else history[replace ? 'replaceState' : 'pushState'](null, '', hash);
+  }
+  publishShellRoute();
+}
+function applyShellRoute(){
+  var route = readShellRoute();
+  var version = versionById(route.versionId) || latestVersion();
+  state.versionId = version.id;
+  var ids = versionVariantIds(version);
+  state.activeVariant = ids.indexOf(route.variantId) > -1 && SPEC.variants[route.variantId]
+    ? route.variantId : resolveDefaultVariant(version);
+  state.persona = PERSONAS.some(function(persona){ return persona.id === route.persona; }) ? route.persona : PERSONAS[0].id;
+  state.activeStateId = stateExists(state.activeVariant, route.stateId) ? route.stateId : null;
+  state.view = 'focus';
+  state.presenting = false;
+  document.body.classList.remove('is-presenting');
+  state.compareIds = compareOrderIds().slice(0, 3);
+  RUNTIME = ensureRuntime(activeVersion());
+  syncShellRoute(true);
+  renderAll();
+}
+function currentFlashSelector(){
+  var def = SPEC.variants[state.activeVariant] || {};
+  var currentState = (def.states || []).find(function(item){ return item.id === state.activeStateId; });
+  return (currentState && currentState.flashSelector) || def.flashSelector;
+}
+function goToWhatsNew(){
+  var version = activeVersion();
+  var ids = versionVariantIds(version);
+  var targetVariant = version.whatsNewVariantId;
+  if (ids.indexOf(targetVariant) === -1 || !SPEC.variants[targetVariant]) targetVariant = state.activeVariant;
+  state.activeVariant = targetVariant;
+  state.activeStateId = stateExists(targetVariant, version.whatsNewStateId) ? version.whatsNewStateId : null;
+  state.view = 'focus';
+  renderAll();
+}
+
 function prefersReducedMotion(){
   try { return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
 }
@@ -427,10 +496,7 @@ function renderStagebar(){
     '<span class="grow"></span>' +
     '<button type="button" class="mock-btn" id="mock-whatsnew-btn">What\u2019s new \u21bb</button>' +
     '<button type="button" class="mock-btn" id="mock-present-btn">Present \u21d7</button>';
-  document.getElementById('mock-whatsnew-btn').addEventListener('click', function(){
-    var entry = liveIframes.focus;
-    if (entry) flashInIframe(entry.iframe, (SPEC.variants[state.activeVariant] || {}).flashSelector);
-  });
+  document.getElementById('mock-whatsnew-btn').addEventListener('click', goToWhatsNew);
   document.getElementById('mock-present-btn').addEventListener('click', enterPresentation);
 }
 
@@ -464,8 +530,8 @@ function renderFocusStage(stage){
     if (state.activeStateId) postToIframe(iframe, { type: 'mockup:goto-state', stateId: state.activeStateId });
     fitFrame(stage, wrap, iframe, p.w, p.h, 'fit');
     var def = SPEC.variants[state.activeVariant] || {};
-    if (!prefersReducedMotion()) scheduleMountTimer(function(){ flashInIframe(iframe, def.flashSelector, false); }, 220);
-    else flashInIframe(iframe, def.flashSelector, true);
+    if (!prefersReducedMotion()) scheduleMountTimer(function(){ flashInIframe(iframe, currentFlashSelector(), false); }, 220);
+    else flashInIframe(iframe, currentFlashSelector(), true);
   });
   wrap.appendChild(iframe);
   liveIframes.focus = { iframe: iframe, variantId: state.activeVariant, persona: state.persona };
@@ -808,6 +874,7 @@ document.addEventListener('keydown', function(e){
 });
 
 function renderAll(){
+  syncShellRoute(false);
   renderHint();
   renderStagebar();
   renderStage();
@@ -850,7 +917,18 @@ if (typeof ResizeObserver !== 'undefined') {
 // A variant's own capture may ask the shell to switch variant (e.g. an in-page
 // link or menu item that leads to another surface). Generic: any capture can
 // post this, the shell does not know or care what triggered it.
+window.addEventListener('hashchange', applyShellRoute);
 window.addEventListener('message', function(e){
+  if (e.source === window.parent && e.data && e.data.type === 'dashboard-mockup-route') {
+    var route = e.data.route || {};
+    if (typeof route.v === 'string' && typeof route.variant === 'string' && typeof route.persona === 'string' && (route.state == null || typeof route.state === 'string')) {
+      var params = new URLSearchParams();
+      params.set('v', route.v); params.set('variant', route.variant); params.set('persona', route.persona);
+      if (route.state) params.set('state', route.state);
+      if (location.hash !== '#' + params.toString()) location.hash = params.toString();
+    }
+    return;
+  }
   if (!e.data || e.data.type !== 'mockup:navigate-variant') return;
   if (!SPEC.variants[e.data.variantId]) return;
   state.activeVariant = e.data.variantId;
@@ -859,7 +937,7 @@ window.addEventListener('message', function(e){
   renderAll();
 });
 
-renderAll();
+applyShellRoute();
 })();
 </script>
 </body>

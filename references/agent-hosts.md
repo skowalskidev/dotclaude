@@ -22,7 +22,7 @@ Follow the host's higher-priority instructions when a shared rule names another 
 
 `bin/codex_print.py` supplies the launcher's local `codex -p` print mode using the same native runtime and
 credential routing. It does not replace the interactive host or change its model configuration.
-For Full Claude/Full Astra workflow selection and child-model policy, read
+For current-chat provider inheritance and child-model policy, read
 `references/parallelization.md` § Choose and preserve the agent setup.
 
 Put `-p` or `--print` first for the local print extension; use `--profile` for native profile

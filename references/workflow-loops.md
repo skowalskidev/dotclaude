@@ -1,8 +1,8 @@
 # One plan, two execution modes, one dashboard
 
 Before delegation, apply `references/parallelization.md` § Choose and preserve the agent setup.
-Carry the living plan's selection into every fresh worker, judge and retry; never switch providers
-to get past a failure. Loop engine names describe execution strategy, not the model/provider setup.
+Reconcile the living plan with the current chat's provider before every fresh worker, judge and retry;
+never carry a stale cross-provider selection forward or switch providers to get past a failure. Loop engine names describe execution strategy, not the model/provider setup.
 
 DO compose the execution mode and judge independently. Recommend
 `--engine current --judge on`; use `--engine ralph` for fresh-context completion and
@@ -48,9 +48,26 @@ DO keep `.context/<slug>-plan.md` as the sole task record. Add exactly one fence
 `dashboard-state` JSON block under `## Dashboard state`. Keep narrative requirements and decisions
 in the existing sections; store task status, criteria, assets and verdicts only in the JSON.
 Generate `.context/<slug>-dashboard.html` from it. DO NOT hand-edit status in the generated HTML.
-Keep the HTML path stable throughout the task. TEST: rebuilding from the plan reproduces the view.
+DO keep one canonical dashboard file per plan and one canonical mockup file per surface. Rebuild
+those same files for every revision, retaining all earlier versions, variants and feedback in `#spec`.
+TEST: the existing review link opens the latest proposal and its history after each rebuild.
 
-DO use `bin/workflow-dashboard.html` unchanged as the shared shell.
+DO base each visual increment on the last user-approved version and the product's current design.
+Record the proposed revision/hash separately from the approved revision/hash. Announce the specific
+change before editing, show that revision through the canonical link, and wait for its review before
+adding the next visual increment. Approval of one increment covers only its shown scope. Continue
+independent authorized work while review is pending. TEST: each implemented visual change traces to
+an explicit approval of the same revision/hash; a newer proposal never inherits an earlier approval.
+
+DO update the dashboard target and revision together whenever its canonical mockup changes. Give the
+user a direct URL containing the task section, asset and open view. Preserve that selection on reload
+and browser Back/Forward. Escape closes the innermost open overlay first, including when focus is
+inside a nested capture. TEST: the shared URL reopens the reviewed surface and nested Escape closes
+one overlay without losing feedback.
+
+DO use `bin/workflow-dashboard.html` unchanged as the shared shell. When feedback on the dashboard itself
+arrives mid-loop ("open the mockup in a new tab", "the modal clips"), it is a config change: run
+`/sk:claude-config-update` in a background agent and keep the loop's task on its own deliverable.
 Put overall completion above the left section buttons. Put Before, Reference / target and Current
 in three right-hand panels, one slide per section. Use 2–5 word section titles and one sentence
 of summary. Put tests, judge evidence and source detail behind Details. For visual work, embed

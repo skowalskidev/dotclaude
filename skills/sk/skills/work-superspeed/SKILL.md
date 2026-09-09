@@ -1,6 +1,6 @@
 ---
 name: work-superspeed
-description: Run a task across real parallel Claude or Astra sessions, then reconcile in one warm session and log the run. Select Full Claude or Full Astra for the entire workflow. Cut exclusive file-ownership slices, dispatch each through `claude -p` or `codex -p`, verify on disk, assemble and gate the result, and analyse waste. Use for "run this in parallel", "fan this out", "split this across sessions", "full Astra workers", "superspeed", or any task that genuinely divides into 3-5 independent pieces. Not for work that does not divide.
+description: Run a task across real parallel Claude or Astra sessions, then reconcile in one warm session and log the run. Inherit the current chat's provider for the entire workflow. Cut exclusive file-ownership slices, dispatch each through `claude -p` or `codex -p`, verify on disk, assemble and gate the result, and analyse waste. Use for "run this in parallel", "fan this out", "split this across sessions", "full Astra workers", "superspeed", or any task that genuinely divides into 3-5 independent pieces. Not for work that does not divide.
 argument-hint: "[the task to parallelise]"
 ---
 
@@ -12,7 +12,7 @@ it better next time.
 ## Read this before using it
 
 First read `~/.claude/references/parallelization.md` § Choose and preserve the agent setup.
-Ask or reuse the workflow's choice before partitioning; carry it through reconciliation and retries.
+Derive the setup from the actual chat before partitioning; reconcile stale saved choices before retries.
 The benchmarks and Claude-specific cache, permission and billing claims here are historical Claude
 evidence, not Astra measurements. Astra uses native Codex permissions and reports unknown telemetry.
 
@@ -159,9 +159,10 @@ Write it as a spec file:
 
 ## Step 2 — dispatch
 
-The example is Full Claude. For Full Astra, set `agent_setup` to `full-astra` and both model fields
-to `gpt-6-astra`. Record the actual orchestrator model, not a desired future model; a mismatched
-session must be switched before launching. The shared setup validator rejects missing/mixed choices.
+Match the example's fields to the actual chat before dispatching. Use `full-openai` for an OpenAI
+session and its actual model for `orchestrator_model` and `model`; use `full-astra` when both are
+`gpt-6-astra`. The validator derives an omitted setup and rejects native-provider conflicts before setup
+or inference. A stale Claude example cannot authorize Claude workers in an OpenAI chat.
 
 ```bash
 ~/.claude/bin/superspeed-dispatch.sh slices.json .superspeed/run-1
@@ -169,7 +170,8 @@ session must be switched before launching. The shared setup validator rejects mi
 
 Full Claude launches one `claude -p` per slice with the selected Claude model,
 `--permission-mode acceptEdits` and `--output-format json`. Full Astra launches one `codex -p`
-per slice through native Codex, pinned to Astra, with JSON results and separate `events.jsonl`.
+per slice through native Codex, pinned to Astra; Full OpenAI passes the saved OpenAI model.
+Both Codex setups write JSON results and separate `events.jsonl`.
 Both disable headless intake/ledger prompts and preserve the chosen setup. Neither falls back.
 
 **The orchestrator sets the tree up once, before any slice starts, and `setup` is mandatory.**

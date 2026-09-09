@@ -67,6 +67,75 @@ bypasses for anything blocking a fast loop:
   it was written with admin god-mode produces a UI that shows nothing.
 - **Code-as-seed beats a saved data snapshot.** Snapshots rot and break clean checkouts.
 
+## Production source fidelity
+
+Read `~/.claude/rules/connectors.md` and `~/.claude/references/connectors-setup.md`; resolve the
+project from git origin and the matching manifest before accessing production. Record the selected
+source account/environment and read-only credential identity without exposing credential values.
+Run production reads in a separate exporter process using the provisioned read-only credential.
+Export the raw records the changed code reads, including dependent records and pagination; record
+omissions explicitly. Store the snapshot privately outside tracked files with restrictive permissions.
+
+Record a provenance manifest: source project/account IDs, query scope, capture time in UTC, record
+counts, original earliest/latest event dates, timezone, snapshot hash, branch SHA and local destination.
+Keep source timestamps unchanged. Record the calculation clock separately; use the real current clock
+by default. An explicitly requested historical replay uses a recorded reference clock without changing
+source dates. Label synthetic edge cases and identity redactions separately from the production copy.
+Do not move old events into today's window, clear contamination or fill absent evidence to improve a
+preview. TEST: counts and a field-level comparison against the export match except for the declared
+identity/redaction mapping; every windowed result names its calculation clock.
+
+## Prepare derived state before capture
+
+Trace the app's read path to the store it actually consumes. Import the production copy only into an
+isolated local store or a namespaced development destination; verify the destination identity before
+writing. Keep authentication, role and account mapping within that destination. Reject imports or
+recomputes whose destination is production before constructing a write-capable client.
+
+Name the data mode before capture:
+
+- **Persisted-source:** run the changed readers against copied production records unchanged, including
+  existing derived snapshots. Use this mode to inspect deployment skew or legacy-data rejection; report
+  that no production refresh or local recompute was run.
+- **Recomputed:** run the changed branch's real writer against complete copied inputs when claiming a
+  post-refresh or post-migration result. Keep its output separate from the source snapshot; record
+  writer version, calculation time and source hash. An account-only export cannot support a fleet-wide
+  recompute. If required inputs are missing, retain persisted-source mode and name the unverified state.
+
+Re-read through the app's normal API and reconcile visible figures to the selected mode's result.
+Capture an honest empty, stale or insufficient state when the source supports it.
+TEST: the evidence names one data mode and its inputs; API and visible values match that result, and
+no post-refresh claim relies on a synthetic recompute from an incomplete subset.
+
+## Local preview using production records
+
+Use `~/.claude/references/dev-server-hygiene.md` and
+`~/.claude/references/browser-debugging.md`. Record the changed routes and requested accounts first;
+when none are named, choose accounts that cover the changed states and state the resulting coverage.
+Reuse existing account-wide verification evidence when its source snapshot and branch still match.
+
+Start the current branch's app/API against the isolated copy. Give the preview runtime zero production
+credentials, production auth sessions or production service endpoints; the exporter alone can read
+production. Bind local services to loopback. Disable background dispatch and replace external messaging,
+billing, webhooks and analytics at their service boundaries so preview interactions produce zero live
+side effects. A hidden button or a read-only database flag is not a runtime boundary.
+TEST: inspect resolved destinations and credential identities without values, and test rejection of a
+production destination offline. Confirm browser network and server logs reach only the declared preview
+services. Never probe the guard by attempting a production write.
+
+Drive the real changed UI using its normal routing, authentication and data reads. Keep source-derived
+states intact for the fidelity pass; run editable/edge scenarios on a second isolated copy. Fix defects
+and repeat the affected visual pass, preserving the provenance record after each recompute. For example,
+a historical transaction remains on its original date even when that leaves today's chart empty.
+Keep raw records and identifying captures local; publish only evidence the user separately requests.
+
+Leave the verified preview available when a local-preview request is active. Record its URL, account,
+route, source capture time, date range, data mode, clock mode, screenshots, gaps, process IDs, log paths,
+and exact stop/restart commands in the local evidence file. Retain only those preview processes and
+artifacts requested for review; stop exporters and unrelated test workers, and clear task authorization
+sentinels. TEST: reopen the handed-back URL and confirm the branch, account and source-derived values;
+the cleanup command targets only this preview and releases its claimed ports.
+
 ## Logging that makes negative paths provable
 
 - **Tag every log line for a workflow** with a bracketed `[feature:phase]` and a lifecycle state
@@ -124,7 +193,7 @@ most. A rendered frontend interaction a unit test structurally cannot reach is m
 handed to `/sk:test-copilot`, never faked green with a network mock.
 
 **Stage 2 — the selected setup's judge, on top of green.** Reuse the saved workflow setup under
-`references/parallelization.md`; a Full Astra review uses Astra, not a Claude default.
+`references/parallelization.md`; every judge uses the current chat's provider, including after a resume or retry.
 A passing assertion proves the code does what
 someone thought to assert; it never proves the feature does what it was FOR. So for each feature — with
 extra, multi-step reasoning for a complex or multi-call one — the judge reads the real inputs, outputs and

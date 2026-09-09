@@ -41,22 +41,23 @@ CONTRACTS: dict[str, dict] = {
             "Disable on-demand connectors and retired manifest-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
+            "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
             "Resolve explicit binary overrides first, then installed stable Conductor binaries in descending version order, then PATH; skip non-executable files and the launcher itself.",
         ],
     },
     "bin/agent_setup.py": {
-        "mission": "Simon's selected setup stays consistent across the whole delegated workflow.",
+        "mission": "Simon's delegated agents stay on the current chat's model provider throughout the workflow.",
         "purpose": "Validate saved setup, orchestrator, worker and reviewer model choices before dispatch.",
         "criteria": [
-            "Reject missing choices, mismatched models, inherited setup conflicts and per-slice model overrides before launching processes.",
-            "Preserve a saved selection without mutating the input spec; never silently default the provider.",
+            "Derive omitted setup from the actual orchestrator model; reject unknown models, native-provider conflicts, inherited setup conflicts and per-slice overrides before launching processes.",
+            "Reject stale cross-provider plans without mutating the input spec; preserve explicit same-provider model choices and Astra-only worker constraints.",
         ],
     },
     "bin/codex_print.py": {
-        "mission": "Simon can launch independent headless Astra workers without changing authentication or falling back to Claude.",
+        "mission": "Simon can launch independent headless OpenAI workers without changing authentication or falling back to Claude.",
         "purpose": "Provide codex -p through native Codex exec and normalize its events.",
         "criteria": [
-            "Pin gpt-6-astra, preserve native permissions and launcher routing, and pass prompt text without shell interpolation.",
+            "Default to gpt-6-astra; accept explicit OpenAI models within the inherited setup, preserve native permissions and launcher routing, and pass prompt text without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",
         ],
@@ -86,6 +87,8 @@ CONTRACTS: dict[str, dict] = {
             "Require fresh workers for Ralph and separate fresh judges for Gauntlet; unavailable delegation remains blocked.",
             "Require verified criteria and current-revision judge evidence for completion; budgets and cancellation never count as done.",
             "Retain standalone offline export and live updates with explicit connection failure; retain all embedded mockup versions and feedback.",
+            "Keep one canonical dashboard/mockup path per surface; point the target at the current proposal, store approved snapshots by hash metadata, show each bounded revision at that same link, and wait for user review before the next substantial change.",
+            "Preserve approved baseline styles and components during mockup iterations; do not implement against an unseen or unapproved target.",
             "Accept screenshots, platform names or no references; freeze explicit user approval of an AI-drafted target before judging implementation against it.",
         ],
     },
@@ -116,6 +119,7 @@ CONTRACTS: dict[str, dict] = {
             "Fill the viewport with the active variant on open, fitting by the smaller of the width and height ratios, re-fitting whenever the stage resizes (host iframe, rail collapse) and never clipping (stage scrolls as the fallback); keep every control in one collapsible right rail whose Variants list shows exactly one Before (role: before), then the current after-variants, with superseded rounds (superseded: true or a legacy 'Before — superseded' label) under a collapsed Earlier rounds disclosure that arrow keys skip; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
             "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
             "Tear down the outgoing mount on every variant, persona, version, view, state-walk or presentation switch and open the target at its default state (a state walk mounts a fresh document at that state) with exactly one iframe and exactly one highlighted active state row; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
+            "Route validated version, variant, persona and state fragments on load and history navigation; What’s new selects the declared variant/state target with a fallback and flashes that state’s selector, while reduced motion leaves a static marker.",
         ],
     },
     "bin/workflow-dashboard.py": {
@@ -125,7 +129,8 @@ CONTRACTS: dict[str, dict] = {
             "Load bin/workflow-dashboard.html and use one plan across execution modes.",
             "Reject unconfirmed running state, incomplete criteria, stale or self-approved judgements and conflicting revisions.",
             "Validate assets before advancing the plan and inline them for offline export.",
-            "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped; bin/workflow-dashboard.test.py proves it at 1900x1010 and 1440x900.",
+            "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped, and open its canonical dashboard route in a new tab when live, or the same embedded html as a view-only blob when offline, from the modal header and the panel caption; bin/workflow-dashboard.test.py proves both.",
+            "Persist section, artifact and modal in the URL hash; restore the route on load and Back/Forward; close the innermost open overlay on Escape from the dashboard or a nested iframe; refresh an open canonical asset after a remote revision without dropping feedback.",
         ],
     },
     # --- Top-level -----------------------------------------------------------------
@@ -196,7 +201,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
-            "Ask for Full Claude or Full Astra before delegation unless already selected; retain the choice for all roles and retries without mixing providers.",
+            "Inherit the actual chat provider for workers, reviewers, judges and retries without re-asking; reconcile stale plans and never fall back across providers. Every delegated worker gets an explicit tier by job (smallest for mechanical, mid for substantive edits, strong for judgement), never the orchestrator's model by default.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
@@ -436,8 +441,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, gates, and the no-billable-calls guarantee.",
+        "purpose": "Test structure, gates, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
+            "Keep production export credentials outside the preview runtime; reject production destinations before creating write-capable clients and verify the refusal offline.",
+            "Preserve source dates and record persisted-source or recomputed mode; require complete inputs for post-refresh claims and verify API and visible values against the selected mode.",
+            "Retain the requested local preview with a working URL and scoped stop/restart commands; stop exporters and unrelated workers.",
             "Keep review judges on the selected workflow setup through the shared parallelization protocol.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
@@ -663,6 +671,16 @@ CONTRACTS: dict[str, dict] = {
             "guarantee of correctness.",
         ],
     },
+    "skills/sk/skills/ship-preview-eyeball-with-prod-data/SKILL.md": {
+        "mission": "Simon can inspect the changed app with authentic production data locally before deployment, without exposing production to preview writes.",
+        "purpose": "Compose an isolated production-data preview, a visual pass and a reusable local hand-back.",
+        "criteria": [
+            "Use the shared testing-strategy source-fidelity, derived-state and local-preview procedures instead of duplicating export, browser or recompute mechanics.",
+            "Compose ship-verify-with-prod-data for changed data figures and test-eyeball for visual verification; keep account coverage explicit.",
+            "Keep exports and captures local; require a separate request for deployment, production mutation or evidence publication.",
+            "Return a working local URL with account, route, capture time, original date range, data mode, clock mode, visual verdict, evidence and stop/restart commands.",
+        ],
+    },
     "skills/sk/skills/ship-verify-with-prod-data/SKILL.md": {
         "mission": "A data-facing change is proven correct against every prod account's real data, and any regression caught, before it ships — not after a merchant sees a wrong number.",
         "purpose": "Reads prod read-only, recomputes what a data surface would show for every account with "
@@ -687,9 +705,7 @@ CONTRACTS: dict[str, dict] = {
             "Hands Simon the backfill/recompute command plus deploy order to run on prod himself, "
             "proven first by running the identical script on a seedable dev account and re-reading "
             "until that account reconciles.",
-            "Before screenshots, re-runs the new writer's recompute on the seed dev account so the "
-            "capture shows the new figures, not the deploy-skew fallback; hands the capture to "
-            "/sk:ship-screenshot-changes.",
+            "Use shared derived-state preparation before screenshots; distinguish copied persisted-source state from post-refresh results requiring the real writer and complete inputs, then hand off to ship-screenshot-changes.",
             "Composes /sk:ship-screenshot-changes and feeds "
             "/sk:ship-report-and-ensure-correct-user-system-journey a real-data verdict; does not "
             "restate them.",
@@ -944,9 +960,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/superspeed-dispatch.sh": {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
-        "purpose": "Engine for /sk:work-superspeed — launch one selected Claude or Astra process per slice and log it.",
+        "purpose": "Engine for /sk:work-superspeed — launch one same-provider process per slice and log it.",
         "criteria": [
-            "Validate setup consistency before spending; launch only the selected provider and return failure for a failed or incomplete worker.",
+            "Validate native-provider and setup consistency before spending; propagate the provider and explicit model to each worker, and return failure for a failed or incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
             "Verifies each slice by its on-disk artifact, never by exit code "

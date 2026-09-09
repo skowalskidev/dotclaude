@@ -66,7 +66,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
 | `bin/agent_runtime.py` + `bin/codex-launch.py` | Native Codex adapter and executable; enforces subscription-only inference and separate project connector boundaries |
-| `bin/agent_setup.py` + `bin/codex_print.py` | Full Claude/Full Astra dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
+| `bin/agent_setup.py` + `bin/codex_print.py` | Current-chat provider dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
 | `dotfiles/codex-AGENTS.md` | Native instruction entrypoint linked into the Codex subscription home |
 | `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
@@ -106,6 +106,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `skills/sk/skills/work-superspeed/` | The `/sk:work-superspeed` skill — cut a task into 3-5 exclusively-owned slices, dispatch them as parallel sessions, reconcile warm in the orchestrator, then analyse the run. Measured 2026-08-06: beat in-session subagents in all 4 configs and all 14 reps, by a fixed ~33s |
 | `skills/sk/skills/claude-config-self-optimize-analysis-after-run/` | The `/sk:claude-config-self-optimize-analysis-after-run` skill — reads one run's logs and proposes the specific partition and instrumentation changes for the next run; proposes, never applies |
 | `skills/sk/skills/ship-mockup-before-after/` | `/sk:ship-mockup-before-after` — real product captures, versioned design targets and feedback inside the shared dashboard; approved target becomes implementation evidence reference |
+| `skills/sk/skills/ship-preview-eyeball-with-prod-data/` | `/sk:ship-preview-eyeball-with-prod-data`; shared procedure in `references/testing-strategy.md` |
 | `skills/sk/skills/work-preview-on-phone/` | The `/sk:work-preview-on-phone` skill — puts a running dev server on your phone over Tailscale Serve (tailnet-private, never Funnel), binds the server to loopback first so the LAN cannot reach it, clears the silent cross-origin allowlist trap, and mints a dev-only API credential rather than widening production's. Any repo |
 | `skills/sk/skills/work-isolate-environment/` | The `/sk:work-isolate-environment` skill — wires a project so this session's dev stack runs on its own lane of ports (`bin/port-slot.sh` allocates, this decides the per-project knobs). Any repo, personal or work, containerised or host-run |
 | `skills/sk/skills/meta-report-standup-weekly/` | The `/sk:meta-report-standup-weekly` skill — the spoken Monday standup script, sourced from git + `gh` + Linear over a window rather than from you. Collapses commits into outcomes and refuses to call a draft PR shipped |
@@ -145,9 +146,9 @@ API credentials remain unused and untouched. Set `AGENT_CODEX_BIN`
 to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
 shell function and therefore bypasses manifest projection; use the launcher for setup and diagnosis.
 
-### Full Claude or Full Astra
+### Delegated model provider
 
-Delegated workflows ask once which setup to use and retain the selection in their living plan.
+Delegated workflows inherit the current chat's provider and reconcile stale saved plans before resuming.
 See `references/parallelization.md` for model consistency, dispatch fields and failure behavior.
 The local `codex -p` shortcut starts a separate headless native Codex process, not Claude workers:
 
@@ -157,7 +158,8 @@ codex -p "Implement the assigned task"
 ```
 
 Put `-p` or `--print` first to select print mode. Use `codex --profile <name>` for native profiles;
-other native commands pass through unchanged. Full Astra remains the selected worker model setup.
+other native commands pass through unchanged. Pass `--model <openai-model>` to inherit an OpenAI
+chat's model; omitting it uses Astra. Claude chats keep every delegated role on Claude.
 
 `bin/codex_print.py` provides the print-mode adapter; `bin/agent_setup.py` validates saved setup/model
 choices. Existing ChatGPT authentication is reused; missing subscription access stops the run instead
@@ -286,6 +288,9 @@ Native adapter details and verified upstream references live in `references/agen
    `config-contract.test.py` is the one that matters: it re-checks the other two, the hook wiring,
    the JSON validity, the secret gate and the doc claims. Neither suite states a pass COUNT here —
    a hardcoded count drifts, and a stale one teaches the next agent to accept a wrong number.
+
+The production-data preview skill uses the existing `sk` link and project connector setup. It adds
+no dependency or credential. Start a new session if its name is absent from the skill catalog.
 
 ### Secrets to recreate (ask the user — never fabricate)
 These live **outside** this repo and are **not** committed. Prompt the user for each; never invent one.

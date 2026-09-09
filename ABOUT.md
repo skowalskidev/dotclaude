@@ -14,11 +14,12 @@ Conductor, hook trust, authentication and the process restart required for conne
 Claude transcript metrics remain specific to Claude; native Codex hooks reuse the shared behavioral
 checks without claiming those metrics are portable.
 
-Delegated workflows now ask for **Full Claude** or **Full Astra**, then retain that choice for all
-roles and retries in the same workflow. The current orchestrator must match; selecting a setup does
-not switch an already-running model. For independent headless Astra work, load the shell snippet and
-use `codex -p "the task"`. This local shortcut uses the native Codex launcher and existing auth, not
-Claude workers or a new API client. Setup details live in `references/parallelization.md`.
+Delegated workflows inherit the current chat's provider: OpenAI chats use OpenAI workers and reviewers;
+Claude chats use Claude. Resuming a saved plan reconciles its models with the current chat before
+launching anything. A failed model or subscription never triggers another provider.
+For independent OpenAI work, use `codex -p "the task" --model <openai-model>`; omitting `--model`
+uses Astra. The shortcut reuses native Codex and existing authentication.
+Setup details live in `references/parallelization.md`.
 
 ## Gauntlet dashboard
 
@@ -56,3 +57,12 @@ Entry skills: `skills/sk/skills/work-gauntlet-loop/` and `skills/sk/skills/work-
 Shared runtime: `bin/workflow-dashboard.*`. Protocol and attribution:
 `references/workflow-loops.md`. Validation: `python3 hooks/config-contract.test.py`.
 Runtime plan/evidence files stay in the task workspace and must be preserved before deleting it.
+
+## Production-data preview
+
+Invoke [sk] `/sk:ship-preview-eyeball-with-prod-data` to inspect a local branch with actual production
+account data before deployment. The preview uses an isolated copy with original dates, a visual check
+and a source record. Inspect existing snapshots or a named post-refresh state with complete inputs.
+The hand-back includes the local URL and stop/restart commands. Production stays
+read-only, and the preview runtime carries no production credentials. Procedure:
+`references/testing-strategy.md`.

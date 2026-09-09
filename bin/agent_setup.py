@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate one explicit model setup before launching a delegated workflow."""
+"""Inherit the current chat provider before launching a delegated workflow."""
 import argparse
 import json
 import os
@@ -9,33 +9,70 @@ import sys
 
 ASTRA_MODEL = 'gpt-6-astra'
 CLAUDE_WORKER_MODEL = 'claude-sonnet-4-6'
-SETUPS = ('full-claude', 'full-astra')
+SETUPS = ('full-claude', 'full-astra', 'full-openai')
+
+
+def model_provider(model):
+    if not isinstance(model, str):
+        return None
+    if re.fullmatch(r'claude-[A-Za-z0-9.-]+', model) or model in ('opus', 'sonnet', 'haiku'):
+        return 'anthropic'
+    if re.fullmatch(r'(?:gpt-[A-Za-z0-9.-]+|o[1-9][A-Za-z0-9.-]*)', model):
+        return 'openai'
+    return None
+
+
+def current_provider():
+    """Use native process evidence, never a saved plan, to constrain launches."""
+    providers = set()
+    if os.environ.get('CODEX_THREAD_ID') or os.environ.get('CODEX_SESSION_ID'):
+        providers.add('openai')
+    if os.environ.get('CLAUDECODE') == '1':
+        providers.add('anthropic')
+    inherited = os.environ.get('AGENT_MODEL_PROVIDER')
+    if inherited:
+        if inherited not in ('openai', 'anthropic'):
+            raise ValueError('Unknown inherited AGENT_MODEL_PROVIDER.')
+        providers.add(inherited)
+    if len(providers) > 1:
+        raise ValueError('Conflicting native provider signals; start the matching chat before delegation.')
+    return next(iter(providers), None)
+
+
+def require_provider(provider):
+    active = current_provider()
+    if active and active != provider:
+        raise ValueError('Current chat provider is ' + active + '; no cross-provider worker or reviewer is allowed.')
 
 
 def matches_model(setup, model):
-    if not isinstance(model, str):
-        return False
     if setup == 'full-astra':
         return model == ASTRA_MODEL
-    return bool(re.fullmatch(r'claude-[A-Za-z0-9.-]+', model)) or model in ('opus', 'sonnet', 'haiku')
+    return model_provider(model) == ('openai' if setup == 'full-openai' else 'anthropic')
 
 
 def resolve(spec):
+    orchestrator = spec.get('orchestrator_model')
+    provider = model_provider(orchestrator)
+    if not provider:
+        raise ValueError('Record the actual orchestrator_model from the current chat before dispatching.')
+    require_provider(provider)
     setup = spec.get('agent_setup')
+    if setup is None:
+        setup = ('full-claude' if provider == 'anthropic' else
+                 'full-astra' if orchestrator == ASTRA_MODEL else 'full-openai')
     if setup not in SETUPS:
-        raise ValueError('Ask Simon: Which setup, Full Claude or Full Astra? '
-                         'Record agent_setup as full-claude or full-astra; there is no default.')
+        raise ValueError('Unknown agent_setup; derive it from the current chat provider.')
     inherited = os.environ.get('AGENT_SETUP')
     if inherited and inherited != setup:
         raise ValueError('The requested setup differs from this workflow\'s AGENT_SETUP; '
-                         'return to the orchestrator instead of mixing setups.')
-    orchestrator = spec.get('orchestrator_model')
+                         'reconcile the stale plan with the current chat before dispatching.')
     if not matches_model(setup, orchestrator):
         raise ValueError('orchestrator_model must match ' + setup +
-                         '; switch the orchestrator session/model before dispatching.')
-    model = spec.get('model', ASTRA_MODEL if setup == 'full-astra' else CLAUDE_WORKER_MODEL)
+                         '; reconcile the stale plan with the actual current chat.')
+    model = spec.get('model', orchestrator if provider == 'openai' else CLAUDE_WORKER_MODEL)
     if not matches_model(setup, model):
-        raise ValueError('Worker model does not match ' + setup + '; no cross-model fallback is allowed.')
+        raise ValueError('Worker model does not match ' + setup + '; no cross-provider fallback is allowed.')
     if 'reviewer_model' in spec and not matches_model(setup, spec['reviewer_model']):
         raise ValueError('Reviewer model does not match ' + setup)
     slices = spec.get('slices')
@@ -49,7 +86,7 @@ def resolve(spec):
         names.add(name)
         if 'model' in item or 'agent_setup' in item:
             raise ValueError('Set model and agent_setup once at the workflow level, not per slice.')
-    return dict(spec, agent_setup=setup, model=model)
+    return dict(spec, agent_setup=setup, model=model, model_provider=provider)
 
 
 def main():

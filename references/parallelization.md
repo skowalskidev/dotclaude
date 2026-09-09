@@ -4,22 +4,21 @@ How to fan work out — across agents, tasks, and pipeline stages — without cl
 
 ## Choose and preserve the agent setup
 
-Apply the question in `rules/process.md` before any delegated workflow. An explicit choice in the
-current request or the same workflow's living plan answers it; otherwise wait for Simon's choice.
-Save `agent_setup`, the actual `orchestrator_model`, and worker `model` in the plan. Copy them into
-dispatch specs and handoff prompts, including hyperspeed parts, fresh reviewers and loop retries.
+Apply `rules/process.md`: inherit the actual current chat's provider before reading a saved setup.
+Record `agent_setup`, the actual `orchestrator_model`, and worker `model` in the living plan.
+Copy them into dispatch specs and handoffs, including hyperspeed parts, fresh reviewers and retries.
+Reconcile any stale provider/model fields on resume; saved choices never override the current chat.
 
 | Setup | Orchestrator | Workers and reviewers | Headless entrypoint |
 |---|---|---|---|
-| `full-claude` | Claude (existing strong-model policy) | Claude, with the tiers below | `claude -p` |
+| `full-claude` | Actual Claude session model | Claude, with the tiers below | `claude -p` |
+| `full-openai` | Actual OpenAI session model | OpenAI, with the tiers below | `codex -p --model <model>` |
 | `full-astra` | `gpt-6-astra` | `gpt-6-astra`, no downshift | `codex -p` |
 
-Full Astra is not Astra coordinating Claude workers. Every role uses Astra. Full Claude keeps every
-role on Claude. If the current host cannot run the selected orchestrator or worker model, stop and
-request the matching session/model; never relabel another GPT model or silently substitute Claude.
-Read the actual session model before recording it; `orchestrator_model` is a declaration, not a model
-switch or independent detection. Native in-session agents may be used only when their model is
-explicitly selected or confirmed to inherit the matching model.
+Derive the setup from the current model when none is saved. Keep explicit same-provider model choices
+within the host's supported models; ask only for missing session identity, never to reselect a known
+provider. Native in-session agents get an explicit `model` by tier (`rules/process.md`); inheriting the
+orchestrator's model is the justified exception. Record the actual model, not a desired one: a spec field cannot switch a chat.
 
 Use `codex -p` as the local equivalent of `claude -p`, with `-p` or `--print` first. Native profile
 selection uses `codex --profile <name>`; other native commands are unchanged. Load the launcher
@@ -31,17 +30,22 @@ printf '%s' 'Review the assigned diff' | ~/.claude/bin/codex-launch.py -p --sand
 ~/.claude/bin/codex-launch.py -p "Implement the assigned slice" --cd /absolute/repo --output-format json
 ```
 
-It starts an independent native Codex `exec --model gpt-6-astra` process through `codex-launch.py`,
+It starts an independent native Codex `exec --model <model>` process through `codex-launch.py`,
+using `gpt-6-astra` when `--model` is omitted,
 using the subscription-only policy in `references/agent-hosts.md` and project connector routing.
 It never selects the retired API home, including for review workers. Default output is the final
 answer; JSON output normalizes native events for the dispatcher.
 `--events-file` preserves JSONL. Native permissions and sandboxing still apply; Claude-only permission
 flags are not forwarded. Headless intake/ledger prompts are disabled, not security/trust checks.
-Workers are flat leaves: no nested delegation. `AGENT_SETUP` carries the selection to child launches.
+Workers are flat leaves: no nested delegation. `AGENT_SETUP` carries the model setup and
+`AGENT_MODEL_PROVIDER` carries the provider to child launches. Native `CODEX_THREAD_ID` /
+`CODEX_SESSION_ID` and `CLAUDECODE=1` identify a running host; the Codex launcher also stamps its
+provider. Conflicting native signals fail closed. Outside a native chat, record the actual
+orchestrator model explicitly; never infer identity from an executable name or config directory.
 
 The dispatcher validates the choice and model consistency before setup or model calls, then saves
-the normalized spec with its output. Invalid/missing setup, mixed models, runtime failure, incomplete
-results or absent DONE markers fail the run. Reviews and retries must carry the same saved choice.
+the normalized spec with its output. Unknown orchestrator, conflicting provider/setup, mixed models, runtime failure, incomplete
+results or absent DONE markers fail the run. Reviews and retries carry the reconciled current-chat setup.
 Codex events do not supply the Claude cost/API-duration/cache-write measurements this analyser uses;
 those fields remain null/not reported, not zero-cost or inferred backoff. Use actual process timings
 for overlap. The historical benchmarks and Claude-specific CLI/permission details below describe
@@ -337,6 +341,7 @@ them as parallel tool calls rather than chaining them into one sequential shell 
 - **Haiku also fits simple, high-volume PARALLEL fan-out**, not just single mechanical edits: a fleet each doing a well-specified, low-judgement pass over its own slice — a leak/pattern scan, a classification, a mechanical audit, a "read these files and report X". It is cheap and fast, and reads semantically not just by pattern (one run: 19 Haiku agents scanned a ~135-file tree in ~2 min for ~1.1M tokens, and surfaced two leaks a plain `grep` missed). DO keep the three tiers distinct: Opus 4.8 orchestrates, Sonnet 4.6 implements where correctness or nuance matters (logic edits, reviews), Haiku does the parallel grunt-work. DON'T give Haiku a logic edit, a nuanced review, or any pass where a wrong answer is costly. TEST: every Haiku slice is one where a wrong answer is cheap and the spec leaves no judgement call.
 - Match the model to the judgement required. Escalate to Sonnet 4.6 the moment a call needs taste — haiku will otherwise silently reword things it shouldn't, drop information, and mis-scope.
 - **Pin the version — today's-landscape exception.** The bare `sonnet`/`opus` aliases now resolve to Sonnet 5 / Opus 5, which are a downgrade for this work, so pin delegated models to **Sonnet 4.6** (`claude-sonnet-4-6`) for implementation and **Opus 4.8** (`claude-opus-4-8`) when a delegated step needs the strong tier — until that reverses. Caveat: the Agent/Task `model` param is a strict enum (`sonnet`/`opus`/`haiku`/`fable`) and cannot carry a full ID, so a delegated Agent call still resolves the alias to 5. The pin only holds where the mechanism takes a full ID: `claude -p --model claude-sonnet-4-6` (superspeed), or a session `--model` / `/model` override. Where you must go through the Agent enum, keep orchestration on the pinned-4.8 session and delegate as little judgement as possible until the alias points back at a non-downgrade.
+- Full OpenAI applies the same three tiers with the models the Codex host offers; `gpt-6-astra` is its strong tier.
 - Reserve the strong model for: planning, decomposition, the spec, build/test/verify loops, and reviewing + integrating sub-agent output. Run build/tests yourself after each batch and fix the integration seams.
 
 ## Give every agent a precise, self-contained spec
