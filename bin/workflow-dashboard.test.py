@@ -142,6 +142,41 @@ class DashboardTests(unittest.TestCase):
         "Python 'playwright' package not installed for /usr/bin/python3. Run with: "
         "python3 -m venv /tmp/pw-venv && /tmp/pw-venv/bin/pip install playwright==1.58.0 && "
         "/tmp/pw-venv/bin/python workflow-dashboard.test.py")
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, 'playwright not installed')
+    def test_mock_dialog_open_in_new_tab_shows_the_same_html(self):
+        """An html asset is inlined (srcdoc), so the viewer had no way to open it outside the
+        modal. "Open in new tab" must open a fresh tab whose document is the asset's own html,
+        from the modal's header and from the panel caption."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'mock.html').write_text('<!doctype html><html><head><title>Mock tab</title></head><body><main id="mock-root">Mock content</main></body></html>')
+            p = base / 'task-plan.md'
+            s = fixture()
+            s['sections'][0]['target'] = {'kind': 'html', 'label': 'Mock', 'path': 'mock.html',
+                                           'source': 'Capture', 'viewport': {'width': 1440, 'height': 900}}
+            p.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            out = base / 'dashboard.html'
+            out.write_text(d.render(p))
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch()
+                context = browser.new_context(viewport={'width': 1440, 'height': 900})
+                page = context.new_page()
+                page.goto(out.as_uri())
+                page.wait_for_timeout(200)
+                for opener in ('.panel-caption .open-mock-tab', '#open-mock-tab'):
+                    if opener == '#open-mock-tab':
+                        page.click('.open-mock')
+                        page.wait_for_timeout(200)
+                    with context.expect_page() as new_page_info:
+                        page.click(opener)
+                    tab = new_page_info.value
+                    tab.wait_for_load_state()
+                    self.assertEqual(tab.title(), 'Mock tab', opener)
+                    self.assertEqual(tab.locator('#mock-root').inner_text(), 'Mock content', opener)
+                    tab.close()
+                browser.close()
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, 'playwright not installed')
     def test_mock_dialog_iframe_fills_visible_area_without_clipping(self):
         """Regression: the mock-dialog's iframe used to be CSS-scaled (transform) to a fixed
         design viewport, so its own contentWindow.innerHeight lied about how much room it had

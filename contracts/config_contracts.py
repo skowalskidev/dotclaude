@@ -126,7 +126,7 @@ CONTRACTS: dict[str, dict] = {
             "Load bin/workflow-dashboard.html and use one plan across execution modes.",
             "Reject unconfirmed running state, incomplete criteria, stale or self-approved judgements and conflicting revisions.",
             "Validate assets before advancing the plan and inline them for offline export.",
-            "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped; bin/workflow-dashboard.test.py proves it at 1900x1010 and 1440x900.",
+            "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped, and open the same html in a new tab (a blob: copy, view-only) from the modal header and the panel caption; bin/workflow-dashboard.test.py proves both.",
         ],
     },
     # --- Top-level -----------------------------------------------------------------

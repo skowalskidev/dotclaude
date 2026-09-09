@@ -190,6 +190,7 @@ SCENARIOS: list[dict] = [
     # "create a new skill" got hand-built instead of run through the skill.
     {"phrase": "create a new skill", "expect": "claude-config-update"},
     {"phrase": "change my config", "expect": "claude-config-update"},
+    {"phrase": "make the gauntlet dashboard open the mockup in a new tab", "expect": "claude-config-update"},
     {"phrase": "what am I missing", "expect": "claude-config-self-development-research"},
     {"phrase": "is my Claude setup current", "expect": "claude-config-self-development-research"},
     # Metrics-driven self-analysis of the config's OWN part usage. Distinct from self-development-

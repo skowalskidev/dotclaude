@@ -50,7 +50,9 @@ in the existing sections; store task status, criteria, assets and verdicts only 
 Generate `.context/<slug>-dashboard.html` from it. DO NOT hand-edit status in the generated HTML.
 Keep the HTML path stable throughout the task. TEST: rebuilding from the plan reproduces the view.
 
-DO use `bin/workflow-dashboard.html` unchanged as the shared shell.
+DO use `bin/workflow-dashboard.html` unchanged as the shared shell. When feedback on the dashboard itself
+arrives mid-loop ("open the mockup in a new tab", "the modal clips"), it is a config change: run
+`/sk:claude-config-update` in a background agent and keep the loop's task on its own deliverable.
 Put overall completion above the left section buttons. Put Before, Reference / target and Current
 in three right-hand panels, one slide per section. Use 2–5 word section titles and one sentence
 of summary. Put tests, judge evidence and source detail behind Details. For visual work, embed
