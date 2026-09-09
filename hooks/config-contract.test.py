@@ -848,8 +848,9 @@ def check_agent_setups_preserve_provider_choice() -> None:
         check(result.returncode == 0,
               f"Setup/dispatch regression failed:\n{result.stdout}\n{result.stderr}")
     policy = (ROOT / "rules" / "process.md").read_text()
-    check("Which setup: Full Claude or Full Astra?" in policy,
-          "Shared process policy must ask for the setup before delegation")
+    check("Inherit the current chat's model provider" in policy and
+          "Which setup: Full Claude or Full Astra?" not in policy,
+          "Shared process policy must inherit the actual chat provider without a redundant question")
 
 
 def check_metrics_inventory_matches_contract_coverage() -> None:

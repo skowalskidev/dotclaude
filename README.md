@@ -66,7 +66,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
 | `bin/agent_runtime.py` + `bin/codex-launch.py` | Native Codex adapter and executable; enforces subscription-only inference and separate project connector boundaries |
-| `bin/agent_setup.py` + `bin/codex_print.py` | Full Claude/Full Astra dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
+| `bin/agent_setup.py` + `bin/codex_print.py` | Current-chat provider dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
 | `dotfiles/codex-AGENTS.md` | Native instruction entrypoint linked into the Codex subscription home |
 | `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
@@ -145,9 +145,9 @@ API credentials remain unused and untouched. Set `AGENT_CODEX_BIN`
 to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
 shell function and therefore bypasses manifest projection; use the launcher for setup and diagnosis.
 
-### Full Claude or Full Astra
+### Delegated model provider
 
-Delegated workflows ask once which setup to use and retain the selection in their living plan.
+Delegated workflows inherit the current chat's provider and reconcile stale saved plans before resuming.
 See `references/parallelization.md` for model consistency, dispatch fields and failure behavior.
 The local `codex -p` shortcut starts a separate headless native Codex process, not Claude workers:
 
@@ -157,7 +157,8 @@ codex -p "Implement the assigned task"
 ```
 
 Put `-p` or `--print` first to select print mode. Use `codex --profile <name>` for native profiles;
-other native commands pass through unchanged. Full Astra remains the selected worker model setup.
+other native commands pass through unchanged. Pass `--model <openai-model>` to inherit an OpenAI
+chat's model; omitting it uses Astra. Claude chats keep every delegated role on Claude.
 
 `bin/codex_print.py` provides the print-mode adapter; `bin/agent_setup.py` validates saved setup/model
 choices. Existing ChatGPT authentication is reused; missing subscription access stops the run instead

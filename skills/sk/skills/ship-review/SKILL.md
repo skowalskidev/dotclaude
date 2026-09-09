@@ -1,6 +1,6 @@
 ---
 name: ship-review
-description: Unified pre-PR review using independent subscription-backed code review passes and a user-journey pass. Preserve the selected Full Claude or Full Astra setup; never use API-billed reviewers. Find dead ends, missing states and unreachable steps before shipping. Use for "code review", "review my changes", "walk the whole flow", "walk through this as a user", "pre-ship UX pass". Judges work that EXISTS; whether it should be built at all is /sk:work-does-this-make-sense-to-build.
+description: Unified pre-PR review using independent subscription-backed code review passes and a user-journey pass. Inherit the current chat's provider for every reviewer; never use API-billed reviewers. Find dead ends, missing states and unreachable steps before shipping. Use for "code review", "review my changes", "walk the whole flow", "walk through this as a user", "pre-ship UX pass". Judges work that EXISTS; whether it should be built at all is /sk:work-does-this-make-sense-to-build.
 argument-hint: [optional focus, e.g. "the billing changes" or "journey" to run the journey pass alone]
 ---
 
@@ -31,16 +31,16 @@ files of a large diff to the models while the UI, tests and docs go unreviewed.)
 
 ### Subscription reviewers, in either project boundary
 
-Read `references/parallelization.md` and preserve the workflow's selected setup. Codex billing follows
+Read `references/parallelization.md` and reconcile the saved setup with the current chat's provider. Codex billing follows
 `references/agent-hosts.md`; the same existing ChatGPT subscription serves work and personal reviews.
 Project databases, cloud accounts and other service credentials still follow Step 1's boundary.
 
 1. Run a fresh correctness/security pass over the complete diff using the selected subscription model.
-   Full Astra uses `~/.claude/bin/codex-launch.py -m gpt-6-astra --sandbox read-only review --base <base-ref>`.
+   OpenAI uses `~/.claude/bin/codex-launch.py -m <saved-openai-model> --sandbox read-only review --base <base-ref>`.
    Full Claude uses fresh Claude reviewers on the existing subscription, with model tiers from the
    saved workflow. Check the active authentication method before starting a headless Claude reviewer.
 2. Run a separate fresh adversarial pass on the first pass's top findings using the same setup.
-   For Astra, use `~/.claude/bin/codex-launch.py -p "<findings and diff review brief>" --sandbox read-only`.
+   For OpenAI, use `~/.claude/bin/codex-launch.py -p "<findings and diff review brief>" --model <saved-openai-model> --sandbox read-only`.
    Verify every finding against the source before accepting it.
 3. If subscription authentication, quota or the selected model is unavailable, stop and report it.
    Never switch to API keys, pal or direct paid model APIs. Reviews have no API-billing exception.

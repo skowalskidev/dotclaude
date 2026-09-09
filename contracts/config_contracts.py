@@ -41,22 +41,23 @@ CONTRACTS: dict[str, dict] = {
             "Disable on-demand connectors and retired manifest-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
+            "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
             "Resolve explicit binary overrides first, then installed stable Conductor binaries in descending version order, then PATH; skip non-executable files and the launcher itself.",
         ],
     },
     "bin/agent_setup.py": {
-        "mission": "Simon's selected setup stays consistent across the whole delegated workflow.",
+        "mission": "Simon's delegated agents stay on the current chat's model provider throughout the workflow.",
         "purpose": "Validate saved setup, orchestrator, worker and reviewer model choices before dispatch.",
         "criteria": [
-            "Reject missing choices, mismatched models, inherited setup conflicts and per-slice model overrides before launching processes.",
-            "Preserve a saved selection without mutating the input spec; never silently default the provider.",
+            "Derive omitted setup from the actual orchestrator model; reject unknown models, native-provider conflicts, inherited setup conflicts and per-slice overrides before launching processes.",
+            "Reject stale cross-provider plans without mutating the input spec; preserve explicit same-provider model choices and Astra-only worker constraints.",
         ],
     },
     "bin/codex_print.py": {
-        "mission": "Simon can launch independent headless Astra workers without changing authentication or falling back to Claude.",
+        "mission": "Simon can launch independent headless OpenAI workers without changing authentication or falling back to Claude.",
         "purpose": "Provide codex -p through native Codex exec and normalize its events.",
         "criteria": [
-            "Pin gpt-6-astra, preserve native permissions and launcher routing, and pass prompt text without shell interpolation.",
+            "Default to gpt-6-astra; accept explicit OpenAI models within the inherited setup, preserve native permissions and launcher routing, and pass prompt text without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",
         ],
@@ -196,7 +197,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
-            "Ask for Full Claude or Full Astra before delegation unless already selected; retain the choice for all roles and retries without mixing providers.",
+            "Inherit the actual chat provider for workers, reviewers, judges and retries without re-asking; reconcile stale plans and never fall back across providers.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
@@ -944,9 +945,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/superspeed-dispatch.sh": {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
-        "purpose": "Engine for /sk:work-superspeed — launch one selected Claude or Astra process per slice and log it.",
+        "purpose": "Engine for /sk:work-superspeed — launch one same-provider process per slice and log it.",
         "criteria": [
-            "Validate setup consistency before spending; launch only the selected provider and return failure for a failed or incomplete worker.",
+            "Validate native-provider and setup consistency before spending; propagate the provider and explicit model to each worker, and return failure for a failed or incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
             "Verifies each slice by its on-disk artifact, never by exit code "

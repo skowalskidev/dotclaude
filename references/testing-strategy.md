@@ -124,7 +124,7 @@ most. A rendered frontend interaction a unit test structurally cannot reach is m
 handed to `/sk:test-copilot`, never faked green with a network mock.
 
 **Stage 2 — the selected setup's judge, on top of green.** Reuse the saved workflow setup under
-`references/parallelization.md`; a Full Astra review uses Astra, not a Claude default.
+`references/parallelization.md`; every judge uses the current chat's provider, including after a resume or retry.
 A passing assertion proves the code does what
 someone thought to assert; it never proves the feature does what it was FOR. So for each feature — with
 extra, multi-step reasoning for a complex or multi-call one — the judge reads the real inputs, outputs and

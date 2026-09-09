@@ -4,15 +4,15 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 
 ## How to work — orchestration & process
 
-### Choose one setup for the whole delegated workflow
-Before delegation, ask **“Which setup: Full Claude or Full Astra?”** unless Simon already chose for
-this workflow. Record the choice in its living plan and reuse it for workers, reviewers and retries.
-Never silently mix providers or fall back. The actual orchestrator session/model must match the
-choice; ask Simon to switch sessions/models when it does not. A spec field cannot switch a session.
-**Verify on disk after every batch — never trust an agent's self-report.** Fan out only when the
-pieces are independent and delegation is authorized. Model tiers and headless commands belong below.
-Use subscriptions for all agent roles, reviews included. Billing: `references/agent-hosts.md`.
-→ Full detail: **`~/.claude/references/parallelization.md`**.
+### Inherit the current chat's model provider
+Use only OpenAI models in an OpenAI chat and only Claude models in a Claude chat for every worker,
+reviewer, judge, retry and handoff. Record the actual session model; reconcile stale saved plans
+before resuming. Do not re-ask a known provider or switch providers when a model/auth fails.
+This governs agent inference, not application integrations or service tools.
+TEST: every delegated model matches the current chat's provider, including resumed work.
+Verify every batch on disk. Delegate only independent, authorized work. Use subscriptions for all
+roles: `references/agent-hosts.md`. Model tiers, commands and checks:
+**`~/.claude/references/parallelization.md`**.
 
 ### Fan out verification, and only rebuild what changed
 Run verification for INDEPENDENT units as **parallel tool calls, not one sequential command.**

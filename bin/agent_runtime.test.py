@@ -558,6 +558,16 @@ class RuntimeTests(unittest.TestCase):
                                      'PATH': str(expected.parent)}):
             self.assertEqual(runtime.executable(), str(expected.resolve()))
 
+    def test_provider_guard_distinguishes_metadata_from_inference(self):
+        for args in (['--version'], ['--cd', 'review', 'mcp', 'list'], ['login', 'status'],
+                     ['--profile', 'review', 'features', 'list']):
+            with self.subTest(args=args):
+                self.assertFalse(runtime.codex_inference(args))
+        for args in ([], ['review', '--base', 'mcp'], ['exec', 'mcp'], ['app-server'],
+                     ['--', 'mcp'], ['--model', 'gpt-6-astra', 'review']):
+            with self.subTest(args=args):
+                self.assertTrue(runtime.codex_inference(args))
+
     def test_launcher_executes_only_explicit_fixture_binary(self):
         self.manifest(match=[str(self.cwd)], connectors=[self.connector()])
         binary = self.base / 'stub-codex'
@@ -565,9 +575,10 @@ class RuntimeTests(unittest.TestCase):
                           'print(json.dumps({"args":sys.argv[1:],"cwd":os.getcwd(),'
                           '"home":os.environ.get("CODEX_HOME"),'
                           '"manifest":os.environ.get("AGENT_CODEX_MANIFEST"),'
-                          '"launch":os.environ.get("AGENT_CODEX_LAUNCH_CWD")}))\n')
+                          '"provider":os.environ.get("AGENT_MODEL_PROVIDER"),"launch":os.environ.get("AGENT_CODEX_LAUNCH_CWD")}))\n')
         binary.chmod(0o700)
         runner = ('import importlib.util,sys\nfrom pathlib import Path\n'
+                  'sys.path.insert(0,str(Path(sys.argv[1]).parent))\n'
                   's=importlib.util.spec_from_file_location("adapter",sys.argv[1]);m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n'
                   'm.ROOT=Path(sys.argv[2]);m.origin=lambda cwd:""\n'
                   'sys.argv=["codex-launch.py","app-server","--stdio"];m.launch()\n')
@@ -579,6 +590,7 @@ class RuntimeTests(unittest.TestCase):
         output = json.loads(result.stdout)
         self.assertEqual(output['cwd'], str(self.cwd.resolve()))
         self.assertEqual(output['home'], str(self.home / '.codex'))
+        self.assertEqual(output['provider'], 'openai')
         self.assertEqual(output['launch'], str(self.cwd.resolve()))
         self.assertEqual(output['manifest'], str(self.root / 'connectors/personal.json'))
         self.assertEqual(output['args'][-2:], ['app-server', '--stdio'])

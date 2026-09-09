@@ -10,6 +10,8 @@ import shlex
 import subprocess
 import sys
 
+from agent_setup import require_provider
+
 ROOT = Path(__file__).resolve().parent.parent
 EVENTS = {'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
           'Stop', 'PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart',
@@ -243,16 +245,35 @@ def executable():
     raise ValueError('Codex executable not found; install Codex or set AGENT_CODEX_BIN to its executable')
 
 
+def codex_inference(args):
+    """Keep metadata/auth tools usable from either host; guard model-capable launches."""
+    options_with_value = {'--cd', '-C', '--model', '-m', '--config', '-c', '--profile', '-p',
+                          '--sandbox', '-s', '--ask-for-approval', '-a'}
+    remaining = iter(args)
+    for arg in remaining:
+        if arg in options_with_value:
+            next(remaining, None)
+        elif arg in ('--help', '-h', '--version', '-V'):
+            return False
+        elif arg == '--':
+            return True
+        elif not arg.startswith('-'):
+            return arg not in ('mcp', 'login', 'logout', 'features', 'completion')
+    return True
+
+
 def launch():
     try:
         args = sys.argv[1:]
+        if codex_inference(args):
+            require_provider('openai')
         cwd = launch_cwd(args)
         args = absolute_cwd_args(args, cwd)
         billing = subscription_policy(args)
         check_subscription_auth(args)
         config, home = overrides(cwd)
         manifest_path, _, boundary = project(cwd)
-        env = dict(subscription_environment(), AGENT_CODEX_LAUNCH_CWD=str(cwd),
+        env = dict(subscription_environment(), AGENT_MODEL_PROVIDER='openai', AGENT_CODEX_LAUNCH_CWD=str(cwd),
                    AGENT_CODEX_MANIFEST=str(manifest_path or ''), AGENT_CODEX_BOUNDARY=boundary)
         # Pass TOML as argv, never shell code. Explicit caller overrides retain native precedence.
         binary = executable()

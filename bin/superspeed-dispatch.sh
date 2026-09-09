@@ -18,7 +18,7 @@
 # slices.json:
 #   {
 #     "task": "one line describing the whole job",
-#     "agent_setup": "full-claude",            # required: full-claude or full-astra
+#     "agent_setup": "full-claude",            # optional: derived from the actual orchestrator model
 #     "orchestrator_model": "claude-opus-4-8",  # required: actual session model, not a switch
 #     "repo": "/abs/path/to/repo",
 #     "gate": "yarn lint && yarn test",          # optional, run by the RECONCILER not by slices
@@ -55,10 +55,11 @@ command -v jq >/dev/null 2>&1 || { echo "superspeed: jq is required" >&2; exit 2
 [ -f "$SPEC" ] || { echo "superspeed: no such spec: $SPEC" >&2; exit 2; }
 RESOLVED_SPEC="$(python3 "$SCRIPT_DIR/agent_setup.py" "$SPEC")" || exit 2
 AGENT_SETUP="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.agent_setup')"
+MODEL_PROVIDER="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.model_provider')"
 MODEL="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.model')"
 REPO="$(jq -r '.repo // "."' "$SPEC")"
 REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "superspeed: repo not found" >&2; exit 2; }
-if [ "$AGENT_SETUP" = full-astra ]; then
+if [ "$AGENT_SETUP" != full-claude ]; then
   [ -f "$SCRIPT_DIR/codex_print.py" ] && "$SCRIPT_DIR/codex-launch.py" --cd "$REPO" --version >/dev/null || {
     echo "superspeed: Astra's native Codex launcher is unavailable; no Claude fallback." >&2
     exit 2
@@ -315,12 +316,12 @@ RULES
     S0=$(date +%s)
     # Backgrounded then waited on, ONLY so the real claude PID can be recorded. Behaviour is
     # identical to running it in the foreground. The PID is what the sampler is matched against.
-    if [ "$AGENT_SETUP" = full-astra ]; then
-      AGENT_SETUP="$AGENT_SETUP" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
-        "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --cd "$REPO" --output-format json \
+    if [ "$AGENT_SETUP" != full-claude ]; then
+      AGENT_SETUP="$AGENT_SETUP" AGENT_MODEL_PROVIDER="$MODEL_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
+        "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --model "$MODEL" --cd "$REPO" --output-format json \
         --events-file "$SD/events.jsonl" > "$SD/result.json" 2> "$SD/stderr.txt" &
     else
-      AGENT_SETUP="$AGENT_SETUP" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
+      AGENT_SETUP="$AGENT_SETUP" AGENT_MODEL_PROVIDER="$MODEL_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
         --model "$MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     fi

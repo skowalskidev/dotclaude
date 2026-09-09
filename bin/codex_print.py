@@ -11,11 +11,11 @@ import sys
 import tempfile
 import time
 
-from agent_setup import ASTRA_MODEL
+from agent_setup import ASTRA_MODEL, matches_model, require_provider
 
 
-def collect(events, event_log=None):
-    result = {'provider': 'codex', 'model': ASTRA_MODEL, 'agent_setup': 'full-astra',
+def collect(events, event_log=None, model=ASTRA_MODEL, setup="full-astra"):
+    result = {'provider': 'codex', 'model': model, 'agent_setup': setup,
               'session_id': None, 'result': '', 'num_turns': 0, 'usage': {},
               'duration_api_ms': None, 'total_cost_usd': None, 'is_error': False}
     for line in events:
@@ -50,7 +50,8 @@ def collect(events, event_log=None):
     return result
 
 
-def execute(prompt, cwd, sandbox, events_file=None):
+def execute(prompt, cwd, sandbox, events_file=None, model=ASTRA_MODEL, setup="full-astra"):
+    require_provider("openai")
     launcher = Path(__file__).with_name('codex-launch.py')
     if not launcher.is_file() or not os.access(launcher, os.X_OK):
         raise ValueError('Native Codex launcher is unavailable; no Claude fallback is allowed.')
@@ -58,9 +59,9 @@ def execute(prompt, cwd, sandbox, events_file=None):
     with tempfile.TemporaryDirectory(prefix='codex-print-result-') as temporary:
         final_message = Path(temporary) / 'message.txt'
         command = [str(launcher), '--cd', str(cwd), '-a', 'never',
-                   '-c', 'agents.enabled=false', 'exec', '--model', ASTRA_MODEL,
+                   '-c', 'agents.enabled=false', 'exec', '--model', model,
                    '--sandbox', sandbox, '--json', '--output-last-message', str(final_message), '-']
-        environment = dict(os.environ, AGENT_SETUP='full-astra',
+        environment = dict(os.environ, AGENT_SETUP=setup, AGENT_MODEL_PROVIDER='openai',
                            CLAUDE_INTAKE_GATE='off', CLAUDE_INTENT_LEDGER='off')
         log_context = events_file.open('w') if events_file else nullcontext()
         with log_context as event_log, subprocess.Popen(
@@ -77,7 +78,7 @@ def execute(prompt, cwd, sandbox, events_file=None):
                     process.stdin.close()
                 except BrokenPipeError:
                     pass
-                result = collect(process.stdout, event_log)
+                result = collect(process.stdout, event_log, model, setup)
                 returncode = process.wait()
             except BaseException:
                 if process.poll() is None:
@@ -106,16 +107,18 @@ def main():
     parser.add_argument('--output-format', choices=('text', 'json'), default='text')
     parser.add_argument('--sandbox', choices=('read-only', 'workspace-write'), default='workspace-write')
     parser.add_argument('--events-file', type=Path)
+    parser.add_argument('--model', default=ASTRA_MODEL)
     args = parser.parse_args()
-    if os.environ.get('AGENT_SETUP') not in (None, 'full-astra'):
-        parser.error('This workflow selected Full Claude; return to its orchestrator instead of mixing setups.')
+    setup = os.environ.get('AGENT_SETUP', 'full-astra' if args.model == ASTRA_MODEL else 'full-openai')
+    if setup not in ('full-astra', 'full-openai') or not matches_model(setup, args.model):
+        parser.error('Worker model conflicts with the inherited setup; no provider fallback is allowed.')
     if args.prompt == '-' and sys.stdin.isatty():
         parser.error('Supply prompt text after -p or pipe it on stdin.')
     prompt = sys.stdin.read() if args.prompt == '-' else args.prompt
     if not prompt.strip():
         parser.error('The prompt must not be empty.')
     try:
-        result, returncode = execute(prompt, args.cd.expanduser().resolve(), args.sandbox, args.events_file)
+        result, returncode = execute(prompt, args.cd.expanduser().resolve(), args.sandbox, args.events_file, args.model, setup)
         if args.output_format == 'json':
             print(json.dumps(result))
         else:

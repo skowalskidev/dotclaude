@@ -35,10 +35,9 @@ class SetupTests(unittest.TestCase):
         self.spec.update(agent_setup='full-astra', orchestrator_model='gpt-6-astra')
         self.assertEqual(agent_setup.resolve(self.spec)['model'], 'gpt-6-astra')
 
-    def test_missing_choice_asks_instead_of_defaulting(self):
+    def test_missing_setup_inherits_current_model(self):
         del self.spec['agent_setup']
-        with self.assertRaisesRegex(ValueError, 'Ask Simon: Which setup'):
-            agent_setup.resolve(self.spec)
+        self.assertEqual(agent_setup.resolve(self.spec)['agent_setup'], 'full-claude')
 
     def test_mixed_models_are_rejected(self):
         for field in ('orchestrator_model', 'model', 'reviewer_model'):
@@ -52,7 +51,7 @@ class SetupTests(unittest.TestCase):
 
     def test_unknown_orchestrator_is_not_assumed(self):
         del self.spec['orchestrator_model']
-        with self.assertRaisesRegex(ValueError, 'switch the orchestrator'):
+        with self.assertRaisesRegex(ValueError, 'actual orchestrator_model'):
             agent_setup.resolve(self.spec)
 
     def test_nested_setup_cannot_change(self):
@@ -69,6 +68,37 @@ class SetupTests(unittest.TestCase):
                        [{'name': 'alpha', 'model': 'gpt-6-astra'}]):
             with self.subTest(slices=slices), self.assertRaises(ValueError):
                 agent_setup.resolve(dict(self.spec, slices=slices))
+
+    def test_openai_chat_rejects_stale_claude_plan_and_declaration(self):
+        for signal in ('CODEX_THREAD_ID', 'CODEX_SESSION_ID', 'AGENT_MODEL_PROVIDER'):
+            value = 'openai' if signal == 'AGENT_MODEL_PROVIDER' else 'native-fixture'
+            with self.subTest(signal=signal), patch.dict(os.environ, {signal: value}):
+                with self.assertRaisesRegex(ValueError, 'Current chat provider is openai'):
+                    agent_setup.resolve(self.spec)
+
+    def test_claude_chat_rejects_openai_plan(self):
+        with patch.dict(os.environ, {'CLAUDECODE': '1'}):
+            with self.assertRaisesRegex(ValueError, 'Current chat provider is anthropic'):
+                agent_setup.resolve(dict(self.spec, agent_setup='full-astra', orchestrator_model='gpt-6-astra'))
+
+    def test_general_openai_session_inherits_model_without_astra_switch(self):
+        with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture'}):
+            resolved = agent_setup.resolve(dict(self.spec, agent_setup=None, orchestrator_model='gpt-5.6-sol'))
+        self.assertEqual(resolved['agent_setup'], 'full-openai')
+        self.assertEqual(resolved['model'], 'gpt-5.6-sol')
+        self.assertEqual(resolved['model_provider'], 'openai')
+
+    def test_openai_setup_accepts_same_provider_models_and_rejects_other_reviewers(self):
+        spec = dict(self.spec, agent_setup='full-openai', orchestrator_model='gpt-5.6-sol', model='gpt-6-astra')
+        self.assertEqual(agent_setup.resolve(spec)['model'], 'gpt-6-astra')
+        for other in ('claude-sonnet-4-6', 'gemini-3-pro', 'unknown'):
+            with self.subTest(model=other), self.assertRaises(ValueError):
+                agent_setup.resolve(dict(spec, reviewer_model=other))
+
+    def test_conflicting_native_signals_fail_closed(self):
+        with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture', 'CLAUDECODE': '1'}):
+            with self.assertRaisesRegex(ValueError, 'Conflicting native provider signals'):
+                agent_setup.resolve(self.spec)
 
 
 class EventTests(unittest.TestCase):
@@ -293,8 +323,8 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         self.assertNotEqual(self.astra_command('-p', 'work').returncode, 0)
         self.assertFalse(self.calls.exists())
 
-    def test_model_override_is_rejected(self):
-        self.assertNotEqual(self.astra_command('-p', 'work', '--model', 'gpt-5.4').returncode, 0)
+    def test_cross_provider_model_override_is_rejected(self):
+        self.assertNotEqual(self.astra_command('-p', 'work', '--model', 'claude-sonnet-4-6').returncode, 0)
         self.assertFalse(self.calls.exists())
 
     def test_cancellation_reaps_native_worker(self):
@@ -379,11 +409,46 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         for name in ('alpha', 'beta'):
             self.assertEqual((output / 'slices' / name / 'status').read_text().strip(), 'ok')
 
+    def test_stale_claude_plan_from_openai_chat_never_runs_setup_or_worker(self):
+        self.env['CODEX_THREAD_ID'] = 'native-fixture'
+        marker = self.root / 'setup-ran'
+        result, output = self.dispatch('full-claude', setup='touch ' + str(marker))
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('Current chat provider is openai', result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertFalse(output.exists())
+        self.assertFalse(self.calls.exists())
+
+    def test_openai_dispatch_passes_selected_model_and_provider(self):
+        self.env['CODEX_THREAD_ID'] = 'native-fixture'
+        result, _ = self.dispatch('full-openai', orchestrator_model='gpt-5.6-sol', model='gpt-5.6-sol')
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(call['kind'] == 'codex' and 'gpt-5.6-sol' in call['args'] for call in calls))
+
+    def test_claude_chat_cannot_launch_codex_print_or_native_review(self):
+        shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        self.env['CLAUDECODE'] = '1'
+        for args in (('-p', 'review'), ('review', '--base', 'master')):
+            with self.subTest(args=args):
+                result = self.astra_command(*args)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Current chat provider is anthropic', result.stderr)
+        self.assertFalse(self.calls.exists())
+
+    def test_claude_chat_can_use_codex_metadata_without_inference(self):
+        shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        self.env['CLAUDECODE'] = '1'
+        result = self.astra_command('--version')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.calls.exists())
+
     def test_missing_choice_stops_before_setup_or_spend(self):
         marker = self.root / 'setup-ran'
-        result, output = self.dispatch(None, setup='touch ' + str(marker))
+        result, output = self.dispatch(None, orchestrator_model=None, setup='touch ' + str(marker))
         self.assertEqual(result.returncode, 2)
-        self.assertIn('Ask Simon', result.stderr)
+        self.assertIn('actual orchestrator_model', result.stderr)
         self.assertFalse(marker.exists())
         self.assertFalse(output.exists())
         self.assertFalse(self.calls.exists())

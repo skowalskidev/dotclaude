@@ -22,6 +22,8 @@
 #
 # Usage: bash ~/.claude/bin/superspeed-dispatch.test.sh
 set -uo pipefail
+# These fixtures emulate Claude, independent of the host running the test suite.
+unset CODEX_THREAD_ID CODEX_SESSION_ID CLAUDECODE AGENT_MODEL_PROVIDER AGENT_SETUP
 
 DISPATCH="$HOME/.claude/bin/superspeed-dispatch.sh"
 TIMEOUT_S=90
