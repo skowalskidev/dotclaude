@@ -73,6 +73,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Native Codex reads current shared sources, preserves profile boundaries and propagates hook decisions without copying credentials."),
     ("dashboard-runtime-preserves-completion",
      "The shared dashboard rejects unsupported state, false completion, stale judges and lost updates; exports portable evidence."),
+    ("mockup-shell-preserves-reviewed-deep-links",
+     "The mockup shell routes direct links to validated versions, variants, personas and states; What’s new selects the declared target and flashes its exact element."),
     # --- Structure: the shape config-repo.md promises ---------------------------------
     ("structure-claude-md-is-an-index",
      "CLAUDE.md stays a thin index. It loads in full on every session in every project, so length "
@@ -994,6 +996,20 @@ def check_dashboard_runtime_preserves_completion() -> None:
         check((package / name).is_file(), f"Missing dashboard runtime file: {name}")
     result = run(["/usr/bin/python3", str(package / "workflow-dashboard.test.py")])
     check(result.returncode == 0, "Dashboard runtime regression: " + result.stdout + result.stderr)
+
+
+def check_mockup_shell_preserves_reviewed_deep_links() -> None:
+    shell = ROOT / "bin" / "mockup-shell.html"
+    check(shell.is_file(), "Missing mockup shell runtime")
+    source = shell.read_text()
+    required = (
+        "readShellRoute", "stateExists", "applyShellRoute", "new URLSearchParams(location.hash.replace",
+        "function goToWhatsNew()", "version.whatsNewVariantId", "version.whatsNewStateId",
+        "stateExists(targetVariant, version.whatsNewStateId)", "currentFlashSelector()",
+        "currentState && currentState.flashSelector", "def.flashSelector",
+    )
+    check(all(token in source for token in required),
+          "Mockup shell deep-link/What’s-new contract is incomplete")
 
 
 # The coverage ratchet: a criterion with no check, or a check with no criterion, is a bug.

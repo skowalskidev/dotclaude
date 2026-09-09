@@ -202,6 +202,8 @@ and walk away. So before any work starts, in THIS turn:
      in-session agents. Don't overdo it — superspeed only earns its harness at 3-5+ real slices, and
      serial is right for work that does not divide (references/parallelization.md).
      Inherit the actual chat provider for all workers and reviewers; reconcile stale plan selections.
+     Pick each worker's TIER by the job: smallest for mechanical fan-out, mid for substantive edits,
+     strong only for judgement. The chat's model is the orchestrator's, never the fleet's default.
      Do not ask Full Claude or Full Astra when this chat already identifies its provider.
   3. Front-load every predictable ask in ONE block: auth or logins, credentials, prod approval,
      billable API calls, and any decision where guessing wrong wastes the work.

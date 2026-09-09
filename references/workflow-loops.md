@@ -48,7 +48,22 @@ DO keep `.context/<slug>-plan.md` as the sole task record. Add exactly one fence
 `dashboard-state` JSON block under `## Dashboard state`. Keep narrative requirements and decisions
 in the existing sections; store task status, criteria, assets and verdicts only in the JSON.
 Generate `.context/<slug>-dashboard.html` from it. DO NOT hand-edit status in the generated HTML.
-Keep the HTML path stable throughout the task. TEST: rebuilding from the plan reproduces the view.
+DO keep one canonical dashboard file per plan and one canonical mockup file per surface. Rebuild
+those same files for every revision, retaining all earlier versions, variants and feedback in `#spec`.
+TEST: the existing review link opens the latest proposal and its history after each rebuild.
+
+DO base each visual increment on the last user-approved version and the product's current design.
+Record the proposed revision/hash separately from the approved revision/hash. Announce the specific
+change before editing, show that revision through the canonical link, and wait for its review before
+adding the next visual increment. Approval of one increment covers only its shown scope. Continue
+independent authorized work while review is pending. TEST: each implemented visual change traces to
+an explicit approval of the same revision/hash; a newer proposal never inherits an earlier approval.
+
+DO update the dashboard target and revision together whenever its canonical mockup changes. Give the
+user a direct URL containing the task section, asset and open view. Preserve that selection on reload
+and browser Back/Forward. Escape closes the innermost open overlay first, including when focus is
+inside a nested capture. TEST: the shared URL reopens the reviewed surface and nested Escape closes
+one overlay without losing feedback.
 
 DO use `bin/workflow-dashboard.html` unchanged as the shared shell. When feedback on the dashboard itself
 arrives mid-loop ("open the mockup in a new tab", "the modal clips"), it is a config change: run

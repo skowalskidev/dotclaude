@@ -4,12 +4,16 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 
 ## How to work — orchestration & process
 
-### Inherit the current chat's model provider
+### Inherit the current chat's model provider; pick each worker's tier by the job
 Use only OpenAI models in an OpenAI chat and only Claude models in a Claude chat for every worker,
 reviewer, judge, retry and handoff. Record the actual session model; reconcile stale saved plans
 before resuming. Do not re-ask a known provider or switch providers when a model/auth fails.
 This governs agent inference, not application integrations or service tools.
-TEST: every delegated model matches the current chat's provider, including resumed work.
+DO name a same-provider tier for every worker by its job (smallest: mechanical passes; mid: code
+edits; strong: judgement). The chat's model is the ORCHESTRATOR's; a worker inherits it only with
+a reason in its prompt.
+TEST: every delegated model matches the chat's provider, and every launch names a tier below the
+orthestrator's unless its prompt says why not.
 Verify every batch on disk. Delegate only independent, authorized work. Use subscriptions for all
 roles: `references/agent-hosts.md`. Model tiers, commands and checks:
 **`~/.claude/references/parallelization.md`**.
@@ -173,10 +177,6 @@ migration, a dependency bump — make a restore point FIRST. `/rewind` covers ed
 session. It does NOT cover everything: a backgrounded forked skill (`context: fork`) applies its
 edits outside the session's checkpoints, and nothing Bash writes is checkpointed at all. For those,
 the restore point is git — commit the good state, or branch, before starting.
-
-The failure this prevents is not "the change was wrong". It is "the change was 80% right and there
-is now no way back to the 20% that was already correct". Committing when a task is DONE (above) is a
-different thing: this is a restore point taken BEFORE, when the work still looks like it will go fine.
 
 ### Don't auto-verify frontend changes in the browser — ask first
 **Do NOT automatically spin up a dev server / preview and verify every frontend or UI change in the
