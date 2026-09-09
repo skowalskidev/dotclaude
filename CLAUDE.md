@@ -17,6 +17,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
 
 - **Deep, task-only how-tos** → `~/.claude/references/*.md` (on-demand, zero context cost until read):
   - `research.md` · `contracts-and-outcomes.md` · `planning-and-tracking.md` · `parallelization.md` · `testing-strategy.md` · `dev-server-hygiene.md` · `code-best-practices.md` · `git-pr-deploy.md` · `ticket-lifecycle.md` · `api-empirical-iteration.md` · `browser-debugging.md` · `connectors-setup.md` · `skill-stack.md` · `user-journey-review.md` · `human-pacing.md` · `progress-bar.md` · `tldr-report-formats.md` · `dotclaude-setup.md`
+  - `testing-strategy.md` — test gates and shared production-data source fidelity, isolated previews and recompute verification.
   - `workflow-loops.md` — modular execution, independent judgement and the shared plan/mockup dashboard.
   - `agent-hosts.md` — native host wiring, subscription-only Codex billing and update timing.
   - `config-writing-standard.md` — how every line of this config is written: DO-led, banned hedge words, the DEFAULT/NUMBER/TEST rule, the mission format. Enforced by `hooks/config-contract.test.py`.

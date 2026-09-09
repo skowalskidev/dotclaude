@@ -437,8 +437,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, gates, and the no-billable-calls guarantee.",
+        "purpose": "Test structure, gates, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
+            "Keep production export credentials outside the preview runtime; reject production destinations before creating write-capable clients and verify the refusal offline.",
+            "Preserve source dates and record persisted-source or recomputed mode; require complete inputs for post-refresh claims and verify API and visible values against the selected mode.",
+            "Retain the requested local preview with a working URL and scoped stop/restart commands; stop exporters and unrelated workers.",
             "Keep review judges on the selected workflow setup through the shared parallelization protocol.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
@@ -664,6 +667,16 @@ CONTRACTS: dict[str, dict] = {
             "guarantee of correctness.",
         ],
     },
+    "skills/sk/skills/ship-preview-eyeball-with-prod-data/SKILL.md": {
+        "mission": "Simon can inspect the changed app with authentic production data locally before deployment, without exposing production to preview writes.",
+        "purpose": "Compose an isolated production-data preview, a visual pass and a reusable local hand-back.",
+        "criteria": [
+            "Use the shared testing-strategy source-fidelity, derived-state and local-preview procedures instead of duplicating export, browser or recompute mechanics.",
+            "Compose ship-verify-with-prod-data for changed data figures and test-eyeball for visual verification; keep account coverage explicit.",
+            "Keep exports and captures local; require a separate request for deployment, production mutation or evidence publication.",
+            "Return a working local URL with account, route, capture time, original date range, data mode, clock mode, visual verdict, evidence and stop/restart commands.",
+        ],
+    },
     "skills/sk/skills/ship-verify-with-prod-data/SKILL.md": {
         "mission": "A data-facing change is proven correct against every prod account's real data, and any regression caught, before it ships — not after a merchant sees a wrong number.",
         "purpose": "Reads prod read-only, recomputes what a data surface would show for every account with "
@@ -688,9 +701,7 @@ CONTRACTS: dict[str, dict] = {
             "Hands Simon the backfill/recompute command plus deploy order to run on prod himself, "
             "proven first by running the identical script on a seedable dev account and re-reading "
             "until that account reconciles.",
-            "Before screenshots, re-runs the new writer's recompute on the seed dev account so the "
-            "capture shows the new figures, not the deploy-skew fallback; hands the capture to "
-            "/sk:ship-screenshot-changes.",
+            "Use shared derived-state preparation before screenshots; distinguish copied persisted-source state from post-refresh results requiring the real writer and complete inputs, then hand off to ship-screenshot-changes.",
             "Composes /sk:ship-screenshot-changes and feeds "
             "/sk:ship-report-and-ensure-correct-user-system-journey a real-data verdict; does not "
             "restate them.",

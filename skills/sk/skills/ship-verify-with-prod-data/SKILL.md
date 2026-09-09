@@ -45,15 +45,11 @@ left every account on the other rail unverified and reading `$0`.
 
 ## Phase 3 · Read prod read-only and RECOMPUTE the surface per account
 
-**DO read the RAW source documents the surface derives from** — through the provisioned read-only path
-(`rules/connectors.md`) — **and compute by hand what each figure WOULD show under the NEW code, then
-confirm the figures cross-verify.** When N figures must agree (a total, a count, a funnel stage), they
-must all resolve to ONE source/predicate; recompute each independently and check they land on the same
-number.
-**DON'T trust the deployed surface's current output** — it runs the OLD code; you are verifying the
-NEW code against real data it hasn't run on yet.
-**DO drive a large read from the saved result file, not the transcript** — when a read overflows,
-`jq`/a script over the saved JSON keeps the numbers exact and the context intact.
+Read `~/.claude/references/testing-strategy.md`, sections **Production source fidelity** and
+**Prepare derived state before capture**, for the shared source-read and preview-data procedure.
+Recompute each figure under the NEW code for every account selected above. When several figures must
+agree, derive each independently and verify they resolve to one source/predicate and the same value.
+Use saved export files for large reads so transcript truncation cannot change the arithmetic.
 TEST: for each checked account, the figures reconcile (or you have a named discrepancy carried to
 Phase 4). e.g. a hero total, a members count and a funnel's last stage all reduce to the same
 net-recovered cohort count.
@@ -83,16 +79,11 @@ verified only in prose is unverified.
 TEST: the dev account's surface reconciles after the dev recompute, and the prod steps are copy-paste
 with a stated order (writer deploy → recompute → readers).
 
-## Phase 6 · Before screenshots — recompute the seed account first
+## Phase 6 · Before screenshots — name the data mode
 
-**DO run the new writer's recompute on the seedable dev account BEFORE capturing screenshots** of a
-data surface, then hand off to `/sk:ship-screenshot-changes`.
-**DON'T screenshot a data surface on a dev account whose doc is old-shape** — it renders the
-deploy-skew fallback (the pre-change numbers or an empty state), not the change, and the screenshot
-silently misrepresents what shipped.
-TEST: the captured surface shows the NEW figures (matching the Phase 3 recompute), not the fallback.
-e.g. a dashboard that first rendered its low-data empty state until the account's snapshot was
-re-swept with the new engine.
+Apply the shared **Prepare derived state before capture** procedure named above, then hand off to
+`/sk:ship-screenshot-changes`. Confirm the captured figures match the named data mode; require a
+verified recompute for post-refresh claims and report persisted-source deployment skew explicitly.
 
 ## Hand back
 

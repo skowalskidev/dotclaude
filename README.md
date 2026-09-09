@@ -106,6 +106,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `skills/sk/skills/work-superspeed/` | The `/sk:work-superspeed` skill — cut a task into 3-5 exclusively-owned slices, dispatch them as parallel sessions, reconcile warm in the orchestrator, then analyse the run. Measured 2026-08-06: beat in-session subagents in all 4 configs and all 14 reps, by a fixed ~33s |
 | `skills/sk/skills/claude-config-self-optimize-analysis-after-run/` | The `/sk:claude-config-self-optimize-analysis-after-run` skill — reads one run's logs and proposes the specific partition and instrumentation changes for the next run; proposes, never applies |
 | `skills/sk/skills/ship-mockup-before-after/` | `/sk:ship-mockup-before-after` — real product captures, versioned design targets and feedback inside the shared dashboard; approved target becomes implementation evidence reference |
+| `skills/sk/skills/ship-preview-eyeball-with-prod-data/` | `/sk:ship-preview-eyeball-with-prod-data`; shared procedure in `references/testing-strategy.md` |
 | `skills/sk/skills/work-preview-on-phone/` | The `/sk:work-preview-on-phone` skill — puts a running dev server on your phone over Tailscale Serve (tailnet-private, never Funnel), binds the server to loopback first so the LAN cannot reach it, clears the silent cross-origin allowlist trap, and mints a dev-only API credential rather than widening production's. Any repo |
 | `skills/sk/skills/work-isolate-environment/` | The `/sk:work-isolate-environment` skill — wires a project so this session's dev stack runs on its own lane of ports (`bin/port-slot.sh` allocates, this decides the per-project knobs). Any repo, personal or work, containerised or host-run |
 | `skills/sk/skills/meta-report-standup-weekly/` | The `/sk:meta-report-standup-weekly` skill — the spoken Monday standup script, sourced from git + `gh` + Linear over a window rather than from you. Collapses commits into outcomes and refuses to call a draft PR shipped |
@@ -287,6 +288,9 @@ Native adapter details and verified upstream references live in `references/agen
    `config-contract.test.py` is the one that matters: it re-checks the other two, the hook wiring,
    the JSON validity, the secret gate and the doc claims. Neither suite states a pass COUNT here —
    a hardcoded count drifts, and a stale one teaches the next agent to accept a wrong number.
+
+The production-data preview skill uses the existing `sk` link and project connector setup. It adds
+no dependency or credential. Start a new session if its name is absent from the skill catalog.
 
 ### Secrets to recreate (ask the user — never fabricate)
 These live **outside** this repo and are **not** committed. Prompt the user for each; never invent one.

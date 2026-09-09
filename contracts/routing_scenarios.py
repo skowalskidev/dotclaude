@@ -43,6 +43,10 @@ SCENARIOS: list[dict] = [
     # --- Frontend ------------------------------------------------------------------
     {"phrase": "check my UI change in the browser", "expect": "test-eyeball"},
     {"phrase": "go eyeball", "expect": "test-eyeball"},
+    {"phrase": "preview locally with production data", "expect": "ship-preview-eyeball-with-prod-data"},
+    {"phrase": "show real prod accounts on localhost", "expect": "ship-preview-eyeball-with-prod-data"},
+    {"phrase": "eyeball production data before deploy", "expect": "ship-preview-eyeball-with-prod-data"},
+    {"phrase": "leave a local preview with real account data", "expect": "ship-preview-eyeball-with-prod-data"},
     {"phrase": "verify against prod data", "expect": "ship-verify-with-prod-data"},
     {"phrase": "check it works for all accounts with real data", "expect": "ship-verify-with-prod-data"},
     {"phrase": "make sure this will not regress on production", "expect": "ship-verify-with-prod-data"},

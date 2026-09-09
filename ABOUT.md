@@ -57,3 +57,12 @@ Entry skills: `skills/sk/skills/work-gauntlet-loop/` and `skills/sk/skills/work-
 Shared runtime: `bin/workflow-dashboard.*`. Protocol and attribution:
 `references/workflow-loops.md`. Validation: `python3 hooks/config-contract.test.py`.
 Runtime plan/evidence files stay in the task workspace and must be preserved before deleting it.
+
+## Production-data preview
+
+Invoke [sk] `/sk:ship-preview-eyeball-with-prod-data` to inspect a local branch with actual production
+account data before deployment. The preview uses an isolated copy with original dates, a visual check
+and a source record. Inspect existing snapshots or a named post-refresh state with complete inputs.
+The hand-back includes the local URL and stop/restart commands. Production stays
+read-only, and the preview runtime carries no production credentials. Procedure:
+`references/testing-strategy.md`.
