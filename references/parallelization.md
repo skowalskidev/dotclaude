@@ -9,6 +9,14 @@ Record `agent_setup`, the actual `orchestrator_model`, and worker `model` in the
 Copy them into dispatch specs and handoffs, including hyperspeed parts, fresh reviewers and retries.
 Reconcile any stale provider/model fields on resume; saved choices never override the current chat.
 
+**Same-provider is the default; the scope is agent inference only** (not application integrations or
+service tools). Flip to another provider ONLY on Simon's explicit in-chat ask for a named host (e.g.
+"use GPT-Astra" from a Claude chat), never self-initiated. To run it, set `AGENT_ALLOW_CROSS_PROVIDER=1`
+on the launch: the provider guard in `bin/agent_setup.py` then allows the cross-provider worker and
+prints an audit line to stderr, while the subscription-only billing guard (`references/agent-hosts.md`)
+stays fully enforced. The override never re-opens pal or API-key billing; it only relaxes the
+provider-inheritance check for that one explicitly-requested launch.
+
 | Setup | Orchestrator | Workers and reviewers | Headless entrypoint |
 |---|---|---|---|
 | `full-claude` | Actual Claude session model | Claude, with the tiers below | `claude -p` |

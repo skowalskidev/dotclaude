@@ -81,6 +81,13 @@ class SetupTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Current chat provider is anthropic'):
                 agent_setup.resolve(dict(self.spec, agent_setup='full-astra', orchestrator_model='gpt-6-astra'))
 
+    def test_explicit_override_allows_cross_provider(self):
+        with patch.dict(os.environ, {'CLAUDECODE': '1', 'AGENT_ALLOW_CROSS_PROVIDER': '1'}):
+            resolved = agent_setup.resolve(
+                dict(self.spec, agent_setup='full-astra', orchestrator_model='gpt-6-astra'))
+        self.assertEqual(resolved['model_provider'], 'openai')
+        self.assertEqual(resolved['agent_setup'], 'full-astra')
+
     def test_general_openai_session_inherits_model_without_astra_switch(self):
         with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture'}):
             resolved = agent_setup.resolve(dict(self.spec, agent_setup=None, orchestrator_model='gpt-5.6-sol'))
@@ -99,6 +106,15 @@ class SetupTests(unittest.TestCase):
         with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture', 'CLAUDECODE': '1'}):
             with self.assertRaisesRegex(ValueError, 'Conflicting native provider signals'):
                 agent_setup.resolve(self.spec)
+
+    def test_override_resolves_conflict_via_inherited_provider(self):
+        env = {'CLAUDECODE': '1', 'AGENT_MODEL_PROVIDER': 'openai', 'AGENT_ALLOW_CROSS_PROVIDER': '1'}
+        with patch.dict(os.environ, env):
+            self.assertEqual(agent_setup.current_provider(), 'openai')
+        # without the flag the same two signals still fail closed
+        with patch.dict(os.environ, {'CLAUDECODE': '1', 'AGENT_MODEL_PROVIDER': 'openai'}):
+            with self.assertRaisesRegex(ValueError, 'Conflicting native provider signals'):
+                agent_setup.current_provider()
 
 
 class EventTests(unittest.TestCase):

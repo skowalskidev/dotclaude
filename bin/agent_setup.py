@@ -35,6 +35,11 @@ def current_provider():
             raise ValueError('Unknown inherited AGENT_MODEL_PROVIDER.')
         providers.add(inherited)
     if len(providers) > 1:
+        # Under an explicit cross-provider override, a worker launched from the other host legitimately
+        # carries both signals (its own AGENT_MODEL_PROVIDER plus the launching chat's native marker).
+        # The inherited AGENT_MODEL_PROVIDER is then authoritative; without the flag this still fails closed.
+        if inherited and os.environ.get('AGENT_ALLOW_CROSS_PROVIDER') == '1':
+            return inherited
         raise ValueError('Conflicting native provider signals; start the matching chat before delegation.')
     return next(iter(providers), None)
 
@@ -42,6 +47,11 @@ def current_provider():
 def require_provider(provider):
     active = current_provider()
     if active and active != provider:
+        if os.environ.get('AGENT_ALLOW_CROSS_PROVIDER') == '1':
+            print('agent setup: OVERRIDE cross-provider worker allowed by explicit '
+                  'AGENT_ALLOW_CROSS_PROVIDER=1 (chat=' + active + ', worker=' + provider +
+                  '); subscription-billing guard is unaffected.', file=sys.stderr)
+            return
         raise ValueError('Current chat provider is ' + active + '; no cross-provider worker or reviewer is allowed.')
 
 

@@ -6,14 +6,13 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 
 ### Inherit the current chat's model provider; pick each worker's tier by the job
 Use only OpenAI models in an OpenAI chat and only Claude models in a Claude chat for every worker,
-reviewer, judge, retry and handoff. Record the actual session model; reconcile stale saved plans
-before resuming. Do not re-ask a known provider or switch providers when a model/auth fails.
-This governs agent inference, not application integrations or service tools.
-DO name a same-provider tier for every worker by its job (smallest: mechanical passes; mid: code
-edits; strong: judgement). The chat's model is the ORCHESTRATOR's; a worker inherits it only with
-a reason in its prompt.
-TEST: every delegated model matches the chat's provider, and every launch names a tier below the
-orthestrator's unless its prompt says why not.
+reviewer, judge, retry and handoff. Record the session model; reconcile stale plans before resuming.
+Do not re-ask a known provider or switch on a model/auth failure. Name a same-provider tier per worker
+by job; the chat's model is the ORCHESTRATOR's and a worker inherits it only with a reason in its
+prompt. Flip provider ONLY on Simon's explicit ask for a named host (e.g. "use GPT-Astra"); mechanism
+in `references/parallelization.md`. Never self-initiate.
+TEST: every delegated model matches the chat's provider unless Simon asked for another host, and every
+launch names a tier below the orchestrator's unless its prompt says why not.
 Verify every batch on disk. Delegate only independent, authorized work. Use subscriptions for all
 roles: `references/agent-hosts.md`. Model tiers, commands and checks:
 **`~/.claude/references/parallelization.md`**.

@@ -52,6 +52,21 @@ tickets; a fix that belongs to another PR is handed to that owner via
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
    hand back a per-ticket verdict report.
 
+**Landing gate — a stage that RAN but didn't LAND its artifact is not done.** Before stage 9 reconciles,
+fetch the pushed PR (`gh pr view <n> --json body,comments` plus the `reviewThreads` GraphQL query) and
+confirm each stage's OUTPUT is ON it, not just produced in-session. An artifact that lives only in chat, a
+scratch file, or a green local run is INCOMPLETE — return to its stage and post it. TEST: every row below
+reads ✓ against the FETCHED PR, never against memory of having run the stage. (the fix for a run that
+verified the user + system journey, then handed back with it never posted to the PR body.)
+- Journey (stage 3): `## User journey` and `## System journey` are in the PR body.
+- Matrix (stage 3): the `/sk:test-automated-full-matrix` results table is on the PR.
+- Screenshots (stage 7): every changed frontend surface's image is on the PR — skip only when the diff
+  touches no frontend surface, and say which.
+- Threads (stage 6): 0 unresolved review threads.
+- Deploy-TLDR (stage 8): the PR body opens with it.
+Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
+empty or suspiciously short → STOP.
+
 **Conditional legs — fire when the PR calls for them, not by default:**
 - `/sk:ship-verify-with-prod-data` — when the diff changes a data/money-facing surface, prove it
   reconciles against real prod data across ALL accounts (part of stage 3's verification, before stage 7's

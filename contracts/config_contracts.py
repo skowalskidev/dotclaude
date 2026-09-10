@@ -51,6 +51,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Derive omitted setup from the actual orchestrator model; reject unknown models, native-provider conflicts, inherited setup conflicts and per-slice overrides before launching processes.",
             "Reject stale cross-provider plans without mutating the input spec; preserve explicit same-provider model choices and Astra-only worker constraints.",
+            "Permit a cross-provider worker only when AGENT_ALLOW_CROSS_PROVIDER=1 is set, logging the override; the default still rejects native-provider conflicts and the subscription-billing guard is unaffected.",
         ],
     },
     "bin/codex_print.py": {
@@ -584,6 +585,9 @@ CONTRACTS: dict[str, dict] = {
             "and asks first, per the no-auto-browser rule; it never boots a browser by default.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
+            "Runs a landing gate before reconciling: the journey, the matrix, the screenshots, resolved "
+            "threads and the Deploy-TLDR are confirmed present on the FETCHED PR, not just produced "
+            "in-session.",
         ],
     },
     "skills/sk/skills/ship-check-merge-readiness/SKILL.md": {
