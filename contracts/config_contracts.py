@@ -631,6 +631,25 @@ CONTRACTS: dict[str, dict] = {
             "at hand-back.",
         ],
     },
+    "skills/sk/skills/work-checkpoint-wrap-up-safe-to-reboot-resume/SKILL.md": {
+        "mission": "After this runs the machine can restart — wiping /tmp and killing every background "
+                   "process — and the next session resumes with nothing lost and no guesswork.",
+        "purpose": "Checkpoints in-flight work so a reboot (which wipes /tmp) and a later resume lose "
+                   "nothing: everything resume-critical is moved out of /tmp and session memory into "
+                   "durable homes, background processes are stopped, and a single RESUME BRIEF says "
+                   "exactly where to pick up.",
+        "criteria": [
+            "Treats /tmp and session memory as volatile and only pushed git, the Linear ticket(s) and "
+            "the worktree .context/ as durable; every resume-critical piece ends in one of those three.",
+            "Commits + pushes every branch and resolves every agent/isolated worktree (pushed, captured, "
+            "or discarded-with-why) so origin holds all progress; git status clean on every worktree.",
+            "Writes a RESUME BRIEF naming the branch + commit SHA, what is done, and the single concrete "
+            "next action, into the ticket and the .context plan — never a /tmp path, never 'continue "
+            "where we left off'.",
+            "Stops every background agent/monitor/dev server it started, releases the port lanes, tears "
+            "down finished worktrees, and reconciles the intent-ledger before reporting.",
+        ],
+    },
     "skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md": {
         "mission": "Every point of Simon's ask is provably built, backed by a test, before the work is handed back.",
         "purpose": "Assembles the end-of-work report (user journey, system journey, mismatches, "
@@ -689,8 +708,8 @@ CONTRACTS: dict[str, dict] = {
         "mission": "A data-facing change is proven correct against every prod account's real data, and any regression caught, before it ships — not after a merchant sees a wrong number.",
         "purpose": "Reads prod read-only, recomputes what a data surface would show for every account with "
                    "recent data under the new code, confirms the figures reconcile, classifies each "
-                   "discrepancy as a code bug or a deploy/data-skew, and supplies a user-run backfill "
-                   "proven first on a seedable dev account.",
+                   "discrepancy as a code bug, a deploy/data-skew, or legacy residue, and supplies a "
+                   "user-run backfill proven first on a seedable dev account.",
         "criteria": [
             "Fires only when the diff changes how a surface reads, derives, reconciles or enumerates "
             "stored data; names the exact figure(s) whose correctness depends on real per-account "
@@ -703,9 +722,10 @@ CONTRACTS: dict[str, dict] = {
             "the NEW code, never trusting the deployed surface's current OLD-code output.",
             "Confirms the figures that must agree resolve to ONE source or predicate — recomputed "
             "independently and landing on the same number — per account.",
-            "Labels each discrepancy a code bug or a deploy/data-skew with the real doc as evidence, "
-            "and proposes a schema/migration ONLY after confirming the field is genuinely absent on "
-            "prod, because changing data is hard to reverse.",
+            "Labels each discrepancy code bug, deploy/data-skew, or LEGACY residue, dated: one only "
+            "stale/superseded records reproduce is legacy, not a regression or blocker, stated against "
+            "the recent cohort. Proposes a schema/migration ONLY after confirming the field is "
+            "genuinely absent on prod, because changing data is hard to reverse.",
             "Hands Simon the backfill/recompute command plus deploy order to run on prod himself, "
             "proven first by running the identical script on a seedable dev account and re-reading "
             "until that account reconciles.",

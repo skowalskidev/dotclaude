@@ -159,6 +159,9 @@ SCENARIOS: list[dict] = [
     {"phrase": "consolidate these branches into one that supersedes them", "expect": "work-consolidate-supersede-branches-prs"},
     {"phrase": "combine these PRs into one new draft PR and build this on top", "expect": "work-consolidate-supersede-branches-prs"},
     {"phrase": "merge these branches onto each other and master then supersede both PRs", "expect": "work-consolidate-supersede-branches-prs"},
+    {"phrase": "I'm done for today, wrap up so I can resume Monday", "expect": "work-checkpoint-wrap-up-safe-to-reboot-resume"},
+    {"phrase": "I'll restart my computer, checkpoint this so it's safe to reboot", "expect": "work-checkpoint-wrap-up-safe-to-reboot-resume"},
+    {"phrase": "wrap up so I can pick up cleanly later", "expect": "work-checkpoint-wrap-up-safe-to-reboot-resume"},
     #
     # The third group is the test phase. A verdict's evidence is a committed test rather than a
     # file:line, so he reaches for the skill in test language too. Neither phrase appears verbatim in

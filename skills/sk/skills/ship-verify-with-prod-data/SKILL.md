@@ -1,6 +1,6 @@
 ---
 name: ship-verify-with-prod-data
-description: Before shipping a change to a data-facing surface — a dashboard, a report, a total, a count, a funnel, a chart, any figure whose job is to reflect stored data correctly — prove it renders correctly and will NOT regress against REAL production data, across EVERY prod account with recent data, not one. Reads prod READ-ONLY through the provisioned path, enumerates every account/tenant/entity the surface serves, recomputes what each figure would show under the new code, and confirms they cross-verify to one source. Distinguishes a real code bug from a deploy/data-skew (prod written by the old code), supplies a backfill or recompute the user runs on prod, and proves that backfill first on a seedable dev account. Use for "verify against prod data", "check it works for all accounts with real data", "make sure this won't regress on production", "look at recent data from all accounts", "does this add up across accounts", or before screenshotting a data surface. Reconciling three cards to one cohort is the SSOT check; capturing the screens is /sk:ship-screenshot-changes.
+description: Before shipping a change to a data-facing surface — a dashboard, a report, a total, a count, a funnel, a chart, any figure whose job is to reflect stored data correctly — prove it renders correctly and will NOT regress against REAL production data, across EVERY prod account with recent data, not one. Reads prod READ-ONLY through the provisioned path, enumerates every account/tenant/entity the surface serves, recomputes what each figure would show under the new code, and confirms they cross-verify to one source. Distinguishes a real code bug from a deploy/data-skew (prod written by the old code) or legacy residue (stale records the current writer no longer produces, dated to prove it), supplies a backfill or recompute the user runs on prod, and proves that backfill first on a seedable dev account. Use for "verify against prod data", "check it works for all accounts with real data", "make sure this won't regress on production", "look at recent data from all accounts", "does this add up across accounts", or before screenshotting a data surface. Reconciling three cards to one cohort is the SSOT check; capturing the screens is /sk:ship-screenshot-changes.
 argument-hint: "[optional: the surface / route / account list to verify]"
 ---
 
@@ -54,7 +54,16 @@ TEST: for each checked account, the figures reconcile (or you have a named discr
 Phase 4). e.g. a hero total, a members count and a funnel's last stage all reduce to the same
 net-recovered cohort count.
 
-## Phase 4 · Classify each discrepancy — code bug vs deploy/data-skew
+**DO date-stamp every record a finding rests on, and reason from the RECENT/live cohort — not from
+whatever the query surfaced first.** An oldest-first or unordered scan returns LEGACY residue whose
+shape the current writer no longer produces; judging it reports a dead pattern as a live defect. Order
+by recency (or bucket the population by created/updated date) and check whether the RECENT cohort
+reproduces the discrepancy before you call it one.
+TEST: every record behind a finding carries its created + updated date, and the finding is stated
+against the recent cohort. (the fix for flagging ~10 months-stale records as a live edge when every
+recent record was classified correctly.)
+
+## Phase 4 · Classify each discrepancy — code bug vs deploy/data-skew vs legacy residue
 
 **DO decide, for every discrepancy, whether it is a CODE bug or a DEPLOY/DATA-SKEW** — the fixes are
 opposite. A code bug: the new logic computes the wrong thing on well-formed data → fix the code at the
@@ -63,8 +72,16 @@ redeployed/re-run yet → not a code defect, a recompute dependency.
 **DON'T introduce an infra/DB/schema change until you've confirmed one is actually needed** — verify
 the field is genuinely absent on real docs (not just unread), and that the new writer will populate it
 on its next run, before writing a migration. Changing data is hard to reverse; changing code isn't.
-TEST: each discrepancy is labelled bug-or-skew with the evidence (the real doc that proves it), and a
-schema/migration is proposed only after the field's absence on prod is confirmed.
+**DO add a THIRD verdict — LEGACY RESIDUE — for a discrepancy that ONLY stale/superseded records
+reproduce and NO record from the recent cohort does.** That is old data the current code no longer
+produces, not a live regression: confirm it by dating the offending records (all older than the recent
+cohort) and showing the recent cohort classifies correctly, then report it as legacy (data-hygiene
+cleanup, optional), never a ship blocker. DON'T let an anomaly on legacy records masquerade as a live
+finding, and DON'T ship-block on one. (the fix for a stale-record edge reported as a blocker before it
+was dated as legacy.)
+TEST: each discrepancy is labelled bug / skew / legacy with the evidence (the real doc + its date), a
+legacy verdict names the recent cohort that does NOT reproduce it, and a schema/migration is proposed
+only after the field's absence on prod is confirmed.
 
 ## Phase 5 · Supply the backfill/recompute — the USER runs it on prod
 
@@ -87,6 +104,7 @@ verified recompute for post-refresh claims and report persisted-source deploymen
 
 ## Hand back
 
-Report per account: the figures, whether they reconciled, and every discrepancy with its bug/skew
-verdict. Lead with the one line that matters — "reconciles for all N accounts" or "account X regresses
-because …". Carry the deploy/backfill dependency into the PR's Deploy-TLDR (`/sk:ship-pr`).
+Report per account: the figures, whether they reconciled, and every discrepancy with its
+bug/skew/legacy verdict. Lead with the one line that matters — "reconciles for all N accounts" or
+"account X regresses because …" (and never call a legacy-residue anomaly a regression). Carry the
+deploy/backfill dependency into the PR's Deploy-TLDR (`/sk:ship-pr`).
