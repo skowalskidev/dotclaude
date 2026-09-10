@@ -167,6 +167,11 @@ the cleanup command targets only this preview and releases its claimed ports.
   loading state, auth-guard behaviour, validation and boundary cases.
 - **Sequence slow whole-repo gates to protect the iteration loop** — run them once before the
   final commit, not after every commit.
+- **After editing a SHARED module, run the WHOLE package suite before calling it green, not just the
+  test file whose name matches it.** Sibling files assert on a shared module's literal strings and
+  behaviour, so the same-named test is not the blast radius. TEST: the full package suite ran green
+  locally before the change was declared done. (the fix for a prompt-string edit whose same-named test
+  passed while a sibling test file, pinning two of the changed strings, failed only in CI.)
 
 ## The full automated test matrix — two stages, run unattended
 
