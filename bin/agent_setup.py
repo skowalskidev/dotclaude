@@ -91,10 +91,10 @@ def resolve(spec):
     if 'reviewer_model' in spec and not matches_model(setup, spec['reviewer_model']):
         raise ValueError('Reviewer model does not match ' + setup)
     design_model = spec.get('design_model', CLAUDE_DESIGN_MODEL)
-    if setup == 'full-openai' and design_model != CLAUDE_DESIGN_MODEL:
-        raise ValueError('OpenAI-orchestrated design work must use Fable 5.1 (' + CLAUDE_DESIGN_MODEL + ').')
-    if setup != 'full-openai' and 'design_model' in spec:
-        raise ValueError('design_model only applies to an OpenAI-orchestrated workflow.')
+    if setup in ('full-openai', 'full-astra') and design_model != CLAUDE_DESIGN_MODEL:
+        raise ValueError('GPT-orchestrated design work must use Fable 5.1 (' + CLAUDE_DESIGN_MODEL + ').')
+    if setup not in ('full-openai', 'full-astra') and 'design_model' in spec:
+        raise ValueError('design_model only applies to a GPT-orchestrated workflow.')
     slices = spec.get('slices')
     if not isinstance(slices, list) or not slices:
         raise ValueError('Declare at least one slice before dispatching.')
@@ -109,10 +109,10 @@ def resolve(spec):
         route = item.get('model_route', 'general')
         if route not in ('general', 'design'):
             raise ValueError('Slice model_route must be general or design.')
-        if is_design_route(item) and setup != 'full-openai':
-            raise ValueError('model_route design only applies to an OpenAI-orchestrated workflow.')
+        if is_design_route(item) and setup not in ('full-openai', 'full-astra'):
+            raise ValueError('model_route design only applies to a GPT-orchestrated workflow.')
     resolved = dict(spec, agent_setup=setup, model=model, model_provider=provider)
-    if setup == 'full-openai':
+    if setup in ('full-openai', 'full-astra'):
         resolved['design_model'] = design_model
     return resolved
 

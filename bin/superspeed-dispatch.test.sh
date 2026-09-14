@@ -48,7 +48,7 @@ cat > "$TMP/bin/claude" <<'STUB'
 SD="$(printf '%s\n' "$@" | grep -oE '/[^ ]*/slices/[a-zA-Z0-9_-]+' | head -1)"
 [ "${FIXTURE_CLAUDE_FAIL:-}" = 1 ] && exit 7
 [ -n "$SD" ] && mkdir -p "$SD" && printf '# done\nstub\n' > "$SD/DONE.md"
-[ -n "${FIXTURE_CLAUDE_CALLS:-}" ] && printf 'args=%s\napi_key=%s\nauth_token=%s\n' "$*" "${ANTHROPIC_API_KEY-unset}" "${ANTHROPIC_AUTH_TOKEN-unset}" >> "$FIXTURE_CLAUDE_CALLS"
+[ -n "${FIXTURE_CLAUDE_CALLS:-}" ] && printf 'args=%s\napi_key=%s\nauth_token=%s\ncross_provider=%s\nfoundry=%s\n' "$*" "${ANTHROPIC_API_KEY-unset}" "${ANTHROPIC_AUTH_TOKEN-unset}" "${AGENT_ALLOW_CROSS_PROVIDER-unset}" "${CLAUDE_CODE_USE_FOUNDRY-unset}" >> "$FIXTURE_CLAUDE_CALLS"
 printf '{"is_error":false,"num_turns":1,"duration_ms":10,"session_id":"stub","usage":{}}\n'
 exit 0
 STUB
@@ -159,6 +159,20 @@ check_stop "stops when a slice declares no verify" \
 check_stop "stops when a slice's verify is not allowlisted" \
   '{ "name": "x", "owns": ["a.txt"], "accept": "e", "verify": "npx vitest run a", "prompt": "p" }'
 
+# ---- the existing Full Claude route preserves its environment -------------------------------------
+CLAUDE_CALLS="$TMP/claude-calls.log"
+FIXTURE_CLAUDE_CALLS="$CLAUDE_CALLS" ANTHROPIC_API_KEY=fixture ANTHROPIC_AUTH_TOKEN=fixture \
+  CLAUDE_CODE_USE_FOUNDRY=fixture PATH="$TMP/bin:$PATH" \
+  bash "$DISPATCH" "$TMP/spec.json" "$TMP/repo/.superspeed/claude-env" > "$TMP/claude-env.log" 2>&1
+RC=$?
+if [ "$RC" = 0 ] && grep -q -- '--model claude-sonnet-4-6' "$CLAUDE_CALLS" \
+    && grep -q '^api_key=fixture$' "$CLAUDE_CALLS" && grep -q '^auth_token=fixture$' "$CLAUDE_CALLS" \
+    && grep -q '^cross_provider=unset$' "$CLAUDE_CALLS" && grep -q '^foundry=fixture$' "$CLAUDE_CALLS"; then
+  pass "Full Claude route keeps its prior environment"
+else
+  fail "Full Claude route must not inherit the design-route environment (exit $RC)"
+fi
+
 # ---- OpenAI design slices use Claude Fable without API billing or a Codex fallback ----------------
 cat > "$TMP/spec-design.json" <<EOF
 {
@@ -175,11 +189,12 @@ cat > "$TMP/spec-design.json" <<EOF
 }
 EOF
 DESIGN_CALLS="$TMP/design-calls.log"
-FIXTURE_CLAUDE_CALLS="$DESIGN_CALLS" ANTHROPIC_API_KEY=fixture ANTHROPIC_AUTH_TOKEN=fixture PATH="$TMP/bin:$PATH" \
+FIXTURE_CLAUDE_CALLS="$DESIGN_CALLS" ANTHROPIC_API_KEY=fixture ANTHROPIC_AUTH_TOKEN=fixture CLAUDE_CODE_USE_FOUNDRY=fixture PATH="$TMP/bin:$PATH" \
   bash "$DISPATCH" "$TMP/spec-design.json" "$TMP/repo/.superspeed/design" > "$TMP/design.log" 2>&1
 RC=$?
 if [ "$RC" = 0 ] && grep -q -- '--model claude-fable-5-1' "$DESIGN_CALLS" \
-    && grep -q '^api_key=unset$' "$DESIGN_CALLS" && grep -q '^auth_token=unset$' "$DESIGN_CALLS"; then
+    && grep -q '^api_key=unset$' "$DESIGN_CALLS" && grep -q '^auth_token=unset$' "$DESIGN_CALLS" \
+    && grep -q '^cross_provider=1$' "$DESIGN_CALLS" && grep -q '^foundry=unset$' "$DESIGN_CALLS"; then
   pass "OpenAI design slice uses Fable with no Claude API key"
 else
   fail "OpenAI design slice must use Fable without API billing (exit $RC)"
@@ -192,6 +207,17 @@ if [ "$RC" -ne 0 ] && [ "$(cat "$TMP/repo/.superspeed/design-failure/slices/scre
   pass "Fable failure stops the design slice without fallback"
 else
   fail "Fable failure must not become an OpenAI design worker (exit $RC)"
+fi
+
+sed 's/"full-openai"/"full-astra"/; s/"gpt-5.6-sol"/"gpt-6-astra"/' "$TMP/spec-design.json" > "$TMP/spec-astra-design.json"
+ASTRA_DESIGN_CALLS="$TMP/astra-design-calls.log"
+FIXTURE_CLAUDE_CALLS="$ASTRA_DESIGN_CALLS" PATH="$TMP/bin:$PATH" \
+  bash "$DISPATCH" "$TMP/spec-astra-design.json" "$TMP/repo/.superspeed/astra-design" > "$TMP/astra-design.log" 2>&1
+RC=$?
+if [ "$RC" = 0 ] && grep -q -- '--model claude-fable-5-1' "$ASTRA_DESIGN_CALLS"; then
+  pass "Astra design slice uses Fable"
+else
+  fail "Astra design slice must use Fable (exit $RC)"
 fi
 
 [ "$FAILED" = 0 ] && echo "PASS" || echo "FAIL"

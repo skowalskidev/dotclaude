@@ -25,7 +25,7 @@
 #     "setup": "yarn install",                    # optional, run ONCE here before any slice starts;
 #                                                 # take it from the repo's CLAUDE.md / CLAUDE.local.md
 #     "model": "claude-sonnet-4-6",             # optional: Claude default; full-astra pins gpt-6-astra
-#     "design_model": "claude-fable-5-1",        # full-openai only; fixed by agent_setup.py
+#     "design_model": "claude-fable-5-1",        # GPT setup only; fixed by agent_setup.py
 #     "slices": [
 #       { "name": "api", "model_route": "general",
 #         "owns":    ["apps/api/src/routes/foo.ts"],
@@ -335,11 +335,15 @@ RULES
       AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
         "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --model "$SLICE_MODEL" --cd "$REPO" --output-format json \
         --events-file "$SD/events.jsonl" > "$SD/result.json" 2> "$SD/stderr.txt" &
-    else
+    elif [ "$MODEL_ROUTE" = design ]; then
       AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_ALLOW_CROSS_PROVIDER=1 \
         CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
-        -u ANTHROPIC_BASE_URL -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX claude -p "$PROMPT" \
+        -u ANTHROPIC_BASE_URL -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX -u CLAUDE_CODE_USE_FOUNDRY claude -p "$PROMPT" \
         --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
+        > "$SD/result.json" 2> "$SD/stderr.txt" &
+    else
+      AGENT_SETUP="$AGENT_SETUP" AGENT_MODEL_PROVIDER="$MODEL_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
+        --model "$MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     fi
     CPID=$!

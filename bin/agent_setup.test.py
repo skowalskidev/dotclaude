@@ -116,10 +116,22 @@ class SetupTests(unittest.TestCase):
             agent_setup.resolve(dict(spec, design_model='claude-sonnet-4-6'))
 
     def test_design_route_is_openai_only_and_rejects_unknown_routes(self):
-        with self.assertRaisesRegex(ValueError, 'OpenAI-orchestrated'):
+        with self.assertRaisesRegex(ValueError, 'GPT-orchestrated'):
             agent_setup.resolve(dict(self.spec, slices=[{'name': 'screen', 'model_route': 'design'}]))
         with self.assertRaisesRegex(ValueError, 'general or design'):
             agent_setup.resolve(dict(self.spec, slices=[{'name': 'screen', 'model_route': 'visual'}]))
+
+    def test_astra_design_uses_fable_and_general_work_stays_astra(self):
+        spec = {
+            'agent_setup': 'full-astra',
+            'orchestrator_model': 'gpt-6-astra',
+            'slices': [{'name': 'screen', 'model_route': 'design'}, {'name': 'api', 'model_route': 'general'}],
+        }
+        resolved = agent_setup.resolve(spec)
+        self.assertEqual(resolved['model'], agent_setup.ASTRA_MODEL)
+        self.assertEqual(resolved['design_model'], agent_setup.CLAUDE_DESIGN_MODEL)
+        with self.assertRaisesRegex(ValueError, 'Fable 5.1'):
+            agent_setup.resolve(dict(spec, design_model='claude-sonnet-4-6'))
 
     def test_conflicting_native_signals_fail_closed(self):
         with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture', 'CLAUDECODE': '1'}):

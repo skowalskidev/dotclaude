@@ -11,7 +11,7 @@ and retries.
 Reconcile any stale provider/model fields on resume; saved choices never override the current chat.
 
 **Same-provider is the default; the scope is agent inference only** (not application integrations or
-service tools). The standing exception is an OpenAI-orchestrated design slice: set its
+service tools). The standing exception is a GPT-orchestrated design slice: set its
 `model_route` to `design` and `bin/agent_setup.py` routes it to Claude Fable 5.1
 (`claude-fable-5-1`). Classify design discovery, design implementation and visual judgement as
 `design`; classify all other work as `general` and keep it on OpenAI. The dispatcher sets
@@ -20,14 +20,14 @@ unavailable Fable run stops instead of falling back to OpenAI or API billing. Do
 in a Claude-orchestrated workflow. For any other provider switch, require Simon's explicit in-chat ask
 for a named host (e.g. "use GPT-Astra" from a Claude chat), never self-initiate. The subscription-only
 billing guard (`references/agent-hosts.md`) stays fully enforced.
-TEST: a `model_route: design` slice from `full-openai` invokes `claude -p --model claude-fable-5-1`;
+TEST: a `model_route: design` slice from `full-openai` or `full-astra` invokes `claude -p --model claude-fable-5-1`;
 an unavailable Fable launch returns failure and no OpenAI worker is launched.
 
 | Setup | Orchestrator | Workers and reviewers | Headless entrypoint |
 |---|---|---|---|
 | `full-claude` | Actual Claude session model | Claude, with the tiers below | `claude -p` |
 | `full-openai` | Actual OpenAI session model | OpenAI except `model_route: design`, which uses Claude Fable 5.1 | `codex -p --model <model>` / `claude -p --model claude-fable-5-1` |
-| `full-astra` | `gpt-6-astra` | `gpt-6-astra`, no downshift | `codex -p` |
+| `full-astra` | `gpt-6-astra` | `gpt-6-astra` for general work; Claude Fable 5.1 for `model_route: design` | `codex -p` / `claude -p --model claude-fable-5-1` |
 
 Derive the setup from the current model when none is saved. Keep explicit same-provider model choices
 within the host's supported models; ask only for missing session identity, never to reselect a known

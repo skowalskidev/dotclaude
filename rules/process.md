@@ -5,15 +5,18 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 ## How to work — orchestration & process
 
 ### Inherit the current chat's model provider; pick each worker's tier by the job
-Use only OpenAI models in an OpenAI chat and only Claude models in a Claude chat for every worker,
-reviewer, judge, retry and handoff. In an OpenAI-orchestrated workflow, route design discovery,
-implementation and visual judgement to Claude Fable 5.1 (`claude-fable-5-1`); keep the orchestrator
-and every other role on OpenAI. Record the session model; reconcile stale plans before resuming.
-TEST: every OpenAI design launch uses `claude-fable-5-1` with subscription authentication and no
-OpenAI fallback; every other delegated model matches the chat's provider unless Simon asked otherwise.
-Verify every batch on disk. Delegate only independent, authorized work. Use subscriptions for all
-roles: `references/agent-hosts.md`. Model tiers, commands and checks:
-**`~/.claude/references/parallelization.md`**.
+Use OpenAI in OpenAI chats and Claude in Claude chats for every delegated role. GPT design discovery,
+implementation and visual judgement use Claude Fable 5.1 (`claude-fable-5-1`); other GPT roles use
+OpenAI. Reconcile stale plans.
+Do not re-ask a known provider or switch after a model/auth failure. Assign each same-provider worker a
+tier by job; it uses the orchestrator's tier only when its prompt says why. Switch providers only for
+Simon's explicit named-host ask (e.g. "use GPT-Astra") or the GPT design route; never self-initiate.
+Route: `references/parallelization.md`.
+TEST: every GPT design launch uses `claude-fable-5-1` with subscription authentication and no OpenAI
+fallback; other roles match the chat provider unless Simon names another host, and use a lower tier
+unless their prompt says why.
+Verify on disk. Delegate only independent, authorized work. Use subscriptions:
+`references/agent-hosts.md`. Model tiers: `references/parallelization.md`.
 
 ### Fan out verification, and only rebuild what changed
 Run verification for INDEPENDENT units as **parallel tool calls, not one sequential command.**
