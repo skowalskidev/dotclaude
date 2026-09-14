@@ -46,12 +46,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "bin/agent_setup.py": {
-        "mission": "Simon's delegated agents stay on the current chat's model provider throughout the workflow.",
+        "mission": "Simon's delegated agents stay on the current chat's model provider, with an explicit Fable-only route for OpenAI-orchestrated design work.",
         "purpose": "Validate saved setup, orchestrator, worker and reviewer model choices before dispatch.",
         "criteria": [
             "Derive omitted setup from the actual orchestrator model; reject unknown models, native-provider conflicts, inherited setup conflicts and per-slice overrides before launching processes.",
             "Reject stale cross-provider plans without mutating the input spec; preserve explicit same-provider model choices and Astra-only worker constraints.",
-            "Permit a cross-provider worker only when AGENT_ALLOW_CROSS_PROVIDER=1 is set, logging the override; the default still rejects native-provider conflicts and the subscription-billing guard is unaffected.",
+            "Permit only the Fable 5.1 design route for an OpenAI orchestrator, and reject another design model or any design route on the Claude path.",
         ],
     },
     "bin/codex_print.py": {
@@ -202,7 +202,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
-            "Inherit the actual chat provider for workers, reviewers, judges and retries without re-asking; reconcile stale plans and never fall back across providers. Every delegated worker gets an explicit tier by job (smallest for mechanical, mid for substantive edits, strong for judgement), never the orchestrator's model by default.",
+            "Keep every role on the actual chat provider, except Fable 5.1 for an OpenAI-orchestrated design task; every other worker gets an explicit tier by job.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
@@ -385,7 +385,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
         "criteria": [
-            "Own the setup persistence and model-consistency protocol; distinguish local codex -p print mode from native profile syntax and scope historical Claude benchmarks honestly.",
+            "Own the setup persistence and model-consistency protocol, including the Fable-only design route for an OpenAI orchestrator; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
@@ -984,9 +984,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/superspeed-dispatch.sh": {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
-        "purpose": "Engine for /sk:work-superspeed — launch one same-provider process per slice and log it.",
+        "purpose": "Engine for /sk:work-superspeed — launch one provider-matched process per slice and log it.",
         "criteria": [
-            "Validate native-provider and setup consistency before spending; propagate the provider and explicit model to each worker, and return failure for a failed or incomplete worker.",
+            "Validate native-provider and setup consistency before spending; route an OpenAI design slice only to Fable 5.1 with no API or OpenAI fallback, then return failure for a failed or incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
             "Verifies each slice by its on-disk artifact, never by exit code "

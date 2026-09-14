@@ -46,7 +46,9 @@ cat > "$TMP/bin/claude" <<'STUB'
 #!/usr/bin/env bash
 # The dispatcher passes the prompt positionally after -p; the slice dir is named inside it.
 SD="$(printf '%s\n' "$@" | grep -oE '/[^ ]*/slices/[a-zA-Z0-9_-]+' | head -1)"
+[ "${FIXTURE_CLAUDE_FAIL:-}" = 1 ] && exit 7
 [ -n "$SD" ] && mkdir -p "$SD" && printf '# done\nstub\n' > "$SD/DONE.md"
+[ -n "${FIXTURE_CLAUDE_CALLS:-}" ] && printf 'args=%s\napi_key=%s\nauth_token=%s\n' "$*" "${ANTHROPIC_API_KEY-unset}" "${ANTHROPIC_AUTH_TOKEN-unset}" >> "$FIXTURE_CLAUDE_CALLS"
 printf '{"is_error":false,"num_turns":1,"duration_ms":10,"session_id":"stub","usage":{}}\n'
 exit 0
 STUB
@@ -156,6 +158,41 @@ check_stop "stops when a slice declares no verify" \
   '{ "name": "x", "owns": ["a.txt"], "accept": "e", "prompt": "p" }'
 check_stop "stops when a slice's verify is not allowlisted" \
   '{ "name": "x", "owns": ["a.txt"], "accept": "e", "verify": "npx vitest run a", "prompt": "p" }'
+
+# ---- OpenAI design slices use Claude Fable without API billing or a Codex fallback ----------------
+cat > "$TMP/spec-design.json" <<EOF
+{
+  "task": "design route regression",
+  "agent_setup": "full-openai",
+  "orchestrator_model": "gpt-5.6-sol",
+  "repo": "$TMP/repo",
+  "gate": "true",
+  "setup": "none",
+  "model": "gpt-6-astra",
+  "slices": [
+    { "name": "screen", "model_route": "design", "owns": ["screen.txt"], "accept": "exists", "verify": "none", "prompt": "do design work" }
+  ]
+}
+EOF
+DESIGN_CALLS="$TMP/design-calls.log"
+FIXTURE_CLAUDE_CALLS="$DESIGN_CALLS" ANTHROPIC_API_KEY=fixture ANTHROPIC_AUTH_TOKEN=fixture PATH="$TMP/bin:$PATH" \
+  bash "$DISPATCH" "$TMP/spec-design.json" "$TMP/repo/.superspeed/design" > "$TMP/design.log" 2>&1
+RC=$?
+if [ "$RC" = 0 ] && grep -q -- '--model claude-fable-5-1' "$DESIGN_CALLS" \
+    && grep -q '^api_key=unset$' "$DESIGN_CALLS" && grep -q '^auth_token=unset$' "$DESIGN_CALLS"; then
+  pass "OpenAI design slice uses Fable with no Claude API key"
+else
+  fail "OpenAI design slice must use Fable without API billing (exit $RC)"
+fi
+
+FIXTURE_CLAUDE_FAIL=1 PATH="$TMP/bin:$PATH" \
+  bash "$DISPATCH" "$TMP/spec-design.json" "$TMP/repo/.superspeed/design-failure" > "$TMP/design-failure.log" 2>&1
+RC=$?
+if [ "$RC" -ne 0 ] && [ "$(cat "$TMP/repo/.superspeed/design-failure/slices/screen/status")" != ok ]; then
+  pass "Fable failure stops the design slice without fallback"
+else
+  fail "Fable failure must not become an OpenAI design worker (exit $RC)"
+fi
 
 [ "$FAILED" = 0 ] && echo "PASS" || echo "FAIL"
 exit "$FAILED"

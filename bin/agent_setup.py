@@ -9,6 +9,7 @@ import sys
 
 ASTRA_MODEL = 'gpt-6-astra'
 CLAUDE_WORKER_MODEL = 'claude-sonnet-4-6'
+CLAUDE_DESIGN_MODEL = 'claude-fable-5-1'
 SETUPS = ('full-claude', 'full-astra', 'full-openai')
 
 
@@ -61,6 +62,10 @@ def matches_model(setup, model):
     return model_provider(model) == ('openai' if setup == 'full-openai' else 'anthropic')
 
 
+def is_design_route(item):
+    return item.get('model_route') == 'design'
+
+
 def resolve(spec):
     orchestrator = spec.get('orchestrator_model')
     provider = model_provider(orchestrator)
@@ -85,6 +90,11 @@ def resolve(spec):
         raise ValueError('Worker model does not match ' + setup + '; no cross-provider fallback is allowed.')
     if 'reviewer_model' in spec and not matches_model(setup, spec['reviewer_model']):
         raise ValueError('Reviewer model does not match ' + setup)
+    design_model = spec.get('design_model', CLAUDE_DESIGN_MODEL)
+    if setup == 'full-openai' and design_model != CLAUDE_DESIGN_MODEL:
+        raise ValueError('OpenAI-orchestrated design work must use Fable 5.1 (' + CLAUDE_DESIGN_MODEL + ').')
+    if setup != 'full-openai' and 'design_model' in spec:
+        raise ValueError('design_model only applies to an OpenAI-orchestrated workflow.')
     slices = spec.get('slices')
     if not isinstance(slices, list) or not slices:
         raise ValueError('Declare at least one slice before dispatching.')
@@ -96,7 +106,15 @@ def resolve(spec):
         names.add(name)
         if 'model' in item or 'agent_setup' in item:
             raise ValueError('Set model and agent_setup once at the workflow level, not per slice.')
-    return dict(spec, agent_setup=setup, model=model, model_provider=provider)
+        route = item.get('model_route', 'general')
+        if route not in ('general', 'design'):
+            raise ValueError('Slice model_route must be general or design.')
+        if is_design_route(item) and setup != 'full-openai':
+            raise ValueError('model_route design only applies to an OpenAI-orchestrated workflow.')
+    resolved = dict(spec, agent_setup=setup, model=model, model_provider=provider)
+    if setup == 'full-openai':
+        resolved['design_model'] = design_model
+    return resolved
 
 
 def main():

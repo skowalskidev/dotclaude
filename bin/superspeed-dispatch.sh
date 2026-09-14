@@ -25,8 +25,9 @@
 #     "setup": "yarn install",                    # optional, run ONCE here before any slice starts;
 #                                                 # take it from the repo's CLAUDE.md / CLAUDE.local.md
 #     "model": "claude-sonnet-4-6",             # optional: Claude default; full-astra pins gpt-6-astra
+#     "design_model": "claude-fable-5-1",        # full-openai only; fixed by agent_setup.py
 #     "slices": [
-#       { "name": "api",
+#       { "name": "api", "model_route": "general",
 #         "owns":    ["apps/api/src/routes/foo.ts"],
 #         "reads":   ["packages/types/src/foo.ts"],
 #         "forbid":  ["apps/api/src/routes/bar.ts"],
@@ -57,19 +58,24 @@ RESOLVED_SPEC="$(python3 "$SCRIPT_DIR/agent_setup.py" "$SPEC")" || exit 2
 AGENT_SETUP="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.agent_setup')"
 MODEL_PROVIDER="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.model_provider')"
 MODEL="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.model')"
+DESIGN_MODEL="$(printf '%s' "$RESOLVED_SPEC" | jq -r '.design_model // empty')"
 REPO="$(jq -r '.repo // "."' "$SPEC")"
 REPO="$(cd "$REPO" 2>/dev/null && pwd)" || { echo "superspeed: repo not found" >&2; exit 2; }
-if [ "$AGENT_SETUP" != full-claude ]; then
+TASK="$(jq -r '.task // ""' "$SPEC")"
+N="$(jq '.slices | length' "$SPEC")"
+HAS_DESIGN="$(jq '[.slices[] | select((.model_route // "general") == "design")] | length' "$SPEC")"
+HAS_GENERAL=$((N - HAS_DESIGN))
+if [ "$HAS_GENERAL" -gt 0 ] && [ "$AGENT_SETUP" != full-claude ]; then
   [ -f "$SCRIPT_DIR/codex_print.py" ] && "$SCRIPT_DIR/codex-launch.py" --cd "$REPO" --version >/dev/null || {
     echo "superspeed: Astra's native Codex launcher is unavailable; no Claude fallback." >&2
     exit 2
   }
-else
+elif [ "$HAS_GENERAL" -gt 0 ]; then
   command -v claude >/dev/null 2>&1 || { echo "superspeed: Claude is unavailable; no Astra fallback." >&2; exit 2; }
 fi
-
-TASK="$(jq -r '.task // ""' "$SPEC")"
-N="$(jq '.slices | length' "$SPEC")"
+if [ "$HAS_DESIGN" -gt 0 ]; then
+  command -v claude >/dev/null 2>&1 || { echo "superspeed: Claude Fable is unavailable; no OpenAI fallback for design slices." >&2; exit 2; }
+fi
 
 # The run directory MUST live inside the repo. A slice runs with the repo as its working directory and
 # is sandboxed to it, so a run dir anywhere else means every slice fails to write its DONE.md and the
@@ -94,7 +100,7 @@ SPEC="$OUT/spec.json"
 log() { printf '%s %s\n' "$(date +%H:%M:%S)" "$*" | tee -a "$OUT/run.log"; }
 loadnow() { sysctl -n vm.loadavg 2>/dev/null | tr -d '{}' | awk '{print $1}' || echo 0; }
 
-log "superspeed start: $N slices, setup=$AGENT_SETUP, model=$MODEL, repo=$REPO"
+log "superspeed start: $N slices, setup=$AGENT_SETUP, model=$MODEL, design_model=${DESIGN_MODEL:-none}, repo=$REPO"
 log "task: $TASK"
 [ "$N" -gt 5 ] && log "WARNING: $N slices. Anthropic's guidance and the measured curve both say 3-5; \
 beyond that coordination overhead and machine contention grow faster than the gain."
@@ -267,6 +273,15 @@ SLICE_PIDS=()
 for i in $(seq 0 $((N - 1))); do
   NAME="$(jq -r ".slices[$i].name" "$SPEC")"
   SD="$OUT/slices/$NAME"; mkdir -p "$SD"
+  MODEL_ROUTE="$(jq -r ".slices[$i].model_route // \"general\"" "$SPEC")"
+  SLICE_SETUP="$AGENT_SETUP"
+  SLICE_MODEL="$MODEL"
+  SLICE_PROVIDER="$MODEL_PROVIDER"
+  if [ "$MODEL_ROUTE" = design ]; then
+    SLICE_SETUP=full-claude
+    SLICE_MODEL="$DESIGN_MODEL"
+    SLICE_PROVIDER=anthropic
+  fi
   # Validated against the repo's allowlist above, so by here it is known-runnable.
   VERIFY="$(jq -r ".slices[$i].verify // \"none\"" "$SPEC")"
 
@@ -282,7 +297,7 @@ $(jq -r "if (.slices[$i].forbid // []) | length > 0 then \"\nDO NOT TOUCH (anoth
 EXPECTED RESULT: $(jq -r ".slices[$i].accept // \"the files you own are complete and self-consistent\"" "$SPEC")
 
 RULES
-- This workflow selected $AGENT_SETUP and worker model $MODEL. Keep that setup for this slice.
+- This workflow selected $SLICE_SETUP and worker model $SLICE_MODEL for this $MODEL_ROUTE slice. Keep that setup for this slice.
   You are a leaf worker: do not launch another worker, reviewer, claude, astra or codex process.
 - The working tree is ALREADY set up: dependencies installed, build usable. Do not install anything,
   do not run a package manager, do not rebuild. The orchestrator did it once before dispatching you.
@@ -316,13 +331,15 @@ RULES
     S0=$(date +%s)
     # Backgrounded then waited on, ONLY so the real claude PID can be recorded. Behaviour is
     # identical to running it in the foreground. The PID is what the sampler is matched against.
-    if [ "$AGENT_SETUP" != full-claude ]; then
-      AGENT_SETUP="$AGENT_SETUP" AGENT_MODEL_PROVIDER="$MODEL_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
-        "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --model "$MODEL" --cd "$REPO" --output-format json \
+    if [ "$SLICE_PROVIDER" = openai ]; then
+      AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
+        "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --model "$SLICE_MODEL" --cd "$REPO" --output-format json \
         --events-file "$SD/events.jsonl" > "$SD/result.json" 2> "$SD/stderr.txt" &
     else
-      AGENT_SETUP="$AGENT_SETUP" AGENT_MODEL_PROVIDER="$MODEL_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
-        --model "$MODEL" --output-format json --permission-mode acceptEdits \
+      AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_ALLOW_CROSS_PROVIDER=1 \
+        CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
+        -u ANTHROPIC_BASE_URL -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX claude -p "$PROMPT" \
+        --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     fi
     CPID=$!
