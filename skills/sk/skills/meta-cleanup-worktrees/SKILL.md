@@ -1,6 +1,6 @@
 ---
 name: meta-cleanup-worktrees
-description: Safely clean up DONE git worktrees and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. It lists and CONFIRMS before it deletes anything, never force-deletes, and BLOCKS any worktree with a live session, uncommitted changes, unpushed commits, or an open/unmerged PR. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "clean up merged worktrees", "remove done worktrees and branches", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
+description: Safely clean up DONE git worktrees, their plan dashboards, and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. It lists and CONFIRMS before it deletes anything, stops only a dashboard viewer whose runtime receipt proves it belongs to that worktree, never force-deletes, and BLOCKS any worktree with another live session, uncommitted changes, unpushed commits, or an open/unmerged PR. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
 argument-hint: "[optional repo path; defaults to the current repo]"
 ---
 
@@ -50,6 +50,12 @@ Then `ls` the common parent of the listed worktrees on disk (the `.claude/worktr
 git stops listing a worktree once its metadata is pruned while the checkout still sits on disk
 (`dev-server-hygiene.md`).
 
+Also enumerate `.context/*-dashboard.runtime.json` inside each candidate. Treat a receipt as owned only
+when its `plan` and `output` resolve inside that worktree, the plan exists, and `ps -p <pid> -o command=`
+names `workflow-dashboard.py serve`; resolve the command's plan argument against the PID's cwd and require
+it to equal the receipt's plan. A missing/dead receipt is stale runtime metadata;
+a live receipt that fails any ownership check is an unknown process and BLOCKS cleanup.
+
 **Also enumerate BRANCH-ONLY orphans — merged local branches whose worktree is already gone.** This is
 the most common leftover: Conductor (or a `git worktree remove`) reaps the workspace but leaves the
 branch behind, so it never appears in `git worktree list` and a run that enumerates only worktrees never
@@ -90,10 +96,11 @@ A worktree is removable only if EVERY check passes:
 3. **Nothing local-only:** if the branch has an upstream, `git -C <wt> rev-list --count @{upstream}..HEAD`
    is `0`; if it has NO upstream (never pushed), fall back to
    `git -C <wt> rev-list --count origin/<default>..HEAD` is `0`.
-4. **Idle:** no process is cwd'd in the worktree — `lsof -nP -d cwd | grep -F <path>` (NEVER `lsof +D`,
-   which recurses the whole tree and hangs). A live `claude`/`node` session → BLOCK. An idle `zsh`
-   sitting in it → removable but WARN (removing it orphans that shell's cwd). Cross-check with
-   `bin/port-registry.sh reap`.
+4. **Idle:** no process except a verified dashboard viewer is cwd'd in the worktree —
+   `lsof -nP -d cwd | grep -F <path>` (NEVER `lsof +D`, which recurses the whole tree and hangs).
+   A verified viewer is removable-after-confirmation and appears in the candidate table with its PID;
+   a live `claude`/`node` session or unverified viewer → BLOCK. An idle `zsh` sitting in it → removable
+   but WARN (removing it orphans that shell's cwd). Cross-check with `bin/port-registry.sh reap`.
 5. **Not the current worktree, not the main checkout.**
 
 A PR that is CLOSED-but-not-merged is NOT merged → BLOCK. A merged branch with NO worktree is a 🌱
@@ -105,6 +112,10 @@ worktree to read local-only commits from. Then `git branch -D`; no worktree to r
 
 Show a table, grouped: ✅ removable · ⛔ blocked (with the exact reason) · 🌱 branch-only. Then use
 AskUserQuestion and act ONLY on Simon's yes.
+
+For each removable worktree, list its canonical `.context/*-dashboard.html` files and any verified
+viewer PID under `Dashboard cleanup`. The worktree confirmation covers deleting those disposable files
+with the worktree and stopping those exact viewers; it never covers a mismatched or unrecorded process.
 
 **Honor an explicit keep-list.** When Simon names branches or worktrees to keep, HARD-EXCLUDE them from
 every removable group before presenting — above the gate, even for ones the gate would already block.
@@ -124,6 +135,11 @@ someone else authored, even when it is the counterpart of a local orphan Simon i
 
 For each confirmed-removable worktree:
 
+- For each verified dashboard viewer listed at the gate, run
+  `python3 "$HOME/.claude/bin/workflow-dashboard.py" stop <plan> --expect-pid <pid>`. The helper re-runs
+  the receipt/worktree/output/command checks, sends `TERM` only to that confirmed PID, waits up to 5
+  seconds and verifies it exited. If ownership changed or it survives, BLOCK that worktree instead of
+  widening the kill. Re-run the idle check after the viewer exits.
 - `git worktree remove <path>` — NEVER `--force`. Its refusal on a dirty or locked tree is the seatbelt.
   It DELETES the worktree's whole tree, `node_modules` included (tens of thousands of files), so it runs
   for MINUTES — give it a long timeout. A short cap (e.g. 60s) kills it mid-delete and leaves the worktree
@@ -144,9 +160,15 @@ For each confirmed-removable worktree:
 - Remote branch, only if extra-confirmed AND its tip author is Simon's (Step 4's `%ae %an` check):
   `git push origin --delete <branch> …` (batch them in one push). Never a branch someone else authored.
 
+The normal worktree removal deletes its `.context` directory, including the plan, canonical dashboard,
+mockups, evidence and runtime receipt. Never preserve a second dashboard archive during cleanup; promote
+the durable decisions and verdicts first through `references/planning-and-tracking.md`.
+
 Then once, at the end: `git worktree prune -v` (reclaims the removed entries + any `fallow-*` scratch
 worktrees git has already orphaned). VERIFY against disk: `ls` the workspaces dir AND `git worktree list`
-must both agree the removed ones are gone (storage-vs-listing).
+must both agree the removed ones are gone (storage-vs-listing), every listed dashboard path is absent,
+every stopped viewer PID remains gone, and
+`git show-ref --verify --quiet refs/heads/<branch>` exits nonzero for every removed local branch.
 
 ## Step 6 — name the sessions for Simon to archive
 
@@ -183,5 +205,7 @@ only Simon's own, by `%ae %an` tip author** · **on-disk dir git no longer
 tracks — `git worktree remove` errors; idle-check then `rm -rf`, extra-confirmed** · **`git worktree
 remove` is SLOW (deletes `node_modules`, tens of thousands of files) — long timeout; a short cap kills it
 mid-delete and the worktree goes `prunable` with the dir left on disk, finish with `prune` + `rm -rf`** ·
+**a dashboard viewer is exempt from the idle block only after its receipt, plan path, output path and
+process command all match that worktree; stop it after confirmation, then re-run the idle gate** ·
 `lsof +D` hangs (use
 `-d cwd`) · stale/duplicate session symlinks (verify the target codename still has a worktree).

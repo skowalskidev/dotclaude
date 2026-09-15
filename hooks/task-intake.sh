@@ -8,7 +8,7 @@
 # into the void while sub-agents are already burning tokens on the wrong plan.
 #
 # HOW IT WORKS (the instruction alone is not enough — an instruction is advisory, a hook is not)
-#   UserPromptSubmit  -> new substantive task? inject the intake protocol, arm the gate.
+#   UserPromptSubmit  -> new substantive task? initialize its dashboard, inject intake, arm the gate.
 #   PreToolUse        -> Agent/Task/Workflow while the gate is armed: DENY. This is the part that
 #                        actually stops a runaway fan-out; the injected text only asks nicely.
 #   PostToolUse       -> AskUserQuestion returned, so the user has answered: disarm.
@@ -45,6 +45,7 @@ set -uo pipefail
 
 MODE="${1:-submit}"
 STATE_DIR="${CLAUDE_INTAKE_STATE_DIR:-$HOME/.claude/.session-intake}"
+CFG_ROOT="${CLAUDE_CONFIG_ROOT:-$HOME/.claude}"
 INPUT="$(cat)"
 
 # Off-switch, checked in every mode so it disables the whole mechanism, not just the arming.
@@ -121,9 +122,11 @@ question is asked, which is exactly what they asked to be gated.
 Do this first, in one turn:
   1. Say what you understand the task to be, in one or two lines.
   2. List the skills, rules and references you propose to use, and why each one.
-  3. Ask for anything you will predictably need from him later (auth, credentials, prod approval,
+  3. Apply rules/living-plan.md: open the initialized plan, replace its intake skeleton, regenerate its
+     canonical dashboard, and include the clickable DASHBOARD_PATH in the proposal.
+  4. Ask for anything you will predictably need from him later (auth, credentials, prod approval,
      any decision that forks the work) — all of it now, in ONE block.
-  4. Call AskUserQuestion to confirm or redirect. That blocks for a real answer and disarms this
+  5. Call AskUserQuestion to confirm or redirect. That blocks for a real answer and disarms this
      gate. Nothing else disarms it.
 
 If he has already given standing authorization to proceed without him, say so and re-run with \
@@ -153,26 +156,47 @@ submit)
     exit 0
   fi
 
-  # 1. Standing authorization to run unattended. The user says this when handing the session over
-  #    for the night; stopping to ask would defeat the whole point of them saying it.
+  # 1. Standing authorization suppresses the approval GATE, not the session record. The task still
+  #    gets its plan/dashboard below so an unattended run remains recoverable.
   # The phrasings below are collected from real handovers, not imagined. "i wont be here to answer
   # qs" was added on 2026-08-03 after the gate armed on exactly that sentence and would have
   # deadlocked the session it was written for. Add to this list whenever a live one slips through.
-  if printf '%s' "$LOWER" | grep -qE "don'?t ask me|do not ask me|no questions|without asking|answer (all of )?(your|the) (own )?questions|ask and answer (by )?your ?self|i('| a)?m going to sleep|i will be sleeping|i'?ll be sleeping|while i sleep|don'?t stop to ask|proceed without|no need to ask|won'?t be (here|around|available)|wont be (here|around|available)|not (be )?(here|around|available) to answer|to answer (any )?(qs|questions)|unattended|go until you exhaust|until (you )?(exhaust|run out)"; then
-    rm -f "$MARKER" "$MARKER.denials" 2>/dev/null
-    exit 0
-  fi
+  UNATTENDED=0
+  printf '%s' "$LOWER" | grep -qE "don'?t ask me|do not ask me|no questions|without asking|answer (all of )?(your|the) (own )?questions|ask and answer (by )?your ?self|i('| a)?m going to sleep|i will be sleeping|i'?ll be sleeping|while i sleep|don'?t stop to ask|proceed without|no need to ask|won'?t be (here|around|available)|wont be (here|around|available)|not (be )?(here|around|available) to answer|to answer (any )?(qs|questions)|unattended|go until you exhaust|until (you )?(exhaust|run out)" && UNATTENDED=1
 
   # 2. Short replies and continuations are follow-ups inside a task that was already gated.
   if [ "$LEN" -lt 180 ] && printf '%s' "$LOWER" | grep -qE '^[[:space:]]*(y|n|yes|no|ok|okay|sure|go|go ahead|do it|proceed|continue|carry on|keep going|next|approved?|confirm(ed)?|sounds good|lgtm|ship it|option [0-9]|[0-9]+|thanks|thank you|ty|please do|yep|yeah|nope|correct|right|exactly|both|all|neither|stop|wait|hold on)[[:space:][:punct:]]*$'; then
     exit 0
   fi
 
+  # Every non-trivial user prompt gets the session record, even when its wording does not arm the
+  # approval gate (for example, "Why is this route slow?"). Initialization is locked and idempotent.
+  TASK_CWD="$(json_field '.cwd')"
+  [ -d "$TASK_CWD" ] || TASK_CWD="${CLAUDE_PROJECT_DIR:-$PWD}"
+  DASHBOARD_CONTEXT="Dashboard initialization failed; resolve it before work starts."
+  if [ -f "$CFG_ROOT/bin/workflow-dashboard.py" ]; then
+    INIT_OUTPUT="$(/usr/bin/python3 "$CFG_ROOT/bin/workflow-dashboard.py" init \
+      --root "$TASK_CWD" --slug "session-$SESSION_ID" 2>&1)"
+    INIT_STATUS=$?
+    if [ "$INIT_STATUS" -eq 0 ]; then
+      DASHBOARD_PATH="$(printf '%s\n' "$INIT_OUTPUT" | sed -n 's/^DASHBOARD_PATH=//p' | tail -1)"
+      PLAN_PATH="$(printf '%s\n' "$INIT_OUTPUT" | sed -n 's/^PLAN_PATH=//p' | tail -1)"
+      DASHBOARD_CONTEXT="Session record ready. PLAN_PATH=$PLAN_PATH DASHBOARD_PATH=$DASHBOARD_PATH"
+    else
+      DASHBOARD_CONTEXT="Dashboard initialization failed: $INIT_OUTPUT"
+    fi
+  fi
+
   # 3. Arm on a task OPENING. Either it is long enough to be a brief, or it starts with a work verb.
   ARM=0
   [ "$LEN" -ge 180 ] && ARM=1
-  printf '%s' "$LOWER" | grep -qE '^[[:space:]]*(please[[:space:]]+)?(add|build|implement|create|write|refactor|migrate|fix|debug|investigate|audit|review|clean ?up|reorganis|reorganiz|optimis|optimiz|upgrade|update|remove|delete|rename|extract|centralis|centraliz|test|deploy|ship|set up|setup|integrate|port|convert|rewrite|redesign|research|plan|design)\b' && ARM=1
+  printf '%s' "$LOWER" | grep -qE "^[[:space:]]*(please[[:space:]]+)?((can|could|would|will)[[:space:]]+(you|we)[[:space:]]+|i[[:space:]]+(want|need)[[:space:]]+(you[[:space:]]+)?to[[:space:]]+)?(add|build|implement|create|write|refactor|migrate|fix|debug|investigate|audit|review|clean ?up|reorganis|reorganiz|optimis|optimiz|upgrade|update|remove|delete|rename|extract|centralis|centraliz|test|deploy|ship|set up|setup|integrate|port|convert|rewrite|redesign|research|plan|design|make|change|check|explain|help)\b" && ARM=1
   [ "$ARM" -eq 0 ] && exit 0
+
+  if [ "$UNATTENDED" -eq 1 ]; then
+    rm -f "$MARKER" "$MARKER.denials" 2>/dev/null
+    exit 0
+  fi
 
   mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
   : > "$MARKER" 2>/dev/null || exit 0
@@ -184,11 +208,17 @@ submit)
 
   CONTEXT="TASK INTAKE GATE (armed for this prompt — Agent/Task/Workflow are BLOCKED until you clear it).
 
+$DASHBOARD_CONTEXT
+
 You do not want to have to remember which skill fits a task, and you may hand this session over
 and walk away. So before any work starts, in THIS turn:
 
-  1. State what you take the task to be, in one or two lines.
-  2. Survey what is available and propose what you will use, with a reason each. READ
+  1. Apply rules/living-plan.md. Open the initialized PLAN_PATH, replace its intake skeleton with the
+     proposed task and sources, regenerate its canonical dashboard, and include the clickable
+     DASHBOARD_PATH in the proposal. Ordinary tasks use engine=current with gauntlet=false and do not
+     need a loop-options interview.
+  2. State what you take the task to be, in one or two lines.
+  3. Survey what is available and propose what you will use, with a reason each. READ
      ~/.claude/references/skill-stack.md — it maps task shapes to the right spine skill and to what
      genuinely stacks on top, so you do not have to guess from names alone. It covers:
        - your own skills (/sk:*, and your work-skills plugin, e.g. /sk-work:*) as the spine
@@ -205,12 +235,12 @@ and walk away. So before any work starts, in THIS turn:
      Pick each worker's TIER by the job: smallest for mechanical fan-out, mid for substantive edits,
      strong only for judgement. The chat's model is the orchestrator's, never the fleet's default.
      Do not ask Full Claude or Full Astra when this chat already identifies its provider.
-  3. Front-load every predictable ask in ONE block: auth or logins, credentials, prod approval,
+  4. Front-load every predictable ask in ONE block: auth or logins, credentials, prod approval,
      billable API calls, and any decision where guessing wrong wastes the work.
-  4. Call AskUserQuestion to confirm or redirect. It blocks for a real answer, and it is the only
+  5. Call AskUserQuestion to confirm or redirect. It blocks for a real answer, and it is the only
      thing that disarms this gate.
 
-Keep it to a few lines. This is a go/no-go, not a plan document — the plan comes after he says go."
+Keep it to a few lines. This is a go/no-go; detailed planning and execution come after he says go."
 
   if command -v jq >/dev/null 2>&1; then
     jq -cn --arg c "$CONTEXT" \

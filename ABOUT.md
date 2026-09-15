@@ -21,11 +21,26 @@ For independent OpenAI work, use `codex -p "the task" --model <openai-model>`; o
 uses Astra. The shortcut reuses native Codex and existing authentication.
 Setup details live in `references/parallelization.md`.
 
-## Gauntlet dashboard
+## Session dashboard and Gauntlet
 
-Invoke [sk] `/sk:work-gauntlet-loop` for Gauntlet, or [sk] `/sk:work-ralph-loop` for standalone Ralph.
-Both use the `work-` group in the personal `sk` plugin; select those skill names in Codex.
-The existing shared `sk` skill directory supplies both hosts. A newly added skill can require a new session.
+Every task-bearing workspace gets one dashboard derived from its living `.context/<slug>-plan.md`.
+Task intake mechanically initializes it; [sk] `/sk:meta-dotclaude-copilot-start-here-for-any-task`
+does the same on hosts without that hook. Initialization is locked and idempotent, so simultaneous or
+repeated intake leaves one active plan and dashboard. The agent replaces the intake skeleton before work,
+then refreshes the same file as sources, decisions, artifacts, progress and next actions change. Ask for
+the dashboard link from any later session, or run
+`python3 "$HOME/.claude/bin/workflow-dashboard.py" link`; it regenerates and prints the canonical
+absolute HTML path. The portable file remains useful when no live viewer is running.
+
+The Session record inside the dashboard derives narrative sections from the plan and computes its
+artifact and remaining-work indexes from dashboard state. The Markdown plan remains the only task
+record; the HTML is a replaceable view, not another store.
+
+Ordinary tasks use current-session tracking with the independent judge off and no loop-options
+interview. Invoke [sk] `/sk:work-gauntlet-loop` for Gauntlet, or [sk] `/sk:work-ralph-loop` for
+standalone Ralph. Both use the `work-` group in the personal `sk` plugin; select those skill names in
+Codex. The existing shared `sk` skill directory supplies both hosts. A newly added skill can require a
+new session.
 
 At the beginning, Gauntlet asks you to choose the existing workflow or Ralph’s fresh-worker loop,
 the separate Gauntlet judge on or off, reference input and iteration budget. The dashboard’s This run
@@ -40,9 +55,9 @@ iterate with you and use the version you approve as the reference for implementa
 Changing an approved target requires a new approval; ordinary implementation fixes do not.
 
 The dashboard has section buttons and overall completion on the left, with Before, named Target and
-Current evidence on the right. It displays verified outcomes, captures and next actions. Embedded
-mockups retain their versions and feedback. Downloaded HTML opens offline; a local viewer follows
-updates every two seconds. The template stays the same across tasks and execution modes.
+Current evidence on the right. Session record pools sources, decisions, notes, history, artifacts and
+remaining actions. Embedded mockups retain their versions and feedback. Downloaded HTML opens offline;
+a local viewer follows updates every two seconds. The template stays the same across tasks and modes.
 
 One `.context/<slug>-plan.md` owns the task narrative and a version-1 `dashboard-state` JSON block.
 That block records the engine, phase, revision, sections, criteria, evidence, target approval and judge
@@ -57,6 +72,9 @@ Entry skills: `skills/sk/skills/work-gauntlet-loop/` and `skills/sk/skills/work-
 Shared runtime: `bin/workflow-dashboard.*`. Protocol and attribution:
 `references/workflow-loops.md`. Validation: `python3 hooks/config-contract.test.py`.
 Runtime plan/evidence files stay in the task workspace and must be preserved before deleting it.
+The cleanup skill promotes durable outcomes first, uses the runtime helper to stop only a viewer whose
+receipt, output and command match the worktree, then verifies its dashboard, PID, worktree and local
+branch are gone.
 
 ## Production-data preview
 
