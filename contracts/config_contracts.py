@@ -138,6 +138,7 @@ CONTRACTS: dict[str, dict] = {
             "Load bin/workflow-dashboard.html and use one plan across execution modes.",
             "Reject unconfirmed running state, incomplete criteria, stale or self-approved judgements and conflicting revisions.",
             "Validate assets before advancing the plan and inline them for offline export.",
+            "Expose a section's safe HTTP(S) previewUrl in its Current header in live and saved HTML, independent of capture availability; open a new tab without changing screenshot zoom or target links.",
             "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped, and open its canonical dashboard route in a new tab when live, or the same embedded html as a view-only blob when offline, from the modal header and the panel caption; bin/workflow-dashboard.test.py proves both.",
             "Persist section, artifact and modal in the URL hash; restore the route on load and Back/Forward; close the innermost open overlay on Escape from the dashboard or a nested iframe; refresh an open canonical asset after a remote revision without dropping feedback.",
         ],

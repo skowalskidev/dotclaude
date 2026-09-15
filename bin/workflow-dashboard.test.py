@@ -44,6 +44,110 @@ def passed():
 
 
 class DashboardTests(unittest.TestCase):
+    def test_preview_url_validation_and_export_preserve_assets(self):
+        state = fixture()
+        for value in (None, 'http://localhost:3000/settings?tab=one#details',
+                      'https://preview.example.com/app', 'http://[::1]:3060/'):
+            with self.subTest(value=value):
+                state['sections'][0]['previewUrl'] = value
+                d.validate(state)
+        for value in ('', 'javascript:alert(1)', 'data:text/html,hello', '/relative',
+                      '//example.com', 'https://', 'https://user:pass@example.com',
+                      'http://localhost:0/', 'http://localhost:99999/',
+                      'http://localhost/has space', 'https://example.com\\path',
+                      'https://example.com/\npath', 42):
+            with self.subTest(value=value):
+                state['sections'][0]['previewUrl'] = value
+                with self.assertRaisesRegex(ValueError, 'previewUrl'):
+                    d.validate(state)
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'capture.png').write_bytes(b'capture fixture')
+            (base / 'target.html').write_text('<p>Approved target</p>')
+            section = state['sections'][0]
+            section.update(previewUrl='http://localhost:3000/settings',
+                           current={'kind': 'image', 'label': 'Capture', 'path': 'capture.png', 'source': 'Browser'},
+                           target={'kind': 'html', 'label': 'Target', 'path': 'target.html', 'source': 'Review'})
+            plan = base / 'task-plan.md'
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+            public = d.public_spec(plan)['sections'][0]
+            self.assertEqual(public['previewUrl'], section['previewUrl'])
+            self.assertTrue(public['current']['data'].startswith('data:image/png;base64,'))
+            self.assertEqual(public['target']['html'], '<p>Approved target</p>')
+            output = d.export_dashboard(plan)
+            data = output.read_text().split('<script id="spec" type="application/json">')[1].split('</script>')[0]
+            self.assertEqual(json.loads(data)['sections'][0], public)
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, 'playwright not installed')
+    def test_current_preview_is_visible_live_and_in_saved_html(self):
+        state = fixture()
+        state['sections'][0]['current'] = {
+            'kind': 'image', 'label': 'Current capture',
+            'data': 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=',
+        }
+        second = copy.deepcopy(state['sections'][0])
+        second.update(id='two', title='No capture')
+        second.pop('current')
+        state['sections'].append(second)
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                payload = (json.dumps(state) if self.path == '/state' else
+                           '<!doctype html><title>Preview</title><p>Live preview</p>' if self.path.startswith('/preview') else
+                           d.render_spec(state))
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json' if self.path == '/state' else 'text/html')
+                self.end_headers()
+                self.wfile.write(payload.encode())
+
+            def log_message(self, *_):
+                pass
+
+        server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        origin = f'http://127.0.0.1:{server.server_port}'
+        preview = origin + '/preview?tab=one#details'
+        for section in state['sections']:
+            section['previewUrl'] = preview
+        try:
+            with tempfile.TemporaryDirectory() as tmp, sync_playwright() as pw:
+                browser = pw.chromium.launch()
+                page = browser.new_page()
+                page.goto(origin + '/#section=one')
+                with page.expect_download() as download:
+                    page.locator('#download').click()
+                saved = Path(tmp) / 'saved.html'
+                download.value.save_as(saved)
+                for source in (origin + '/', saved.as_uri()):
+                    page.goto(source)
+                    for index in (0, 1):
+                        page.locator('#sections button').nth(index).click()
+                        link = page.locator('.panel').nth(2).locator('.panel-head .open-preview')
+                        self.assertTrue(link.is_visible())
+                        self.assertEqual(link.inner_text(), 'Open preview ↗')
+                        self.assertEqual(link.get_attribute('href'), preview)
+                        with page.context.expect_page() as opened:
+                            link.click()
+                        tab = opened.value
+                        tab.wait_for_load_state()
+                        self.assertEqual(tab.url, preview)
+                        self.assertEqual(tab.title(), 'Preview')
+                        self.assertTrue(tab.evaluate('window.opener === null'))
+                        tab.close()
+                        if index == 0:
+                            page.locator('.panel').nth(2).locator('img').click()
+                            self.assertTrue(page.locator('#image-dialog').is_visible())
+                            page.locator('#close-image').click()
+                    for value in (None, 'javascript:alert(1)', '//example.com', 'https://user:pass@example.com'):
+                        page.evaluate('(value) => { spec.sections[1].previewUrl=value; render(); }', value)
+                        self.assertEqual(page.locator('.open-preview').count(), 0)
+                browser.close()
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
     def test_mockup_route_bridge_contract_is_present(self):
         source = Path(__file__).with_name('workflow-dashboard.html').read_text()
         for token in ('cleanMockupRoute', 'dashboard-mockup-route', 'mockup:route',

@@ -43,6 +43,18 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def valid_preview_url(value):
+    if not isinstance(value, str) or not re.match(r'^https?://', value, re.I):
+        return False
+    if re.search(r'[\s\\\x00-\x1f\x7f]', value):
+        return False
+    try:
+        parsed = urlsplit(value)
+        return bool(parsed.hostname and parsed.port != 0 and parsed.username is None and parsed.password is None)
+    except ValueError:
+        return False
+
+
 def validate(s):
     require(s.get('schemaVersion') == 1, 'Unsupported schemaVersion')
     require(isinstance(s.get('title'), str) and s['title'].strip(), 'Missing title')
@@ -70,6 +82,9 @@ def validate(s):
         require(isinstance(section.get('id'), str) and section['id'] not in ids, 'Duplicate/missing section id')
         ids.add(section['id'])
         require(isinstance(section.get('title'), str), 'Missing section title')
+        if section.get('previewUrl') is not None:
+            require(valid_preview_url(section['previewUrl']),
+                    'previewUrl must be an absolute HTTP(S) URL without credentials or whitespace')
         require(section.get('status') in STATES, 'Unknown section status')
         require(type(section.get('artifactRevision')) is int and section['artifactRevision'] > 0, 'Invalid artifact revision')
         checks = section.get('criteria')

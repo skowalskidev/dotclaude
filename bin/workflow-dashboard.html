@@ -14,6 +14,7 @@
 .open-mock-tab{margin-left:auto;margin-right:12px;font-size:13px;text-decoration:underline;cursor:pointer}.mock-dialog>.actions{display:flex;align-items:center;gap:8px}.mock-stage{width:100%;height:100%;min-height:340px;position:relative;overflow:hidden}.mock-stage iframe{position:absolute;top:0;left:0;transform-origin:top left;border:0;background:white}.mock-preview{pointer-events:none}.open-mock{position:absolute;bottom:12px;right:12px;background:var(--paper);z-index:2;font-size:12px}.mock-dialog[open]{display:flex;flex-direction:column;width:96vw;height:94vh;max-width:none;padding:14px;overflow:hidden}.mock-dialog>.actions{flex:0 0 auto;justify-content:space-between}.mock-dialog .mock-stage{flex:1 1 auto;min-height:0;width:100%;height:100%;display:flex;flex-direction:column;margin-top:8px;overflow:hidden}.mock-dialog .mock-stage iframe{position:static;flex:1 1 auto;min-height:0;width:100%;height:100%;transform:none}.draft-note{font-size:12px;color:var(--warn)}
 .run-values{display:grid;grid-template-columns:160px 1fr;gap:14px 18px;font-size:14px;margin:24px 0}.run-values dt{color:var(--muted)}.run-values dd{margin:0;overflow-wrap:anywhere}@media(max-width:500px){.run-values{grid-template-columns:1fr;gap:6px}.run-values dd{margin-bottom:12px}}
 .record-dialog{width:min(980px,94vw);height:min(86vh,900px);max-width:none;overflow:auto}.record-dialog>.actions{position:sticky;top:-25px;z-index:2;justify-content:space-between;background:var(--paper);padding:4px 0 16px;border-bottom:1px solid var(--line)}.record-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}.record-card{border:1px solid var(--line);border-radius:var(--radius);padding:18px;background:var(--paper);min-width:0}.record-card h3{font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 12px}.record-card p,.record-card li{font-size:13px;line-height:1.6;color:var(--muted);overflow-wrap:anywhere}.record-card p{white-space:pre-wrap;margin:0}.record-card ul{margin:0;padding-left:18px;display:grid;gap:9px}.record-card button{border:0;padding:0;text-align:left;color:var(--accent);text-decoration:underline}.record-meta{display:block;font-size:11px;color:var(--muted);margin-top:2px}@media(max-width:760px){.record-grid{grid-template-columns:1fr}.record-dialog{height:90vh}}
+.open-preview{font-size:12px;letter-spacing:normal;text-transform:none;white-space:nowrap}.open-preview:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 </style>
 </head>
 <body>
@@ -102,8 +103,14 @@ function renderRecord(){
  {const card=recordCard('Remaining'),list=el('ul');if(!remaining.length)list.append(el('li','','Nothing left.'));for(const item of remaining){const li=el('li'),button=el('button','',item.section);button.onclick=()=>selectRecordItem(item);li.append(button,el('span','record-meta',labels[item.status]+(item.next?' · Next: '+item.next:'')));for(const criterion of item.criteria||[])li.append(el('span','record-meta','○ '+criterion));list.append(li)}card.append(list);cards.push(card)}
  $('record-grid').replaceChildren(...cards);
 }
+function previewLink(value){
+ if(typeof value!=='string'||!/^https?:\/\//i.test(value)||/[\s\\\x00-\x1f\x7f]/.test(value))return null;
+ try{const url=new URL(value);if(!url.hostname||url.username||url.password||url.port==='0')return null}catch{return null}
+ const link=el('a','open-preview','Open preview ↗');link.href=value;link.target='_blank';link.rel='noopener noreferrer';return link;
+}
 function assetPanel(s,key,title,index){
  const panel=el('section','panel'),head=el('div','panel-head');head.append(el('b','',title),el('span','',String(index).padStart(2,'0')));panel.append(head);
+ if(key==='current'){const link=previewLink(s.previewUrl);if(link)head.replaceChild(link,head.lastChild)}
  const canvas=el('div','canvas'),a=s[key];
  if(a?.kind==='image'&&a.data){const img=el('img');img.src=a.data;img.alt=a.label;img.tabIndex=0;img.setAttribute('role','button');const zoom=()=>openImage(a,s.id,key);img.onclick=zoom;img.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();zoom()}};canvas.append(img)}
  else if(a?.kind==='html'&&a.html){const stage=el('div','mock-stage');canvas.append(stage);requestAnimationFrame(()=>mountFrame(stage,a,s.id,key,false));const open=el('button','open-mock','Open mockup ↗');open.onclick=()=>openMock(a,s.id,key);canvas.append(open)}

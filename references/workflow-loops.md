@@ -92,6 +92,13 @@ of summary. Put tests, judge evidence and source detail behind Details. For visu
 real captures; for work without a screen, use named text/diagram evidence or verified progress.
 Never label a diagram or proposed mockup as an implementation screenshot.
 
+DO set each implemented surface's section-level `previewUrl` to its working HTTP(S) page as soon as
+the preview is available. Keep one visible `Open preview ↗` link in that section's Current header,
+including when no capture exists; open it in a new tab and retain the screenshot's zoom action.
+Update the URL when the preview moves and remove it when the preview is retired. Keep credentials
+out of URLs. TEST: Current opens the same page from the live dashboard and saved HTML without opening
+Details, and sections without a preview show no link.
+
 DO count only `status=done` sections in overall completion; give every required section equal weight.
 Show per-section progress as passed criteria / all criteria. A 100% criteria count with a pending
 judge stays `review`, and contributes zero completed sections. Include docs, checks, integration and
@@ -151,6 +158,8 @@ only the user's explicit approval (in chat or an exported approve verdict the ag
 DO initialize every field shown below. Add sections and criteria for the real task; do not retain
 example completion claims. `planPath` is relative to the worktree for resuming the task.
 `before`, `target` and `current` are optional; omitted current renders verified progress.
+`previewUrl` is optional on each section and independent of its `current` asset; use an absolute
+HTTP(S) URL without credentials or whitespace, e.g. `http://localhost:3000/settings`.
 
 ```json
 {
