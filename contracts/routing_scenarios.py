@@ -187,6 +187,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "run this the right way", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
     {"phrase": "just handle this", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
     {"phrase": "which skills for this task", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "show me this session's dashboard", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
+    {"phrase": "give me the dashboard link", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
 
     # --- The config itself ---------------------------------------------------------
     {"phrase": "sync my config", "expect": "claude-config-sync"},

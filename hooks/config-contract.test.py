@@ -46,6 +46,9 @@ from pathlib import Path
 ROOT = Path(os.environ.get("CLAUDE_CONFIG_ROOT", Path.home() / ".claude"))
 _INTAKE_TEMP = tempfile.TemporaryDirectory(prefix="claude-intake-tests-")
 INTAKE_TEST_DIR = Path(_INTAKE_TEMP.name)
+INTAKE_WORK_DIR = INTAKE_TEST_DIR / "workspace"
+INTAKE_WORK_DIR.mkdir()
+(INTAKE_WORK_DIR / ".git").mkdir()
 
 # Skill plugins this suite governs. TRACKED ones only, deliberately.
 #
@@ -72,7 +75,8 @@ CRITERIA: list[tuple[str, str]] = [
     ("native-codex-shares-canonical-config",
      "Native Codex reads current shared sources, preserves profile boundaries and propagates hook decisions without copying credentials."),
     ("dashboard-runtime-preserves-completion",
-     "The shared dashboard rejects unsupported state, false completion, stale judges and lost updates; exports portable evidence."),
+     "The shared dashboard initializes one task record, rejects false completion and lost updates, "
+     "exports portable evidence, and stops only its receipt-verified viewer."),
     ("mockup-shell-preserves-reviewed-deep-links",
      "The mockup shell routes direct links to validated versions, variants, personas and states; What’s new selects the declared target and flashes its exact element."),
     # --- Structure: the shape config-repo.md promises ---------------------------------
@@ -102,8 +106,8 @@ CRITERIA: list[tuple[str, str]] = [
 
     # --- The task-intake gate: what you asked for on 2026-08-03 ---------------------
     ("intake-arms-on-a-task-opening",
-     "A prompt that opens substantive work arms the gate and injects the intake protocol, so Claude "
-     "proposes the skills and the plan before starting."),
+     "A prompt that opens substantive work initializes one plan-backed dashboard, arms the gate and "
+     "injects the intake protocol, so Claude proposes the skills and task before starting."),
     ("intake-blocks-runaway-fanout",
      "While the gate is armed, Agent / Task / Workflow are DENIED. Sub-processes keep running after "
      "a question is asked, so the stop has to be mechanical, not a polite instruction."),
@@ -251,6 +255,9 @@ def intake(mode: str, payload: dict, env: dict | None = None) -> str:
     if env:
         e.update(env)
     e["CLAUDE_INTAKE_STATE_DIR"] = str(INTAKE_TEST_DIR)
+    e["CLAUDE_CONFIG_ROOT"] = str(ROOT)
+    payload = dict(payload)
+    payload.setdefault("cwd", str(INTAKE_WORK_DIR))
     p = run([str(ROOT / "hooks" / "task-intake.sh"), mode], input=json.dumps(payload), env=e)
     return (p.stdout or "") + (p.stderr or "")
 
@@ -380,8 +387,46 @@ def check_intake_arms_on_a_task_opening() -> None:
     out = intake("submit", {"session_id": "contract-a", "prompt": "refactor the billing module"})
     check("TASK INTAKE GATE" in out,
           "A task-opening prompt did not arm the intake gate or inject the protocol.")
+    check("Session record ready." in out and "DASHBOARD_PATH=" in out and "PLAN_PATH=" in out,
+          "Task intake armed without mechanically initializing its plan-backed dashboard.")
+    context = INTAKE_WORK_DIR / ".context"
+    check(len(list(context.glob("*-plan.md"))) == 1 and
+          len(list(context.glob("*-dashboard.html"))) == 1,
+          "Task intake did not create exactly one plan and one canonical dashboard.")
+    plan = next(context.glob("*-plan.md"))
+    state_match = re.search(r"^```dashboard-state\n(.*?)\n```", plan.read_text(), re.M | re.S)
+    state = json.loads(state_match.group(1)) if state_match else {}
+    check((state.get("engine"), state.get("gauntlet"), state.get("optionsConfirmedAt")) ==
+          ("current", False, None),
+          "Automatic intake did not use ordinary non-Gauntlet defaults.")
     check((INTAKE_TEST_DIR / "contract-a.armed").exists(),
           "The intake gate injected its protocol but wrote no marker, so nothing is actually blocked.")
+    for index, prompt in enumerate((
+        "Can you make the footer blue?",
+        "Could you review the dashboard?",
+        "I need you to investigate this failure",
+        "Please help explain why this route is slow",
+    )):
+        sid = f"contract-polite-{index}"
+        polite = intake("submit", {"session_id": sid, "prompt": prompt})
+        check("Session record ready." in polite,
+              f"Conversational task opening bypassed dashboard intake: {prompt!r}")
+        check(len(list(context.glob("*-plan.md"))) == 1 and
+              len(list(context.glob("*-dashboard.html"))) == 1,
+              f"Repeated conversational intake created a second task record: {prompt!r}")
+    question_root = INTAKE_TEST_DIR / "question-workspace"
+    question_root.mkdir()
+    (question_root / ".git").mkdir()
+    question = intake("submit", {
+        "session_id": "contract-question",
+        "prompt": "Why is the footer rendering in the wrong color?",
+        "cwd": str(question_root),
+    })
+    check(question.strip() == "",
+          "A non-imperative question armed the approval gate instead of staying conversational.")
+    check(len(list((question_root / ".context").glob("*-plan.md"))) == 1 and
+          len(list((question_root / ".context").glob("*-dashboard.html"))) == 1,
+          "A non-imperative task question received no session dashboard.")
     clear_markers()
 
 
@@ -425,6 +470,10 @@ def check_intake_respects_standing_authorization() -> None:
         check(out.strip() == "",
               f"The intake gate armed despite standing authorization to run unattended. Stopping to "
               f"ask is the one thing that prompt rules out. Prompt: {prompt[:70]}...")
+    context = INTAKE_WORK_DIR / ".context"
+    check(len(list(context.glob("*-plan.md"))) == 1 and
+          len(list(context.glob("*-dashboard.html"))) == 1,
+          "Unattended task intake suppressed the session dashboard along with the question gate.")
     clear_markers()
 
 

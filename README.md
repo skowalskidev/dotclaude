@@ -46,11 +46,11 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | Path | What |
 |---|---|
 | `CLAUDE.md` | Thin **index** for all projects — points at `rules/` + `references/` and the project-boundary rule; the actual rules live in `rules/` |
-| `rules/` | **Always-on** behavioral rules (auto-loaded every session, one concern per file): `security`, `communication`, `copy-quality`, `process`, `engineering-standards`, `ui-conventions` (always-on; `paths:` scoping is ignored at user level), `skills-workflow`, `config-repo`, `connectors`, `self-healing-config` |
+| `rules/` | **Always-on** behavioral rules (auto-loaded every session, one concern per file): `security`, `communication`, `copy-quality`, `process`, `engineering-standards`, `ui-conventions` (always-on; `paths:` scoping is ignored at user level), `skills-workflow`, `config-repo`, `connectors`, `self-healing-config`, `living-plan` |
 | `references/` | **On-demand** deep how-to catalogs (zero context cost until read; shared by `CLAUDE.md` + the `sk` skills): `research` (read at the start of every workflow run, not on demand), `contracts-and-outcomes`, `planning-and-tracking`, `parallelization`, `testing-strategy`, `dev-server-hygiene`, `code-best-practices`, `git-pr-deploy`, `api-empirical-iteration`, `browser-debugging`, `connectors-setup`, `skill-stack`, `user-journey-review`, `tldr-report-formats` |
 | `settings.json` | Hook wiring + `permissions.deny` (Edit/Write tamper-denies on the key dirs; DENY-only, no `ask` tier, so nothing prompts) |
 | `hooks/intent-ledger.sh` | UserPromptSubmit + Stop — appends every ask verbatim to the worktree's `.context/intent-ledger.md`, and blocks the finish when a ratified plan has no reconciliation. The only hook that writes into a project, so its refusals are the contract; redirects out of the tracked tree inside `~/.claude`. Kill switch: `CLAUDE_INTENT_LEDGER=off` |
-| `hooks/task-intake.sh` | UserPromptSubmit + PreToolUse + PostToolUse — proposes the skills for a new task, and DENIES Agent/Task/Workflow until you confirm |
+| `hooks/task-intake.sh` | UserPromptSubmit + PreToolUse + PostToolUse — requires every new task proposal to find/create the workspace's one plan-backed dashboard, proposes the skills, and DENIES Agent/Task/Workflow until you confirm |
 | `hooks/config-contract.test.py` | The config's own acceptance criteria: plain-English outcomes, each backed by a check, with a coverage ratchet |
 | `contracts/config_contracts.py` | What every config part is FOR and what must stay true about it. Enforced both ways by the contract test: a part with no entry fails, an entry naming a missing file fails |
 | `contracts/routing_scenarios.py` | Which part should fire for a given request, in Simon's own words, plus deterministic hook-matcher cases. Catches the silent failure where a skill never triggers because its description speaks the wrong language. Zero model calls |
@@ -72,7 +72,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
 | `skills/sk/skills/work-gauntlet-loop/` | `/sk:work-gauntlet-loop` — choose existing workflow or Ralph upfront, with independent judgement |
 | `skills/sk/skills/work-ralph-loop/` | `/sk:work-ralph-loop` — direct or composed fresh-worker completion |
-| `references/workflow-loops.md` + `bin/workflow-dashboard.*` | Shared loop protocol and live/offline viewer used by both entry skills, the permanent plan and mockups |
+| `references/workflow-loops.md` + `bin/workflow-dashboard.*` | Universal plan-derived session dashboard plus the optional Gauntlet/Ralph protocol. `init` creates/reuses one task record, `link` refreshes its canonical offline HTML, and receipt-verified `stop` closes only its live viewer; Session record pools plan sources, decisions, history, artifacts and remaining work without a second store |
 | `bin/mockup-shell.html` + `bin/mockup-build.py` (+ `bin/mockup-shell.test.py`, `bin/mockup-synthetic-spec.json`) | The one spec-driven shell every `/sk:ship-mockup-before-after` mockup is built through (viewport-first stage, one collapsible rail, presentation mode, hint bar; every switch tears the old mount down and opens the target's default state); the builder inlines a `spec.json` and extracts it back losslessly; the Playwright test proves the switch reset and the one-Before rail grouping against the synthetic spec |
 | `skills/sk/` | My personal (`/sk:*`) skill plugin. Claude Code reads it here; `bootstrap.sh` symlinks it into `~/.agents/skills/` for Codex. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
 | `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here), subscription `CODEX_HOME` and `codex` launcher function |
@@ -363,6 +363,9 @@ background daemon** (deliberately, to avoid idle CPU):
   living inside that worktree so deleting it deletes the state. Ignored through `~/.gitignore_global`
   (`**/.claude-slot.json`) rather than any repo's committed `.gitignore`, so one line covers every repo,
   personal and work, and teammates never see it. Not part of this repo.
+- **`<worktree>/.context/<slug>-plan.md`, dashboard HTML, mockups, evidence and dashboard runtime receipt**
+  — the task's durable-across-restart record and derived view. They stay together until the work is
+  finished and promoted; removing the approved worktree deletes all of them and stops its verified viewer.
 
 ## Security posture
 

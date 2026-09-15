@@ -4,13 +4,17 @@ import copy
 import importlib.util
 import json
 import html
+import os
+import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import tempfile
 import unittest
 
-spec = importlib.util.spec_from_file_location('dashboard', Path(__file__).with_name('workflow-dashboard.py'))
+DASHBOARD_SCRIPT = Path(__file__).with_name('workflow-dashboard.py').resolve()
+spec = importlib.util.spec_from_file_location('dashboard', DASHBOARD_SCRIPT)
 d = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d)
 
@@ -43,7 +47,8 @@ class DashboardTests(unittest.TestCase):
     def test_mockup_route_bridge_contract_is_present(self):
         source = Path(__file__).with_name('workflow-dashboard.html').read_text()
         for token in ('cleanMockupRoute', 'dashboard-mockup-route', 'mockup:route',
-                      'assetTabUrl(sectionId,key,route=', 'writeRoute(sectionId,key,\'mock\',false,cleanMockupRoute(readRoute()))'):
+                      'assetTabUrl(sectionId,key,route=', 'writeRoute(sectionId,key,\'mock\',false,cleanMockupRoute(readRoute()))',
+                      'Session record', 'renderRecord', "r.modal==='record'"):
             self.assertIn(token, source)
 
     def test_run_waits_for_options_and_names_need_platforms(self):
@@ -53,6 +58,42 @@ class DashboardTests(unittest.TestCase):
         s['optionsConfirmedAt'] = d.now(); s['referenceMode'] = 'names'
         with self.assertRaisesRegex(ValueError, 'Name the selected platforms'): d.validate(s)
         s['inspiration'] = 'Linear, Stripe'; s['phase'] = 'running'; d.validate(s)
+
+    def test_ordinary_running_task_needs_no_loop_options(self):
+        s = fixture()
+        s.update(gauntlet=False, engine='current', optionsConfirmedAt=None)
+        d.validate(s)
+        s['engine'] = 'ralph'
+        with self.assertRaisesRegex(ValueError, 'Select run options'):
+            d.validate(s)
+
+    def test_automatic_intake_creates_one_dashboard_without_loop_options(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / '.git').mkdir()
+            barrier = threading.Barrier(4)
+            results = []
+
+            def initialize(index):
+                barrier.wait()
+                results.append(d.initialize(root, slug='session-' + str(index)))
+
+            threads = [threading.Thread(target=initialize, args=(index,)) for index in range(4)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+
+            self.assertEqual(sum(created for _, _, created in results), 1)
+            first_plan, first_dashboard, _ = results[0]
+            self.assertTrue(all(plan == first_plan for plan, _, _ in results))
+            self.assertTrue(all(dashboard == first_dashboard for _, dashboard, _ in results))
+            self.assertEqual(len(list((root / '.context').glob('*-plan.md'))), 1)
+            self.assertEqual(len(list((root / '.context').glob('*-dashboard.html'))), 1)
+            state = d.read_plan(first_plan)[2]
+            self.assertEqual((state['engine'], state['gauntlet'], state['optionsConfirmedAt']),
+                             ('current', False, None))
+            d.validate(state)
 
     def test_done_needs_all_criteria_and_judge(self):
         s = fixture()
@@ -127,6 +168,185 @@ class DashboardTests(unittest.TestCase):
             s['sections'][0]['target']['path'] = '../outside.html'
             p.write_text('```dashboard-state\n'+json.dumps(s)+'\n```\n')
             with self.assertRaisesRegex(ValueError, 'inside'): d.render(p)
+
+    def test_session_record_derives_sources_decisions_artifacts_and_remaining(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            p = base / 'task-plan.md'
+            (base / 'mock.html').write_text('<!doctype html><p>Mockup</p>')
+            s = fixture()
+            s.update(gauntlet=False, optionsConfirmedAt=None)
+            s['sections'][0].update(
+                title='Build surface',
+                next='Implement the approved target.',
+                target={'kind': 'html', 'label': 'Approved mockup', 'path': 'mock.html', 'source': 'Design review'},
+            )
+            p.write_text(
+                '# Task\n\n## Goal & user journey (current trajectory)\n\nOpen the finished surface.\n\n'
+                '## System journey (current trajectory)\n\nRender the current plan.\n\n'
+                '## Tasks\n\n- Build the surface.\n\n'
+                '## Decisions & rationale\n\n- Keep one viewer.\n\n'
+                '## Risks & assumptions\n\n- The plan remains present.\n\n'
+                '## Sources\n\n- [Ticket](https://example.com/ticket)\n\n'
+                '## Execution notes\n\n- Runtime verified.\n\n'
+                '## Out of scope\n\n- Hosted storage.\n\n'
+                '## Changelog\n\n- Added the record.\n\n'
+                '## Dashboard state\n\n```dashboard-state\n' + json.dumps(s) + '\n```\n'
+            )
+            public = d.public_spec(p)
+            record = public['record']
+            self.assertEqual([entry['label'] for entry in record['sections']],
+                             ['User journey', 'System journey', 'Tasks', 'Decisions', 'Risks',
+                              'Sources', 'Execution notes', 'Out of scope', 'Changelog'])
+            self.assertEqual(record['artifacts'][0]['label'], 'Approved mockup')
+            self.assertEqual(record['remaining'][0]['next'], 'Implement the approved target.')
+            rendered = d.render(p)
+            self.assertIn('https://example.com/ticket', rendered)
+            self.assertIn('Approved mockup', rendered)
+            result, _ = d.update(p, public, 1)
+            self.assertNotIn('record', result)
+            self.assertNotIn('"record"', p.read_text())
+
+    def test_link_regenerates_one_canonical_dashboard_and_rejects_ambiguity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / '.context'
+            context.mkdir()
+
+            def write_plan(name, phase):
+                state = fixture()
+                state.update(gauntlet=False, optionsConfirmedAt=None, phase=phase)
+                if phase == 'complete':
+                    state['sections'][0]['status'] = 'done'
+                    state['sections'][0]['criteria'][0].update(passed=True, evidence='verified')
+                path = context / name
+                path.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+                return path
+
+            completed = write_plan('old-plan.md', 'complete')
+            active = write_plan('current-plan.md', 'running')
+            self.assertEqual(d.discover_plan(root), active.resolve())
+            (context / 'current-dashboard.html').write_text('stale')
+            output = d.export_dashboard(d.discover_plan(root))
+            self.assertEqual(output, (context / 'current-dashboard.html').resolve())
+            self.assertTrue(output.is_file())
+            self.assertNotEqual(output.read_text(), 'stale')
+            cli = subprocess.run(
+                [sys.executable, str(DASHBOARD_SCRIPT), 'link', '--root', str(root)],
+                capture_output=True, text=True,
+            )
+            self.assertEqual(cli.returncode, 0, cli.stderr)
+            self.assertIn('DASHBOARD_PATH=' + str(output), cli.stdout)
+            custom = subprocess.run(
+                [sys.executable, str(DASHBOARD_SCRIPT), 'link', '--root', str(root),
+                 '--output', str(context / 'not-canonical.html')],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(custom.returncode, 0)
+            self.assertIn('link discovers the workspace plan', custom.stderr)
+            self.assertFalse((context / 'not-canonical.html').exists())
+            other = write_plan('other-plan.md', 'planning')
+            with self.assertRaisesRegex(ValueError, 'Multiple active dashboard plans'):
+                d.discover_plan(root)
+            positional = subprocess.run(
+                [sys.executable, str(DASHBOARD_SCRIPT), 'link', str(active), '--root', str(root)],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(positional.returncode, 0)
+            self.assertIn('link discovers the workspace plan', positional.stderr)
+            other.unlink()
+            active.unlink()
+            self.assertEqual(d.discover_plan(root), completed.resolve())
+
+    def test_safe_cleanup_blocks_mismatch_then_removes_viewer_worktree_and_branch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            repo = base / 'repo'
+            worktree = base / 'task-worktree'
+            repo.mkdir()
+
+            def git(*args, cwd=repo):
+                return subprocess.run(
+                    ['git', '-C', str(cwd), *args], capture_output=True, text=True, check=True
+                )
+
+            git('init', '-q')
+            git('config', 'user.name', 'Dashboard test')
+            git('config', 'user.email', 'dashboard@example.invalid')
+            (repo / '.gitignore').write_text('.context/\n')
+            (repo / 'tracked.txt').write_text('fixture\n')
+            git('add', '.gitignore', 'tracked.txt')
+            git('commit', '-q', '-m', 'fixture')
+            git('worktree', 'add', '-q', '-b', 'dashboard-cleanup', str(worktree))
+
+            context = worktree / '.context'
+            context.mkdir()
+            plan = context / 'cleanup-plan.md'
+            state = fixture()
+            state.update(gauntlet=False, optionsConfirmedAt=None)
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+            dashboard = d.canonical_dashboard_path(plan).resolve()
+            command = [sys.executable, str(DASHBOARD_SCRIPT), 'serve', str(plan), '--port', '0']
+            viewer = subprocess.Popen(
+                command, cwd=worktree, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            try:
+                output_lines = [viewer.stdout.readline().strip() for _ in range(3)]
+                startup_error = viewer.stderr.read() if viewer.poll() is not None else ''
+                self.assertTrue(
+                    any(line == 'DASHBOARD_PATH=' + str(dashboard) for line in output_lines),
+                    f'viewer startup output={output_lines!r} rc={viewer.poll()} stderr={startup_error!r}',
+                )
+                receipt = d.runtime_receipt_path(plan)
+                self.assertTrue(receipt.is_file())
+
+                wrong_pid = subprocess.run(
+                    command[:2] + ['stop', str(plan), '--expect-pid', str(viewer.pid + 1)],
+                    cwd=worktree, capture_output=True, text=True,
+                )
+                self.assertNotEqual(wrong_pid.returncode, 0)
+                self.assertIsNone(viewer.poll())
+
+                runtime = json.loads(receipt.read_text())
+                outside = base / 'outside-dashboard.html'
+                outside.write_text('unowned')
+                runtime['output'] = str(outside)
+                receipt.write_text(json.dumps(runtime))
+                mismatch = subprocess.run(
+                    command[:2] + ['stop', str(plan), '--expect-pid', str(viewer.pid)],
+                    cwd=worktree, capture_output=True, text=True,
+                )
+                self.assertNotEqual(mismatch.returncode, 0)
+                self.assertIsNone(viewer.poll())
+
+                runtime['output'] = str(dashboard)
+                receipt.write_text(json.dumps(runtime))
+                stopped = subprocess.run(
+                    command[:2] + ['stop', str(plan), '--expect-pid', str(viewer.pid)],
+                    cwd=worktree, capture_output=True, text=True,
+                )
+                self.assertEqual(stopped.returncode, 0, stopped.stderr)
+                self.assertIn('STOPPED_PID=' + str(viewer.pid), stopped.stdout)
+                viewer.wait(timeout=5)
+                self.assertFalse(receipt.exists())
+
+                git('worktree', 'remove', str(worktree))
+                git('branch', '-D', 'dashboard-cleanup')
+                self.assertFalse(worktree.exists())
+                self.assertFalse(dashboard.exists())
+                branch = subprocess.run(
+                    ['git', '-C', str(repo), 'show-ref', '--verify', '--quiet',
+                     'refs/heads/dashboard-cleanup']
+                )
+                self.assertNotEqual(branch.returncode, 0)
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(viewer.pid, 0)
+            finally:
+                if viewer.poll() is None:
+                    viewer.terminate()
+                    viewer.wait(timeout=5)
+                viewer.stdout.close()
+                viewer.stderr.close()
 
     def test_invalid_update_does_not_advance_plan(self):
         with tempfile.TemporaryDirectory() as tmp:

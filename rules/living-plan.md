@@ -1,15 +1,15 @@
-# Living plan — the rail for every task
+# Living plan and dashboard — the rail for every task
 
-The ONE source of truth for a task lives in `.context/<slug>-plan.md`. WHY: without one durable plan
-the session drifts — an ask from twenty messages back drops, and "done" gets measured against memory.
+`.context/<slug>-plan.md` is the ONE task record; derive its dashboard.
 
-**DO read `.context/<slug>-plan.md` before acting on any substantive or multi-step task, and create one
-via `/sk:plan-stable-persistent-dynamic-complete-full-plan` when none exists.** Fold every new ask,
-finding, decision and pivot into the right section as it lands; reconcile the finished work against it
-at hand-back.
-**DON'T restate HOW here** — the plan skill owns the file lifecycle,
-`references/planning-and-tracking.md` owns plan contents, `rules/process.md` owns tracking every ask to
-done. Point to them.
+**DO run `python3 "$HOME/.claude/bin/workflow-dashboard.py" init --root .` on the first task-bearing
+prompt, then replace its skeleton via `/sk:plan-stable-persistent-dynamic-complete-full-plan`.**
+Keep asks, sources, decisions, artifacts and pivots there; reconcile at hand-back.
+Regenerate after every substantive transition. When asked, run
+`python3 "$HOME/.claude/bin/workflow-dashboard.py" link` and return its clickable `DASHBOARD_PATH`.
+Stop when more than one active plan exists.
 
-TEST: mid-task, the plan reflects every ask so far; at hand-back every ask in it has a verdict. A plan
-left behind the conversation is the violation.
+Details belong in `references/planning-and-tracking.md`, `rules/process.md` and
+`references/workflow-loops.md`. DON'T duplicate them here.
+
+TEST: repeated intake leaves one active plan and dashboard; neither is stale at hand-back.

@@ -13,7 +13,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `config-repo.md` — `~/.claude` is a git repo (this config repo); keep it in sync via `/sk:claude-config-sync`.
   - `connectors.md` — connector/credential system: discover the provisioned path first (manifest + browser-debugging), the auth-gate protocol (ask first with numbered steps, then wait), work/personal boundary, prod read-only + gated writes, and the per-project manifest convention (`~/.claude/connectors/<project>.json`).
   - `self-healing-config.md` — when a config-rooted problem is diagnosed and resolved mid-session, propose a durable fix and ask to fold it in (event-driven, never a cron).
-  - `living-plan.md` — the living plan (`.context/<slug>-plan.md`) is the rail for every task: read it first, keep it current while working, reconcile the finished work against it at hand-back; points to the plan skill + `planning-and-tracking.md`.
+  - `living-plan.md` — one living plan and its derived dashboard are the rail for every task-bearing workspace: find or create them first, keep them current, return the canonical link on request, and reconcile at hand-back.
 
 - **Deep, task-only how-tos** → `~/.claude/references/*.md` (on-demand, zero context cost until read):
   - `research.md` · `contracts-and-outcomes.md` · `planning-and-tracking.md` · `parallelization.md` · `testing-strategy.md` · `dev-server-hygiene.md` · `code-best-practices.md` · `git-pr-deploy.md` · `ticket-lifecycle.md` · `api-empirical-iteration.md` · `browser-debugging.md` · `connectors-setup.md` · `skill-stack.md` · `user-journey-review.md` · `human-pacing.md` · `progress-bar.md` · `tldr-report-formats.md` · `dotclaude-setup.md`

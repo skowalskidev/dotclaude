@@ -1,6 +1,6 @@
 ---
 name: meta-dotclaude-copilot-start-here-for-any-task
-description: The single skill to call for ANY task with this dotclaude config, so Simon never has to remember which skill fits. It reads the task, routes it to the right skills via references/skill-stack.md (verifying each is installed), presents the plan, and drives the whole job to a verified finish — keeping an always-visible progress bar (overall + nested sub-progress), applying each skill at its stage, and gracefully RESUMING the main thread after a tangent (a mid-task fix, a discovered todo). Callable at any stage; it re-reads the tracker and continues where the plan left off. Reuses references/skill-stack.md (the map), the task-intake gate, and rules/process.md (a tangent is a queued task; track every task to completion); it owns the single entry point, the progress bar, verifying skill names, and the resume. Use for "start here", "what should I use for this", "run this the right way", "just handle this", "which skills for this task", "copilot this whole thing", or /sk:meta-dotclaude-copilot-start-here-for-any-task.
+description: The single skill to call for ANY task with this dotclaude config, so Simon never has to remember which skill fits. It finds or creates the session's one plan-backed dashboard, returns its link on request, routes the task to the right skills via references/skill-stack.md (verifying each is installed), presents the plan, and drives the whole job to a verified finish — keeping an always-visible progress bar (overall + nested sub-progress), applying each skill at its stage, and gracefully RESUMING the main thread after a tangent (a mid-task fix, a discovered todo). Callable at any stage; it re-reads the tracker and continues where the plan left off. Reuses references/skill-stack.md (the map), the task-intake gate, and rules/process.md (a tangent is a queued task; track every task to completion); it owns the single entry point, the progress bar, verifying skill names, and the resume. Use for "start here", "what should I use for this", "run this the right way", "just handle this", "which skills for this task", "copilot this whole thing", "show me this session's dashboard", "give me the dashboard link", or /sk:meta-dotclaude-copilot-start-here-for-any-task.
 argument-hint: "[the task, or the stage you're resuming]"
 ---
 
@@ -21,7 +21,21 @@ applied through to a verified finish — resuming the main thread after any tang
 - **`rules/living-plan.md` owns** the living plan as the rail — read `.context/<slug>-plan.md` first,
   keep it current while working, reconcile against it at the end. Point to it; do not restate it.
 - **This skill OWNS**: the single entry point, the always-on progress bar, verifying each routed skill is
-  installed, and resuming skills after a tangent.
+  installed, returning the current dashboard link, and resuming skills after a tangent.
+
+## Step 0 — open the session record
+
+- Apply `rules/living-plan.md` before routing. Run
+  `python3 "$HOME/.claude/bin/workflow-dashboard.py" init --root .`; it reuses the workspace's one active
+  plan or creates its intake skeleton and canonical dashboard. Replace the skeleton with this task before
+  presenting the proposal, then regenerate it with `link`.
+- Show the `DASHBOARD_PATH` once at task opening. When Simon asks for the dashboard link at any later
+  stage, run `python3 "$HOME/.claude/bin/workflow-dashboard.py" link` and return the clickable absolute
+  path before continuing.
+- Keep ordinary work on `engine=current` with `gauntlet=false`; it needs no loop-options interview.
+  Invoke `/sk:work-gauntlet-loop` only when Simon asks for the independent judge or loop options.
+- TEST: every invocation reuses one plan and one dashboard; two active plans stop for reconciliation
+  rather than selecting whichever file was modified most recently.
 
 ## Step 1 — read the task and ROUTE it (via the map, verified)
 
@@ -53,6 +67,8 @@ it. Here the steps ARE the plan's stages, and a sub-skill (`/sk:work-full-detail
 
 - Invoke each routed skill at its stage and FOLLOW it — the skill stays applied through the whole stage,
   not merely named at the start.
+- Write every routed skill's sources, decisions, artifacts, verdicts and remaining actions into the one
+  plan, then regenerate the dashboard after each substantive transition.
 - The always-on `rules/*.md` stay in force throughout; they are auto-loaded, so this skill does not
   restate them.
 
@@ -83,4 +99,5 @@ A tangent WILL arise — a bug surfaces, a todo-fix is discovered, Simon asks fo
 Re-invoke this at any point — Simon calls it with EVERY message. Each call re-reads the living plan
 (`rules/living-plan.md`: `.context/<slug>-plan.md`) and the tracker (the Task list + `.context/`), folds
 the new message into the plan, works out where the plan left off, and continues from there — it never
-restarts done work.
+restarts done work. Regenerate the canonical dashboard before returning so a later session never opens a
+view older than the plan.

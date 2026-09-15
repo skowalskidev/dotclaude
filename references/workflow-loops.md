@@ -1,4 +1,9 @@
-# One plan, two execution modes, one dashboard
+# One task record, two execution modes, one dashboard
+
+DO give every task-bearing workspace one dashboard derived from its one living plan. Ordinary tasks
+initialize `engine=current`, `gauntlet=false`, `referenceMode=none` and need no loop-options interview.
+Gauntlet and Ralph remain explicit execution choices. TEST: starting ordinary work produces one plan
+and one dashboard without asking the four loop questions.
 
 Before delegation, apply `references/parallelization.md` § Choose and preserve the agent setup.
 Reconcile the living plan with the current chat's provider before every fresh worker, judge and retry;
@@ -11,17 +16,19 @@ when switching. TEST: switching modes creates zero new plan files and preserves 
 
 ## Shared lifecycle and ownership
 
-DO let the invoked entry skill own one supervisor, one plan, one options answer and one viewer.
+DO let the invoked entry skill own one supervisor, one plan and one viewer. A direct Gauntlet or Ralph
+run also owns one options answer.
 Gauntlet selects an execution engine and runs the shared judge stage over its results. A composed
 Ralph call executes inside that supervisor’s confirmed run; direct Ralph owns the same lifecycle.
-DO enter in this order: resolve plan and authorization → ask options → record answer → start viewer →
-resolve any required target → execute one ready item → verify → judge when enabled → persist → repeat.
+DO enter ordinary work in this order: resolve plan and authorization → export dashboard → execute one
+ready item → verify → persist → export → repeat. Insert ask options → record answer before execution
+only for a direct Gauntlet or Ralph invocation; insert judge after verification only when enabled.
 TEST: selecting an engine creates no second plan, dashboard, options interview or budget.
 
 ## Ask for run options first
 
-DO begin each direct invocation with one consolidated run-options question in chat, before dispatching
-builders or judges. Ask for execution (`current` or `ralph`), independent judge (`on` or `off`),
+DO begin each direct Gauntlet or Ralph invocation with one consolidated run-options question in chat,
+before dispatching builders or judges. Ask for execution (`current` or `ralph`), independent judge (`on` or `off`),
 reference input (`images`, `names` or `none`, including platform names), and iteration budget.
 For Gauntlet, offer existing workflow (`current`) or Ralph (`ralph`) and recommend the judge on.
 For direct Ralph, fix `engine=ralph` and recommend the judge off. A composed engine reuses the
@@ -38,6 +45,11 @@ not controls for a future run. Do not expose editable selectors or a generated s
 TEST: the run-options question precedes the first dispatch, running state has a confirmation timestamp,
 and the dashboard displays the exact recorded values without input controls.
 
+DO leave `optionsConfirmedAt=null` for ordinary work. Its running state is valid when
+`engine=current` and `gauntlet=false`; the viewer labels it Task tracking and hides iteration-only
+detail. TEST: an ordinary running plan validates without a fabricated options answer, while Gauntlet
+and Ralph running plans still fail without one.
+
 DO change options during a run only on an explicit request in chat. Record the revised answer and
 timestamp, preserve the plan's IDs/evidence, and refresh the same read-only panel. Keep approved targets
 on resume; source choices do not silently replace an existing approved design.
@@ -51,6 +63,12 @@ Generate `.context/<slug>-dashboard.html` from it. DO NOT hand-edit status in th
 DO keep one canonical dashboard file per plan and one canonical mockup file per surface. Rebuild
 those same files for every revision, retaining all earlier versions, variants and feedback in `#spec`.
 TEST: the existing review link opens the latest proposal and its history after each rebuild.
+
+DO derive the dashboard's Session record from the plan's narrative sections. Show the user journey,
+system journey, tasks, decisions, risks, sources, execution notes, out-of-scope choices and changelog;
+compute the artifact index and remaining-action index from dashboard state. Never copy any of them into
+a second dashboard-owned store. TEST: changing plan prose or state changes the next export, and every
+record entry traces to the plan.
 
 DO base each visual increment on the last user-approved version and the product's current design.
 Record the proposed revision/hash separately from the approved revision/hash. Announce the specific
@@ -180,10 +198,26 @@ python3 "$HOME/.claude/bin/workflow-dashboard.py" serve .context/task-plan.md
 python3 "$HOME/.claude/bin/workflow-dashboard.py" state .context/task-plan.md
 python3 "$HOME/.claude/bin/workflow-dashboard.py" update .context/task-plan.md --input .context/next-state.json --expect-revision 1
 python3 "$HOME/.claude/bin/workflow-dashboard.py" export .context/task-plan.md
+python3 "$HOME/.claude/bin/workflow-dashboard.py" init --root .
+python3 "$HOME/.claude/bin/workflow-dashboard.py" link
+python3 "$HOME/.claude/bin/workflow-dashboard.py" stop .context/task-plan.md --expect-pid 12345
 ```
 
+DO run `init` on the first task-bearing prompt. It locks initialization, reuses one active plan or
+creates one ordinary `engine=current`, `gauntlet=false` intake skeleton and exports its dashboard. Task
+intake runs it mechanically; native hosts and the front-door skill run it directly when hooks are not
+available. Replace the skeleton with the approved task before execution. TEST: two simultaneous or
+repeated initializations leave exactly one active plan and dashboard, including unattended intake.
+
+DO use `link` from any later session to find the workspace's one active plan, regenerate its canonical
+offline HTML and print `DASHBOARD_PATH=<absolute path>`. One active plan wins over completed history;
+zero plans or two active plans fail with the candidate paths. Return that path as the clickable link.
+TEST: link never selects by modification time and never returns a dashboard older than its plan.
+
 DO open the printed `DASHBOARD_URL`. The helper binds 127.0.0.1 on an OS-assigned port, prints its PID
-and serves only `/`, `/dashboard.html` and `/state`. Record URL/PID in the plan. The page polls every
+and serves only `/`, `/dashboard.html` and `/state`. It records the PID, URL, plan and output in the
+plan's `.context/*-dashboard.runtime.json` sidecar; that runtime receipt is disposable and never task
+state. The page polls every
 2 seconds, preserves the selected section and shows the last valid revision on failure. File opens
 are explicitly labelled Offline snapshot; Save HTML embeds the latest displayed state for sharing.
 Embedded mockups must write review edits into their `#spec`; the viewer captures that state and form
@@ -199,6 +233,12 @@ JSON block, then regenerates the derived HTML with a separate atomic file replac
 with a newer revision number. Update after dispatch, completion, test, judgement, failure or user
 steering, and at least once per minute during active work. Export once more before handoff.
 Stop only the recorded viewer PID when the user closes the live review or requests cleanup.
+
+DO remove dashboard runtime with its worktree. Before teardown, verify the runtime receipt's plan path
+belongs to that worktree and its PID command names that same plan; stop only that viewer, re-run the idle
+gate, then remove the worktree normally. The canonical dashboard, receipts and evidence disappear with
+`.context/`. TEST: cleanup blocks on a mismatched receipt or any other live process, and the removed
+worktree leaves no dashboard path, viewer PID or local branch ref.
 
 ## Existing workflow execution (`current`)
 

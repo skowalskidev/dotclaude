@@ -81,9 +81,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "references/workflow-loops.md": {
-        "mission": "Simon sees current progress in one familiar interface while every required outcome is verified.",
-        "purpose": "Shared dashboard, state, execution adapter and independent judge protocol.",
+        "mission": "Simon returns to any task and sees its complete current record in one familiar interface while every required outcome is verified.",
+        "purpose": "Universal plan-derived dashboard, state, execution adapter and independent judge protocol.",
         "criteria": [
+            "Give every task-bearing workspace one plan-backed dashboard; ordinary work starts without a Gauntlet/Ralph options interview.",
+            "Derive the session record, artifact index and remaining-action index from the plan; never create a second task store.",
+            "Make link discovery regenerate one canonical offline dashboard, select one active plan over completed history and reject multiple active plans.",
             "Keep one plan and one shared renderer across current and Ralph execution; switching modes preserves IDs and evidence.",
             "Require fresh workers for Ralph and separate fresh judges for Gauntlet; unavailable delegation remains blocked.",
             "Require verified criteria and current-revision judge evidence for completion; budgets and cancellation never count as done.",
@@ -124,9 +127,14 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "bin/workflow-dashboard.py": {
-        "mission": "Simon sees truthful task progress through one reusable live and portable viewer.",
-        "purpose": "Shared state validation, atomic update and HTML serving engine.",
+        "mission": "Simon sees truthful task progress and its full durable record through one reusable live and portable viewer.",
+        "purpose": "Shared plan discovery, narrative projection, state validation, atomic update and HTML serving engine.",
         "criteria": [
+            "Project narrative plan sections plus computed artifacts and remaining actions into Session record without storing a duplicate.",
+            "Atomically initialize one ordinary plan and canonical dashboard in an empty task workspace; reuse its active record on repeated or concurrent intake.",
+            "Regenerate and print an absolute canonical dashboard path; reject zero plans and multiple active plans instead of selecting by modification time.",
+            "Allow ordinary current-engine work to run without loop options; keep confirmed options mandatory for Gauntlet and Ralph.",
+            "Write a disposable runtime receipt for live serving, reuse an owned viewer, and stop only the confirmed PID whose plan, output, command and worktree match.",
             "Load bin/workflow-dashboard.html and use one plan across execution modes.",
             "Reject unconfirmed running state, incomplete criteria, stale or self-approved judgements and conflicting revisions.",
             "Validate assets before advancing the plan and inline them for offline export.",
@@ -248,12 +256,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "rules/living-plan.md": {
-        "mission": "No ask drops and no 'done' is reported against memory, because one durable plan file is the rail every task reads, updates, and is judged against.",
-        "purpose": "The living plan (.context/<slug>-plan.md) is the source of truth every task reads "
-                   "first, keeps current while working, and reconciles against at hand-back.",
+        "mission": "Simon can return to any task-bearing workspace and recover every ask, source, decision, artifact and remaining action from one current dashboard.",
+        "purpose": "The living plan and its derived dashboard are the source of truth every task-bearing workspace reads, updates and reconciles.",
         "criteria": [
-            "Every substantive/multi-step task reads .context/<slug>-plan.md before building, and "
-            "creates one via /sk:plan-stable-persistent-dynamic-complete-full-plan when none exists.",
+            "Every task-bearing workspace finds its one active .context/<slug>-plan.md before work and creates one via /sk:plan-stable-persistent-dynamic-complete-full-plan when none exists.",
+            "Regenerates one canonical dashboard after substantive transitions and returns workflow-dashboard.py link output when Simon asks for it.",
+            "Records every source, decision and artifact in the plan; treats multiple active plans or a stale dashboard as violations.",
             "Points to /sk:plan-stable-persistent-dynamic-complete-full-plan for the file lifecycle and "
             "references/planning-and-tracking.md for plan contents; does not restate either.",
             "Points to rules/process.md for the completion half (track every ask to done); does not "
@@ -1234,9 +1242,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/meta-dotclaude-copilot-start-here-for-any-task/SKILL.md": {
-        "mission": "Simon calls ONE skill for any task and never has to remember which of 25+ fits — it routes, shows how far along he is at every level, and finishes with no skill forgotten and no tangent dropped.",
-        "purpose": "The single user-invocable front door: route a task to the right skills via skill-stack.md, present the plan, and drive it to a verified finish with an always-on progress bar.",
+        "mission": "Simon calls one skill for any task, immediately gets its complete dashboard, and finishes with no skill forgotten and no tangent dropped.",
+        "purpose": "The single user-invocable front door: open the session record, route the task, show progress and drive it to a verified finish.",
         "criteria": [
+            "Finds or creates one active plan-backed dashboard before routing, returns its canonical link on request and rejects multiple active plans.",
+            "Keeps ordinary work on current execution with Gauntlet off and no loop-options interview; invokes Gauntlet only when requested.",
+            "Writes each routed flow's sources, decisions, artifacts, verdicts and remaining actions into the plan, then refreshes the dashboard.",
             "Routes via references/skill-stack.md and verifies every named skill is installed before "
             "planning on it; never restates the map or a skill's method.",
             "Keeps an always-on progress bar per references/progress-bar.md (harness Task list + compact "
@@ -1255,8 +1266,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/meta-cleanup-worktrees/SKILL.md": {
         "mission": "Simon's finished worktrees, branches and their Claude sessions get cleared away without any work-in-progress ever being lost, so a machine full of dead workspaces becomes just the live ones.",
-        "purpose": "Safely remove DONE (merged, clean, idle) worktrees + branches for a repo, wherever its worktrees live, and name the sessions to archive.",
+        "purpose": "Safely remove DONE worktrees, their task dashboards and branches, then name the sessions to archive.",
         "criteria": [
+            "Lists each candidate's canonical dashboards and verified viewer PID at the confirmation gate, then deletes those artifacts with the approved worktree.",
+            "Exempts only a viewer whose receipt, plan, output, PID command and worktree all match; a mismatch or another live process blocks cleanup.",
+            "Stops each confirmed owned viewer, rechecks idleness, and verifies its PID and every listed dashboard path remain gone after worktree removal.",
             "Removes a worktree/branch ONLY when its branch is ancestor-merged into origin/<default> OR "
             "its PR is gh-MERGED (the OR covers squash and rebase merges).",
             "BLOCKS any worktree that is dirty, has unpushed or local-only commits, has a live session "
@@ -1546,8 +1560,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "hooks/task-intake.sh": {
         "mission": "Simon never has to name a skill, and never hits a predictable blocker that could have been front-loaded.",
-        "purpose": "Proposes skills for a new task; blocks fan-out until Simon confirms.",
+        "purpose": "Opens the task dashboard, proposes skills and blocks fan-out until Simon confirms.",
         "criteria": [
+            "Mechanically initializes one active plan-backed dashboard before the opening proposal and includes its canonical clickable path.",
+            "Keeps ordinary task dashboards on current execution with Gauntlet off, without adding a loop-options interview.",
+            "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
             "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",
             "Does not arm on an automated system/background-task notification (a completed background "
