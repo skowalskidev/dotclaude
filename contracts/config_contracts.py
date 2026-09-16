@@ -94,6 +94,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep one canonical dashboard/mockup path per surface; point the target at the current proposal, store approved snapshots by hash metadata, show each bounded revision at that same link, and wait for user review before the next substantial change.",
             "Preserve approved baseline styles and components during mockup iterations; do not implement against an unseen or unapproved target.",
             "Accept screenshots, platform names or no references; freeze explicit user approval of an AI-drafted target before judging implementation against it.",
+            "Signal a rebuilt preview/mockup only through the dashboard: regenerate the gauntlet and play one sound; never open the file or put open in a subagent brief.",
         ],
     },
     "skills/sk/skills/work-gauntlet-loop/SKILL.md": {

@@ -70,6 +70,17 @@ compute the artifact index and remaining-action index from dashboard state. Neve
 a second dashboard-owned store. TEST: changing plan prose or state changes the next export, and every
 record entry traces to the plan.
 
+DO make the ONE dashboard the whole task's record AND action surface — the single place the user opens
+to see EVERY resource, decision and pivot, and to act. Embed each artifact the task produced as its own
+section asset (`kind=html`/`image`), by default, not on request. An artifact AWAITING the user's
+approval goes in the **Reference / target** panel (the PROPOSED thing to approve), NEVER the Current
+panel (which reads as the live/done state), with `status:"review"` — the shell marks a review section
+with a red unread dot in the nav — and its `Open mockup` full-view. TEST: at any check-in every
+approval-pending artifact is embedded in its section, in the target panel, with the review red-dot and
+a full-view, and every resource/decision/pivot the task used is reachable from the one dashboard. (e.g.
+three merge previews sat as loose files beside an empty "No capture yet" section until the user asked
+three times, then were shown as "Current" so approving them read as nonsense.)
+
 DO base each visual increment on the last user-approved version and the product's current design.
 Record the proposed revision/hash separately from the approved revision/hash. Announce the specific
 change before editing, show that revision through the canonical link, and wait for its review before
@@ -119,6 +130,31 @@ scale them to fit; Open mockup exposes the full interactive surface. Never force
 into a narrow mobile layout.
 New task overviews use this shell, not a second bespoke gallery. Reuse an existing canonical entry
 path when connecting an ongoing surface. TEST: opening an old version still shows its original picks.
+
+DO build every preview/mockup asset through the standard shell —
+`python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>`, which inlines the `#spec` into
+`~/.claude/bin/mockup-shell.html` — never hand-roll a bespoke self-contained HTML. The shell owns
+fit-to-viewport scaling, so a mockup built through it is uniform and full-width; a hand-rolled fixed-
+width iframe renders clipped, with a dead side gutter, and every surface looks different. When the build
+is fanned out to a subagent, the orchestrator's brief passes the shell path and says "author a
+shell-conformant `#spec` and render it with `mockup-build.py`" — never "build a self-contained HTML"
+free-hand. The mechanic itself lives in `/sk:ship-mockup-before-after` § "One shell for every mockup";
+don't restate it here. TEST: every preview file under `.context/previews/` round-trips through
+`mockup-build.py --extract`, and no subagent preview prompt asks for a hand-built HTML. (e.g. four
+fanned-out replacement previews hand-rolled at a fixed 1280px came back clipped and non-uniform until
+rebuilt through the shell.)
+
+DO signal a rebuilt preview/mockup through the ONE dashboard, never by opening it. After building or
+updating any preview/mockup asset, regenerate the gauntlet
+(`python3 "$HOME/.claude/bin/workflow-dashboard.py" link`) and play one short sound
+(`afplay /System/Library/Sounds/Glass.aiff`) — the user keeps the gauntlet open and wants one place
+refreshed plus an audio cue, not a stack of tabs. NEVER run `open <file>` on a preview, and NEVER put
+`open` in a subagent brief; a fan-out brief says build/update the file and return, and the orchestrator
+regenerates the gauntlet and plays the sound ONCE. The gauntlet embed replaces the manual `open` that
+`/sk:ship-mockup-before-after`'s render-check once meant. TEST: no preview/mockup build step runs
+`open`, no subagent brief tells the agent to open the file, and after an update the gauntlet is
+regenerated and one sound plays. (e.g. a fan-out of preview-rebuild subagents each ran `open` on its
+file and spammed browser tabs, when the user only wanted the gauntlet refreshed with a sound.)
 
 DO store evidence below the plan directory, as relative paths. Inline images and HTML on export;
 serve no directory listings or arbitrary files. Compress images to display size. The viewer embeds

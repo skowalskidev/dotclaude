@@ -454,7 +454,10 @@ over** — a real browser, or copy it into the project / serve it over http. A m
 scratch dir OUTSIDE the project renders as a STATIC snapshot in the preview pane: the `<script>` never
 executes, so the JS-built grid, overlay and controls are invisible there and a blown-up icon or overflow
 ships unseen. TEST: you have viewed the rendered mockup with JS run and confirmed no icon is oversized
-and nothing overflows, before sending.
+and nothing overflows, before sending. (Inside a dashboard/gauntlet loop the embed IS that JS-running
+render surface, so the check happens there — do NOT run `open <file>` per rebuild to pop the user a
+browser tab; regenerate the gauntlet and play one sound instead, per `references/workflow-loops.md` §
+preview/mockup.)
 
 **DO fix the CLASS and fold it forward.** When a divergence traces to how this skill works — a
 measurement it skips, a token it never reads, a state it forgets — propose the durable fix to this skill
