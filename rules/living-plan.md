@@ -5,11 +5,11 @@
 **DO run `python3 "$HOME/.claude/bin/workflow-dashboard.py" init --root .` on the first task-bearing
 prompt, then replace its skeleton via `/sk:plan-stable-persistent-dynamic-complete-full-plan`.**
 Keep asks, sources, decisions, artifacts and pivots there; reconcile at hand-back.
-Regenerate after every substantive transition. When asked, run
-`python3 "$HOME/.claude/bin/workflow-dashboard.py" link` and return its clickable `DASHBOARD_PATH`.
-Stop when more than one active plan exists.
+Regenerate after every transition (a ticket, PR, mediation round or preview each counts) so the ONE
+dashboard tracks EVERY open workstream. One active plan; a gauntlet/per-task plan absorbs into it, not
+a second island.
 
-Details belong in `references/planning-and-tracking.md`, `rules/process.md` and
-`references/workflow-loops.md`. DON'T duplicate them here.
+Details: `references/planning-and-tracking.md`, `rules/process.md`, `references/workflow-loops.md`.
 
-TEST: repeated intake leaves one active plan and dashboard; neither is stale at hand-back.
+TEST: at any check-in, one active plan and the dashboard `updatedAt` ≥ the latest transition; a stale
+`file://` snapshot or a second plan is reconciled first.
