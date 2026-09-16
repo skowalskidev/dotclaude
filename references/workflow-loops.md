@@ -154,7 +154,10 @@ regenerates the gauntlet and plays the sound ONCE. The gauntlet embed replaces t
 `/sk:ship-mockup-before-after`'s render-check once meant. TEST: no preview/mockup build step runs
 `open`, no subagent brief tells the agent to open the file, and after an update the gauntlet is
 regenerated and one sound plays. (e.g. a fan-out of preview-rebuild subagents each ran `open` on its
-file and spammed browser tabs, when the user only wanted the gauntlet refreshed with a sound.)
+file and spammed browser tabs, when the user only wanted the gauntlet refreshed with a sound.) An
+already-open offline (`file://`) dashboard tab auto-refreshes itself on regain-focus/visibility and a
+slow idle interval, so the sound cue lands on an up-to-date tab; the reload keeps the `#section`/`#asset`
+hash and is suppressed while a modal is open or the user is typing feedback.
 
 DO store evidence below the plan directory, as relative paths. Inline images and HTML on export;
 serve no directory listings or arbitrary files. Compress images to display size. The viewer embeds

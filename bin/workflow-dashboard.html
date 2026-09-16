@@ -146,5 +146,28 @@ async function applyRoute(){const dialog=document.querySelector('dialog[open]');
 async function applyRemote(next){const route=readRoute();const dialog=document.querySelector('dialog[open]');if(dialog)await flushFrames();if(dialog&&dialog.open)dialog.close();spec=mergeDrafts(next);lastRevision=spec.revision;render();if(route.modal)setTimeout(openRoutedModal,0);$('announcement').textContent='Progress updated to revision '+spec.revision}
 async function poll(){if(location.protocol==='file:')return;try{const r=await fetch('/state',{cache:'no-store',signal:AbortSignal.timeout(5000)});if(!r.ok)throw Error('Plan unavailable');const next=await r.json();connected=true;failed=false;$('error').classList.add('hidden');if(next.revision!==lastRevision)await applyRemote(next)}catch{connected=false;failed=true;$('error').textContent='Live update unavailable. Showing the last valid revision.';$('error').classList.remove('hidden')}finally{updateClock();setTimeout(poll,2000)}}
 spec=mergeDrafts(spec);render();setTimeout(openRoutedModal,0);addEventListener('hashchange',applyRoute);setInterval(updateClock,1000);poll();
+// Auto-refresh an already-open offline snapshot so the tab tracks the orchestrator's regenerated
+// file without a manual reload. HTTP live-polls via poll(); file:// cannot fetch siblings (Chrome
+// blocks it), so location.reload() — which keeps the #section/#asset hash, reopening the same place —
+// is the only way to pick up a rebuild. Suppressed while a modal/full-view is open or the user is writing.
+if(location.protocol==='file:'){(function(){
+ let lastInteraction=Date.now(),reloadTimer=null;
+ const mark=()=>{lastInteraction=Date.now()};
+ ['mousemove','mousedown','keydown','wheel','touchstart','input'].forEach(t=>addEventListener(t,mark,{passive:true,capture:true}));
+ const busy=()=>{
+  if(document.querySelector('dialog[open]'))return true;                 // a mockup/full-view/record/image modal is open
+  if(document.body.classList.contains('present'))return true;            // presentation mode
+  const a=document.activeElement;                                        // user is writing feedback
+  return !!(a&&(a.matches('input,textarea,[contenteditable],[contenteditable=""],[contenteditable=true]')||a.closest?.('[contenteditable]')));
+ };
+ const recent=(ms=4000)=>Date.now()-lastInteraction<ms;
+ // Regains focus/visibility → user switched back after the sound; debounce ~300ms. Gate on busy only,
+ // not recency: returning to the tab counts as an interaction but must still refresh.
+ const onReturn=()=>{clearTimeout(reloadTimer);reloadTimer=setTimeout(()=>{if(!busy())location.reload()},300)};
+ addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')onReturn()});
+ addEventListener('focus',onReturn);
+ // Slow idle fallback: while the tab stays open and untouched, pick up a rebuild within ~5s.
+ setInterval(()=>{if(!busy()&&!recent())location.reload()},5000);
+})();}
 </script>
 </body></html>
