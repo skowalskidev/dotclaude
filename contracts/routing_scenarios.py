@@ -37,6 +37,10 @@ SCENARIOS: list[dict] = [
     {"phrase": "finish every plan item", "expect": "work-ralph-loop"},
     {"phrase": "live progress dashboard", "expect": "work-gauntlet-loop"},
     {"phrase": "independent judge", "expect": "work-gauntlet-loop"},
+    {"phrase": "prepare a handoff", "expect": "work-handoff-prepare-and-pickup"},
+    {"phrase": "pick up this handoff", "expect": "work-handoff-prepare-and-pickup"},
+    {"phrase": "I'm running out of quota", "expect": "work-handoff-prepare-and-pickup"},
+    {"phrase": "keep handing this off to another agent", "expect": "work-handoff-prepare-and-pickup"},
     # --- Repo and code -------------------------------------------------------------
     {"phrase": "clean up the repo", "expect": "maintenance-code-cleanup-repo"},
     {"phrase": "find dead code", "expect": "maintenance-code-cleanup-repo"},

@@ -656,7 +656,7 @@ function variantItemHtml(id, opts){
 function sectionVariants(){
   var g = variantGroups();
   var defId = resolveDefaultVariant(activeVersion());
-  var html = '<div class="mock-section"><h4>Variants (\u2190/\u2192)</h4>';
+  var html = '<div class="mock-section"><h4>Variants (\u2191/\u2193)</h4>';
   if (g.beforeId) html += variantItemHtml(g.beforeId, { isBefore: true, defId: defId });
   html += g.current.map(function(id){ return variantItemHtml(id, { defId: defId }); }).join('');
   if (g.superseded.length) {
@@ -680,11 +680,11 @@ function sectionVersion(){
 function sectionWalk(){
   var def = SPEC.variants[state.activeVariant] || {};
   var states = def.states || [];
-  if (!states.length) return '<div class="mock-section"><h4>Walk the states</h4><div style="font-size:12px;color:var(--color-text-secondary);">No states listed for this variant.</div></div>';
+  if (!states.length) return '<div class="mock-section"><h4>Walk the states (←/→)</h4><div style="font-size:12px;color:var(--color-text-secondary);">No states listed for this variant.</div></div>';
   // With no explicit walk yet, the variant's own first listed state is the
   // implicit one it boots into — so exactly one row is always the active row.
   var activeId = state.activeStateId || states[0].id;
-  return '<div class="mock-section"><h4>Walk the states</h4>' + states.map(function(st, i){
+  return '<div class="mock-section"><h4>Walk the states (←/→)</h4>' + states.map(function(st, i){
     var isActive = st.id === activeId;
     return '<button type="button" class="mock-walk-btn' + (isActive ? ' is-active' : '') + '" data-goto-state="' + esc(st.id) + '"' + (isActive ? ' aria-current="true"' : '') + '>' + (i + 1) + '. ' + esc(st.label) + '</button>';
   }).join('') + '</div>';
@@ -840,35 +840,53 @@ function renderHud(){
   document.getElementById('mock-hud').textContent = (def.label || state.activeVariant) + ' \u00b7 ' + personaOf(state.persona).label + stateLabel;
 }
 
-function stepVariant(delta){
+// Arrow keys are ONE continuous walk across the whole gallery. UP/DOWN jump to
+// the previous/next VARIANT (landing on its first state). LEFT/RIGHT step through
+// STATES, and crossing a variant's last (or first) state carries into the next
+// (or previous) variant's first (or last) state — so holding RIGHT walks every
+// step of every variant in order. Both axes STOP at the global ends: no wrap.
+// Same behaviour in normal and presentation mode.
+function statesOf(id){ return ((SPEC.variants[id] || {}).states || []).map(function(s){ return s.id; }); }
+
+function jumpVariant(delta){
   var ids = cyclableVariantIds();
   var idx = ids.indexOf(state.activeVariant);
   if (idx === -1) idx = 0;
-  idx = (idx + delta + ids.length) % ids.length;
-  state.activeVariant = ids[idx];
-  state.activeStateId = null;
+  var next = idx + delta;
+  if (next < 0 || next >= ids.length) return;      // stop at the ends, no wrap
+  state.activeVariant = ids[next];
+  state.activeStateId = null;                       // land on the variant's first state
   state.view = 'focus';
   renderAll();
 }
-// In presentation mode the arrow keys step through the active variant's
-// STATES instead of its sibling variants — the same goToState() path a rail
-// click uses, so every step is a full teardown+remount. A variant with no
-// states listed has nothing to step through, so it falls back to stepping
-// variants instead.
-function stepState(delta){
-  var ids = currentStateIds();
-  if (!ids.length) { stepVariant(delta); return; }
-  var activeId = state.activeStateId || ids[0];
-  var idx = ids.indexOf(activeId);
-  if (idx === -1) idx = 0;
-  idx = (idx + delta + ids.length) % ids.length;
-  goToState(ids[idx]);
+
+function walkStep(delta){
+  var ids = cyclableVariantIds();
+  var vIdx = ids.indexOf(state.activeVariant);
+  if (vIdx === -1) vIdx = 0;
+  var states = currentStateIds();
+  var activeId = state.activeStateId || states[0];
+  var sIdx = states.indexOf(activeId);
+  if (sIdx === -1) sIdx = 0;
+  var nextS = sIdx + delta;
+  if (states.length && nextS >= 0 && nextS < states.length) { goToState(states[nextS]); return; }
+  // crossed a variant boundary — carry into the neighbour, or stop at the global end
+  var vNext = vIdx + delta;
+  if (vNext < 0 || vNext >= ids.length) return;
+  var nid = ids[vNext];
+  var ns = statesOf(nid);
+  state.activeVariant = nid;
+  state.activeStateId = delta > 0 ? (ns[0] || null) : (ns.length ? ns[ns.length - 1] : null);
+  state.view = 'focus';
+  renderAll();
 }
 document.addEventListener('keydown', function(e){
   var tag = (e.target && e.target.tagName) || '';
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
-  if (e.key === 'ArrowLeft') { if (state.presenting) stepState(-1); else stepVariant(-1); }
-  else if (e.key === 'ArrowRight') { if (state.presenting) stepState(1); else stepVariant(1); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); walkStep(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); walkStep(1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); jumpVariant(-1); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); jumpVariant(1); }
   else if (e.key === 'p' || e.key === 'P') { if (state.presenting) exitPresentation(); else enterPresentation(); renderAll(); }
   else if (e.key === 'Escape' && state.presenting) { exitPresentation(); renderAll(); }
 });

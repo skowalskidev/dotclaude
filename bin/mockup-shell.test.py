@@ -23,9 +23,10 @@ file://-openable HTML, drives it with Playwright, and asserts:
      iframe — so a state's own overlay/bookkeeping can never leak into the
      next state. Exactly one "Walk the states" row carries `is-active` at a
      time, before and after every step.
-  6. Presentation-mode arrow keys step through the active variant's STATES
-     (not its sibling variants), each step a clean teardown+remount, and the
-     HUD + rail active-row track every keyboard step too.
+  6. Arrow keys are one continuous walk: ←/→ step STATES (carrying into the
+     next/previous variant at a variant's last/first state), ↑/↓ walk VARIANTS
+     and stop at the ends; each step a clean teardown+remount, and the HUD +
+     rail active-row track every keyboard step too.
   7. A capture that reaches out and appends a node directly to the shell's
      own <body> (escaping its iframe) gets removed by the shell's guard.
   8. Reproduces the bug Simon hit embedding a built mockup in a wide-but-short
@@ -324,13 +325,14 @@ def main():
                 json.dumps(active_rows),
             )
 
-            page.keyboard.press("ArrowRight")  # modal -> wraps back to base
+            page.keyboard.press("ArrowRight")  # modal is alpha's LAST state -> carries into beta's first state
             page.wait_for_timeout(150)
             sig = overlay_signal(page)
+            crossed_variant = page.evaluate("() => document.querySelector('.mock-variant-item.active').getAttribute('data-pick-variant')")
             check(
-                "ArrowRight wraps back to base; the earlier modal does not survive the remount",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
-                json.dumps(sig),
+                "ArrowRight past a variant's last state carries into the next variant's first state (endless walk); the earlier modal does not survive",
+                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base" and crossed_variant == "beta",
+                json.dumps(sig) + " variant=" + str(crossed_variant),
             )
 
             page.keyboard.press("Escape")  # -> exitPresentation()
@@ -385,17 +387,35 @@ def main():
                 summary_text,
             )
 
-            arrow_order = []
+            # ↑/↓ walk VARIANTS and STOP at the ends (no wrap); gamma stays excluded while collapsed.
+            page.click('[data-pick-variant="alpha"]')
+            page.wait_for_timeout(120)
+            var_order = []
             for _ in range(3):
-                arrow_order.append(
+                var_order.append(
                     page.eval_on_selector(".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')")
                 )
-                page.keyboard.press("ArrowRight")
+                page.keyboard.press("ArrowDown")
                 page.wait_for_timeout(120)
             check(
-                "←/→ stepping cycles Before + current variants only, never gamma while collapsed",
-                arrow_order == ["alpha", "beta", "alpha"],
-                json.dumps(arrow_order),
+                "↑/↓ walk variants and stop at the last (no wrap), never gamma while collapsed",
+                var_order == ["alpha", "beta", "beta"],
+                json.dumps(var_order),
+            )
+            # ←/→ walk STATES, and the last state carries into the next variant's first (endless walk).
+            page.click('[data-pick-variant="alpha"]')
+            page.wait_for_timeout(120)
+            walk = []
+            for _ in range(4):
+                v = page.eval_on_selector(".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')")
+                s = page.eval_on_selector(".mock-walk-btn.is-active", "e => e.getAttribute('data-goto-state')")
+                walk.append([v, s])
+                page.keyboard.press("ArrowRight")
+                page.wait_for_timeout(150)
+            check(
+                "←/→ walk states, and a variant's last state carries into the next variant's first",
+                walk == [["alpha", "base"], ["alpha", "loading"], ["alpha", "modal"], ["beta", "base"]],
+                json.dumps(walk),
             )
 
             page.click(".mock-earlier-rounds summary")
@@ -424,14 +444,14 @@ def main():
                 active_after_pick,
             )
 
-            page.keyboard.press("ArrowRight")
+            page.keyboard.press("ArrowUp")
             page.wait_for_timeout(150)
             active_after_step_away = page.eval_on_selector(
                 ".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')"
             )
             check(
-                "stepping away from an already-selected superseded variant lands on Before, not another superseded row",
-                active_after_step_away == "alpha",
+                "↑/↓ from an already-selected superseded variant walks to its neighbour in the cyclable order (beta)",
+                active_after_step_away == "beta",
                 active_after_step_away,
             )
 
@@ -450,7 +470,7 @@ def main():
             page.click("#mock-view-focus")
             page.wait_for_timeout(150)
 
-            page.reload()
+            page.goto(out_html.as_uri())  # fresh open (no persisted #hash) -> manifest default
             page.wait_for_timeout(300)
             default_after_reload = page.evaluate(
                 "() => document.querySelector('.mock-variant-item.active').getAttribute('data-pick-variant')"

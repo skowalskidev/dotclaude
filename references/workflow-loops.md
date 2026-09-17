@@ -287,6 +287,8 @@ python3 "$HOME/.claude/bin/workflow-dashboard.py" export .context/task-plan.md
 python3 "$HOME/.claude/bin/workflow-dashboard.py" init --root .
 python3 "$HOME/.claude/bin/workflow-dashboard.py" link
 python3 "$HOME/.claude/bin/workflow-dashboard.py" stop .context/task-plan.md --expect-pid 12345
+python3 "$HOME/.claude/bin/workflow-dashboard.py" handoff .context/task-plan.md --by agent-A --note "quota wall"
+python3 "$HOME/.claude/bin/workflow-dashboard.py" resolve --target "<dashboard url | dashboard.html | plan.md>"
 ```
 
 DO run `init` on the first task-bearing prompt. It locks initialization, reuses one active plan or
@@ -325,6 +327,37 @@ belongs to that worktree and its PID command names that same plan; stop only tha
 gate, then remove the worktree normally. The canonical dashboard, receipts and evidence disappear with
 `.context/`. TEST: cleanup blocks on a mismatched receipt or any other live process, and the removed
 worktree leaves no dashboard path, viewer PID or local branch ref.
+
+## Handoff and resume (chainable, same machine)
+
+DO treat the living plan as the whole handoff artifact: it already holds state, narrative and options,
+and the canonical dashboard is a self-contained render of it. A quota wall or an agent switch never
+loses context, because a fresh agent resumes from that one file. This is the SSOT for handoff; the
+`prepare` and `pick-up` sides both compose these steps, and no other file restates them.
+
+DO stamp a resume manifest on the prepare side with `workflow-dashboard.py handoff <plan>`. It writes
+`handoff` into the plan state (a `hop` count, the absolute `plan`, `worktree` and `dashboard` paths, the
+live `dashboardUrl` when a viewer is serving, plus optional `--by`/`--note`), bumps the revision and
+re-renders the dashboard with a visible "Handed off" banner. Then hand the user the printed
+`HANDOFF_LINK` to copy. Commit the plan and dashboard first when the worktree is tracked, so the record
+is durable. TEST: after handoff the dashboard shows the banner and `HANDOFF_LINK` names the loopback URL
+when serving, else the `file://` dashboard.
+
+DO make handoff REPEATABLE, so A→B→C chains without bound. Each call increments `hop` from the same
+plan; nothing accumulates and no context degrades, because every hop regenerates from the one SSOT.
+TEST: a second handoff reports `hop` one higher and the plan validates.
+
+DO resume on the pick-up side with `workflow-dashboard.py resolve --target "<pasted>"`. It maps a pasted
+loopback dashboard URL, a `file://`/filesystem dashboard `.html`, or a plan `.md` back to its plan on
+THIS machine and prints `PLAN_PATH`, `WORKTREE`, the recorded `ENGINE`/`GAUNTLET`/`ITERATION`/
+`MAX_ITERATIONS`/`PHASE` and the `HANDOFF_HOP`. Same machine only by design: a loopback URL and a
+worktree path do not cross machines. Resume the recorded engine from `PLAN_PATH` WITHOUT a fresh
+run-options interview — the options are already confirmed in the plan. TEST: resolving any of the three
+target forms returns the same `PLAN_PATH` and the recorded options; a gauntlet resumes without re-asking.
+
+DO preserve the `handoff` manifest across later updates by round-tripping the whole state through
+`update` (read-modify-write); advancing sections never drops it. The next `handoff` refreshes it.
+TEST: after a normal section update the plan still carries its `handoff` manifest.
 
 ## Existing workflow execution (`current`)
 

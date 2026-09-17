@@ -86,6 +86,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Give every task-bearing session one gauntlet record; capture each new requirement with stable IDs and source references before continuing, without an ordinary-session options interview.",
             "Reconcile every request after tangents, compaction and handoff; continue ready authorized work and retain explicit cancellation decisions and blocked next actions.",
+            "Own the same-machine handoff and resume lifecycle as SSOT: a repeatable prepare that stamps a hop-counted manifest, a resolve that maps a pasted dashboard link/html/plan back to its plan, a resume that reuses recorded options, and a manifest that survives normal updates.",
             "Derive the session record, artifact index and remaining-action index from the plan; never create a second task store.",
             "Make link discovery regenerate one canonical offline dashboard, select one active plan over completed history and reject multiple active plans.",
             "Keep one plan and one shared renderer across current and Ralph execution; switching modes preserves IDs and evidence.",
@@ -96,6 +97,7 @@ CONTRACTS: dict[str, dict] = {
             "Preserve approved baseline styles and components during mockup iterations; do not implement against an unseen or unapproved target.",
             "Accept screenshots, platform names or no references; freeze explicit user approval of an AI-drafted target before judging implementation against it.",
             "Signal a rebuilt preview/mockup only through the dashboard: regenerate the gauntlet and play one sound; never open the file or put open in a subagent brief.",
+            "Own the same-machine handoff lifecycle as SSOT: prepare stamps a repeatable resume manifest and bumps a hop; resolve maps a pasted dashboard link, dashboard html or plan back to its plan; a resumed run reuses the recorded options with no second interview; the manifest survives normal updates.",
         ],
     },
     "skills/sk/skills/work-gauntlet-loop/SKILL.md": {
@@ -106,6 +108,17 @@ CONTRACTS: dict[str, dict] = {
             "Display this run’s recorded options read-only, with no editable selectors or generated start command in the dashboard.",
             "Preserve planning authorization and use the shared dashboard template and runtime tests.",
             "Select the existing workflow or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor.",
+            "Detect a handoff first: resume from a pasted dashboard link/html/plan via resolve, reusing the recorded engine and options without a second interview.",
+        ],
+    },
+    "skills/sk/skills/work-handoff-prepare-and-pickup/SKILL.md": {
+        "mission": "Simon hands a running gauntlet to another agent through the dashboard link and it resumes with full context, chained across as many quota walls as it takes.",
+        "purpose": "Two-sided same-machine handoff: prepare stamps and returns the resume link; pick-up resolves it and resumes the recorded engine.",
+        "criteria": [
+            "Prepare flushes the live state, stamps the repeatable resume manifest, commits the durable record when tracked, and hands back one copy-paste dashboard link.",
+            "Pick up resolves a pasted dashboard link, dashboard html or plan to its plan on this machine, regenerates the dashboard, and resumes the recorded engine and progress with no second options interview.",
+            "Stay idempotent so handoffs chain without bound and no context degrades; surface the same-machine limit rather than guessing when a target does not resolve here.",
+            "Compose references/workflow-loops.md Handoff and resume as SSOT; restate no step it owns.",
         ],
     },
     "skills/sk/skills/work-ralph-loop/SKILL.md": {
@@ -143,6 +156,7 @@ CONTRACTS: dict[str, dict] = {
             "Expose a section's safe HTTP(S) previewUrl in its Current header in live and saved HTML, independent of capture availability; open a new tab without changing screenshot zoom or target links.",
             "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped, and open its canonical dashboard route in a new tab when live, or the same embedded html as a view-only blob when offline, from the modal header and the panel caption; bin/workflow-dashboard.test.py proves both.",
             "Persist section, artifact and modal in the URL hash; restore the route on load and Back/Forward; close the innermost open overlay on Escape from the dashboard or a nested iframe; refresh an open canonical asset after a remote revision without dropping feedback.",
+            "Stamp a repeatable same-machine handoff manifest (hop count, absolute plan/worktree/dashboard paths, live url when serving) and render a Handed off banner; resolve a pasted loopback dashboard url, file dashboard html or plan back to its plan and print the recorded engine, options and hop; bin/workflow-dashboard.test.py proves both across the three target forms.",
         ],
     },
     # --- Top-level -----------------------------------------------------------------
