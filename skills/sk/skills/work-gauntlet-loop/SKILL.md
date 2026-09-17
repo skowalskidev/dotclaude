@@ -1,12 +1,17 @@
 ---
 name: work-gauntlet-loop
-description: Run a gauntlet loop with an independent judge and a live progress dashboard. Use for "gauntlet loop", "independent judge", or "live progress dashboard". Ask upfront whether to use the existing workflow or the Ralph execution skill, then record the run options and display them read-only. Judge implementation against supplied references or an AI-drafted target approved by the user, with no loose ends.
-argument-hint: "[goal | --resume plan-path] [--engine current|ralph] [--judge on|off] [--max-iterations N] [--references images|names|none] [--inspiration platform names]"
+description: Run a gauntlet loop with an independent judge and a live progress dashboard. Use for "gauntlet loop", "independent judge", or "live progress dashboard". Ask upfront whether to use the existing workflow or the Ralph execution skill, then record the run options and display them read-only. Judge implementation against supplied references or an AI-drafted target approved by the user, with no loose ends. Resume a handed-off gauntlet from a pasted dashboard link automatically, with no second options interview.
+argument-hint: "[goal | --resume plan-path | --resume <dashboard link>] [--engine current|ralph] [--judge on|off] [--max-iterations N] [--references images|names|none] [--inspiration platform names]"
 ---
 
 # Gauntlet loop
 
-DO read `~/.claude/references/workflow-loops.md` and run its shared lifecycle.
+DO read `~/.claude/references/workflow-loops.md` and run its shared lifecycle, including its
+Handoff and resume section.
+DO detect a handoff FIRST: when `--resume` gets a dashboard link/HTML/plan (or a bare pasted link),
+run `workflow-dashboard.py resolve --target`, resume the recorded engine from its `PLAN_PATH`, and
+skip the options interview — the options are already confirmed in the plan. Hand off with
+`/sk:work-handoff-prepare-and-pickup` when this session runs low, so the chain continues unbroken.
 DO ask for the run options before dispatch. Recommend existing workflow with Gauntlet on; treat
 fully specified invocation options as the answer. Show the recorded choices read-only in This run.
 DO reuse the living plan; compose `/sk:plan-stable-persistent-dynamic-complete-full-plan` only when

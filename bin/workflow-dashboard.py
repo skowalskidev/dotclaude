@@ -16,7 +16,7 @@ import tempfile
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
-from urllib.request import urlopen
+from urllib.request import url2pathname, urlopen
 
 BLOCK = re.compile(r'^```dashboard-state\n(.*?)\n```\s*$', re.M | re.S)
 TEMPLATE = Path(__file__).with_name('workflow-dashboard.html')
@@ -75,6 +75,11 @@ def validate(s):
     require(type(s.get('maxIterations')) is int and s['maxIterations'] > 0, 'Invalid maxIterations')
     require(isinstance(s.get('updatedAt'), str), 'Missing updatedAt')
     require(dt.datetime.fromisoformat(s['updatedAt']).tzinfo is not None, 'Timestamp needs timezone')
+    handoff = s.get('handoff')
+    if handoff is not None:
+        require(isinstance(handoff, dict), 'handoff must be an object')
+        require(isinstance(handoff.get('plan'), str) and handoff['plan'].strip(), 'handoff needs a plan path')
+        require(type(handoff.get('hop')) is int and handoff['hop'] >= 1, 'handoff needs a positive hop count')
     sections = s.get('sections')
     require(isinstance(sections, list) and len(sections) > 0, 'At least one section required')
     ids = set()
@@ -385,6 +390,71 @@ def export_dashboard(plan, output=None):
     return output
 
 
+def stamp_handoff(plan, note=None, by=None):
+    """Stamp a same-machine resume manifest into the plan and re-render its dashboard.
+    Repeatable: each call bumps the hop, so a chain A->B->C regenerates from the one living
+    plan and never degrades. Returns (new_state, rendered_html, link_to_copy)."""
+    plan = Path(plan).resolve()
+    _, _, state = read_plan(plan)
+    root = workspace_root(plan.parent)
+    dashboard = canonical_dashboard_path(plan)
+    try:
+        runtime = live_runtime(plan)
+    except (ValueError, OSError):
+        runtime = None
+    previous = state.get('handoff') or {}
+    new = copy.deepcopy(state)
+    new['handoff'] = {
+        'preparedAt': now(),
+        'hop': int(previous.get('hop', 0)) + 1,
+        'plan': str(plan),
+        'planPath': state.get('planPath', str(plan)),
+        'worktree': str(root),
+        'dashboard': str(dashboard),
+        'dashboardUrl': runtime['url'] if runtime else None,
+        'resumeSkill': '/sk:work-handoff-prepare-and-pickup',
+    }
+    if by:
+        new['handoff']['by'] = str(by)[:120]
+    if note:
+        new['handoff']['note'] = str(note)[:2000]
+    result, rendered = update(plan, new, state['revision'])
+    link = runtime['url'] if runtime else dashboard.as_uri()
+    return result, rendered, link
+
+
+def resolve_handoff(target):
+    """Map a pasted loopback dashboard URL, a dashboard .html, or a plan .md back to its plan
+    on THIS machine. Same-machine only by design: a loopback URL and a worktree path do not
+    cross machines. Returns (plan_path, state)."""
+    target = target.strip()
+    require(target, 'resolve needs a dashboard URL, a dashboard .html, or a plan .md')
+    if re.match(r'^https?://', target, re.I):
+        url = urlsplit(target)
+        require(url.hostname in ('127.0.0.1', 'localhost', '::1') and url.port,
+                'Only a loopback dashboard URL (http://127.0.0.1:PORT) resolves on this machine')
+        with urlopen(target.rstrip('/') + '/state', timeout=2) as response:
+            require(response.status == 200, 'Dashboard viewer is not responding')
+            spec = json.loads(response.read())
+        info = spec.get('handoff') or {}
+        require(info.get('plan'),
+                'That dashboard has no handoff manifest yet; prepare a handoff in the source session first')
+        plan = Path(info['plan'])
+    else:
+        raw = url2pathname(urlsplit(target).path) if target.startswith('file://') else target
+        path = Path(raw).expanduser()
+        require(path.exists(), 'No dashboard or plan at ' + str(path) + ' (same machine only)')
+        if path.suffix == '.md':
+            plan = path
+        elif path.suffix == '.html':
+            plan = path.with_name(path.stem.removesuffix('-dashboard') + '-plan.md')
+        else:
+            raise ValueError('Give a loopback dashboard URL, a dashboard .html, or a plan .md')
+    plan = plan.resolve()
+    require(plan.is_file(), 'Resolved plan is missing: ' + str(plan) + ' (same machine only)')
+    return plan, read_plan(plan)[2]
+
+
 def pid_command_and_cwd(pid):
     command = subprocess.run(
         ['ps', '-ww', '-p', str(pid), '-o', 'command='], capture_output=True, text=True
@@ -553,7 +623,7 @@ def serve(plan, output, port):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('validate', 'export', 'serve', 'state', 'update', 'link', 'init', 'stop'))
+    parser.add_argument('command', choices=('validate', 'export', 'serve', 'state', 'update', 'link', 'init', 'stop', 'handoff', 'resolve'))
     parser.add_argument('plan', type=Path, nargs='?')
     parser.add_argument('--root', type=Path, default=Path.cwd())
     parser.add_argument('--title', default='Session task')
@@ -561,6 +631,9 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--port', type=int, default=0)
     parser.add_argument('--input', type=Path)
+    parser.add_argument('--target')
+    parser.add_argument('--note')
+    parser.add_argument('--by')
     parser.add_argument('--expect-revision', type=int)
     parser.add_argument('--expect-pid', type=int)
     args = parser.parse_args()
@@ -581,10 +654,34 @@ def main():
             runtime = live_runtime(plan)
             if runtime:
                 print('DASHBOARD_URL=' + runtime['url'])
+        elif args.command == 'resolve':
+            require(args.target is not None,
+                    'resolve needs --target <dashboard url | dashboard.html | plan.md>')
+            plan, state = resolve_handoff(args.target)
+            info = state.get('handoff') or {}
+            print('PLAN_PATH=' + str(plan))
+            print('WORKTREE=' + str(workspace_root(plan.parent)))
+            print('DASHBOARD_PATH=' + str(canonical_dashboard_path(plan)))
+            print('ENGINE=' + state['engine'])
+            print('GAUNTLET=' + ('true' if state['gauntlet'] else 'false'))
+            print('PHASE=' + state['phase'])
+            print('ITERATION=' + str(state['iteration']))
+            print('MAX_ITERATIONS=' + str(state['maxIterations']))
+            print('REVISION=' + str(state['revision']))
+            print('HANDOFF_HOP=' + str(info.get('hop', 0)))
+            print('HANDOFF_AT=' + str(info.get('preparedAt', '')))
         else:
             require(args.plan is not None, args.command + ' needs a plan path')
             output = args.output or canonical_dashboard_path(args.plan)
-        if args.command == 'stop':
+        if args.command == 'handoff':
+            result, rendered, link = stamp_handoff(args.plan, note=args.note, by=args.by)
+            atomic_write(output, rendered)
+            print('HANDOFF_HOP=' + str(result['handoff']['hop']))
+            print('HANDOFF_LINK=' + link)
+            print('PLAN_PATH=' + str(Path(args.plan).resolve()))
+            print('DASHBOARD_PATH=' + str(output))
+            print('Updated revision', result['revision'])
+        elif args.command == 'stop':
             require(args.expect_pid is not None, 'stop needs --expect-pid from the confirmed receipt')
             stopped = stop_runtime(args.plan, args.expect_pid)
             print('STOPPED_PID=' + str(stopped['pid']))

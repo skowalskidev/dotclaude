@@ -452,6 +452,49 @@ class DashboardTests(unittest.TestCase):
                 viewer.stdout.close()
                 viewer.stderr.close()
 
+    def test_handoff_stamps_manifest_and_resolves_back_same_machine(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / '.git').mkdir()
+            context = root / '.context'
+            context.mkdir()
+            plan = context / 'demo-plan.md'
+            state = fixture()
+            state.update(engine='ralph', gauntlet=True, phase='running', iteration=3)
+            plan.write_text('SOURCE NARRATIVE\n```dashboard-state\n' + json.dumps(state) + '\n```\n')
+
+            def cli(*args):
+                return subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), *args],
+                                      capture_output=True, text=True)
+
+            first = cli('handoff', str(plan), '--by', 'agent-A', '--note', 'quota wall')
+            self.assertEqual(first.returncode, 0, first.stderr)
+            self.assertIn('HANDOFF_HOP=1', first.stdout)
+            info = d.read_plan(plan)[2]['handoff']
+            self.assertEqual((info['hop'], info['by'], info['note']), (1, 'agent-A', 'quota wall'))
+            self.assertEqual(Path(info['plan']).resolve(), plan.resolve())
+            # Chainable: a second handoff advances the hop from the one living plan.
+            second = cli('handoff', str(plan), '--by', 'agent-B')
+            self.assertIn('HANDOFF_HOP=2', second.stdout)
+            self.assertEqual(d.read_plan(plan)[2]['handoff']['hop'], 2)
+            # Banner is self-evident in the rendered dashboard.
+            self.assertIn('Handed off', d.canonical_dashboard_path(plan).read_text())
+
+            dashboard = d.canonical_dashboard_path(plan).resolve()
+            for target in (str(plan), 'file://' + str(dashboard), str(dashboard)):
+                with self.subTest(target=target):
+                    resolved = cli('resolve', '--target', target)
+                    self.assertEqual(resolved.returncode, 0, resolved.stderr)
+                    self.assertIn('PLAN_PATH=' + str(plan.resolve()), resolved.stdout)
+                    self.assertIn('ENGINE=ralph', resolved.stdout)
+                    self.assertIn('GAUNTLET=true', resolved.stdout)
+                    self.assertIn('ITERATION=3', resolved.stdout)
+                    self.assertIn('HANDOFF_HOP=2', resolved.stdout)
+            missing = cli('resolve', '--target', str(context / 'nope-plan.md'))
+            self.assertNotEqual(missing.returncode, 0)
+            plain = cli('resolve', '--target', str(context / 'notes.txt'))
+            self.assertNotEqual(plain.returncode, 0)
+
     def test_invalid_update_does_not_advance_plan(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp)/'task-plan.md'; s = fixture()
