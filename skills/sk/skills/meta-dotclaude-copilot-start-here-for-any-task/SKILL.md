@@ -32,8 +32,9 @@ applied through to a verified finish — resuming the main thread after any tang
 - Show the `DASHBOARD_PATH` once at task opening. When Simon asks for the dashboard link at any later
   stage, run `python3 "$HOME/.claude/bin/workflow-dashboard.py" link` and return the clickable absolute
   path before continuing.
-- Keep ordinary work on `engine=current` with `gauntlet=false`; it needs no loop-options interview.
-  Invoke `/sk:work-gauntlet-loop` only when Simon asks for the independent judge or loop options.
+- Apply `references/workflow-loops.md` § Continuous request reconciliation throughout every session.
+  Keep `engine=current` with `gauntlet=false` (independent judge off) unless another mode is requested.
+  `/sk:work-gauntlet-loop` uses the same record; invoking it is not required to retain new requests.
 - TEST: every invocation reuses one plan and one dashboard; two active plans stop for reconciliation
   rather than selecting whichever file was modified most recently.
 
@@ -58,7 +59,7 @@ applied through to a verified finish — resuming the main thread after any tang
 
 ## Step 3 — the ALWAYS-ON progress bar
 
-Simon must always see how far along he is, at every level. The format, the Task-list-as-canonical-tracker
+Simon must always see how far along he is, at every level. The format, the plan-derived Task list
 and the nested sub-progress convention are `references/progress-bar.md`'s — read it there, don't restate
 it. Here the steps ARE the plan's stages, and a sub-skill (`/sk:work-full-detailed-workflow`,
 `/sk:work-superspeed`) shows its own nested bar under the main one.

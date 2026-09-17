@@ -84,11 +84,9 @@ present the approach, and confirm scope/decisions (AskUserQuestion) before writi
 a big refactor or migration on assumptions.
 
 ### Track every task to completion — don't drop items
-When a request has multiple tasks (or you spin off sub-tasks), write them ALL — with the decisions behind
-them — into a checklist that survives a RESTART: a ticket or the worktree's `.context/`, never `/tmp` or
-memory. Tick each off only when genuinely done and verified; the checklist is the guard against a long
-multi-part ask silently dropping an item. Never imply full completion when part is outstanding; say
-plainly what remains.
+DO apply `rules/living-plan.md` to every request, including a single task and later additions.
+Keep the task list and tickets as views of that one record. Mark work done only with verification
+evidence; name all outstanding work at hand-back. TEST: a tangent cannot remove an earlier obligation.
 
 ### A message that arrives mid-run is a QUEUED task, not an interrupt
 When a new request lands mid-work, add it to the checklist and keep going — never drop the current task

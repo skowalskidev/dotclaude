@@ -26,6 +26,9 @@ the completeness bar met before it can be confirmed).
 
 DO read `references/workflow-loops.md`. Use its shared renderer for the live plan overview,
 Before / named target / Current evidence, and read-only selected run options. Keep the plan as the source of truth.
+Apply its Continuous request reconciliation to every update. Preserve stable request IDs, unfinished
+items and explicit cancellation decisions. The planning lock applies when this planning skill is
+invoked; default session record maintenance does not re-lock already authorized implementation.
 TEST: changing execution mode preserves this plan and every section ID.
 
 ## The stable skeleton (so edits stay surgical)

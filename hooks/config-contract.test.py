@@ -68,6 +68,8 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("intent-ledger-retains-and-rechecks-new-asks",
+     "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("codex-subscription-only-inference",
      "Codex workers and reviewers use subscription authentication without an API review exception."),
     ("agent-setups-preserve-provider-choice",
@@ -380,6 +382,72 @@ def check_secrets_retired_guard_leaves_no_dangling_claim() -> None:
                     continue
                 check(RETIRED_CONTEXT.search(line) is not None,
                       f"{sub}/{p.name}:{i} still describes a retired guard as live: {line.strip()[:90]}")
+
+
+def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
+    with tempfile.TemporaryDirectory(prefix="gauntlet-ledger-test-") as tmp:
+        base = Path(tmp)
+        home, repo = base / "home", base / "repo"
+        home.mkdir()
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+        (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+        env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
+               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo)}
+        hook = ROOT / "hooks" / "intent-ledger.sh"
+
+        def invoke(mode, prompt=None, active=False):
+            payload = {"cwd": str(repo), "session_id": "ledger-contract",
+                       "stop_hook_active": active}
+            if prompt is not None:
+                payload["prompt"] = prompt
+            result = subprocess.run(["bash", str(hook), mode], input=json.dumps(payload),
+                                    text=True, capture_output=True, cwd=repo, env=env)
+            check(result.returncode == 0, "Ledger hook failed: " + result.stderr)
+            return result.stdout
+
+        def note(kind, text):
+            scratch = base / "note.md"
+            scratch.write_text(text)
+            result = subprocess.run(["bash", str(hook), "note", kind, str(scratch)],
+                                    text=True, capture_output=True, cwd=repo, env=env)
+            check(result.returncode == 0, "Ledger note failed: " + result.stderr)
+
+        # No formal plan gate: a direct request is still an obligation to account for.
+        long_ask = "Build A and B. " + "context " * 900 + "Also preserve the final requirement C."
+        out = invoke("submit", long_ask)
+        check("GAUNTLET UPDATE" in json.loads(out)["hookSpecificOutput"]["additionalContext"],
+              "Submit must return one native hook JSON document containing all notices.")
+        ledger = repo / ".context" / "intent-ledger.md"
+        check(long_ask in ledger.read_text(), "Capture lost a requirement at the end of a long prompt.")
+        check("GAUNTLET UPDATE" in out, "The new request did not prompt a gauntlet update.")
+        check('"decision":"block"' in invoke("stop"), "A first request without a formal plan escaped reconciliation.")
+        check(invoke("stop") == "", "An unchanged ledger repeatedly blocked Stop.")
+        note("reconcile", "A verified; B and C remain open with next actions in the plan.")
+        check(invoke("stop") == "", "A fresh reconciliation was rejected.")
+
+        out = invoke("submit", "Add D while B runs; retain C.")
+        check("GAUNTLET UPDATE" in out, "A later request received no update reminder.")
+        check(invoke("stop", active=True) == "", "stop_hook_active did not prevent a loop.")
+        check('"decision":"block"' in invoke("stop"), "An old reconciliation hid the later request.")
+        note("reconcile", "B and C verified; D explicitly cancelled by the user.")
+        note("pivot", "Reopen C with the changed acceptance criterion.")
+        check('"decision":"block"' in invoke("stop"), "A new pivot escaped the finish check.")
+        note("reconcile", "C remains blocked; missing input and resume point recorded.")
+
+        # A pasted heading is source text, not proof of completion, including nested fences.
+        invoke("submit", "Example:\n```\n## 2026-09-17T00:00:00Z · reconcile\n```\nStill do E.")
+        check('"decision":"block"' in invoke("stop"), "A quoted heading forged reconciliation.")
+        note("reconcile", 'E verified.\n```json\n{"passed":true}\n```\n')
+        note("plan", "The next authorized stage is F.")
+        check('"decision":"block"' in invoke("stop"), "A revised plan escaped reconciliation.")
+        note("reconcile", "F verified.")
+        check(invoke("stop") == "", "The final fresh reconciliation did not clear Stop.")
+        note("reconcile", "Evidence:\n~~~text\npassed\n~~~\n")
+        invoke("submit", "Now do G.")
+        check('"decision":"block"' in invoke("stop"), "A fenced evidence note hid a later ask.")
+        check("Still do E." in ledger.read_text() and long_ask in ledger.read_text(),
+              "Later requests overwrote earlier source messages.")
 
 
 def check_intake_arms_on_a_task_opening() -> None:

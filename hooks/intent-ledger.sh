@@ -26,7 +26,7 @@
 #
 # Modes:  submit                  UserPromptSubmit — append the ask verbatim
 #         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
-#         stop                    Stop — block the finish when a ratified plan has no reconciliation
+#         stop                    Stop — require reconciliation after the newest recorded input
 
 set -uo pipefail
 
@@ -35,7 +35,6 @@ REL=".context/intent-ledger.md"
 STATE="$HOME/.claude/.intent-ledger"
 CFG_ROOT="${CLAUDE_CONFIG_ROOT:-$HOME/.claude}"
 LOGDIR="$HOME/.claude/logs"
-MAX_PROMPT=6000
 LOCK_TRIES=20   # x 50ms = a 1s ceiling, because this sits on the user-prompt path
 # Identical to dotfiles/secret-scan.sh's fallback gate. contracts/config_contracts.py pins the sync;
 # a divergent copy of a secret regex is exactly the drift one-owner-per-concern exists to stop.
@@ -172,6 +171,7 @@ Git-ignored, and it dies with this worktree. Promote what only it holds before t
 ' >> "$1" 2>/dev/null
 }
 
+run_mode() {
 case "$MODE" in
 
 submit)
@@ -183,13 +183,6 @@ submit)
   if printf '%s' "$prompt" | grep -qiE "$CRED_RE" 2>/dev/null; then
     prompt="$(printf '%s' "$prompt" | sed -E "s/$CRED_RE/[REDACTED CREDENTIAL]/g")"
     redacted=1
-  fi
-
-  orig=${#prompt}; trunc=""
-  if [ "$orig" -gt "$MAX_PROMPT" ]; then
-    prompt="$(printf '%s' "$prompt" | cut -c1-"$MAX_PROMPT")"
-    trunc="Truncated at $MAX_PROMPT of $orig characters. The ask is in the opening; the full paste is \
-in the session transcript."
   fi
 
   target="$LEDGER"
@@ -204,7 +197,6 @@ $(basename "$target"). Fold it back into intent-ledger.md before teardown."
   {
     printf '\n## %s · ask · session %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SID"
     [ "$redacted" -eq 1 ] && printf '> A credential-shaped value was REDACTED from this record.\n\n'
-    [ -n "$trunc" ] && printf '> %s\n\n' "$trunc"
     printf '%s\n%s\n%s\n' "$fence" "$prompt" "$fence"
   } >> "$target" 2>/dev/null || exit 0
 
@@ -225,8 +217,13 @@ never with Edit or Write.
   plan      the approach as approved, its delta from those sources, and what ratified it.
   pivot     each redirection, written when it lands, not reconstructed at the end.
   reconcile at hand-back on substantive work: one verdict per ask, tagged with its source.
-Mechanics: ~/.claude/references/planning-and-tracking.md. A Stop hook will not let a ratified plan
-finish without a reconciliation."
+Mechanics: ~/.claude/references/planning-and-tracking.md. The Stop hook checks for reconciliation
+after the newest recorded input."
+  jq -cn --arg c "GAUNTLET UPDATE: read the new ask in $target and the existing living plan. Apply \
+references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
+every added requirement, preserve unfinished items and the return point, then refresh the dashboard. \
+An answer or status question does not cancel older work. Recording an ask does not grant approval." \
+    '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
   exit 0
   ;;
 
@@ -276,31 +273,54 @@ stop)
   # Loop safety, three independent guards. A Stop hook that re-blocks the finish it just caused is an
   # unbreakable session, which is the failure task-intake.sh documents for a different hook.
   #   1. stop_hook_active — the payload's own "you are already continuing because of a stop hook".
-  #   2. a once-per-session marker, so a second fire is impossible even if that flag is absent.
+  #   2. a marker for the exact ledger snapshot, so unchanged work cannot repeatedly block.
   #   3. a reason that names the exact command satisfying it, so there is always a way out.
   [ "$(jf '.stop_hook_active')" = "true" ] && exit 0
   mkdir -p "$STATE" 2>/dev/null || exit 0
-  [ -e "$STATE/$SID.stopblock" ] && exit 0
-
   resolve || exit 0
   [ -f "$LEDGER" ] || exit 0
 
-  # Only a RATIFIED plan is a baseline. No plan means a conversational or exploratory session, and
-  # nothing to reconcile against.
-  grep -q '^## .* · plan$' "$LEDGER" 2>/dev/null || exit 0
-  grep -qi '^ratified' "$LEDGER" 2>/dev/null || exit 0
-  grep -q '^## .* · reconcile$' "$LEDGER" 2>/dev/null && exit 0
-
-  : > "$STATE/$SID.stopblock" 2>/dev/null || exit 0
-  jq -cn --arg r "This worktree's intent ledger has a ratified plan and no reconciliation, so the \
-end-of-work comparison has not been done. Before finishing: re-read $LEDGER, give one verdict per \
-recorded ask tagged with its source, and append it with
+  # Parse only actual entry headings, never a fake reconcile header inside a quoted prompt.
+  # A reconciliation predating a later ask/plan/pivot cannot close that newer work.
+  pending="$(awk '
+    {
+      line=$0; sub(/^ */, "", line)
+      if (line ~ /^(```|~~~)/) {
+        mark=substr(line,1,1)
+        match(line, "^" mark "+"); width=RLENGTH
+        tail=substr(line,width+1)
+        if (!fence) { fence=width; delimiter=mark; next }
+        if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next }
+      }
+    }
+    !fence && /^## [0-9][0-9][0-9][0-9]-.* · (ask · session .+|plan|pivot)$/ { pending=1 }
+    !fence && /^## [0-9][0-9][0-9][0-9]-.* · reconcile$/ { pending=0 }
+    END { print pending+0 }
+  ' "$LEDGER")"
+  [ "$pending" = 1 ] || exit 0
+  snapshot="$(cksum < "$LEDGER")"
+  [ "$(cat "$STATE/$SID.stopblock" 2>/dev/null)" = "$snapshot" ] && exit 0
+  printf '%s\n' "$snapshot" > "$STATE/$SID.stopblock" 2>/dev/null || exit 0
+  jq -cn --arg r "This worktree has recorded input newer than its last reconciliation. Before \
+finishing: re-read $LEDGER and the living gauntlet plan, account for every request and remaining \
+item, continue ready authorized work, and append the current outcomes with
   ~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>
-Anything asked and not built that was NEVER ratified is a proposal for the questions block, not work \
-to start now. This fires at most once per session." \
+Record evidence for completed work and the next action for every blocker or pause. An unapproved \
+proposal remains recorded, not permission to implement. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'
   exit 0
   ;;
 
 *) exit 0 ;;
 esac
+}
+
+# Native hosts parse one JSON document. Several notices can fire on the first prompt
+# (active, redaction, redirect, update); combine them without losing any message.
+if [ "$MODE" = submit ]; then
+  run_mode "$@" | jq -sc 'if length == 0 then empty else
+    {hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:
+      (map(.hookSpecificOutput.additionalContext) | join("\n\n"))}} end'
+else
+  run_mode "$@"
+fi

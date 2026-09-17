@@ -30,6 +30,8 @@ cannot land without someone stating how it gets reached.
 
 SCENARIOS: list[dict] = [
     {"phrase": "gauntlet loop", "expect": "work-gauntlet-loop"},
+    {"phrase": "don't forget any requests", "expect": "work-gauntlet-loop"},
+    {"phrase": "keep going after tangents", "expect": "work-gauntlet-loop"},
     {"phrase": "ralph loop", "expect": "work-ralph-loop"},
     {"phrase": "fresh worker per task", "expect": "work-ralph-loop"},
     {"phrase": "finish every plan item", "expect": "work-ralph-loop"},

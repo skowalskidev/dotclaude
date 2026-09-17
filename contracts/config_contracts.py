@@ -84,7 +84,8 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon returns to any task and sees its complete current record in one familiar interface while every required outcome is verified.",
         "purpose": "Universal plan-derived dashboard, state, execution adapter and independent judge protocol.",
         "criteria": [
-            "Give every task-bearing workspace one plan-backed dashboard; ordinary work starts without a Gauntlet/Ralph options interview.",
+            "Give every task-bearing session one gauntlet record; capture each new requirement with stable IDs and source references before continuing, without an ordinary-session options interview.",
+            "Reconcile every request after tangents, compaction and handoff; continue ready authorized work and retain explicit cancellation decisions and blocked next actions.",
             "Derive the session record, artifact index and remaining-action index from the plan; never create a second task store.",
             "Make link discovery regenerate one canonical offline dashboard, select one active plan over completed history and reject multiple active plans.",
             "Keep one plan and one shared renderer across current and Ralph execution; switching modes preserves IDs and evidence.",
@@ -101,7 +102,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon starts or resumes verified work with one command and can see every remaining gap.",
         "purpose": "Work-group Gauntlet entry choosing an execution skill and applying shared judgement.",
         "criteria": [
-            "Ask for run options before dispatch; accept explicit invocation options as answers and record the selected values before running.",
+            "Default to current-session execution with the independent judge off; ask for custom options only when requested and preserve existing authorization.",
             "Display this run’s recorded options read-only, with no editable selectors or generated start command in the dashboard.",
             "Preserve planning authorization and use the shared dashboard template and runtime tests.",
             "Select the existing workflow or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor.",
@@ -261,13 +262,10 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon can return to any task-bearing workspace and recover every ask, source, decision, artifact and remaining action from one current dashboard.",
         "purpose": "The living plan and its derived dashboard are the source of truth every task-bearing workspace reads, updates and reconciles.",
         "criteria": [
-            "Every task-bearing workspace finds its one active .context/<slug>-plan.md before work and creates one via /sk:plan-stable-persistent-dynamic-complete-full-plan when none exists.",
+            "Every task-bearing session initializes or resumes one gauntlet plan, captures new asks on every message and preserves unfinished work without re-locking authorized implementation.",
             "Regenerates one canonical dashboard after substantive transitions and returns workflow-dashboard.py link output when Simon asks for it.",
             "Records every source, decision and artifact in the plan; treats multiple active plans or a stale dashboard as violations.",
-            "Points to /sk:plan-stable-persistent-dynamic-complete-full-plan for the file lifecycle and "
-            "references/planning-and-tracking.md for plan contents; does not restate either.",
-            "Points to rules/process.md for the completion half (track every ask to done); does not "
-            "restate it.",
+            "Routes continuous request reconciliation to references/workflow-loops.md and plan contents to references/planning-and-tracking.md without duplicating their procedures.",
             "The plan reflects every ask as it lands, and hand-back reconciles each of its asks to a verdict.",
         ],
     },
@@ -381,9 +379,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/progress-bar.md": {
         "mission": "Simon always knows how far along a run is — overall and inside a sub-process — from one line, without asking.",
-        "purpose": "The one convention for showing progress: the harness Task list as canonical tracker, a compact text bar, and nested sub-progress.",
+        "purpose": "The one convention for showing progress: a plan-derived Task list, a compact text bar, and nested sub-progress.",
         "criteria": [
-            "The harness Task list is the canonical tracker (one task per step); a compact ▓▓░ N/M · "
+            "The harness Task list mirrors the gauntlet plan (one task per stable item); a compact ▓▓░ N/M · "
             "now:X bar is echoed alongside it, each response and each poll tick.",
             "A sub-process shows its own nested bar under the main one; both update the moment a step "
             "changes state, not at the end.",
@@ -1248,7 +1246,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The single user-invocable front door: open the session record, route the task, show progress and drive it to a verified finish.",
         "criteria": [
             "Finds or creates one active plan-backed dashboard before routing, returns its canonical link on request and rejects multiple active plans.",
-            "Keeps ordinary work on current execution with Gauntlet off and no loop-options interview; invokes Gauntlet only when requested.",
+            "Keeps every session on the shared gauntlet record with current execution and independent judgement off by default; custom execution options remain opt-in.",
             "Writes each routed flow's sources, decisions, artifacts, verdicts and remaining actions into the plan, then refreshes the dashboard.",
             "Routes via references/skill-stack.md and verifies every named skill is installed before "
             "planning on it; never restates the map or a skill's method.",
@@ -1533,8 +1531,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "hooks/intent-ledger.sh": {
         "mission": "Every ask Simon makes survives verbatim, so no plan finishes with a point silently missing.",
-        "purpose": "Records every ask verbatim in the worktree, and will not let a ratified plan "
-                   "finish without a reconciliation of asked against built.",
+        "purpose": "Records complete redacted asks, prompts gauntlet updates and checks reconciliation freshness at hand-back.",
         "criteria": [
             "The only hook that writes into a project, because the record has to sit beside the "
             "branch it describes. That inversion is the risk, so the refusals ARE the contract: "
@@ -1547,10 +1544,9 @@ CONTRACTS: dict[str, dict] = {
             "workspace deletes every ask appended since it read.",
             "ACTIVE is announced only AFTER a record is durably on disk. Every silent refusal is "
             "safe only because of that ordering; without it the model creates the ledger by hand.",
-            "The stop mode carries three independent loop guards (stop_hook_active, a "
-            "once-per-session marker, a reason naming the command that satisfies it) and enforces "
-            "only THAT a reconciliation happened, never what it says. A hook that graded content "
-            "would be the text matcher rules/security.md retired.",
+            "Keep full prompts and remind the agent to reconcile each into the gauntlet plan; preserve requirements beyond 6000 characters.",
+            "Combine simultaneous submit notices into one valid hook JSON document for native host parsing.",
+            "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "
             "stop.",
@@ -1565,7 +1561,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Opens the task dashboard, proposes skills and blocks fan-out until Simon confirms.",
         "criteria": [
             "Mechanically initializes one active plan-backed dashboard before the opening proposal and includes its canonical clickable path.",
-            "Keeps ordinary task dashboards on current execution with Gauntlet off, without adding a loop-options interview.",
+            "Keeps default session gauntlets on current execution with the independent judge off, without adding a loop-options interview.",
             "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
             "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",

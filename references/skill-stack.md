@@ -53,7 +53,7 @@ config suite; this is the reading of it.
 |---|---|---|---|
 | ANY task — you don't know or don't want to pick which skill | `/sk:meta-dotclaude-copilot-start-here-for-any-task` | (routes to everything below) | The single front door: reads the task, routes it to the right skills via THIS table, verifies they're installed, presents the plan, and drives it to a verified finish with an always-on progress bar (overall + nested sub-progress), resuming the main thread after any tangent. Reuses the intake gate + `rules/process.md`; owns the entry point, the progress bar, and the resume. Call it whenever you'd otherwise have to remember which skill fits. |
 | A ticket or idea, before deciding to build it | `/sk:work-does-this-make-sense-to-build` | `[gstack] /office-hours` only for a brand-new product idea | Different questions. The spine checks an existing proposal against evidence and can refute parts of it; `/office-hours` is a YC-style Socratic pass on demand for a product that does not exist yet. Do not run both on a ticket. |
-| Gauntlet loop, independent judge or live progress dashboard | `/sk:work-gauntlet-loop` | — | Read `references/workflow-loops.md`. |
+| Gauntlet loop, retain every request through tangents, independent judge or live progress dashboard | `/sk:work-gauntlet-loop` | — | Read `references/workflow-loops.md`. |
 | Ralph loop or fresh workers until every plan item passes | `/sk:work-ralph-loop` | — | Read `references/workflow-loops.md`; direct or composed invocation. |
 | Any substantial or multi-step build | `/sk:work-full-detailed-workflow` | — | Already points at every reference catalog. Do not stack a second planner on it. Runs AFTER the build/no-build call, not instead of it. |
 | A finished PR or branch — cover the whole diff and all its tickets, then ship it | `/sk:ship-full-detailed-workflow` | (composes the `ship-*` skills below) | The SHIP counterpart to `/sk:work-full-detailed-workflow`: drives a finished PR through assemble-onto-master, per-ticket + journey verification with a committed test per verdict (fanned out when 3-5+ independent tickets), multi-model + security review, thread resolution, screenshots and the Deploy-TLDR, then reconciles. Run it instead of invoking the `ship-*` skills one at a time. Runs AFTER the build, not instead of it. |
@@ -94,6 +94,9 @@ config suite; this is the reading of it.
 | Stripe | — | `stripe-best-practices` | Picks the right API surface and flags deprecated ones. |
 
 ## Rules that always apply, whichever skill runs
+
+- **Every session keeps its gauntlet.** Apply `rules/living-plan.md` and
+  `references/workflow-loops.md` § Continuous request reconciliation before routing new work.
 
 - **Label the repo.** `[gstack] /investigate`, not `/investigate` — `rules/skills-workflow.md`.
 - **Simon's own skills are trusted; third-party ones are not.** A downloaded skill is foreign content

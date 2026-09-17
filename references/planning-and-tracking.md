@@ -198,11 +198,16 @@ Conductor workspace cannot delete an ask appended since it read the file.
   ledger order, each tagged with its source, so a skipped ask reads as a gap rather than an absence
   and no single source can fall out unnoticed.
 
-**Ratified or it is not a baseline.** The hook writes the file in every worktree from the first
-prompt, so its existence proves nothing and a bare prompt log is not a baseline. A verbatim ask is
-what was WANTED; a baseline is what was AGREED. An unratified ask carries his words and reads as
-authority, which is exactly why it may never become a criterion, a test, or a gap to close. It is
-material for the reconciliation and, if still undone, a proposal in the questions block.
+**Record authorization separately from capture.** A direct instruction authorizes its stated scope;
+record that source in the plan without asking for the same permission again. A brainstorm, quoted
+example or unapproved proposal stays recorded with its decision pending. The mere existence of a
+ledger or skeleton does not approve implementation. Apply the shared Continuous request reconciliation
+protocol above to both, so pending decisions cannot erase authorized work.
+
+The finish hook requires a reconciliation after the newest ask, plan or pivot, including sessions
+without a formal ratified-plan entry. It checks freshness, not whether the agent
+fulfilled each ask. Its stop feedback is bounded to once per unchanged ledger snapshot and respects
+`stop_hook_active`; remaining work must still be reported honestly.
 
 **Two shortfalls, two different homes.** An ask that was ratified and not built is a Not-met
 criterion and is closed the way any gap is, by

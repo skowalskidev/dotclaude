@@ -6,9 +6,9 @@ and `/sk:work-hyperspeed`.
 When a task runs across many steps, or waits on something, Simon must always see how far along he is
 without asking. Show it; don't make him infer it.
 
-**DO keep the harness Task list as the CANONICAL tracker** — one task per step via TaskCreate, marked
-`in_progress` / `completed` as they change, so the native live checklist carries the state across turns
-and a restart.
+**DO derive the harness Task list from the gauntlet plan** (`rules/living-plan.md`), one task per
+stable plan item. Mirror its verified status into the native checklist when that tool is available.
+The plan remains canonical across turns, restarts and hosts without TaskCreate.
 
 **DO echo a COMPACT text bar alongside it — each response, and each poll tick:** `▓▓▓▓░░░░ N/M · now: X`.
 Fill one block per done step out of 8 total, then the count, then what is happening now.

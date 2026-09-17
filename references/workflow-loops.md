@@ -1,8 +1,9 @@
 # One task record, two execution modes, one dashboard
 
-DO give every task-bearing workspace one dashboard derived from its one living plan. Ordinary tasks
+DO treat every task-bearing session as a gauntlet session with one dashboard and one living plan. Ordinary tasks
 initialize `engine=current`, `gauntlet=false`, `referenceMode=none` and need no loop-options interview.
-Gauntlet and Ralph remain explicit execution choices. TEST: starting ordinary work produces one plan
+The `gauntlet` boolean enables independent judgement, not task tracking. Ralph and independent judgement
+remain explicit execution choices. TEST: starting ordinary work produces one plan
 and one dashboard without asking the four loop questions.
 
 Before delegation, apply `references/parallelization.md` § Choose and preserve the agent setup.
@@ -14,20 +15,57 @@ DO compose the execution mode and judge independently. Recommend
 `--judge off` for ordinary verified task tracking. Keep the same plan, section IDs and viewer
 when switching. TEST: switching modes creates zero new plan files and preserves evidence.
 
-## Shared lifecycle and ownership
+## Continuous request reconciliation
 
-DO let the invoked entry skill own one supervisor, one plan and one viewer. A direct Gauntlet or Ralph
-run also owns one options answer.
-Gauntlet selects an execution engine and runs the shared judge stage over its results. A composed
+DO apply this lifecycle from the first task-bearing message through the last, whichever skill runs.
+At the start of every turn and when a message arrives mid-run, read the same plan and all new source
+messages. Read the hook's announced intent-ledger path, including any contention sidecar; without
+hooks, record the requests directly from the conversation. Keep secrets out of the plan.
+
+DO split EVERY actionable ask into stable IDs in `## Tasks`, with its source message, requested
+outcome, acceptance criteria, dependencies and authorization. Link each ID to dashboard section/criterion
+IDs; keep status and evidence only in dashboard state. Summarize requirements in full, including the
+tail of long messages; the raw ledger is source evidence, not the execution checklist. Record answers,
+constraints and corrections under `## Decisions & rationale`. A question needing an answer is work;
+an illustrative example or brainstorm is recorded as context, not silently converted into authorization.
+
+DO merge additions into the same plan before acting. Queue independent new work, preserve the current
+item and its exact next step in `## Execution notes`, answer status questions briefly, then resume.
+Change priority when instructed; cancel or replace work only on an explicit instruction, retaining
+the old ID, source decision and replacement ID. A changed requirement reopens its affected checks.
+Do not erase older requests because the newest message is more detailed or changes the topic.
+
+DO recheck the complete queue after each item, new message, verification pass, restart, compaction
+and handoff. Read the source messages as well as the plan to detect an ask never copied into it.
+Continue ready authorized work until none remains; a green test for one item closes only that item.
+Record a blocker with its next action and continue independent work. Keep deferred work open unless
+Simon explicitly defers it; record who decided, when and the resume condition.
+
+DO reconcile each source ask against its IDs before any final response or handoff. Record one outcome
+per item: verified with evidence, answered with the answer location, explicitly cancelled/superseded
+with the decision, or still open with its blocker/next action. Close a cancelled item's criterion only
+with the recorded cancellation, never a claim it was implemented. Complete means zero unaccounted asks
+and zero required unfinished items. A pause or blocked hand-back states every remaining item and the
+resume point. Refresh the dashboard and append a fresh ledger reconciliation when the hook is available.
+
+TEST: ask for A and B, add C while A runs, ask a status question, then resume after compaction. The
+same plan still contains A, B and C; none passes without evidence, and the next action resumes B or C.
+An explicit cancellation of B preserves its decision instead of silently deleting B.
+
+## Supervisor ownership
+
+DO let the active session own one supervisor, one plan and one viewer. Custom Gauntlet options or a
+direct Ralph run also own one options answer.
+Gauntlet uses the selected execution engine and runs the shared judge stage when enabled. A composed
 Ralph call executes inside that supervisor’s confirmed run; direct Ralph owns the same lifecycle.
 DO enter ordinary work in this order: resolve plan and authorization → export dashboard → execute one
 ready item → verify → persist → export → repeat. Insert ask options → record answer before execution
-only for a direct Gauntlet or Ralph invocation; insert judge after verification only when enabled.
+only for requested custom options or direct Ralph; insert judge after verification only when enabled.
 TEST: selecting an engine creates no second plan, dashboard, options interview or budget.
 
 ## Ask for run options first
 
-DO begin each direct Gauntlet or Ralph invocation with one consolidated run-options question in chat,
+DO begin a requested custom Gauntlet configuration or direct Ralph invocation with one consolidated run-options question in chat,
 before dispatching builders or judges. Ask for execution (`current` or `ralph`), independent judge (`on` or `off`),
 reference input (`images`, `names` or `none`, including platform names), and iteration budget.
 For Gauntlet, offer existing workflow (`current`) or Ralph (`ralph`) and recommend the judge on.

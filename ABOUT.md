@@ -27,7 +27,11 @@ Every task-bearing workspace gets one dashboard derived from its living `.contex
 Task intake mechanically initializes it; [sk] `/sk:meta-dotclaude-copilot-start-here-for-any-task`
 does the same on hosts without that hook. Initialization is locked and idempotent, so simultaneous or
 repeated intake leaves one active plan and dashboard. The agent replaces the intake skeleton before work,
-then refreshes the same file as sources, decisions, artifacts, progress and next actions change. Ask for
+then refreshes the same file as sources, decisions, artifacts, progress and next actions change.
+The prompt ledger keeps the full message, including trailing requirements in long prompts. Each
+message reminds the agent to update the plan. The finish hook requires a reconciliation newer than
+the latest ask, plan or pivot. These hooks check capture and freshness; the agent checks meaning and
+completion evidence. On hosts without working hooks, the written per-message protocol still applies. Ask for
 the dashboard link from any later session, or run
 `python3 "$HOME/.claude/bin/workflow-dashboard.py" link`; it regenerates and prints the canonical
 absolute HTML path. The portable file remains useful when no live viewer is running.
@@ -36,13 +40,19 @@ The Session record inside the dashboard derives narrative sections from the plan
 artifact and remaining-work indexes from dashboard state. The Markdown plan remains the only task
 record; the HTML is a replaceable view, not another store.
 
-Ordinary tasks use current-session tracking with the independent judge off and no loop-options
-interview. Invoke [sk] `/sk:work-gauntlet-loop` for Gauntlet, or [sk] `/sk:work-ralph-loop` for
+Every task session is a gauntlet session. Each new request, correction and decision is folded into
+the same plan before work continues. Stable request IDs link to checks and evidence; tangents keep a
+return point, and unfinished work stays visible through compaction and handoff. Before finishing,
+the agent rechecks all recorded asks and continues any ready work. Cancelled or superseded requests
+retain the decision; blocked work retains its next action.
+
+Ordinary sessions use current-session execution with the independent judge off and no loop-options
+interview. [sk] `/sk:work-gauntlet-loop` uses this same record; [sk] `/sk:work-ralph-loop` selects
 standalone Ralph. Both use the `work-` group in the personal `sk` plugin; select those skill names in
 Codex. The existing shared `sk` skill directory supplies both hosts. A newly added skill can require a
 new session.
 
-At the beginning, Gauntlet asks you to choose the existing workflow or Ralph’s fresh-worker loop,
+When you request custom loop options, Gauntlet asks you to choose the existing workflow or Ralph’s fresh-worker loop,
 the separate Gauntlet judge on or off, reference input and iteration budget. The dashboard’s This run
 panel then shows your selected options read-only. Fully specified invocation options count as your answer.
 Standalone Ralph fixes its execution mode and asks for the remaining options. When Gauntlet selects

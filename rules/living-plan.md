@@ -1,15 +1,15 @@
-# Living plan and dashboard — the rail for every task
+# Every session is a gauntlet session
 
-`.context/<slug>-plan.md` is the ONE task record; derive its dashboard.
+`.context/<slug>-plan.md` is the ONE gauntlet file and task record; derive its dashboard.
 
 **DO run `python3 "$HOME/.claude/bin/workflow-dashboard.py" init --root .` on the first task-bearing
-prompt, then replace its skeleton via `/sk:plan-stable-persistent-dynamic-complete-full-plan`.**
-Keep asks, sources, decisions, artifacts and pivots there; reconcile at hand-back.
-Regenerate after every transition (a ticket, PR, mediation round or preview each counts) so the ONE
-dashboard tracks EVERY open workstream. One active plan; a gauntlet/per-task plan absorbs into it, not
-a second island.
+prompt, then fill its skeleton from the actual request and existing authorization.**
+On EVERY user message, with or without hooks or a named skill, read the plan and record new asks and
+decisions before continuing. Preserve unfinished work. Apply `references/workflow-loops.md` § Continuous
+request reconciliation. Default to current execution, judge off, without re-locking authorized work.
+Refresh the dashboard after every transition across ALL workstreams. Absorb per-task plans into it.
 
-Details: `references/planning-and-tracking.md`, `rules/process.md`, `references/workflow-loops.md`.
+Details: `references/planning-and-tracking.md`, `rules/process.md`.
 
-TEST: at any check-in, one active plan and the dashboard `updatedAt` ≥ the latest transition; a stale
-`file://` snapshot or a second plan is reconciled first.
+TEST: every actionable ask maps to a persistent item and outcome; zero asks disappear after a tangent,
+restart or compaction. At any check-in, one active plan and dashboard `updatedAt` ≥ the latest transition.
