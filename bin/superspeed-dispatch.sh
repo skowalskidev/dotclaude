@@ -24,7 +24,7 @@
 #     "gate": "yarn lint && yarn test",          # optional, run by the RECONCILER not by slices
 #     "setup": "yarn install",                    # optional, run ONCE here before any slice starts;
 #                                                 # take it from the repo's CLAUDE.md / CLAUDE.local.md
-#     "model": "claude-sonnet-4-6",             # optional: Claude default; full-astra pins gpt-6-astra
+#     "model": "claude-sonnet-4-6",             # optional: Claude default; OpenAI defaults to gpt-5.6-sol
 #     "design_model": "claude-fable-5-1",        # GPT setup only; fixed by agent_setup.py
 #     "slices": [
 #       { "name": "api", "model_route": "general",

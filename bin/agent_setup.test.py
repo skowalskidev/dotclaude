@@ -31,9 +31,14 @@ class SetupTests(unittest.TestCase):
     def test_claude_default_preserves_existing_worker_model(self):
         self.assertEqual(agent_setup.resolve(self.spec)['model'], 'claude-sonnet-4-6')
 
-    def test_astra_defaults_to_astra_for_workers(self):
+    def test_claude_top_and_design_models_do_not_implement(self):
+        for model in ('claude-opus-4-8', 'claude-fable-5-1'):
+            with self.subTest(model=model), self.assertRaisesRegex(ValueError, 'smaller Claude'):
+                agent_setup.resolve(dict(self.spec, model=model))
+
+    def test_astra_defaults_to_sol_for_workers(self):
         self.spec.update(agent_setup='full-astra', orchestrator_model='gpt-6-astra')
-        self.assertEqual(agent_setup.resolve(self.spec)['model'], 'gpt-6-astra')
+        self.assertEqual(agent_setup.resolve(self.spec)['model'], 'gpt-5.6-sol')
 
     def test_missing_setup_inherits_current_model(self):
         del self.spec['agent_setup']
@@ -44,10 +49,12 @@ class SetupTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 agent_setup.resolve(dict(self.spec, **{field: 'gpt-6-astra'}))
 
-    def test_astra_rejects_other_gpt_models(self):
+    def test_astra_accepts_sol_and_rejects_astra_as_implementation(self):
         self.spec.update(agent_setup='full-astra', orchestrator_model='gpt-6-astra')
-        with self.assertRaisesRegex(ValueError, 'Worker model'):
-            agent_setup.resolve(dict(self.spec, model='gpt-5.6-sol'))
+        self.assertEqual(agent_setup.resolve(dict(self.spec, model='gpt-5.6-sol'))['model'],
+                         'gpt-5.6-sol')
+        with self.assertRaisesRegex(ValueError, 'smaller OpenAI'):
+            agent_setup.resolve(dict(self.spec, model='gpt-6-astra'))
 
     def test_unknown_orchestrator_is_not_assumed(self):
         del self.spec['orchestrator_model']
@@ -96,21 +103,24 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(resolved['model_provider'], 'openai')
 
     def test_openai_setup_accepts_same_provider_models_and_rejects_other_reviewers(self):
-        spec = dict(self.spec, agent_setup='full-openai', orchestrator_model='gpt-5.6-sol', model='gpt-6-astra')
-        self.assertEqual(agent_setup.resolve(spec)['model'], 'gpt-6-astra')
+        spec = dict(self.spec, agent_setup='full-openai', orchestrator_model='gpt-5.6-sol',
+                    model='gpt-5.6-luna')
+        self.assertEqual(agent_setup.resolve(spec)['model'], 'gpt-5.6-luna')
         for other in ('claude-sonnet-4-6', 'gemini-3-pro', 'unknown'):
             with self.subTest(model=other), self.assertRaises(ValueError):
                 agent_setup.resolve(dict(spec, reviewer_model=other))
+        with self.assertRaisesRegex(ValueError, 'smaller OpenAI'):
+            agent_setup.resolve(dict(spec, model='gpt-6-astra'))
 
     def test_openai_design_route_pins_fable_and_preserves_general_workers(self):
         spec = {
             'agent_setup': 'full-openai',
             'orchestrator_model': 'gpt-5.6-sol',
-            'model': 'gpt-6-astra',
+            'model': 'gpt-5.6-sol',
             'slices': [{'name': 'screen', 'model_route': 'design'}, {'name': 'api'}],
         }
         resolved = agent_setup.resolve(spec)
-        self.assertEqual(resolved['model'], 'gpt-6-astra')
+        self.assertEqual(resolved['model'], 'gpt-5.6-sol')
         self.assertEqual(resolved['design_model'], agent_setup.CLAUDE_DESIGN_MODEL)
         with self.assertRaisesRegex(ValueError, 'Fable 5.1'):
             agent_setup.resolve(dict(spec, design_model='claude-sonnet-4-6'))
@@ -121,14 +131,15 @@ class SetupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'general or design'):
             agent_setup.resolve(dict(self.spec, slices=[{'name': 'screen', 'model_route': 'visual'}]))
 
-    def test_astra_design_uses_fable_and_general_work_stays_astra(self):
+    def test_astra_design_uses_fable_and_general_work_uses_sol(self):
         spec = {
             'agent_setup': 'full-astra',
             'orchestrator_model': 'gpt-6-astra',
-            'slices': [{'name': 'screen', 'model_route': 'design'}, {'name': 'api', 'model_route': 'general'}],
+            'slices': [{'name': 'screen', 'model_route': 'design'},
+                       {'name': 'approved-ui', 'model_route': 'general'}],
         }
         resolved = agent_setup.resolve(spec)
-        self.assertEqual(resolved['model'], agent_setup.ASTRA_MODEL)
+        self.assertEqual(resolved['model'], agent_setup.OPENAI_WORKER_MODEL)
         self.assertEqual(resolved['design_model'], agent_setup.CLAUDE_DESIGN_MODEL)
         with self.assertRaisesRegex(ValueError, 'Fable 5.1'):
             agent_setup.resolve(dict(spec, design_model='claude-sonnet-4-6'))
@@ -252,7 +263,7 @@ else:
         self.assertEqual(result.stdout.strip(), 'Ready')
         call = json.loads(self.calls.read_text())
         self.assertEqual(call['prompt'], prompt)
-        self.assertIn('gpt-6-astra', call['args'])
+        self.assertIn('gpt-5.6-sol', call['args'])
         self.assertIn('agents.enabled=false', call['args'])
         self.assertEqual(call['intake'], 'off')
         self.assertEqual(call['ledger'], 'off')
@@ -266,7 +277,7 @@ else:
         result = self.astra_command('-p', '--output-format', 'json', '--events-file', str(events),
                                     '--sandbox', 'read-only', input='Read only')
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(json.loads(result.stdout)['model'], 'gpt-6-astra')
+        self.assertEqual(json.loads(result.stdout)['model'], 'gpt-5.6-sol')
         self.assertIn('turn.completed', events.read_text())
 
     def test_long_print_and_equals_forms(self):
@@ -374,6 +385,18 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         self.assertNotEqual(self.astra_command('-p', 'work', '--model', 'claude-sonnet-4-6').returncode, 0)
         self.assertFalse(self.calls.exists())
 
+    def test_astra_implementation_override_is_rejected(self):
+        self.assertNotEqual(self.astra_command('-p', 'work', '--model', 'gpt-6-astra').returncode, 0)
+        self.assertFalse(self.calls.exists())
+
+    def test_astra_read_only_review_is_allowed(self):
+        result = self.astra_command('-p', 'review', '--model', 'gpt-6-astra',
+                                    '--sandbox', 'read-only')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        call = json.loads(self.calls.read_text())
+        self.assertIn('gpt-6-astra', call['args'])
+        self.assertIn('read-only', call['args'])
+
     def test_cancellation_reaps_native_worker(self):
         self.env['FIXTURE_SLEEP'] = '1'
         with subprocess.Popen([sys.executable, str(self.bin / 'codex-launch.py'), '-p', 'work'],
@@ -423,13 +446,14 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         self.assertEqual([call['kind'] for call in calls], ['claude', 'claude'])
         self.assertEqual(json.loads((output / 'spec.json').read_text())['model'], 'claude-sonnet-4-6')
 
-    def test_full_astra_launches_only_astra_and_records_mode(self):
+    def test_full_astra_launches_sol_workers_and_records_mode(self):
         result, output = self.dispatch('full-astra')
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertEqual([call['kind'] for call in calls], ['codex', 'codex'])
         self.assertTrue(all(call['setup'] == 'full-astra' for call in calls))
         self.assertEqual(json.loads((output / 'run.json').read_text())['agent_setup'], 'full-astra')
+        self.assertEqual(json.loads((output / 'spec.json').read_text())['model'], 'gpt-5.6-sol')
         for name in ('alpha', 'beta'):
             self.assertEqual((output / 'slices' / name / 'status').read_text().strip(), 'ok')
             self.assertTrue((output / 'slices' / name / 'events.jsonl').is_file())
@@ -450,7 +474,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
             self.assertEqual(call['kind'], 'codex')
             self.assertEqual(call['home'], str(self.home / '.codex'))
             self.assertFalse(call['api_env_present'])
-            self.assertIn('gpt-6-astra', call['args'])
+            self.assertIn('gpt-5.6-sol', call['args'])
             self.assertIn('forced_login_method="chatgpt"', call['args'])
             self.assertIn('openai_base_url="https://chatgpt.com/backend-api/codex"', call['args'])
         for name in ('alpha', 'beta'):

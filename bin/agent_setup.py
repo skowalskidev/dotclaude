@@ -8,8 +8,10 @@ import re
 import sys
 
 ASTRA_MODEL = 'gpt-6-astra'
+OPENAI_WORKER_MODEL = 'gpt-5.6-sol'
 CLAUDE_WORKER_MODEL = 'claude-sonnet-4-6'
 CLAUDE_DESIGN_MODEL = 'claude-fable-5-1'
+CLAUDE_ORCHESTRATOR_MODEL = 'claude-opus-4-8'
 SETUPS = ('full-claude', 'full-astra', 'full-openai')
 
 
@@ -57,9 +59,21 @@ def require_provider(provider):
 
 
 def matches_model(setup, model):
+    return model_provider(model) == ('openai' if setup in ('full-openai', 'full-astra') else 'anthropic')
+
+
+def matches_orchestrator(setup, model):
     if setup == 'full-astra':
         return model == ASTRA_MODEL
-    return model_provider(model) == ('openai' if setup == 'full-openai' else 'anthropic')
+    return matches_model(setup, model)
+
+
+def matches_implementation_model(setup, model):
+    if not matches_model(setup, model):
+        return False
+    if setup in ('full-openai', 'full-astra'):
+        return model != ASTRA_MODEL
+    return model not in (CLAUDE_ORCHESTRATOR_MODEL, CLAUDE_DESIGN_MODEL)
 
 
 def is_design_route(item):
@@ -82,12 +96,14 @@ def resolve(spec):
     if inherited and inherited != setup:
         raise ValueError('The requested setup differs from this workflow\'s AGENT_SETUP; '
                          'reconcile the stale plan with the current chat before dispatching.')
-    if not matches_model(setup, orchestrator):
+    if not matches_orchestrator(setup, orchestrator):
         raise ValueError('orchestrator_model must match ' + setup +
                          '; reconcile the stale plan with the actual current chat.')
-    model = spec.get('model', orchestrator if provider == 'openai' else CLAUDE_WORKER_MODEL)
-    if not matches_model(setup, model):
-        raise ValueError('Worker model does not match ' + setup + '; no cross-provider fallback is allowed.')
+    model = spec.get('model', OPENAI_WORKER_MODEL if provider == 'openai' else CLAUDE_WORKER_MODEL)
+    if not matches_implementation_model(setup, model):
+        raise ValueError('Implementation worker must use a smaller ' +
+                         ('OpenAI' if provider == 'openai' else 'Claude') +
+                         ' model under ' + setup + '; top orchestration and design models do not implement.')
     if 'reviewer_model' in spec and not matches_model(setup, spec['reviewer_model']):
         raise ValueError('Reviewer model does not match ' + setup)
     design_model = spec.get('design_model', CLAUDE_DESIGN_MODEL)

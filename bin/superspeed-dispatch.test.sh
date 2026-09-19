@@ -182,7 +182,7 @@ cat > "$TMP/spec-design.json" <<EOF
   "repo": "$TMP/repo",
   "gate": "true",
   "setup": "none",
-  "model": "gpt-6-astra",
+  "model": "gpt-5.6-sol",
   "slices": [
     { "name": "screen", "model_route": "design", "owns": ["screen.txt"], "accept": "exists", "verify": "none", "prompt": "do design work" }
   ]
@@ -209,7 +209,7 @@ else
   fail "Fable failure must not become an OpenAI design worker (exit $RC)"
 fi
 
-sed 's/"full-openai"/"full-astra"/; s/"gpt-5.6-sol"/"gpt-6-astra"/' "$TMP/spec-design.json" > "$TMP/spec-astra-design.json"
+sed 's/"full-openai"/"full-astra"/; s/"orchestrator_model": "gpt-5.6-sol"/"orchestrator_model": "gpt-6-astra"/' "$TMP/spec-design.json" > "$TMP/spec-astra-design.json"
 ASTRA_DESIGN_CALLS="$TMP/astra-design-calls.log"
 FIXTURE_CLAUDE_CALLS="$ASTRA_DESIGN_CALLS" PATH="$TMP/bin:$PATH" \
   bash "$DISPATCH" "$TMP/spec-astra-design.json" "$TMP/repo/.superspeed/astra-design" > "$TMP/astra-design.log" 2>&1

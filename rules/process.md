@@ -5,18 +5,14 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 ## How to work — orchestration & process
 
 ### Inherit the current chat's model provider; pick each worker's tier by the job
-Use OpenAI in OpenAI chats and Claude in Claude chats for every delegated role. GPT design discovery,
-implementation and visual judgement use Claude Fable 5.1 (`claude-fable-5-1`); other GPT roles use
-OpenAI. Reconcile stale plans.
-Do not re-ask a known provider or switch after a model/auth failure. Assign each same-provider worker a
-tier by job; it uses the orchestrator's tier only when its prompt says why. Switch providers only for
-Simon's explicit named-host ask (e.g. "use GPT-Astra") or the GPT design route; never self-initiate.
-Route: `references/parallelization.md`.
-TEST: every GPT design launch uses `claude-fable-5-1` with subscription authentication and no OpenAI
-fallback; other roles match the chat provider unless Simon names another host, and use a lower tier
-unless their prompt says why.
-Verify on disk. Delegate only independent, authorized work. Use subscriptions:
-`references/agent-hosts.md`. Model tiers: `references/parallelization.md`.
+Keep delegated roles on the current chat provider. Route GPT design discovery, mockups and visual
+judgement to Fable 5.1; route every implementation edit, approved UI included, to GPT-5.6 Sol on
+OpenAI or Sonnet 4.6 on Claude. Astra and Opus orchestrate; Fable designs.
+Reconcile stale plans. Do not re-ask a known provider or switch after a model/auth failure. Switch
+only for Simon's named-host ask or the GPT design route. Use subscriptions: `references/agent-hosts.md`.
+Routing and tiers: `references/parallelization.md`.
+TEST: implementation is `general` and rejects Astra, Opus and Fable; GPT design uses Fable with no
+OpenAI or API fallback. Verify every delegated result on disk.
 
 ### Fan out verification, and only rebuild what changed
 Run verification for INDEPENDENT units as **parallel tool calls, not one sequential command.**
@@ -203,23 +199,17 @@ need a plain `npm install` inside the worktree to populate its `node_modules`.
 
 ### Clean up after yourself — no residual processes or scratch artifacts
 Don't leave anything persistent on my machine that I didn't ask for. When a task is done:
-- **Track every process/server/port you start, and shut them ALL down when the task is done.** Keep a
-  running list of anything you background — dev/preview servers, watchers, tunnels, `stripe listen`, a
-  held `:3000`/`:3100` port — and at task end kill each one and VERIFY it's actually gone (check the
-  port/process), so nothing keeps burning CPU or holding a port after you've finished.
-- **Take a LANE before binding a port, and release it when done.** Sessions in other worktrees fight
-  over the same ports, so `~/.claude/bin/port-slot.sh` gives this worktree its own slot and
-  `port-registry.sh` records who holds what. Held by another live session → take the next lane; never
-  wait on it and never kill their server. Protocol in `~/.claude/references/dev-server-hygiene.md`.
-- **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev` /
-  `jest` / `vite` run leaves workers reparented to PID 1 pinning a core in a workspace nobody watches,
-  so the sweep is machine-wide and covers what you did not start. `hooks/orphan-worker-sweep.sh`
-  reports, `bin/kill-orphan-workers.sh` clears, and it only ever touches one that is BURNING (20%+
-  CPU, 5+ minutes old), so an idle or just-started detached server is never killed. Deferring costs a
-  core for the whole session, which is unbounded: one report sat unread for ten hours at 97%. TEST: at
-  hand-back,
-  `pgrep -fl 'next-router-worker|vitest|jest'` lists only what you started.
-  Mechanics: `references/dev-server-hygiene.md`.
+- **Track every process/server/port you start, and shut them ALL down at task end.** Keep a running
+  list of anything backgrounded — dev/preview servers, watchers, tunnels, `stripe listen`, a held
+  `:3000`/`:3100` port — then kill each and VERIFY it's gone, so nothing keeps burning CPU or a port.
+- **Take a LANE before binding a port, and release it when done.** `bin/port-slot.sh` claims this
+  worktree's slot; a port held by another live session → take the next lane, never wait on it or kill
+  their server. Protocol: `references/dev-server-hygiene.md`.
+- **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev`/`jest`/
+  `vite` reparented to PID 1 pins a core in a workspace nobody watches; `bin/kill-orphan-workers.sh`
+  clears only a BURNING one (20%+ CPU, 5+ min old), never an idle or just-started server. TEST: at
+  hand-back, `pgrep -fl 'next-router-worker|vitest|jest'` lists only what you started. Mechanics:
+  `references/dev-server-hygiene.md`.
 - **Remove scratch scripts/files** a session created (evals, one-off helpers, temp data) once
   they've served their purpose — keep only intentional artifacts.
 - **Tear down every isolated workspace you create — teardown is part of "done", not a follow-up.**
@@ -230,10 +220,10 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
   move it out, or accept that it dies with the directory (e.g. an uncommitted spike). The one
   exception is `.context/intent-ledger.md`, which is meant to die there once what it holds has been
   promoted out: `references/planning-and-tracking.md`.
-- **Verify cleanup against the underlying storage, not just the tool's own listing.** A registry stops
-  listing what it has already forgotten, so an orphan is invisible to the exact command you would check
-  with. Reconcile what is on disk against what the tool claims exists, and treat anything present but
-  unlisted as residue. Cases: `references/dev-server-hygiene.md`.
+- **Verify cleanup against the underlying storage, not the tool's own listing.** A registry stops
+  listing what it has forgotten, so an orphan is invisible to the command you'd check with; reconcile
+  disk against what the tool claims and treat present-but-unlisted as residue. Cases:
+  `references/dev-server-hygiene.md`.
 - **Never install a persistent background process** (login item, LaunchAgent/LaunchDaemon, cron,
   always-on watcher) without asking first — and if you add one for a task, remove it AND its
   registration when done. A login item pointing at a deleted script is exactly the mess to avoid.

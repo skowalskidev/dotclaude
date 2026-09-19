@@ -46,19 +46,19 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "bin/agent_setup.py": {
-        "mission": "Simon's delegated agents stay on the current chat's model provider, with an explicit Fable-only route for GPT-orchestrated design work.",
+        "mission": "Simon's top models orchestrate and design while smaller provider-matched workers implement every approved change.",
         "purpose": "Validate saved setup, orchestrator, worker and reviewer model choices before dispatch.",
         "criteria": [
             "Derive omitted setup from the actual orchestrator model; reject unknown models, native-provider conflicts, inherited setup conflicts and per-slice overrides before launching processes.",
-            "Reject stale cross-provider plans without mutating the input spec; preserve explicit same-provider model choices and Astra-only worker constraints.",
-            "Permit only the Fable 5.1 design route for a GPT orchestrator, and reject another design model or any design route on the Claude path.",
+            "Reject stale cross-provider plans without mutating the input spec; default OpenAI implementation to GPT-5.6 Sol and Claude implementation to Sonnet 4.6.",
+            "Permit only the Fable 5.1 design route for a GPT orchestrator; reject Astra, Opus and Fable as implementation workers.",
         ],
     },
     "bin/codex_print.py": {
         "mission": "Simon can launch independent headless OpenAI workers without changing authentication or falling back to Claude.",
         "purpose": "Provide codex -p through native Codex exec and normalize its events.",
         "criteria": [
-            "Default to gpt-6-astra; accept explicit OpenAI models within the inherited setup, preserve native permissions and launcher routing, and pass prompt text without shell interpolation.",
+            "Default implementation to gpt-5.6-sol; allow Astra only for read-only review, preserve native permissions and launcher routing, and pass prompts without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",
         ],
@@ -206,6 +206,15 @@ CONTRACTS: dict[str, dict] = {
             "Per-project detail stays in connectors/*.json, never hard-coded here.",
         ],
     },
+    "rules/spend-approval.md": {
+        "mission": "No paid balance is ever drawn down without Simon's explicit per-call yes.",
+        "purpose": "Billable/metered spend (paid renders, credit API calls) requires per-call approval.",
+        "criteria": [
+            "Get an explicit per-call yes before every billable operation; one yes is not a batch.",
+            "A diagnose/fix/test task is never license to spend; free calls only until approved.",
+            "No bisection or retry loop that fires paid calls until one succeeds.",
+        ],
+    },
     "rules/copy-quality.md": {
         "mission": "Anything a human reads gets read and acted on, and never reads as machine filler.",
         "purpose": "Stops output reading as AI-generated, and keeps it economical.",
@@ -227,7 +236,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
-            "Keep every role on the actual chat provider, except Fable 5.1 for a GPT-orchestrated design task; every other worker gets an explicit tier by job.",
+            "Keep every role on the actual chat provider except GPT design work on Fable 5.1; route implementation to GPT-5.6 Sol or Sonnet 4.6, never Astra, Opus or Fable.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
@@ -407,7 +416,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
         "criteria": [
-            "Own the setup persistence and model-consistency protocol, including the Fable-only design route for a GPT orchestrator; scope historical Claude benchmarks honestly.",
+            "Own setup persistence and model consistency: Astra and Opus orchestrate, Fable designs, GPT-5.6 Sol and Sonnet 4.6 implement; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
@@ -1008,7 +1017,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
         "purpose": "Engine for /sk:work-superspeed — launch one provider-matched process per slice and log it.",
         "criteria": [
-            "Validate native-provider and setup consistency before spending; route a GPT design slice only to Fable 5.1 with no API or OpenAI fallback, then return failure for a failed or incomplete worker.",
+            "Validate provider and setup before spending; route GPT design only to Fable 5.1 and implementation to GPT-5.6 Sol or Sonnet 4.6, then fail an incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
             "Verifies each slice by its on-disk artifact, never by exit code "

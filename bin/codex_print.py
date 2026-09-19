@@ -11,10 +11,16 @@ import sys
 import tempfile
 import time
 
-from agent_setup import ASTRA_MODEL, matches_model, require_provider
+from agent_setup import (
+    ASTRA_MODEL,
+    OPENAI_WORKER_MODEL,
+    matches_implementation_model,
+    matches_model,
+    require_provider,
+)
 
 
-def collect(events, event_log=None, model=ASTRA_MODEL, setup="full-astra"):
+def collect(events, event_log=None, model=OPENAI_WORKER_MODEL, setup="full-openai"):
     result = {'provider': 'codex', 'model': model, 'agent_setup': setup,
               'session_id': None, 'result': '', 'num_turns': 0, 'usage': {},
               'duration_api_ms': None, 'total_cost_usd': None, 'is_error': False}
@@ -50,7 +56,7 @@ def collect(events, event_log=None, model=ASTRA_MODEL, setup="full-astra"):
     return result
 
 
-def execute(prompt, cwd, sandbox, events_file=None, model=ASTRA_MODEL, setup="full-astra"):
+def execute(prompt, cwd, sandbox, events_file=None, model=OPENAI_WORKER_MODEL, setup="full-openai"):
     require_provider("openai")
     launcher = Path(__file__).with_name('codex-launch.py')
     if not launcher.is_file() or not os.access(launcher, os.X_OK):
@@ -107,11 +113,13 @@ def main():
     parser.add_argument('--output-format', choices=('text', 'json'), default='text')
     parser.add_argument('--sandbox', choices=('read-only', 'workspace-write'), default='workspace-write')
     parser.add_argument('--events-file', type=Path)
-    parser.add_argument('--model', default=ASTRA_MODEL)
+    parser.add_argument('--model', default=OPENAI_WORKER_MODEL)
     args = parser.parse_args()
     setup = os.environ.get('AGENT_SETUP', 'full-astra' if args.model == ASTRA_MODEL else 'full-openai')
-    if setup not in ('full-astra', 'full-openai') or not matches_model(setup, args.model):
-        parser.error('Worker model conflicts with the inherited setup; no provider fallback is allowed.')
+    model_matches_role = (matches_model(setup, args.model) if args.sandbox == 'read-only'
+                          else matches_implementation_model(setup, args.model))
+    if setup not in ('full-astra', 'full-openai') or not model_matches_role:
+        parser.error('Model conflicts with the inherited setup or role; Astra requires read-only review.')
     if args.prompt == '-' and sys.stdin.isatty():
         parser.error('Supply prompt text after -p or pipe it on stdin.')
     prompt = sys.stdin.read() if args.prompt == '-' else args.prompt
