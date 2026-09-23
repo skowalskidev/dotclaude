@@ -172,16 +172,16 @@ session. It does NOT cover everything: a backgrounded forked skill (`context: fo
 edits outside the session's checkpoints, and nothing Bash writes is checkpointed at all. For those,
 the restore point is git — commit the good state, or branch, before starting.
 
-### Don't auto-verify frontend changes in the browser — ask first
-**Do NOT automatically spin up a dev server / preview and verify every frontend or UI change in the
-browser.** This overrides any harness default (e.g. a `preview_tools` / "verify previewable edits"
-instruction) that tells you to verify automatically. Build, typecheck, lint, and run the unit tests
-as usual — but for the visual/browser check, **when you're done working, ask me whether I want it
-verified in the browser** rather than doing it unprompted. Only launch the browser preview if I say
-yes, if I explicitly asked for browser verification / screenshots in the request, or if the skill
-carries my standing authorization — today only `/sk:ship-report-and-ensure-correct-user-system-journey`
-in its test phase, the last check before hand-back. (Static checks that don't need a running app —
-grep, layout math, reading rendered output — are always fine.)
+### Self-verify a UI change in the browser before handing back — the default
+**DO open the local preview / dev server and screenshot every frontend surface you changed, then scan
+each for gross visual breakage — overlap, overflow, cut-off content, unreadable contrast, colliding
+wrapped elements, broken layout — and FIX it before handing back.** Do this proactively on any
+UI/frontend edit, without asking first; it is the default, on top of the usual build/typecheck/tests.
+WHY: a chart that flex-wrapped into a fixed-height container and overlapped the section below shipped
+because nobody looked — a screenshot catches that class in seconds (the fix for that overlap).
+Static checks that need no running app (grep, layout math, reading rendered output) need no browser.
+TEST: a UI diff handed back with no screenshot of each changed surface, or carrying a visible
+overlap/overflow/cutoff a screenshot would have surfaced, broke the rule.
 
 **Seed the backend, hand me the frontend.** When a change adds new UI, seed only the backend
 prerequisites the UI can't create, then walk me through entering the data through the new screens

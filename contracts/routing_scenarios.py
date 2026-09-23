@@ -308,9 +308,10 @@ HOOK_ROUTING: list[dict] = [
                 "git-commit-guard.py", "background-process-guard.py"]},
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},
-    # chrome-devtools tools fire the mcp__.* work guard AND the browser-launch guard.
+    # chrome-devtools tools fire only the mcp__.* work guard; UI self-verification is the default,
+    # so there is no browser-launch gate.
     {"event": "PreToolUse", "tool": "mcp__chrome-devtools__navigate_page",
-     "expect": ["work-resource-guard.sh", "browser-launch-guard.py"]},
+     "expect": ["work-resource-guard.sh"]},
     {"event": "PreToolUse", "tool": "Agent", "expect": ["task-intake.sh"]},
     {"event": "PreToolUse", "tool": "Workflow", "expect": ["task-intake.sh"]},
     {"event": "PreToolUse", "tool": "Read", "expect": []},

@@ -15,8 +15,8 @@ journey review asks whether the person on the other end can get through it.
 
 - Go through the flow end to end, step by step, in the order a new user hits it: first contact → set-up
   → trigger → the wait → the first meaningful result (the "aha"). Prefer walking the REAL app or
-  preview. If none is running, ask before launching one (`rules/process.md` — don't auto-verify
-  frontend in a browser).
+  preview. If none is running, launch one and walk it (`rules/process.md` — self-verify a UI change
+  in the browser by default).
 - At every step note four things: what they DO, what they SEE, what they'd THINK, and where they could
   get STUCK. Drop-off happens where cognitive load spikes, where value isn't obvious, or where they
   feel lost.

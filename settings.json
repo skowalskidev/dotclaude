@@ -45,16 +45,6 @@
         ]
       },
       {
-        "matcher": "mcp__chrome-devtools__.*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/browser-launch-guard.py",
-            "timeout": 10
-          }
-        ]
-      },
-      {
         "matcher": "Agent|Task|Workflow",
         "hooks": [
           {
