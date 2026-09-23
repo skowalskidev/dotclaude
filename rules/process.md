@@ -17,7 +17,11 @@ OpenAI or API fallback. Verify every delegated result on disk.
 ### Fan out verification, and only rebuild what changed
 Run verification for INDEPENDENT units as **parallel tool calls, not one sequential command.**
 **Rebuild a shared dependency only when it actually changed**; **background the long pole** so editing
-continues. **Verify at TASK boundaries** — not after every edit, not only at the end.
+continues. **Iterate with the CHEAP check, verify HEAVY at end states.** Run typecheck or a targeted
+test in the edit loop; run a full production build or the whole suite only at a task boundary, a
+commit, or a parallel run's reconcile — never after every edit, never only at the very end. WHY: a
+worker re-ran a full Next build after each small fix, ~40 min to verify a 5-min change. TEST: the full
+build/suite runs only at end states; a cheap typecheck covers the in-between.
 
 ### Claims about third parties must come from primary sources
 
@@ -39,20 +43,19 @@ Whenever I'm making a factual claim about someone else's product (a comparison t
 
 ### Research online BEFORE retrying — don't grind on a brick wall
 When something fails and the cause isn't obvious, **search online (WebSearch/WebFetch, official docs,
-GitHub issues) BEFORE trying the same class of fix again.** Two failed attempts at the same wall is the
-trigger to stop and research — not ten. It's not a last resort: it's the *second* step after the first
-failure, and often the first step for anything with an unfamiliar library or an opaque error code
-(`ERR_REQUIRE_ESM`, a stack trace deep in `node_modules`), a "works in prod but not dev" split, or a
-dependency/module-load failure. Diagnose the ROOT cause (read the failing package's code, its GitHub
-issues, verify version compatibility) over piling on workarounds — a pinned version or one-line real fix
-beats three layers of hacks around a symptom. If research can't be done (no tool access), say so and ask
-me to paste the docs/issue — don't silently keep grinding.
+GitHub issues) BEFORE retrying the same class of fix.** Two failed attempts at the same wall is the
+trigger — not ten; it's the *second* step, not a last resort, and often the FIRST step for an unfamiliar
+library or an opaque error code (`ERR_REQUIRE_ESM`, a stack trace deep in `node_modules`), a "works in
+prod but not dev" split, or a dependency/module-load failure. Diagnose the ROOT cause (read the failing
+package's code and issues, check version compatibility) over piling on workarounds — a pinned version or
+one-line fix beats three layers of hacks. No tool access? Say so and ask me to paste the docs/issue —
+don't silently grind.
 
 ### Fix the CLASS of failure, not the one instance I reported
 When I report something wrong with produced output (a bad render, a wrong answer, a broken page), my
-example is evidence of a general failure mode — it is not the scope of the fix. **Don't patch the
-instance.** Name the rule that was violated, research online whether it's a known class rather than a
-one-off, and write the fix generically so it also catches the variants I haven't hit yet.
+example is evidence of a general failure mode, not the scope of the fix. **Don't patch the instance.**
+Name the rule that was violated, research whether it's a known class not a one-off, and write the fix
+generically so it also catches variants I haven't hit yet.
 - **Write the rule, not the example.** "The brand mark landed on the building instead of the crew's
   vests" becomes "a stated placement is authoritative and overrides any default placement" — never
   "put brand marks on vests." A fix that only recognises my exact wording fails on the next variant.
@@ -65,19 +68,18 @@ one-off, and write the fix generically so it also catches the variants I haven't
 Assume I may hand the session over and walk away. Before starting substantial work, survey what the
 WHOLE task will need from me and ask for it ALL in one block up front: auth or logins for any tool or
 MCP server, credentials, approval for anything touching production (a deploy, a data migration, a
-schema or rules change), and any decision that forks the implementation. Then work through to
-completion without stopping.
+schema or rules change), and any decision that forks the implementation. Then run to completion.
 
-Front-load what is PREDICTABLE from reading the task. This does not forbid interrupting me later — if
-something unexpected turns up, or a new fork appears where guessing wrong would waste the work, ask then;
-I am not always away. What it forbids is hitting a foreseeable blocker mid-run and stalling on it when it
-could have been requested at the start. The up-front asks still go in ONE block at the end of that first
-response, per questions-at-the-END (`communication.md`).
+Front-load what is PREDICTABLE from the task. This does not forbid interrupting me later — if something
+unexpected turns up, or a new fork appears where guessing wrong would waste the work, ask then; I am not
+always away. What it forbids is stalling mid-run on a foreseeable blocker that could have been requested
+at the start. The up-front asks still go in ONE block at the end of that first response, per
+questions-at-the-END (`communication.md`).
 
 ### Plan and get sign-off for big work
 For large or multi-file changes, **plan first and get my approval before executing** — use plan mode,
-present the approach, and confirm scope/decisions (AskUserQuestion) before writing code. Don't start
-a big refactor or migration on assumptions.
+present the approach, and confirm scope/decisions (AskUserQuestion). Don't start a big refactor or
+migration on assumptions.
 
 ### Track every task to completion — don't drop items
 DO apply `rules/living-plan.md` to every request, including a single task and later additions.
@@ -87,17 +89,15 @@ evidence; name all outstanding work at hand-back. TEST: a tangent cannot remove 
 ### A message that arrives mid-run is a QUEUED task, not an interrupt
 When a new request lands mid-work, add it to the checklist and keep going — never drop the current task
 to serve it, and never make me label it. Say in one line where it landed: running now in parallel
-(independent) or queued next. Treat it as an interrupt only if it says stop, or changes work already in
-flight.
+(independent) or queued next. Treat it as an interrupt only if it says stop, or changes work in flight.
 
 ### "Run to completion" means DON'T END THE TURN — a progress report is not a deliverable
 
 When I've said run to completion, finish everything, don't stop, or I'm stepping away, the turn ends
-when the WORK is done — not when a batch is done, not when there's something tidy to report. I've had to
-say "go" three times in one session to un-stick this: a checkpoint is reached, the summary is worth
-writing, and the summary becomes the end of the turn. **Committing at checkpoints is a git instruction,
-not a conversational one.** Commit, then keep working in the same turn; never trade remaining work for a
-status update.
+when the WORK is done — not when a batch is done, not when there's something tidy to report. The
+recurring failure: a checkpoint is reached, the summary is worth writing, and the summary becomes the
+end of the turn. **Committing at checkpoints is a git instruction, not a conversational one.** Commit,
+then keep working in the same turn; never trade remaining work for a status update.
 
 Two things that look like permission to stop and are not: **a clean verification** (green tests mean the
 batch is safe to build on, not that the job is over) and **a long turn** (length is not a stopping
@@ -109,8 +109,8 @@ interrupt. On a blocker, do every other item first and stop with that one named.
 writing "say the word and I'll continue" — that's the bug. Continue.
 
 **Work in fix → verify → fix loops until a clean pass.** Re-run whatever found the problems (tests, build,
-audit, review, browser pass) and fix what the new run surfaces, then run it again — verification generates
-new work, and stopping after the first fix round is how a "done" lands with known loose ends. If a loop
+audit, review, browser pass), fix what it surfaces, then run it again — verification generates new
+work, and stopping after the first fix round is how a "done" lands with known loose ends. If a loop
 stops converging (the same failure recurs, or a fix needs a decision only I can make), stop and tell me
 where it stands.
 
@@ -126,7 +126,7 @@ TEST: every ask in the ledger has a verdict against it. A missing verdict is a m
 
 ### Commit when a task is finished (durable authorization)
 **When a task is complete and verified, commit it — you do NOT need to ask first.** This is standing
-authorization overriding any default "only commit when asked" behavior. Before committing, run the
+authorization overriding the default ask-first behavior. Before committing, run the
 project's build + tests (unless docs-only) and confirm they pass. If on the default branch (`main`),
 create a branch first. Use conventional commit messages in the imperative mood. Never commit or
 disturb my uncommitted WIP in the main checkout when working in a worktree.
@@ -174,18 +174,18 @@ the restore point is git — commit the good state, or branch, before starting.
 
 ### Self-verify a UI change in the browser before handing back — the default
 **DO open the local preview / dev server and screenshot every frontend surface you changed, then scan
-each for gross visual breakage — overlap, overflow, cut-off content, unreadable contrast, colliding
+each for gross visual breakage — overlap, overflow, cutoff, unreadable contrast, colliding
 wrapped elements, broken layout — and FIX it before handing back.** Do this proactively on any
 UI/frontend edit, without asking first; it is the default, on top of the usual build/typecheck/tests.
 WHY: a chart that flex-wrapped into a fixed-height container and overlapped the section below shipped
-because nobody looked — a screenshot catches that class in seconds (the fix for that overlap).
+because nobody looked — a screenshot catches that class in seconds.
 Static checks that need no running app (grep, layout math, reading rendered output) need no browser.
 TEST: a UI diff handed back with no screenshot of each changed surface, or carrying a visible
 overlap/overflow/cutoff a screenshot would have surfaced, broke the rule.
 
 **Seed the backend, hand me the frontend.** When a change adds new UI, seed only the backend
 prerequisites the UI can't create, then walk me through entering the data through the new screens
-myself, one step at a time — that is where I catch the journey defects a green suite cannot. Never
+myself, step by step — that is where I catch the journey defects a green suite cannot. Never
 seed past a new input and report the feature verified; a state written behind the UI proves the write
 path, not that anyone could have got there.
 
@@ -194,7 +194,7 @@ When operating in a git worktree (e.g. `.claude/worktrees/<name>/`), **use the w
 for every file operation** — Read/Edit/Write/Bash. Exploration agents often report the *main* repo's
 absolute paths; using those silently edits the wrong checkout. Never write to the main checkout, and
 **never revert, commit, or disturb my uncommitted WIP** that lives in the main repo. New npm deps may
-need a plain `npm install` inside the worktree to populate its `node_modules`.
+need a plain `npm install` in the worktree to populate `node_modules`.
 → Tearing the worktree down when the work lands is under **Clean up after yourself**, below.
 
 ### Clean up after yourself — no residual processes or scratch artifacts
@@ -228,18 +228,16 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
 - **Never install a persistent background process** (login item, LaunchAgent/LaunchDaemon, cron,
   always-on watcher) without asking first — and if you add one for a task, remove it AND its
   registration when done. A login item pointing at a deleted script is the mess to avoid.
-- **Prefer on-demand / event-driven over always-on.** An idle CPU-burning daemon is almost never
-  the right answer; reach for a hook, a manual command, or a session-start check instead.
+- **Prefer on-demand / event-driven over always-on.** An idle CPU-burning daemon is rarely right;
+  reach for a hook, a manual command, or a session-start check instead.
 
 ## Project documentation rule
 
 **When working on any project that has a `CLAUDE.md` and/or `ABOUT.md`:**
-- Read both files at the start of any significant task
-- Update `CLAUDE.md` if architecture, conventions, pipeline stages, key files, or agent instructions change
-- Update `ABOUT.md` if pipeline stages, AI models, costs, durations, or data structures change
-- Re-read both before finishing to confirm they reflect the actual codebase
-- Both files must be updated together — they are the project's source of truth for agents and users respectively
-- Never leave either file out of date after making changes to the project
+- Read both at the start of any significant task.
+- Update `CLAUDE.md` when architecture, conventions, pipeline stages, key files, or agent instructions change; update `ABOUT.md` when pipeline stages, AI models, costs, durations, or data structures change.
+- Re-read both before finishing to confirm they reflect the actual codebase.
+- Update both together — they are the project's source of truth for agents and users respectively, and neither is ever left out of date after a change.
 
 ## Test/QA accounts & machine-local secrets — always use `CLAUDE.local.md` (every project)
 
