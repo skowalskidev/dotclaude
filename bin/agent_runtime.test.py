@@ -185,6 +185,18 @@ class RuntimeTests(unittest.TestCase):
         runtime.subscription_policy(['--profile', 'review', '-c', 'model="fixture"', 'exec',
                                      '--', '--with-api-key'])
 
+    def test_headless_exec_defaults_to_sanctioned_worker_model(self):
+        default = ['-c', 'model=' + runtime.toml(runtime.OPENAI_WORKER_MODEL)]
+        self.assertEqual(runtime.exec_model_default(['exec', 'do a task']), default)
+        self.assertEqual(runtime.exec_model_default(['-C', '/tmp', 'exec', '-']), default)
+        self.assertEqual(runtime.exec_model_default(['exec', 'resume', 'abc123']), default)
+
+    def test_explicit_model_interactive_and_other_subcommands_untouched(self):
+        for args in (['exec', '-m', 'gpt-x', 'task'], ['exec', '--model=gpt-x'],
+                     ['exec', '-c', 'model=gpt-x'], ['exec', '-cmodel=gpt-x'],
+                     [], ['mcp', 'list'], ['login', 'status'], ['--', 'exec']):
+            self.assertEqual(runtime.exec_model_default(args), [], args)
+
     def test_subscription_home_still_rejects_work_personal_boundary_switch(self):
         marker = self.base / 'must-not-run'
         self.configure_hook('PreToolUse', self.stub_hook(marker=marker))

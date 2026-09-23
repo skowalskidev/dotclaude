@@ -42,6 +42,7 @@ CONTRACTS: dict[str, dict] = {
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
             "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
+            "Default a headless `codex exec` that names no model to the sanctioned worker model gpt-5.6-sol; leave an explicit caller model and the interactive TUI untouched.",
             "Resolve explicit binary overrides first, then installed stable Conductor binaries in descending version order, then PATH; skip non-executable files and the launcher itself.",
         ],
     },

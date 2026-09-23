@@ -25,6 +25,11 @@ credential routing. It does not replace the interactive host or change its model
 For current-chat provider inheritance and child-model policy, read
 `references/parallelization.md` § Choose and preserve the agent setup.
 
+Set `AGENT_ALLOW_CROSS_PROVIDER=1` on the dispatch when Simon names a GPT/Codex worker from a Claude
+chat (his explicit named-host ask). It lets `bin/agent_setup.py` run the one cross-provider worker that
+otherwise fails closed with "no cross-provider worker or reviewer is allowed". The ChatGPT subscription
+billing is unaffected, and the guard's default block stays for every switch Simon did not ask for.
+
 Put `-p` or `--print` first for the local print extension; use `--profile` for native profile
 selection. Other invocations, including `exec`, `mcp` and Conductor's `app-server`, pass through.
 
