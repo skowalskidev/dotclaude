@@ -1692,10 +1692,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/kill-orphan-workers.sh": {
         "mission": "An orphaned worker is cleared without killing a dev server someone is using.",
-        "purpose": "Clears orphaned framework workers the sweep hook reported.",
+        "purpose": "Clears orphaned framework and agent-spawned workers the sweep hook reported.",
         "criteria": [
-            "Never kills a worker whose parent dev server is alive.",
-            "Only kills what is burning: 20%+ CPU and 5+ minutes old, since PPID 1 alone means idle.",
+            "Never kills a process whose parent is alive: every candidate is PPID 1, so a live session's server, MCP or launcher is spared by construction.",
+            "Burns-only for framework workers: a next/jest/vite worker is killed at 20%+ CPU and 5+ minutes old and inside a git checkout, since a live detached server leaves idle ones.",
+            "Idle-and-old for agent-spawned orphans: chrome-devtools-mcp, wrangler/workerd and headless codex exec are killed when PPID 1 and 5+ minutes old, burning or not.",
             "Kills the family then re-checks, since killing a parent reparents its children.",
         ],
     },

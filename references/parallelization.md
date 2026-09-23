@@ -125,6 +125,21 @@ DIFFERENT accounts/orgs, the only tier that breaks the per-org rate ceiling.
 **Honest limits:** measured at 22-120s per round on one machine, one account, one repo. The reconcile
 stage was not in the benchmark, so its cost is not in those numbers.
 
+## Divisible headless work goes through the harness, never a bare `codex exec`
+
+**DO dispatch any parallelizable GPT/Codex work through `/sk:work-superspeed` (or the hand-run
+`/sk:work-hyperspeed`).** They own the install-once, no-relockfile-per-slice, and per-run-deadline
+discipline this reference already specifies.
+**DON'T launch a lone raw `codex exec … &` on a divisible task** — it redoes shared setup and nothing
+supervises it. WHY: one bare `codex exec` regenerated a ballooned `package-lock.json` for 90 minutes
+at ~0% CPU, orphaned to PID 1, while nothing killed it.
+
+**DO give every headless worker (`codex -p` / `codex exec`, `claude -p`) a stall watchdog — the
+60-minute poll deadline in § "The hand-run session handoff" — that kills and names a worker which has
+written no new output.** Reap one that slips through with `bin/kill-orphan-workers.sh`.
+TEST: every divisible GPT/Codex job names the harness, not a bare `codex exec`; no headless worker
+runs past its deadline unkilled.
+
 ## Self-improving a parallel run — shared by superspeed and hyperspeed
 
 A parallel harness is mediocre on its first runs and gets good only if each run records what it cost and

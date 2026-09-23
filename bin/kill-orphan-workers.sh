@@ -1,25 +1,46 @@
 #!/usr/bin/env bash
 # kill-orphan-workers.sh
 #
-# Detects and clears orphaned framework dev-tool worker processes machine-wide (not scoped to
-# this session or this workspace). The lesson this encodes: a dead `next dev` / `turbo dev` /
-# `jest` / `vite` run can leave `next-router-worker` / `next-render-worker-pages` / `jest-worker`
-# children behind that reparent to PID 1 and pin a CPU core indefinitely — sometimes for hours,
-# in a workspace nobody is currently looking at.
+# Detects and clears orphaned dev-tool AND agent-spawned worker processes machine-wide (not scoped to
+# this session or this workspace). Two classes, because they leak differently:
+#
+#   FRAMEWORK workers — a dead `next dev` / `turbo dev` / `jest` / `vite` run leaves
+#   `next-router-worker` / `next-render-worker-pages` / `jest-worker` children that reparent to PID 1
+#   and pin a CPU core indefinitely, in a workspace nobody is looking at. Harmful only when BURNING, so
+#   swept only when hot-and-old — a live-but-detached dev server legitimately leaves idle 0% workers.
+#
+#   AGENT-SPAWNED orphans — a `chrome-devtools-mcp` (one spawned per browser-tool use and never reaped),
+#   a `wrangler dev` / `workerd`, or a headless `codex exec` left behind by an MCP, session or launcher
+#   that died. A human does not detach these and keep using them, so an orphan (PPID 1) that is OLD is
+#   dead weight whether it burns a core or sits idle — swept idle-and-old, not only when hot. The
+#   incident this encodes: one long session orphaned ~18 chrome-devtools-mcp processes and a `codex exec`
+#   that thrashed for 90 minutes at ~0% CPU, and the machine crawled.
 #
 # This is the ONLY thing in this config that kills these processes. The SessionStart hook
 # `hooks/orphan-worker-sweep.sh` only ever REPORTS candidates (calls this script with --list) and
 # never signals anything — see that file's header for why.
 #
-# Detection — a process must satisfy ALL THREE:
-#   (a) PPID == 1                      — its parent died and it reparented to launchd/init.
-#   (b) interpreter or dev-tool match  — comm/args names node, bun, deno, python*, ruby*, or
-#                                         contains -worker, vite, esbuild, tsc, nodemon, webpack,
-#                                         rollup, jest, turbo.
-#   (c) cwd resolves inside a git working tree — the false-positive guard. Real daemons and
-#       LaunchAgents never run with a cwd inside a source checkout.
-# (c) is the expensive check (one `lsof` per candidate), so it only ever runs on processes that
-# already passed (a) and (b) — that set is normally empty, so a clean machine costs one `ps` call.
+# Detection — (a) is required for EVERY candidate; (b)/(c) then split by class:
+#   (a) PPID == 1                      — its parent died and it reparented to launchd/init. This is the
+#       load-bearing safety guard for BOTH classes: a live session keeps its dev server, its MCP, its
+#       wrangler and its launcher alive, so none of their processes is ever PPID 1. A debug browser
+#       attached to a running MCP, or a wrangler on a lane a live session claimed, is spared by this
+#       alone — never PPID 1 while its owner lives.
+#   (b) a category match:
+#       FRAMEWORK — base names node, bun, deno, python*, ruby*, or args contain -worker, vite, esbuild,
+#                   tsc, nodemon, webpack, rollup, jest, turbo. Kept only if ALSO in a git checkout (c),
+#                   burning (>= MIN_ORPHAN_CPU) and old (>= MIN_ORPHAN_SECONDS).
+#       AGENT     — args contain `chrome-devtools-mcp`; or `workerd` / `wrangler … dev`; or the base is
+#                   `codex` running the headless `exec` subcommand. Kept if old (>= MIN_ORPHAN_SECONDS);
+#                   no CPU floor and no git-cwd gate, so an idle orphan still counts.
+#   (c) cwd resolves inside a git working tree — the FRAMEWORK false-positive guard only. Real daemons
+#       and LaunchAgents never run with a cwd inside a source checkout. It is the expensive check (one
+#       `lsof` per candidate), so it runs only on framework candidates that already passed (a)+(b).
+#
+# Honest limit: a human who deliberately `nohup wrangler dev &`-detaches a server that then reparents
+# to PID 1 looks identical to an orphan, so the agent sweep would reap it after MIN_ORPHAN_SECONDS.
+# That is the same tradeoff the framework path already makes; a server meant to stay up lives under a
+# live shell or session, never PPID 1.
 #
 # Kill sequence (the reason this script exists instead of a bare `pkill`):
 #   1. Collect the full process family (each root candidate + ALL its descendants, recursively via
@@ -55,11 +76,17 @@ shopt -s nocasematch # macOS's homebrew python3 re-execs into a framework binary
 
 INTERP_RE='^(node|bun|deno|python.*|ruby.*)$'
 KEYWORD_RE='(-worker|vite|esbuild|tsc|nodemon|webpack|rollup|jest|turbo)'
+# Agent-spawned leak sources. Swept idle-and-old (PPID 1 + age), not only when burning — see the
+# AGENT class in the header. codex is handled inline (a `/codex` executable path — which may contain
+# spaces, e.g. `.../Application Support/.../codex` — plus the `exec` subcommand), so a prompt string
+# naming "codex" cannot match and the interactive `codex … app-server` is spared.
+CHROME_MCP_RE='chrome-devtools-mcp'
+WRANGLER_RE='(^|/)workerd([[:space:]]|$)|wrangler([[:space:]]+[^[:space:]]+)*[[:space:]]+dev([[:space:]]|$)'
 
 usage() {
   printf '%s\n' \
     "Usage: $(basename "$0") [--dry-run|--list|--help]" \
-    "  (no flag)   detect orphaned framework worker processes machine-wide and kill them" \
+    "  (no flag)   detect orphaned framework + agent-spawned worker processes machine-wide and kill them" \
     "  --dry-run   detect and print what would be killed; kill nothing" \
     "  --list      detect only, print raw candidate rows (pid/ppid/cpu/etime/cwd/args, tab-separated)" \
     "  --help      show this message"
@@ -139,21 +166,38 @@ detect_candidates() {
     first_token="${args%% *}"
     base="${first_token##*/}"
 
-    is_match=1
-    [[ "$base" =~ $INTERP_RE ]] && is_match=0
-    if [ "$is_match" -ne 0 ]; then
-      echo "$args" | grep -Eq -- "$KEYWORD_RE" && is_match=0
+    # Classify. The agent-spawned categories are checked FIRST: a chrome-devtools-mcp or a
+    # `wrangler dev` runs under `node`, so the framework branch would otherwise claim it and hold it to
+    # the CPU floor — which is exactly what misses the idle-but-orphaned ones that are the leak.
+    category=""
+    if echo "$args" | grep -iq -- "$CHROME_MCP_RE"; then
+      category="agent"
+    elif echo "$args" | grep -iEq -- "$WRANGLER_RE"; then
+      category="agent"
+    elif echo "$args" | grep -Eq '/codex([[:space:]]|$)' && echo "$args" | grep -Eq '(^| )exec( |$)'; then
+      category="agent"
+    elif [[ "$base" =~ $INTERP_RE ]] || echo "$args" | grep -Eq -- "$KEYWORD_RE"; then
+      category="framework"
     fi
-    [ "$is_match" -eq 0 ] || continue
+    [ -n "$category" ] || continue
 
-    cwd="$(cwd_for_pid "$pid")"
-    [ -n "$cwd" ] || continue
-    in_git_worktree "$cwd" || continue
-
-    # Both thresholds, and both cheap, so they run before nothing. See MIN_ORPHAN_CPU for why
-    # PPID==1 alone is not evidence of death and why a LISTEN socket is not either.
-    awk -v c="$pcpu" -v m="$MIN_ORPHAN_CPU" 'BEGIN{exit !(c+0 >= m+0)}' || continue
-    [ "$(etime_seconds "$etime")" -ge "$MIN_ORPHAN_SECONDS" ] || continue
+    if [ "$category" = "framework" ]; then
+      # Only harmful when it BURNS a core: a live-but-detached dev server legitimately leaves idle 0%
+      # workers, and a real daemon never runs with a cwd in a source checkout. See MIN_ORPHAN_CPU for
+      # why PPID==1 alone is not evidence of death and why a LISTEN socket is not either.
+      cwd="$(cwd_for_pid "$pid")"
+      [ -n "$cwd" ] || continue
+      in_git_worktree "$cwd" || continue
+      awk -v c="$pcpu" -v m="$MIN_ORPHAN_CPU" 'BEGIN{exit !(c+0 >= m+0)}' || continue
+      [ "$(etime_seconds "$etime")" -ge "$MIN_ORPHAN_SECONDS" ] || continue
+    else
+      # Agent-spawned orphan: PPID==1 already proves its MCP/session/launcher died, so nobody is using
+      # it and nobody will read a headless worker's result. Age is the only gate, so a just-orphaned one
+      # mid-handoff is left alone; no CPU floor, so ~18 idle chrome instances and a `codex exec`
+      # thrashing at ~0% CPU are caught, not missed. cwd is fetched for the report only, not as a gate.
+      [ "$(etime_seconds "$etime")" -ge "$MIN_ORPHAN_SECONDS" ] || continue
+      cwd="$(cwd_for_pid "$pid")"
+    fi
 
     printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$ppid" "$pcpu" "$etime" "$cwd" "$args"
   done

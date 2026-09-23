@@ -199,19 +199,20 @@ need a plain `npm install` inside the worktree to populate its `node_modules`.
 
 ### Clean up after yourself — no residual processes or scratch artifacts
 Don't leave anything persistent on my machine that I didn't ask for. When a task is done:
-- **Track every process/server/port you start, and shut them ALL down at task end.** Keep a running
-  list of anything backgrounded — dev/preview servers, watchers, tunnels, `stripe listen`, a held
+- **Track every process/server/port you start, and shut them ALL down at task end.** List anything
+  backgrounded — dev/preview servers, watchers, tunnels, `stripe listen`, a held
   `:3000`/`:3100` port — then kill each and VERIFY it's gone, so nothing keeps burning CPU or a port.
 - **Take a LANE before binding a port, and release it when done.** `bin/port-slot.sh` claims this
   worktree's slot; a port held by another live session → take the next lane, never wait on it or kill
   their server. Protocol: `references/dev-server-hygiene.md`.
 - **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev`/`jest`/
-  `vite` reparented to PID 1 pins a core in a workspace nobody watches; `bin/kill-orphan-workers.sh`
-  clears only a BURNING one (20%+ CPU, 5+ min old), never an idle or just-started server. TEST: at
-  hand-back, `pgrep -fl 'next-router-worker|vitest|jest'` lists only what you started. Mechanics:
+  `vite` reparented to PID 1 pins a core nobody watches; `bin/kill-orphan-workers.sh` clears a BURNING
+  framework worker (20%+ CPU, 5+ min) or an idle-and-old agent orphan (PPID 1, 5+ min), never a
+  just-started one. TEST at hand-back: `pgrep -fl
+  'next-router-worker|vitest|jest|chrome-devtools-mcp|workerd|codex'` names only yours. Mechanics:
   `references/dev-server-hygiene.md`.
 - **Remove scratch scripts/files** a session created (evals, one-off helpers, temp data) once
-  they've served their purpose — keep only intentional artifacts.
+  used — keep only intentional artifacts.
 - **Tear down every isolated workspace you create — teardown is part of "done", not a follow-up.**
   A git worktree, throwaway clone, sandbox dir or container is created WITH an owner for removing it:
   the moment the work lands or is abandoned, remove the workspace AND delete its now-merged branch in
@@ -226,7 +227,7 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
   `references/dev-server-hygiene.md`.
 - **Never install a persistent background process** (login item, LaunchAgent/LaunchDaemon, cron,
   always-on watcher) without asking first — and if you add one for a task, remove it AND its
-  registration when done. A login item pointing at a deleted script is exactly the mess to avoid.
+  registration when done. A login item pointing at a deleted script is the mess to avoid.
 - **Prefer on-demand / event-driven over always-on.** An idle CPU-burning daemon is almost never
   the right answer; reach for a hook, a manual command, or a session-start check instead.
 

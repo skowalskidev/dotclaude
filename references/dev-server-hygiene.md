@@ -194,8 +194,9 @@ Map the confusing symptom back to its environmental cause; it saves enormous tim
 
 **The RULE is owned by `~/.claude/rules/process.md` § "Clean up after yourself"**, which is always-on
 and so already loaded: track every process you start, kill it at task end, verify it's gone by checking
-the port rather than by trusting the kill, and sweep orphaned framework workers machine-wide rather
-than only your own. Not restated here.
+the port rather than by trusting the kill, and sweep orphaned framework AND agent-spawned workers
+(`chrome-devtools-mcp`, `wrangler`/`workerd`, headless `codex exec`) machine-wide rather than only your
+own. Not restated here.
 
 **The MECHANICS live here**, because they are deep how-to and this file already owns process-group
 teardown and signal discipline. They moved out of the always-on rule, which was at 69,993 bytes of a
@@ -220,6 +221,15 @@ A dead `next dev` / `jest` / `turbo dev` / `vite` run leaves child workers that 
 pin a core indefinitely. The classic offender is `next-router-worker`, also `jest-worker` and
 `next-render-worker-pages`. One left in another checkout burned a full core for five hours before
 anyone looked, which is why the sweep is machine-wide and not task-end-only.
+
+The same sweep clears a second class, **agent-spawned orphans**: a `chrome-devtools-mcp` (one spawned
+per browser-tool use and never reaped), a `wrangler dev` / `workerd`, or a headless `codex exec` whose
+MCP, session or launcher died. These differ in ONE way — a human does not detach and keep using them —
+so `bin/kill-orphan-workers.sh` sweeps them idle-and-old (PPID 1 + 5+ min), not only when burning; the
+framework CPU floor would miss ~18 idle chrome instances and a `codex exec` thrashing at ~0% CPU for
+90 minutes, which is the leak that crawled the machine. PPID 1 stays the guard: a live session keeps
+its MCP, wrangler and launcher alive, so a browser or server it is using is never PPID 1 and never
+touched.
 
 - **Capture the whole family BEFORE signalling anything.** A child's ppid changes the instant its
   parent dies, so a tree collected afterwards is already wrong.
