@@ -55,11 +55,11 @@ Distinguish the failure so the fix is right:
 Work = the repo's `git origin` matches your work org (workOrgMatch in your identity overlay). Never cross resources:
 - **Work credentials:** AWS Secrets Manager (via `apps/api` `dogfood()` at startup) is the source of
   truth for runtime secrets (Twilio, Stripe, SendGrid, …) — do NOT hand-add them to a per-worktree
-  `.env`. Anything AWS does not serve is a machine-local file under `~/.config/**`, outside every repo.
+  `.env`. Anything else is a `chmod 600` file outside every repo, at its manifest's `secret.path`.
 - **Personal credentials:** machine-local, gitignored (`.env`, or the platform's own store).
 - **No secret-manager vault here, and adding one is not the default.** The provider's own IAM is the
-  source of truth: a key is minted on demand from a connector's `auth.steps`, kept `chmod 600` under
-  `~/.config/**`, regenerated not mirrored into a vault. A plaintext secret on disk → fix scope + file
+  source of truth: a key is minted on demand from a connector's `auth.steps`, kept `chmod 600` at
+  its `secret.path`, regenerated not mirrored into a vault. A plaintext secret on disk → fix scope + file
   mode (least-privilege key, `600`, outside the repo, rotate if exposed), never "move it into 1Password".
   Propose a vault only if I ask.
 - **Never** commit a secret, and never write one into `~/.claude` (a pushed git repo). The
@@ -67,7 +67,7 @@ Work = the repo's `git origin` matches your work org (workOrgMatch in your ident
   Bash; if it blocks something I need, tell me plainly (per `security.md`).
 - **Keep personal / project-local config OUT of team repos** — rule owned by `engineering-standards.md`
   § "Personal / meta tooling is not a project artifact"; connector detail lives in
-  `~/.claude/connectors/*.json` and keys in `~/.config/**`, both outside every repo.
+  `~/.claude/connectors/*.json` and keys at each `secret.path`, both outside every repo.
 - **And never COMMIT them, not just ignore them** (git commands stay unblocked, so `git add` works):
   `~/.gitignore_global` ignores the secret patterns (`*serviceAccountKey*.json`, `.firebase/`, `.env.op`)
   so `git add -A` never stages them; gitleaks/pre-commit scans content on commit (the `~/.claude` repo

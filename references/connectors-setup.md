@@ -12,7 +12,9 @@ the provisioner/guard.
 - **Per-project manifest:** `~/.claude/connectors/<project>.json` — one file per project, the ONLY place
   project detail lives. The engine picks the manifest whose `match` hits the current git origin.
 - **Secrets never live here.** Manifests carry only paths. Real secrets live in AWS Secrets Manager
-  (work runtime) or machine-local files under `~/.config/**`, outside every repo.
+  (work runtime) or machine-local files outside every repo, at each connector's `secret.path`:
+  `~/.config/**`, or an org key directory (a shared `.env` plus one `<project>.env` per project, each
+  repo's `.env` a symlink to its project file).
 - **No vault, by design.** The engine fetches nothing. A key is minted on demand from its connector's
   own `auth.steps`, kept `chmod 600`, and regenerated when needed — the provider's IAM is the source of
   truth, so there is no second copy to rotate, sync or leak. Don't propose adding a secret manager.
@@ -118,7 +120,7 @@ never surfacing a secret VALUE into the chat: load a key into the firebase proce
 a tool, never `cat`/`echo` it into the transcript, a message, or a commit.
 
 **Rotate rather than relocate.** When a key turns up somewhere it shouldn't be, the fix is: tighten the
-mode, move it under `~/.config/**` or the project's gitignored env file, and mint a fresh one from
+mode, move it to the file its connector's `secret.path` names, and mint a fresh one from
 `auth.steps` because the old one was exposed. Do not propose importing it into a vault.
 
 **Personal files stay OUT of team repos.** Everything above lives outside every project repo (in
