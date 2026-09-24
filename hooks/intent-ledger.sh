@@ -177,6 +177,22 @@ case "$MODE" in
 submit)
   prompt="$(jf '.prompt')"
   [ -n "$prompt" ] || exit 0
+
+  # Harness-injected prompts are not Simon's asks: a background-task completion arrives as a
+  # UserPromptSubmit whose entire body is a <task-notification> block, and some prompts are only a
+  # <system-reminder> banner (e.g. a worktree notice). Recording either as an "ask" would emit a
+  # GAUNTLET UPDATE and re-arm the Stop reconciliation check for something Simon never said. Strip
+  # both block kinds (non-greedy, spanning newlines — jq's dotall flag is "m", not "s") and trim; if
+  # nothing is left, this prompt is 100% harness output, so skip it silently before `resolve` even
+  # runs, so no ledger is created for a skipped prompt. A real ask sitting behind a reminder banner
+  # still has text left after stripping and is recorded below, ORIGINAL AND UNSTRIPPED, blocks
+  # included — only this gate's decision uses the stripped copy.
+  stripped="$(printf '%s' "$INPUT" | jq -r '(.prompt // "")
+    | gsub("<task-notification>.*?</task-notification>"; ""; "mg")
+    | gsub("<system-reminder>.*?</system-reminder>"; ""; "mg")
+    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)"
+  [ -n "$stripped" ] || exit 0
+
   resolve || exit 0
 
   redacted=0

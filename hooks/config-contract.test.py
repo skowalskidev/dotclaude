@@ -443,6 +443,28 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
         check('"decision":"block"' in invoke("stop"), "A revised plan escaped reconciliation.")
         note("reconcile", "F verified.")
         check(invoke("stop") == "", "The final fresh reconciliation did not clear Stop.")
+
+        # A background-task completion, or a bare worktree banner, is harness output, not an ask:
+        # it must record nothing, emit no gauntlet update, and never re-arm Stop.
+        before = ledger.read_text()
+        out = invoke("submit", "<task-notification>\n<task-id>x</task-id>\n<status>completed</status>\n</task-notification>")
+        check(out == "", "A harness notification emitted a gauntlet update.")
+        check(ledger.read_text() == before, "A harness notification was recorded as an ask.")
+        check(invoke("stop") == "", "A harness notification re-armed Stop.")
+
+        before = ledger.read_text()
+        out = invoke("submit", "<system-reminder>\nbanner\n</system-reminder>\n")
+        check(out == "", "A bare system-reminder banner emitted a gauntlet update.")
+        check(ledger.read_text() == before, "A bare system-reminder banner was recorded as an ask.")
+        check(invoke("stop") == "", "A bare system-reminder banner re-armed Stop.")
+
+        # A real ask still sitting behind a reminder banner must survive the strip-and-check gate.
+        out = invoke("submit", "<system-reminder>\nYou are operating in a git worktree.\n</system-reminder>\n\nReal ask H.")
+        check("GAUNTLET UPDATE" in out, "A real ask behind a reminder banner received no update.")
+        check("Real ask H." in ledger.read_text(), "A real ask behind a reminder banner was not recorded.")
+        check('"decision":"block"' in invoke("stop"), "A real ask behind a reminder banner escaped reconciliation.")
+        note("reconcile", "H verified.")
+
         note("reconcile", "Evidence:\n~~~text\npassed\n~~~\n")
         invoke("submit", "Now do G.")
         check('"decision":"block"' in invoke("stop"), "A fenced evidence note hid a later ask.")

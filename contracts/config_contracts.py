@@ -1562,6 +1562,9 @@ CONTRACTS: dict[str, dict] = {
             "it with the refusals, the redaction, and planning-and-tracking.md's ban on promoting "
             "verbatim prompts out of the worktree. logs/intent-reconcile.jsonl keeps the ORIGINAL "
             "posture: counts and enums only, never prompt text.",
+            "Skip a prompt made only of harness-injected blocks (<task-notification>, "
+            "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
+            "A prompt with any text left after removing them is recorded verbatim, blocks included.",
         ],
     },
     "hooks/task-intake.sh": {
