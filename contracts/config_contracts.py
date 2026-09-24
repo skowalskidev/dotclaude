@@ -237,7 +237,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
-            "Keep every role on the actual chat provider except GPT design work on the Fable tier; route implementation to the mid tier (native Codex model or the `sonnet` alias) by tier, never by version, and never to Astra, Opus or Fable.",
+            "Keep every role on the actual chat provider except GPT design work on the Fable tier; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
@@ -417,7 +417,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
         "criteria": [
-            "Own setup persistence and model consistency: Astra and Opus orchestrate, Fable designs, the native Codex model and the `sonnet` tier implement, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
+            "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
@@ -1018,7 +1018,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
         "purpose": "Engine for /sk:work-superspeed — launch one provider-matched process per slice and log it.",
         "criteria": [
-            "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the native Codex model or the `sonnet` tier, then fail an incomplete worker.",
+            "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the mid tier resolved live at dispatch, then fail an incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
             "Verifies each slice by its on-disk artifact, never by exit code "

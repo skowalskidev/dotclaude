@@ -10,7 +10,7 @@ import shlex
 import subprocess
 import sys
 
-from agent_setup import require_provider
+from agent_setup import check_models, require_provider
 
 ROOT = Path(__file__).resolve().parent.parent
 EVENTS = {'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
@@ -278,6 +278,12 @@ def launch():
         # Pass TOML as argv, never shell code. Explicit caller overrides retain native precedence.
         binary = executable()
         config += retired_overrides(cwd, home)
+        try:
+            model_check_lines = check_models()
+        except Exception as error:  # check_models must never block a launch
+            model_check_lines = ['model check failed unexpectedly: ' + str(error)]
+        for line in model_check_lines:
+            print('agent setup: ' + line, file=sys.stderr)
         os.chdir(cwd)
         os.execve(binary, [binary, *config, *billing, *args], env)
     except (ValueError, OSError, json.JSONDecodeError) as error:

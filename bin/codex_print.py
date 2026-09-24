@@ -12,11 +12,11 @@ import tempfile
 import time
 
 from agent_setup import (
-    is_astra,
     matches_implementation_model,
     matches_model,
-    openai_worker_model,
+    resolve_tier,
     require_provider,
+    tier_of,
 )
 
 
@@ -58,11 +58,7 @@ def collect(events, event_log=None, model=None, setup="full-openai"):
 
 def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-openai"):
     require_provider("openai")
-    model = model or openai_worker_model()
-    if not model:
-        raise ValueError('Set a supported worker `model` in the Codex subscription home config.toml '
-                         '(~/.codex/config.toml); OpenAI workers use the native Codex model, never a '
-                         'version pinned here.')
+    model = model or resolve_tier('openai', 'mid')
     launcher = Path(__file__).with_name('codex-launch.py')
     if not launcher.is_file() or not os.access(launcher, os.X_OK):
         raise ValueError('Native Codex launcher is unavailable; no Claude fallback is allowed.')
@@ -120,13 +116,13 @@ def main():
     parser.add_argument('--events-file', type=Path)
     parser.add_argument('--model', default=None)
     args = parser.parse_args()
-    args.model = args.model or openai_worker_model()
     if not args.model:
-        print('codex -p: Set a supported worker `model` in the Codex subscription home config.toml '
-              '(~/.codex/config.toml); OpenAI workers use the native Codex model, never a version '
-              'pinned here.', file=sys.stderr)
-        return 2
-    setup = os.environ.get('AGENT_SETUP', 'full-astra' if is_astra(args.model) else 'full-openai')
+        try:
+            args.model = resolve_tier('openai', 'mid')
+        except ValueError as error:
+            print('codex -p: ' + str(error), file=sys.stderr)
+            return 2
+    setup = os.environ.get('AGENT_SETUP', 'full-astra' if tier_of(args.model) == 'top' else 'full-openai')
     model_matches_role = (matches_model(setup, args.model) if args.sandbox == 'read-only'
                           else matches_implementation_model(setup, args.model))
     if setup not in ('full-astra', 'full-openai') or not model_matches_role:

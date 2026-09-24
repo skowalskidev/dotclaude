@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Offline native-adapter contracts; all homes, manifests, and hooks are temporary."""
+import contextlib
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -200,6 +202,22 @@ class RuntimeTests(unittest.TestCase):
                 runtime.launch()
             argv_out = execute.call_args.args[1]
             self.assertFalse(any(value.startswith('model=') for value in argv_out), argv_out)
+
+    def test_model_check_prints_and_never_blocks_the_launch(self):
+        # No models_cache.json or Claude catalog exists under self.home (isolated by setUp's
+        # Path.home() patch), so check_models() has nothing to resolve — it must still print a
+        # warning line and let the launch proceed, never raise or skip execve.
+        self.save_auth({'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}})
+        errors = io.StringIO()
+        with patch.object(runtime.sys, 'argv', ['codex-launch.py', 'exec', 'do a task']), \
+             patch.object(runtime.os, 'getcwd', return_value=str(self.cwd)), \
+             patch.object(runtime.os, 'chdir'), \
+             patch.object(runtime.os, 'execve') as execute, \
+             patch.object(runtime, 'executable', return_value='/fixture/codex'), \
+             contextlib.redirect_stderr(errors):
+            runtime.launch()
+        self.assertTrue(execute.called, 'check_models must never block the exec')
+        self.assertIn('agent setup:', errors.getvalue())
 
     def test_subscription_home_still_rejects_work_personal_boundary_switch(self):
         marker = self.base / 'must-not-run'

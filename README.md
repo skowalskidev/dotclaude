@@ -158,9 +158,9 @@ codex -p "Implement the assigned task"
 ```
 
 Put `-p` or `--print` first to select print mode. Use `codex --profile <name>` for native profiles;
-other native commands pass through unchanged. Pass `--model <openai-model>` to inherit an OpenAI
-chat's model; omitting it uses Astra. Claude chats keep every delegated role on Claude; a GPT
-design slice uses `fable` through the dispatcher.
+other native commands pass through unchanged. Pass `--model <openai-model>` to set it explicitly;
+omitting it uses the OpenAI mid tier resolved live at dispatch. Claude chats keep every delegated
+role on Claude; a GPT design slice uses `fable` through the dispatcher.
 
 `bin/codex_print.py` provides the print-mode adapter; `bin/agent_setup.py` validates saved setup/model
 choices. Existing ChatGPT authentication is reused; missing subscription access stops the run instead

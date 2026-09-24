@@ -24,7 +24,7 @@
 #     "gate": "yarn lint && yarn test",          # optional, run by the RECONCILER not by slices
 #     "setup": "yarn install",                    # optional, run ONCE here before any slice starts;
 #                                                 # take it from the repo's CLAUDE.md / CLAUDE.local.md
-#     "model": "sonnet",             # optional: Claude tier alias; OpenAI defaults to the native Codex config model
+#     "model": "sonnet",             # optional: Claude tier alias; OpenAI defaults to the mid tier resolved live
 #     "design_model": "fable",        # GPT setup only; fixed by agent_setup.py
 #     "slices": [
 #       { "name": "api", "model_route": "general",

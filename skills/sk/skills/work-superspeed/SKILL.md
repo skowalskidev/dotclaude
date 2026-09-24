@@ -160,8 +160,8 @@ Write it as a spec file:
 ## Step 2 — dispatch
 
 Match the example's fields to the actual chat before dispatching. Use `full-openai` for an OpenAI
-session and its actual model for `orchestrator_model` and `model`; use `full-astra` when both are
-an Astra-family model. The validator derives an omitted setup and rejects native-provider conflicts before setup
+session and its actual model for `orchestrator_model` and `model`; use `full-astra` when the
+orchestrator is the OpenAI top tier. The validator derives an omitted setup and rejects native-provider conflicts before setup
 or inference. A stale Claude example cannot authorize Claude workers in an OpenAI chat.
 
 ```bash
@@ -169,8 +169,9 @@ or inference. A stale Claude example cannot authorize Claude workers in an OpenA
 ```
 
 Full Claude launches one `claude -p` per slice with the selected Claude model,
-`--permission-mode acceptEdits` and `--output-format json`. Full Astra launches one `codex -p`
-per slice through native Codex, pinned to Astra; Full OpenAI passes the saved OpenAI model.
+`--permission-mode acceptEdits` and `--output-format json`. Full Astra and Full OpenAI both launch
+one `codex -p` per slice through native Codex, passing the OpenAI mid tier resolved live at
+dispatch (`agent_setup.resolve_tier`).
 Both Codex setups write JSON results and separate `events.jsonl`.
 Both disable headless intake/ledger prompts and preserve the chosen setup. Neither falls back.
 

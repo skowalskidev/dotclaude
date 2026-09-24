@@ -37,6 +37,23 @@ trap 'rm -rf "$TMP"; pkill -f "$TMP" 2>/dev/null || true' EXIT
 export HOME="$TMP/home"
 mkdir -p "$HOME"
 
+# ---- a fixture OpenAI model cache, so agent_setup.py's live tier resolver has something to rank ---
+# Priority 1 is the top-tier orchestrator (mirrors the real "Astra" slot), priority 2 the mid/worker
+# tier used throughout these specs, priority 3 a spare small tier. No real ~/.codex is touched: HOME
+# is redirected above and CODEX_HOME below both point inside $TMP.
+mkdir -p "$HOME/.codex"
+export CODEX_HOME="$HOME/.codex"
+cat > "$CODEX_HOME/models_cache.json" <<'EOF'
+{
+  "fetched_at": "2026-09-24T08:16:41.342528Z",
+  "models": [
+    { "slug": "gpt-6-astra", "visibility": "list", "priority": 1, "upgrade": null },
+    { "slug": "gpt-5.6-sol", "visibility": "list", "priority": 2, "upgrade": null },
+    { "slug": "gpt-mini", "visibility": "list", "priority": 3, "upgrade": null }
+  ]
+}
+EOF
+
 # ---- a fake `claude` that returns instantly -------------------------------------------------------
 # Shaped like the real thing's --output-format json so the dispatcher's jq parsing is exercised
 # rather than bypassed. It also writes DONE.md, so a green run is a genuinely green run and the
