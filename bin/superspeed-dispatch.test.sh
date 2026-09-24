@@ -63,11 +63,11 @@ cat > "$TMP/spec.json" <<EOF
 {
   "task": "dispatcher exit regression",
   "agent_setup": "full-claude",
-  "orchestrator_model": "claude-opus-4-8",
+  "orchestrator_model": "claude-opus-5-5",
   "repo": "$TMP/repo",
   "gate": "true",
   "setup": "none",
-  "model": "claude-sonnet-4-6",
+  "model": "sonnet",
   "slices": [
     { "name": "alpha", "owns": ["a.txt"], "accept": "exists", "verify": "none", "prompt": "do nothing" },
     { "name": "beta",  "owns": ["b.txt"], "accept": "exists", "verify": "none", "prompt": "do nothing" }
@@ -138,7 +138,7 @@ ALLOW
 
 check_stop() {  # $1 = label, $2 = the slices[] JSON
   cat > "$TMP/spec-bad.json" <<EOF
-{ "task": "t", "agent_setup": "full-claude", "orchestrator_model": "claude-opus-4-8", "repo": "$TMP/repo", "setup": "none", "slices": [ $2 ] }
+{ "task": "t", "agent_setup": "full-claude", "orchestrator_model": "claude-opus-5-5", "repo": "$TMP/repo", "setup": "none", "slices": [ $2 ] }
 EOF
   OUT_BAD="$TMP/repo/.superspeed/bad-$RANDOM"
   PATH="$TMP/bin:$PATH" bash "$DISPATCH" "$TMP/spec-bad.json" "$OUT_BAD" > "$TMP/bad.log" 2>&1
@@ -165,7 +165,7 @@ FIXTURE_CLAUDE_CALLS="$CLAUDE_CALLS" ANTHROPIC_API_KEY=fixture ANTHROPIC_AUTH_TO
   CLAUDE_CODE_USE_FOUNDRY=fixture PATH="$TMP/bin:$PATH" \
   bash "$DISPATCH" "$TMP/spec.json" "$TMP/repo/.superspeed/claude-env" > "$TMP/claude-env.log" 2>&1
 RC=$?
-if [ "$RC" = 0 ] && grep -q -- '--model claude-sonnet-4-6' "$CLAUDE_CALLS" \
+if [ "$RC" = 0 ] && grep -q -- '--model sonnet' "$CLAUDE_CALLS" \
     && grep -q '^api_key=fixture$' "$CLAUDE_CALLS" && grep -q '^auth_token=fixture$' "$CLAUDE_CALLS" \
     && grep -q '^cross_provider=unset$' "$CLAUDE_CALLS" && grep -q '^foundry=fixture$' "$CLAUDE_CALLS"; then
   pass "Full Claude route keeps its prior environment"
@@ -192,7 +192,7 @@ DESIGN_CALLS="$TMP/design-calls.log"
 FIXTURE_CLAUDE_CALLS="$DESIGN_CALLS" ANTHROPIC_API_KEY=fixture ANTHROPIC_AUTH_TOKEN=fixture CLAUDE_CODE_USE_FOUNDRY=fixture PATH="$TMP/bin:$PATH" \
   bash "$DISPATCH" "$TMP/spec-design.json" "$TMP/repo/.superspeed/design" > "$TMP/design.log" 2>&1
 RC=$?
-if [ "$RC" = 0 ] && grep -q -- '--model claude-fable-5-1' "$DESIGN_CALLS" \
+if [ "$RC" = 0 ] && grep -q -- '--model fable' "$DESIGN_CALLS" \
     && grep -q '^api_key=unset$' "$DESIGN_CALLS" && grep -q '^auth_token=unset$' "$DESIGN_CALLS" \
     && grep -q '^cross_provider=1$' "$DESIGN_CALLS" && grep -q '^foundry=unset$' "$DESIGN_CALLS"; then
   pass "OpenAI design slice uses Fable with no Claude API key"
@@ -214,7 +214,7 @@ ASTRA_DESIGN_CALLS="$TMP/astra-design-calls.log"
 FIXTURE_CLAUDE_CALLS="$ASTRA_DESIGN_CALLS" PATH="$TMP/bin:$PATH" \
   bash "$DISPATCH" "$TMP/spec-astra-design.json" "$TMP/repo/.superspeed/astra-design" > "$TMP/astra-design.log" 2>&1
 RC=$?
-if [ "$RC" = 0 ] && grep -q -- '--model claude-fable-5-1' "$ASTRA_DESIGN_CALLS"; then
+if [ "$RC" = 0 ] && grep -q -- '--model fable' "$ASTRA_DESIGN_CALLS"; then
   pass "Astra design slice uses Fable"
 else
   fail "Astra design slice must use Fable (exit $RC)"

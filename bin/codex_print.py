@@ -12,15 +12,15 @@ import tempfile
 import time
 
 from agent_setup import (
-    ASTRA_MODEL,
-    OPENAI_WORKER_MODEL,
+    is_astra,
     matches_implementation_model,
     matches_model,
+    openai_worker_model,
     require_provider,
 )
 
 
-def collect(events, event_log=None, model=OPENAI_WORKER_MODEL, setup="full-openai"):
+def collect(events, event_log=None, model=None, setup="full-openai"):
     result = {'provider': 'codex', 'model': model, 'agent_setup': setup,
               'session_id': None, 'result': '', 'num_turns': 0, 'usage': {},
               'duration_api_ms': None, 'total_cost_usd': None, 'is_error': False}
@@ -56,8 +56,13 @@ def collect(events, event_log=None, model=OPENAI_WORKER_MODEL, setup="full-opena
     return result
 
 
-def execute(prompt, cwd, sandbox, events_file=None, model=OPENAI_WORKER_MODEL, setup="full-openai"):
+def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-openai"):
     require_provider("openai")
+    model = model or openai_worker_model()
+    if not model:
+        raise ValueError('Set a supported worker `model` in the Codex subscription home config.toml '
+                         '(~/.codex/config.toml); OpenAI workers use the native Codex model, never a '
+                         'version pinned here.')
     launcher = Path(__file__).with_name('codex-launch.py')
     if not launcher.is_file() or not os.access(launcher, os.X_OK):
         raise ValueError('Native Codex launcher is unavailable; no Claude fallback is allowed.')
@@ -113,9 +118,15 @@ def main():
     parser.add_argument('--output-format', choices=('text', 'json'), default='text')
     parser.add_argument('--sandbox', choices=('read-only', 'workspace-write'), default='workspace-write')
     parser.add_argument('--events-file', type=Path)
-    parser.add_argument('--model', default=OPENAI_WORKER_MODEL)
+    parser.add_argument('--model', default=None)
     args = parser.parse_args()
-    setup = os.environ.get('AGENT_SETUP', 'full-astra' if args.model == ASTRA_MODEL else 'full-openai')
+    args.model = args.model or openai_worker_model()
+    if not args.model:
+        print('codex -p: Set a supported worker `model` in the Codex subscription home config.toml '
+              '(~/.codex/config.toml); OpenAI workers use the native Codex model, never a version '
+              'pinned here.', file=sys.stderr)
+        return 2
+    setup = os.environ.get('AGENT_SETUP', 'full-astra' if is_astra(args.model) else 'full-openai')
     model_matches_role = (matches_model(setup, args.model) if args.sandbox == 'read-only'
                           else matches_implementation_model(setup, args.model))
     if setup not in ('full-astra', 'full-openai') or not model_matches_role:

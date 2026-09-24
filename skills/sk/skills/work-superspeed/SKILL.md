@@ -140,11 +140,11 @@ Write it as a spec file:
 {
   "task": "one line describing the whole job",
   "agent_setup": "full-claude",
-  "orchestrator_model": "claude-opus-4-8",
+  "orchestrator_model": "<the model this chat is actually running>",
   "repo": "/abs/path/to/repo",
   "gate": "yarn lint && yarn test",
   "setup": "yarn install",
-  "model": "claude-sonnet-4-6",
+  "model": "sonnet",
   "slices": [
     { "name": "api",
       "owns":   ["apps/api/src/routes/foo.ts"],
@@ -161,7 +161,7 @@ Write it as a spec file:
 
 Match the example's fields to the actual chat before dispatching. Use `full-openai` for an OpenAI
 session and its actual model for `orchestrator_model` and `model`; use `full-astra` when both are
-`gpt-6-astra`. The validator derives an omitted setup and rejects native-provider conflicts before setup
+an Astra-family model. The validator derives an omitted setup and rejects native-provider conflicts before setup
 or inference. A stale Claude example cannot authorize Claude workers in an OpenAI chat.
 
 ```bash

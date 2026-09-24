@@ -12,8 +12,8 @@ Reconcile any stale provider/model fields on resume; saved choices never overrid
 
 **Same-provider is the default; the scope is agent inference only** (not application integrations or
 service tools). The standing exception is a GPT-orchestrated design slice: set its
-`model_route` to `design` and `bin/agent_setup.py` routes it to Claude Fable 5.1
-(`claude-fable-5-1`). Classify design discovery, mockups and visual judgement as `design`;
+`model_route` to `design` and `bin/agent_setup.py` routes it to the Claude Fable tier
+(the `fable` alias). Classify design discovery, mockups and visual judgement as `design`;
 classify approved visual UI implementation and every other code or file edit as `general` and keep
 it on OpenAI. The dispatcher sets
 `AGENT_ALLOW_CROSS_PROVIDER=1` only for that Claude launch and unsets Claude API variables, so an
@@ -23,15 +23,15 @@ for a named host (e.g. "use GPT-Astra" from a Claude chat), never self-initiate.
 set `AGENT_ALLOW_CROSS_PROVIDER=1` on the dispatch so `bin/agent_setup.py` runs the cross-provider
 worker; the guard's default block stays for every switch Simon did not ask for. The subscription-only
 billing guard (`references/agent-hosts.md`) stays fully enforced.
-TEST: a `model_route: design` slice from `full-openai` or `full-astra` invokes `claude -p --model claude-fable-5-1`;
+TEST: a `model_route: design` slice from `full-openai` or `full-astra` invokes `claude -p --model fable`;
 an unavailable Fable launch returns failure and no OpenAI worker is launched; a slice that edits the
-approved design uses `model_route: general` and `gpt-5.6-sol`.
+approved design uses `model_route: general` and the native Codex worker model.
 
 | Setup | Orchestrator | Implementation workers | Headless entrypoint |
 |---|---|---|---|
 | `full-claude` | Actual Claude session model | Claude, with the tiers below | `claude -p` |
-| `full-openai` | Actual OpenAI session model | GPT-5.6 Sol by default; Claude Fable 5.1 for `model_route: design` | `codex -p --model <model>` / `claude -p --model claude-fable-5-1` |
-| `full-astra` | `gpt-6-astra` | GPT-5.6 Sol for general work; Claude Fable 5.1 for `model_route: design` | `codex -p --model gpt-5.6-sol` / `claude -p --model claude-fable-5-1` |
+| `full-openai` | Actual OpenAI session model | The native Codex model (`~/.codex/config.toml`) by default; the Claude Fable tier for `model_route: design` | `codex -p --model <model>` / `claude -p --model fable` |
+| `full-astra` | An Astra-family GPT model | The native Codex model for general work; the Claude Fable tier for `model_route: design` | `codex -p --model <native model>` / `claude -p --model fable` |
 
 Derive the setup from the current model when none is saved. Keep explicit same-provider model choices
 within the host's supported models; ask only for missing session identity, never to reselect a known
@@ -49,7 +49,7 @@ printf '%s' 'Review the assigned diff' | ~/.claude/bin/codex-launch.py -p --sand
 ```
 
 It starts an independent native Codex `exec --model <model>` process through `codex-launch.py`,
-using `gpt-5.6-sol` when `--model` is omitted,
+using the native Codex config model when `--model` is omitted,
 using the subscription-only policy in `references/agent-hosts.md` and project connector routing.
 It never selects the retired API home, including for review workers. Default output is the final
 answer; JSON output normalizes native events for the dispatcher.
@@ -369,12 +369,12 @@ them as parallel tool calls rather than chaining them into one sequential shell 
 
 ## Strong models orchestrate and design; smaller models implement
 - Keep the strong/expensive model on planning, decomposition, specs, review and verification. Delegate every implementation edit, including approved visual UI, to a smaller same-provider model.
-- Default implementation tier: **GPT-5.6 Sol** (`gpt-5.6-sol`) for OpenAI and **Sonnet 4.6** (`claude-sonnet-4-6`) for Claude. Use **haiku** ONLY for genuinely mechanical Claude edits: one unambiguous rule, no taste required (a rename, a find/replace with a single correct answer).
-- Use **Fable 5.1** only for design discovery, mockups and visual judgement. Once a target is approved, route the implementing slice as `general`; a Fable worker that edits production code violates the route.
-- A "string/label swap" is NOT mechanical if choosing the replacement needs judgement. When in doubt, use Sonnet 4.6 — the token saving is never worth the silent damage.
-- **Haiku also fits simple, high-volume PARALLEL fan-out**, not just single mechanical edits: a fleet each doing a well-specified, low-judgement pass over its own slice — a leak/pattern scan, a classification, a mechanical audit, a "read these files and report X". It is cheap and fast, and reads semantically not just by pattern (one run: 19 Haiku agents scanned a ~135-file tree in ~2 min for ~1.1M tokens, and surfaced two leaks a plain `grep` missed). DO keep the tiers distinct: Astra and Opus 4.8 orchestrate, Fable designs, GPT-5.6 Sol and Sonnet 4.6 implement where correctness or nuance matters, and Haiku does the parallel grunt-work. DON'T give Haiku a logic edit, a nuanced review, or any pass where a wrong answer is costly. TEST: every Haiku slice is one where a wrong answer is cheap and the spec leaves no judgement call.
-- Match the model to the judgement required. Escalate to Sonnet 4.6 the moment a call needs taste — haiku will otherwise silently reword things it shouldn't, drop information, and mis-scope.
-- **Pin the version — today's-landscape exception.** The bare `sonnet`/`opus` aliases now resolve to Sonnet 5 / Opus 5, which are a downgrade for this work, so pin delegated models to **Sonnet 4.6** (`claude-sonnet-4-6`) for implementation and **Opus 4.8** (`claude-opus-4-8`) when a delegated step needs the strong tier — until that reverses. Caveat: the Agent/Task `model` param is a strict enum (`sonnet`/`opus`/`haiku`/`fable`) and cannot carry a full ID, so a delegated Agent call still resolves the alias to 5. The pin only holds where the mechanism takes a full ID: `claude -p --model claude-sonnet-4-6` (superspeed), or a session `--model` / `/model` override. Where you must go through the Agent enum, keep orchestration on the pinned-4.8 session and delegate as little judgement as possible until the alias points back at a non-downgrade.
+- Default implementation tier: the native Codex model for OpenAI (set in `~/.codex/config.toml`) and the **`sonnet`** alias for Claude. Use **haiku** ONLY for genuinely mechanical Claude edits: one unambiguous rule, no taste required (a rename, a find/replace with a single correct answer).
+- Use the **Fable** tier only for design discovery, mockups and visual judgement. Once a target is approved, route the implementing slice as `general`; a Fable worker that edits production code violates the route.
+- A "string/label swap" is NOT mechanical if choosing the replacement needs judgement. When in doubt, use the `sonnet` tier — the token saving is never worth the silent damage.
+- **Haiku also fits simple, high-volume PARALLEL fan-out**, not just single mechanical edits: a fleet each doing a well-specified, low-judgement pass over its own slice — a leak/pattern scan, a classification, a mechanical audit, a "read these files and report X". It is cheap and fast, and reads semantically not just by pattern (one run: 19 Haiku agents scanned a ~135-file tree in ~2 min for ~1.1M tokens, and surfaced two leaks a plain `grep` missed). DO keep the tiers distinct: Astra and Opus orchestrate, Fable designs, the native Codex model and the `sonnet` tier implement where correctness or nuance matters, and Haiku does the parallel grunt-work. DON'T give Haiku a logic edit, a nuanced review, or any pass where a wrong answer is costly. TEST: every Haiku slice is one where a wrong answer is cheap and the spec leaves no judgement call.
+- Match the model to the judgement required. Escalate to the `sonnet` tier the moment a call needs taste — haiku will otherwise silently reword things it shouldn't, drop information, and mis-scope.
+- **Route by tier alias, never by version.** Delegate Claude work with `haiku` / `sonnet` / `opus` / `fable` — the Agent `model` enum and `claude -p --model` both take them — so every call gets the best current model at that tier. Delegate Codex work to the model set natively in `~/.codex/config.toml`; Codex has no tier alias, and a ChatGPT-account Codex rejects an unsupported config model with HTTP 400, so keep that value on a supported worker model. Don't hard-code a model version in a rule, default or skill example. The tier guard in `bin/agent_setup.py` is by family: any Opus, Fable or Astra model is rejected as an implementation worker, whatever its version. TEST: `grep -rnE 'claude-(opus|sonnet|haiku|fable)-[0-9]|gpt-[0-9]'` over `rules/`, `references/`, `skills/sk/` and non-test `bin/` returns nothing.
 - Reserve Astra and Opus for orchestration, review and design decisions. Run build/tests in the orchestrator after each batch and fix the integration seams without taking implementation ownership back from the smaller worker.
 
 ## Give every agent a precise, self-contained spec

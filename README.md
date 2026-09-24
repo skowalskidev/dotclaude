@@ -148,7 +148,7 @@ shell function and therefore bypasses manifest projection; use the launcher for 
 ### Delegated model provider
 
 Delegated workflows inherit the current chat's provider and reconcile stale saved plans before resuming;
-GPT-orchestrated design slices use Claude Fable 5.1.
+GPT-orchestrated design slices use the Claude Fable tier (`fable` alias).
 See `references/parallelization.md` for model consistency, dispatch fields and failure behavior.
 The local `codex -p` shortcut starts a separate headless native Codex process, not Claude workers:
 
@@ -160,7 +160,7 @@ codex -p "Implement the assigned task"
 Put `-p` or `--print` first to select print mode. Use `codex --profile <name>` for native profiles;
 other native commands pass through unchanged. Pass `--model <openai-model>` to inherit an OpenAI
 chat's model; omitting it uses Astra. Claude chats keep every delegated role on Claude; a GPT
-design slice uses `claude-fable-5-1` through the dispatcher.
+design slice uses `fable` through the dispatcher.
 
 `bin/codex_print.py` provides the print-mode adapter; `bin/agent_setup.py` validates saved setup/model
 choices. Existing ChatGPT authentication is reused; missing subscription access stops the run instead

@@ -19,13 +19,13 @@
 #   {
 #     "task": "one line describing the whole job",
 #     "agent_setup": "full-claude",            # optional: derived from the actual orchestrator model
-#     "orchestrator_model": "claude-opus-4-8",  # required: actual session model, not a switch
+#     "orchestrator_model": "<the model this chat is actually running>",  # required, not a switch
 #     "repo": "/abs/path/to/repo",
 #     "gate": "yarn lint && yarn test",          # optional, run by the RECONCILER not by slices
 #     "setup": "yarn install",                    # optional, run ONCE here before any slice starts;
 #                                                 # take it from the repo's CLAUDE.md / CLAUDE.local.md
-#     "model": "claude-sonnet-4-6",             # optional: Claude default; OpenAI defaults to gpt-5.6-sol
-#     "design_model": "claude-fable-5-1",        # GPT setup only; fixed by agent_setup.py
+#     "model": "sonnet",             # optional: Claude tier alias; OpenAI defaults to the native Codex config model
+#     "design_model": "fable",        # GPT setup only; fixed by agent_setup.py
 #     "slices": [
 #       { "name": "api", "model_route": "general",
 #         "owns":    ["apps/api/src/routes/foo.ts"],

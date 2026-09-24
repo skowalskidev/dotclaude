@@ -42,7 +42,7 @@ CONTRACTS: dict[str, dict] = {
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
             "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
-            "Default a headless `codex exec` that names no model to the sanctioned worker model gpt-5.6-sol; leave an explicit caller model and the interactive TUI untouched.",
+            "Leave a headless `codex exec` that names no model on the native Codex config model with no injected default; leave an explicit caller model and the interactive TUI untouched.",
             "Resolve explicit binary overrides first, then installed stable Conductor binaries in descending version order, then PATH; skip non-executable files and the launcher itself.",
         ],
     },
@@ -51,15 +51,15 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Validate saved setup, orchestrator, worker and reviewer model choices before dispatch.",
         "criteria": [
             "Derive omitted setup from the actual orchestrator model; reject unknown models, native-provider conflicts, inherited setup conflicts and per-slice overrides before launching processes.",
-            "Reject stale cross-provider plans without mutating the input spec; default OpenAI implementation to GPT-5.6 Sol and Claude implementation to Sonnet 4.6.",
-            "Permit only the Fable 5.1 design route for a GPT orchestrator; reject Astra, Opus and Fable as implementation workers.",
+            "Reject stale cross-provider plans without mutating the input spec; default OpenAI implementation to the native Codex config model and Claude implementation to the `sonnet` tier alias, never a pinned version.",
+            "Permit only the Fable-tier design route for a GPT orchestrator; reject any Astra-, Opus- or Fable-family model as an implementation worker, whatever its version.",
         ],
     },
     "bin/codex_print.py": {
         "mission": "Simon can launch independent headless OpenAI workers without changing authentication or falling back to Claude.",
         "purpose": "Provide codex -p through native Codex exec and normalize its events.",
         "criteria": [
-            "Default implementation to gpt-5.6-sol; allow Astra only for read-only review, preserve native permissions and launcher routing, and pass prompts without shell interpolation.",
+            "Default implementation to the native Codex config model; allow Astra only for read-only review, preserve native permissions and launcher routing, and pass prompts without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",
         ],
@@ -237,7 +237,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
-            "Keep every role on the actual chat provider except GPT design work on Fable 5.1; route implementation to GPT-5.6 Sol or Sonnet 4.6, never Astra, Opus or Fable.",
+            "Keep every role on the actual chat provider except GPT design work on the Fable tier; route implementation to the mid tier (native Codex model or the `sonnet` alias) by tier, never by version, and never to Astra, Opus or Fable.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
@@ -417,7 +417,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
         "criteria": [
-            "Own setup persistence and model consistency: Astra and Opus orchestrate, Fable designs, GPT-5.6 Sol and Sonnet 4.6 implement; scope historical Claude benchmarks honestly.",
+            "Own setup persistence and model consistency: Astra and Opus orchestrate, Fable designs, the native Codex model and the `sonnet` tier implement, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
@@ -1018,7 +1018,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
         "purpose": "Engine for /sk:work-superspeed — launch one provider-matched process per slice and log it.",
         "criteria": [
-            "Validate provider and setup before spending; route GPT design only to Fable 5.1 and implementation to GPT-5.6 Sol or Sonnet 4.6, then fail an incomplete worker.",
+            "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the native Codex model or the `sonnet` tier, then fail an incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
             "Verifies each slice by its on-disk artifact, never by exit code "

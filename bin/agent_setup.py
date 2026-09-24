@@ -7,22 +7,51 @@ from pathlib import Path
 import re
 import sys
 
-ASTRA_MODEL = 'gpt-6-astra'
-OPENAI_WORKER_MODEL = 'gpt-5.6-sol'
-CLAUDE_WORKER_MODEL = 'claude-sonnet-4-6'
-CLAUDE_DESIGN_MODEL = 'claude-fable-5-1'
-CLAUDE_ORCHESTRATOR_MODEL = 'claude-opus-4-8'
+# Claude tier aliases: the `claude` CLI resolves these to the best current model of that tier, so
+# no version ID is pinned here. OpenAI has no such alias; an OpenAI worker's model instead comes from
+# whatever Simon set natively in the Codex subscription home's config.toml (see openai_worker_model).
+CLAUDE_WORKER_MODEL = 'sonnet'
+CLAUDE_DESIGN_MODEL = 'fable'
 SETUPS = ('full-claude', 'full-astra', 'full-openai')
 
 
 def model_provider(model):
     if not isinstance(model, str):
         return None
-    if re.fullmatch(r'claude-[A-Za-z0-9.-]+', model) or model in ('opus', 'sonnet', 'haiku'):
+    if re.fullmatch(r'claude-[A-Za-z0-9.-]+', model) or model in ('opus', 'sonnet', 'haiku', 'fable'):
         return 'anthropic'
     if re.fullmatch(r'(?:gpt-[A-Za-z0-9.-]+|o[1-9][A-Za-z0-9.-]*)', model):
         return 'openai'
     return None
+
+
+def is_astra(model):
+    return model_provider(model) == 'openai' and 'astra' in model
+
+
+def is_claude_top_tier(model):
+    return isinstance(model, str) and (model in ('opus', 'fable') or
+                                       model.startswith(('claude-opus-', 'claude-fable-')))
+
+
+def is_fable(model):
+    return isinstance(model, str) and (model == 'fable' or model.startswith('claude-fable-'))
+
+
+def openai_worker_model():
+    """OpenAI workers use the model Simon sets natively in Codex; a ChatGPT-account Codex rejects an
+    unsupported value with HTTP 400, so that value must be a supported worker model. Python here is
+    3.9 (no tomllib), so this is a small regex parser over the TOP-LEVEL table only (the lines before
+    the first [section] header), not a full TOML parser."""
+    home = Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex')
+    config = home / 'config.toml'
+    if not config.is_file():
+        return None
+    text = config.read_text()
+    section = re.search(r'^[ \t]*\[', text, re.M)
+    top = text[:section.start()] if section else text
+    found = re.search(r'(?m)^[ \t]*model[ \t]*=[ \t]*"((?:\\.|[^"\\])*)"[ \t]*(?:#.*)?$', top)
+    return re.sub(r'\\(.)', r'\1', found.group(1)) if found else None
 
 
 def current_provider():
@@ -64,7 +93,7 @@ def matches_model(setup, model):
 
 def matches_orchestrator(setup, model):
     if setup == 'full-astra':
-        return model == ASTRA_MODEL
+        return is_astra(model)
     return matches_model(setup, model)
 
 
@@ -72,8 +101,8 @@ def matches_implementation_model(setup, model):
     if not matches_model(setup, model):
         return False
     if setup in ('full-openai', 'full-astra'):
-        return model != ASTRA_MODEL
-    return model not in (CLAUDE_ORCHESTRATOR_MODEL, CLAUDE_DESIGN_MODEL)
+        return not is_astra(model)
+    return not is_claude_top_tier(model)
 
 
 def is_design_route(item):
@@ -89,7 +118,7 @@ def resolve(spec):
     setup = spec.get('agent_setup')
     if setup is None:
         setup = ('full-claude' if provider == 'anthropic' else
-                 'full-astra' if orchestrator == ASTRA_MODEL else 'full-openai')
+                 'full-astra' if is_astra(orchestrator) else 'full-openai')
     if setup not in SETUPS:
         raise ValueError('Unknown agent_setup; derive it from the current chat provider.')
     inherited = os.environ.get('AGENT_SETUP')
@@ -99,7 +128,11 @@ def resolve(spec):
     if not matches_orchestrator(setup, orchestrator):
         raise ValueError('orchestrator_model must match ' + setup +
                          '; reconcile the stale plan with the actual current chat.')
-    model = spec.get('model', OPENAI_WORKER_MODEL if provider == 'openai' else CLAUDE_WORKER_MODEL)
+    model = spec.get('model') or (openai_worker_model() if provider == 'openai' else CLAUDE_WORKER_MODEL)
+    if model is None:
+        raise ValueError('Set a supported worker `model` in the Codex subscription home config.toml '
+                         '(~/.codex/config.toml); OpenAI workers use the native Codex model, never a '
+                         'version pinned here.')
     if not matches_implementation_model(setup, model):
         raise ValueError('Implementation worker must use a smaller ' +
                          ('OpenAI' if provider == 'openai' else 'Claude') +
@@ -107,8 +140,8 @@ def resolve(spec):
     if 'reviewer_model' in spec and not matches_model(setup, spec['reviewer_model']):
         raise ValueError('Reviewer model does not match ' + setup)
     design_model = spec.get('design_model', CLAUDE_DESIGN_MODEL)
-    if setup in ('full-openai', 'full-astra') and design_model != CLAUDE_DESIGN_MODEL:
-        raise ValueError('GPT-orchestrated design work must use Fable 5.1 (' + CLAUDE_DESIGN_MODEL + ').')
+    if setup in ('full-openai', 'full-astra') and not is_fable(design_model):
+        raise ValueError('GPT-orchestrated design work must use the Claude Fable tier.')
     if setup not in ('full-openai', 'full-astra') and 'design_model' in spec:
         raise ValueError('design_model only applies to a GPT-orchestrated workflow.')
     slices = spec.get('slices')

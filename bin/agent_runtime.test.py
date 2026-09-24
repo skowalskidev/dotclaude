@@ -185,17 +185,21 @@ class RuntimeTests(unittest.TestCase):
         runtime.subscription_policy(['--profile', 'review', '-c', 'model="fixture"', 'exec',
                                      '--', '--with-api-key'])
 
-    def test_headless_exec_defaults_to_sanctioned_worker_model(self):
-        default = ['-c', 'model=' + runtime.toml(runtime.OPENAI_WORKER_MODEL)]
-        self.assertEqual(runtime.exec_model_default(['exec', 'do a task']), default)
-        self.assertEqual(runtime.exec_model_default(['-C', '/tmp', 'exec', '-']), default)
-        self.assertEqual(runtime.exec_model_default(['exec', 'resume', 'abc123']), default)
-
-    def test_explicit_model_interactive_and_other_subcommands_untouched(self):
-        for args in (['exec', '-m', 'gpt-x', 'task'], ['exec', '--model=gpt-x'],
-                     ['exec', '-c', 'model=gpt-x'], ['exec', '-cmodel=gpt-x'],
-                     [], ['mcp', 'list'], ['login', 'status'], ['--', 'exec']):
-            self.assertEqual(runtime.exec_model_default(args), [], args)
+    def test_bare_exec_gets_no_injected_model_override(self):
+        # Native Codex config now owns a headless `codex exec`'s default model (Simon's own
+        # config.toml `model = "..."`), so the launcher must inject no `-c model=...` override of
+        # its own, for a bare `exec` or for any other subcommand.
+        self.save_auth({'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}})
+        for argv in (['codex-launch.py', 'exec', 'do a task'], ['codex-launch.py', 'mcp', 'list']):
+            with self.subTest(argv=argv), \
+                 patch.object(runtime.sys, 'argv', argv), \
+                 patch.object(runtime.os, 'getcwd', return_value=str(self.cwd)), \
+                 patch.object(runtime.os, 'chdir'), \
+                 patch.object(runtime.os, 'execve') as execute, \
+                 patch.object(runtime, 'executable', return_value='/fixture/codex'):
+                runtime.launch()
+            argv_out = execute.call_args.args[1]
+            self.assertFalse(any(value.startswith('model=') for value in argv_out), argv_out)
 
     def test_subscription_home_still_rejects_work_personal_boundary_switch(self):
         marker = self.base / 'must-not-run'

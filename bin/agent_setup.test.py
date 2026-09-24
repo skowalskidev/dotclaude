@@ -25,20 +25,48 @@ class SetupTests(unittest.TestCase):
     def setUp(self):
         self.addCleanup(patch.stopall)
         patch.dict(os.environ, {}, clear=True).start()
-        self.spec = {'agent_setup': 'full-claude', 'orchestrator_model': 'claude-opus-4-8',
+        self.spec = {'agent_setup': 'full-claude', 'orchestrator_model': 'claude-opus-5-5',
                      'slices': [{'name': 'alpha'}]}
 
-    def test_claude_default_preserves_existing_worker_model(self):
-        self.assertEqual(agent_setup.resolve(self.spec)['model'], 'claude-sonnet-4-6')
+    def openai_config(self, model):
+        """A temp CODEX_HOME with a config.toml `model = "..."`, so a test never reads the real
+        ~/.codex. Returns a context manager; combine with `with tempfile.TemporaryDirectory() ...`
+        is done by callers that need the directory itself (e.g. to leave it empty)."""
+        codex_home = tempfile.mkdtemp(prefix='agent-setup-codex-home-')
+        self.addCleanup(shutil.rmtree, codex_home, ignore_errors=True)
+        if model is not None:
+            Path(codex_home, 'config.toml').write_text('model = ' + json.dumps(model) + '\n')
+        return patch.dict(os.environ, {'CODEX_HOME': codex_home})
 
-    def test_claude_top_and_design_models_do_not_implement(self):
-        for model in ('claude-opus-4-8', 'claude-fable-5-1'):
+    def test_claude_default_preserves_existing_worker_model(self):
+        self.assertEqual(agent_setup.resolve(self.spec)['model'], 'sonnet')
+
+    def test_claude_implementation_rejects_top_tier_and_accepts_worker_tiers(self):
+        for model in ('opus', 'claude-opus-4-8', 'claude-opus-5-5', 'fable', 'claude-fable-5-1'):
             with self.subTest(model=model), self.assertRaisesRegex(ValueError, 'smaller Claude'):
                 agent_setup.resolve(dict(self.spec, model=model))
+        for model in ('sonnet', 'haiku', 'claude-sonnet-5'):
+            with self.subTest(model=model):
+                self.assertEqual(agent_setup.resolve(dict(self.spec, model=model))['model'], model)
 
-    def test_astra_defaults_to_sol_for_workers(self):
+    def test_astra_family_detected_regardless_of_version(self):
+        for astra_model in ('gpt-6-astra', 'gpt-7-astra'):
+            with self.subTest(astra_model=astra_model):
+                self.assertTrue(agent_setup.matches_orchestrator('full-astra', astra_model))
+                spec = dict(self.spec, agent_setup='full-astra', orchestrator_model=astra_model)
+                with self.assertRaisesRegex(ValueError, 'smaller OpenAI'):
+                    agent_setup.resolve(dict(spec, model=astra_model))
+
+    def test_openai_worker_defaults_from_codex_config(self):
         self.spec.update(agent_setup='full-astra', orchestrator_model='gpt-6-astra')
-        self.assertEqual(agent_setup.resolve(self.spec)['model'], 'gpt-5.6-sol')
+        with self.openai_config('gpt-test-worker'):
+            self.assertEqual(agent_setup.resolve(self.spec)['model'], 'gpt-test-worker')
+
+    def test_missing_codex_config_raises(self):
+        self.spec.update(agent_setup='full-astra', orchestrator_model='gpt-6-astra')
+        with self.openai_config(None):
+            with self.assertRaisesRegex(ValueError, 'Codex subscription home'):
+                agent_setup.resolve(self.spec)
 
     def test_missing_setup_inherits_current_model(self):
         del self.spec['agent_setup']
@@ -91,22 +119,24 @@ class SetupTests(unittest.TestCase):
     def test_explicit_override_allows_cross_provider(self):
         with patch.dict(os.environ, {'CLAUDECODE': '1', 'AGENT_ALLOW_CROSS_PROVIDER': '1'}):
             resolved = agent_setup.resolve(
-                dict(self.spec, agent_setup='full-astra', orchestrator_model='gpt-6-astra'))
+                dict(self.spec, agent_setup='full-astra', orchestrator_model='gpt-6-astra',
+                     model='gpt-5.6-sol'))
         self.assertEqual(resolved['model_provider'], 'openai')
         self.assertEqual(resolved['agent_setup'], 'full-astra')
 
     def test_general_openai_session_inherits_model_without_astra_switch(self):
-        with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture'}):
-            resolved = agent_setup.resolve(dict(self.spec, agent_setup=None, orchestrator_model='gpt-5.6-sol'))
+        with self.openai_config('gpt-test-worker'):
+            with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture'}):
+                resolved = agent_setup.resolve(dict(self.spec, agent_setup=None, orchestrator_model='gpt-5.6-sol'))
         self.assertEqual(resolved['agent_setup'], 'full-openai')
-        self.assertEqual(resolved['model'], 'gpt-5.6-sol')
+        self.assertEqual(resolved['model'], 'gpt-test-worker')
         self.assertEqual(resolved['model_provider'], 'openai')
 
     def test_openai_setup_accepts_same_provider_models_and_rejects_other_reviewers(self):
         spec = dict(self.spec, agent_setup='full-openai', orchestrator_model='gpt-5.6-sol',
                     model='gpt-5.6-luna')
         self.assertEqual(agent_setup.resolve(spec)['model'], 'gpt-5.6-luna')
-        for other in ('claude-sonnet-4-6', 'gemini-3-pro', 'unknown'):
+        for other in ('sonnet', 'gemini-3-pro', 'unknown'):
             with self.subTest(model=other), self.assertRaises(ValueError):
                 agent_setup.resolve(dict(spec, reviewer_model=other))
         with self.assertRaisesRegex(ValueError, 'smaller OpenAI'):
@@ -122,8 +152,12 @@ class SetupTests(unittest.TestCase):
         resolved = agent_setup.resolve(spec)
         self.assertEqual(resolved['model'], 'gpt-5.6-sol')
         self.assertEqual(resolved['design_model'], agent_setup.CLAUDE_DESIGN_MODEL)
-        with self.assertRaisesRegex(ValueError, 'Fable 5.1'):
-            agent_setup.resolve(dict(spec, design_model='claude-sonnet-4-6'))
+        for design_model in ('fable', 'claude-fable-5-1'):
+            with self.subTest(design_model=design_model):
+                self.assertEqual(agent_setup.resolve(dict(spec, design_model=design_model))['design_model'],
+                                 design_model)
+        with self.assertRaisesRegex(ValueError, 'Fable'):
+            agent_setup.resolve(dict(spec, design_model='sonnet'))
 
     def test_design_route_is_openai_only_and_rejects_unknown_routes(self):
         with self.assertRaisesRegex(ValueError, 'GPT-orchestrated'):
@@ -131,18 +165,19 @@ class SetupTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'general or design'):
             agent_setup.resolve(dict(self.spec, slices=[{'name': 'screen', 'model_route': 'visual'}]))
 
-    def test_astra_design_uses_fable_and_general_work_uses_sol(self):
+    def test_astra_design_uses_fable_and_general_work_uses_worker_model(self):
         spec = {
             'agent_setup': 'full-astra',
             'orchestrator_model': 'gpt-6-astra',
             'slices': [{'name': 'screen', 'model_route': 'design'},
                        {'name': 'approved-ui', 'model_route': 'general'}],
         }
-        resolved = agent_setup.resolve(spec)
-        self.assertEqual(resolved['model'], agent_setup.OPENAI_WORKER_MODEL)
-        self.assertEqual(resolved['design_model'], agent_setup.CLAUDE_DESIGN_MODEL)
-        with self.assertRaisesRegex(ValueError, 'Fable 5.1'):
-            agent_setup.resolve(dict(spec, design_model='claude-sonnet-4-6'))
+        with self.openai_config('gpt-test-worker'):
+            resolved = agent_setup.resolve(spec)
+            self.assertEqual(resolved['model'], 'gpt-test-worker')
+            self.assertEqual(resolved['design_model'], agent_setup.CLAUDE_DESIGN_MODEL)
+            with self.assertRaisesRegex(ValueError, 'Fable'):
+                agent_setup.resolve(dict(spec, design_model='sonnet'))
 
     def test_conflicting_native_signals_fail_closed(self):
         with patch.dict(os.environ, {'CODEX_THREAD_ID': 'native-fixture', 'CLAUDECODE': '1'}):
@@ -210,6 +245,9 @@ def launch():
         subscription.mkdir()
         (subscription / 'auth.json').write_text(json.dumps({
             'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}}))
+        # OpenAI workers have no tier alias; the fixture worker model comes from this config.toml,
+        # exactly as Simon's own ~/.codex/config.toml would supply it.
+        (subscription / 'config.toml').write_text('model = "gpt-5.6-sol"\n')
         self.calls = self.root / 'calls.jsonl'
         self.env = {'HOME': str(self.home), 'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
                     'AGENT_CODEX_BIN': str(self.bin / 'codex-native'),
@@ -313,6 +351,7 @@ print(json.dumps(sys.argv[1:]))
         (self.root / 'identity.local.json').write_text(json.dumps({'workOrgMatch': 'WorkOrg/'}))
         old_home = self.home / '.codex-work'
         old_home.mkdir()
+        (old_home / 'config.toml').write_text('model = "gpt-5.6-sol"\n')
         old_auth = old_home / 'auth.json'
         old_auth.write_text(json.dumps({'auth_mode': 'apikey', 'OPENAI_API_KEY': 'fixture-only'}))
         before = old_auth.read_bytes()
@@ -382,7 +421,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         self.assertFalse(self.calls.exists())
 
     def test_cross_provider_model_override_is_rejected(self):
-        self.assertNotEqual(self.astra_command('-p', 'work', '--model', 'claude-sonnet-4-6').returncode, 0)
+        self.assertNotEqual(self.astra_command('-p', 'work', '--model', 'sonnet').returncode, 0)
         self.assertFalse(self.calls.exists())
 
     def test_astra_implementation_override_is_rejected(self):
@@ -428,7 +467,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
 
     def dispatch(self, agent_mode, **changes):
         spec = {'task': 'fixture', 'repo': str(self.repo), 'setup': 'none', 'agent_setup': agent_mode,
-                'orchestrator_model': 'gpt-6-astra' if agent_mode == 'full-astra' else 'claude-opus-4-8',
+                'orchestrator_model': 'gpt-6-astra' if agent_mode == 'full-astra' else 'claude-opus-5-5',
                 'slices': [{'name': name, 'owns': ['src/' + name + '.py'], 'verify': 'none',
                             'prompt': 'fixture'} for name in ('alpha', 'beta')]}
         spec.update(changes)
@@ -444,7 +483,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertEqual([call['kind'] for call in calls], ['claude', 'claude'])
-        self.assertEqual(json.loads((output / 'spec.json').read_text())['model'], 'claude-sonnet-4-6')
+        self.assertEqual(json.loads((output / 'spec.json').read_text())['model'], 'sonnet')
 
     def test_full_astra_launches_sol_workers_and_records_mode(self):
         result, output = self.dispatch('full-astra')
@@ -464,7 +503,10 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         subprocess.run(['git', '-C', str(self.repo), 'remote', 'add', 'origin',
                         'https://example.invalid/WorkOrg/project.git'], check=True, env=self.env)
         (self.root / 'identity.local.json').write_text(json.dumps({'workOrgMatch': 'WorkOrg/'}))
-        self.env.update(CODEX_HOME=str(self.home / '.codex-work'),
+        old_home = self.home / '.codex-work'
+        old_home.mkdir(parents=True, exist_ok=True)
+        (old_home / 'config.toml').write_text('model = "gpt-5.6-sol"\n')
+        self.env.update(CODEX_HOME=str(old_home),
                         CODEX_API_KEY='fixture-only', OPENAI_API_KEY='fixture-only')
         result, output = self.dispatch('full-astra', reviewer_model='gpt-6-astra')
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
@@ -525,7 +567,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         self.assertFalse(self.calls.exists())
 
     def test_mismatched_orchestrator_stops_before_spend(self):
-        result, _ = self.dispatch('full-astra', orchestrator_model='claude-opus-4-8')
+        result, _ = self.dispatch('full-astra', orchestrator_model='claude-opus-5-5')
         self.assertEqual(result.returncode, 2)
         self.assertFalse(self.calls.exists())
 

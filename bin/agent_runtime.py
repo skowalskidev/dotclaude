@@ -10,7 +10,7 @@ import shlex
 import subprocess
 import sys
 
-from agent_setup import OPENAI_WORKER_MODEL, require_provider
+from agent_setup import require_provider
 
 ROOT = Path(__file__).resolve().parent.parent
 EVENTS = {'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
@@ -262,35 +262,6 @@ def codex_inference(args):
     return True
 
 
-def exec_model_default(args):
-    """Give a headless `codex exec` the sanctioned worker model when the caller names none. exec has
-    no interactive model picker and inherits ~/.codex/config.toml's model; a ChatGPT-account Codex
-    rejects an unsupported value there (HTTP 400), so a bare `codex exec` fails without a manual -m.
-    The interactive TUI keeps its own model; a caller's explicit -m/--model/-c model= suppresses this."""
-    value_options = {'--cd', '-C', '--model', '-m', '--config', '-c', '--sandbox', '-s',
-                     '--ask-for-approval', '-a', '-p', '--print'}
-    is_exec = has_model = False
-    tokens = iter(args)
-    for arg in tokens:
-        if arg == '--':
-            break
-        if arg in ('-c', '--config'):
-            has_model = has_model or next(tokens, '').split('=', 1)[0].strip() == 'model'
-            continue
-        if arg in ('-m', '--model'):
-            has_model = True
-        elif arg.startswith('--model=') or (arg.startswith('-m') and len(arg) > 2):
-            has_model = True
-        elif arg.startswith('--config=') or (arg.startswith('-c') and len(arg) > 2):
-            body = arg.split('=', 1)[1] if arg.startswith('--config=') else arg[2:].lstrip('=')
-            has_model = has_model or body.split('=', 1)[0].strip() == 'model'
-        if arg in value_options:
-            next(tokens, None)
-        elif not arg.startswith('-') and not is_exec:
-            is_exec = arg == 'exec'
-    return ['-c', 'model=' + toml(OPENAI_WORKER_MODEL)] if is_exec and not has_model else []
-
-
 def launch():
     try:
         args = sys.argv[1:]
@@ -306,7 +277,6 @@ def launch():
                    AGENT_CODEX_MANIFEST=str(manifest_path or ''), AGENT_CODEX_BOUNDARY=boundary)
         # Pass TOML as argv, never shell code. Explicit caller overrides retain native precedence.
         binary = executable()
-        config += exec_model_default(args)
         config += retired_overrides(cwd, home)
         os.chdir(cwd)
         os.execve(binary, [binary, *config, *billing, *args], env)

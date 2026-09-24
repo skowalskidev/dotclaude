@@ -6,8 +6,8 @@ Orchestration/process discipline, project-doc syncing, and test-account/secret h
 
 ### Inherit the current chat's model provider; pick each worker's tier by the job
 Keep delegated roles on the current chat provider. Route GPT design discovery, mockups and visual
-judgement to Fable 5.1; route every implementation edit, approved UI included, to GPT-5.6 Sol on
-OpenAI or Sonnet 4.6 on Claude. Astra and Opus orchestrate; Fable designs.
+judgement to the Fable tier; route every implementation edit, UI included, to the mid tier — native
+Codex on OpenAI, `sonnet` on Claude. Astra and Opus orchestrate; Fable designs.
 Reconcile stale plans. Do not re-ask a known provider or switch after a model/auth failure. Switch
 only for Simon's named-host ask or the GPT design route. Use subscriptions: `references/agent-hosts.md`.
 Routing and tiers: `references/parallelization.md`.
