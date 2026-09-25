@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One plan, one reusable dashboard. Standard library only; no model or cloud calls."""
+"""One plan, one reusable dashboard engine, bridged to the gauntlet Next.js app for viewing."""
 import argparse
 import copy
 import datetime as dt
@@ -9,18 +9,19 @@ import json
 import os
 from pathlib import Path
 import re
-import shlex
 import signal
 import subprocess
 import tempfile
 import time
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlsplit
-from urllib.request import url2pathname, urlopen
+from urllib.parse import quote, urlsplit
+from urllib.request import Request, url2pathname, urlopen
 
 BLOCK = re.compile(r'^```dashboard-state\n(.*?)\n```\s*$', re.M | re.S)
 TEMPLATE = Path(__file__).with_name('workflow-dashboard.html')
 STATES = {'todo', 'doing', 'blocked', 'review', 'done'}
+APP_DIR = Path.home() / '.claude' / 'apps' / 'gauntlet'
+APP_PORT = 4747
+APP_RECEIPT = Path.home() / '.claude' / 'state' / 'gauntlet-server.json'
 RECORD_HEADINGS = (
     ('goal & user journey', 'User journey'),
     ('system journey', 'System journey'),
@@ -488,18 +489,91 @@ def pid_command_and_cwd(pid):
     return command.stdout.strip(), Path(paths[0]).resolve()
 
 
-def served_plan(command, cwd):
+def app_health(port):
+    """GET the gauntlet app's health endpoint; None if it is not up or not responding in time."""
     try:
-        words = shlex.split(command)
-    except ValueError as exc:
-        raise ValueError('Cannot parse dashboard viewer command') from exc
-    indexes = [i for i, word in enumerate(words) if Path(word).name == 'workflow-dashboard.py']
-    require(len(indexes) == 1, 'PID command is not one dashboard viewer')
-    index = indexes[0]
-    require(words[index + 1:index + 2] == ['serve'] and len(words) > index + 2,
-            'PID command is not workflow-dashboard.py serve')
-    candidate = Path(words[index + 2])
-    return (candidate if candidate.is_absolute() else cwd / candidate).resolve()
+        with urlopen('http://127.0.0.1:' + str(port) + '/api/health', timeout=1.5) as response:
+            if response.status != 200:
+                return None
+            return json.loads(response.read())
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+
+
+def app_projects(port):
+    with urlopen('http://127.0.0.1:' + str(port) + '/api/projects', timeout=2) as response:
+        return json.loads(response.read())
+
+
+def served_plan(port, plan):
+    """True if the gauntlet app on `port` currently has `plan` registered."""
+    plan = Path(plan).resolve()
+    try:
+        projects = app_projects(port)
+    except (OSError, ValueError, json.JSONDecodeError):
+        return False
+    return any(Path(row['plan']).resolve() == plan for row in projects if row.get('plan'))
+
+
+def _projects_request(port, method, plan):
+    body = json.dumps({'plan': str(plan)}).encode()
+    request = Request(
+        'http://127.0.0.1:' + str(port) + '/api/projects',
+        data=body, method=method, headers={'Content-Type': 'application/json'},
+    )
+    with urlopen(request, timeout=2) as response:
+        return json.loads(response.read())
+
+
+def register_plan(port, plan):
+    return _projects_request(port, 'POST', plan)
+
+
+def unregister_plan(port, plan):
+    return _projects_request(port, 'DELETE', plan)
+
+
+def resolve_nvm_bin():
+    nvm_bin = os.environ.get('NVM_BIN')
+    if nvm_bin and Path(nvm_bin).is_dir():
+        return nvm_bin
+    versions_dir = Path.home() / '.nvm' / 'versions' / 'node'
+
+    def version_key(path):
+        return tuple(int(part) if part.isdigit() else -1 for part in path.name.lstrip('v').split('.'))
+
+    candidates = sorted((p for p in versions_dir.glob('v24.*') if (p / 'bin').is_dir()), key=version_key)
+    require(candidates, 'No nvm-installed Node v24.x found under ' + str(versions_dir))
+    return str(candidates[-1] / 'bin')
+
+
+def start_app(port):
+    """Spawn the gauntlet Next.js dev server on `port` and wait for it to become healthy."""
+    node_bin = resolve_nvm_bin()
+    env = dict(os.environ)
+    env['PATH'] = node_bin + os.pathsep + env.get('PATH', '')
+    APP_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = APP_DIR / '.gauntlet.log'
+    with log_path.open('ab') as log:
+        process = subprocess.Popen(
+            ['npm', 'run', 'dev', '--', '-p', str(port)],
+            cwd=APP_DIR, env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
+        )
+    atomic_write(APP_RECEIPT, json.dumps({
+        'pid': process.pid, 'port': port, 'startedAt': now(),
+    }, indent=2) + '\n')
+    deadline = time.monotonic() + 40
+    while time.monotonic() < deadline:
+        health = app_health(port)
+        if health:
+            return health
+        time.sleep(.5)
+    tail = ''
+    try:
+        tail = log_path.read_text()[-4000:]
+    except OSError:
+        pass
+    raise ValueError('gauntlet app did not become healthy on port ' + str(port) + ' within 40s\n' + tail)
 
 
 def validate_runtime_owner(plan, data):
@@ -508,22 +582,12 @@ def validate_runtime_owner(plan, data):
     root = workspace_root(plan.parent)
     require(plan.is_relative_to(root), 'Runtime plan is outside its worktree')
     require(Path(data['plan']).resolve() == plan, 'Runtime plan mismatch')
-    output = Path(data['output']).resolve()
-    require(output.is_relative_to(root), 'Runtime output is outside its worktree')
-    require(output.is_file(), 'Runtime output is missing')
-    pid = int(data['pid'])
-    require(pid > 1, 'Invalid dashboard viewer PID')
-    command, cwd = pid_command_and_cwd(pid)
-    require(served_plan(command, cwd) == plan, 'PID command serves a different dashboard plan')
-    url = urlsplit(data['url'])
-    require(url.scheme == 'http' and url.hostname == '127.0.0.1' and url.port,
-            'Dashboard viewer URL is not loopback HTTP')
-    with urlopen(data['url'].rstrip('/') + '/state', timeout=.4) as response:
-        require(response.status == 200, 'Runtime viewer unavailable')
-        remote = json.loads(response.read())
-    local = read_plan(plan)[2]
-    require(remote.get('revision') == local['revision'] and remote.get('title') == local['title'],
-            'Runtime viewer serves a different dashboard state')
+    port = int(data['port'])
+    health = app_health(port)
+    require(health and health.get('ok'), 'Gauntlet app is not healthy on port ' + str(port))
+    require(int(data['pid']) == int(health.get('pid', -1)),
+            'Runtime receipt PID does not match the running gauntlet app')
+    require(served_plan(port, plan), 'Plan is not registered with the gauntlet app')
     return data
 
 
@@ -555,89 +619,52 @@ def stop_runtime(plan, expected_pid):
     require(receipt.is_file(), 'Dashboard runtime receipt is missing')
     data = json.loads(receipt.read_text())
     require(int(data['pid']) == expected_pid, 'Dashboard viewer PID changed after confirmation')
-    validate_runtime_owner(plan, data)
-    os.kill(expected_pid, signal.SIGTERM)
-    deadline = time.monotonic() + 5
-    while time.monotonic() < deadline and not pid_exited(expected_pid):
-        time.sleep(.05)
-    require(pid_exited(expected_pid), 'Dashboard viewer did not stop within 5 seconds')
+    port = int(data['port'])
+    try:
+        unregister_plan(port, plan)
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ValueError('Could not unregister the plan from the gauntlet app: ' + str(exc)) from exc
     receipt.unlink(missing_ok=True)
+    try:
+        projects = app_projects(port)
+    except (OSError, ValueError, json.JSONDecodeError):
+        projects = []
+    if not projects:
+        require(APP_RECEIPT.is_file(), 'No plans remain, but the gauntlet app receipt is missing')
+        app_data = json.loads(APP_RECEIPT.read_text())
+        app_pid = int(app_data['pid'])
+        require(app_pid == expected_pid, 'Gauntlet app PID does not match --expect-pid')
+        command, _ = pid_command_and_cwd(app_pid)
+        require('next' in command or 'gauntlet' in command,
+                'PID does not look like the gauntlet app; refusing to kill it')
+        os.kill(app_pid, signal.SIGTERM)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not pid_exited(app_pid):
+            time.sleep(.05)
+        require(pid_exited(app_pid), 'Gauntlet app did not stop within 5 seconds')
+        APP_RECEIPT.unlink(missing_ok=True)
     return data
 
 
-def serve(plan, output, port):
+def serve(plan, output, port=APP_PORT):
     plan = Path(plan).resolve()
     output = Path(output).resolve()
-    existing = live_runtime(plan)
-    if existing:
-        print('DASHBOARD_PATH=' + existing['output'], flush=True)
-        print('DASHBOARD_URL=' + existing['url'], flush=True)
-        print('PID=' + str(existing['pid']), flush=True)
-        return
+    export_dashboard(plan, output)
+    print('DASHBOARD_PATH=' + str(output), flush=True)
 
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            host = self.headers.get('Host', '')
-            if host != '127.0.0.1:' + str(self.server.server_port):
-                self.send_error(403)
-                return
-            route = urlsplit(self.path).path
-            try:
-                if route in ('/', '/dashboard.html'):
-                    body, mime = render(plan).encode(), 'text/html; charset=utf-8'
-                    atomic_write(output, body.decode())
-                elif route == '/state':
-                    body, mime = json.dumps(public_spec(plan)).encode(), 'application/json'
-                else:
-                    self.send_error(404)
-                    return
-                self.send_response(200)
-                self.send_header('Content-Type', mime)
-                self.send_header('Cache-Control', 'no-store')
-                self.send_header('X-Content-Type-Options', 'nosniff')
-                self.send_header('Content-Length', str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            except (ValueError, OSError, KeyError, TypeError) as exc:
-                self.send_error(422, 'Invalid plan or missing evidence')
+    health = app_health(port) or start_app(port)
+    register_plan(port, plan)
 
-        def log_message(self, *args):
-            pass
-
-    atomic_write(output, render(plan))
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
-    url = 'http://127.0.0.1:' + str(server.server_port)
-    receipt = runtime_receipt_path(plan)
-    atomic_write(receipt, json.dumps({
-        'pid': os.getpid(),
+    url = 'http://127.0.0.1:' + str(port) + '/p?plan=' + quote(str(plan), safe='')
+    atomic_write(runtime_receipt_path(plan), json.dumps({
+        'pid': health['pid'],
+        'port': port,
         'url': url,
         'plan': str(plan),
-        'output': str(output),
+        'app': 'gauntlet',
         'startedAt': now(),
     }, indent=2) + '\n')
-    print('DASHBOARD_PATH=' + str(output), flush=True)
-    print('DASHBOARD_URL=' + url, flush=True)
-    print('PID=' + str(os.getpid()), flush=True)
-
-    def terminate(*_):
-        raise KeyboardInterrupt
-
-    previous_term = signal.getsignal(signal.SIGTERM)
-    signal.signal(signal.SIGTERM, terminate)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        signal.signal(signal.SIGTERM, previous_term)
-        server.server_close()
-        atomic_write(output, render(plan))
-        try:
-            current = json.loads(receipt.read_text())
-            if int(current.get('pid', -1)) == os.getpid():
-                receipt.unlink()
-        except (OSError, ValueError, TypeError, json.JSONDecodeError):
-            pass
+    print(url, flush=True)
 
 
 def main():
@@ -648,7 +675,7 @@ def main():
     parser.add_argument('--title', default='Session task')
     parser.add_argument('--slug', default='session-task')
     parser.add_argument('--output', type=Path)
-    parser.add_argument('--port', type=int, default=0)
+    parser.add_argument('--port', type=int, default=APP_PORT)
     parser.add_argument('--input', type=Path)
     parser.add_argument('--target')
     parser.add_argument('--note')
@@ -670,9 +697,16 @@ def main():
             plan = discover_plan(args.root)
             output = export_dashboard(plan)
             print('DASHBOARD_PATH=' + str(output))
-            runtime = live_runtime(plan)
-            if runtime:
-                print('DASHBOARD_URL=' + runtime['url'])
+            receipt = runtime_receipt_path(plan)
+            if receipt.is_file():
+                try:
+                    data = json.loads(receipt.read_text())
+                    port = int(data['port'])
+                    health = app_health(port)
+                    if health and health.get('ok') and served_plan(port, plan):
+                        print('DASHBOARD_URL=' + data['url'])
+                except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
+                    pass
         elif args.command == 'resolve':
             require(args.target is not None,
                     'resolve needs --target <dashboard url | dashboard.html | plan.md>')

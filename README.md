@@ -71,7 +71,8 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths |
 | `skills/sk/skills/work-gauntlet-loop/` | `/sk:work-gauntlet-loop` — continue the default session gauntlet; configure Ralph or independent judgement when requested |
 | `skills/sk/skills/work-ralph-loop/` | `/sk:work-ralph-loop` — direct or composed fresh-worker completion |
-| `references/workflow-loops.md` + `bin/workflow-dashboard.*` | Default session gauntlet with continuous request reconciliation; Ralph and independent judgement are optional. `init` creates/reuses one task record, `link` refreshes its canonical offline HTML, and receipt-verified `stop` closes only its live viewer; Session record pools plan sources, decisions, history, artifacts and remaining work without a second store |
+| `references/workflow-loops.md` + `bin/workflow-dashboard.*` | Default session gauntlet with continuous request reconciliation; Ralph and independent judgement are optional. `init` creates/reuses one task record, `link` prints the live URL when the gauntlet app is running (else the canonical offline HTML), and receipt-verified `stop` closes only its live viewer; Session record pools plan sources, decisions, history, artifacts and remaining work without a second store |
+| `apps/gauntlet/` | Reusable Next.js live gauntlet viewer (Node 24 via nvm; `cd apps/gauntlet && npm install`), served on fixed port 4747. `bin/workflow-dashboard.py serve` starts or attaches to it, registers the plan over `/api/projects`, and prints the live `http://127.0.0.1:4747/p?plan=<abs>` URL; `export` still writes the offline single-file dashboard for sharing. Untracked runtime state: `~/.claude/state/gauntlet-projects.json` (registry) and `~/.claude/state/gauntlet-server.json` (server receipt) |
 | `bin/mockup-shell.html` + `bin/mockup-build.py` (+ `bin/mockup-shell.test.py`, `bin/mockup-synthetic-spec.json`) | The one spec-driven shell every `/sk:ship-mockup-before-after` mockup is built through (viewport-first stage, one collapsible rail, presentation mode, hint bar; every switch tears the old mount down and opens the target's default state); the builder inlines a `spec.json` and extracts it back losslessly; the Playwright test proves the switch reset and the one-Before rail grouping against the synthetic spec |
 | `skills/sk/` | My personal (`/sk:*`) skill plugin. Claude Code reads it here; `bootstrap.sh` symlinks it into `~/.agents/skills/` for Codex. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
 | `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here), subscription `CODEX_HOME` and `codex` launcher function |
@@ -215,7 +216,8 @@ Native adapter details and verified upstream references live in `references/agen
   current Active LTS, and a project's own `.nvmrc` always wins over any version named here — run
   `nvm install && nvm use` inside the repo. As of Aug 2026 the Active LTS lines are 22 and 24
   (20 is EOL; 26 becomes LTS in Oct 2026). Do not pin a number in this file — it goes stale, and
-  `hooks/config-contract.test.py` fails the build when it names an EOL runtime.
+  `hooks/config-contract.test.py` fails the build when it names an EOL runtime. The gauntlet app needs
+  Node 24: `nvm use 24 && cd apps/gauntlet && npm install` once.
 - **Username:** `settings.json` hook commands use absolute `$HOME/...` paths. If your `settings.json`
   still carries a hardcoded home dir, repoint the paths at your own `$HOME`: `sed -i '' "s#/Users/<olduser>#$HOME#g" ~/.claude/settings.json`.
 
@@ -352,6 +354,9 @@ background daemon** (deliberately, to avoid idle CPU):
   secret scanning, which is only acceptable because it is never pushed.
   Consequence for this README: the repo is Simon's config source of truth for everything **portable**,
   not literally everything under `~/.claude`.
+- **`~/.claude/state/gauntlet-projects.json`, `~/.claude/state/gauntlet-server.json`** — the gauntlet
+  app's plan registry and server receipt (pid, port, startedAt). Machine-local runtime state, excluded
+  by the allowlist like the rest of `~/.claude/state/`.
 - **`~/.claude/port-registry.md`** — which local dev port each session holds. Machine-local runtime
   state by definition (ports are a property of this machine, not of the config), so the repo carries
   the path and the protocol while the contents stay out. Already excluded by the allowlist, since a

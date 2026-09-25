@@ -33,8 +33,10 @@ message reminds the agent to update the plan. The finish hook requires a reconci
 the latest ask, plan or pivot. These hooks check capture and freshness; the agent checks meaning and
 completion evidence. On hosts without working hooks, the written per-message protocol still applies. Ask for
 the dashboard link from any later session, or run
-`python3 "$HOME/.claude/bin/workflow-dashboard.py" link`; it regenerates and prints the canonical
-absolute HTML path. The portable file remains useful when no live viewer is running.
+`python3 "$HOME/.claude/bin/workflow-dashboard.py" link`; it regenerates the offline export and prints
+the live `http://127.0.0.1:4747/p?plan=…` URL when the gauntlet app is running and the plan is
+registered, else the canonical absolute HTML path. The exported file stays for sharing outside this
+machine, not as the primary view.
 
 The Session record inside the dashboard derives narrative sections from the plan and computes its
 artifact and remaining-work indexes from dashboard state. The Markdown plan remains the only task
@@ -66,8 +68,9 @@ Changing an approved target requires a new approval; ordinary implementation fix
 
 The dashboard has section buttons and overall completion on the left, with Before, named Target and
 Current evidence on the right. Session record pools sources, decisions, notes, history, artifacts and
-remaining actions. Embedded mockups retain their versions and feedback. Downloaded HTML opens offline;
-a local viewer follows updates every two seconds. The template stays the same across tasks and modes.
+remaining actions. Embedded mockups retain their versions and feedback. Downloaded HTML opens offline
+for sharing; the live app at the printed URL self-refreshes over SSE as the plan changes. The template
+stays the same across tasks and modes.
 
 One `.context/<slug>-plan.md` owns the task narrative and a version-1 `dashboard-state` JSON block.
 That block records the engine, phase, revision, sections, criteria, evidence, target approval and judge

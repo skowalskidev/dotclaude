@@ -5,9 +5,12 @@ import importlib.util
 import json
 import html
 import os
+import signal
+import socket
 import subprocess
 import sys
 import threading
+import unittest.mock
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 import tempfile
@@ -41,6 +44,67 @@ def passed():
     section['judge'] = {'agentId': 'critic', 'builderId': 'builder', 'verdict': 'pass',
                         'artifactRevision': 1, 'reference': 'Approved target', 'evidence': 'judge.json'}
     return s
+
+
+def free_port():
+    with socket.socket() as s:
+        s.bind(('127.0.0.1', 0))
+        return s.getsockname()[1]
+
+
+class FakeGauntletApp(BaseHTTPRequestHandler):
+    """Stands in for the Next.js app's /api/health and /api/projects contract."""
+
+    def do_GET(self):
+        if self.path == '/api/health':
+            self._json(200, {'ok': True, 'pid': self.server.app_pid,
+                              'port': self.server.server_port, 'app': 'gauntlet'})
+        elif self.path == '/api/projects':
+            self._json(200, list(self.server.plans))
+        else:
+            self.send_error(404)
+
+    def do_POST(self):
+        plan = self._body().get('plan')
+        if plan and not any(row['plan'] == plan for row in self.server.plans):
+            self.server.plans.append({'plan': plan, 'title': 't', 'phase': 'running',
+                                      'revision': 1, 'updatedAt': d.now(), 'root': '/'})
+        self._json(200, {'plans': self.server.plans})
+
+    def do_DELETE(self):
+        plan = self._body().get('plan')
+        self.server.plans = [row for row in self.server.plans if row['plan'] != plan]
+        self._json(200, {'plans': self.server.plans})
+
+    def _body(self):
+        length = int(self.headers.get('Content-Length', 0))
+        return json.loads(self.rfile.read(length)) if length else {}
+
+    def _json(self, code, payload):
+        body = json.dumps(payload).encode()
+        self.send_response(code)
+        self.send_header('Content-Type', 'application/json')
+        self.send_header('Content-Length', str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *_):
+        pass
+
+
+def start_fake_app(pid):
+    server = ThreadingHTTPServer(('127.0.0.1', 0), FakeGauntletApp)
+    server.plans = []
+    server.app_pid = pid
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server, thread
+
+
+def stop_fake_app(server, thread):
+    server.shutdown()
+    server.server_close()
+    thread.join()
 
 
 class DashboardTests(unittest.TestCase):
@@ -400,95 +464,203 @@ class DashboardTests(unittest.TestCase):
             active.unlink()
             self.assertEqual(d.discover_plan(root), completed.resolve())
 
-    def test_safe_cleanup_blocks_mismatch_then_removes_viewer_worktree_and_branch(self):
+    def test_serve_attaches_when_healthy_registers_and_writes_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
-            repo = base / 'repo'
-            worktree = base / 'task-worktree'
-            repo.mkdir()
-
-            def git(*args, cwd=repo):
-                return subprocess.run(
-                    ['git', '-C', str(cwd), *args], capture_output=True, text=True, check=True
-                )
-
-            git('init', '-q')
-            git('config', 'user.name', 'Dashboard test')
-            git('config', 'user.email', 'dashboard@example.invalid')
-            (repo / '.gitignore').write_text('.context/\n')
-            (repo / 'tracked.txt').write_text('fixture\n')
-            git('add', '.gitignore', 'tracked.txt')
-            git('commit', '-q', '-m', 'fixture')
-            git('worktree', 'add', '-q', '-b', 'dashboard-cleanup', str(worktree))
-
-            context = worktree / '.context'
-            context.mkdir()
-            plan = context / 'cleanup-plan.md'
+            plan = base / 'task-plan.md'
             state = fixture()
             state.update(gauntlet=False, optionsConfirmedAt=None)
             plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
-            dashboard = d.canonical_dashboard_path(plan).resolve()
-            command = [sys.executable, str(DASHBOARD_SCRIPT), 'serve', str(plan), '--port', '0']
-            viewer = subprocess.Popen(
-                command, cwd=worktree, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
+
+            server, thread = start_fake_app(pid=4242)
             try:
-                output_lines = [viewer.stdout.readline().strip() for _ in range(3)]
-                startup_error = viewer.stderr.read() if viewer.poll() is not None else ''
-                self.assertTrue(
-                    any(line == 'DASHBOARD_PATH=' + str(dashboard) for line in output_lines),
-                    f'viewer startup output={output_lines!r} rc={viewer.poll()} stderr={startup_error!r}',
-                )
-                receipt = d.runtime_receipt_path(plan)
-                self.assertTrue(receipt.is_file())
+                port = server.server_port
+                called = []
 
-                wrong_pid = subprocess.run(
-                    command[:2] + ['stop', str(plan), '--expect-pid', str(viewer.pid + 1)],
-                    cwd=worktree, capture_output=True, text=True,
-                )
-                self.assertNotEqual(wrong_pid.returncode, 0)
-                self.assertIsNone(viewer.poll())
+                def fake_start_app(p):
+                    called.append(p)
+                    raise AssertionError('start_app should not run when already healthy')
 
-                runtime = json.loads(receipt.read_text())
-                outside = base / 'outside-dashboard.html'
-                outside.write_text('unowned')
-                runtime['output'] = str(outside)
-                receipt.write_text(json.dumps(runtime))
-                mismatch = subprocess.run(
-                    command[:2] + ['stop', str(plan), '--expect-pid', str(viewer.pid)],
-                    cwd=worktree, capture_output=True, text=True,
-                )
-                self.assertNotEqual(mismatch.returncode, 0)
-                self.assertIsNone(viewer.poll())
+                original_start_app = d.start_app
+                d.start_app = fake_start_app
+                try:
+                    d.serve(plan, d.canonical_dashboard_path(plan), port)
+                finally:
+                    d.start_app = original_start_app
+                self.assertEqual(called, [])
 
-                runtime['output'] = str(dashboard)
-                receipt.write_text(json.dumps(runtime))
-                stopped = subprocess.run(
-                    command[:2] + ['stop', str(plan), '--expect-pid', str(viewer.pid)],
-                    cwd=worktree, capture_output=True, text=True,
-                )
-                self.assertEqual(stopped.returncode, 0, stopped.stderr)
-                self.assertIn('STOPPED_PID=' + str(viewer.pid), stopped.stdout)
-                viewer.wait(timeout=5)
-                self.assertFalse(receipt.exists())
+                plan_r = str(plan.resolve())
+                self.assertIn(plan_r, [row['plan'] for row in server.plans])
 
-                git('worktree', 'remove', str(worktree))
-                git('branch', '-D', 'dashboard-cleanup')
-                self.assertFalse(worktree.exists())
-                self.assertFalse(dashboard.exists())
-                branch = subprocess.run(
-                    ['git', '-C', str(repo), 'show-ref', '--verify', '--quiet',
-                     'refs/heads/dashboard-cleanup']
-                )
-                self.assertNotEqual(branch.returncode, 0)
-                with self.assertRaises(ProcessLookupError):
-                    os.kill(viewer.pid, 0)
+                receipt = json.loads(d.runtime_receipt_path(plan).read_text())
+                self.assertEqual(receipt['pid'], 4242)
+                self.assertEqual(receipt['port'], port)
+                self.assertEqual(receipt['plan'], plan_r)
+                self.assertEqual(receipt['app'], 'gauntlet')
+                self.assertEqual(receipt['url'], 'http://127.0.0.1:%d/p?plan=%s' % (port, d.quote(plan_r, safe='')))
+                self.assertTrue(d.canonical_dashboard_path(plan).is_file())
             finally:
-                if viewer.poll() is None:
-                    viewer.terminate()
-                    viewer.wait(timeout=5)
-                viewer.stdout.close()
-                viewer.stderr.close()
+                stop_fake_app(server, thread)
+
+    def test_serve_starts_app_when_not_healthy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            plan = base / 'task-plan.md'
+            state = fixture()
+            state.update(gauntlet=False, optionsConfirmedAt=None)
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+
+            port = free_port()
+            spawned = {}
+
+            def fake_start_app(p):
+                self.assertEqual(p, port)
+                server = ThreadingHTTPServer(('127.0.0.1', port), FakeGauntletApp)
+                server.plans = []
+                server.app_pid = 777
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                spawned['server'], spawned['thread'] = server, thread
+                return d.app_health(port)
+
+            original_start_app = d.start_app
+            d.start_app = fake_start_app
+            try:
+                d.serve(plan, d.canonical_dashboard_path(plan), port)
+            finally:
+                d.start_app = original_start_app
+                if 'server' in spawned:
+                    stop_fake_app(spawned['server'], spawned['thread'])
+
+            receipt = json.loads(d.runtime_receipt_path(plan).read_text())
+            self.assertEqual(receipt['pid'], 777)
+            self.assertEqual(receipt['port'], port)
+
+    def test_link_prints_dashboard_url_only_when_healthy_and_registered(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / '.git').mkdir()
+            context = root / '.context'
+            context.mkdir()
+            plan = context / 'demo-plan.md'
+            state = fixture()
+            state.update(gauntlet=False, optionsConfirmedAt=None)
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+
+            cli = lambda: subprocess.run(
+                [sys.executable, str(DASHBOARD_SCRIPT), 'link', '--root', str(root)],
+                capture_output=True, text=True,
+            )
+
+            # No receipt at all: only the file path line.
+            no_receipt = cli()
+            self.assertEqual(no_receipt.returncode, 0, no_receipt.stderr)
+            self.assertNotIn('DASHBOARD_URL=', no_receipt.stdout)
+
+            server, thread = start_fake_app(pid=999)
+            try:
+                port = server.server_port
+                plan_r = str(plan.resolve())
+                url = 'http://127.0.0.1:%d/p?plan=%s' % (port, d.quote(plan_r, safe=''))
+                d.atomic_write(d.runtime_receipt_path(plan), json.dumps({
+                    'pid': 999, 'port': port, 'url': url, 'plan': plan_r,
+                    'app': 'gauntlet', 'startedAt': d.now(),
+                }))
+
+                # Receipt exists but plan is not registered yet: still no URL.
+                unregistered = cli()
+                self.assertEqual(unregistered.returncode, 0, unregistered.stderr)
+                self.assertNotIn('DASHBOARD_URL=', unregistered.stdout)
+
+                server.plans.append({'plan': plan_r, 'title': 't', 'phase': 'running',
+                                      'revision': 1, 'updatedAt': d.now(), 'root': str(root)})
+                registered = cli()
+                self.assertEqual(registered.returncode, 0, registered.stderr)
+                self.assertIn('DASHBOARD_URL=' + url, registered.stdout)
+            finally:
+                stop_fake_app(server, thread)
+
+    def test_stop_unregisters_without_killing_when_other_plans_remain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            plan = base / 'task-plan.md'
+            state = fixture()
+            state.update(gauntlet=False, optionsConfirmedAt=None)
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+
+            server, thread = start_fake_app(pid=4242)
+            original_app_receipt = d.APP_RECEIPT
+            d.APP_RECEIPT = base / 'gauntlet-server.json'
+            try:
+                port = server.server_port
+                plan_r = str(plan.resolve())
+                other_r = str((base / 'other-plan.md').resolve())
+                server.plans.extend([
+                    {'plan': plan_r, 'title': 't', 'phase': 'running', 'revision': 1,
+                     'updatedAt': d.now(), 'root': str(base)},
+                    {'plan': other_r, 'title': 'o', 'phase': 'running', 'revision': 1,
+                     'updatedAt': d.now(), 'root': str(base)},
+                ])
+                d.atomic_write(d.runtime_receipt_path(plan), json.dumps({
+                    'pid': 4242, 'port': port, 'url': 'http://x', 'plan': plan_r,
+                    'app': 'gauntlet', 'startedAt': d.now(),
+                }))
+                d.atomic_write(d.APP_RECEIPT, json.dumps({'pid': 4242, 'port': port, 'startedAt': d.now()}))
+
+                killed = []
+                with unittest.mock.patch('os.kill', lambda pid, sig: killed.append((pid, sig))):
+                    result = d.stop_runtime(plan, 4242)
+
+                self.assertEqual(killed, [])
+                self.assertEqual(result['pid'], 4242)
+                self.assertFalse(d.runtime_receipt_path(plan).is_file())
+                self.assertTrue(d.APP_RECEIPT.is_file())
+                self.assertNotIn(plan_r, [row['plan'] for row in server.plans])
+                self.assertIn(other_r, [row['plan'] for row in server.plans])
+            finally:
+                d.APP_RECEIPT = original_app_receipt
+                stop_fake_app(server, thread)
+
+    def test_stop_kills_app_when_no_plans_remain_and_pid_command_matches(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            plan = base / 'task-plan.md'
+            state = fixture()
+            state.update(gauntlet=False, optionsConfirmedAt=None)
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+
+            server, thread = start_fake_app(pid=4242)
+            original_app_receipt = d.APP_RECEIPT
+            d.APP_RECEIPT = base / 'gauntlet-server.json'
+            try:
+                port = server.server_port
+                plan_r = str(plan.resolve())
+                server.plans.append({'plan': plan_r, 'title': 't', 'phase': 'running',
+                                      'revision': 1, 'updatedAt': d.now(), 'root': str(base)})
+                d.atomic_write(d.runtime_receipt_path(plan), json.dumps({
+                    'pid': 4242, 'port': port, 'url': 'http://x', 'plan': plan_r,
+                    'app': 'gauntlet', 'startedAt': d.now(),
+                }))
+                d.atomic_write(d.APP_RECEIPT, json.dumps({'pid': 4242, 'port': port, 'startedAt': d.now()}))
+
+                killed = []
+                original_pid_command_and_cwd = d.pid_command_and_cwd
+                original_pid_exited = d.pid_exited
+                d.pid_command_and_cwd = lambda pid: ('npm run dev -- -p 4747 (gauntlet)', base)
+                d.pid_exited = lambda pid: True
+                try:
+                    with unittest.mock.patch('os.kill', lambda pid, sig: killed.append((pid, sig))):
+                        d.stop_runtime(plan, 4242)
+                finally:
+                    d.pid_command_and_cwd = original_pid_command_and_cwd
+                    d.pid_exited = original_pid_exited
+
+                self.assertEqual(killed, [(4242, signal.SIGTERM)])
+                self.assertFalse(d.APP_RECEIPT.is_file())
+                self.assertEqual(server.plans, [])
+            finally:
+                d.APP_RECEIPT = original_app_receipt
+                stop_fake_app(server, thread)
 
     def test_handoff_stamps_manifest_and_resolves_back_same_machine(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -305,11 +305,11 @@ offline HTML and print `DASHBOARD_PATH=<absolute path>`. One active plan wins ov
 zero plans or two active plans fail with the candidate paths. Return that path as the clickable link.
 TEST: link never selects by modification time and never returns a dashboard older than its plan.
 
-DO open the printed `DASHBOARD_URL`. The helper binds 127.0.0.1 on an OS-assigned port, prints its PID
-and serves only `/`, `/dashboard.html` and `/state`. It records the PID, URL, plan and output in the
+DO open the printed `DASHBOARD_URL`. `serve` starts or attaches to the gauntlet app on fixed port 4747,
+registers the plan and prints that live URL — the link handed to the user during a task; the file
+export from `link`/`export` stays for sharing only. It records the PID, URL, plan and output in the
 plan's `.context/*-dashboard.runtime.json` sidecar; that runtime receipt is disposable and never task
-state. The page polls every
-2 seconds, preserves the selected section and shows the last valid revision on failure. File opens
+state. The page refreshes over SSE within 2 seconds, preserves the selected section and shows the last valid revision on failure. File opens
 are explicitly labelled Offline snapshot; Save HTML embeds the latest displayed state for sharing.
 Embedded mockups must write review edits into their `#spec`; the viewer captures that state and form
 values through an embedded-frame message bridge. Save HTML carries feedback drafts. Live updates reapply
@@ -317,6 +317,11 @@ drafts only to the same source hash; changed sources retain older drafts in Feed
 explicit reconciliation. Import feedback into the surface record before recording approval.
 A live connection means the viewer is connected, not that an agent is working. Use the update age
 and run phase to see stalled work. TEST: a stopped server shows Connection lost, never a fake heartbeat.
+
+DO keep the live gauntlet minimal and self-refreshing. DEFAULT: dark theme, colour only in status dots
+(never in label text), every label 2-5 words with no verb, decisions/pivots/sources/ledger entries
+behind a record drawer rather than inline, and an SSE refresh under 2 seconds after a plan change.
+TEST: a screenshot of the live view shows no colored label text and no visible refresh delay past 2s.
 
 DO have one supervisor write the state through `update`; workers return results. The helper locks
 and checks `--expect-revision`, increments the revision, stamps the time and atomically replaces the
