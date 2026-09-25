@@ -925,7 +925,13 @@ def _declared_config_parts() -> set[str]:
         for p in (ROOT / "skills" / plugin / "skills").glob("*/SKILL.md"):
             parts.add(str(p.relative_to(ROOT)))
     tracked = _tracked_files()
-    return {p for p in parts if p in tracked} if tracked else parts
+    parts = {p for p in parts if p in tracked} if tracked else parts
+    # An app under apps/ is one config part keyed by its directory (apps/<name>), discovered by
+    # its tracked package.json, so a contract for it neither reads as an orphan nor goes unchecked.
+    for pkg in ROOT.glob("apps/*/package.json"):
+        if not tracked or str(pkg.relative_to(ROOT)) in tracked:
+            parts.add(str(pkg.parent.relative_to(ROOT)))
+    return parts
 
 
 def check_metrics_log_detects_without_acting() -> None:
