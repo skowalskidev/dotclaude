@@ -117,7 +117,8 @@ with a red unread dot in the nav — and its `Open mockup` full-view. TEST: at a
 approval-pending artifact is embedded in its section, in the target panel, with the review red-dot and
 a full-view, and every resource/decision/pivot the task used is reachable from the one dashboard. (e.g.
 three merge previews sat as loose files beside an empty "No capture yet" section until the user asked
-three times, then were shown as "Current" so approving them read as nonsense.)
+three times, then were shown as "Current" so approving them read as nonsense.) Enforced: `validate`
+rejects a `review` section without an html/image `target`.
 
 DO base each visual increment on the last user-approved version and the product's current design.
 Record the proposed revision/hash separately from the approved revision/hash. Announce the specific
@@ -195,7 +196,9 @@ regenerated and one sound plays. (e.g. a fan-out of preview-rebuild subagents ea
 file and spammed browser tabs, when the user only wanted the gauntlet refreshed with a sound.) An
 already-open offline (`file://`) dashboard tab auto-refreshes itself on regain-focus/visibility and a
 slow idle interval, so the sound cue lands on an up-to-date tab; the reload keeps the `#section`/`#asset`
-hash and is suppressed while a modal is open or the user is typing feedback.
+hash and is suppressed while a modal is open or the user is typing feedback. Never attach the file as a
+message file card (SendUserFile) or paste its path as the deliverable either; the dashboard embed IS the
+deliverable, and `export` refuses an unreferenced `mockups/*.html` / `previews/*.html`.
 
 DO store evidence below the plan directory, as relative paths. Inline images and HTML on export;
 serve no directory listings or arbitrary files. Compress images to display size. The viewer embeds

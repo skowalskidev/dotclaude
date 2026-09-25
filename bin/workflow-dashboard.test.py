@@ -78,6 +78,41 @@ class DashboardTests(unittest.TestCase):
             data = output.read_text().split('<script id="spec" type="application/json">')[1].split('</script>')[0]
             self.assertEqual(json.loads(data)['sections'][0], public)
 
+    def test_review_section_requires_html_or_image_target(self):
+        state = fixture()
+        state['sections'][0]['status'] = 'review'
+        with self.assertRaisesRegex(ValueError, 'A review section needs its proposal embedded'):
+            d.validate(state)
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'm.html').write_text('<p>Mock</p>')
+            state['sections'][0]['target'] = {'kind': 'html', 'label': 'Mock', 'path': 'mockups/m.html', 'source': 'x'}
+            (base / 'mockups').mkdir()
+            (base / 'mockups' / 'm.html').write_text('<p>Mock</p>')
+            d.validate(state)
+
+    def test_export_refuses_unreferenced_mockup_then_succeeds_once_referenced(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            plan = base / 'task-plan.md'
+            state = fixture()
+            state['sections'][0].update(
+                status='review',
+                target={'kind': 'html', 'label': 'Mock', 'path': 'mockups/m.html', 'source': 'x'},
+            )
+            (base / 'mockups').mkdir()
+            (base / 'mockups' / 'm.html').write_text('<p>Referenced</p>')
+            (base / 'mockups' / 'extra.html').write_text('<p>Orphan</p>')
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+            with self.assertRaisesRegex(ValueError, 'Unreferenced mockup/preview: mockups/extra.html'):
+                d.export_dashboard(plan)
+            state['sections'].append({'id': 'two', 'title': 'Two', 'status': 'todo', 'artifactRevision': 1,
+                                      'criteria': [{'id': 'c2', 'text': 'Second', 'passed': False}],
+                                      'current': {'kind': 'html', 'label': 'Extra', 'path': 'mockups/extra.html', 'source': 'x'}})
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+            output = d.export_dashboard(plan)
+            self.assertTrue(output.is_file())
+
     @unittest.skipUnless(HAVE_PLAYWRIGHT, 'playwright not installed')
     def test_current_preview_is_visible_live_and_in_saved_html(self):
         state = fixture()
@@ -239,7 +274,10 @@ class DashboardTests(unittest.TestCase):
     def test_atomic_revision_conflict_and_judge_invalidation(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'task-plan.md'
-            s = passed(); p.write_text('UNCHANGED NARRATIVE\n```dashboard-state\n'+json.dumps(s)+'\n```\n')
+            s = passed()
+            (Path(tmp) / 'target.png').write_bytes(b'fake-png-bytes')
+            s['sections'][0]['target'] = {'kind': 'image', 'label': 'Target', 'path': 'target.png', 'source': 'Review'}
+            p.write_text('UNCHANGED NARRATIVE\n```dashboard-state\n'+json.dumps(s)+'\n```\n')
             new = copy.deepcopy(s); new['sections'][0]['artifactRevision'] = 2
             result, _ = d.update(p, new, 1)
             self.assertEqual(result['sections'][0]['status'], 'review')

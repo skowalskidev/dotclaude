@@ -126,6 +126,9 @@ def validate(s):
                 require(asset.get('label'), 'Asset needs a name')
                 if asset['kind'] != 'text':
                     require(asset.get('path') and asset.get('source'), 'Captured asset needs path and provenance')
+        if section['status'] == 'review':
+            require((section.get('target') or {}).get('kind') in ('html', 'image'),
+                    'A review section needs its proposal embedded as the target asset (kind html or image)')
     if s['phase'] == 'complete':
         require(all(x['status'] == 'done' for x in sections), 'Complete requires every section done')
     return s
@@ -386,6 +389,22 @@ def discover_plan(root):
 def export_dashboard(plan, output=None):
     plan = Path(plan).resolve()
     output = Path(output).resolve() if output else canonical_dashboard_path(plan)
+    base = plan.parent
+    _, _, state = read_plan(plan)
+    referenced = set()
+    for section in state['sections']:
+        for key in ('before', 'target', 'current'):
+            asset = section.get(key)
+            if asset and asset.get('path'):
+                referenced.add((base / asset['path']).resolve())
+    for sub in ('mockups', 'previews'):
+        subdir = base / sub
+        if not subdir.is_dir():
+            continue
+        for file in sorted(subdir.rglob('*.html')):
+            require(file.resolve() in referenced,
+                    'Unreferenced mockup/preview: ' + str(file.relative_to(base)) +
+                    ' — embed it as a section asset (kind html) before exporting')
     atomic_write(output, render(plan))
     return output
 

@@ -521,6 +521,14 @@ to clean up.
 
 ## Report
 
-Give him the mockup — the file path or the artifact URL — one line on what changed between before and
-after, and the open questions as a numbered list, each with the option you would pick.
+**DO hand back ONE link: the gauntlet dashboard with the section route (`#section=<id>`), where the
+mockup is already embedded as that section's `target` asset with `status: "review"`.** Add one line on
+what changed between before and after, and the open questions as a numbered list, each with the option
+you would pick.
+**DON'T send the mockup as a file card (SendUserFile), an artifact URL, a bare file path, or `open` it.**
+A file card per round reads as a new file each time and leaves the dashboard empty; the path belongs
+only in the dashboard asset caption. (the fix for three rounds of a landing mockup handed back as
+attachments while every dashboard panel said "No capture yet", 2026-09-26.)
+TEST: the hand-back message carries the dashboard link and no attachment, and `workflow-dashboard.py
+export` passes with the mockup referenced.
 **DON'T ask him about anything the preview already answers.**

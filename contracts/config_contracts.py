@@ -158,6 +158,8 @@ CONTRACTS: dict[str, dict] = {
             "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped, and open its canonical dashboard route in a new tab when live, or the same embedded html as a view-only blob when offline, from the modal header and the panel caption; bin/workflow-dashboard.test.py proves both.",
             "Persist section, artifact and modal in the URL hash; restore the route on load and Back/Forward; close the innermost open overlay on Escape from the dashboard or a nested iframe; refresh an open canonical asset after a remote revision without dropping feedback.",
             "Stamp a repeatable same-machine handoff manifest (hop count, absolute plan/worktree/dashboard paths, live url when serving) and render a Handed off banner; resolve a pasted loopback dashboard url, file dashboard html or plan back to its plan and print the recorded engine, options and hop; bin/workflow-dashboard.test.py proves both across the three target forms.",
+            "Reject a review section whose target is not an html or image asset, and refuse export while a mockups/ or previews/ html file under the plan directory is unreferenced by any section asset; bin/workflow-dashboard.test.py proves both.",
+            "Render bin/workflow-dashboard.html dark by default with a persisted light toggle that leaves embedded assets unthemed, and show a review section's html target full-width above Before and Current.",
         ],
     },
     # --- Top-level -----------------------------------------------------------------
