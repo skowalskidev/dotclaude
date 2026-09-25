@@ -1,0 +1,3 @@
+// OWNED BY SLICE `api-plan`. GET ?plan=…&path=… → stream the file (assetPathOrThrow), Content-Type by extension (html/webp/png/jpg/svg/json/txt/md), ETag = size+mtime, 304 on If-None-Match, Cache-Control: no-cache. HTML gets `Content-Security-Policy: default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; frame-src about: blob:; connect-src 'none'` (self-contained mockups need nothing else) and X-Frame-Options omitted. 404 → {error}.
+export const dynamic = "force-dynamic";
+export async function GET() { return Response.json({ error: "not implemented" }, { status: 501 }); }

@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Dark is the default. Light only by explicit data-theme="light". Chromatic colour lives in ≤10px dots only. */
+:root {
+  --bg: #0a0a0a; --sf: #111111; --sf2: #171717; --ln: #262626; --tx: #ededed; --mu: #8f8f8f; --ac: #ededed; --ac-fg: #0a0a0a;
+  --ok: #22c55e; --review: #f59e0b; --doing: #3b82f6; --idle: #525252; --bad: #ef4444;
+  --radius: 8px;
+}
+:root[data-theme="light"] {
+  --bg: #f7f7f5; --sf: #ffffff; --sf2: #f0f0ee; --ln: #dcdcd8; --tx: #171717; --mu: #6b6b6b; --ac: #171717; --ac-fg: #ffffff;
+}
+@theme inline {
+  --color-bg: var(--bg); --color-sf: var(--sf); --color-sf2: var(--sf2); --color-ln: var(--ln); --color-tx: var(--tx); --color-mu: var(--mu);
+  --color-ac: var(--ac); --color-ac-fg: var(--ac-fg); --color-ok: var(--ok); --color-review: var(--review); --color-doing: var(--doing); --color-idle: var(--idle); --color-bad: var(--bad);
+  --font-sans: var(--font-geist-sans); --font-mono: var(--font-geist-mono);
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--tx); font-family: var(--font-sans), system-ui, sans-serif; font-size: 13px; line-height: 1.4; -webkit-font-smoothing: antialiased; }
+.pulse { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+:focus-visible { outline: 2px solid var(--tx); outline-offset: 2px; }
