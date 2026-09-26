@@ -268,6 +268,16 @@ class ModelResolutionTests(IsolatedCachesMixin, unittest.TestCase):
         self.assertEqual(agent_setup.resolve_tier('openai', 'mid'), 'gpt-old-top')
         self.assertEqual(agent_setup.resolve_tier('openai', 'small'), 'gpt-old-mid')
 
+    def test_ranks_follow_codex_priority_not_file_order(self):
+        # The cache's list order is not a contract; only `priority` is. A fixture written in
+        # priority order cannot tell a real sort from none, so this one is deliberately shuffled.
+        self.write_openai_cache([{'slug': 'gpt-small-tier', 'priority': 3},
+                                 {'slug': 'gpt-top-tier', 'priority': 1},
+                                 {'slug': 'gpt-mid-tier', 'priority': 2}])
+        self.assertEqual(agent_setup.resolve_tier('openai', 'top'), 'gpt-top-tier')
+        self.assertEqual(agent_setup.resolve_tier('openai', 'mid'), 'gpt-mid-tier')
+        self.assertEqual(agent_setup.resolve_tier('openai', 'small'), 'gpt-small-tier')
+
     def test_retiring_and_hidden_models_are_never_picked(self):
         self.write_openai_cache([
             {'slug': 'gpt-retiring', 'priority': 1, 'upgrade': {'model': 'gpt-next'}},
