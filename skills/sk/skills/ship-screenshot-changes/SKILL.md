@@ -128,8 +128,25 @@ posted screenshots (verified inline below), never only a local hand-back or a bo
 
 **Post BOTH the desktop and the mobile shot of each surface, grouped per surface** — a `**<surface>**`
 heading with its Desktop image then its Mobile image (before/after: BEFORE then AFTER, each with its
-desktop+mobile) — so the reviewer sees the responsive result, not only the wide layout. TEST: for every
-surface posted, the comment carries its `-desktop` AND its `-mobile` image under one heading.
+desktop+mobile) — so the reviewer sees the responsive result, not only the wide layout. **Embed desktop
+full width as markdown (`![alt](url)`); embed mobile as HTML capped at 300px,
+`<img src="<url>" width="300" alt="<surface> mobile">`** — markdown carries no width, and a phone shot
+stretched to the comment's full width is an unreadable wall. TEST: for every surface posted, the comment
+carries its `-desktop` AND its `-mobile` image under one heading, every mobile image is an
+`<img … width="300">`, and every desktop image is markdown.
+
+**Keep ONE screenshot comment per PR and edit it in place — never append a second.** Open the comment
+body with `<!-- sk:screenshot-changes -->` and wrap each surface's block in `<!-- surface:<slug> -->` …
+`<!-- /surface:<slug> -->`. Before posting, find the marked comment:
+`gh api repos/$REPO/issues/$PR/comments --paginate --jq '.[] | select(.body | startswith("<!-- sk:screenshot-changes -->")) | .id'`.
+None → create it. Found → fetch its current body, replace ONLY the blocks for surfaces re-captured this
+run, append blocks for new surfaces, keep every untouched block verbatim, drop a block only when its
+surface left the diff, and write it back with `gh api -X PATCH repos/$REPO/issues/comments/$ID -F body=@<file>`
+— never a body reconstructed from memory. Older UNMARKED screenshot comments from before this rule:
+name them in the hand-back, delete none without a yes. (e.g. renaming one switch re-shoots that one
+surface; only its block changes and the comment count stays the same.) TEST: after any run the PR has
+exactly one comment starting with the marker, and a re-run changes that comment's `updated_at`, not
+the number of comments.
 
 **GitHub-only — never an external host.** In a PRIVATE repo (a work repo usually is), GitHub's Camo proxy
 can't authenticate: `raw.githubusercontent.com`, release assets and external hosts all render as a BROKEN

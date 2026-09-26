@@ -801,6 +801,9 @@ CONTRACTS: dict[str, dict] = {
             "body text reference) and GitHub-native — gh --attach or the user-attachments CDN upload, "
             "git-only detached-ref as fallback, never an external host; fails loud and verifies the "
             "images render (not camo-broken).",
+            "Keeps ONE marker-tagged screenshot comment per PR and edits it in place, replacing only "
+            "the re-captured surfaces' blocks (never appends a second comment); embeds mobile shots "
+            "at 300px width and desktop shots full width.",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],
     },
