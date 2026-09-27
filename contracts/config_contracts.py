@@ -1618,6 +1618,8 @@ CONTRACTS: dict[str, dict] = {
             "hooks/work-resource-guard.test.py pins both directions.",
             "A CLI whose default profile belongs to the other boundary is denied when "
             "unpinned, not just when the wrong profile is named explicitly.",
+            "Reads shared:true manifests too, so a shared connector's boundary is enforced "
+            "exactly like a project connector's, and never leaks a secret value.",
         ],
     },
     # --- Git hooks -----------------------------------------------------------------
@@ -1643,6 +1645,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Reads servers registered under BOTH the worktree and the main worktree path.",
             "Generic. Per-project detail stays in the manifests.",
+            "A shared:true manifest layers its connectors under the resolved project manifest, "
+            "never replaces it as the selected project manifest, and never wins a name clash "
+            "against a project connector.",
         ],
     },
     "bin/install-third-party-skills.sh": {

@@ -14,9 +14,15 @@
 #
 # Usage:
 #   connectors-provision.sh [DIR]           provision the project at DIR (default: $PWD)
-#   connectors-provision.sh --check [DIR]    print a readiness report (one line per connector), no writes
-#   connectors-provision.sh --manifest [DIR] print the resolved manifest path (or nothing)
+#   connectors-provision.sh --check [DIR]    print a readiness report (one line per connector, project
+#                                            THEN any layered shared connectors, no writes)
+#   connectors-provision.sh --manifest [DIR] print the resolved PROJECT manifest path (or nothing)
+#   connectors-provision.sh --manifest --shared [DIR]  print matching SHARED manifest paths instead
 #   connectors-provision.sh --host codex [--check] [DIR] inspect the launch-time Codex projection
+#
+# A manifest with "shared": true (e.g. connectors/personal-shared.json) layers its connectors under
+# whichever project manifest matches this repo (or on its own, if none matches) — never instead of it,
+# and never as the selected PROJECT manifest itself. A project connector of the same `name` always wins.
 #
 # Adapters by connector.kind: mcp-http | mcp-stdio (registered as MCP servers); api | service-key |
 # cli | env | claude-connector (no MCP registration — readiness is reported by --check, setup is via the
@@ -50,12 +56,14 @@ expand_tilde() { case "$1" in "~/"*) printf '%s' "$HOME/${1#\~/}" ;; *) printf '
 have jq || { echo "connectors: jq not found; cannot read manifests" >&2; exit 0; }
 
 # --- parse args ---
-mode="provision"; dir="$PWD"
+mode="provision"; dir="$PWD"; want_shared=0
 case "${1:-}" in
   --check)    mode="check";    shift ;;
   --manifest) mode="manifest"; shift ;;
   -h|--help)  sed -n '2,20p' "$0"; exit 0 ;;
 esac
+# --manifest --shared: list matching SHARED manifest paths instead of the project manifest.
+if [ "$mode" = "manifest" ] && [ "${1:-}" = "--shared" ]; then want_shared=1; shift; fi
 [ -n "${1:-}" ] && dir="$1"
 [ -d "$dir" ] || dir="$PWD"
 
@@ -73,6 +81,9 @@ gitcommon="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/
 manifest=""
 for f in "$CONN_DIR"/*.json; do
   [ -e "$f" ] || continue
+  # A shared manifest ("shared": true) layers UNDER whichever project manifest resolves for this repo;
+  # it must never win the first-match project slot itself (see the shared-manifest loop below).
+  [ "$(jq -r '.shared // false' "$f" 2>/dev/null)" = "true" ] && continue
   while IFS= read -r m; do
     [ -n "$m" ] || continue
     case "$origin$top" in *"$m"*) manifest="$f"; break ;; esac
@@ -80,10 +91,35 @@ for f in "$CONN_DIR"/*.json; do
   [ -n "$manifest" ] && break
 done
 
-if [ "$mode" = "manifest" ]; then [ -n "$manifest" ] && printf '%s\n' "$manifest"; exit 0; fi
-[ -n "$manifest" ] || { echo "connectors: no manifest matches this project (origin: ${origin:-none})" >&2; exit 0; }
+# Every manifest with "shared": true whose match hits this repo's origin/path, in addition to (never
+# instead of) the project manifest above. A project connector wins on a name clash (enforced below,
+# where shared connectors are merged in).
+shared_manifests=""
+for f in "$CONN_DIR"/*.json; do
+  [ -e "$f" ] || continue
+  [ "$(jq -r '.shared // false' "$f" 2>/dev/null)" = "true" ] || continue
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    case "$origin$top" in *"$m"*) shared_manifests="$shared_manifests
+$f"; break ;; esac
+  done < <(jq -r '.match[]? // empty' "$f" 2>/dev/null)
+done
+shared_manifests="$(printf '%s\n' "$shared_manifests" | sed '/^$/d')"
 
-proj="$(jq -r '.project // "?"' "$manifest")"
+if [ "$mode" = "manifest" ]; then
+  if [ "$want_shared" = "1" ]; then
+    [ -n "$shared_manifests" ] && printf '%s\n' "$shared_manifests"
+  else
+    [ -n "$manifest" ] && printf '%s\n' "$manifest"
+  fi
+  exit 0
+fi
+if [ -z "$manifest" ] && [ -z "$shared_manifests" ]; then
+  echo "connectors: no manifest matches this project (origin: ${origin:-none})" >&2
+  exit 0
+fi
+
+proj="$([ -n "$manifest" ] && jq -r '.project // "?"' "$manifest" || echo "(shared-only)")"
 
 # Servers AVAILABLE this session, across ALL scopes Claude Code loads (fast, no network): local (keyed by
 # BOTH this worktree and the main worktree — see top_main above) + user scope in ~/.claude.json, PLUS the
@@ -100,41 +136,60 @@ $(jq -r '(.mcpServers // {}) | keys[]?' "$top/.mcp.json" 2>/dev/null)"
 fi
 is_registered() { printf '%s\n' "$registered" | grep -qxF "$1"; }
 
-# --- CHECK mode: emit "name<TAB>kind<TAB>env<TAB>status" and exit ---
+# status for one connector record (as compact JSON on stdin arg $1) -> "name<TAB>kind<TAB>env<TAB>status"
+check_line() {
+  c="$1"
+  name="$(printf '%s' "$c" | jq -r '.name')"
+  kind="$(printf '%s' "$c" | jq -r '.kind')"
+  env="$(printf '%s' "$c" | jq -r '.env // ""')"
+  ond="$(printf '%s' "$c" | jq -r '.enabledOnDemand // false')"
+  spath="$(printf '%s' "$c" | jq -r '.secret.path // ""')"
+  status="unknown"
+  case "$kind" in
+    mcp-*) if [ "$ond" = "true" ]; then status="on-demand"; elif is_registered "$name"; then status="registered"; else status="missing"; fi ;;
+    api|service-key) if [ -n "$spath" ] && [ -f "$(expand_tilde "$spath")" ]; then status="key-present"; else status="key-missing"; fi ;;
+    cli) status="cli" ;;
+    env) status="env" ;;
+    claude-connector) status="account" ;;   # claude.ai account-level connector; loaded from claude.ai settings, not registered here
+  esac
+  if [ -n "$spath" ] && [ "$kind" != api ] && [ "$kind" != service-key ]; then
+    [ -f "$(expand_tilde "$spath")" ] || status="$status,key-missing"
+  fi
+  printf '%s\t%s\t%s\t%s%s\n' "$name" "$kind" "$env" "$status" "$2"
+}
+
+# --- CHECK mode: emit "name<TAB>kind<TAB>env<TAB>status" per connector, project THEN layered shared
+# connectors (a shared connector is skipped when the project manifest already declares that `name` —
+# project always wins on a clash), and exit ---
 if [ "$mode" = "check" ]; then
-  jq -c '.connectors[]?' "$manifest" 2>/dev/null | while IFS= read -r c; do
-    name="$(printf '%s' "$c" | jq -r '.name')"
-    kind="$(printf '%s' "$c" | jq -r '.kind')"
-    env="$(printf '%s' "$c" | jq -r '.env // ""')"
-    ond="$(printf '%s' "$c" | jq -r '.enabledOnDemand // false')"
-    spath="$(printf '%s' "$c" | jq -r '.secret.path // ""')"
-    status="unknown"
-    case "$kind" in
-      mcp-*) if [ "$ond" = "true" ]; then status="on-demand"; elif is_registered "$name"; then status="registered"; else status="missing"; fi ;;
-      api|service-key) if [ -n "$spath" ] && [ -f "$(expand_tilde "$spath")" ]; then status="key-present"; else status="key-missing"; fi ;;
-      cli) status="cli" ;;
-      env) status="env" ;;
-      claude-connector) status="account" ;;   # claude.ai account-level connector; loaded from claude.ai settings, not registered here
-    esac
-    if [ -n "$spath" ] && [ "$kind" != api ] && [ "$kind" != service-key ]; then
-      [ -f "$(expand_tilde "$spath")" ] || status="$status,key-missing"
-    fi
-    printf '%s\t%s\t%s\t%s\n' "$name" "$kind" "$env" "$status"
-  done
+  project_names=""
+  [ -n "$manifest" ] && project_names="$(jq -r '.connectors[]?.name' "$manifest" 2>/dev/null)"
+  if [ -n "$manifest" ]; then
+    jq -c '.connectors[]?' "$manifest" 2>/dev/null | while IFS= read -r c; do check_line "$c" ""; done
+  fi
+  if [ -n "$shared_manifests" ]; then
+    while IFS= read -r sf; do
+      [ -n "$sf" ] || continue
+      jq -c '.connectors[]?' "$sf" 2>/dev/null | while IFS= read -r c; do
+        cname="$(printf '%s' "$c" | jq -r '.name')"
+        printf '%s\n' "$project_names" | grep -qxF "$cname" && continue   # project wins on name clash
+        check_line "$c" "	(shared: $(basename "$sf"))"
+      done
+    done <<< "$shared_manifests"
+  fi
   exit 0
 fi
 
 # --- PROVISION mode ---
 added=0; skipped=0
-echo "connectors: provisioning '$proj' (manifest: $(basename "$manifest"))" >&2
+echo "connectors: provisioning '$proj' (manifest: $(basename "${manifest:-none}"))" >&2
 
-# register MCP servers for every connector NOT enabledOnDemand
-while IFS= read -r c; do
-  [ -n "$c" ] || continue
+provision_connector() { # $1=connector JSON, $2=1 if from a shared manifest (name-clash already checked by caller)
+  c="$1"
   name="$(printf '%s' "$c" | jq -r '.name')"
   kind="$(printf '%s' "$c" | jq -r '.kind')"
   ond="$(printf '%s' "$c" | jq -r '.enabledOnDemand // false')"
-  [ "$ond" = "true" ] && continue                # on-demand capabilities (e.g. prod-write) are NOT auto-provisioned
+  [ "$ond" = "true" ] && return                # on-demand capabilities (e.g. prod-write) are NOT auto-provisioned
 
   # A connector bound to a key file declares it in .secret.path so --check can report presence. Nothing
   # is fetched here: if it is absent, the doctor surfaces the connector's own auth.steps and you run
@@ -146,13 +201,13 @@ while IFS= read -r c; do
 
   case "$kind" in
     mcp-http|mcp-stdio)
-      if is_registered "$name"; then skipped=$((skipped+1)); continue; fi
+      if is_registered "$name"; then skipped=$((skipped+1)); return; fi
       # build the add-json payload from .mcp, expanding ~ in env values and args
       json="$(printf '%s' "$c" | jq -c --arg home "$HOME" '
         .mcp
         | (if .env then .env |= with_entries(.value |= (gsub("^~/"; $home + "/"))) else . end)
         | (if .args then .args |= map(gsub("^~/"; $home + "/")) else . end)')"
-      [ "$json" = "null" ] || [ -z "$json" ] && { echo "  ! $name: no .mcp block, skipping" >&2; continue; }
+      [ "$json" = "null" ] || [ -z "$json" ] && { echo "  ! $name: no .mcp block, skipping" >&2; return; }
       if have claude; then
         ( cd "$top" 2>/dev/null && claude mcp add-json "$name" "$json" -s local >/dev/null 2>&1 ) \
           && { echo "  + registered $name (local)" >&2; added=$((added+1)); } \
@@ -164,7 +219,33 @@ while IFS= read -r c; do
     api|service-key|cli|env|claude-connector) : ;;   # no MCP registration; readiness is via --check and the auth-gate/doctor
     *) echo "  ? unknown kind '$kind' for $name (add an adapter in connectors-provision.sh)" >&2 ;;
   esac
-done < <(jq -c '.connectors[]?' "$manifest" 2>/dev/null)
+}
+
+# register MCP servers for every connector NOT enabledOnDemand, project manifest first
+project_names=""
+if [ -n "$manifest" ]; then
+  project_names="$(jq -r '.connectors[]?.name' "$manifest" 2>/dev/null)"
+  while IFS= read -r c; do [ -n "$c" ] && provision_connector "$c"; done < <(jq -c '.connectors[]?' "$manifest" 2>/dev/null)
+fi
+
+# then every layered SHARED manifest matching this repo — project connectors win on a name clash, and a
+# name already provisioned by an earlier shared manifest is not provisioned twice.
+if [ -n "$shared_manifests" ]; then
+  shared_seen=""
+  while IFS= read -r sf; do
+    [ -n "$sf" ] || continue
+    echo "connectors: layering shared manifest $(basename "$sf")" >&2
+    while IFS= read -r c; do
+      [ -n "$c" ] || continue
+      cname="$(printf '%s' "$c" | jq -r '.name')"
+      printf '%s\n' "$project_names" | grep -qxF "$cname" && continue
+      printf '%s\n' "$shared_seen" | grep -qxF "$cname" && continue
+      shared_seen="$shared_seen
+$cname"
+      provision_connector "$c"
+    done < <(jq -c '.connectors[]?' "$sf" 2>/dev/null)
+  done <<< "$shared_manifests"
+fi
 
 echo "connectors: done ($added added, $skipped already present)." >&2
 if [ "$added" -gt 0 ]; then

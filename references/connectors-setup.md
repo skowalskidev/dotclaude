@@ -111,7 +111,7 @@ and (if it exposes tools) to the guard. The manifest, skill, and auth-gate need 
 | Firebase prod WRITE SA key (work, ephemeral) | `~/.config/firebase-keys/your-project-write.json` — created for one confirmed write, removed after |
 | Firebase Admin SDK key (personal project) | `~/dev/secrets/firebase-keys/*.json`, chmod 600, dir 700 |
 | Stripe CLI profiles | `~/.config/stripe/config.toml` — `work-sandbox`, `work-prod`, `personal` |
-| Personal API keys | `~/.config/personal-keys.env`, chmod 600 |
+| Personal API keys (incl. `LINEAR_API_KEY`) | `~/.config/personal-keys.env`, chmod 600 |
 | Per-project runtime keys (personal) | that project's gitignored `.env.local`, chmod 600, symlinked into worktrees |
 
 Claude may read `~/.config/firebase-keys/**` and the other credential paths — the read-blockers were
@@ -129,6 +129,22 @@ committed `.gitignore` is ever touched. If some tool genuinely forces a personal
 project repo, ignore it in a NON-committed local layer teammates never see — `.git/info/exclude` (that
 repo only) or the global `core.excludesFile` (`~/.gitignore_global`, all repos) — never in the shared
 `.gitignore`. (Simon already has `core.excludesFile = ~/.gitignore_global` configured.)
+
+## Shared manifests (`"shared": true`) — one connector, layered across every matching project
+
+A manifest with `"shared": true` (e.g. `connectors/personal-shared.json`) declares connectors used by
+MORE than one project under a single `match` (a path or origin substring), instead of copying the same
+connector record into every project manifest that needs it.
+
+- **Layers UNDER the project manifest, never instead of it.** `bin/connectors-provision.sh` resolves
+  the project manifest by first-match as before (shared manifests are excluded from that loop), then
+  separately collects every `shared:true` manifest whose `match` also hits this repo — and applies
+  BOTH. A project connector always wins on a `name` clash.
+- **`--check` and provisioning include shared connectors automatically**; `--manifest --shared DIR`
+  prints just the matching shared manifest paths. `hooks/work-resource-guard.sh` reads shared manifests
+  the same way, so the work/personal boundary and the `gated`/`readOnly` write-guard cover a shared
+  connector exactly like a project one.
+- **Still never carries a secret value** — same `secret.path` declaration as any other connector.
 
 ## Onboarding a new project
 

@@ -63,9 +63,14 @@ is_cmd() {
 CONN_DIR="$HOME/.claude/connectors"
 # The CURRENT project's manifest (matched by git origin), for reading this repo's own connector config.
 CONN_MANIFEST="$("$HOME/.claude/bin/connectors-provision.sh" --manifest "$dir" 2>/dev/null || true)"
+# Any "shared": true manifest that ALSO matches this repo (e.g. connectors/personal-shared.json), layered
+# under the project manifest above — read the same way connectors-provision.sh layers them for
+# provisioning/--check, so the boundary guard never has a blind spot for a shared connector.
+SHARED_CONN_MANIFESTS="$("$HOME/.claude/bin/connectors-provision.sh" --manifest --shared "$dir" 2>/dev/null || true)"
 # A connector NAME can appear under more than one boundary (e.g. `firebase` is work in one manifest AND
 # personal in another), so boundary isolation uses the SET of boundaries the name appears under
-# across ALL manifests: deny only if that set is non-empty and does NOT include the current repo's boundary.
+# across ALL manifests (project, shared, and every other project's) — deny only if that set is
+# non-empty and does NOT include the current repo's boundary.
 connector_boundaries() { # $1=server -> unique boundaries across all manifests, one per line
   command -v jq >/dev/null 2>&1 || return 0
   local f
@@ -74,10 +79,21 @@ connector_boundaries() { # $1=server -> unique boundaries across all manifests, 
     jq -r --arg n "$1" '.connectors[]? | select(.name==$n) | (.boundary // empty)' "$f" 2>/dev/null
   done | sort -u
 }
-connector_field() { # $1=server $2=field, from THIS project's manifest only (empty if none)
+connector_field() { # $1=server $2=field, from THIS project's manifest first, else any layered SHARED manifest
   command -v jq >/dev/null 2>&1 || return 0
-  [ -n "$CONN_MANIFEST" ] && [ -f "$CONN_MANIFEST" ] || return 0
-  jq -r --arg n "$1" --arg k "$2" '.connectors[]? | select(.name==$n) | (.[$k] // empty)' "$CONN_MANIFEST" 2>/dev/null | head -1
+  local v=""
+  if [ -n "$CONN_MANIFEST" ] && [ -f "$CONN_MANIFEST" ]; then
+    v="$(jq -r --arg n "$1" --arg k "$2" '.connectors[]? | select(.name==$n) | (.[$k] // empty)' "$CONN_MANIFEST" 2>/dev/null | head -1)"
+  fi
+  if [ -z "$v" ] && [ -n "$SHARED_CONN_MANIFESTS" ]; then
+    local f
+    while IFS= read -r f; do
+      [ -n "$f" ] && [ -f "$f" ] || continue
+      v="$(jq -r --arg n "$1" --arg k "$2" '.connectors[]? | select(.name==$n) | (.[$k] // empty)' "$f" 2>/dev/null | head -1)"
+      [ -n "$v" ] && break
+    done <<< "$SHARED_CONN_MANIFESTS"
+  fi
+  printf '%s' "$v"
 }
 connector_cli_profile() { # $1=CLI name -> the profile THIS project pins for it (empty if none declared)
   command -v jq >/dev/null 2>&1 || return 0

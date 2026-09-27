@@ -158,6 +158,25 @@ def main() -> int:
             "auth_mode": "chatgpt", "tokens": {"access_token": "fixture-only"}}))
         dirs = {"work": work, "personal": personal}
 
+        # A "shared": true manifest (e.g. connectors/personal-shared.json) declares a connector once
+        # and it must layer under whichever project manifest matches — including across the
+        # work/personal boundary. Fixture a personal-only connector under the fake $HOME/.claude
+        # (fires() already points HOME at identity_file.parent) so this test needs no real machine
+        # connector: a WORK repo must never pick it up, and a PERSONAL repo under dev/vs-code-projects/
+        # (this manifest's real `match`) does.
+        fixture_connectors = root / ".claude" / "connectors"
+        fixture_connectors.mkdir(parents=True)
+        (fixture_connectors / "personal-shared-fixture.json").write_text(json.dumps({
+            "project": "personal-shared-fixture", "boundary": "personal", "shared": True,
+            "match": ["dev/vs-code-projects/"],
+            "connectors": [{"name": "linear-api", "kind": "api", "boundary": "personal",
+                             "readOnly": False, "gated": False}],
+        }))
+        shared_personal = root / "dev" / "vs-code-projects" / "some-personal-app"
+        shared_work = root / "dev" / "vs-code-projects" / "some-work-app"
+        _init_repo(shared_personal, "https://github.com/some-user/some-personal-app.git")
+        _init_repo(shared_work, f"https://github.com/{WORK_ORG_MATCH}/some-work-app.git")
+
         failures = []
         for name, boundary, cmd in MUST_FIRE:
             if not fires(dirs[boundary], identity_file, cmd):
@@ -168,12 +187,17 @@ def main() -> int:
         for boundary in dirs:
             if not fires(dirs[boundary], identity_file, "", "mcp__pal__codereview"):
                 failures.append(f"SHOULD HAVE BLOCKED pal API review in {boundary}")
+        if not fires(shared_work, identity_file, "", "mcp__linear-api__create_issue"):
+            failures.append("SHOULD HAVE BLOCKED personal-shared linear-api in a WORK repo")
+        if fires(shared_personal, identity_file, "", "mcp__linear-api__create_issue"):
+            failures.append(
+                "FALSE POSITIVE: personal-shared linear-api blocked in a PERSONAL repo under dev/vs-code-projects/")
 
-    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + len(dirs)
+    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + len(dirs) + 2
     for f in failures:
         print(f"FAIL  {f}")
     print(f"\n{total - len(failures)} pass / {len(failures)} fail "
-          f"({len(MUST_FIRE) + len(dirs)} must-fire, {len(MUST_NOT_FIRE)} must-not-fire)")
+          f"({len(MUST_FIRE) + len(dirs) + 1} must-fire, {len(MUST_NOT_FIRE) + 1} must-not-fire)")
     return 1 if failures else 0
 
 
