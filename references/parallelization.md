@@ -395,6 +395,19 @@ expected result (an agent told only what to do cannot tell you it failed), and n
 - **Precise, not long.** Anthropic's own worked spec is four sentences. An orchestrator that hasn't
   read the code is the node LEAST able to prescribe implementation, so specify the boundary and the
   acceptance test, then stop.
+- **DO give each code slice a `verify` that runs every check CI would run on its files**: the
+  formatter and linter over EVERY file it edits (an existing file included, not only the new ones),
+  its owned tests, the project's diff-scoped static audit, and a typecheck when no other slice's
+  unfinished edit can break it (else one package typecheck right after fan-out). DON'T accept tests
+  alone as a slice's proof (the fix for web slices that ran their tests while a fixture cast failed
+  typecheck, and an edited existing file left unformatted, both surfacing only in reconcile). TEST:
+  every edited code file has a formatter, lint and audit result in its slice's `verify.txt`.
+- **DO search the whole repo for tests and fixtures that call, mock or assert each changed entry
+  point** (the RPC, endpoint or function a slice changes), and give each one an owner: a slice, or
+  the reconciler with its targeted command. DON'T stop at the files next to the change (the fix for
+  test kits two directories away that counted a new stored read as a board search). TEST: before
+  dispatch, every test that references a changed entry point is named in some `owns` list or in the
+  reconcile plan.
 - **Check the owned file sets against EACH OTHER before dispatching.** N individually-correct specs
   can each name exact paths and a DO-NOT-TOUCH list and still overlap, and the overlap is invisible
   when you read them one at a time. Lay them side by side. Trigger on coupling, not agent count: do

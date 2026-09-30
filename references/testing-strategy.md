@@ -167,11 +167,26 @@ the cleanup command targets only this preview and releases its claimed ports.
   loading state, auth-guard behaviour, validation and boundary cases.
 - **Sequence slow whole-repo gates to protect the iteration loop** — run them once before the
   final commit, not after every commit.
+- **DO run the project's diff-scoped static audits (complexity, dead code, duplication) right after
+  the parallel reconcile, before any whole suite or build**, and fix what they find with the audit
+  alone. DON'T meet an audit failure first in the final gate (the fix for an audit that failed a new
+  module's complexity after two full suite runs, forcing a refactor and a third). TEST: the static
+  audits pass before the first full gate and stay in the final one.
 - **After editing a SHARED module, run the WHOLE package suite before calling it green, not just the
   test file whose name matches it.** Sibling files assert on a shared module's literal strings and
   behaviour, so the same-named test is not the blast radius. TEST: the full package suite ran green
   locally before the change was declared done. (the fix for a prompt-string edit whose same-named test
   passed while a sibling test file, pinning two of the changed strings, failed only in CI.)
+
+## Defects before proof
+
+**DO run the read-only defect finders — the code review (`/sk:ship-review`), the test-matrix Stage-2
+judge, the journey judge — BEFORE the heavy gate and the real-app check, and fix what they find first.**
+The heavy gate (full build, whole suite, device/simulator suite, real-app check) then runs ONCE on the
+reviewed code. DON'T run the heavy gate and then review: every finding after it buys another full
+rebuild (the fix for a branch rebuilt and re-tested on a simulator six times because review and the
+matrix judge ran after verification). TEST: no review or judge finding lands after the heavy gate
+passed; a repeat of the gate names the input that invalidated it.
 
 ## The full automated test matrix — two stages, run unattended
 
