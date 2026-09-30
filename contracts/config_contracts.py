@@ -52,6 +52,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Derive omitted setup from the actual orchestrator model; reject unknown models, native-provider conflicts, inherited setup conflicts and per-slice overrides before launching processes.",
             "Reject stale cross-provider plans without mutating the input spec; default OpenAI implementation to the native Codex config model and Claude implementation to the `sonnet` tier alias, never a pinned version.",
+            "Record the real orchestrator_model when Simon names a worker provider: `worker_provider` different from the orchestrator's resolves only under AGENT_ALLOW_CROSS_PROVIDER=1 and fails closed without it.",
             "Permit only the Fable-tier design route for a GPT orchestrator; reject any Astra-, Opus- or Fable-family model as an implementation worker, whatever its version.",
         ],
     },
@@ -161,6 +162,8 @@ CONTRACTS: dict[str, dict] = {
             "Stamp a repeatable same-machine handoff manifest (hop count, absolute plan/worktree/dashboard paths, live url when serving) and render a Handed off banner; resolve a pasted loopback dashboard url, file dashboard html or plan back to its plan and print the recorded engine, options and hop; bin/workflow-dashboard.test.py proves both across the three target forms.",
             "Reject a review section whose target is not an html or image asset, and refuse export while a mockups/ or previews/ html file under the plan directory is unreferenced by any section asset; bin/workflow-dashboard.test.py proves both.",
             "Render bin/workflow-dashboard.html dark by default with a persisted light toggle that leaves embedded assets unthemed, and show a review section's html target full-width above Before and Current.",
+            "Give every embedded asset (html, image, text) an Open in new tab link, accept per-section links to files that are not embedded, and list any file under the plan directory that no section references as unlinked, in the offline export and the live app.",
+            "Order the section list review, doing, blocked, todo, done with plan order inside each state and the original plan number on each row, without reordering the plan's own sections array.",
         ],
     },
     "apps/gauntlet": {

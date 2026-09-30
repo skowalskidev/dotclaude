@@ -20,7 +20,8 @@ it on OpenAI. The dispatcher sets
 unavailable Fable run stops instead of falling back to OpenAI or API billing. Do not use this exception
 in a Claude-orchestrated workflow. For any other provider switch, require Simon's explicit in-chat ask
 for a named host (e.g. "use the OpenAI top tier" from a Claude chat), never self-initiate. On that named-host ask,
-set `AGENT_ALLOW_CROSS_PROVIDER=1` on the dispatch so `bin/agent_setup.py` runs the cross-provider
+set `AGENT_ALLOW_CROSS_PROVIDER=1` and `"worker_provider"` (the named provider) on the dispatch, keeping the real
+`orchestrator_model`, so `bin/agent_setup.py` runs the cross-provider
 worker; the guard's default block stays for every switch Simon did not ask for. The subscription-only
 billing guard (`references/agent-hosts.md`) stays fully enforced.
 TEST: a `model_route: design` slice from `full-openai` or `full-astra` invokes `claude -p --model fable`;

@@ -167,6 +167,23 @@ class SetupTests(IsolatedCachesMixin, unittest.TestCase):
         self.assertEqual(resolved['model_provider'], 'openai')
         self.assertEqual(resolved['agent_setup'], 'full-astra')
 
+    def test_claude_orchestrator_records_itself_with_named_openai_workers(self):
+        self.write_openai_cache([{'slug': 'gpt-6-astra', 'priority': 1},
+                                 {'slug': 'gpt-5.6-sol', 'priority': 2},
+                                 {'slug': 'gpt-5.6-luna', 'priority': 3}])
+        spec = dict(self.spec, orchestrator_model='opus', worker_provider='openai')
+        spec.pop('agent_setup', None)
+        spec.pop('model', None)
+        with patch.dict(os.environ, {'CLAUDECODE': '1', 'AGENT_ALLOW_CROSS_PROVIDER': '1'}):
+            resolved = agent_setup.resolve(spec)
+        self.assertEqual(resolved['orchestrator_model'], 'opus')
+        self.assertEqual(resolved['agent_setup'], 'full-openai')
+        self.assertEqual(resolved['model_provider'], 'openai')
+        self.assertEqual(resolved['model'], 'gpt-5.6-sol')
+        with patch.dict(os.environ, {'CLAUDECODE': '1'}):
+            with self.assertRaisesRegex(ValueError, 'worker_provider openai differs'):
+                agent_setup.resolve(spec)
+
     def test_general_openai_session_inherits_model_without_astra_switch(self):
         self.write_openai_cache([{'slug': 'gpt-6-astra', 'priority': 1},
                                  {'slug': 'gpt-5.6-sol', 'priority': 2},

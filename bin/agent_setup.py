@@ -206,23 +206,45 @@ def is_design_route(item):
     return item.get('model_route') == 'design'
 
 
+def named_worker_provider(spec, orchestrator_provider):
+    """The worker provider Simon named for this run, or the orchestrator's own.
+
+    A named provider that differs from the orchestrator's is his named-host ask, so it needs the
+    explicit override; without it the run fails closed like any other cross-provider switch.
+    """
+    named = spec.get('worker_provider')
+    if named is None:
+        return orchestrator_provider
+    if named not in ('openai', 'anthropic'):
+        raise ValueError('Unknown worker_provider; name openai or anthropic.')
+    if named != orchestrator_provider and os.environ.get('AGENT_ALLOW_CROSS_PROVIDER') != '1':
+        raise ValueError('worker_provider ' + named + ' differs from the orchestrator; set '
+                         'AGENT_ALLOW_CROSS_PROVIDER=1 only on Simon\'s named-host ask.')
+    return named
+
+
 def resolve(spec):
     orchestrator = spec.get('orchestrator_model')
-    provider = model_provider(orchestrator)
-    if not provider:
+    orchestrator_provider = model_provider(orchestrator)
+    if not orchestrator_provider:
         raise ValueError('Record the actual orchestrator_model from the current chat before dispatching.')
-    require_provider(provider)
+    require_provider(orchestrator_provider)
+    provider = named_worker_provider(spec, orchestrator_provider)
+    named_host = provider != orchestrator_provider
     setup = spec.get('agent_setup')
     if setup is None:
         setup = ('full-claude' if provider == 'anthropic' else
-                 'full-astra' if tier_of(orchestrator) == 'top' else 'full-openai')
+                 'full-astra' if not named_host and tier_of(orchestrator) == 'top' else 'full-openai')
     if setup not in SETUPS:
         raise ValueError('Unknown agent_setup; derive it from the current chat provider.')
     inherited = os.environ.get('AGENT_SETUP')
     if inherited and inherited != setup:
         raise ValueError('The requested setup differs from this workflow\'s AGENT_SETUP; '
                          'reconcile the stale plan with the current chat before dispatching.')
-    if not matches_orchestrator(setup, orchestrator):
+    if named_host:
+        if not matches_model(setup, resolve_tier(provider, 'mid')):
+            raise ValueError('agent_setup must match worker_provider ' + provider + '.')
+    elif not matches_orchestrator(setup, orchestrator):
         raise ValueError('orchestrator_model must match ' + setup +
                          '; reconcile the stale plan with the actual current chat.')
     model = spec.get('model') or resolve_tier(provider, 'mid')
