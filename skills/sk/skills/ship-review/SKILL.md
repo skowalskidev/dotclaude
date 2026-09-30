@@ -42,7 +42,14 @@ Project databases, cloud accounts and other service credentials still follow Ste
 2. Run a separate fresh adversarial pass on the first pass's top findings using the same setup.
    For OpenAI, use `~/.claude/bin/codex-launch.py -p "<findings and diff review brief>" --model <saved-openai-model> --sandbox read-only`.
    Verify every finding against the source before accepting it.
-3. If subscription authentication, quota or the selected model is unavailable, stop and report it.
+3. **When a fix round would follow, run independent lenses IN PARALLEL before fixing anything**:
+   the correctness pass, a cross-layer parity lens (every value two layers derive or decode) and a
+   money/data lens, each over the whole diff, each told to report ALL findings. Hand every lens the
+   list of already-decided rules and refuted findings so none is re-raised. Triage the union once,
+   write the decisions down as rules every layer implements, and fix in ONE round. TEST: a second
+   fix round runs only for a finding the first round's fix itself introduced. (The fix for nine
+   serial single-review rounds, each surfacing one new defect class.)
+4. If subscription authentication, quota or the selected model is unavailable, stop and report it.
    Never switch to API keys, pal or direct paid model APIs. Reviews have no API-billing exception.
 
 ## Step 3 — Synthesize one report

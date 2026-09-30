@@ -56,6 +56,11 @@ slowest slice took 451s of a 466s round while three workers sat idle.
 1. **Freeze the shared contract first.** Anything several slices depend on (shared types, an interface,
    a schema) gets written and committed in the base commit BEFORE dispatch. A slice that has to invent
    a shared type will conflict with the slice that invented it differently.
+   **Name ONE producer for every value derived across layers**, and have every other layer read what
+   it sends. A trip, a count, a price or an entitlement that the server and each client rebuild from
+   the same inputs drifts, one reviewer round per drift. TEST: every consumer prompt names the
+   producer and the field it reads; no slice re-derives a value another slice sends. (The fix for
+   a list count the server resolved one way and two clients each rebuilt differently.)
 2. **Give every slice exclusive ownership.** Each slice declares `owns` (may edit), `reads` (read-only
    context), and `forbid` (the look-alikes another slice owns). Lay the `owns` lists side by side and
    check them against each other; individually-correct specs still overlap, and the overlap is
@@ -85,6 +90,12 @@ slowest slice took 451s of a 466s round while three workers sat idle.
 6. **Summarise a frozen shared contract IN each prompt and leave it OUT of `reads`.** Freezing it
    before dispatch stops the slices disagreeing; listing it in `reads` still makes all N pay to read
    it. Do both halves.
+   **Freeze a POPULATED wire fixture for every payload one slice produces and another decodes**: one
+   full record with the exact field names, types and required fields. The producer's test emits it
+   and every consumer's test decodes it, saved and reopened where the data persists. TEST: the
+   fixture passes the producer and every consumer; a test that decodes an empty list proves nothing.
+   (The fix for a server row missing four fields a client decoder required, behind a green
+   empty-list test.)
 7. **Size by expected work, not by file count.** One slice touching a large module is not equivalent to
    one touching three small files. Imbalance is the dominant waste in every run measured so far.
    **Use FILE COUNT as the proxy (line count was the old one and predicted the critical path less well than file count did across three runs).** Across
@@ -131,6 +142,9 @@ slowest slice took 451s of a 466s round while three workers sat idle.
    blocked there. Fetch dependencies in `setup` and give every code slice a `verify` that runs in its
    sandbox (a syntax parse, a scoped unit run); list the checks it cannot run in its `accept` line as the
    reconciler's. TEST: every slice's `verify` ran in its sandbox; blocked never counts as passed.
+   **DON'T write `BLOCKED.md` for a check the sandbox alone cannot run** (network, a simulator, the
+   git common dir). Finish the code, note the unrun check in `DONE.md`, and let the dispatcher's
+   outside re-run of `verify` decide. BLOCKED means the slice's own work cannot finish.
    **Never declare auto-loaded files in `reads`.** A project's `CLAUDE.md` and its `.claude/rules/*.md`
    already reach every slice through the nested-import chain. Listing them buys nothing, and it makes
    the duplicated-reads metric propose freezing a file that was never the cost.

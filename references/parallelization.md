@@ -49,6 +49,9 @@ printf '%s' 'Review the assigned diff' | ~/.claude/bin/codex-launch.py -p --sand
 ~/.claude/bin/codex-launch.py -p "Implement the assigned slice" --cd /absolute/repo --output-format json
 ```
 
+Put the inline prompt IMMEDIATELY after `-p`, or pipe it on stdin; other flags go before `-p` or after
+the prompt. TEST: no flag sits between `-p` and its prompt, which binds the flag as the prompt.
+
 It starts an independent native Codex `exec --model <model>` process through `codex-launch.py`,
 using the native Codex config model when `--model` is omitted,
 using the subscription-only policy in `references/agent-hosts.md` and project connector routing.
