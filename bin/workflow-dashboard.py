@@ -130,6 +130,13 @@ def validate(s):
         if section['status'] == 'review':
             require((section.get('target') or {}).get('kind') in ('html', 'image'),
                     'A review section needs its proposal embedded as the target asset (kind html or image)')
+        links = section.get('links')
+        if links is not None:
+            require(isinstance(links, list), 'Link needs a label and a path')
+            for link in links:
+                require(isinstance(link, dict) and isinstance(link.get('label'), str) and link['label'].strip() and
+                        isinstance(link.get('path'), str) and link['path'].strip(),
+                        'Link needs a label and a path')
     if s['phase'] == 'complete':
         require(all(x['status'] == 'done' for x in sections), 'Complete requires every section done')
     return s
@@ -296,6 +303,15 @@ def task_record(content, state):
                 'role': key,
                 **{field: asset[field] for field in ('kind', 'label', 'path', 'source', 'capturedAt') if field in asset},
             })
+        for link in section.get('links') or []:
+            artifacts.append({
+                'sectionId': section['id'],
+                'section': section['title'],
+                'role': 'link',
+                'kind': 'file',
+                'label': link['label'],
+                'path': link['path'],
+            })
         if section['status'] != 'done':
             remaining.append({
                 'sectionId': section['id'],
@@ -333,6 +349,59 @@ def update(path, replacement, expected):
         return new, rendered
 
 
+UNLINKED_CAP = 300
+
+
+def referenced_paths(base, sections):
+    """Every file a section reaches, through an embedded asset path or a links entry."""
+    referenced = set()
+    for section in sections:
+        for key in ('before', 'target', 'current'):
+            asset = section.get(key)
+            if asset and asset.get('path'):
+                referenced.add((base / asset['path']).resolve())
+        for link in section.get('links') or []:
+            referenced.add((base / link['path']).resolve())
+    return referenced
+
+
+def compute_unlinked(base, sections):
+    """Files under the plan directory no section reaches, for the 'nothing gets lost' list."""
+    referenced = referenced_paths(base, sections)
+    candidates = []
+    for file in base.rglob('*'):
+        if not file.is_file():
+            continue
+        rel = file.relative_to(base)
+        parts = rel.parts
+        if any(part.startswith('.') for part in parts):
+            continue
+        if parts[0] in ('attachments', 'node_modules'):
+            continue
+        name = file.name
+        if name.endswith('-plan.md') or name.endswith('-dashboard.html'):
+            continue
+        if name == 'intent-ledger.md' or name.startswith('intent-ledger'):
+            continue
+        if name.endswith('.lock'):
+            continue
+        try:
+            size = file.stat().st_size
+        except OSError:
+            continue
+        if size == 0:
+            continue
+        if file.resolve() in referenced:
+            continue
+        candidates.append((rel.as_posix(), file))
+    candidates.sort(key=lambda pair: pair[0])
+    truncated = len(candidates) > UNLINKED_CAP
+    candidates = candidates[:UNLINKED_CAP]
+    entries = [{'path': rel_posix, 'href': file.resolve().as_uri(), 'bytes': file.stat().st_size}
+               for rel_posix, file in candidates]
+    return entries, truncated
+
+
 def public_spec(plan, state=None):
     content = Path(plan).read_text()
     if state is None:
@@ -358,6 +427,17 @@ def public_spec(plan, state=None):
                 require(mime, 'Images must be PNG, JPEG or WebP')
                 asset['data'] = 'data:' + mime + ';base64,' + base64.b64encode(raw).decode()
             asset['sha256'] = hashlib.sha256(raw).hexdigest()
+            asset['href'] = path.as_uri()
+        for link in section.get('links') or []:
+            path = (base / link['path']).resolve()
+            require(path.is_relative_to(base), 'Links must stay inside the plan directory')
+            require(path.is_file(), 'Missing link: ' + str(path))
+            link['href'] = path.as_uri()
+            link['bytes'] = path.stat().st_size
+    unlinked, truncated = compute_unlinked(base, s['sections'])
+    s['unlinked'] = unlinked
+    if truncated:
+        s['unlinkedTruncated'] = True
     return s
 
 
@@ -392,12 +472,7 @@ def export_dashboard(plan, output=None):
     output = Path(output).resolve() if output else canonical_dashboard_path(plan)
     base = plan.parent
     _, _, state = read_plan(plan)
-    referenced = set()
-    for section in state['sections']:
-        for key in ('before', 'target', 'current'):
-            asset = section.get(key)
-            if asset and asset.get('path'):
-                referenced.add((base / asset['path']).resolve())
+    referenced = referenced_paths(base, state['sections'])
     for sub in ('mockups', 'previews'):
         subdir = base / sub
         if not subdir.is_dir():

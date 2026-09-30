@@ -1,4 +1,4 @@
-// OWNED BY SLICE `api-plan`. GET ?plan=…&path=… → stream the file (assetPathOrThrow), Content-Type by extension (html/webp/png/jpg/svg/json/txt/md), ETag = size+mtime, 304 on If-None-Match, Cache-Control: no-cache. HTML gets `Content-Security-Policy: default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; frame-src about: blob:; connect-src 'none'` (self-contained mockups need nothing else) and X-Frame-Options omitted. 404 → {error}.
+// OWNED BY SLICE `api-plan`. GET ?plan=…&path=… → stream the file (assetPathOrThrow), Content-Type by extension (html/webp/png/jpg/svg/json/txt/md, plus js/mjs/ts/css/csv/sql/log as text/plain so a linked source file opens in the tab instead of downloading), ETag = size+mtime, 304 on If-None-Match, Cache-Control: no-cache. HTML gets `Content-Security-Policy: default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; font-src data:; frame-src about: blob:; connect-src 'none'` (self-contained mockups need nothing else) and X-Frame-Options omitted. 404 → {error}.
 import { promises as fs, createReadStream } from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
@@ -17,6 +17,14 @@ const CONTENT_TYPES: Record<string, string> = {
   ".json": "application/json",
   ".txt": "text/plain; charset=utf-8",
   ".md": "text/markdown; charset=utf-8",
+  // Linked source files: rendered as text in the tab rather than downloaded.
+  ".js": "text/plain; charset=utf-8",
+  ".mjs": "text/plain; charset=utf-8",
+  ".ts": "text/plain; charset=utf-8",
+  ".css": "text/plain; charset=utf-8",
+  ".csv": "text/plain; charset=utf-8",
+  ".sql": "text/plain; charset=utf-8",
+  ".log": "text/plain; charset=utf-8",
 };
 
 const HTML_CSP =

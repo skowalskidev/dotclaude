@@ -120,8 +120,28 @@ function TabContent({ tab, spec, groups }: { tab: RecordTab; spec: PublicSpec; g
       return groups.pivots.length ? <div>{groups.pivots.map((e, i) => <LedgerRow key={i} entry={e} />)}</div> : <Empty />;
     case "Asks":
       return groups.asks.length ? <div>{groups.asks.map((e, i) => <LedgerRow key={i} entry={e} />)}</div> : <Empty />;
-    case "Artifacts":
-      return spec.record.artifacts.length ? <div>{spec.record.artifacts.map((r, i) => <ArtifactRow key={i} row={r} />)}</div> : <Empty />;
+    case "Artifacts": {
+      const hasArtifacts = spec.record.artifacts.length > 0;
+      const hasUnlinked = spec.unlinked.length > 0;
+      if (!hasArtifacts && !hasUnlinked) return <Empty />;
+      return (
+        <div>
+          {hasArtifacts && <div>{spec.record.artifacts.map((r, i) => <ArtifactRow key={i} row={r} />)}</div>}
+          {hasUnlinked && (
+            <div className={hasArtifacts ? "mt-4" : undefined}>
+              <div className="mb-1 text-xs font-semibold text-tx">
+                Unlinked files ({spec.unlinked.length}{spec.unlinkedTruncated ? "+" : ""})
+              </div>
+              {spec.unlinked.map((f) => (
+                <a key={f.path} href={f.url} target="_blank" rel="noreferrer" className="block truncate border-b border-ln py-1.5 text-xs text-tx underline underline-offset-2 last:border-b-0">
+                  {f.path}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
     case "Remaining":
       return spec.record.remaining.length ? <div>{spec.record.remaining.map((r, i) => <RemainingRowView key={i} row={r} />)}</div> : <Empty />;
     case "Journey": {

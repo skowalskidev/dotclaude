@@ -724,6 +724,161 @@ class DashboardTests(unittest.TestCase):
             p.write_text(block+block)
             with self.assertRaisesRegex(ValueError, 'exactly one'): d.read_plan(p)
 
+    def test_links_validate_needs_label_and_path(self):
+        for bad_links in (
+            [{'path': 'a.txt'}],
+            [{'label': 'A'}],
+            [{'label': '', 'path': 'a.txt'}],
+            [{'label': 'A', 'path': ''}],
+            'not-a-list',
+            [{'label': 'A', 'path': 'a.txt'}, {'path': 'b.txt'}],
+        ):
+            with self.subTest(bad_links=bad_links):
+                s = fixture()
+                s['sections'][0]['links'] = bad_links
+                with self.assertRaisesRegex(ValueError, 'Link needs a label and a path'):
+                    d.validate(s)
+        s = fixture()
+        s['sections'][0]['links'] = [{'label': 'Report', 'path': 'report.txt'}]
+        s['sections'][0]['links'].append({'label': 'Extra', 'path': 'x.txt'})
+        # A well-formed links list passes schema validation on its own (file existence is a
+        # public_spec concern, checked separately below).
+        d.validate(s)
+
+    def test_public_spec_links_get_href_and_bytes_missing_and_escaping_fail(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'report.txt').write_text('the full report content')
+            s = fixture()
+            s['sections'][0]['links'] = [{'label': 'Report', 'path': 'report.txt'}]
+            plan = base / 'task-plan.md'
+            plan.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            public = d.public_spec(plan)
+            link = public['sections'][0]['links'][0]
+            self.assertTrue(link['href'].startswith('file://'))
+            self.assertEqual(link['bytes'], (base / 'report.txt').stat().st_size)
+
+            s['sections'][0]['links'] = [{'label': 'Gone', 'path': 'missing.txt'}]
+            plan.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            with self.assertRaisesRegex(ValueError, '^Missing link:'):
+                d.public_spec(plan)
+
+            s['sections'][0]['links'] = [{'label': 'Escape', 'path': '../outside.txt'}]
+            plan.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            with self.assertRaisesRegex(ValueError, 'Links must stay inside the plan directory'):
+                d.public_spec(plan)
+
+    def test_linked_file_is_not_inlined_regardless_of_size(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            marker = 'LINKED-FILE-MARKER-' + 'x' * 200
+            (base / 'source.py').write_text(marker)
+            s = fixture()
+            s['sections'][0]['links'] = [{'label': 'Source', 'path': 'source.py'}]
+            plan = base / 'task-plan.md'
+            plan.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            rendered = d.render(plan)
+            self.assertNotIn(marker, rendered)
+            public = d.public_spec(plan)['sections'][0]['links'][0]
+            self.assertNotIn('data', public)
+            self.assertNotIn('html', public)
+            self.assertNotIn('text', public)
+
+    def test_unlinked_lists_only_genuinely_unreferenced_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'linked.txt').write_text('referenced through links')
+            (base / 'orphan.txt').write_text('nobody points at this one')
+            (base / 'intent-ledger.md').write_text('ledger')
+            (base / '.hidden').write_text('dotfile')
+            (base / 'task-dashboard.html').write_text('stale export')
+            attachments = base / 'attachments'
+            attachments.mkdir()
+            (attachments / 'note.txt').write_text('attachment')
+            s = fixture()
+            s['sections'][0]['links'] = [{'label': 'Linked', 'path': 'linked.txt'}]
+            plan = base / 'task-plan.md'
+            plan.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            public = d.public_spec(plan)
+            paths = {entry['path'] for entry in public['unlinked']}
+            self.assertEqual(paths, {'orphan.txt'})
+            self.assertNotIn('unlinkedTruncated', public)
+            entry = public['unlinked'][0]
+            self.assertTrue(entry['href'].startswith('file://'))
+            self.assertEqual(entry['bytes'], (base / 'orphan.txt').stat().st_size)
+
+    def test_task_record_artifacts_include_links_with_link_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            (base / 'data.csv').write_text('a,b\n1,2\n')
+            s = fixture()
+            s['sections'][0]['links'] = [{'label': 'Raw data', 'path': 'data.csv'}]
+            plan = base / 'task-plan.md'
+            plan.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            public = d.public_spec(plan)
+            link_artifacts = [a for a in public['record']['artifacts'] if a['role'] == 'link']
+            self.assertEqual(len(link_artifacts), 1)
+            self.assertEqual(link_artifacts[0]['kind'], 'file')
+            self.assertEqual(link_artifacts[0]['label'], 'Raw data')
+            self.assertEqual(link_artifacts[0]['path'], 'data.csv')
+
+    def test_export_accepts_previews_html_referenced_only_through_links(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            plan = base / 'task-plan.md'
+            s = fixture()
+            s['sections'][0]['links'] = [{'label': 'Preview', 'path': 'previews/p.html'}]
+            (base / 'previews').mkdir()
+            (base / 'previews' / 'p.html').write_text('<p>Only linked, never embedded</p>')
+            plan.write_text('```dashboard-state\n' + json.dumps(s) + '\n```\n')
+            output = d.export_dashboard(plan)
+            self.assertTrue(output.is_file())
+
+    def test_shell_has_ordering_function_files_row_and_unlinked_control(self):
+        source = Path(__file__).with_name('workflow-dashboard.html').read_text()
+        self.assertIn('function displayOrder(sections)', source)
+        self.assertIn("review:0,doing:1,blocked:2,todo:3,done:4", source)
+        self.assertIn('id="files"', source)
+        self.assertIn('id="unlinked-button"', source)
+        self.assertIn('Unlinked files (', source)
+
+    @unittest.skipUnless(HAVE_PLAYWRIGHT, 'playwright not installed')
+    def test_review_section_floats_first_with_original_number_and_image_opens_in_tab(self):
+        """Work in progress floats to the top: a plan with sections in done, todo, review order
+        must show the review section first in the sidebar while it keeps its original number 03,
+        and every embedded asset (an image here) offers an 'Open in new tab' link."""
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII='
+            state = fixture()
+            first = state['sections'][0]
+            first.update(id='one', title='One', status='done')
+            first['criteria'][0].update(passed=True, evidence='done')
+            second = copy.deepcopy(first)
+            second.update(id='two', title='Two', status='todo')
+            second['criteria'][0].update(passed=False, evidence='')
+            third = copy.deepcopy(first)
+            third.update(id='three', title='Three', status='review')
+            third['criteria'][0].update(passed=False, evidence='')
+            third['target'] = {'kind': 'image', 'label': 'Proposal', 'data': 'data:image/png;base64,' + png}
+            third['current'] = {'kind': 'image', 'label': 'Current capture', 'data': 'data:image/png;base64,' + png}
+            state['sections'] = [first, second, third]
+            plan = base / 'task-plan.md'
+            plan.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+            out = base / 'dashboard.html'
+            out.write_text(d.render(plan))
+            with sync_playwright() as pw:
+                browser = pw.chromium.launch()
+                page = browser.new_page()
+                page.goto(out.as_uri())
+                page.wait_for_timeout(200)
+                first_button = page.locator('#sections button').nth(0)
+                self.assertEqual(first_button.locator('.number').inner_text(), '03')
+                self.assertIn('Three', first_button.inner_text())
+                self.assertTrue(page.locator('.panel-caption .open-mock-tab').first.is_visible())
+                self.assertEqual(page.locator('.panel-caption .open-mock-tab').first.inner_text(), 'Open in new tab ↗')
+                browser.close()
+
     @unittest.skipUnless(HAVE_PLAYWRIGHT, 'playwright not installed')
     def test_mock_dialog_open_in_new_tab_shows_the_same_html(self):
         """An html asset is inlined (srcdoc), so the viewer had no way to open it outside the

@@ -13,9 +13,12 @@ export interface Asset {
 }
 export interface Criterion { id: string; text: string; passed: boolean; evidence: string }
 export interface Judge { verdict: 'pending' | 'pass' | 'fail' | 'blocked'; agentId?: string; builderId?: string; artifactRevision?: number; reference?: string; evidence?: string }
+/** A file the task produced that is linked, not embedded (too large or too private to inline). */
+export interface SectionLink { label: string; path: string; url?: string; bytes?: number }
 export interface Section {
   id: string; title: string; summary: string; status: SectionStatus; artifactRevision: number; next?: string;
   previewUrl?: string; before?: Asset; target?: Asset; current?: Asset; criteria: Criterion[]; judge: Judge;
+  links?: SectionLink[];
 }
 export interface DashboardState {
   schemaVersion: number; title: string; planPath: string; revision: number; updatedAt: string; phase: Phase;
@@ -24,12 +27,17 @@ export interface DashboardState {
   feedbackDrafts?: Record<string, unknown>;
 }
 export interface RecordEntry { label: string; text: string }
-export interface ArtifactIndexRow { sectionId: string; section: string; role: AssetRole; kind: AssetKind; label: string; path?: string; source?: string; capturedAt?: string }
+export interface ArtifactIndexRow { sectionId: string; section: string; role: AssetRole | 'link'; kind: AssetKind | 'file'; label: string; path?: string; source?: string; capturedAt?: string }
 export interface RemainingRow { sectionId: string; section: string; status: SectionStatus; next: string; criteria: string[] }
 export interface TaskRecord { sections: RecordEntry[]; artifacts: ArtifactIndexRow[]; remaining: RemainingRow[] }
 /** One intent-ledger entry (read-only projection of .context/intent-ledger.md). */
 export interface LedgerEntry { at: string; kind: 'ask' | 'sources' | 'plan' | 'pivot' | 'reconcile' | 'other'; session?: string; text: string }
-export interface PublicSpec extends DashboardState { record: TaskRecord; ledger: LedgerEntry[]; planDir: string }
+/** A file under the plan directory no section reaches through an asset path or a links entry. */
+export interface UnlinkedFile { path: string; url: string; bytes: number }
+export interface PublicSpec extends DashboardState {
+  record: TaskRecord; ledger: LedgerEntry[]; planDir: string;
+  unlinked: UnlinkedFile[]; unlinkedTruncated?: boolean;
+}
 export interface ProjectRow { plan: string; title: string; phase: Phase; revision: number; updatedAt: string; root: string }
 /** SSE payload on /api/events?plan=… */
 export type LiveEvent = { type: 'revision'; revision: number; updatedAt: string } | { type: 'asset'; path: string } | { type: 'ping'; at: string };

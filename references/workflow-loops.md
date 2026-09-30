@@ -120,6 +120,20 @@ three merge previews sat as loose files beside an empty "No capture yet" section
 three times, then were shown as "Current" so approving them read as nonsense.) Enforced: `validate`
 rejects a `review` section without an html/image `target`.
 
+DO make every artifact openable in a new tab from the dashboard. Each embedded asset (html, image,
+text) carries an `Open in new tab ↗` link in its panel caption. List every other file the task
+produced under the section's `links` (`label`, `path`), including a file too large or too private
+to embed; the viewer renders each as a new-tab link under the panels. The viewer lists any file
+under the plan directory that no section references as `Unlinked files`. TEST: every file named in
+a section's summary, next step or evidence opens from that section in one click, no panel with an
+asset lacks the link, and the unlinked list is empty at hand-back. (e.g. a report, a data viewer
+and a journey write-up sat in `.context/` with only a preview image on the dashboard.)
+
+DO order the section list by state, work in progress first: review, doing, blocked, todo, done.
+Keep plan order inside each group and keep each section's original number. Open on the first
+section in that order when the link names none. TEST: a plan whose only `review` section is
+eleventh of fifteen shows it first in the list.
+
 DO base each visual increment on the last user-approved version and the product's current design.
 Record the proposed revision/hash separately from the approved revision/hash. Announce the specific
 change before editing, show that revision through the canonical link, and wait for its review before

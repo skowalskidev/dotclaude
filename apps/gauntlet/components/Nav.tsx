@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { ListOrdered, PenLine, Link2 } from "lucide-react";
 import type { PublicSpec } from "@/lib/types";
+import { displayOrder } from "@/lib/sectionOrder";
 import { StatusDot } from "./StatusDot";
 
 export interface NavProps { spec: PublicSpec; planPath: string; activeId?: string }
@@ -16,13 +17,13 @@ function recordHref(planPath: string, activeId: string | undefined, record: stri
 export function Nav({ spec, planPath, activeId }: NavProps) {
   return (
     <nav className="flex h-full w-54 shrink-0 flex-col gap-0.5 border-r border-ln p-2">
-      {spec.sections.map((s, i) => (
+      {displayOrder(spec.sections).map((s) => (
         <Link
           key={s.id}
           href={`/p?plan=${encodeURIComponent(planPath)}&section=${encodeURIComponent(s.id)}`}
           className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 ${s.id === activeId ? "bg-sf2" : "hover:bg-sf2"}`}
         >
-          <span className="font-mono text-[11px] text-mu w-4">{String(i + 1).padStart(2, "0")}</span>
+          <span className="font-mono text-[11px] text-mu w-4">{String(spec.sections.indexOf(s) + 1).padStart(2, "0")}</span>
           <StatusDot status={s.status} />
           <span className="min-w-0 flex-1 truncate max-[1000px]:hidden">{s.title}</span>
           {s.status === "review" && (

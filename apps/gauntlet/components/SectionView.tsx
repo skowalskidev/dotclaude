@@ -20,6 +20,7 @@ function sectionHref(planPath: string, sectionId: string, role: string, persona:
 
 export function SectionView({ section, planPath, role, persona }: SectionViewProps) {
   const asset = section[role];
+  const openHref = asset?.url ?? (asset?.kind === "text" && asset.text ? `data:text/plain;charset=utf-8,${encodeURIComponent(asset.text)}` : undefined);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2.5 px-4 pt-3 pb-2">
@@ -54,8 +55,8 @@ export function SectionView({ section, planPath, role, persona }: SectionViewPro
           </Link>
         </div>
         <div className="flex-1" />
-        {asset?.url && (
-          <a href={asset.url} target="_blank" rel="noreferrer" aria-label="Open" title="Open" className="text-mu hover:text-tx">
+        {openHref && (
+          <a href={openHref} target="_blank" rel="noreferrer" aria-label="Open" title="Open" className="text-mu hover:text-tx">
             <ExternalLink size={16} />
           </a>
         )}
@@ -68,6 +69,15 @@ export function SectionView({ section, planPath, role, persona }: SectionViewPro
       <div className="mx-4 min-h-0 flex-1 overflow-hidden rounded-[var(--radius)] border border-ln bg-sf">
         <AssetFrame asset={asset} role={role} persona={persona} fill />
       </div>
+      {!!section.links?.length && (
+        <div className="mx-4 mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          {section.links.map((link) => (
+            <a key={link.path} href={link.url} target="_blank" rel="noreferrer" title={link.path} className="text-mu underline underline-offset-2 hover:text-tx">
+              {link.label} ↗
+            </a>
+          ))}
+        </div>
+      )}
       <Filmstrip section={section} planPath={planPath} role={role} />
     </div>
   );

@@ -1,5 +1,6 @@
 import { publicSpec } from "@/lib/plan";
 import { planPathOrThrow } from "@/lib/paths";
+import { displayOrder } from "@/lib/sectionOrder";
 import { TopBar } from "@/components/TopBar";
 import { Nav } from "@/components/Nav";
 import { SectionView } from "@/components/SectionView";
@@ -14,7 +15,7 @@ export default async function PlanPage({ searchParams }: PageProps<"/p">) {
   const sp = await searchParams;
   const planPath = planPathOrThrow(typeof sp.plan === "string" ? sp.plan : null);
   const spec = await publicSpec(planPath);
-  const sectionId = typeof sp.section === "string" && spec.sections.some((s) => s.id === sp.section) ? sp.section : (spec.sections.find((s) => s.status === "review") ?? spec.sections.find((s) => s.status !== "done") ?? spec.sections[0])?.id;
+  const sectionId = typeof sp.section === "string" && spec.sections.some((s) => s.id === sp.section) ? sp.section : displayOrder(spec.sections)[0]?.id;
   const role = sp.role === "before" || sp.role === "current" ? sp.role : "target";
   const persona = sp.persona === "mobile" ? "mobile" : "desktop";
   const section = spec.sections.find((s) => s.id === sectionId);

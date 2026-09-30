@@ -6,6 +6,7 @@ import { Command } from "cmdk";
 import { Search } from "lucide-react";
 import type { PublicSpec } from "@/lib/types";
 import { RECORD_TABS } from "@/lib/ledger";
+import { displayOrder } from "@/lib/sectionOrder";
 import { StatusDot } from "./StatusDot";
 
 export interface CommandPaletteProps { spec: PublicSpec; planPath: string }
@@ -33,7 +34,7 @@ export function CommandPalette({ spec, planPath }: CommandPaletteProps) {
   const currentSectionId = useCallback((): string | undefined => {
     const fromUrl = searchParams.get("section");
     if (fromUrl && spec.sections.some((s) => s.id === fromUrl)) return fromUrl;
-    return (spec.sections.find((s) => s.status === "review") ?? spec.sections.find((s) => s.status !== "done") ?? spec.sections[0])?.id;
+    return displayOrder(spec.sections)[0]?.id;
   }, [searchParams, spec.sections]);
 
   const go = useCallback((patch: Record<string, string>) => {
@@ -45,7 +46,7 @@ export function CommandPalette({ spec, planPath }: CommandPaletteProps) {
   }, [router, searchParams, planPath]);
 
   const moveSection = useCallback((delta: number) => {
-    const ids = spec.sections.map((s) => s.id);
+    const ids = displayOrder(spec.sections).map((s) => s.id);
     if (!ids.length) return;
     const cur = currentSectionId();
     const idx = cur ? ids.indexOf(cur) : 0;
@@ -87,7 +88,7 @@ export function CommandPalette({ spec, planPath }: CommandPaletteProps) {
           <Command.List className="max-h-[60vh] overflow-y-auto p-1">
             <Command.Empty className="px-3 py-6 text-center text-mu">No matches.</Command.Empty>
             <Command.Group heading="Sections">
-              {spec.sections.map((s) => (
+              {displayOrder(spec.sections).map((s) => (
                 <Command.Item
                   key={s.id}
                   value={`section ${s.title}`}
