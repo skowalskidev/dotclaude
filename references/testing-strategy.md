@@ -178,10 +178,10 @@ the cleanup command targets only this preview and releases its claimed ports.
   locally before the change was declared done. (the fix for a prompt-string edit whose same-named test
   passed while a sibling test file, pinning two of the changed strings, failed only in CI.)
 
-## Defects before proof
+## Defects first
 
-**DO run the read-only defect finders — the code review (`/sk:ship-review`), the test-matrix Stage-2
-judge, the journey judge — BEFORE the heavy gate and the real-app check, and fix what they find first.**
+**DO run the defect finders — the code review (`/sk:ship-review`), PR-thread resolution, the test-matrix
+Stage-2 judge, the journey judge — and land their fixes BEFORE the heavy gate and the real-app check.**
 The heavy gate (full build, whole suite, device/simulator suite, real-app check) then runs ONCE on the
 reviewed code. DON'T run the heavy gate and then review: every finding after it buys another full
 rebuild (the fix for a branch rebuilt and re-tested on a simulator six times because review and the

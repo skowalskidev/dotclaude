@@ -240,7 +240,7 @@ Rules for this phase:
 
 - **Stay inside what was validated.** Closing a gap is not licence to build the next idea. Anything
   genuinely new is one line at the end, flagged as out of scope.
-- **Run the project's build and tests before each commit**, Phase 4's tests included, and say what was
+- **Run the affected build and tests before each commit**, Phase 4's tests included, and say what was
   run. A fix that does not turn its own test green is not a fix, and one that reds another criterion's
   test is a new gap. The browser belongs to Phase 4, which holds the standing authorization; this
   phase does not open one to check its own work, and Phase 6 re-runs the live rung anyway.
@@ -251,9 +251,10 @@ Rules for this phase:
 ## Phase 6 · Re-derive, re-run, judge again
 
 Go back to Phase 1 and rebuild both journeys FROM THE CODE. Never from what Phase 5 said it did: a
-loop that trusts its own fix report only ever confirms itself. Then re-run the FULL suite, not only
-the tests you touched, because a fix that broke a neighbour shows up nowhere else. Then re-run Phases
-3 and 4 against the same criteria and reconcile again.
+loop that trusts its own fix report only ever confirms itself. Then re-run the affected tests and
+Phases 3 and 4 against the same criteria, and reconcile again. Run the FULL suite once, when a round
+comes back with nothing actionable, because a fix that broke a neighbour shows up nowhere else
+(`rules/process.md` § Fan out verification). Phase 4's untouched ground-state run stays separate.
 
 Green means no failure outside Phase 4's ground-state list and no rise in the skipped count. A
 pre-existing failure is not this run's job and is reported by name, with one exception: one sitting on

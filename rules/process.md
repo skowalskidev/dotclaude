@@ -17,11 +17,11 @@ OpenAI or API fallback. Verify every delegated result on disk.
 ### Fan out verification, and only rebuild what changed
 Run verification for INDEPENDENT units as **parallel tool calls, not one sequential command.**
 **Rebuild a shared dependency only when it actually changed**; **background the long pole** so editing
-continues. **Iterate with the CHEAP check, verify HEAVY at end states.** Run typecheck or a targeted
-test in the edit loop; run a full production build or the whole suite only at a task boundary, a
-commit, or a parallel run's reconcile — never after every edit, never only at the very end. WHY: a
-worker re-ran a full Next build after each small fix, ~40 min to verify a 5-min change. TEST: the full
-build/suite runs only at end states; a cheap typecheck covers the in-between.
+continues. **Iterate with the CHEAP check, verify HEAVY once per change set.** Run typecheck or the
+affected tests while editing and before each commit; run the full build, suite, simulator and real-app
+check once, after review and gap fixes converge (`references/testing-strategy.md` § Defects
+first). WHY: a full Next build after each small fix cost ~40 min for a 5-min change. TEST: a
+repeated full gate names what invalidated the last one.
 
 ### Claims about third parties must come from primary sources
 
@@ -127,7 +127,7 @@ TEST: every ask in the ledger has a verdict against it. A missing verdict is a m
 ### Commit when a task is finished (durable authorization)
 **When a task is complete and verified, commit it — you do NOT need to ask first.** This is standing
 authorization overriding the default ask-first behavior. Before committing, run the
-project's build + tests (unless docs-only) and confirm they pass. If on the default branch (`main`),
+affected checks (unless docs-only) and confirm they pass. If on the default branch (`main`),
 create a branch first. Use conventional commit messages in the imperative mood. Never commit or
 disturb my uncommitted WIP in the main checkout when working in a worktree.
 
@@ -212,7 +212,7 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
   'next-router-worker|vitest|jest|chrome-devtools-mcp|workerd|codex'` names only yours. Mechanics:
   `references/dev-server-hygiene.md`.
 - **Remove scratch scripts/files** a session created (evals, one-off helpers, temp data) once
-  used — keep only intentional artifacts.
+  used; keep intentional artifacts and branch build caches (`references/dev-server-hygiene.md`).
 - **Tear down every isolated workspace you create — teardown is part of "done", not a follow-up.**
   A git worktree, throwaway clone, sandbox dir or container is created WITH an owner for removing it:
   the moment the work lands or is abandoned, remove the workspace AND delete its now-merged branch in

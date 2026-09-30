@@ -74,6 +74,12 @@ cannot:
 - Build and run with the project's documented commands to verify before declaring done.
 - When finished: fix everything with no loose ends, commit, then tear down all processes and clean up the environment for other testing. Open/flip a PR only when I ask or a `sk:ship-*` skill does it (see the PR-ops rule at the top of this section).
 
+**DO check open PRs before claiming a sequential number** — a migration file number, an ADR number, a
+numbered manifest entry. Run `gh pr list --state open --limit 500 --json number,files` and look for the same number
+in the same directory; when another open PR already adds it, take the next free one. DON'T pick the
+number from the default branch alone (the fix for two open PRs both adding migration 197). TEST: no
+two open PRs add the same numbered file.
+
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 
 **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default

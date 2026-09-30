@@ -102,7 +102,8 @@ land, in what order, and what would have broken otherwise.
 
 ## Step 5 — Prove the assembly, then hand back
 
-- Build + all suites + the repo's static gate on the rebased tip. Re-run the journey/verify pass
+- Build + all suites + the repo's static gate on the rebased tip. Under `/sk:ship-full-detailed-workflow`,
+  run this bullet once with its stage 6, after the review and thread fixes; hand back after assembly. Re-run the journey/verify pass
   if the PR carries one; a rebase can re-introduce a defect a sibling already fixed.
 - Confirm the exhaustive full-diff review from Step 2 actually covered EVERY changed file, and where
   the project has a full-repo static scan (not only a diff-scoped/new-only gate) run THAT too — the

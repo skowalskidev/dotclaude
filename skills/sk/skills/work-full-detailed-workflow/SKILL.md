@@ -59,12 +59,15 @@ current, reconcile against it.
 4. Tests first, tree-structured — the exhaustive full-diff coverage runs via `/sk:test-automated-full-matrix` (Stage-1 deterministic + Stage-2 judge on the saved setup, saved + posted).
 5. Implement — parallel where independent, delegate edits using the saved setup, verify on disk after each batch.
 6. Observability + failure handling; never fail silently, no dead-end states.
-7. Build/verify with the project's commands, draft PR, tear down scratch, track deploy steps.
-8. Watch the deploy through and loop on what it surfaces; shipping is not done when the merge lands.
-9. **Close with the end report** (`/sk:ship-report-and-ensure-correct-user-system-journey`) — the user journey, the system
+7. Review before the heavy gate: `/sk:ship-review` over the whole diff, and fix its confirmed findings.
+8. **Prove the ask with the end report** (`/sk:ship-report-and-ensure-correct-user-system-journey`) — the user journey, the system
    journey, the mismatches between them, and what changed on this branch. It then judges those
    journeys against the criteria this plan validated, backs each verdict with a test it writes and
    commits, closes any gap in code, and reconciles the ledger's asks against what was built, so
    step 2's plan and the shipped result are the same thing. Simon should never have to ask for it.
+   Its gap fixes land here; its hand-back follows step 9's pass.
+9. Build/verify ONCE on the reviewed, gap-closed code with the project's commands, draft PR, tear down
+   scratch, track deploy steps (`rules/process.md` § Fan out verification).
+10. Watch the deploy through and loop on what it surfaces; shipping is not done when the merge lands.
 
 Extra task context for this run (if any): $ARGUMENTS

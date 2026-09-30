@@ -737,10 +737,11 @@ CONTRACTS: dict[str, dict] = {
             "fails without the change, runs it and commits it. A met verdict with no passing test "
             "drops to not met, because a file:line is exactly what phase 3 already produced. A "
             "green test never upgrades a verdict on its own, and no gate is weakened to reach one.",
-            "Phases 1 to 3 are read-only and phase 4 writes tests ONLY. Phase 5 is the only phase "
-            "that edits product code, against a criterion or a finding written down first, one "
-            "conventional commit per test or gap, never on the default branch, build and tests run "
-            "before each. A phase that can edit the code under test can make its own test pass.",
+            "Phases 1 to 3 are read-only and phase 4 writes tests ONLY. Phase 5 alone edits product "
+            "code, against a criterion or finding written first, because a phase that edits the code "
+            "under test can make its own test pass.",
+            "Phase 5 lands one conventional commit per test or gap, never on the default branch, "
+            "with the affected build and tests run before each.",
             "The loop stops on convergence OR on a finding that survives two consecutive rounds OR "
             "on a decision only Simon can make, and says which. An unbounded loop is not a "
             "guarantee of correctness.",

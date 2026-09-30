@@ -126,6 +126,11 @@ slowest slice took 451s of a 466s round while three workers sat idle.
    trap catches any `verify` whose success is "no output": end it so the clean case exits 0. TEST:
    every "do not use X" in the prompt has a matching inverted grep in `verify`, and that `verify` run
    on the fixed tree exits 0.
+   **DO prove each `verify` runs inside the worker's own sandbox before dispatch.** A Codex worker has
+   no network and no system services, so a package fetch, an `xcodebuild` or a simulator check exits
+   blocked there. Fetch dependencies in `setup` and give every code slice a `verify` that runs in its
+   sandbox (a syntax parse, a scoped unit run); list the checks it cannot run in its `accept` line as the
+   reconciler's. TEST: every slice's `verify` ran in its sandbox; blocked never counts as passed.
    **Never declare auto-loaded files in `reads`.** A project's `CLAUDE.md` and its `.claude/rules/*.md`
    already reach every slice through the nested-import chain. Listing them buys nothing, and it makes
    the duplicated-reads metric propose freezing a file that was never the cost.
@@ -167,6 +172,11 @@ or inference. A stale Claude example cannot authorize Claude workers in an OpenA
 ```bash
 ~/.claude/bin/superspeed-dispatch.sh slices.json .superspeed/run-1
 ```
+
+**DO launch the dispatcher as a tracked background job (Claude: the Bash tool's `run_in_background`;
+Codex: the host's native background task) and act on its completion notice.** DON'T wrap it in a detached subshell (`( … & )`) or `nohup`: it then finishes
+silently and the orchestrator idles until Simon asks. TEST: reconcile starts on the completion notice
+of `fan-out complete`, without Simon prompting.
 
 Full Claude launches one `claude -p` per slice with the selected Claude model,
 `--permission-mode acceptEdits` and `--output-format json`. Full Astra and Full OpenAI both launch

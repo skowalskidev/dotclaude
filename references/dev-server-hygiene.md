@@ -192,6 +192,13 @@ Map the confusing symptom back to its environmental cause; it saves enormous tim
 
 ## Track what you started
 
+**DO keep a branch's build caches until the branch lands or is abandoned.** Stop its processes at
+hand-back, but leave the derived data, build output and shut-down simulator created for that branch;
+review fixes and the ship run reuse them. DON'T delete them at an intermediate hand-back (the fix for
+a simulator and derived data deleted after the build, then rebuilt cold for review fixes). TEST:
+re-entering the branch reuses its build; workspace teardown removes it.
+
+
 **The RULE is owned by `~/.claude/rules/process.md` § "Clean up after yourself"**, which is always-on
 and so already loaded: track every process you start, kill it at task end, verify it's gone by checking
 the port rather than by trusting the kill, and sweep orphaned framework AND agent-spawned workers

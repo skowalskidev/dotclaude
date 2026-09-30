@@ -27,8 +27,13 @@ tickets; a fix that belongs to another PR is handed to that owner via
 1. **`/sk:plan-stable-persistent-dynamic-complete-full-plan`** — fold every ticket and criterion into
    the living plan; reconcile against it at stage 9.
 2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the
-   rest.
-3. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine. Verify the user + system
+   rest. Run its full build and suites once, with stage 6, not before the stage 3-5 fixes.
+3. **`/sk:ship-review`** — over the whole diff; fix the confirmed findings.
+4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
+   dial or allowlist relaxation, or an injection surface.
+5. **`/sk:ship-resolve-pr-comments`** — drive EVERY open review thread to a verdict; never hand back a
+   list to chase.
+6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification). Verify the user + system
    journeys AND every ticket's acceptance criteria against the merged diff, one committed test per
    verdict, close gaps in fix→verify loops. The exhaustive automated coverage + Claude-judge over the
    WHOLE diff is `/sk:test-automated-full-matrix` (run it here — it enumerates every feature, writes the
@@ -38,11 +43,6 @@ tickets; a fix that belongs to another PR is handed to that owner via
    per-ticket verification out — one adversarial verifier per ticket reading the real code against its
    criteria — via a Workflow or `/sk:work-superspeed` / `/sk:work-hyperspeed`
    (`references/parallelization.md`).
-4. **`/sk:ship-review`** — over the whole diff; fix the confirmed findings.
-5. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
-   dial or allowlist relaxation, or an injection surface.
-6. **`/sk:ship-resolve-pr-comments`** — drive EVERY open review thread to a verdict; never hand back a
-   list to chase.
 7. **`/sk:ship-screenshot-changes`** — when the diff changes a frontend surface: capture each changed
    surface AND ALWAYS post them onto the PR (GitHub-native, whenever a PR is open — never opt-in, never
    a text reference in the body instead). Plan the post from the start of the sweep, not as an
@@ -58,20 +58,20 @@ confirm each stage's OUTPUT is ON it, not just produced in-session. An artifact 
 scratch file, or a green local run is INCOMPLETE — return to its stage and post it. TEST: every row below
 reads ✓ against the FETCHED PR, never against memory of having run the stage. (the fix for a run that
 verified the user + system journey, then handed back with it never posted to the PR body.)
-- Journey (stage 3): `## User journey` and `## System journey` are in the PR body.
-- Matrix (stage 3): the `/sk:test-automated-full-matrix` results table is on the PR.
+- Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
+- Matrix (stage 6): the `/sk:test-automated-full-matrix` results table is on the PR.
 - Screenshots (stage 7): every changed frontend surface's image is on the PR — skip only when the diff
   touches no frontend surface, and say which.
-- Threads (stage 6): 0 unresolved review threads.
+- Threads (stage 5): 0 unresolved review threads.
 - Deploy-TLDR (stage 8): the PR body opens with it.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
 empty or suspiciously short → STOP.
 
 **Conditional legs — fire when the PR calls for them, not by default:**
 - `/sk:ship-verify-with-prod-data` — when the diff changes a data/money-facing surface, prove it
-  reconciles against real prod data across ALL accounts (part of stage 3's verification, before stage 7's
+  reconciles against real prod data across ALL accounts (part of stage 6's verification, before stage 7's
   screenshots).
-- `/sk:test-eyeball` — hammer the changed UI in a real browser (stage 3's journey leg, autonomous).
+- `/sk:test-eyeball` — hammer the changed UI in a real browser (stage 6's journey leg, autonomous).
 - `/sk:test-copilot` — a human-driven UI test; opt-in, because `process.md` says ask before a browser.
 - `/sk:work-isolate-environment` — a port lane when a stage boots a server.
 
