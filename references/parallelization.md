@@ -351,6 +351,11 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   `timeout` around the wait. Workers still edit in parallel; only the build queues. e.g. 7 worktree agents
   each running a cold `xcodebuild` on one simulator hit load average 657 and stalled ~25 min; one lock
   brought it to 248 within 8 min. TEST: every dispatch prompt that runs a native build names the shared lock.
+- **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
+  suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
+  the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a
+  13-minute suite run. TEST: every full-suite run follows a clean marker grep and a passing build of the
+  same tree.
 - **Background the long pole and keep working.** A dependency install or a first cold build blocks nothing
   you are currently editing — start it detached and carry on with files that don't need it.
 - **Expect sublinear speedup.** Parallel jobs contend for CPU: three checks measured 104s serial vs 56s
@@ -398,6 +403,12 @@ expected result (an agent told only what to do cannot tell you it failed), and n
 (a path it has to guess at is a path it will guess wrong).
 - Exact file paths, API-preservation rules, and conventions — so a smaller model can succeed.
 - **Always give an explicit DO-NOT-TOUCH list, not just the task.** Name the look-alikes to leave alone and how to tell them apart (e.g. "en dashes – are NOT em dashes —"; "this string is a model prompt, not UI"). Collateral damage lands exactly where two things look similar.
+- **Give every shared thing a slice would create one owner before fanning out.** Shared helper types,
+  shared assets and sequential IDs such as migration numbers are created in the START commit or assigned to
+  a single slice in the prompts. Two slices that both add one cause a conflict at every merge, or a
+  duplicate that breaks the integrated build. e.g. 4 worktree agents each added the same image sets, 2
+  declared the same type, and 2 branches both took migration 200. TEST: no two dispatch prompts are free to
+  create the same asset, type or ID.
 - **State the OUTPUT FORMAT, not just the task.** This is the one field Anthropic requires that the
   rest of this list doesn't already cover (their four: objective, output format, tool/source
   guidance, task boundaries). In a Workflow script, make it a real JSON schema via `agent(prompt,

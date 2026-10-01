@@ -18,6 +18,10 @@ Reference catalog for engineering-quality standards: code quality (DRY/SRP, reus
 `$VAR:x` as a history modifier and silently rewrites the argument, e.g. `git push origin $C:refs/heads/b`
 became a mangled refspec. TEST: no `$NAME:` without braces in a command.
 
+**Never keep a command in a variable (`L="lockf -k …"; $L xcodebuild`).** zsh does not word-split it, so the
+line exits 127 and the chain after it never runs. Write the command out, or use a function. TEST: no `$VAR` in
+command position.
+
 ### Naming — the reader must not have to open the implementation
 
 Applies to anything someone else reads to decide what a thing does: variables, functions, files,

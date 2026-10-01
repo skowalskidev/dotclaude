@@ -188,6 +188,14 @@ rebuild (the fix for a branch rebuilt and re-tested on a simulator six times bec
 matrix judge ran after verification). TEST: no review or judge finding lands after the heavy gate
 passed; a repeat of the gate names the input that invalidated it.
 
+## Native simulator suites
+
+**Pin the simulator to the CI locale before the full suite.** `xcrun simctl spawn <udid> defaults read -g
+AppleLocale` must read `en_US`; a shared simulator left on a UK region failed 6 date tests that pass in CI.
+**Pass `TEST_RUNNER_*` variables in xcodebuild's environment (`TEST_RUNNER_X=y xcodebuild …`), never as a
+trailing argument.** A trailing one becomes a build setting and the test silently skips itself. TEST: a
+full-suite run starts after a locale read, and no `TEST_RUNNER_` appears after `xcodebuild` on the line.
+
 ## The full automated test matrix — two stages, run unattended
 
 The exhaustive-coverage method behind `/sk:test-automated-full-matrix`. That skill runs this
