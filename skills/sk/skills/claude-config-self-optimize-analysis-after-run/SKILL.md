@@ -85,8 +85,13 @@ question it would answer.** Adding instrumentation is cheap; the analysis it unl
 every future run. But hold the same bar as everywhere else: a field nobody will read is clutter, so
 each proposed field states the decision it would change.
 
-**4. Rank by seconds recoverable, not by how interesting it is.** Idle capacity from one oversized
-slice usually dwarfs everything else. Fix that before anything clever. Instrumentation findings rank
+**4. Rank by seconds recoverable, not by how interesting it is. Before blaming a slice, split the
+fan-out from `run.log` into the worker span (last worker exit) and the verify tail (last `slice verify`
+minus last worker exit), and name the step that finished last.** A re-partition fixes a worker span; a
+verify tail is fixed in the checks. Idle capacity from one oversized slice dwarfs everything else when
+the worker span is the critical path.
+**DON'T call worker overlap an end-to-end speedup.**
+TEST: a re-partition proposal cites a worker span longer than the verify tail. Instrumentation findings rank
 below time findings on any single run, but above them if the same question has gone unanswered twice.
 
 ## The bar

@@ -197,6 +197,16 @@ state (`bin/mockup-shell.test.py` passes).
 
 ## Capture the BEFORE from the real app
 
+**DO check the target surface for in-flight work before the first capture:** list active worktrees
+(`git worktree list`) and open or draft PRs (`gh pr list --state open --json number,headRefName,files`)
+that touch the surface's files, read each overlapping plan or diff, and record the design base (a git ref)
+in the living plan. When an overlapping change replaces the surface, ask Simon whether to build on it
+before drawing.
+**DON'T draw against a screen another open PR is replacing.** (the fix for two mockup rounds drawn on a
+filter sheet a sibling PR was turning into chips.)
+TEST: the plan names the design base and gives a verdict per overlapping PR or worktree before the first
+capture.
+
 **DO CAPTURE an existing screen as a 1:1 self-contained HTML first — that capture IS the before-base,
 not a screenshot to rebuild from.** A headless real browser (Playwright) authenticates via the project's
 own auth path and navigates to the seeded screen; then SingleFile (gildas-lormeau) serialized IN-PAGE —
@@ -521,14 +531,17 @@ to clean up.
 
 ## Report
 
-**DO hand back ONE link: the gauntlet dashboard with the section route (`#section=<id>`), where the
-mockup is already embedded as that section's `target` asset with `status: "review"`.** Add one line on
-what changed between before and after, and the open questions as a numbered list, each with the option
-you would pick.
+**DO hand back the dashboard link (`#section=<id>`), where the mockup is already embedded as that
+section's `target` asset with `status: "review"`, plus one numbered Before / Proposed image pair per
+surface awaiting approval, inline in the reply.** Render the pairs from the current target revision at the
+same viewport, theme and data, each with a one-line note of the change. Then the open questions as a
+numbered list, each with the option you would pick. (the fix for an approval that waited until Simon asked
+for before/after screenshots.)
 **DON'T send the mockup as a file card (SendUserFile), an artifact URL, a bare file path, or `open` it.**
 A file card per round reads as a new file each time and leaves the dashboard empty; the path belongs
 only in the dashboard asset caption. (the fix for three rounds of a landing mockup handed back as
 attachments while every dashboard panel said "No capture yet", 2026-09-26.)
-TEST: the hand-back message carries the dashboard link and no attachment, and `workflow-dashboard.py
-export` passes with the mockup referenced.
+TEST: every surface awaiting approval has a numbered pair in the reply, the pairs come from the
+dashboard's target revision, no file card is attached, and `workflow-dashboard.py export` passes with the
+mockup referenced.
 **DON'T ask him about anything the preview already answers.**
