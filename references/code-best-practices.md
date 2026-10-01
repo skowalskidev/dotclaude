@@ -12,6 +12,12 @@ Reference catalog for engineering-quality standards: code quality (DRY/SRP, reus
 - For any UI work, enumerate every interface element (filters, buttons, controls) and verify each has a working backend handler.
 - Before keeping a mechanism (e.g., polling), investigate whether a better one exists and verify online; if the current one turns out best, keep it — but check first.
 
+### Shell commands
+
+**Brace every variable that a colon follows: `${C}:refs/heads/x`, never `$C:refs/...`.** zsh reads
+`$VAR:x` as a history modifier and silently rewrites the argument, e.g. `git push origin $C:refs/heads/b`
+became a mangled refspec. TEST: no `$NAME:` without braces in a command.
+
 ### Naming — the reader must not have to open the implementation
 
 Applies to anything someone else reads to decide what a thing does: variables, functions, files,

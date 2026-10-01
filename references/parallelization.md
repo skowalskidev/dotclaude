@@ -344,6 +344,13 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   installs at once thrash one box (one run measured ~18m for 4 concurrent vs a few minutes alone). Dispatch
   workers only AFTER the orchestrator's install has warmed the cache; on a small box, stagger them. TEST: no
   worker install starts before the orchestrator's cache-warming install finishes.
+- **Serialize builds that share one machine-wide resource, and name the lock in the dispatch prompt.** A
+  native app build (`xcodebuild`, Gradle) is CPU-bound per worktree and a simulator or emulator is one shared
+  device, so N workers building at once thrash the box instead of running in parallel. Before fanning out,
+  put the lock in every worker's prompt: `lockf -k /tmp/<repo>-<tool>.lock <build command>`, with no
+  `timeout` around the wait. Workers still edit in parallel; only the build queues. e.g. 7 worktree agents
+  each running a cold `xcodebuild` on one simulator hit load average 657 and stalled ~25 min; one lock
+  brought it to 248 within 8 min. TEST: every dispatch prompt that runs a native build names the shared lock.
 - **Background the long pole and keep working.** A dependency install or a first cold build blocks nothing
   you are currently editing — start it detached and carry on with files that don't need it.
 - **Expect sublinear speedup.** Parallel jobs contend for CPU: three checks measured 104s serial vs 56s

@@ -286,7 +286,9 @@ HTTP(S) URL without credentials or whitespace, e.g. `http://localhost:3000/setti
 ```
 
 DO use section states `todo | doing | blocked | review | done` and run phases
-`planning | running | paused | blocked | complete`. A blocked section needs `next` naming the
+`planning | running | paused | blocked | complete`. Every section carries at least one criterion. Run
+`workflow-dashboard.py validate <plan>` before `link`, because `link` reports "No dashboard plan found"
+for an invalid plan instead of naming the error. A blocked section needs `next` naming the
 missing input and action. A passing criterion needs an evidence path/result. A judge pass needs
 `agentId`, a different `builderId`, `artifactRevision`, `reference` and `evidence`.
 Image assets use `kind=image`, `label`, `path`, `source`, `capturedAt` and `viewport`; HTML assets
