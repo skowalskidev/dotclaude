@@ -24,10 +24,20 @@ hooks, record the requests directly from the conversation. Keep secrets out of t
 
 DO split EVERY actionable ask into stable IDs in `## Tasks`, with its source message, requested
 outcome, acceptance criteria, dependencies and authorization. Link each ID to dashboard section/criterion
-IDs; keep status and evidence only in dashboard state. Summarize requirements in full, including the
-tail of long messages; the raw ledger is source evidence, not the execution checklist. Record answers,
+IDs; keep status and evidence only in dashboard state. Write each acceptance criterion as the ask's own
+clause, quoted or near-verbatim from the source message, not a paraphrase of it: a routing, scoping or
+conditional clause ("X only for Y, Z everywhere else") loses its boundary the moment it is restated in
+other words. Summarize the surrounding requirements in full, including the tail of long messages; the raw
+ledger is source evidence, not the execution checklist, except for that clause, which the checklist
+carries verbatim. Flag any criterion that narrows or widens a quoted clause as an interpretation and
+confirm it with Simon before the first dispatch or hand-back verdict that depends on it. Record answers,
 constraints and corrections under `## Decisions & rationale`. A question needing an answer is work;
 an illustrative example or brainstorm is recorded as context, not silently converted into authorization.
+TEST: a criterion holding a routing, scoping or conditional word (only, except, unless, instead of,
+everywhere else) quotes the source line it paraphrases, side by side, and every dispatch spec and verdict
+that reads it is judged against the quoted clause. (e.g. a payment-routing clause, one path only for a
+named conversion step and another for the rest, was restated in a plan as "the second path for every
+later step"; the narrowed version is what got built, while the ledger held the right words throughout.)
 
 DO merge additions into the same plan before acting. Queue independent new work, preserve the current
 item and its exact next step in `## Execution notes`, answer status questions briefly, then resume.
