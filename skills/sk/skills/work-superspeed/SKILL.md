@@ -90,6 +90,10 @@ slowest slice took 451s of a 466s round while three workers sat idle.
 6. **Summarise a frozen shared contract IN each prompt and leave it OUT of `reads`.** Freezing it
    before dispatch stops the slices disagreeing; listing it in `reads` still makes all N pay to read
    it. Do both halves.
+   **Review the frozen contract at its trust boundaries before dispatch**: for every request a client
+   sends back (an edit, a follow-up, a page), say what the server re-derives or verifies, and what a
+   free or other account must never learn from it. TEST: each client-to-server field in the contract
+   names its check. (The fix for a list request that trusted a client-sent trip.)
    **Freeze a POPULATED wire fixture for every payload one slice produces and another decodes**: one
    full record with the exact field names, types and required fields. The producer's test emits it
    and every consumer's test decodes it, saved and reopened where the data persists. TEST: the
@@ -224,8 +228,9 @@ Five rules it enforces, each with a reason:
   separate worktrees never do. That is where the measured 2x cost came from, and it is avoidable.
 - **Never `--bare`.** It looks like the obvious startup fix. It drops off the Max subscription onto
   per-token API billing and skips CLAUDE.md, so a slice would lose the project's rules.
-- **Slices never run the gate, but every slice DOES run its own `verify`.** The reconciler runs the
-  gate once; N slices running the whole suite is N times the work and can race. A `verify` is scoped
+- **Slices never run the gate, but every slice DOES run its own `verify`.** The reconciler owns the
+  gate, on the cadence in reconcile step 5; N slices running the whole suite is N times the work
+  and can race. A `verify` is scoped
   to what one slice owns, and it is the only thing standing between a wrong slice and the reconciler.
   The dispatcher re-runs it after the slice exits and records `verify.txt`, so the record does not
   depend on the slice having bothered.
@@ -257,7 +262,10 @@ already in context.
    in the prompt — grep the changed files for the thing you banned. Applies to any convention a file
    carries: naming, import order, comment density, error handling, prose style. The tell is that the
    rule was stated in the prompt and the diff still breaks it.
-5. Assemble, fix the seams, then **run the gate once** over the whole tree.
+5. Assemble, fix the seams, then run the checks the seam fixes affect. The whole-tree gate follows
+   `rules/process.md` § "Fan out verification", not this run. TEST: a run followed by another fix run
+   records affected checks only in `reconcile.json`. (The fix for nine fix runs that each paid the
+   full suite.)
 6. **Give every fixed file a `cause`: `slice`, `late_scope` or `reconciler`.** The taxonomy, and why
    only `slice` means the partition needs changing, is in `references/parallelization.md` §
    "Self-improving a parallel run" — shared with hyperspeed, not restated here.

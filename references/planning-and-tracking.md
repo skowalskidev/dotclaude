@@ -59,6 +59,13 @@ been built, some has been made irrelevant by other work, and some was always wro
   needed as written · partly done (say which part) · already solved elsewhere · obsolete.
 - **Say what changed** that makes an obsolete one obsolete. A verdict with no evidence is a guess,
   and the guess is what reintroduces work someone already deleted.
+- **Check work already underway before scheduling it.** `git fetch`, then search every branch and
+  worktree for the ticket id (`git log --all --oneline --grep=<ID>`, `git worktree list`) and the
+  ticket's own comments, and list the migration, ADR and other sequence numbers those branches
+  already hold. Record the overlapping branch, or "none found", in the plan before assigning files,
+  and take the next free number. TEST: the plan names each overlapping branch, and no two open
+  branches hold the same sequence number. (The fix for two branches claiming one migration
+  number.)
 - **When several tickets block each other, order them from the verified state**, not from the
   dependency links as filed — a link written months ago can point at a ticket that no longer has
   anything to do.
