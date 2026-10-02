@@ -1502,6 +1502,10 @@ CONTRACTS: dict[str, dict] = {
             "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
             "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
             "Matches the plain Bash tool and parses the command; fails open on a malformed payload.",
+            "Judges only what the shell runs: the command word (after env assignments and prefixes) "
+            "must be git/gh, with quoted strings and heredoc bodies masked, so a note or printf that "
+            "merely names a push never fires. A push deny names the branch pushed TO. "
+            "hooks/git-commit-guard.test.py pins both directions.",
         ],
     },
     "hooks/background-process-guard.py": {

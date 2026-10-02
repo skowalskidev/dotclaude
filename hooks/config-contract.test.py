@@ -986,6 +986,9 @@ def check_codex_subscription_only_inference() -> None:
     result = run(["python3", str(ROOT / "hooks/work-resource-guard.test.py")])
     check(result.returncode == 0,
           f"Subscription/resource guard regressions failed:\n{result.stdout}\n{result.stderr}")
+    result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")])
+    check(result.returncode == 0,
+          f"Git commit/push guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_agent_setups_preserve_provider_choice() -> None:

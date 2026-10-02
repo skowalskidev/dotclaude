@@ -35,8 +35,16 @@ import re
 import subprocess
 import sys
 
-# Split on shell separators so each command is judged on its own.
+# Split on shell separators so each command is judged on its own. Runs on the MASKED command, so a
+# separator inside quotes or a heredoc body never splits it.
 SEGMENT_RE = re.compile(r"(?:\|\||&&|;|\||\n)")
+
+# Tokens that can precede the real command word: `VAR=1 git push`, `sudo git …`, `( git … )`.
+PREFIX_WORDS = {"sudo", "env", "command", "time", "nohup", "exec", "(", "{", "!", "then", "do", "else"}
+ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# git global options that take a separate value: `git -C <path> push`.
+GIT_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+HEREDOC_START_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
 
 DEFAULT_BRANCHES = {"main", "master"}
 
@@ -44,11 +52,74 @@ DEFAULT_BRANCHES = {"main", "master"}
 #  - a short-flag cluster containing m: -m, -am, -sm  (single dash, m among the letters)
 #  - the long form --message
 INLINE_M_RE = re.compile(r"(?:^|\s)-[a-zA-Z]*m[a-zA-Z]*(?:[\s=]|$)|--message\b")
-HEREDOC_RE = re.compile(r"<<-?\s*['\"]?\w")
+# Matches the masked form too: mask() turns a quoted marker `<<'EOF'` into `<<''`.
+HEREDOC_RE = re.compile(r"<<-?\s*(?:['\"]?\w|''|\"\")")
+
+
+def mask(command: str) -> str:
+    """Blank out quoted strings and heredoc bodies, keeping the quote marks and heredoc markers.
+
+    The guard judges what the shell RUNS, not text a command carries: a printf writing a note that
+    quotes a push command is a printf, and a heredoc body naming `git commit -m` is data. Matching
+    the raw text blocked exactly that (a ledger note quoting a push). Fails open: an unterminated
+    quote masks to the end, which can only hide a match, never invent one.
+    """
+    # Heredoc bodies first: everything after the marker's line up to the closing delimiter line.
+    out, i = [], 0
+    for m in HEREDOC_START_RE.finditer(command):
+        if m.start() < i:
+            continue
+        nl = command.find("\n", m.end())
+        if nl == -1:
+            break
+        end = re.compile(rf"^\s*{re.escape(m.group(2))}\s*$", re.M).search(command, nl + 1)
+        out.append(command[i:nl + 1])
+        i = end.start() if end else len(command)
+    out.append(command[i:])
+    text = "".join(out)
+
+    res, quote, esc = [], None, False
+    for ch in text:
+        if quote:
+            if quote == '"' and esc:
+                esc = False
+            elif quote == '"' and ch == "\\":
+                esc = True
+            elif ch == quote:
+                quote = None
+                res.append(ch)
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+        res.append(ch)
+    return "".join(res)
 
 
 def segments(command: str):
-    return [s.strip() for s in SEGMENT_RE.split(command) if s.strip()]
+    return [s.strip() for s in SEGMENT_RE.split(mask(command)) if s.strip()]
+
+
+def command_words(seg: str) -> list:
+    """The segment's words from the command word on, skipping env assignments and prefixes."""
+    words = seg.split()
+    while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
+        words = words[1:]
+    return words
+
+
+def git_subcommand(words: list) -> str:
+    """`git -C x push origin main` -> 'push'. Empty when the command word is not git."""
+    if not words or os.path.basename(words[0]) != "git":
+        return ""
+    rest = words[1:]
+    while rest:
+        w = rest.pop(0)
+        if w in GIT_OPTS_WITH_VALUE:
+            if rest:
+                rest.pop(0)
+        elif not w.startswith("-"):
+            return w
+    return ""
 
 
 def _git(cwd: str, *args: str) -> str:
@@ -102,10 +173,13 @@ def main() -> int:
         return 0
     cwd = payload.get("cwd") or os.getcwd()
 
+    masked = mask(command)
     for seg in segments(command):
-        is_commit = re.search(r"\bgit\b.*\bcommit\b", seg) is not None
-        is_push = re.search(r"\bgit\b.*\bpush\b", seg) is not None
-        is_gh_merge = re.search(r"\bgh\s+pr\s+merge\b", seg) is not None
+        words = command_words(seg)
+        sub = git_subcommand(words)
+        is_commit = sub == "commit"
+        is_push = sub == "push"
+        is_gh_merge = bool(words) and os.path.basename(words[0]) == "gh" and words[1:3] == ["pr", "merge"]
         if not (is_commit or is_push or is_gh_merge):
             continue
 
@@ -115,7 +189,7 @@ def main() -> int:
         # hook's env OR prefixed inline). The deny message is what tells Claude to get that yes.
         if is_gh_merge:
             allow_merge = os.environ.get("CLAUDE_ALLOW_PR_MERGE") == "1" or bool(
-                re.search(r"\bCLAUDE_ALLOW_PR_MERGE=1\b", command)
+                re.search(r"\bCLAUDE_ALLOW_PR_MERGE=1\b", masked)
             )
             if not allow_merge:
                 return deny(
@@ -134,14 +208,16 @@ def main() -> int:
         # tells the user to use, and Claude only adds it once the user has confirmed THIS push; a bare
         # push with no flag stays blocked, so accidental default-branch pushes are still caught.
         allow_main = os.environ.get("CLAUDE_ALLOW_MAIN_COMMIT") == "1" or bool(
-            re.search(r"\bCLAUDE_ALLOW_MAIN_COMMIT=1\b", command)
+            re.search(r"\bCLAUDE_ALLOW_MAIN_COMMIT=1\b", masked)
         )
         if not allow_main and not is_config_repo(cwd):
             branch = current_branch(cwd)
-            names_default = re.search(r"(?:^|\s|:)(main|master)\b", seg) is not None
-            if branch in DEFAULT_BRANCHES or (is_push and names_default):
+            target = re.search(r"(?:^|\s|:)(main|master)\b", seg)
+            if branch in DEFAULT_BRANCHES or (is_push and target):
                 verb = "push to" if is_push else "commit on"
-                where = branch or "main/master"
+                # Name the branch being pushed TO when the command names one; the checkout's own
+                # branch is only the target for a bare push or a commit.
+                where = (target.group(1) if is_push and target else branch) or "main/master"
                 return deny(
                     f"Blocked: {verb} the default branch ({where}). "
                     "rules/process.md says branch first; never commit or push to main/master "
