@@ -310,7 +310,7 @@ A `blocked` session sets `status: blocked` + reason in BOTH places and leaves `B
 - Default to fanning work out across parallel agents whenever it's safe and speeds things up — wherever the pieces are genuinely independent (disjoint files, no shared state, no same-account/CLI clashes).
 - Parallelize across BOTH tasks and stages, not just many agents on one stage — run independent tasks and independent pipeline stages concurrently wherever they don't clash on shared state.
 - Don't go overboard and cause clashes, and don't parallelize for its own sake.
-- When a new request lands mid-task, don't stop what you're already doing — spin the new work onto a separate parallel agent and keep both running.
+- Route a request that lands mid-task per `rules/process.md` § "A message that arrives mid-run is a QUEUED task, not an interrupt".
 - Orchestrate agents so they don't clash on shared state — e.g. not all mutating the same account/CLI/shared file at once.
 - **Cap an in-session fan-out at 10 concurrent.** `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` is 10 here (60 per session total); at most 10 background agents run at once and the rest queue. Launching many more than 10 in ONE batch gets the excess REJECTED, not queued (observed: 20 launched → 19 accepted, the 20th errored `You can run 10 subagents at once`). DO cut the work into ≤10 slices, or dispatch in waves of ≤10 and expect ~N/10 waves of wall-clock. TEST: no single launch batch exceeds 10 agents unless the waves are deliberate.
 

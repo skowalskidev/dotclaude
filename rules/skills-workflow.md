@@ -65,10 +65,8 @@ proactively — without me typing the command — and say which one and why. If 
 using them is optional, driven by the task at hand.
 
 **When one fits — Simon named it, or its trigger fired — INVOKE it via the Skill tool and FOLLOW its
-steps; never reconstruct it from memory** (a paraphrase drifts from the tested procedure and records
-zero uses, since the metrics recorder only logs a Skill tool-call as a use — the run that
-hand-reconstructed `/sk:work-hyperspeed` skipped its polling, reconcile log and teardown, and logged
-`uses:1`).
+steps; never reconstruct it from memory** (a paraphrase drifts from the tested procedure, and the
+metrics recorder logs only a Skill tool-call as a use).
 
 ### Other repos' skills (manual — suggest, don't auto-run)
 Which third-party skill stacks on which task shape (the design chain, `/investigate` before fixes,

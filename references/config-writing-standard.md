@@ -6,11 +6,7 @@ The one standard for `rules/*.md`, `references/*.md`, every `SKILL.md`, and the 
 Read it before writing or editing any of them. `hooks/config-contract.test.py` enforces the
 mechanical half; the rest is on you.
 
-WHY THIS EXISTS: on 2026-08-08 Claude proposed a config line reading *"Without one, anything
-optimising this config has only local metrics to aim at, and will improve them at the mission's
-cost."* Simon's verdict: *"which can be read and the reader will think 'ok' but not know what actions
-to take after reading it."* The rule against that already existed and nothing checked it, so it was
-violated twice in one session. A rule nobody polices is a suggestion.
+WHY: a rule nobody polices is a suggestion, so the mechanical half is tested.
 
 ## The shape of every instruction
 

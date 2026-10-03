@@ -29,9 +29,8 @@ Whenever I'm making a factual claim about someone else's product (a comparison t
 "they don't support X"), the claim has to be defensible:
 - **Primary sources only.** The vendor's own pages. The blogs that dominate these search results are
   affiliate content recycling each other and are not citable.
-- **Check ALL of their surfaces before asserting a negative.** I once shipped "they publish no
-  credit-per-video rate" onto Simon's homepage after checking only their pricing page — it was in
-  their help centre. Check docs/help/FAQ before claiming something isn't published.
+- **Check ALL of their surfaces before asserting a negative** — pricing page, docs, help centre, FAQ
+  (the fix for a "they publish no rate" claim that was in their help centre).
 - **Date-stamp it and reconcile the arithmetic** against the vendor's own stated figures.
 - **A claim that flatters us is the dangerous one.** A stale "competitor costs $50–$110" that turned
   out to be $39 is the error a competitor notices. Check those hardest.

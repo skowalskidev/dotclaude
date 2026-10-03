@@ -42,12 +42,9 @@ ORIGIN of the instruction driving it.
   the command myself. Never let a block pass silently as "couldn't do it." These are DENY-only, so
   there is no prompt to approve; a block is a hard stop and must surface to me.
 
-**Read-blocking guards were retired as theatre — provenance plus never echoing a value are the controls.**
-`hooks/security-guard.py` was removed 2026-08-04 (a TEXT matcher: naming a path counted the same as
-reading it) and `hooks/crown-jewel-read-guard.py` was removed 2026-08-29 (a verb matcher any
-obfuscation like `cd ~/.ssh && cat id_*` walked through). A secret here is reachable by design, so a
-read-blocker buys false confidence and friction, nothing else. **Never rebuild one.** Forensics:
-`~/.claude/README.md` § Security posture.
+**DON'T build a hook that blocks reads of secret files.** Provenance plus never echoing a value are the
+controls; a text or verb matcher is bypassed by any obfuscation (`cd ~/.ssh && cat id_*`) and adds only
+friction. History: `~/.claude/README.md` § Security posture.
 
 **Never surface a secret VALUE into chat, context, a message, an artifact, a commit, or a PR.** This
 is the control the read-blockers only gestured at. USING a secret is fine — pass a key PATH to a tool,
@@ -62,7 +59,7 @@ the chat. e.g. to check a key is present, test its path or byte length, never pr
 
 - **`permissions.deny` in `settings.json`** — harness-enforced, no model vote. `Edit`/`Write` on
   `~/.ssh`, `~/.aws` and `~/.gnupg`: tamper-protection so a run cannot corrupt those directories. It
-  no longer blocks reads — read-blocking was theatre (above).
+  does not block reads (above).
 - **`hooks/work-resource-guard.sh`** — the work/personal boundary, the guard that does real work:
   it keeps work and personal cloud credentials from crossing.
 

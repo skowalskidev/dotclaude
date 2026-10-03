@@ -6,7 +6,7 @@ not just connectors. The mechanism is `/sk:claude-config-update`; the sync is `/
 
 ## When (event-driven only — never a cron, never a periodic scan)
 
-Two triggers. Both fire at the end of the work that revealed them, never on a schedule.
+Three triggers. All fire at the end of the work that revealed them, never on a schedule.
 
 **1. A config part underperformed.** Any part, not just a broken one: a rule that should have fired
 and didn't, a skill whose method didn't fit, a reference missing the answer, a hook that blocked

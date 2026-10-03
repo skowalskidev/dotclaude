@@ -30,4 +30,4 @@ config repo. That repo is the **single source of truth**: any uncommitted change
   Edit/Write to a tracked config file unless that flow authorized it. Runtime state (`projects/`,
   `logs/`) is never gated, so memory writes work; the hook's message names the one-off override.
   **A tool in use (gauntlet dashboard, mockup shell, `bin/`, hooks) counts:** invoke the skill via the
-  Skill tool; never `touch` the sentinel by hand (2026-09-09). TEST: every `bin/`/`hooks/` commit traces to it.
+  Skill tool; never `touch` the sentinel by hand. TEST: every `bin/`/`hooks/` commit traces to it.
