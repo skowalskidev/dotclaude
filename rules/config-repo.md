@@ -2,7 +2,7 @@
 
 ## My ~/.claude config is a git repo — keep it in sync (source of truth)
 
-My whole Claude setup lives in `~/.claude`, which is a git repo mirrored to your **private** GitHub
+My whole Claude setup lives in `~/.claude`, which is a git repo mirrored to your **public** GitHub
 config repo. That repo is the **single source of truth**: any uncommitted change in
 `~/.claude` means it's out of sync, and `git -C ~/.claude status` is the litmus test.
 
@@ -18,8 +18,9 @@ config repo. That repo is the **single source of truth**: any uncommitted change
   structural change — and if a change misses it, the `self-healing-config` rule catches it (ask-first).
 - A **SessionStart hook** (`hooks/config-status.sh`) surfaces uncommitted config at the start of each
   session; when you see that note, offer to sync. No background daemon: syncing is event-driven.
-- **NEVER commit a secret** to this repo (keys, tokens, `.env`, credentials, private keys). An allowlist
-  `.gitignore` + a `gitleaks` pre-commit gate back this up, but read the diff yourself; if unsure, ask.
+- **The remote is PUBLIC. NEVER commit a secret (keys, tokens, `.env`, credentials) or a real account,
+  org, project or email**; those stay in the untracked overlay. The allowlist `.gitignore` + `gitleaks`
+  gate cover secrets only, so read the diff yourself; if unsure, ask.
 - Keep config **only** in `~/.claude` so the repo captures everything; anything that belongs in my
   Claude config goes under `~/.claude` so `git status` catches it.
 - **Route EVERY `~/.claude` change through `/sk:claude-config-update` — mandatory, whenever Simon asks

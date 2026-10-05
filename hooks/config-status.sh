@@ -30,7 +30,7 @@ behind="$(git -C "$REPO" rev-list --count HEAD..@{upstream} 2>/dev/null || echo 
 # Fully clean, pushed, and up to date -> say nothing.
 [ -z "$status" ] && [ "${ahead:-0}" -eq 0 ] && [ "${behind:-0}" -eq 0 ] && exit 0
 
-msg="NOTE: your ~/.claude config repo (your config source of truth, a private GitHub repo) is OUT OF SYNC with GitHub."
+msg="NOTE: your ~/.claude config repo (your config source of truth, a public GitHub repo) is OUT OF SYNC with GitHub."
 [ -n "$status" ] && msg="${msg}
 Uncommitted changes:
 ${status}"
