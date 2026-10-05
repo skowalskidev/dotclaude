@@ -105,16 +105,19 @@ and (if it exposes tools) to the guard. The manifest, skill, and auth-gate need 
 ## Model-API keys (`pal`)
 
 DEFAULT: workers and reviews run on the Claude or Codex subscription. The one API route is the `pal` MCP,
-with a key of the repo's own boundary and Simon's per-call yes (`rules/spend-approval.md`). Codex never
-takes an API key (`bin/agent_runtime.py`). Shell calls to api.openai.com or generativelanguage.googleapis.com
+with a key of the repo's own boundary and Simon's per-call yes (`rules/spend-approval.md`). Codex's own
+inference never takes an API key (`bin/agent_runtime.py`); Codex reaches `pal` the way Claude does, as an
+MCP server inside its boundary. Shell calls to api.openai.com or generativelanguage.googleapis.com
 are denied in every repo, whatever key file they name.
 
-DO declare `pal` as ONE record in `connectors/work-shared.json` (`boundary: work`, `kind: api`, `secret.path`
-`~/dev/tools/pal-mcp-server/.env`, which holds one work Gemini key). Kind `api` registers nothing, so the
-record only declares the boundary. `hooks/work-resource-guard.sh` passes `mcp__pal__*` only when exactly
+DO declare `pal` as ONE record in `connectors/work-shared.json` (`boundary: work`, `kind: mcp-stdio` with its
+`mcp` command, `secret.path` `~/dev/tools/pal-mcp-server/.env`, which holds one work Gemini key). Claude
+loads `pal` from user scope in `~/.claude.json`; the Codex launch registers it from this record, enabled
+only when the session's boundary equals the record's. `hooks/work-resource-guard.sh` passes `mcp__pal__*` only when exactly
 one `pal` record exists across `connectors/*.json` and its boundary equals the repo's. Undeclared, declared
 twice, no `jq` and an unreadable manifest all deny.
-TEST: `mcp__pal__version` passes in a work repo and is denied in a personal repo.
+TEST: `mcp__pal__version` passes in a work repo and is denied in a personal repo; `connectors-provision.sh
+--host codex --check` lists `pal mcp-stdio` in a work repo and no `pal` in a personal one.
 
 ## Secret homes (never committed, never in `~/.claude`)
 
