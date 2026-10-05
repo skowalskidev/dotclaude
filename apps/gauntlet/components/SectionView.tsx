@@ -1,4 +1,4 @@
-// OWNED BY SLICE `canvas`. Server component: head (title, StatusDot, `next` one-liner), tools row (Before|Target|Current segmented → ?role=, Desktop|Mobile → ?persona=, Open ↗), canvas = AssetFrame of the chosen role (target by default; review sections show the target full-width), Filmstrip below. previewUrl → one "Open preview ↗" link in the Current header.
+// Sections without an asset expose their recorded criteria so progress never appears as an empty canvas.
 import Link from "next/link";
 import { ExternalLink, Globe } from "lucide-react";
 import type { AssetRole, PublicSpec, Section } from "@/lib/types";
@@ -19,7 +19,11 @@ function sectionHref(planPath: string, sectionId: string, role: string, persona:
 }
 
 export function SectionView({ section, planPath, role, persona }: SectionViewProps) {
-  const asset = section[role];
+  const asset = section[role] ?? {
+    kind: "text" as const,
+    label: section.summary,
+    text: [section.next, ...section.criteria.map((criterion) => `${criterion.passed ? "Verified" : "Open"}: ${criterion.text}${criterion.evidence ? `\n${criterion.evidence}` : ""}`)].filter(Boolean).join("\n\n"),
+  };
   const openHref = asset?.url ?? (asset?.kind === "text" && asset.text ? `data:text/plain;charset=utf-8,${encodeURIComponent(asset.text)}` : undefined);
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -29,7 +33,7 @@ export function SectionView({ section, planPath, role, persona }: SectionViewPro
         {section.next && <span className="truncate text-xs text-mu">{section.next}</span>}
       </div>
       <div className="flex items-center gap-3 px-4 pb-2">
-        <div className="flex items-center gap-0.5 rounded-md border border-ln p-0.5">
+        {ROLES.some((r) => section[r.key]) && <div className="flex items-center gap-0.5 rounded-md border border-ln p-0.5">
           {ROLES.filter((r) => section[r.key]).map((r) => (
             <Link
               key={r.key}
@@ -39,8 +43,8 @@ export function SectionView({ section, planPath, role, persona }: SectionViewPro
               {r.label}
             </Link>
           ))}
-        </div>
-        <div className="flex items-center gap-0.5 rounded-md border border-ln p-0.5">
+        </div>}
+        {asset.kind !== "text" && <div className="flex items-center gap-0.5 rounded-md border border-ln p-0.5">
           <Link
             href={sectionHref(planPath, section.id, role, "desktop")}
             className={`rounded px-2 py-1 text-xs ${persona === "desktop" ? "bg-sf2 text-tx" : "text-mu hover:text-tx"}`}
@@ -53,7 +57,7 @@ export function SectionView({ section, planPath, role, persona }: SectionViewPro
           >
             Mobile
           </Link>
-        </div>
+        </div>}
         <div className="flex-1" />
         {openHref && (
           <a href={openHref} target="_blank" rel="noreferrer" aria-label="Open" title="Open" className="text-mu hover:text-tx">

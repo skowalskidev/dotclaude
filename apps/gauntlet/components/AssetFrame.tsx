@@ -8,8 +8,8 @@ export function AssetFrame({ asset, persona }: AssetFrameProps) {
 
   if (asset.kind === "text") {
     return (
-      <div className="h-full overflow-auto whitespace-pre-wrap p-5 font-mono text-xs text-mu">
-        <div className="text-tx">{asset.label}</div>
+      <div className="h-full overflow-auto whitespace-pre-wrap p-6 text-sm leading-relaxed text-mu">
+        <div className="mb-4 font-semibold text-tx">{asset.label}</div>
         {asset.text}
       </div>
     );

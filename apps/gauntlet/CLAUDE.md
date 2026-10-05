@@ -6,6 +6,8 @@ Live watchers do not follow symlinks into caches. Watchers and the unlinked-arti
 
 Setup: `npm install` (Node 24 via nvm). Check: `npx tsc --noEmit && npm run lint && npm run build`. Dev: `npm run dev -- -p 4747`.
 
+Completed sections open their Current evidence by default. Review sections open their Target; explicit role links retain any available asset. Sections without assets show their recorded summary and criteria. Keep historical targets available without presenting them as the finished implementation.
+
 Contract files nobody but the orchestrator edits: `lib/types.ts`, `lib/paths.ts`, `lib/plan.ts`, `app/p/page.tsx`, `app/globals.css`, `app/layout.tsx`. Every other file states its owning slice in its first comment.
 
 Rules: dark by default, colour only in ≤10px status dots, labels 2–5 words, no sentences unless a cost or data consequence, icon controls carry `aria-label` + `title`, assets are served by `/api/asset` (never base64), mockup html renders in a sandboxed iframe (never srcdoc), no project strings in the app.
