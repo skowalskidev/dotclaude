@@ -24,7 +24,10 @@ export async function GET(request: Request) {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
       };
       send({ type: "ping", at: new Date().toISOString() });
-      unsubscribe = subscribe(planPath, send);
+      unsubscribe = subscribe(planPath, send, (error) => {
+        unsubscribe = null;
+        controller.error(error);
+      });
       request.signal.addEventListener("abort", () => {
         unsubscribe?.();
         unsubscribe = null;
