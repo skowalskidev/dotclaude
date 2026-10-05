@@ -71,7 +71,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("codex-subscription-only-inference",
-     "Codex workers and reviewers use subscription authentication without an API review exception."),
+     "Codex workers and reviewers use subscription authentication with no API route."),
     ("agent-setups-preserve-provider-choice",
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
@@ -1028,8 +1028,8 @@ def check_codex_subscription_only_inference() -> None:
     for retired in ("https://api.openai.com", "https://generativelanguage.googleapis.com",
                     "pal `codereview`", "pal `challenge`", "~/.codex-work"):
         check(retired not in review, f"Review policy restored a retired API path: {retired}")
-    check("Reviews have no API-billing exception" in review,
-          "Reviews must state the subscription-only billing requirement")
+    check("Codex reviews have no API-billing exception" in review,
+          "Reviews must state that Codex reviews stay on the subscription")
     shell = (ROOT / "dotfiles/zsh-work-codex.zsh").read_text()
     check('export CODEX_HOME="$HOME/.codex"' in shell and '.codex-work' not in shell,
           "Shell routing must select the subscription home, not the retired work API home")

@@ -50,7 +50,9 @@ Project databases, cloud accounts and other service credentials still follow Ste
    fix round runs only for a finding the first round's fix itself introduced. (The fix for nine
    serial single-review rounds, each surfacing one new defect class.)
 4. If subscription authentication, quota or the selected model is unavailable, stop and report it.
-   Never switch to API keys, pal or direct paid model APIs. Reviews have no API-billing exception.
+   Do not switch to a model API on your own. A model-API review runs only through the pal MCP, when Simon
+   asks for it by name, with a key from this repo's boundary (`rules/connectors.md`) and his per-call yes.
+   Codex reviews have no API-billing exception.
 
 ## Step 3 — Synthesize one report
 Merge all reviewers into a single DEDUPLICATED, severity-ranked report (CRITICAL / HIGH / MEDIUM / LOW).

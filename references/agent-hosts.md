@@ -77,14 +77,15 @@ do not claim parity for those metrics. The adapter does not copy Claude permissi
 
 ## Connectors and authentication
 
-Require ChatGPT subscription authentication for interactive sessions, workers and reviews. There is
-no API-review exception. `bin/agent_runtime.py` strips API-key/endpoint environment overrides, pins
+Require ChatGPT subscription authentication for interactive sessions, workers and reviews. Codex has
+no API route, reviews included. `bin/agent_runtime.py` strips API-key/endpoint environment overrides, pins
 native ChatGPT login and the OpenAI subscription endpoint, clears custom providers and rejects CLI
 billing overrides. Missing worker authentication or cached API credentials stop before inference.
 Keep `forced_login_method = "chatgpt"` in `~/.codex/config.toml` for direct native CLI invocations too.
 TEST: API-auth fixtures never reach inference; work-origin workers and reviews use the ChatGPT home.
-The shared resource hook permits that subscription in work projects, blocks pal and direct model-API
-review requests, and keeps the existing cloud/service identity restrictions.
+The shared resource hook permits that subscription in work projects and keeps the existing cloud/service
+identity restrictions. It allows the `pal` MCP only inside its declared boundary
+(`references/connectors-setup.md`, Model-API keys) and denies shell calls to model-API hosts everywhere.
 
 Reuse the existing login: `~/.claude/bin/codex-launch.py login status` must report ChatGPT.
 If it is missing, run `~/.claude/bin/codex-launch.py login` and complete the ChatGPT browser flow.

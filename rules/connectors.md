@@ -62,6 +62,11 @@ Work = the repo's `git origin` matches your work org (workOrgMatch in your ident
   its `secret.path`, regenerated not mirrored into a vault. A plaintext secret on disk → fix scope + file
   mode (least-privilege key, `600`, outside the repo, rotate if exposed), never "move it into 1Password".
   Propose a vault only if I ask.
+- **Model APIs go through `pal` only.** DO make an API-billed model call only through the `pal` MCP, with
+  a key from the repo's own boundary (pal holds a work key, so work repos only) and Simon's per-call yes
+  (`rules/spend-approval.md`). DON'T call OpenAI or Gemini from the shell; the guard denies it in every
+  repo. Subscription workers and reviews stay the default. TEST: `mcp__pal__*` in a personal repo, or a
+  shell model-API call anywhere, is denied.
 - **Never** commit a secret, and never write one into `~/.claude` (a pushed git repo). The
   `work-resource-guard.sh` hook enforces the boundary on MCP tools (data-driven from the manifests) and
   Bash; if it blocks something I need, tell me plainly (per `security.md`).
