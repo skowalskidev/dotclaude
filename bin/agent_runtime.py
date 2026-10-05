@@ -31,13 +31,25 @@ def origin(cwd):
 
 
 def project(cwd):
-    """Match remote first; allow path matches only when there is no remote. Fail on ambiguity."""
+    """Match remote first; allow path matches only when there is no remote. Fail on ambiguity.
+
+    A manifest with "shared": true never takes the project slot. Its connectors are layered
+    under the project manifest's, the way connectors-provision.sh layers them, so Codex is given
+    the same connectors as Claude. A project connector wins a name clash, and a shared manifest
+    of the other boundary is left out.
+    """
     remote = origin(cwd)
-    target = remote or str(Path(cwd).resolve())
-    matches = []
+    where = str(Path(cwd).resolve())
+    target = remote or where
+    matches, shared = [], []
     for path in sorted((ROOT / 'connectors').glob('*.json')):
         manifest = read_json(path)
-        if any(value and value in target for value in manifest.get('match', [])):
+        wanted = manifest.get('match', [])
+        if manifest.get('shared') is True:
+            # The provisioner matches a shared manifest on the origin and the path together.
+            if any(value and value in remote + where for value in wanted):
+                shared.append((path, manifest))
+        elif any(value and value in target for value in wanted):
             matches.append((path, manifest))
     if len(matches) > 1:
         raise ValueError('Multiple connector manifests match this project: ' +
@@ -48,6 +60,19 @@ def project(cwd):
     path, manifest = matches[0] if matches else (None, {})
     if manifest.get('boundary', boundary) != boundary:
         raise ValueError('Connector manifest and identity.local.json disagree about the project boundary')
+    names = {item.get('name') for item in manifest.get('connectors', [])}
+    layered, sources = [], []
+    for shared_path, shared_manifest in shared:
+        if shared_manifest.get('boundary', boundary) != boundary:
+            continue
+        sources.append(shared_path.name)
+        for item in shared_manifest.get('connectors', []):
+            if item.get('name') not in names:
+                names.add(item.get('name'))
+                layered.append(item)
+    if sources:
+        manifest = {**manifest, 'connectors': [*manifest.get('connectors', []), *layered],
+                    'sharedFrom': sources}
     return path, manifest, boundary
 
 
@@ -298,6 +323,8 @@ def context(cwd):
              'Project boundary: ' + boundary, 'Expected Codex home: ' + str(home),
              'Model billing: ChatGPT subscription only, including workers and reviews; API fallback disabled.',
              'Connector manifest: ' + (str(path) if path else 'none matched')]
+    if manifest.get('sharedFrom'):
+        lines.append('Shared connector manifests: ' + ', '.join(manifest['sharedFrom']))
     for connector in manifest.get('connectors', []):
         name = connector['name']
         state = 'on-demand; disabled' if connector.get('enabledOnDemand') else 'declared; verify live tool/auth status'
@@ -455,6 +482,8 @@ def main():
         elif args.action == 'doctor':
             path, manifest, boundary = project(args.cwd)
             print('Manifest:', path or 'none', '\nCodex home:', subscription_home())
+            if manifest.get('sharedFrom'):
+                print('Shared manifests:', ', '.join(manifest['sharedFrom']))
             print('Model billing: ChatGPT subscription only; no API review exception')
             for conn in manifest.get('connectors', []):
                 state = 'on-demand' if conn.get('enabledOnDemand') else 'manifest-driven; authentication unverified'

@@ -96,6 +96,42 @@ class RuntimeTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Multiple connector manifests'):
             runtime.project(self.cwd)
 
+    def shared(self, name='shared', match=None, boundary='personal', connectors=None):
+        return self.write('connectors/' + name + '.json', {
+            'shared': True, 'match': match or ['PersonalOrg/'], 'boundary': boundary,
+            'connectors': connectors or [self.connector('extra')]})
+
+    def test_shared_manifest_layers_under_the_project_manifest(self):
+        own = self.manifest('project', connectors=[self.connector('linear')])
+        self.shared(connectors=[self.connector('linear', url='https://shared.invalid/mcp'),
+                                self.connector('extra')])
+        path, manifest, _ = runtime.project(self.cwd)
+        self.assertEqual(path, own)
+        self.assertEqual([item['name'] for item in manifest['connectors']], ['linear', 'extra'])
+        self.assertEqual(manifest['connectors'][0]['mcp']['url'], 'https://example.invalid/mcp')
+        self.assertEqual(manifest['sharedFrom'], ['shared.json'])
+        self.assertIn('mcp_servers.extra=', ' '.join(runtime.overrides(self.cwd)[0]))
+        self.assertIn('Shared connector manifests: shared.json', runtime.context(self.cwd))
+
+    def test_shared_manifest_alone_never_takes_the_project_slot(self):
+        self.shared()
+        path, manifest, _ = runtime.project(self.cwd)
+        self.assertIsNone(path)
+        self.assertEqual([item['name'] for item in manifest['connectors']], ['extra'])
+
+    def test_shared_manifest_matches_by_path_beside_a_remote(self):
+        self.manifest('project')
+        self.shared(match=[str(self.cwd.resolve())])
+        self.assertEqual([item['name'] for item in runtime.project(self.cwd)[1]['connectors']],
+                         ['extra'])
+
+    def test_shared_manifest_of_the_other_boundary_is_left_out(self):
+        self.manifest('project')
+        self.shared(boundary='work')
+        manifest = runtime.project(self.cwd)[1]
+        self.assertEqual(manifest['connectors'], [])
+        self.assertNotIn('sharedFrom', manifest)
+
     def test_work_boundary_comes_from_identity_and_remote(self):
         self.remote = 'git@github.com:WorkOrg/project.git'
         self.manifest(match=['WorkOrg/'], boundary='work')
