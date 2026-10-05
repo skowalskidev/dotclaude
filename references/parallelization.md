@@ -23,7 +23,8 @@ for a named host (e.g. "use the OpenAI top tier" from a Claude chat), never self
 set `AGENT_ALLOW_CROSS_PROVIDER=1` and `"worker_provider"` (the named provider) on the dispatch, keeping the real
 `orchestrator_model`, so `bin/agent_setup.py` runs the cross-provider
 worker; the guard's default block stays for every switch Simon did not ask for. The subscription-only
-billing guard (`references/agent-hosts.md`) stays fully enforced.
+billing guard (`references/agent-hosts.md`) stays fully enforced for dispatched workers; the only API route
+is the `pal` MCP inside its own boundary, never a dispatch.
 TEST: a `model_route: design` slice from `full-openai` or `full-astra` invokes `claude -p --model fable`;
 an unavailable Fable launch returns failure and no OpenAI worker is launched; a slice that edits the
 approved design uses `model_route: general` and the native Codex worker model.

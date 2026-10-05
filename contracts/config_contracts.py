@@ -226,6 +226,7 @@ CONTRACTS: dict[str, dict] = {
             "Ask FIRST with numbered steps, then wait. No grinding around a missing credential.",
             "Prod is read-only by default; a write is enabled per-request and torn down after.",
             "Per-project detail stays in connectors/*.json, never hard-coded here.",
+            "A model API is reached only through pal, with a key from the repo's own boundary and the per-call yes; shell model-API calls stay denied and the subscription stays the default.",
         ],
     },
     "rules/spend-approval.md": {
@@ -355,7 +356,10 @@ CONTRACTS: dict[str, dict] = {
     "references/connectors-setup.md": {
         "mission": "A new project's connectors work first try, from one manifest, with no credential in a repo.",
         "purpose": "The connector engine's how-to and the manifest schema.",
-        "criteria": ["Schema here matches what bin/connectors-provision.sh actually reads."],
+        "criteria": [
+            "Schema here matches what bin/connectors-provision.sh actually reads.",
+            "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
+        ],
     },
     "references/config-writing-standard.md": {
         "mission": "Every line of this config tells the reader what to DO, so a rule read once is a rule applied.",
@@ -959,10 +963,10 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/ship-review/SKILL.md": {
-        "mission": "Independent reviewers and a cold user-journey pass catch defects before the PR opens without API-billed inference.",
+        "mission": "Independent reviewers and a cold user-journey pass catch defects before the PR opens without API billing Simon did not ask for.",
         "purpose": "Subscription-backed pre-PR review plus the user-journey pass, work/personal aware.",
         "criteria": [
-            "Use the selected subscription setup for every review pass; preserve project service boundaries and never use API keys, pal or direct paid model APIs.",
+            "Use the selected subscription setup for every review pass and preserve project service boundaries. Run a model-API review only through pal, when Simon asks for it by name, with a key from the repo's own boundary, and never for Codex.",
             "Carries the journey pass as a step, reading references/user-journey-review.md rather "
             "than restating it. The reviewers judge the diff; only that pass judges whether a person "
             "can get through what the diff produced.",
@@ -1620,10 +1624,10 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/work-resource-guard.sh": {
-        "mission": "Work and personal service credentials never cross; model inference uses the shared subscription instead of API billing.",
+        "mission": "Work and personal service credentials never cross, model-API keys included; inference stays on the shared subscription and the pal MCP is the only API route.",
         "purpose": "Enforces the work/personal boundary on Bash and MCP tools.",
         "criteria": [
-            "Allow the shared Codex subscription in either project boundary; block pal and direct paid model review calls without offering API fallback.",
+            "Allow the shared Codex subscription in either project boundary. Allow the pal MCP only when exactly one pal record declares the repo's own boundary, and deny it when undeclared, doubly declared, jq is missing or a manifest is unreadable. Deny every shell call to a model-API host in every repo.",
             "Data-driven from connectors/*.json, not hard-coded.",
             "git commands stay unblocked so staging AND inspection always work, including a path "
             "that carries the other boundary's name. A compound that also invokes another CLI is "

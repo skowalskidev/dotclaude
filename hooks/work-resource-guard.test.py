@@ -19,6 +19,7 @@ plain text match and these fail first.
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -40,6 +41,8 @@ IDENTITY = {
     "personalCloudProject": PERSONAL_PROJECT,
 }
 
+PAL_ENV = "~/dev/tools/pal-mcp-server/.env"
+
 WORKP = "--project-" + "name=work-prod"          # assembled: this file must not be its own test case
 PERSP = "--project-" + "name=personal-test"
 
@@ -47,13 +50,21 @@ PERSP = "--project-" + "name=personal-test"
 MUST_FIRE = [
     ("the retired API home is blocked for work too",
      "work", "CODEX_HOME=~/.codex-work codex review --base master"),
-    ("work reviews cannot use the direct OpenAI API",
+    ("a shell call to the OpenAI API is denied in a work repo",
      "work", "curl https://api.openai.com/v1/responses"),
+    ("a shell call to the Gemini API is denied in a work repo",
+     "work", "wget -qO- https://generativelanguage.googleapis.com/v1/models"),
+    ("a shell call to the OpenAI API is denied in a personal repo",
+     "personal", "curl https://api.openai.com/v1/responses"),
+    ("a shell call to the Gemini API is denied in a personal repo",
+     "personal", "wget -qO- https://generativelanguage.googleapis.com/v1/models"),
+    ("naming pal's own key file does not open the shell route (work)",
+     "work", f"set -a; . {PAL_ENV}; curl https://generativelanguage.googleapis.com/v1/models"),
+    ("naming pal's own key file does not open the shell route (personal)",
+     "personal", f"set -a; . {PAL_ENV}; curl https://api.openai.com/v1/models"),
     ("the old work Gemini key exception is gone",
      "work", "curl --config ~/pal-mcp-server/request https://generativelanguage.googleapis.com/v1/models"),
-    ("personal reviews cannot use paid model APIs either",
-     "personal", "curl https://api.openai.com/v1/responses"),
-    ("git cannot exempt a following paid model request",
+    ("git cannot exempt a following model-API request",
      "work", "git status && wget https://api.openai.com/v1/responses"),
     ("bare stripe in a personal repo falls through to the WORK [default] profile",
      "personal", "stripe charges list"),
@@ -128,7 +139,7 @@ def _init_repo(path: Path, origin: str) -> None:
     subprocess.run(["git", "remote", "add", "origin", origin], cwd=path, check=True)
 
 
-def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash") -> bool:
+def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash", path=None) -> bool:
     payload = json.dumps({"tool_name": tool, "tool_input": {"command": command}})
     env = {
         **os.environ,
@@ -137,10 +148,48 @@ def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash") -> 
         "HOME": str(identity_file.parent),
         "CODEX_HOME": str(identity_file.parent / ".codex"),
     }
+    if path is not None:
+        env["PATH"] = path
     out = subprocess.run(
-        ["bash", str(GUARD)], input=payload, capture_output=True, text=True, env=env
+        ["/bin/bash", str(GUARD)], input=payload, capture_output=True, text=True, env=env
     ).stdout.strip()
     return bool(out)
+
+
+def _home_with(root: Path, name: str, manifests: dict) -> Path:
+    """A throwaway $HOME whose connectors/ holds exactly `manifests` ({filename: raw text})."""
+    home = root / name
+    (home / ".claude" / "connectors").mkdir(parents=True)
+    for filename, text in manifests.items():
+        (home / ".claude" / "connectors" / filename).write_text(text)
+    identity = home / "identity.local.json"
+    identity.write_text(json.dumps(IDENTITY))
+    return identity
+
+
+def _pal(boundary: str) -> dict:
+    return {"name": "pal", "kind": "api", "boundary": boundary, "secret": {"path": PAL_ENV}}
+
+
+def _manifest(boundary: str, *records: dict) -> str:
+    return json.dumps({"project": f"{boundary}-shared-fixture", "boundary": boundary, "shared": True,
+                       "match": ["no-repo-matches-this/"], "connectors": list(records)})
+
+
+# (label, manifests, expected-to-fire in a work repo, expected-to-fire in a personal repo)
+PAL_SCENARIOS = [
+    ("pal undeclared is denied in both boundaries (fail closed)", {}, True, True),
+    ("pal declared work: allowed in work, denied in personal",
+     {"w.json": _manifest("work", _pal("work"))}, False, True),
+    ("pal declared personal: denied in work, allowed in personal",
+     {"p.json": _manifest("personal", _pal("personal"))}, True, False),
+    ("pal declared in BOTH boundaries is ambiguous, so denied everywhere",
+     {"w.json": _manifest("work", _pal("work")), "p.json": _manifest("personal", _pal("personal"))}, True, True),
+    ("pal declared in an unreadable manifest is undeclared, so denied everywhere",
+     {"w.json": '{"connectors": [ {"name": "pal", "boundary": "work"'}, True, True),
+    ("a record with no boundary of its own and no manifest boundary is undeclared",
+     {"w.json": json.dumps({"connectors": [{"name": "pal", "kind": "api"}]})}, True, True),
+]
 
 
 def main() -> int:
@@ -184,20 +233,34 @@ def main() -> int:
         for name, boundary, cmd in MUST_NOT_FIRE:
             if fires(dirs[boundary], identity_file, cmd):
                 failures.append(f"FALSE POSITIVE ({name}): {cmd}")
-        for boundary in dirs:
-            if not fires(dirs[boundary], identity_file, "", "mcp__pal__codereview"):
-                failures.append(f"SHOULD HAVE BLOCKED pal API review in {boundary}")
+        for i, (name, manifests, work_fires, personal_fires) in enumerate(PAL_SCENARIOS):
+            identity = _home_with(root, f"pal-{i}", manifests)
+            for boundary, expected in (("work", work_fires), ("personal", personal_fires)):
+                if fires(dirs[boundary], identity, "", "mcp__pal__codereview") != expected:
+                    failures.append(f"pal in a {boundary} repo: {name} (expected "
+                                    f"{'a block' if expected else 'no block'})")
+        # Fail closed without jq: the boundary lookup comes back empty, so even a declared pal is denied.
+        no_jq_bin = root / "no-jq-bin"
+        no_jq_bin.mkdir()
+        for tool_name in ("git", "grep", "sed", "sort", "wc", "tr", "head", "cat", "dirname"):
+            real = shutil.which(tool_name)
+            if real:
+                (no_jq_bin / tool_name).symlink_to(real)
+        declared = _home_with(root, "pal-nojq", {"w.json": _manifest("work", _pal("work"))})
+        if not fires(work, declared, "", "mcp__pal__codereview", path=str(no_jq_bin)):
+            failures.append("SHOULD HAVE BLOCKED declared pal when jq is missing")
         if not fires(shared_work, identity_file, "", "mcp__linear-api__create_issue"):
             failures.append("SHOULD HAVE BLOCKED personal-shared linear-api in a WORK repo")
         if fires(shared_personal, identity_file, "", "mcp__linear-api__create_issue"):
             failures.append(
                 "FALSE POSITIVE: personal-shared linear-api blocked in a PERSONAL repo under dev/vs-code-projects/")
 
-    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + len(dirs) + 2
+    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + 2 * len(PAL_SCENARIOS) + 3
     for f in failures:
         print(f"FAIL  {f}")
     print(f"\n{total - len(failures)} pass / {len(failures)} fail "
-          f"({len(MUST_FIRE) + len(dirs) + 1} must-fire, {len(MUST_NOT_FIRE) + 1} must-not-fire)")
+          f"(MUST_FIRE {len(MUST_FIRE)}, MUST_NOT_FIRE {len(MUST_NOT_FIRE)}, "
+          f"pal scenarios {len(PAL_SCENARIOS)} x 2, jq-missing and shared-linear cases 3)")
     return 1 if failures else 0
 
 

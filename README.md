@@ -141,7 +141,7 @@ between the agents. Standalone ChatGPT conversations do not load files from your
    account in the browser. Claude's OAuth session does not authenticate Codex.
 
 Every Codex role uses the ChatGPT subscription in `~/.codex`, including work projects and reviews.
-There is no API-review exception. `identity.local.json` still selects work/personal service boundaries.
+Codex has no API route, reviews included. `identity.local.json` still selects work/personal service boundaries.
 Read `references/agent-hosts.md` for billing enforcement and login recovery. The old `~/.codex-work`
 API credentials remain unused and untouched. Set `AGENT_CODEX_BIN`
 to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
@@ -300,7 +300,7 @@ no dependency or credential. Start a new session if its name is absent from the 
 These live **outside** this repo and are **not** committed. Prompt the user for each; never invent one.
 - `~/.codex/` contains the Codex ChatGPT login. Check `~/.claude/bin/codex-launch.py login status`; if missing, run `~/.claude/bin/codex-launch.py login` and complete ChatGPT sign-in. Never recreate API-key auth for workers or reviews.
 - `~/.claude.json` — Claude Code's main config (MCP servers, OAuth). Reconfigure MCP servers with `claude mcp`.
-- Existing `pal` keys are not used for agent workers or reviews. Do not recreate a paid model-API review path.
+- `pal` holds one work Gemini key in `~/dev/tools/pal-mcp-server/.env`. Declare the `pal` record in a work-boundary connector manifest (`references/connectors-setup.md`, Model-API keys); until then the guard denies every `mcp__pal__*` call.
 - Firebase / service-account keys — referenced by path in `CLAUDE.md`; ask the user to place them.
 - Connector credentials (work), set up per project by **`/sk:setup-connectors`** (see `rules/connectors.md` + `references/connectors-setup.md`). All live OUTSIDE this repo. Each connector's manifest carries the exact recreate steps in its `auth.steps`; those are the source of truth, not this list:
   - `~/.config/gcloud-work/` — the WORK gcloud config home. Keeping it separate from the default `~/.config/gcloud` (personal) is what stops the work account and its ADC leaking into personal projects. Recreate with the steps in your work connector manifest (`connectors/example.json.example` shows the shape; `references/connectors-setup.md` documents it).

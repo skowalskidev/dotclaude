@@ -102,6 +102,20 @@ Each `kind` implements the same five behaviors:
 To add a NEW kind: add its case to the `provision`/`readiness` switch in `bin/connectors-provision.sh`
 and (if it exposes tools) to the guard. The manifest, skill, and auth-gate need no change.
 
+## Model-API keys (`pal`)
+
+DEFAULT: workers and reviews run on the Claude or Codex subscription. The one API route is the `pal` MCP,
+with a key of the repo's own boundary and Simon's per-call yes (`rules/spend-approval.md`). Codex never
+takes an API key (`bin/agent_runtime.py`). Shell calls to api.openai.com or generativelanguage.googleapis.com
+are denied in every repo, whatever key file they name.
+
+DO declare `pal` as ONE record in `connectors/work-shared.json` (`boundary: work`, `kind: api`, `secret.path`
+`~/dev/tools/pal-mcp-server/.env`, which holds one work Gemini key). Kind `api` registers nothing, so the
+record only declares the boundary. `hooks/work-resource-guard.sh` passes `mcp__pal__*` only when exactly
+one `pal` record exists across `connectors/*.json` and its boundary equals the repo's. Undeclared, declared
+twice, no `jq` and an unreadable manifest all deny.
+TEST: `mcp__pal__version` passes in a work repo and is denied in a personal repo.
+
 ## Secret homes (never committed, never in `~/.claude`)
 
 | Class | Home |

@@ -6,6 +6,8 @@
 #                      personal secrets, ~/.config/personal-keys.env, direct personal Gemini API).
 #   * PERSONAL repos : block WORK resources (your work email account; your work cloud projects; and firebase
 #                      commands while the CLI's active account is the work one).
+#   * MODEL APIs     : the pal MCP passes only inside its declared boundary (connectors/*.json); shell
+#                      calls to model-API hosts are denied everywhere.
 # git/gh and gstack's Claude review are allowed everywhere.
 #
 # The work/personal VALUES this guard compares against live in an untracked overlay,
@@ -101,11 +103,10 @@ connector_cli_profile() { # $1=CLI name -> the profile THIS project pins for it 
   jq -r --arg n "$1" '.connectors[]? | select(.kind=="cli" and ((.cli.name // "")==$n)) | (.cli.profile // empty)' "$CONN_MANIFEST" 2>/dev/null | head -1
 }
 
-case "$tool" in
-  mcp__pal__*)
-    deny "Subscription-only agents: pal uses API keys. Use the selected Claude or Codex subscription for workers and reviews."
-    ;;
-esac
+# MCP servers that spend a model-API key. Each must be declared in EXACTLY ONE boundary in
+# connectors/*.json. Undeclared, declared twice, no jq or an unreadable manifest all deny, because the
+# generic isolation below only denies a server whose declared boundary differs from this repo's.
+MODEL_KEY_SERVERS="pal"
 
 # --- all other MCP tools: data-driven work/personal isolation + prod read-only/gated write-guard ---
 case "$tool" in
@@ -113,6 +114,11 @@ case "$tool" in
     _rest="${tool#mcp__}"; _server="${_rest%%__*}"; _mtool="${_rest#*__}"
     _cur=personal; [ "$is_work" -eq 1 ] && _cur=work
     _bs="$(connector_boundaries "$_server")"
+    case " $MODEL_KEY_SERVERS " in
+      *" $_server "*)
+        [ "$(printf '%s\n' "$_bs" | sed '/^$/d' | wc -l | tr -d ' ')" = "1" ] || \
+          deny "Blocked: MCP server '$_server' spends a model-API key and its boundary is not declared (or is declared twice). Declare ONE '$_server' record with boundary work|personal in connectors/*.json (references/connectors-setup.md, Model-API keys). Undeclared means denied." ;;
+    esac
     if [ -n "$_bs" ] && ! printf '%s\n' "$_bs" | grep -qxF "$_cur"; then
       deny "Blocked by work/personal isolation: MCP server '$_server' is not a $_cur connector (it belongs to: $(printf '%s' "$_bs" | tr '\n' ' ')). Work and personal resources must not cross."
     fi
@@ -154,7 +160,7 @@ if [ "$tool" = "Bash" ]; then
   if is_cmd curl || is_cmd wget; then
     case "$cmd" in
       *api.openai.com*|*generativelanguage.googleapis.com*)
-        deny "Subscription-only agents: direct paid model APIs are disabled. Use the selected subscription, including reviews." ;;
+        deny "Blocked: shell calls to model APIs are denied in every repo. The only API route is the pal MCP, inside its declared boundary, with Simon's per-call yes (rules/spend-approval.md). Workers and reviews stay on the subscription." ;;
     esac
   fi
   if is_cmd codex; then
@@ -173,7 +179,7 @@ if [ "$tool" = "Bash" ]; then
     fi
     case "$cmd" in
       *secrets/firebase-keys*) deny "Blocked by work-resource policy: personal service-account key path. Work must use work credentials." ;;
-      *personal-keys.env*)     deny "Blocked by work-resource policy: '~/.config/personal-keys.env' holds your PERSONAL API keys. Work must not read personal keys. Agent inference uses subscriptions, not API keys." ;;
+      *personal-keys.env*)     deny "Blocked by work-resource policy: '~/.config/personal-keys.env' holds your PERSONAL API keys. Work must not read personal keys." ;;
       *--project-name=personal*) deny "Blocked by work-resource policy: a Stripe PERSONAL profile (--project-name=personal) in a work repo. Use your work Stripe profile." ;;
     esac
 
