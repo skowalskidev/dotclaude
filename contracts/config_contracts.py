@@ -36,6 +36,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Native Codex launch, context, hook and installation adapter.",
         "criteria": [
             "Read rules, settings and connector manifests from the canonical source at invocation time.",
+            "Resolve one project manifest per workspace and layer every matching `shared: true` manifest of the same boundary under it, project connector first on a name clash; a shared manifest never takes the project slot, and two matching project manifests fail.",
             "Use the existing ChatGPT subscription for every Codex role; preserve work/personal service boundaries and reject a mismatched session boundary.",
             "Block cached API authentication and CLI billing overrides; strip inherited API environment and pin the native subscription endpoint without modifying credentials.",
             "Disable on-demand connectors and retired manifest-owned names; never copy authentication files.",

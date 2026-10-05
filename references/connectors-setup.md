@@ -158,6 +158,10 @@ connector record into every project manifest that needs it.
   prints just the matching shared manifest paths. `hooks/work-resource-guard.sh` reads shared manifests
   the same way, so the work/personal boundary and the `gated`/`readOnly` write-guard cover a shared
   connector exactly like a project one.
+- **Codex gets the same connectors.** `bin/agent_runtime.py` layers matching shared manifests under
+  the project manifest for a Codex launch, project connector first on a `name` clash, and leaves out
+  a shared manifest whose `boundary` differs from the session's. TEST: `connectors-provision.sh
+  --host codex --check` in a repo that matches both lists the project's connectors and the shared ones.
 - **Still never carries a secret value** — same `secret.path` declaration as any other connector.
 
 ## Onboarding a new project
