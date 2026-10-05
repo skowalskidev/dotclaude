@@ -11,11 +11,18 @@
 #   UserPromptSubmit  -> new substantive task? initialize its dashboard, inject intake, arm the gate.
 #   PreToolUse        -> Agent/Task/Workflow while the gate is armed: DENY. This is the part that
 #                        actually stops a runaway fan-out; the injected text only asks nicely.
-#   PostToolUse       -> AskUserQuestion returned, so the user has answered: disarm.
+#   PostToolUse       -> AskUserQuestion returned, so the user has answered: disarm, and stamp the
+#                        session as having an approved task in flight.
 #
 # WHY IT DOES NOT FIRE CONSTANTLY
 # Compliance decays as instruction count rises, so a gate that nags every turn trains you to ignore
 # it. It arms on a task OPENING and stays quiet for the follow-ups inside that task.
+# A message that lands MID-RUN is a follow-up even when it reads like a task ("also check the
+# footer"): rules/process.md queues it, so re-blocking fan-out for a second go/no-go contradicts that
+# rule. "Mid-run" means this session holds an approval stamp (<session>.approved, written when its
+# armed gate was answered or when standing authorization skipped it) AND the workspace still has a
+# plan whose phase is not `complete`. A finished plan, a missing plan, an unreadable plan or a stamp
+# older than APPROVAL_TTL_MIN all mean a new task, so the gate arms as before.
 #
 # FAIL-SAFE, DELIBERATELY
 # It disarms itself whenever a stop would be wrong rather than merely annoying: an explicit standing
@@ -66,11 +73,31 @@ SESSION_ID="$(json_field '.session_id')"
 SESSION_ID="$(printf '%s' "$SESSION_ID" | tr -cd '[:alnum:]._-')"
 [ -z "$SESSION_ID" ] && exit 0
 MARKER="$STATE_DIR/$SESSION_ID.armed"
+APPROVED="$STATE_DIR/$SESSION_ID.approved"
+APPROVAL_TTL_MIN=480
+
+task_in_flight() {
+  # $1 = the prompt's cwd. Returns 0 only when this session approved a task and its plan is unfinished.
+  [ -f "$APPROVED" ] || return 1
+  [ -z "$(find "$APPROVED" -mmin +"$APPROVAL_TTL_MIN" 2>/dev/null)" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  local dir="$1" plan phase
+  while [ "$dir" != "/" ] && [ ! -e "$dir/.git" ]; do dir="$(dirname "$dir")"; done
+  [ -e "$dir/.git" ] || dir="$1"
+  for plan in "$dir"/.context/*-plan.md; do
+    [ -f "$plan" ] || continue
+    phase="$(/usr/bin/python3 "$CFG_ROOT/bin/workflow-dashboard.py" state "$plan" 2>/dev/null | jq -r '.phase // empty' 2>/dev/null)"
+    case "$phase" in planning|running|paused|blocked) return 0 ;; esac
+  done
+  return 1
+}
 
 case "$MODE" in
 
 answered)
-  # The user answered an AskUserQuestion. The gate has done its job for this task.
+  # The user answered an AskUserQuestion. The gate has done its job for this task. Stamp the approval
+  # only when the gate was armed, so a clarifying question mid-run neither opens nor extends a task.
+  [ -f "$MARKER" ] && : > "$APPROVED" 2>/dev/null
   rm -f "$MARKER" "$MARKER.denials" 2>/dev/null
   exit 0
   ;;
@@ -173,6 +200,10 @@ submit)
   # approval gate (for example, "Why is this route slow?"). Initialization is locked and idempotent.
   TASK_CWD="$(json_field '.cwd')"
   [ -d "$TASK_CWD" ] || TASK_CWD="${CLAUDE_PROJECT_DIR:-$PWD}"
+  # Decide BEFORE init: init opens a fresh planning plan when the last one is complete, and that new
+  # plan must not read as the approved task still running.
+  IN_FLIGHT=0
+  task_in_flight "$TASK_CWD" && IN_FLIGHT=1
   DASHBOARD_CONTEXT="Dashboard initialization failed; resolve it before work starts."
   if [ -f "$CFG_ROOT/bin/workflow-dashboard.py" ]; then
     INIT_OUTPUT="$(/usr/bin/python3 "$CFG_ROOT/bin/workflow-dashboard.py" init \
@@ -187,24 +218,31 @@ submit)
     fi
   fi
 
+  # A message mid-run is a queued task: the plan-reconcile reminder (intent-ledger.sh) covers it, and
+  # fan-out stays unblocked.
+  [ "$IN_FLIGHT" -eq 1 ] && exit 0
+
   # 3. Arm on a task OPENING. Either it is long enough to be a brief, or it starts with a work verb.
   ARM=0
   [ "$LEN" -ge 180 ] && ARM=1
   printf '%s' "$LOWER" | grep -qE "^[[:space:]]*(please[[:space:]]+)?((can|could|would|will)[[:space:]]+(you|we)[[:space:]]+|i[[:space:]]+(want|need)[[:space:]]+(you[[:space:]]+)?to[[:space:]]+)?(add|build|implement|create|write|refactor|migrate|fix|debug|investigate|audit|review|clean ?up|reorganis|reorganiz|optimis|optimiz|upgrade|update|remove|delete|rename|extract|centralis|centraliz|test|deploy|ship|set up|setup|integrate|port|convert|rewrite|redesign|research|plan|design|make|change|check|explain|help)\b" && ARM=1
   [ "$ARM" -eq 0 ] && exit 0
 
+  mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
   if [ "$UNATTENDED" -eq 1 ]; then
     rm -f "$MARKER" "$MARKER.denials" 2>/dev/null
+    : > "$APPROVED" 2>/dev/null
     exit 0
   fi
 
-  mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+  rm -f "$APPROVED" 2>/dev/null
   : > "$MARKER" 2>/dev/null || exit 0
   rm -f "$MARKER.denials" 2>/dev/null
 
   # Prune markers from sessions that ended days ago so this never becomes an unbounded directory.
   find "$STATE_DIR" -name '*.armed' -mtime +2 -delete 2>/dev/null
   find "$STATE_DIR" -name '*.armed.denials' -mtime +2 -delete 2>/dev/null
+  find "$STATE_DIR" -name '*.approved' -mtime +2 -delete 2>/dev/null
 
   CONTEXT="TASK INTAKE GATE (armed for this prompt — Agent/Task/Workflow are BLOCKED until you clear it).
 

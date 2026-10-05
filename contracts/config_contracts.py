@@ -1609,6 +1609,11 @@ CONTRACTS: dict[str, dict] = {
             "command, a Stop-hook nudge) — those are follow-up events, not task openings; arming on one "
             "re-armed a gate the opening prompt had already disarmed and deadlocked an unattended run.",
             "Fails safe: a stale marker self-clears, because a gate that deadlocks is worse than none.",
+            "Does not arm on a message that lands mid-run: while this session holds an approval stamp "
+            "(<session>.approved, written when its armed gate was answered or standing authorization "
+            "skipped it, at most 480 minutes old) and the workspace has a plan whose phase is not "
+            "complete, only the plan-reconcile reminder fires and Agent/Task/Workflow stay unblocked "
+            "(rules/process.md queues it). A complete, missing, unreadable or stale record arms as before.",
             "Its task-opening proposal prompts choosing HOW to run the work, not only which skill: "
             "parallelise independent work, via /sk:work-superspeed at 3-5+ independent slices, "
             "in-session agents for a smaller fan-out, serial when it does not divide.",
