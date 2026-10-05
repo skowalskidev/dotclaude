@@ -214,8 +214,8 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "rules/config-repo.md": {
-        "mission": "This config is recoverable and current on any machine, because ~/.claude and its private mirror never drift.",
-        "purpose": "Keeps ~/.claude in sync with its private GitHub mirror.",
+        "mission": "This config is recoverable and current on any machine, because ~/.claude and its public mirror never drift.",
+        "purpose": "Keeps ~/.claude in sync with its public GitHub mirror.",
         "criteria": [
             "A structural change updates README inventory in the same commit.",
             "Never commit a secret; sync goes through /sk:claude-config-sync which secret-scans.",
@@ -1436,10 +1436,11 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/claude-config-sync/SKILL.md": {
-        "mission": "Every config change reaches the private mirror, and no secret ever does.",
+        "mission": "Every config change reaches the public mirror, and no secret or real account ever does.",
         "purpose": "Safe commit and push of this repo.",
         "criteria": [
             "Reads the real diff for secrets; a --stat summary never clears a file.",
+            "Stops on a real account, org name, project name or email in the diff, because the remote is public.",
             "Never bypasses the pre-commit gate with --no-verify.",
             "Commits with -F from a written file, never -m. references/git-pr-deploy.md owns that "
             "rule and the message shape; this skill points at it instead of carrying a second, "

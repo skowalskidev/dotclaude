@@ -357,7 +357,7 @@ first fix.
   `CLAUDE.md`**, remind the user the change is unstaged in the current worktree and ships when the branch's PR
   merges; for a **`CLAUDE.local.md`**, it stays on this machine (in the main checkout) and is never committed.
 - **Sync the config repo.** If the target lives under `~/.claude` (a `sk` skill — including this
-  one — or the global `~/.claude/CLAUDE.md`), that dir is Simon's config source of truth (a private GitHub
+  one — or the global `~/.claude/CLAUDE.md`), that dir is Simon's config source of truth (a public GitHub
   repo). **Exception: `sk-work` / `work/` is untracked**, so never offer to
   sync it — the offer would produce an empty diff. Say plainly that the change is local only and has
   no backup. After applying anything tracked, OFFER to commit + push it via **`/sk:claude-config-sync`**

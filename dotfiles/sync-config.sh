@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync ~/.claude config to your private GitHub repo: stage, secret-scan,
+# Sync ~/.claude config to your public GitHub repo: stage, secret-scan,
 # commit, push. Idempotent (no-op when nothing changed). ON-DEMAND — run manually or via /sk:claude-config-sync;
 # there is NO daemon. See README § "Staying in sync".
 # SAFETY: aborts the commit if any credential-format value is staged, so a secret can never be

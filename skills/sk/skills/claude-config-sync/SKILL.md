@@ -1,6 +1,6 @@
 ---
 name: claude-config-sync
-description: Commit + push changes to Simon's ~/.claude config repo (his config source of truth — a private GitHub repo) SAFELY. Review the diff, NEVER commit secrets, write a conventional commit, push, confirm in sync. Use whenever ~/.claude has uncommitted config changes (the SessionStart hook flags them), right after editing any config under ~/.claude (CLAUDE.md, a hook, an sk/sk-work skill, settings.json), or when Simon says "sync my config" / "commit my config".
+description: Commit + push changes to Simon's ~/.claude config repo (his config source of truth — a public GitHub repo) SAFELY. Review the diff, NEVER commit secrets, write a conventional commit, push, confirm in sync. Use whenever ~/.claude has uncommitted config changes (the SessionStart hook flags them), right after editing any config under ~/.claude (CLAUDE.md, a hook, an sk/sk-work skill, settings.json), or when Simon says "sync my config" / "commit my config".
 allowed-tools:
   - Bash(git -C ~/.claude *)
 ---
@@ -24,7 +24,7 @@ not need it in full. Read it with `git -C ~/.claude diff` when the summary above
 cannot already account for, and always before step 2's secret check.
 
 `~/.claude` is a git repo and Simon's **single source of truth** for his Claude setup, mirrored to a
-**private** GitHub repo. An uncommitted change there = out of sync. This
+**public** GitHub repo. An uncommitted change there = out of sync. This
 skill commits + pushes those changes safely.
 
 ## Absolute rules
@@ -33,6 +33,9 @@ skill commits + pushes those changes safely.
   `.gitignore` + a `gitleaks`/grep pre-commit hook), but they are a backstop, not a licence to stop
   looking — **read the diff yourself.** If anything looks secret-like, or you're unsure, **STOP and ask
   Simon** rather than commit it.
+- **The remote is PUBLIC: a push publishes.** Besides secrets, STOP on any real account, org name,
+  project name or email in the diff. Those belong in the untracked overlay (`identity.local.json`,
+  `connectors/*.json`, `work/`), and tracked text stays generic ("your work org").
 - **Human authority:** propose the commit; confirm with Simon before pushing (unless he already said
   "commit and push"). Never force-push. Never rewrite published history.
 - **Scope:** only Simon's own config (CLAUDE.md, hooks/, settings.json, contracts/, skills/sk,
