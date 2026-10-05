@@ -3,12 +3,13 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { DashboardState, LedgerEntry, PublicSpec, RecordEntry, TaskRecord, ProjectRow, UnlinkedFile } from './types';
 import { assetUrl, readRegistry } from './paths';
+import { isGeneratedArtifact } from './artifacts';
 
 /** Files the plan's own naming/state conventions never count as a loose, unlinked artifact. */
 const UNLINKED_EXCLUDE_DIRS = new Set(['attachments', 'node_modules']);
 function isExcludedFromUnlinked(rel: string): boolean {
   const parts = rel.split(path.sep);
-  if (parts.some((part) => part.startsWith('.'))) return true;
+  if (isGeneratedArtifact(rel)) return true;
   if (UNLINKED_EXCLUDE_DIRS.has(parts[0])) return true;
   const name = parts[parts.length - 1];
   if (name.endsWith('-plan.md') || name.endsWith('-dashboard.html')) return true;
@@ -39,12 +40,18 @@ async function computeUnlinked(planPath: string, state: DashboardState): Promise
   async function walk(dir: string): Promise<void> {
     let entries;
     try { entries = await fs.readdir(dir, { withFileTypes: true }); } catch { return; }
+    entries.sort((a, b) => {
+      const left = a.name + (a.isDirectory() ? '/' : '');
+      const right = b.name + (b.isDirectory() ? '/' : '');
+      return left < right ? -1 : left > right ? 1 : 0;
+    });
     for (const entry of entries) {
+      if (candidates.length > UNLINKED_CAP) return;
       const abs = path.join(dir, entry.name);
-      if (entry.isDirectory()) { await walk(abs); continue; }
-      if (!entry.isFile()) continue;
       const rel = path.relative(planDir, abs);
       if (isExcludedFromUnlinked(rel)) continue;
+      if (entry.isDirectory()) { await walk(abs); continue; }
+      if (!entry.isFile()) continue;
       let stat;
       try { stat = await fs.stat(abs); } catch { continue; }
       if (stat.size === 0) continue;

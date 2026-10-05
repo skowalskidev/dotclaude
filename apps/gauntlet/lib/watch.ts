@@ -3,6 +3,7 @@ import path from "node:path";
 import { watch } from "chokidar";
 import type { LiveEvent } from "./types";
 import { readPlan } from "./plan";
+import { isGeneratedArtifact } from "./artifacts";
 
 export type Unsubscribe = () => void;
 
@@ -13,14 +14,12 @@ function isIgnoredEntry(entryPath: string, planDir: string, planPath: string): b
   if (entryPath === planPath) return false;
   const rel = path.relative(planDir, entryPath);
   if (!rel || rel.startsWith("..")) return false;
-  const parts = rel.split(path.sep);
-  if (parts.includes("node_modules")) return true;
-  return parts.some((part) => part.startsWith("."));
+  return isGeneratedArtifact(rel);
 }
 
 /** Watch <planDir> recursively (chokidar). Emit {type:'revision'} when the plan file changes (read its revision/updatedAt),
  *  {type:'asset', path} for any other file, and {type:'ping'} every 25 s so proxies keep the stream open. */
-export function subscribe(planPath: string, onEvent: (e: LiveEvent) => void): Unsubscribe {
+export function subscribe(planPath: string, onEvent: (e: LiveEvent) => void, onError: (error: unknown) => void = console.error): Unsubscribe {
   const planDir = path.dirname(planPath);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -51,18 +50,24 @@ export function subscribe(planPath: string, onEvent: (e: LiveEvent) => void): Un
 
   const watcher = watch(planDir, {
     ignoreInitial: true,
+    followSymlinks: false,
     ignored: (entryPath: string) => isIgnoredEntry(path.resolve(entryPath), planDir, planPath),
   });
   watcher.on("add", schedule).on("change", schedule).on("unlink", schedule);
+  watcher.on("error", (error) => {
+    unsubscribe();
+    onError(error);
+  });
 
   const ping = setInterval(() => {
     onEvent({ type: "ping", at: new Date().toISOString() });
   }, PING_MS);
 
-  return () => {
+  const unsubscribe = () => {
     clearInterval(ping);
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
     void watcher.close();
   };
+  return unsubscribe;
 }
