@@ -122,6 +122,10 @@ CRITERIA: list[tuple[str, str]] = [
     ("intake-stays-quiet-on-follow-ups",
      "Short replies and continuations ('yes', 'option 2', 'go ahead') do not re-arm. A gate that "
      "fires every turn is a gate you learn to ignore."),
+    ("intake-stays-quiet-mid-run",
+     "A message that lands while an approved task is still running does not re-arm the gate, so "
+     "Agent / Task / Workflow stay unblocked. A finished plan, no plan, a stale approval or "
+     "unreadable plan state arms it as before."),
     ("intake-has-an-off-switch",
      "CLAUDE_INTAKE_GATE=off disables arming AND blocking. A gate with no escape hatch deadlocks "
      "the first headless run it meets."),
@@ -267,7 +271,7 @@ def intake(mode: str, payload: dict, env: dict | None = None) -> str:
 def clear_markers() -> None:
     d = INTAKE_TEST_DIR
     if d.is_dir():
-        for f in d.glob("*.armed"):
+        for f in (*d.glob("*.armed"), *d.glob("*.approved")):
             f.unlink(missing_ok=True)
 
 
@@ -575,6 +579,52 @@ def check_intake_stays_quiet_on_follow_ups() -> None:
         check(out.strip() == "",
               f"The intake gate re-armed on the follow-up {prompt!r}. It must fire on a task "
               f"opening, not on every turn, or it becomes noise you learn to ignore.")
+    clear_markers()
+
+
+def _set_plan_phase(root: Path, phase: str) -> None:
+    for plan in (root / ".context").glob("*-plan.md"):
+        text = plan.read_text()
+        m = re.search(r"^```dashboard-state\n(.*?)\n```", text, re.M | re.S)
+        state = json.loads(m.group(1))
+        state["phase"] = phase
+        if phase == "complete":
+            for section in state["sections"]:
+                section["status"] = "done"
+                for c in section["criteria"]:
+                    c["passed"], c["evidence"] = True, "verified"
+        plan.write_text(text[:m.start(1)] + json.dumps(state, indent=2) + text[m.end(1):])
+
+
+def check_intake_stays_quiet_mid_run() -> None:
+    clear_markers()
+    root = INTAKE_TEST_DIR / "midrun-workspace"
+    (root / ".git").mkdir(parents=True)
+    sid = {"session_id": "contract-g", "cwd": str(root)}
+    intake("submit", {**sid, "prompt": "investigate the flaky login test"})
+    intake("answered", {**sid, "tool_name": "mcp__conductor__AskUserQuestion"})
+    follow_up = {**sid, "prompt": "check the footer color too"}
+    out = intake("submit", follow_up)
+    check("TASK INTAKE GATE" not in out,
+          "A message mid-run re-armed the intake gate. rules/process.md queues it; the gate may not "
+          "demand a second go/no-go while the approved task is still running.")
+    check(intake("guard", {**sid, "tool_name": "Agent"}).strip() == "",
+          "Agent was denied mid-run, after the user approved the task.")
+    check("TASK INTAKE GATE" in intake("submit", {"session_id": "contract-h", "cwd": str(root),
+                                                   "prompt": "check the footer color too"}),
+          "Another session's first prompt in the same workspace skipped the gate.")
+    _set_plan_phase(root, "complete")
+    check("TASK INTAKE GATE" in intake("submit", follow_up),
+          "A new task after the plan completed did not arm the gate.")
+    intake("answered", {**sid, "tool_name": "AskUserQuestion"})
+    for plan in (root / ".context").glob("*-plan.md"):
+        plan.write_text("not a plan")
+    check("TASK INTAKE GATE" in intake("submit", follow_up),
+          "Unreadable plan state did not fail safe to arming.")
+    intake("answered", {**sid, "tool_name": "AskUserQuestion"})
+    os.utime(INTAKE_TEST_DIR / "contract-g.approved", (1_600_000_000, 1_600_000_000))
+    check("TASK INTAKE GATE" in intake("submit", follow_up),
+          "An approval older than APPROVAL_TTL_MIN still suppressed the gate.")
     clear_markers()
 
 
