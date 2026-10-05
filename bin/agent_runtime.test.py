@@ -132,6 +132,25 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(manifest['connectors'], [])
         self.assertNotIn('sharedFrom', manifest)
 
+    def test_shared_stdio_connector_is_callable_only_inside_its_boundary(self):
+        model_api = {'name': 'pal', 'kind': 'mcp-stdio', 'boundary': 'work',
+                     'mcp': {'type': 'stdio', 'command': '~/tools/pal/python',
+                             'args': ['~/tools/pal/server.py']}}
+        self.shared('work-shared', match=['WorkOrg/', 'PersonalOrg/'], boundary='work',
+                    connectors=[model_api])
+        self.manifest('project')
+        self.assertNotIn('mcp_servers.pal', ' '.join(runtime.overrides(self.cwd)[0]))
+        self.assertNotIn('pal:', runtime.context(self.cwd))
+        self.remote = 'git@github.com:WorkOrg/project.git'
+        joined = ' '.join(runtime.overrides(self.cwd)[0])
+        self.assertIn('mcp_servers.pal=', joined)
+        self.assertIn(str(self.home / 'tools/pal/server.py'), joined)
+        self.assertIn('"enabled"=true', joined)
+        context = runtime.context(self.cwd)
+        self.assertIn('pal: declared', context)
+        self.assertIn('Codex inference: ChatGPT subscription only', context)
+        self.assertNotIn('Model billing', context)
+
     def test_work_boundary_comes_from_identity_and_remote(self):
         self.remote = 'git@github.com:WorkOrg/project.git'
         self.manifest(match=['WorkOrg/'], boundary='work')

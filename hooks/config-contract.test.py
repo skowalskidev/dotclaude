@@ -71,7 +71,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("codex-subscription-only-inference",
-     "Codex workers and reviewers use subscription authentication with no API route."),
+     "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("agent-setups-preserve-provider-choice",
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",

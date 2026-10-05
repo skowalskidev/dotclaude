@@ -321,7 +321,8 @@ def context(cwd):
     home = subscription_home()
     lines = ['Shared agent configuration: ' + str(ROOT),
              'Project boundary: ' + boundary, 'Expected Codex home: ' + str(home),
-             'Model billing: ChatGPT subscription only, including workers and reviews; API fallback disabled.',
+             'Codex inference: ChatGPT subscription only, including workers and reviews; no API fallback. '
+             'rules/connectors.md governs every other model API.',
              'Connector manifest: ' + (str(path) if path else 'none matched')]
     if manifest.get('sharedFrom'):
         lines.append('Shared connector manifests: ' + ', '.join(manifest['sharedFrom']))
@@ -484,7 +485,7 @@ def main():
             print('Manifest:', path or 'none', '\nCodex home:', subscription_home())
             if manifest.get('sharedFrom'):
                 print('Shared manifests:', ', '.join(manifest['sharedFrom']))
-            print('Model billing: ChatGPT subscription only; no API review exception')
+            print('Codex inference: ChatGPT subscription only; other model APIs follow rules/connectors.md')
             for conn in manifest.get('connectors', []):
                 state = 'on-demand' if conn.get('enabledOnDemand') else 'manifest-driven; authentication unverified'
                 print(conn['name'], conn['kind'], state, sep='\t')

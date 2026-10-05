@@ -141,7 +141,8 @@ between the agents. Standalone ChatGPT conversations do not load files from your
    account in the browser. Claude's OAuth session does not authenticate Codex.
 
 Every Codex role uses the ChatGPT subscription in `~/.codex`, including work projects and reviews.
-Codex has no API route, reviews included. `identity.local.json` still selects work/personal service boundaries.
+Codex's own inference has no API route, reviews included. Codex can call `pal` (one work Gemini key) inside
+its boundary, the way Claude does. `identity.local.json` still selects work/personal service boundaries.
 Read `references/agent-hosts.md` for billing enforcement and login recovery. The old `~/.codex-work`
 API credentials remain unused and untouched. Set `AGENT_CODEX_BIN`
 to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
