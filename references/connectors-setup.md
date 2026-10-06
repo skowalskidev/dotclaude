@@ -181,6 +181,28 @@ Prod is read-only by default (`firebase-prod`, IAM viewer SA). A write goes thro
 exact write, the one write is made, then the pathway is disabled and the key is deleted both on disk
 and in IAM. Same pattern for Stripe live.
 
+### A schema change in production (a migration)
+
+DEFAULT: the project's own pipeline applies a migration that merged through a reviewed PR, with the
+database credentials held as CI secrets. No agent and no laptop holds a production write credential for
+it. Vendors document this as the route (e.g. Supabase, read 2026-10-06: "we recommend using a CI/CD
+pipeline to deploy new migrations with GitHub Actions rather than deploying from your local machine").
+
+DO find which of three routes the project has, in this order, and use the first that exists:
+1. **Pipeline.** The merge applies it. Verify afterwards, read-only.
+2. **By hand.** The project documents manual migrations and has no pipeline: Simon runs the file in the
+   vendor's console, you prepare it and verify read-only. Propose a ticket for route 1.
+3. **Agent-run, the exception.** Only on Simon's own yes naming that migration in this conversation.
+   Record the route first as an `enabledOnDemand`, `gated` connector. Then do all five: save the
+   definition of every object the file replaces; run the file inside a block that always rolls back
+   and read the new answers out of it; apply the exact committed file (its hash equals the repo's
+   manifest line); verify through the app's own read path; leave no credential or script behind.
+DON'T record a route-3 mechanism as the project's normal way, and DON'T reach for an admin API or a
+token that is on disk because it would work. (the fix for a migration applied through a vendor's beta
+query endpoint with a broad token, because no route was recorded.)
+TEST: a production schema change traces to a merged PR and a pipeline run, or to Simon's hands, or to
+his yes for that file with a saved restore copy and a rolled-back dry run before it.
+
 ## Known verification items (confirm during first live run)
 
 - Same-named server at local vs project scope: local should win; confirm no conflict.

@@ -360,6 +360,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The connector engine's how-to and the manifest schema.",
         "criteria": [
             "Schema here matches what bin/connectors-provision.sh actually reads.",
+            "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
         ],
     },
