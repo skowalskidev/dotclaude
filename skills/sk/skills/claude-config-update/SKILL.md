@@ -1,6 +1,6 @@
 ---
 name: claude-config-update
-description: The only route for changing Simon's own ~/.claude config or a CLAUDE.md he maintains — rules, references, sk/sk-work skills, hooks, bin engines (gauntlet dashboard, mockup shell), connector manifests, settings wiring. Takes pasted corrections or a stated new part, picks where it belongs, previews, and edits only after a yes. Use for any config change, a new skill, or "make this stick". Not the built-in /update-config.
+description: The only route for changing Simon's own ~/.claude config or a CLAUDE.md he maintains — rules, references, sk/sk-work skills, hooks, bin engines (gauntlet dashboard, mockup shell), connector manifests, settings wiring. Takes pasted corrections or a stated new part, picks where it belongs, previews, and edits only after a yes. Use for any config change, "create a new skill", "make this correction permanent", "add this rule to my UI conventions", "make the gauntlet dashboard open the mockup in a new tab", or "make this stick". Not the built-in /update-config.
 argument-hint: "paste the correction-prompts / rule to fold in — the target is proposed for you"
 ---
 

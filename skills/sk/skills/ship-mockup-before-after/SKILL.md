@@ -1,6 +1,6 @@
 ---
 name: ship-mockup-before-after
-description: Show a planned visible change as a before/after mockup before building it — a real screenshot as BEFORE, a measured HTML/CSS overlay as AFTER, one per plan part — shipped as a self-contained HTML file or artifact that reviewers comment on and hand back as a build spec. After approval, implements and proves each difference on the real screen. Use for "mock this up", "show me before and after", "implement the mockup", or any plan with a visible change.
+description: Show a planned visible change as a before/after mockup before building it — a real screenshot as BEFORE, a measured HTML/CSS overlay as AFTER, one per plan part — shipped as a self-contained HTML file or artifact that reviewers comment on and hand back as a build spec. After approval, implements and proves each difference on the real screen. Use for "mock this up", "show me before and after", "what will this look like", "I want to see it before you build it", "implement the mockup", "the screen doesn't match the mockup", or any plan with a visible change.
 argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 ---
 
