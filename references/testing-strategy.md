@@ -164,7 +164,9 @@ the cleanup command targets only this preview and releases its claimed ports.
   survive refactors and re-skins; an intentional visual change must never fail a behaviour spec.
   The visual and UX half is precisely what a human pass is for.
 - **Default scenario matrix for any user-facing feature:** happy path, error state, empty state,
-  loading state, auth-guard behaviour, validation and boundary cases.
+  loading state, auth-guard behaviour, validation and boundary cases. DO exercise failure and recovery
+  in the real client at the smallest supported viewport and largest supported text. TEST: the message
+  and recovery action are visible, unobscured and operable before input, and recovery reaches its expected outcome.
 - **Sequence slow whole-repo gates to protect the iteration loop** — run them once before the
   final commit, not after every commit.
 - **DO run the project's diff-scoped static audits (complexity, dead code, duplication) right after
@@ -177,6 +179,9 @@ the cleanup command targets only this preview and releases its claimed ports.
   behaviour, so the same-named test is not the blast radius. TEST: the full package suite ran green
   locally before the change was declared done. (the fix for a prompt-string edit whose same-named test
   passed while a sibling test file, pinning two of the changed strings, failed only in CI.)
+- **DO tie a coverage verdict to its source revision, collection directory and complete test invocation.**
+  Use partial reruns to diagnose failures; they do not replace full-run coverage. TEST: the reported
+  percentage traces to complete collection for the same revision being judged.
 
 ## Defects first
 
@@ -190,6 +195,10 @@ passed; a repeat of the gate names the input that invalidated it.
 
 ## Native simulator suites
 
+**DO distinguish compile-only artifacts from runtime-test artifacts.** Before a full native suite,
+run one scoped fixture for each required platform service with the same app, signing and simulator
+configuration. Isolate test defaults, auth, singletons and host state from other app sessions. TEST:
+each service fixture and any persisted-state assertions pass before the full suite starts.
 **Pin the simulator to the CI locale before the full suite.** `xcrun simctl spawn <udid> defaults read -g
 AppleLocale` must read `en_US`; a shared simulator left on a UK region failed 6 date tests that pass in CI.
 **Pass `TEST_RUNNER_*` variables in xcodebuild's environment (`TEST_RUNNER_X=y xcodebuild …`), never as a

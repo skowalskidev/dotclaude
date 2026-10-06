@@ -316,13 +316,15 @@ A `blocked` session sets `status: blocked` + reason in BOTH places and leaves `B
 - **Cap an in-session fan-out at 10 concurrent.** `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` is 10 here (60 per session total); at most 10 background agents run at once and the rest queue. Launching many more than 10 in ONE batch gets the excess REJECTED, not queued (observed: 20 launched → 19 accepted, the 20th errored `You can run 10 subagents at once`). DO cut the work into ≤10 slices, or dispatch in waves of ≤10 and expect ~N/10 waves of wall-clock. TEST: no single launch batch exceeds 10 agents unless the waves are deliberate.
 
 ## Parallelize verification, not just agents
-The section above is about fanning out AGENTS. The same rule applies to the VERIFY step, and that is the
-one that gets missed: typecheck, test and lint for independent units are independent COMMANDS, so issue
-them as parallel tool calls rather than chaining them into one sequential shell invocation.
+The section above is about fanning out AGENTS. DO run independent lightweight checks alongside edits.
+Default to one heavy verification batch per machine; parallelize more only with an explicit shared CPU,
+memory, process and simulator budget. Record the active batch, worker cap and owned process IDs. TEST:
+a second heavy suite, browser run or simulator run starts only after the first ends or its shared budget
+is recorded.
 
 - **Build shared dependencies first, THEN fan out every consumer.** That first step is the only genuinely
   serial one — a consumer checked against a stale or missing shared build reports errors that aren't real.
-  Everything downstream of it runs concurrently.
+  Run independent downstream checks concurrently within the recorded machine budget.
 - **Only rebuild a shared dependency when that dependency actually changed.** Track what you touched. A
   needless rebuild of one shared package measured ~54s per cycle on one repo.
 - **A fresh-worktree worker REUSES the orchestrator's build — it does not rebuild cold.** A worktree
@@ -343,15 +345,18 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   The orchestrator's own START install populates the shared global cache, so each worker's install is
   FETCH-warm — but the per-worktree LINK + native-build step is CPU-bound and does NOT share, so N cold
   installs at once thrash one box (one run measured ~18m for 4 concurrent vs a few minutes alone). Dispatch
-  workers only AFTER the orchestrator's install has warmed the cache; on a small box, stagger them. TEST: no
-  worker install starts before the orchestrator's cache-warming install finishes.
+  workers only AFTER the orchestrator's install has warmed the cache; on a small box, stagger them. DO
+  resolve and record each install, build and test command's executable and version inside its actual child
+  working directory and shell; carry the project-selected runtime into that command. TEST: no worker install
+  starts before cache warming ends, and each child resolves the required runtime before its batch begins.
 - **Serialize builds that share one machine-wide resource, and name the lock in the dispatch prompt.** A
   native app build (`xcodebuild`, Gradle) is CPU-bound per worktree and a simulator or emulator is one shared
   device, so N workers building at once thrash the box instead of running in parallel. Before fanning out,
   put the lock in every worker's prompt: `lockf -k /tmp/<repo>-<tool>.lock <build command>`, with no
   `timeout` around the wait. Workers still edit in parallel; only the build queues. e.g. 7 worktree agents
   each running a cold `xcodebuild` on one simulator hit load average 657 and stalled ~25 min; one lock
-  brought it to 248 within 8 min. TEST: every dispatch prompt that runs a native build names the shared lock.
+  brought it to 248 within 8 min. TEST: every dispatch prompt that runs a native build names its lock and
+  fits the machine's active verification budget; the example lock alone does not coordinate other tools.
 - **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
   suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
   the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a
@@ -424,12 +429,11 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   alone as a slice's proof (the fix for web slices that ran their tests while a fixture cast failed
   typecheck, and an edited existing file left unformatted, both surfacing only in reconcile). TEST:
   every edited code file has a formatter, lint and audit result in its slice's `verify.txt`.
-- **DO search the whole repo for tests and fixtures that call, mock or assert each changed entry
-  point** (the RPC, endpoint or function a slice changes), and give each one an owner: a slice, or
-  the reconciler with its targeted command. DON'T stop at the files next to the change (the fix for
-  test kits two directories away that counted a new stored read as a board search). TEST: before
-  dispatch, every test that references a changed entry point is named in some `owns` list or in the
-  reconcile plan.
+- **DO search the whole repo for callers, tests and fixtures of each changed entry point** (the RPC,
+  endpoint or function a slice changes). Assign each caller, fixture and persisted state transition to
+  a slice or the reconciler, including omission, explicit clear, failure/retry and the next request.
+  Refresh that map after rebasing. DON'T stop at adjacent files. TEST: every mapped consumer has a scoped
+  check or named real-client check before the whole-package gate.
 - **Check the owned file sets against EACH OTHER before dispatching.** N individually-correct specs
   can each name exact paths and a DO-NOT-TOUCH list and still overlap, and the overlap is invisible
   when you read them one at a time. Lay them side by side. Trigger on coupling, not agent count: do
