@@ -190,6 +190,41 @@ Map the confusing symptom back to its environmental cause; it saves enormous tim
 - a query that works locally and fails only at runtime in production → a missing declared
   composite index (no build-time warning exists for this class)
 
+## Native work: one slot for the whole machine
+
+A simulator or emulator, `xcodebuild` and Gradle are CPU-bound for the whole machine, and sessions
+cannot see each other. `~/.claude/bin/native-slot.sh` is the one coordination point: it owns the
+machine-wide slot and the simulator ledger, as `bin/port-registry.sh` owns ports.
+
+**DO run every native build, native test run and simulator boot through the slot:**
+
+```bash
+~/.claude/bin/native-slot.sh run --for "<what>" [--udid <id>] -- <command>
+```
+
+It waits while another live session holds the slot (60 minutes unless `--wait-min` says otherwise),
+prints the holder once a minute, runs the command, and releases on exit with the command's own status.
+Exit 3 = still held when the wait ran out, and nothing ran.
+
+**DO give the session its own simulator and register it:** create or pick one, then
+`native-slot.sh claim-sim <udid> --for "<what>"`. Exit 3 = another session owns that device, so use
+a different one. Boot it INSIDE the slot, shut it down when the command that needed it ends, and run
+`release-sim <udid>` at workspace teardown.
+**DO cap the build's own parallelism at `native-slot.sh jobs`** (half the cores, at least 2), e.g.
+`xcodebuild -jobs "$(~/.claude/bin/native-slot.sh jobs)"` with `-parallel-testing-enabled NO`.
+**DO put those commands in every worker prompt that builds natively.** A worker cannot see the slot
+unless its prompt names it.
+**DON'T kill another session's build, and DON'T boot, use or shut down a simulator the ledger gives
+to another session.** Exit 3 after the wait → name the holder to Simon and continue the non-native work.
+**DON'T keep a per-run lock file as the coordination.** It serializes one run and is invisible to
+every other session.
+
+WHY: 4 sessions, each with a booted simulator, ran 5 `xcodebuild` processes at once on 8 cores; the
+load average reached 811 and the machine froze. Each session was serialized inside itself and none
+could see the others.
+TEST: `native-slot.sh list` shows at most one holder; every booted simulator this session started is
+registered to it; at hand-back none of them is BOOTED.
+
 ## Track what you started
 
 **DO keep a branch's build caches until the branch lands or is abandoned.** Stop its processes at

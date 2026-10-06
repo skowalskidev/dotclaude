@@ -201,9 +201,9 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
 - **Track every process/server/port you start, and shut them ALL down at task end.** List anything
   backgrounded — dev/preview servers, watchers, tunnels, `stripe listen`, a held
   `:3000`/`:3100` port — then kill each and VERIFY it's gone, so nothing keeps burning CPU or a port.
-- **Take a LANE before binding a port, and release it when done.** `bin/port-slot.sh` claims this
-  worktree's slot; a port held by another live session → take the next lane, never wait on it or kill
-  their server. Protocol: `references/dev-server-hygiene.md`.
+- **Take a port LANE before binding, the native SLOT before a native build or simulator boot.**
+  `bin/port-slot.sh`, `bin/native-slot.sh run`. Held by another live session → next lane for a port,
+  wait for the slot; never kill theirs. Release both. Protocol: `references/dev-server-hygiene.md`.
 - **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev`/`jest`/
   `vite` reparented to PID 1 pins a core nobody watches; `bin/kill-orphan-workers.sh` clears a BURNING
   framework worker (20%+ CPU, 5+ min) or an idle-and-old agent orphan (PPID 1, 5+ min), never a

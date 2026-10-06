@@ -108,6 +108,12 @@ CRITERIA: list[tuple[str, str]] = [
      "protection that no longer exists is worse than an admitted gap, because it stops anyone "
      "looking."),
 
+    # --- Shared machine and one record per session --------------------------------------
+    ("native-slot-serializes-native-work-across-sessions",
+     "The native slot lets one native job run at a time across sessions, takes over a dead holder "
+     "and never touches another session's simulator, and a session that opens in a native project "
+     "is told the protocol before its first build."),
+
     # --- The task-intake gate: what you asked for on 2026-08-03 ---------------------
     ("intake-arms-on-a-task-opening",
      "A prompt that opens substantive work initializes one plan-backed dashboard, arms the gate and "
@@ -635,6 +641,24 @@ def check_intake_stays_quiet_mid_run() -> None:
     check("TASK INTAKE GATE" in intake("submit", follow_up),
           "An approval older than APPROVAL_TTL_MIN still suppressed the gate.")
     clear_markers()
+
+
+def check_native_slot_serializes_native_work_across_sessions() -> None:
+    result = run(["bash", str(ROOT / "bin" / "native-slot.test.sh")])
+    check(result.returncode == 0,
+          f"bin/native-slot.test.sh failed:\n{result.stdout}\n{result.stderr}")
+    sweep = (ROOT / "hooks" / "port-registry-sweep.sh").read_text()
+    check("native-slot.sh" in sweep and "has_native_project" in sweep,
+          "The SessionStart report no longer covers the native slot.")
+    with tempfile.TemporaryDirectory(prefix="native-sweep-") as tmp:
+        project = Path(tmp) / "project"
+        (project / "ios" / "App.xcodeproj").mkdir(parents=True)
+        e = {**os.environ, "CLAUDE_CONFIG_ROOT": str(ROOT), "CLAUDE_PROJECT_DIR": str(project),
+             "NATIVE_SLOT_DIR": str(Path(tmp) / "slot")}
+        r = subprocess.run(["bash", str(ROOT / "hooks" / "port-registry-sweep.sh")],
+                           text=True, capture_output=True, cwd=project, env=e)
+        check("native-slot.sh run" in r.stdout,
+              "A session opening in a native project was not told the native-slot protocol.")
 
 
 def check_intake_has_an_off_switch() -> None:

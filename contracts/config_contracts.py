@@ -396,6 +396,9 @@ CONTRACTS: dict[str, dict] = {
             "Every started process is tracked and killed; identity is verified before trusting logs.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
+            "Owns the native protocol: every native build, native test run and simulator boot goes "
+            "through bin/native-slot.sh, each session registers its own simulator, and no session "
+            "kills another's build or touches another's simulator.",
         ],
     },
     "references/git-pr-deploy.md": {
@@ -452,6 +455,7 @@ CONTRACTS: dict[str, dict] = {
             "One planner, flat leaf workers. No middle tier.",
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
+            "Native builds queue through bin/native-slot.sh, named in every dispatch prompt that builds natively; a per-run lock file is not the coordination.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
             "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
@@ -1277,6 +1281,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Reads references/dev-server-hygiene.md for the protocol and bin/port-slot.sh for the "
             "allocation. It owns the per-project judgement only and restates neither.",
+            "Covers the native half by pointer: this session's own registered simulator, its own "
+            "derived-data path passed on the command line, and every build through "
+            "bin/native-slot.sh. The protocol stays in references/dev-server-hygiene.md.",
             "Discovery treats the mechanical scan as a FLOOR, not an answer. The ports that matter most "
             "arrive through config and no package.json scan will ever see them.",
             "The project's one-time SETUP is discovered from its own docs (CLAUDE.md, then "
@@ -1544,11 +1551,16 @@ CONTRACTS: dict[str, dict] = {
         "criteria": ["Detects and reports. Never kills anything.", "Silent when nothing is found."],
     },
     "hooks/port-registry-sweep.sh": {
-        "mission": "A session knows which ports are genuinely held before it binds one, so two stacks never fight.",
-        "purpose": "SessionStart: reconciles the shared port registry and names who holds which port.",
+        "mission": "A session knows which ports and which native slot are genuinely held before it binds or builds, so two sessions never fight over the machine.",
+        "purpose": "SessionStart: reconciles the shared port registry and names who holds which port, "
+                   "the native slot and each simulator.",
         "criteria": [
             "Reports only. Never kills a process and never releases another session's claim.",
-            "Silent when no port is claimed anywhere.",
+            "Silent when no port is claimed, no native slot is held, no simulator is registered or "
+            "booted, and the workspace holds no native project.",
+            "Prints the native-slot protocol when the workspace holds a native project (an Xcode "
+            "project, a Swift package or a Gradle build within two directory levels), so the session "
+            "reads it before its first build. Gives simctl 3 seconds, inside the hook's 10.",
             "Reconciles on every session start, so a session that died without releasing cannot "
             "block anyone the next day. That is what keeps the file honest without hand-maintenance.",
         ],
@@ -1718,6 +1730,36 @@ CONTRACTS: dict[str, dict] = {
             "init_scratch runs in the PARENT shell. `x=\"$(scratch f)\"` runs scratch in a subshell, so "
             "creating the temp dir there loses the variable and the EXIT trap cleans nothing — that left "
             "963 abandoned temp dirs before it was found.",
+        ],
+    },
+    "bin/native-slot.sh": {
+        "mission": "Simon runs several sessions that build native apps at once, and the machine stays usable because one native job runs at a time.",
+        "purpose": "Machine-wide slot for native builds and simulator runs, plus a ledger of which "
+                   "session owns which simulator.",
+        "criteria": [
+            "One slot for the whole machine, taken with an atomic mkdir. `run` waits while a LIVE "
+            "holder has it and exits 3, running nothing, when the wait ends first.",
+            "Never kills a process, never shuts down or deletes a simulator, never releases a slot a "
+            "live session holds. A conflict is reported with the holder's session, workspace and age.",
+            "A holder whose process is gone is taken over by the next caller, so a crashed build "
+            "cannot block the machine. A ledger row whose workspace is gone is dropped on the next read.",
+            "`run` exits with the wrapped command's own status and releases on exit through an "
+            "EXIT-only trap.",
+            "`claim-sim` exits 3 for a simulator another session registered; `release-sim` removes "
+            "only the caller's own row.",
+            "`list` bounds its simctl call (NATIVE_SLOT_SIMCTL_SEC, 10 seconds unless set), because "
+            "simctl hangs on the loaded machine this tool exists for.",
+            "Honors NATIVE_SLOT_DIR so its checks never touch the live slot.",
+        ],
+    },
+    "bin/native-slot.test.sh": {
+        "mission": "A change to the native slot cannot let two sessions build at once, or strand the slot, without a failing check.",
+        "purpose": "Checks for native-slot.sh against a temp directory.",
+        "criteria": [
+            "Asserts a second caller waits while a live holder runs and gets exit 3 when the wait ends.",
+            "Asserts a slot whose holder process is gone is taken over.",
+            "Asserts another session's simulator cannot be claimed or released.",
+            "Runs with NATIVE_SLOT_DIR pointed at a temp directory and boots no simulator.",
         ],
     },
     "bin/port-slot.sh": {
