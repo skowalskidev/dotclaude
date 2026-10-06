@@ -450,6 +450,9 @@ CONTRACTS: dict[str, dict] = {
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
+            "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
+            "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
+            "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
             "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
             "worker's friction + timestamped log to self-diagnose the bottleneck and improve in two tiers "
@@ -511,6 +514,9 @@ CONTRACTS: dict[str, dict] = {
             "Keep review judges on the selected workflow setup through the shared parallelization protocol.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
+            "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
+            "Before a full native suite, prove required platform services with the runtime app, signing and simulator configuration; isolate defaults, authentication, singletons and host state.",
+            "Exercise real-client recovery at the smallest supported viewport and largest text; verify the message and action are unobscured and operable before input, then verify the recovery outcome.",
             "The project's OWN docs are the source for its test commands, layout and runner, and "
             "this file states the discovery order: the repo's CLAUDE.md, then CLAUDE.local.md, then "
             "a playbook if one exists. It must never assume a dedicated playbook file, because most "
@@ -1065,12 +1071,7 @@ CONTRACTS: dict[str, dict] = {
             "Records per-slice PID and start/end. Those timestamps are what let the analyser "
             "attribute LOCAL time (wall minus API) to the command that consumed it, which is the "
             "dominant cost now that dispatch has been measured and ruled out.",
-            "Hands every Claude slice a RUNNABLE `verify` command, refuses to dispatch one the repo's "
-            "permissions.allow does not cover, and re-runs it after the slice exits to record "
-            "verify.txt. Re-reading an accept line is not checking it: measured 2026-08-08, all "
-            "four slices of one run were refused 24 times reaching for a non-allowlisted command, "
-            "two never verified at all, and one of those shipped tests that never ran while its "
-            "DONE.md reported 'verified by careful inspection'.",
+            "Preflight each effective Claude child against applicable user, project and local Bash allow, ask and deny rules; refuse denied or unknown verification before dispatch, preserve child permissions, and rerun accepted verification into verify.txt after completion.",
             "Computes imbalance against the MEDIAN slice, the same definition superspeed-analyse.py "
             "uses. The two printed different numbers under one name and the louder one told the "
             "reader to split a slice the other called fine.",

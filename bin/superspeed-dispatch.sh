@@ -34,7 +34,7 @@
 #         "accept":  "apps/api/src/routes/foo.ts contains a handler named createFoo",
 #         "verify":  "npm run test:run -- apps/api/src/routes/__tests__/foo.test.ts",
 #                    # the ONE command this slice runs to check itself. Must be covered by the
-#                    # repo's permissions.allow, or dispatch stops before spending. "none" only
+#                    # applicable Claude permissions.allow, or dispatch stops before spending. "none" only
 #                    # when nothing the slice writes is runnable.
 #         "prompt":  "what this slice must do" }
 #     ]
@@ -65,6 +65,21 @@ TASK="$(jq -r '.task // ""' "$SPEC")"
 N="$(jq '.slices | length' "$SPEC")"
 HAS_DESIGN="$(jq '[.slices[] | select((.model_route // "general") == "design")] | length' "$SPEC")"
 HAS_GENERAL=$((N - HAS_DESIGN))
+SLICE_SETUPS=()
+SLICE_PROVIDERS=()
+SLICE_MODELS=()
+for i in $(seq 0 $((N - 1))); do
+  MODEL_ROUTE="$(jq -r ".slices[$i].model_route // \"general\"" "$SPEC")"
+  if [ "$MODEL_ROUTE" = design ]; then
+    SLICE_SETUPS+=(full-claude)
+    SLICE_PROVIDERS+=(anthropic)
+    SLICE_MODELS+=("$DESIGN_MODEL")
+  else
+    SLICE_SETUPS+=("$AGENT_SETUP")
+    SLICE_PROVIDERS+=("$MODEL_PROVIDER")
+    SLICE_MODELS+=("$MODEL")
+  fi
+done
 if [ "$HAS_GENERAL" -gt 0 ] && [ "$AGENT_SETUP" != full-claude ]; then
   [ -f "$SCRIPT_DIR/codex_print.py" ] && "$SCRIPT_DIR/codex-launch.py" --cd "$REPO" --version >/dev/null || {
     echo "superspeed: Astra's native Codex launcher is unavailable; no Claude fallback." >&2
@@ -188,16 +203,133 @@ fi
 # command the permission layer will refuse cannot run it, cannot usefully say so, and writes a
 # confident DONE.md anyway — the defect then surfaces at the reconciler, having cost a whole slice.
 #
-# --permission-mode acceptEdits permits EDITS, not Bash. So the only commands a headless slice can
-# actually run are the ones the repo has already allowlisted. Measured 2026-08-08: all four slices
+# --permission-mode acceptEdits permits EDITS, not Bash. A headless slice needs an applicable
+# allow rule without a matching ask or deny. Measured 2026-08-08: all four slices
 # of one run reached for `npx vitest` against an allowlist of `npm run *` and were refused 24 times
 # between them. Two then found the allowlisted `npm run test:run` and verified; two did not, and one
 # of those shipped two tests that failed with zero mock calls. The refusal is invisible in DONE.md:
 # the slice writes that it "verified by careful inspection instead" and reads as finished.
-ALLOW_SRC=""
-for f in "$REPO/.claude/settings.local.json" "$REPO/.claude/settings.json"; do
-  [ -f "$f" ] && ALLOW_SRC="$ALLOW_SRC $f"
-done
+CLAUDE_SETTINGS=("${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json" "$REPO/.claude/settings.json" "$REPO/.claude/settings.local.json")
+
+check_claude_verify_permission() {
+  python3 - "$1" "${CLAUDE_SETTINGS[@]}" <<'PY'
+import json
+import os
+import re
+import shlex
+import sys
+from pathlib import Path
+
+command = sys.argv[1]
+rules = {kind: [] for kind in ("deny", "ask", "allow")}
+
+class PermissionBlocked(Exception):
+    pass
+
+class MissingAllow(Exception):
+    pass
+
+try:
+    for filename in sys.argv[2:]:
+        path = Path(filename)
+        if not path.exists():
+            continue
+        data = json.loads(path.read_text())
+        if not isinstance(data, dict):
+            raise ValueError(f"{path}: settings must be an object")
+        permissions = data.get("permissions", {})
+        if not isinstance(permissions, dict):
+            raise ValueError(f"{path}: permissions must be an object")
+        for kind in rules:
+            entries = permissions.get(kind, [])
+            if not isinstance(entries, list) or any(not isinstance(x, str) for x in entries):
+                raise ValueError(f"{path}: permissions.{kind} must be an array of strings")
+            rules[kind].extend(entries)
+
+    # Claude splits compounds before permission matching. Keep this check to one literal
+    # command; quoted operator characters are arguments, but interpreters can execute them.
+    quote = None
+    escaped = False
+    for char in command:
+        if char == "\n":
+            raise ValueError("verify contains a newline")
+        if escaped:
+            escaped = False
+        elif char == "\\" and quote != "'":
+            escaped = True
+        elif quote == "'":
+            if char == "'":
+                quote = None
+        elif quote == '"':
+            if char == '"':
+                quote = None
+            elif char in "$`":
+                raise ValueError("verify contains dynamic shell expansion")
+        elif char == quote:
+            quote = None
+        elif char in ("'", '"'):
+            quote = char
+        elif char in "$`":
+            raise ValueError("verify contains dynamic shell expansion")
+        elif quote is None and char in ";&|<>":
+            raise ValueError("verify contains a shell operator or redirect")
+        elif quote is None and char in "*?[]{}()~":
+            raise ValueError("verify contains unsupported shell expansion")
+    if quote or escaped:
+        raise ValueError("verify has an incomplete quote or escape")
+    words = shlex.split(command)
+    if not words:
+        raise ValueError("verify is empty")
+    first = os.path.basename(words[0])
+    if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[0]):
+        raise ValueError("verify begins with an environment assignment")
+    if first in {"bash", "sh", "zsh", "dash", "ksh", "fish", "env", "eval", "exec",
+                 "command", "builtin", "time", "timeout", "nice", "nohup", "stdbuf",
+                 "watch", "setsid", "ionice", "flock"}:
+        raise ValueError(f"verify uses an unsupported command wrapper: {first}")
+
+    def matches(rule, kind):
+        if rule in ("Bash", "Bash(*)"):
+            return True
+        if rule == "*":
+            if kind == "allow":
+                raise ValueError("unsupported Bash permission rule: *")
+            return True
+        if not rule.startswith("Bash("):
+            if rule.startswith("Bash") or ("*" in rule and rule.split("(", 1)[0].replace("*", "") in "Bash"):
+                raise ValueError(f"unsupported Bash permission rule: {rule}")
+            return False
+        if not rule.endswith(")"):
+            raise ValueError(f"unsupported Bash permission rule: {rule}")
+        pattern = rule[5:-1]
+        if pattern.endswith(":*"):
+            pattern = pattern[:-2] + " *"
+        if "*" not in pattern:
+            return command == pattern
+        if pattern.count("*") != 1 or not pattern.endswith("*"):
+            prefix = pattern.split("*", 1)[0]
+            if prefix and not command.startswith(prefix):
+                return False
+            raise ValueError(f"unsupported Bash permission rule: {rule}")
+        prefix = pattern[:-1]
+        return command == prefix.rstrip(" ") or command.startswith(prefix)
+
+    # Validate every relevant rule even if an earlier rule matches, then apply precedence.
+    matched = {kind: [rule for rule in entries if matches(rule, kind)] for kind, entries in rules.items()}
+    for kind in ("deny", "ask"):
+        if matched[kind]:
+            raise PermissionBlocked(f"blocked by permissions.{kind}: {matched[kind][0]}")
+    if not matched["allow"]:
+        raise MissingAllow("no applicable Bash allow rule matches")
+except (PermissionBlocked, MissingAllow) as exc:
+    print(f"superspeed: Claude verify {exc}", file=sys.stderr)
+    sys.exit(1)
+except (OSError, ValueError, json.JSONDecodeError) as exc:
+    print(f"superspeed: Claude verify permission unknown: {exc}", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
 for i in $(seq 0 $((N - 1))); do
   VNAME="$(jq -r ".slices[$i].name" "$SPEC")"
   VCMD="$(jq -r ".slices[$i].verify // empty" "$SPEC")"
@@ -213,22 +345,18 @@ for i in $(seq 0 $((N - 1))); do
     } | tee -a "$OUT/run.log" >&2
     exit 4
   fi
-  # Prefix match on the leading words, deliberately. This is a seatbelt sized to the observed
-  # failure (a whole tool the allowlist never mentions), not a permission engine: a narrower
-  # mismatch inside an allowed prefix will still get through, and the slice's own verify.txt is
-  # what catches that.
-  VERB="$(printf '%s' "$VCMD" | awk '{print $1, $2}')"
-  if [ "$AGENT_SETUP" = full-claude ] && [ -n "$ALLOW_SRC" ] && ! jq -r '.permissions.allow[]? // empty' $ALLOW_SRC 2>/dev/null \
-       | sed 's/^Bash(//; s/)$//; s/ *\*$//' | grep -qF -- "${VERB% *}"; then
-    {
-      echo
-      echo "superspeed: STOPPED before dispatch. Slice \"$VNAME\" verifies with:"
-      echo "    $VCMD"
-      echo "which no rule in$ALLOW_SRC allows, so the slice will be refused at the prompt with"
-      echo "nobody available to approve it, and will silently skip the check. Allowed:"
-      jq -r '.permissions.allow[]? // empty' $ALLOW_SRC 2>/dev/null | sed 's/^/    /'
-    } | tee -a "$OUT/run.log" >&2
-    exit 4
+  if [ "${SLICE_PROVIDERS[$i]}" = anthropic ]; then
+    PERMISSION_REASON="$(check_claude_verify_permission "$VCMD" 2>&1)"
+    if [ $? -ne 0 ]; then
+      {
+        echo
+        echo "superspeed: STOPPED before dispatch. Slice \"$VNAME\" verifies with:"
+        echo "    $VCMD"
+        echo "$PERMISSION_REASON"
+        echo "Check user, project and local settings before dispatching a headless slice."
+      } | tee -a "$OUT/run.log" >&2
+      exit 4
+    fi
   fi
 done
 
@@ -274,15 +402,10 @@ for i in $(seq 0 $((N - 1))); do
   NAME="$(jq -r ".slices[$i].name" "$SPEC")"
   SD="$OUT/slices/$NAME"; mkdir -p "$SD"
   MODEL_ROUTE="$(jq -r ".slices[$i].model_route // \"general\"" "$SPEC")"
-  SLICE_SETUP="$AGENT_SETUP"
-  SLICE_MODEL="$MODEL"
-  SLICE_PROVIDER="$MODEL_PROVIDER"
-  if [ "$MODEL_ROUTE" = design ]; then
-    SLICE_SETUP=full-claude
-    SLICE_MODEL="$DESIGN_MODEL"
-    SLICE_PROVIDER=anthropic
-  fi
-  # Validated against the repo's allowlist above, so by here it is known-runnable.
+  SLICE_SETUP="${SLICE_SETUPS[$i]}"
+  SLICE_MODEL="${SLICE_MODELS[$i]}"
+  SLICE_PROVIDER="${SLICE_PROVIDERS[$i]}"
+  # Checked against applicable static permissions above.
   VERIFY="$(jq -r ".slices[$i].verify // \"none\"" "$SPEC")"
 
   # The slice contract. `owns` is exclusive write, `forbid` names the look-alikes to leave alone,
@@ -342,8 +465,8 @@ RULES
         --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     else
-      AGENT_SETUP="$AGENT_SETUP" AGENT_MODEL_PROVIDER="$MODEL_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
-        --model "$MODEL" --output-format json --permission-mode acceptEdits \
+      AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
+        --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     fi
     CPID=$!

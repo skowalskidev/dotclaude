@@ -72,6 +72,10 @@ remaining actions. Embedded mockups retain their versions and feedback. Download
 for sharing; the live app at the printed URL self-refreshes over SSE as the plan changes. The template
 stays the same across tasks and modes.
 
+Completed sections open their current evidence. Sections without an image or mockup show their summary
+and checks. Build caches stay outside live watching and artifact discovery so large test runs do not
+overload the viewer.
+
 One `.context/<slug>-plan.md` owns the task narrative and a version-1 `dashboard-state` JSON block.
 That block records the engine, phase, revision, sections, criteria, evidence, target approval and judge
 verdicts. HTML is a generated view. A section is done only after its required checks and any enabled
