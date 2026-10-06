@@ -404,6 +404,14 @@ expected result (an agent told only what to do cannot tell you it failed), and n
 (a path it has to guess at is a path it will guess wrong).
 - Exact file paths, API-preservation rules, and conventions — so a smaller model can succeed.
 - **Always give an explicit DO-NOT-TOUCH list, not just the task.** Name the look-alikes to leave alone and how to tell them apart (e.g. "en dashes – are NOT em dashes —"; "this string is a model prompt, not UI"). Collateral damage lands exactly where two things look similar.
+- **DO name the one machine resource a worker may touch, by id, and ban the machine-wide form in the
+  same line.** Sessions share this box: one simulator set, one stash stack per repo, one port range.
+  Give the device UDID, the port lane, and a process pattern scoped to the worktree path; have the
+  worker read an old version with `git show <ref>:<path>` or a `git worktree add`. DON'T write "shut
+  down the simulator" or "restore the file" unqualified (the fix for a worker whose `xcrun simctl
+  shutdown all` closed another session's simulator, and one that stashed in the stack every worktree
+  shares). TEST: every dispatch prompt that boots, kills, resets or sets work aside names an id or a
+  path, and none says `all`, `killall` or `git stash`.
 - **Give every shared thing a slice would create one owner before fanning out.** Shared helper types,
   shared assets and sequential IDs such as migration numbers are created in the START commit or assigned to
   a single slice in the prompts. Two slices that both add one cause a conflict at every merge, or a

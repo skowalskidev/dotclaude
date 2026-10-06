@@ -69,8 +69,9 @@ AFTER, another for BEFORE. A box + label reads faster than an arrow. Works for a
   background image/gradient), and target the EXACT element carrying the changed style — an ancestor can
   match the computed value by coincidence, so confirm with `getComputedStyle` that it actually changed
   before shooting.
-- A structural/DOM change: render BEFORE from the pre-change code (`git stash`, or check out the base
-  commit), screenshot, then restore.
+- A structural/DOM change: render BEFORE from the pre-change code in its own tree (`git worktree add
+  <dir> <base>`), screenshot, then remove that tree. Never `git stash` or a checkout in the working tree:
+  the stash stack is shared by every worktree of the repo.
 - Name each pair `ba-<n>-<surface>-BEFORE.png` / `-AFTER.png`. If the app has themes (light/dark) and
   the change reads differently between them, shoot the theme where the difference is clearest — a subtle
   change can be near-invisible in one and obvious in the other.

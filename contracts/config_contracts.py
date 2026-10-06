@@ -201,6 +201,7 @@ CONTRACTS: dict[str, dict] = {
             "~/.aws, ~/.gnupg); it may not shrink. The read-blockers were removed as theatre — the "
             "control is the provenance rule plus never echoing a secret value out.",
             "Deny-only. No 'ask' tier, so nothing prompts mid-run.",
+            "permissions.deny blocks the machine-wide forms that reach other sessions: xcrun simctl shutdown all, xcrun simctl erase all, bare git stash, git stash pop and git stash clear.",
         ],
     },
     # --- Always-on rules -----------------------------------------------------------
@@ -446,6 +447,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
+            "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
