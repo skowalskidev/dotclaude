@@ -127,6 +127,12 @@ outlive the merge.** Those rewrite patch-ids, so `git cherry` reads all `+` and 
 UNMERGED even though its work is in — the exact ambiguity that made two finished feature branches look like
 unmerged work at cleanup time. If a squash/rebase is genuinely wanted, delete the source branch in the SAME
 step so no ref is left behind claiming to be unmerged.
+**DO use the merge method the repo's default branch already uses** (read its last 20 subjects: `(#NNN)`
+on every one means squash). Where the repo squashes, squash, run the deletion gate below on the source
+branch, and put its deletion to the user in the same hand-back. Squash fits a short-lived one-change
+branch and breaks a branch that keeps going (GitHub and GitLab both document this), so commit nothing
+more to a squashed branch. TEST: after a squash merge the hand-back names the leftover branch and its
+gate result.
 
 ## Deleting a merged branch safely — the gate is the seatbelt, not `-d`
 

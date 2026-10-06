@@ -360,6 +360,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The connector engine's how-to and the manifest schema.",
         "criteria": [
             "Schema here matches what bin/connectors-provision.sh actually reads.",
+            "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
         ],
     },
@@ -402,6 +403,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
+            "Follows the repo's own merge method; after a squash merge the hand-back names the leftover source branch and its deletion gate result.",
             "Owns the safe merged-branch-deletion rule: confirm with the user first (never delete "
             "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
