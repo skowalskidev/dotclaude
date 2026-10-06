@@ -352,6 +352,13 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   `timeout` around the wait. Workers still edit in parallel; only the build queues. e.g. 7 worktree agents
   each running a cold `xcodebuild` on one simulator hit load average 657 and stalled ~25 min; one lock
   brought it to 248 within 8 min. TEST: every dispatch prompt that runs a native build names the shared lock.
+- **DO read the load before a heavy gate, and above 2x the core count run one full suite at a time.**
+  `sysctl -n vm.loadavg` against `sysctl -n hw.ncpu`. Above that line each delegated judge or builder
+  runs its own test FILES, never the full suite, and a file the diff did not touch that times out
+  gets one rerun alone, named in the report. DON'T hand N agents "run the suite" on a loaded box (the
+  fix for five judges each running full suites at load 300+, where untouched files timed out six
+  times). TEST: above 2x cores no two full-suite runs overlap, and every rerun in the report names the
+  file and its solo result.
 - **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
   suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
   the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a
