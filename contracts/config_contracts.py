@@ -403,6 +403,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
+            "Follows the repo's own merge method; after a squash merge the hand-back names the leftover source branch and its deletion gate result.",
             "Owns the safe merged-branch-deletion rule: confirm with the user first (never delete "
             "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
