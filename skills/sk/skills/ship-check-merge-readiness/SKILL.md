@@ -23,6 +23,14 @@ and flagged as blocking.**
   consumes. A draft sibling still lands and can conflict, so it counts in the assembled end state
   (`gh pr list` includes drafts). Plus read the PR's own "Coordination"/"depends on" notes and the ticket.
 - For each, record: merged-or-open, what it changed, and whether it is on master yet.
+- **DO read what master changed in the DATA this PR reads, not only in the files it edits.** For every
+  table, enum, status set, cookie or payload the PR's code branches on, read master's migrations and
+  writers since the merge-base, and run a read-only `group by` on production for each column the PR
+  branches on. A merged sibling can add a value, repurpose a column or rewrite stored rows with no file
+  conflict, and the PR's queries then misfile every new row. (the fix for a sibling that added a third
+  value to a two-value column: the merge was clean, a `case … else` counted the new rows under the wrong
+  branch, and the same query showed a stored column rewritten by hand.) TEST: every value production
+  holds in a column the PR branches on is named in the PR's code or its tests.
 
 ## Step 2 — Draft the PR, then rebase onto up-to-date master, resolve for correctness
 

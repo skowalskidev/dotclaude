@@ -657,6 +657,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Assembles a PR and its stack onto current master, resolves every review thread to "
                    "fix / refute / follow-up, and reaches a ship-to-prod-as-is verdict.",
         "criteria": [
+            "Checks what master changed in the data the PR reads (tables, enums, stored values), with a read-only production group-by, because a merged sibling can change it with no file conflict.",
             "Every open review thread ends fixed, refuted with code reasoning, or ticketed — never an "
             "open 'your call'; a claim is verified against the current code before being trusted.",
             "The ship-ready verdict separates code-complete from the human-only deploy steps (stack "
