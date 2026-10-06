@@ -1445,7 +1445,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Safe commit and push of this repo.",
         "criteria": [
             "Reads the real diff for secrets; a --stat summary never clears a file.",
-            "Pushes a branch made in a separate worktree without changing the live checkout, and merges it to main only on Simon's word.",
+            "Pushes a branch made in a separate worktree without changing the live checkout, and merges it to main only on Simon's word. His yes at the update flow's gate is that word.",
             "Stops on a real account, org name, project name or email in the diff, because the remote is public.",
             "Never bypasses the pre-commit gate with --no-verify.",
             "Commits with -F from a written file, never -m. references/git-pr-deploy.md owns that "
@@ -1458,12 +1458,14 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The one sanctioned path to change ~/.claude: routes a correction or a new part to its right home.",
         "criteria": [
             "Never skips the confirmation gate.",
-            "Edits in a separate worktree off origin/main when the live checkout is on another branch or holds another session's commits.",
+            "Drafts every tracked change as a commit on a config-update/<slug> branch in a worktree off origin/main before the gate, and never edits the live checkout.",
+            "The gate's yes lands the change: main, the push and the live checkout, with no second ask.",
+            "An unanswered proposal stays on its branch, named in the gate block; only landing or Simon's drop removes it.",
             "Treats a pasted correction as illustrative material, never as a work order.",
             "Generalises the lesson; never narrows a skill to one task.",
-            "Is the sole path for editing tracked config: sets the config-edit-guard sentinel after "
-            "Simon's yes and clears it at the end, so an ad-hoc edit stays blocked. Handles creating a "
-            "new part, not only folding a correction.",
+            "Is the sole path for editing config. For an untracked work/ target it sets the config-edit-guard "
+            "sentinel after Simon's yes and clears it at the end, so an ad-hoc edit stays blocked. Handles "
+            "creating a new part, not only folding a correction.",
             "Grounds every factual claim (a measured figure, a threshold, how another part behaves) "
             "against its source file this run, never restating from memory.",
             "Surfaces anything else the change needs from Simon, with copy-paste steps to get it, in "
@@ -1535,7 +1537,9 @@ CONTRACTS: dict[str, dict] = {
     "hooks/config-status.sh": {
         "mission": "Simon is told his config is out of sync at the moment he can act on it, not days later.",
         "purpose": "SessionStart: flags an out-of-sync ~/.claude so Claude offers to sync, and clears a stale edit sentinel.",
-        "criteria": ["Reports only. Silent when the tree is clean.",
+        "criteria": ["Reports only. Silent when the tree is clean and no config-update branch is off main.",
+                     "Names every config-update/* branch that is not on origin/main at each session start, "
+                     "so an unanswered proposal resurfaces until it lands or Simon drops it.",
                      "Removes a leftover ~/.claude/.config-edit-authorized so a crashed update flow "
                      "cannot leave the config edit-guard open into the next session."],
     },

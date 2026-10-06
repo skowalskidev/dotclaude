@@ -249,8 +249,18 @@ A learning from one task must leave the skill usable for **any** task. Generaliz
 
 ## Step 5 · Propose the additions and get explicit confirmation (the gate)
 
-Before touching the file, show the user exactly what will change:
+Before anything reaches the live config, show the user exactly what will change:
 
+- **DO draft a tracked `~/.claude` change on a branch BEFORE asking, so the proposal is a commit and
+  cannot be lost.** Order for a tracked target: draft (Steps 6 and 6b, in a worktree), gate (this
+  step), land (Step 7). Run `git -C ~/.claude fetch origin`, then
+  `git -C ~/.claude worktree add ~/.claude/.claude/worktrees/config-update-<slug> -b config-update/<slug> origin/main`.
+  Edit and test there, commit with `-F`, and show `git diff origin/main...config-update/<slug>` as
+  the preview. DON'T edit the live checkout: other sessions share it. The branch is the pending
+  record: `hooks/config-status.sh` names every `config-update/*` branch that is off `origin/main` at
+  each session start, in every project, until it lands or Simon drops it. TEST: at the gate
+  `git -C ~/.claude status --porcelain` reads as it did before the run, and the proposal is a commit
+  on `config-update/<slug>`.
 - For each learning: the **target section** (an existing heading to extend, or a new heading), and the
   **verbatim text** to be added or the sharpened replacement line.
 - Show it as a clear before/after or a bulleted "these lines will be added under `## Section`" — the user
@@ -271,23 +281,17 @@ Before touching the file, show the user exactly what will change:
 
 ## Step 6 · Apply the edit
 
-- **Authorize the edit first, only now that Simon has confirmed.** `hooks/config-edit-guard.py` blocks
-  every Edit/Write to a tracked config file until the sentinel exists. Set it right before editing:
+- **A tracked target is edited on its `config-update/<slug>` branch (Step 5), where the guard does not
+  watch, so it needs no sentinel.** After the gate, change there only what Simon changed at the gate.
+- **For an UNTRACKED target (`work/sk-work`, which exists in the live checkout alone), authorize the
+  edit first, only now that Simon has confirmed.** `hooks/config-edit-guard.py` blocks every
+  Edit/Write under the live config roots until the sentinel exists. Set it right before editing:
   ```bash
   touch ~/.claude/.config-edit-authorized
   ```
   This is what separates a sanctioned change (past the gate) from an ad-hoc one. Never set it before
   Step 5's yes, and never leave it set — Step 7 removes it. It is not needed for a project `CLAUDE.md` /
   `CLAUDE.local.md` target (those live outside `~/.claude` and the guard ignores them).
-- **DO edit in a separate worktree when the live checkout is not yours alone.** Before the first edit
-  run `git -C ~/.claude status -sb` and `git -C ~/.claude log --oneline origin/main..HEAD`. A branch
-  other than `main`, or a commit this session did not make, means another session is working there:
-  `git -C ~/.claude worktree add <dir> -b <branch> origin/main`, then edit and test in `<dir>` (the
-  contract suite tests the checkout it sits in) and hand `<branch>` to `/sk:claude-config-sync`. The
-  guard does not watch `<dir>`, so no sentinel is set for it. The live checkout gets the change when
-  `origin/main` is merged into it; say so when that has not happened. (the fix for config commits that
-  landed on another session's branch and had to be cherry-picked off it.) TEST:
-  `git -C ~/.claude log origin/main..HEAD` gains no commit of yours while another session's are there.
 - Edit the target file in place (the SKILL.md or the resolved CLAUDE.md): extend the right section or add a
   tightly-scoped new one. Prefer extending an existing section (DRY) over adding a near-duplicate heading.
 - Keep the file coherent — additions read as if they were always there, same formatting and altitude.
@@ -365,11 +369,17 @@ first fix.
   session (or on re-read) — say so rather than implying it's live this turn. For a **committed project
   `CLAUDE.md`**, remind the user the change is unstaged in the current worktree and ships when the branch's PR
   merges; for a **`CLAUDE.local.md`**, it stays on this machine (in the main checkout) and is never committed.
-- **Sync the config repo.** If the target lives under `~/.claude` (a `sk` skill — including this
-  one — or the global `~/.claude/CLAUDE.md`), that dir is Simon's config source of truth (a public GitHub
-  repo). **Exception: `sk-work` / `work/` is untracked**, so never offer to
-  sync it — the offer would produce an empty diff. Say plainly that the change is local only and has
-  no backup. After applying anything tracked, OFFER to commit + push it via **`/sk:claude-config-sync`**
-  (it reviews the diff and secret-scans first; NEVER commit secrets). A project `CLAUDE.md` / `CLAUDE.local.md`
-  is NOT in that repo, so this doesn't apply to those.
+- **DO land a tracked change in the same run, on the Step 5 yes.** That yes covers the commit, the
+  merge to `main`, the push and the live checkout; ask nothing more. Hand `config-update/<slug>` to
+  `/sk:claude-config-sync`. Then bring the live checkout to it: with a clean tree and no merge or
+  rebase in progress, `git -C ~/.claude merge --ff-only origin/main` on `main`, else
+  `git -C ~/.claude merge origin/main`. A dirty tree or a conflict: leave it, and say the live config
+  does not have the change yet. Remove the worktree and delete the branch once
+  `git -C ~/.claude branch -r --contains config-update/<slug>` names `origin/main`.
+- **DO leave an unanswered proposal on its branch, named in the gate block.** DON'T delete it, apply
+  it, or report the run done. It leaves one of two ways: Simon's yes lands it, or his `drop <slug>`
+  deletes the branch and its worktree. TEST: after any run, every `config-update/*` branch is on
+  `origin/main` or named in an open gate block.
+- **`sk-work` / `work/` is untracked**: nothing to land. Say plainly that the change is local only and
+  has no backup. A project `CLAUDE.md` / `CLAUDE.local.md` is not in this repo either.
 - Offer to run it again if there are more corrections or rules to fold in.
