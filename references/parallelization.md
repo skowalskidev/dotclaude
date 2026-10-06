@@ -359,6 +359,26 @@ is recorded.
   `xcodebuild` on one simulator hit load average 657 and stalled ~25 min; one lock brought it to 248
   within 8 min. A per-run lock file serializes one run only: 4 sessions each holding their own reached
   load 811. TEST: every dispatch prompt that runs a native build names `native-slot.sh run`.
+- **Freeze the contract, then build every layer in one batch.** When a change spans layers that meet at a
+  contract (a server, a web client, a native client), the orchestrator writes the contract page and its
+  example fixture FIRST and commits them; then one worker per layer starts in the same dispatch batch and
+  builds against the fixture. DON'T chain the layers so each waits for the previous one's code. A contract
+  change found mid-round becomes a numbered rule in the page and goes to every layer in one message. e.g.
+  a three-layer change ran server, then web, then native, and repeated the chain each of the 3 times the
+  contract moved. TEST: every layer's prompt names the same committed contract page and fixture, and the
+  layer workers start in one batch.
+- **The orchestrator runs the heavy suite; a worker runs its own files.** A worker's prompt names the
+  single test files or the scoped command it iterates with. The whole native unit bundle, the whole e2e
+  run and the full build run ONCE per change set, by the orchestrator, after every worker's edits are in
+  (`rules/process.md` § "Fan out verification"). e.g. a native unit bundle of 37-48 minutes ran 5 times
+  in one ship run, once per fixer. TEST: full heavy-suite runs equal change sets, and no worker prompt
+  names a whole-suite command.
+- **A worker runs long commands in the foreground and ends its turn once, with its final report.** A
+  worker that backgrounds a build and returns "still waiting" hands the orchestrator a notification with
+  nothing to act on, and the orchestrator has to wake it again. Put in every prompt: run each command in
+  the foreground with a timeout that covers it, wait for the native slot inside the command, and make the
+  last message the report. e.g. 35 interim "still waiting" returns in one run. TEST: each worker returns
+  exactly once.
 - **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
   suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
   the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a

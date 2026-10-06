@@ -456,6 +456,7 @@ CONTRACTS: dict[str, dict] = {
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
             "Native builds queue through bin/native-slot.sh, named in every dispatch prompt that builds natively; a per-run lock file is not the coordination.",
+            "A multi-layer change freezes its contract page and fixture first, then starts every layer in one batch; the whole heavy suite runs once per change set, by the orchestrator; a worker returns exactly once.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
             "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
