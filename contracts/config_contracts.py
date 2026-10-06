@@ -657,6 +657,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Assembles a PR and its stack onto current master, resolves every review thread to "
                    "fix / refute / follow-up, and reaches a ship-to-prod-as-is verdict.",
         "criteria": [
+            "Checks what master changed in the data the PR reads (tables, enums, stored values), with a read-only production group-by, because a merged sibling can change it with no file conflict.",
             "Every open review thread ends fixed, refuted with code reasoning, or ticketed — never an "
             "open 'your call'; a claim is verified against the current code before being trusted.",
             "The ship-ready verdict separates code-complete from the human-only deploy steps (stack "
@@ -1440,6 +1441,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Safe commit and push of this repo.",
         "criteria": [
             "Reads the real diff for secrets; a --stat summary never clears a file.",
+            "Pushes a branch made in a separate worktree without changing the live checkout, and merges it to main only on Simon's word.",
             "Stops on a real account, org name, project name or email in the diff, because the remote is public.",
             "Never bypasses the pre-commit gate with --no-verify.",
             "Commits with -F from a written file, never -m. references/git-pr-deploy.md owns that "
@@ -1452,6 +1454,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The one sanctioned path to change ~/.claude: routes a correction or a new part to its right home.",
         "criteria": [
             "Never skips the confirmation gate.",
+            "Edits in a separate worktree off origin/main when the live checkout is on another branch or holds another session's commits.",
             "Treats a pasted correction as illustrative material, never as a work order.",
             "Generalises the lesson; never narrows a skill to one task.",
             "Is the sole path for editing tracked config: sets the config-edit-guard sentinel after "
@@ -1612,6 +1615,7 @@ CONTRACTS: dict[str, dict] = {
             "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
             "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",
+            "Refreshes the approval stamp on every mid-run message, so APPROVAL_TTL_MIN measures how long the task has been silent, never how long it has run.",
             "Does not arm on an automated system/background-task notification (a completed background "
             "command, a Stop-hook nudge) — those are follow-up events, not task openings; arming on one "
             "re-armed a gate the opening prompt had already disarmed and deadlocked an unattended run.",

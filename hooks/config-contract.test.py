@@ -41,9 +41,11 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
-ROOT = Path(os.environ.get("CLAUDE_CONFIG_ROOT", Path.home() / ".claude"))
+# The checkout this file sits in. A worktree then tests its own files, never the live config.
+ROOT = Path(os.environ.get("CLAUDE_CONFIG_ROOT", Path(__file__).resolve().parents[1]))
 _INTAKE_TEMP = tempfile.TemporaryDirectory(prefix="claude-intake-tests-")
 INTAKE_TEST_DIR = Path(_INTAKE_TEMP.name)
 INTAKE_WORK_DIR = INTAKE_TEST_DIR / "workspace"
@@ -610,6 +612,13 @@ def check_intake_stays_quiet_mid_run() -> None:
           "demand a second go/no-go while the approved task is still running.")
     check(intake("guard", {**sid, "tool_name": "Agent"}).strip() == "",
           "Agent was denied mid-run, after the user approved the task.")
+    stamp = INTAKE_TEST_DIR / "contract-g.approved"
+    nearly_stale = time.time() - 470 * 60
+    os.utime(stamp, (nearly_stale, nearly_stale))
+    intake("submit", follow_up)
+    check(time.time() - stamp.stat().st_mtime < 120,
+          "A message mid-run did not refresh the approval. APPROVAL_TTL_MIN then measures how long "
+          "the task has run, and a long session re-arms the gate in the middle of its work.")
     check("TASK INTAKE GATE" in intake("submit", {"session_id": "contract-h", "cwd": str(root),
                                                    "prompt": "check the footer color too"}),
           "Another session's first prompt in the same workspace skipped the gate.")

@@ -22,7 +22,9 @@
 # rule. "Mid-run" means this session holds an approval stamp (<session>.approved, written when its
 # armed gate was answered or when standing authorization skipped it) AND the workspace still has a
 # plan whose phase is not `complete`. A finished plan, a missing plan, an unreadable plan or a stamp
-# older than APPROVAL_TTL_MIN all mean a new task, so the gate arms as before.
+# older than APPROVAL_TTL_MIN all mean a new task, so the gate arms as before. Every mid-run message
+# refreshes the stamp, so the TTL measures how long the task has been silent, never how long it has
+# run: a session that works past the TTL is still one task.
 #
 # FAIL-SAFE, DELIBERATELY
 # It disarms itself whenever a stop would be wrong rather than merely annoying: an explicit standing
@@ -220,7 +222,10 @@ submit)
 
   # A message mid-run is a queued task: the plan-reconcile reminder (intent-ledger.sh) covers it, and
   # fan-out stays unblocked.
-  [ "$IN_FLIGHT" -eq 1 ] && exit 0
+  if [ "$IN_FLIGHT" -eq 1 ]; then
+    touch "$APPROVED" 2>/dev/null
+    exit 0
+  fi
 
   # 3. Arm on a task OPENING. Either it is long enough to be a brief, or it starts with a work verb.
   ARM=0

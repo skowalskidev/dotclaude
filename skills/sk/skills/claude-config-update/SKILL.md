@@ -1,6 +1,6 @@
 ---
 name: claude-config-update
-description: The only route for changing Simon's own ~/.claude config or a CLAUDE.md he maintains — rules, references, sk/sk-work skills, hooks, bin engines (gauntlet dashboard, mockup shell), connector manifests, settings wiring. Takes pasted corrections or a stated new part, picks where it belongs, previews, and edits only after a yes. Use for any config change, a new skill, or "make this stick". Not the built-in /update-config.
+description: The only route for changing Simon's own ~/.claude config or a CLAUDE.md he maintains — rules, references, sk/sk-work skills, hooks, bin engines (gauntlet dashboard, mockup shell), connector manifests, settings wiring. Takes pasted corrections or a stated new part, picks where it belongs, previews, and edits only after a yes. Use for any config change, "create a new skill", "make this correction permanent", "add this rule to my UI conventions", "make the gauntlet dashboard open the mockup in a new tab", or "make this stick". Not the built-in /update-config.
 argument-hint: "paste the correction-prompts / rule to fold in — the target is proposed for you"
 ---
 
@@ -279,6 +279,15 @@ Before touching the file, show the user exactly what will change:
   This is what separates a sanctioned change (past the gate) from an ad-hoc one. Never set it before
   Step 5's yes, and never leave it set — Step 7 removes it. It is not needed for a project `CLAUDE.md` /
   `CLAUDE.local.md` target (those live outside `~/.claude` and the guard ignores them).
+- **DO edit in a separate worktree when the live checkout is not yours alone.** Before the first edit
+  run `git -C ~/.claude status -sb` and `git -C ~/.claude log --oneline origin/main..HEAD`. A branch
+  other than `main`, or a commit this session did not make, means another session is working there:
+  `git -C ~/.claude worktree add <dir> -b <branch> origin/main`, then edit and test in `<dir>` (the
+  contract suite tests the checkout it sits in) and hand `<branch>` to `/sk:claude-config-sync`. The
+  guard does not watch `<dir>`, so no sentinel is set for it. The live checkout gets the change when
+  `origin/main` is merged into it; say so when that has not happened. (the fix for config commits that
+  landed on another session's branch and had to be cherry-picked off it.) TEST:
+  `git -C ~/.claude log origin/main..HEAD` gains no commit of yours while another session's are there.
 - Edit the target file in place (the SKILL.md or the resolved CLAUDE.md): extend the right section or add a
   tightly-scoped new one. Prefer extending an existing section (DRY) over adding a near-duplicate heading.
 - Keep the file coherent — additions read as if they were always there, same formatting and altitude.
