@@ -1612,6 +1612,7 @@ CONTRACTS: dict[str, dict] = {
             "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
             "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",
+            "Refreshes the approval stamp on every mid-run message, so APPROVAL_TTL_MIN measures how long the task has been silent, never how long it has run.",
             "Does not arm on an automated system/background-task notification (a completed background "
             "command, a Stop-hook nudge) — those are follow-up events, not task openings; arming on one "
             "re-armed a gate the opening prompt had already disarmed and deadlocked an unattended run.",
