@@ -1440,6 +1440,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Safe commit and push of this repo.",
         "criteria": [
             "Reads the real diff for secrets; a --stat summary never clears a file.",
+            "Pushes a branch made in a separate worktree without changing the live checkout, and merges it to main only on Simon's word.",
             "Stops on a real account, org name, project name or email in the diff, because the remote is public.",
             "Never bypasses the pre-commit gate with --no-verify.",
             "Commits with -F from a written file, never -m. references/git-pr-deploy.md owns that "
@@ -1452,6 +1453,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The one sanctioned path to change ~/.claude: routes a correction or a new part to its right home.",
         "criteria": [
             "Never skips the confirmation gate.",
+            "Edits in a separate worktree off origin/main when the live checkout is on another branch or holds another session's commits.",
             "Treats a pasted correction as illustrative material, never as a work order.",
             "Generalises the lesson; never narrows a skill to one task.",
             "Is the sole path for editing tracked config: sets the config-edit-guard sentinel after "

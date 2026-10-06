@@ -64,6 +64,14 @@ skill commits + pushes those changes safely.
 6. **Confirm in sync:** `git -C ~/.claude status -sb` shows a clean tree and `## main...origin/main`
    with nothing ahead.
 
+**A branch from a worktree** (the route `/sk:claude-config-update` takes when another session shares
+the live checkout): run steps 2 to 4 in that worktree over `origin/main..<branch>`, then
+`git push -u origin <branch>`. Merge it into `main` and push `main` only when Simon said to: fetch,
+merge `origin/main` into the branch, re-run the contract suite there, then
+`git push origin <branch>:main`. Confirm with `git rev-list --left-right --count origin/main...<branch>`
+reading `0 0`, and remove the worktree once the push is confirmed. TEST: the live checkout's branch and
+its uncommitted files are exactly as they were before the sync.
+
 ## Notes
 - Manual one-shot equivalent: `bash ~/.claude/dotfiles/sync-config.sh` (stages, secret-scans, commits with
   a timestamp message, pushes). Prefer a descriptive commit via the steps above for real changes; the

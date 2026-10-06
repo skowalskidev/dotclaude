@@ -44,7 +44,8 @@ import tempfile
 import time
 from pathlib import Path
 
-ROOT = Path(os.environ.get("CLAUDE_CONFIG_ROOT", Path.home() / ".claude"))
+# The checkout this file sits in. A worktree then tests its own files, never the live config.
+ROOT = Path(os.environ.get("CLAUDE_CONFIG_ROOT", Path(__file__).resolve().parents[1]))
 _INTAKE_TEMP = tempfile.TemporaryDirectory(prefix="claude-intake-tests-")
 INTAKE_TEST_DIR = Path(_INTAKE_TEMP.name)
 INTAKE_WORK_DIR = INTAKE_TEST_DIR / "workspace"
