@@ -678,6 +678,11 @@ CONTRACTS: dict[str, dict] = {
             "index-before-functions), so the human never has to ask whether it ships.",
             "A cross-owner gap is kept in the owner's scope: a ticket, a comment, and an explicit "
             "blocking line in the Deploy TLDR — never completed unilaterally.",
+            "A gap inside the PR's own scope is built in the PR while it is a draft. A ticket is for "
+            "another owner's work, a step release order forces into a later release, or a deferral "
+            "Simon stated, and each ticket names which.",
+            "Re-reads the project's working rules and deploy docs after every merge of the default "
+            "branch that changed them, and re-checks the PR and its Deploy TLDR against the new rule.",
             "Runs safely one-per-branch when several execute at once: each touches only its own "
             "branch, a cross-owner fix is a ticket + comment + blocking line on the owner's PR, and "
             "the assembled PR-set includes drafts, not only ready PRs.",

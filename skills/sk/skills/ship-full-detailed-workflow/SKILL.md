@@ -50,7 +50,12 @@ tickets; a fix that belongs to another PR is handed to that owner via
 8. **`/sk:ship-pr`** — the PR body carries the Deploy-TLDR.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
-   hand back a per-ticket verdict report.
+   hand back a per-ticket verdict report. A gap any stage found inside this PR's own scope is BUILT
+   here, not ticketed: `/sk:ship-check-merge-readiness` Step 6 owns the three cases a ticket is for.
+
+**Running the stages on a multi-layer PR:** fix rounds follow `references/parallelization.md` §
+"Parallelize verification, not just agents": the contract page first, every layer in one batch, the
+heavy suite once per change set by the orchestrator, native work through `bin/native-slot.sh`.
 
 **Landing gate — a stage that RAN but didn't LAND its artifact is not done.** Before stage 9 reconciles,
 fetch the pushed PR (`gh pr view <n> --json body,comments` plus the `reviewThreads` GraphQL query) and

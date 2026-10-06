@@ -50,6 +50,13 @@ and flagged as blocking.**
 - After the rebase the code has changed — **re-verify any earlier finding/verdict against the
   post-rebase code.** A verdict cited against the old tree can name a commit that is not even on
   this branch.
+- **DO re-read the project's working rules after EVERY merge or rebase onto the default branch that
+  changed them:** `git diff ORIG_HEAD HEAD --stat -- CLAUDE.md AGENTS.md '*deploy*' '*.github/workflows*'`,
+  then read each changed file and re-check the PR and its Deploy TLDR against the new rule. A sibling
+  can change HOW the repo ships with no file conflict. e.g. a merged sibling moved database migrations
+  from applied-by-hand to applied-by-the-deploy, which made one of the PR's migrations unsafe to ship
+  in the same release and its Deploy TLDR wrong. TEST: each merge of the default branch has that diff
+  listed, and a changed rule has a verdict against the PR.
 - **Review the ENTIRE assembled diff, exhaustively — every changed file against current master, not
   a sample and not only the files that conflicted.** Take the full `git diff origin/master...HEAD`
   (the whole set, every hunk) and read it the way `/sk:ship-review` reads a change, because the
@@ -156,6 +163,13 @@ framework — so there is one.
    - **follow-up** — real but LATENT (does not break the common path in today's prod) or a multi-site
      change unsafe to rush. File a ticket with the precise fix + why-deferred, reply with the link,
      resolve.
+
+   **DO build a gap that sits inside THIS PR's own scope in this PR, while it is still a draft.** A
+   ticket is for exactly three cases: another owner's work (Step 3), a step that release order forces
+   into a later release (a migration that removes something live code still reads), or a deferral
+   Simon stated. DON'T file a batch of tickets for the PR's own loose ends and hand back.
+   TEST: every ticket filed during the run names which of the three cases it is. (The fix for 8
+   follow-up tickets filed on a draft PR that Simon then asked to have built into it.)
 
 **Then state ONE ship-ready verdict and stop.** Split the two halves a bare "yes/no" collapses:
 - **Code** — complete, green, every thread resolved; or exactly what is not.
