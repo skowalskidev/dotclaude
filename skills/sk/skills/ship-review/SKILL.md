@@ -49,6 +49,13 @@ Project databases, cloud accounts and other service credentials still follow Ste
    write the decisions down as rules every layer implements, and fix in ONE round. TEST: a second
    fix round runs only for a finding the first round's fix itself introduced. (The fix for nine
    serial single-review rounds, each surfacing one new defect class.)
+   **DO write, under each rule that changes what a layer stores, sends or skips, its READERS: every
+   consumer of that value in every layer, by file.** A rule with no reader list is not ready for a
+   builder. **DO end the round with one fresh judge over the files the round changed, and prove each
+   rule that reaches a rendered surface through the running view.** DON'T accept a unit test of the
+   model as that proof (the fix for a "never store this field" rule that passed every unit test
+   while the control it fed vanished from the screen after each reply). TEST: every such rule names
+   its readers, and the round's report carries the fresh judge's verdict.
 4. If subscription authentication, quota or the selected model is unavailable, stop and report it.
    Do not switch to a model API on your own. A model-API review runs only through the pal MCP, when Simon
    asks for it by name, with a key from this repo's boundary (`rules/connectors.md`) and his per-call yes.

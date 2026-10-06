@@ -977,6 +977,8 @@ CONTRACTS: dict[str, dict] = {
             "can get through what the diff produced.",
             "The journey pass is runnable on its own, so asking to walk a flow does not spend the "
             "multi-model code review to get there.",
+            "A fix round's written rules name every reader of a value they change, and the round ends "
+            "with a fresh judge over the files it changed.",
         ],
     },
     "skills/sk/skills/ship-resolve-pr-comments/SKILL.md": {
