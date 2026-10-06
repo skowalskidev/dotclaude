@@ -1065,12 +1065,7 @@ CONTRACTS: dict[str, dict] = {
             "Records per-slice PID and start/end. Those timestamps are what let the analyser "
             "attribute LOCAL time (wall minus API) to the command that consumed it, which is the "
             "dominant cost now that dispatch has been measured and ruled out.",
-            "Hands every Claude slice a RUNNABLE `verify` command, refuses to dispatch one the repo's "
-            "permissions.allow does not cover, and re-runs it after the slice exits to record "
-            "verify.txt. Re-reading an accept line is not checking it: measured 2026-08-08, all "
-            "four slices of one run were refused 24 times reaching for a non-allowlisted command, "
-            "two never verified at all, and one of those shipped tests that never ran while its "
-            "DONE.md reported 'verified by careful inspection'.",
+            "Preflight each effective Claude child against applicable user, project and local Bash allow, ask and deny rules; refuse denied or unknown verification before dispatch, preserve child permissions, and rerun accepted verification into verify.txt after completion.",
             "Computes imbalance against the MEDIAN slice, the same definition superspeed-analyse.py "
             "uses. The two printed different numbers under one name and the louder one told the "
             "reader to split a slice the other called fine.",
