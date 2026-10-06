@@ -1616,6 +1616,9 @@ CONTRACTS: dict[str, dict] = {
             "it with the refusals, the redaction, and planning-and-tracking.md's ban on promoting "
             "verbatim prompts out of the worktree. logs/intent-reconcile.jsonl keeps the ORIGINAL "
             "posture: counts and enums only, never prompt text.",
+            "One ledger per session: resolves its root through bin/session-root.sh, so a shell that "
+            "moved into a worktree nested under the session's root still appends to that root's "
+            "ledger. `note` reads the session id from CLAUDE_CODE_SESSION_ID because it has no payload.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
@@ -1629,6 +1632,7 @@ CONTRACTS: dict[str, dict] = {
             "Keeps default session gauntlets on current execution with the independent judge off, without adding a loop-options interview.",
             "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
             "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
+            "One plan per session: resolves its root through bin/session-root.sh, so a prompt sent while the shell sits in a worktree nested under the session's root reads that root's plan and opens no second one.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",
             "Refreshes the approval stamp on every mid-run message, so APPROVAL_TTL_MIN measures how long the task has been silent, never how long it has run.",
             "Does not arm on an automated system/background-task notification (a completed background "
@@ -1760,6 +1764,31 @@ CONTRACTS: dict[str, dict] = {
             "Asserts a slot whose holder process is gone is taken over.",
             "Asserts another session's simulator cannot be claimed or released.",
             "Runs with NATIVE_SLOT_DIR pointed at a temp directory and boots no simulator.",
+        ],
+    },
+    "bin/session-root.sh": {
+        "mission": "A session keeps ONE plan and ONE ledger for its whole run, so Simon never finds his asks split across two records.",
+        "purpose": "Remembers the first git root a session resolved and answers it while the shell is "
+                   "in that root or a worktree nested under it.",
+        "criteria": [
+            "The single owner of the rule: hooks/task-intake.sh and hooks/intent-ledger.sh both ask "
+            "it and neither re-derives it.",
+            "A shell inside a worktree nested under the remembered root answers the remembered root. "
+            "A shell outside it re-homes the session to the new git root.",
+            "A session that STARTS in a nested worktree owns that worktree: the record is per session id.",
+            "An empty session id, or a directory outside git, is answered without writing a record.",
+            "Strips a session id to letters, digits, dot, underscore and hyphen before using it as a "
+            "file name.",
+            "Honors CLAUDE_SESSION_ROOT_DIR so tests never write the live records; prunes records "
+            "older than 14 days.",
+        ],
+    },
+    "bin/session-root.test.sh": {
+        "mission": "A change to the session-root rule cannot split a session's plan or merge two sessions' records without a failing check.",
+        "purpose": "Checks for session-root.sh against a temp repository with a nested worktree.",
+        "criteria": [
+            "Asserts the nested-worktree case, the starts-nested case and the re-home case separately.",
+            "Asserts a crafted session id cannot write outside the state directory.",
         ],
     },
     "bin/port-slot.sh": {

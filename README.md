@@ -86,6 +86,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `bin/port-registry.sh` | Machine-wide port coordination between sessions that can't see each other: `claim` / `release` / `check` / `list [--tsv]` / `wait` / `reconcile` / `reap`. Exit 3 = held by another live session, 4 = a listener nobody claimed, 5 = a lane whose workspace is gone but whose server still listens. A lane survives with no listener while a live Claude session works in that workspace. Writes `~/.claude/port-registry.md` (untracked). Protocol in `references/dev-server-hygiene.md` |
 | `bin/port-slot.sh` | Gives a worktree its own LANE of dev ports (slot 0-9, `base + N*10`) so several sessions run stacks at once. Claims lazily, sweeps eagerly, kills only a server whose worktree was deleted, records each run to `logs/isolate-runs.jsonl` (self-trimming). Base ports discovered, never hardcoded. Driven by `/sk:work-isolate-environment` |
 | `bin/native-slot.sh` | Machine-wide coordination of native work between sessions that can't see each other: one slot for `xcodebuild`, Gradle and simulator runs (`run --for "<what>" -- <command>` waits for a live holder, exit 3 = still held) and a simulator ledger (`claim-sim` / `release-sim` / `list`). `jobs` prints a build job count of half the cores. Never kills a process or shuts down a simulator. State in `~/.claude/native-slot/`. Checks: `bash bin/native-slot.test.sh` |
+| `bin/session-root.sh` | One session, one root: remembers the first git root a session resolved so `hooks/task-intake.sh` and `hooks/intent-ledger.sh` keep ONE plan and ONE ledger when the shell moves into a worktree nested under that root. A move outside it re-homes the session. State in `~/.claude/.session-root/`. Checks: `bash bin/session-root.test.sh` |
 | `.githooks/pre-commit` + `dotfiles/secret-scan.sh` | Secret gate (gitleaks + grep fallback) — blocks any commit staging a secret |
 | `.githooks/commit-msg` | Conventional-commit gate — rejects a non-conforming subject line. The written standard lives in `references/git-pr-deploy.md`; this makes it bite in this repo |
 | `dotfiles/sync-config.sh` | On-demand commit + push of config changes (used by `/sk:claude-config-sync`) |
@@ -365,6 +366,7 @@ background daemon** (deliberately, to avoid idle CPU):
   the path and the protocol while the contents stay out. Already excluded by the allowlist, since a
   new top-level file is ignored unless it is opted in.
 - **`~/.claude/native-slot/`** — who holds the machine's one native build slot and which session registered which simulator. Machine-local runtime state, excluded by the allowlist; a holder whose process is gone is taken over by the next `bin/native-slot.sh run`.
+- **`~/.claude/.session-root/`** — one line per session id: the root its plan and ledger live in. Machine-local, pruned after 14 days.
 - **`~/.claude/logs/isolate-runs.jsonl`** — one line per `bin/port-slot.sh` run, so the next run in a
   worktree is better aimed than the last. Machine-local, self-trimming to 200 lines, and excluded by the
   allowlist. Reading it is step 6 of `/sk:work-isolate-environment`.
