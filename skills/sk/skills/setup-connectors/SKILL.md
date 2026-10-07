@@ -127,7 +127,10 @@ Suggest a secret manager only if Simon asks for one.
 ## Mode: enable-prod-write <platform> (separate, on-demand, confirmed, ephemeral)
 
 Prod is read-only by default; a write goes through a SEPARATE pathway that must be enabled, confirmed,
-and torn down. For the platform's `enabledOnDemand` write connector (e.g. `firebase-prod-write`):
+and torn down. A database migration is not a key-minting connector: for one, follow
+`references/connectors-setup.md` § "A schema change in production" (pipeline first, Simon by hand
+second, agent-run only as the gated exception). For the platform's `enabledOnDemand` write connector
+(e.g. `firebase-prod-write`):
 1. Mint its write key from the provider's IAM using that connector's own `auth.steps`, to
    `<secret.path>` (`chmod 600`). Nothing is pulled from a store; the key does not exist until now.
 2. Register it: `claude mcp add-json <name> "<mcp-block>" -s local` (from the manifest record).

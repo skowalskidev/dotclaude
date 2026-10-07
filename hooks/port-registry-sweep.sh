@@ -12,14 +12,19 @@
 # opaque network error, not as a port conflict. Naming the holder up front turns an hour of debugging
 # into a sentence.
 #
+# The same report covers the other resource sessions share without seeing each other: the machine-wide
+# native slot and the simulator ledger (bin/native-slot.sh). It prints them when a slot is held, a
+# simulator is registered or booted, or this workspace holds a native project, so a session learns the
+# protocol before its first build and never after the machine has stalled.
+#
 # Output convention matches hooks/config-status.sh, hooks/session-connectors.sh and
 # hooks/orphan-worker-sweep.sh: silent (exit 0, no output) when there is nothing to report; a
 # hookSpecificOutput/additionalContext blob when there is. Wrapped so a slow or erroring registry can
 # never block session start.
-REG_SH="$HOME/.claude/bin/port-registry.sh"
+REG_SH="${CLAUDE_CONFIG_ROOT:-$HOME/.claude}/bin/port-registry.sh"
+NATIVE_SH="${CLAUDE_CONFIG_ROOT:-$HOME/.claude}/bin/native-slot.sh"
 
-run_sweep() {
-  set -u
+port_report() {
   [ -x "$REG_SH" ] || return 0
 
   out="$("$REG_SH" list 2>/dev/null)"
@@ -30,7 +35,7 @@ run_sweep() {
 
   me="$("$REG_SH" whoami 2>/dev/null | awk '/^session:/ { print $2 }')"
 
-  msg="NOTE: local dev ports are claimed by Claude session(s) on this machine. This session is '${me}'.
+  printf '%s\n' "NOTE: local dev ports are claimed by Claude session(s) on this machine. This session is '${me}'.
 ${out}
 
 Before binding ANY port: ~/.claude/bin/port-registry.sh claim <port> --for \"<what>\" (exit 3 = held by
@@ -38,6 +43,47 @@ another live session). If it is held by someone else, tell the user who holds it
 \`port-registry.sh wait <port>\`, and wait — do not pick a different port silently and do not kill
 their server. Release with \`port-registry.sh release\` the moment you kill your own process; that is
 what tells the waiting session it can go. Protocol: ~/.claude/references/dev-server-hygiene.md"
+}
+
+# A native project two levels down still counts: the app often sits in ios/ or android/.
+has_native_project() {
+  local d="${CLAUDE_PROJECT_DIR:-$PWD}"
+  [ -d "$d" ] || return 1
+  find "$d" -maxdepth 2 \( -name node_modules -o -name .git \) -prune -o \
+    \( -name '*.xcodeproj' -o -name '*.xcworkspace' -o -name 'Package.swift' \
+       -o -name 'build.gradle' -o -name 'build.gradle.kts' \) -print 2>/dev/null | grep -q .
+}
+
+native_report() {
+  [ -x "$NATIVE_SH" ] || return 0
+  local out
+  out="$(NATIVE_SLOT_SIMCTL_SEC=3 "$NATIVE_SH" list 2>/dev/null)"
+  if [ "$out" = "Native slot free." ] || [ -z "$out" ]; then
+    has_native_project || return 0
+    out="Native slot free."
+  fi
+
+  printf '%s\n' "NOTE: native builds and simulators are shared by every Claude session on this machine.
+${out}
+
+Before ANY native build, native test run or simulator boot:
+~/.claude/bin/native-slot.sh run --for \"<what>\" [--udid <id>] -- <command>
+It waits while another live session holds the slot (exit 3 = still held, nothing ran). Register each
+simulator you create or boot with \`native-slot.sh claim-sim <udid>\` (exit 3 = another session's
+device, use your own). Never kill another session's build or shut down its simulator.
+Protocol: ~/.claude/references/dev-server-hygiene.md § Native work"
+}
+
+run_sweep() {
+  set -u
+  ports="$(port_report)"
+  native="$(native_report)"
+  [ -n "$ports$native" ] || return 0
+  msg="$ports"
+  [ -n "$ports" ] && [ -n "$native" ] && msg="$msg
+
+"
+  msg="$msg$native"
 
   if command -v jq >/dev/null 2>&1; then
     jq -cn --arg c "$msg" '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'

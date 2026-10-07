@@ -59,8 +59,8 @@ part that owns it. Never a note reminding yourself to remember next time.
 2. **Propose + ask (a gate, not a silent auto-fix):** present the exact durable change and ask whether
    to fold it in via `/sk:claude-config-update`. Never auto-apply without my yes. Never paper over a
    real bug — fix the config, don't mask the symptom.
-3. **Reversible + auditable:** the change is a commit on a `config-update/*` branch, landed by
-   `/sk:claude-config-update` on the same yes (secret-scanned). If I decline, leave the config untouched.
+3. **Reversible + auditable:** the change is a `config-update/*` commit that
+   `/sk:claude-config-update` lands on the same yes (secret-scanned). If I decline, leave the config untouched.
 
 Keep the proposal terse: what broke, why (bug vs edge case), the exact edit, and which file/home it
 belongs in (route via `/sk:claude-config-update`'s structure router; keep top-level `CLAUDE.md` thin).

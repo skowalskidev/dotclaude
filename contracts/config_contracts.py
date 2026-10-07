@@ -361,6 +361,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The connector engine's how-to and the manifest schema.",
         "criteria": [
             "Schema here matches what bin/connectors-provision.sh actually reads.",
+            "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
         ],
     },
@@ -396,6 +397,9 @@ CONTRACTS: dict[str, dict] = {
             "Every started process is tracked and killed; identity is verified before trusting logs.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
+            "Owns the native protocol: every native build, native test run and simulator boot goes "
+            "through bin/native-slot.sh, each session registers its own simulator, and no session "
+            "kills another's build or touches another's simulator.",
         ],
     },
     "references/git-pr-deploy.md": {
@@ -403,6 +407,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
+            "Follows the repo's own merge method; after a squash merge the hand-back names the leftover source branch and its deletion gate result.",
             "Owns the safe merged-branch-deletion rule: confirm with the user first (never delete "
             "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
@@ -450,6 +455,11 @@ CONTRACTS: dict[str, dict] = {
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
             "Never trust a subagent's self-report; verify on disk.",
             "One planner, flat leaf workers. No middle tier.",
+            "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
+            "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
+            "Native builds queue through bin/native-slot.sh, named in every dispatch prompt that builds natively; a per-run lock file is not the coordination.",
+            "A multi-layer change freezes its contract page and fixture first, then starts every layer in one batch; the whole heavy suite runs once per change set, by the orchestrator; a worker returns exactly once.",
+            "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
             "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
             "worker's friction + timestamped log to self-diagnose the bottleneck and improve in two tiers "
@@ -511,6 +521,9 @@ CONTRACTS: dict[str, dict] = {
             "Keep review judges on the selected workflow setup through the shared parallelization protocol.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
+            "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
+            "Before a full native suite, prove required platform services with the runtime app, signing and simulator configuration; isolate defaults, authentication, singletons and host state.",
+            "Exercise real-client recovery at the smallest supported viewport and largest text; verify the message and action are unobscured and operable before input, then verify the recovery outcome.",
             "The project's OWN docs are the source for its test commands, layout and runner, and "
             "this file states the discovery order: the repo's CLAUDE.md, then CLAUDE.local.md, then "
             "a playbook if one exists. It must never assume a dedicated playbook file, because most "
@@ -667,6 +680,11 @@ CONTRACTS: dict[str, dict] = {
             "index-before-functions), so the human never has to ask whether it ships.",
             "A cross-owner gap is kept in the owner's scope: a ticket, a comment, and an explicit "
             "blocking line in the Deploy TLDR — never completed unilaterally.",
+            "A gap inside the PR's own scope is built in the PR while it is a draft. A ticket is for "
+            "another owner's work, a step release order forces into a later release, or a deferral "
+            "Simon stated, and each ticket names which.",
+            "Re-reads the project's working rules and deploy docs after every merge of the default "
+            "branch that changed them, and re-checks the PR and its Deploy TLDR against the new rule.",
             "Runs safely one-per-branch when several execute at once: each touches only its own "
             "branch, a cross-owner fix is a ticket + comment + blocking line on the owner's PR, and "
             "the assembled PR-set includes drafts, not only ready PRs.",
@@ -1067,12 +1085,7 @@ CONTRACTS: dict[str, dict] = {
             "Records per-slice PID and start/end. Those timestamps are what let the analyser "
             "attribute LOCAL time (wall minus API) to the command that consumed it, which is the "
             "dominant cost now that dispatch has been measured and ruled out.",
-            "Hands every Claude slice a RUNNABLE `verify` command, refuses to dispatch one the repo's "
-            "permissions.allow does not cover, and re-runs it after the slice exits to record "
-            "verify.txt. Re-reading an accept line is not checking it: measured 2026-08-08, all "
-            "four slices of one run were refused 24 times reaching for a non-allowlisted command, "
-            "two never verified at all, and one of those shipped tests that never ran while its "
-            "DONE.md reported 'verified by careful inspection'.",
+            "Preflight each effective Claude child against applicable user, project and local Bash allow, ask and deny rules; refuse denied or unknown verification before dispatch, preserve child permissions, and rerun accepted verification into verify.txt after completion.",
             "Computes imbalance against the MEDIAN slice, the same definition superspeed-analyse.py "
             "uses. The two printed different numbers under one name and the louder one told the "
             "reader to split a slice the other called fine.",
@@ -1278,6 +1291,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Reads references/dev-server-hygiene.md for the protocol and bin/port-slot.sh for the "
             "allocation. It owns the per-project judgement only and restates neither.",
+            "Covers the native half by pointer: this session's own registered simulator, its own "
+            "derived-data path passed on the command line, and every build through "
+            "bin/native-slot.sh. The protocol stays in references/dev-server-hygiene.md.",
             "Discovery treats the mechanical scan as a FLOOR, not an answer. The ports that matter most "
             "arrive through config and no package.json scan will ever see them.",
             "The project's one-time SETUP is discovered from its own docs (CLAUDE.md, then "
@@ -1549,11 +1565,16 @@ CONTRACTS: dict[str, dict] = {
         "criteria": ["Detects and reports. Never kills anything.", "Silent when nothing is found."],
     },
     "hooks/port-registry-sweep.sh": {
-        "mission": "A session knows which ports are genuinely held before it binds one, so two stacks never fight.",
-        "purpose": "SessionStart: reconciles the shared port registry and names who holds which port.",
+        "mission": "A session knows which ports and which native slot are genuinely held before it binds or builds, so two sessions never fight over the machine.",
+        "purpose": "SessionStart: reconciles the shared port registry and names who holds which port, "
+                   "the native slot and each simulator.",
         "criteria": [
             "Reports only. Never kills a process and never releases another session's claim.",
-            "Silent when no port is claimed anywhere.",
+            "Silent when no port is claimed, no native slot is held, no simulator is registered or "
+            "booted, and the workspace holds no native project.",
+            "Prints the native-slot protocol when the workspace holds a native project (an Xcode "
+            "project, a Swift package or a Gradle build within two directory levels), so the session "
+            "reads it before its first build. Gives simctl 3 seconds, inside the hook's 10.",
             "Reconciles on every session start, so a session that died without releasing cannot "
             "block anyone the next day. That is what keeps the file honest without hand-maintenance.",
         ],
@@ -1609,6 +1630,9 @@ CONTRACTS: dict[str, dict] = {
             "it with the refusals, the redaction, and planning-and-tracking.md's ban on promoting "
             "verbatim prompts out of the worktree. logs/intent-reconcile.jsonl keeps the ORIGINAL "
             "posture: counts and enums only, never prompt text.",
+            "One ledger per session: resolves its root through bin/session-root.sh, so a shell that "
+            "moved into a worktree nested under the session's root still appends to that root's "
+            "ledger. `note` reads the session id from CLAUDE_CODE_SESSION_ID because it has no payload.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
@@ -1622,6 +1646,7 @@ CONTRACTS: dict[str, dict] = {
             "Keeps default session gauntlets on current execution with the independent judge off, without adding a loop-options interview.",
             "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
             "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
+            "One plan per session: resolves its root through bin/session-root.sh, so a prompt sent while the shell sits in a worktree nested under the session's root reads that root's plan and opens no second one.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",
             "Refreshes the approval stamp on every mid-run message, so APPROVAL_TTL_MIN measures how long the task has been silent, never how long it has run.",
             "Does not arm on an automated system/background-task notification (a completed background "
@@ -1723,6 +1748,61 @@ CONTRACTS: dict[str, dict] = {
             "init_scratch runs in the PARENT shell. `x=\"$(scratch f)\"` runs scratch in a subshell, so "
             "creating the temp dir there loses the variable and the EXIT trap cleans nothing — that left "
             "963 abandoned temp dirs before it was found.",
+        ],
+    },
+    "bin/native-slot.sh": {
+        "mission": "Simon runs several sessions that build native apps at once, and the machine stays usable because one native job runs at a time.",
+        "purpose": "Machine-wide slot for native builds and simulator runs, plus a ledger of which "
+                   "session owns which simulator.",
+        "criteria": [
+            "One slot for the whole machine, taken with an atomic mkdir. `run` waits while a LIVE "
+            "holder has it and exits 3, running nothing, when the wait ends first.",
+            "Never kills a process, never shuts down or deletes a simulator, never releases a slot a "
+            "live session holds. A conflict is reported with the holder's session, workspace and age.",
+            "A holder whose process is gone is taken over by the next caller, so a crashed build "
+            "cannot block the machine. A ledger row whose workspace is gone is dropped on the next read.",
+            "`run` exits with the wrapped command's own status and releases on exit through an "
+            "EXIT-only trap.",
+            "`claim-sim` exits 3 for a simulator another session registered; `release-sim` removes "
+            "only the caller's own row.",
+            "`list` bounds its simctl call (NATIVE_SLOT_SIMCTL_SEC, 10 seconds unless set), because "
+            "simctl hangs on the loaded machine this tool exists for.",
+            "Honors NATIVE_SLOT_DIR so its checks never touch the live slot.",
+        ],
+    },
+    "bin/native-slot.test.sh": {
+        "mission": "A change to the native slot cannot let two sessions build at once, or strand the slot, without a failing check.",
+        "purpose": "Checks for native-slot.sh against a temp directory.",
+        "criteria": [
+            "Asserts a second caller waits while a live holder runs and gets exit 3 when the wait ends.",
+            "Asserts a slot whose holder process is gone is taken over.",
+            "Asserts another session's simulator cannot be claimed or released.",
+            "Runs with NATIVE_SLOT_DIR pointed at a temp directory and boots no simulator.",
+        ],
+    },
+    "bin/session-root.sh": {
+        "mission": "A session keeps ONE plan and ONE ledger for its whole run, so Simon never finds his asks split across two records.",
+        "purpose": "Remembers the first git root a session resolved and answers it while the shell is "
+                   "in that root or a worktree nested under it.",
+        "criteria": [
+            "The single owner of the rule: hooks/task-intake.sh and hooks/intent-ledger.sh both ask "
+            "it and neither re-derives it.",
+            "A shell inside a worktree nested under the remembered root answers the remembered root. "
+            "A shell outside it re-homes the session to the new git root.",
+            "A session that STARTS in a nested worktree owns that worktree: the record is per session id.",
+            "An empty session id, or a directory outside git, is answered without writing a record.",
+            "Strips a session id to letters, digits, dot, underscore and hyphen before using it as a "
+            "file name.",
+            "Honors CLAUDE_SESSION_ROOT_DIR so tests never write the live records; prunes records "
+            "older than 14 days.",
+        ],
+    },
+    "bin/session-root.test.sh": {
+        "mission": "A change to the session-root rule cannot split a session's plan or merge two sessions' records without a failing check.",
+        "purpose": "Checks for session-root.sh against a temp repository with a nested worktree.",
+        "criteria": [
+            "Asserts the nested-worktree case, the starts-nested case and the re-home case separately.",
+            "Asserts a crafted session id cannot write outside the state directory.",
         ],
     },
     "bin/port-slot.sh": {

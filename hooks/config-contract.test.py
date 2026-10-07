@@ -108,6 +108,16 @@ CRITERIA: list[tuple[str, str]] = [
      "protection that no longer exists is worse than an admitted gap, because it stops anyone "
      "looking."),
 
+    # --- Shared machine and one record per session --------------------------------------
+    ("session-keeps-one-root-in-nested-worktrees",
+     "A session keeps ONE plan and ONE ledger when its shell moves into a worktree nested under its "
+     "own root. Both hooks ask bin/session-root.sh, so a prompt or a note sent from the nested "
+     "worktree lands in the session's root and opens no second record there."),
+    ("native-slot-serializes-native-work-across-sessions",
+     "The native slot lets one native job run at a time across sessions, takes over a dead holder "
+     "and never touches another session's simulator, and a session that opens in a native project "
+     "is told the protocol before its first build."),
+
     # --- The task-intake gate: what you asked for on 2026-08-03 ---------------------
     ("intake-arms-on-a-task-opening",
      "A prompt that opens substantive work initializes one plan-backed dashboard, arms the gate and "
@@ -263,6 +273,7 @@ def intake(mode: str, payload: dict, env: dict | None = None) -> str:
     if env:
         e.update(env)
     e["CLAUDE_INTAKE_STATE_DIR"] = str(INTAKE_TEST_DIR)
+    e.setdefault("CLAUDE_SESSION_ROOT_DIR", str(INTAKE_TEST_DIR / "session-roots"))
     e["CLAUDE_CONFIG_ROOT"] = str(ROOT)
     payload = dict(payload)
     payload.setdefault("cwd", str(INTAKE_WORK_DIR))
@@ -635,6 +646,101 @@ def check_intake_stays_quiet_mid_run() -> None:
     check("TASK INTAKE GATE" in intake("submit", follow_up),
           "An approval older than APPROVAL_TTL_MIN still suppressed the gate.")
     clear_markers()
+
+
+def check_session_keeps_one_root_in_nested_worktrees() -> None:
+    result = run(["bash", str(ROOT / "bin" / "session-root.test.sh")])
+    check(result.returncode == 0,
+          f"bin/session-root.test.sh failed:\n{result.stdout}\n{result.stderr}")
+    with tempfile.TemporaryDirectory(prefix="session-root-contract-") as tmp:
+        base = Path(tmp).resolve()
+        home, repo = base / "home", base / "repo"
+        home.mkdir()
+        git = ["git", "-c", "user.email=t@example.invalid", "-c", "user.name=t"]
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+        subprocess.run([*git, "-C", str(repo), "commit", "-q", "--allow-empty", "-m", "init"],
+                       check=True, capture_output=True)
+        (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+        nested = repo / ".context" / "nested"
+        subprocess.run(["git", "-C", str(repo), "worktree", "add", "-q", str(nested), "-b", "nested"],
+                       check=True, capture_output=True)
+        roots = str(base / "roots")
+
+        env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
+               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo),
+               "CLAUDE_SESSION_ROOT_DIR": roots, "CLAUDE_CODE_SESSION_ID": "root-contract"}
+        hook = ROOT / "hooks" / "intent-ledger.sh"
+
+        def submit(cwd: Path, prompt: str) -> None:
+            payload = {"cwd": str(cwd), "session_id": "root-contract", "prompt": prompt}
+            r = subprocess.run(["bash", str(hook), "submit"], input=json.dumps(payload),
+                               text=True, capture_output=True, cwd=cwd, env=env)
+            check(r.returncode == 0, "Ledger hook failed: " + r.stderr)
+
+        submit(repo, "First ask, sent from the session root.")
+        submit(nested, "Second ask, sent while the shell sits in the nested worktree.")
+        scratch = base / "note.md"
+        scratch.write_text("Both asks reconciled.")
+        r = subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)],
+                           text=True, capture_output=True, cwd=nested, env=env)
+        check(r.returncode == 0, "Ledger note from the nested worktree failed: " + r.stderr)
+        ledger = repo / ".context" / "intent-ledger.md"
+        text = ledger.read_text() if ledger.exists() else ""
+        check("First ask" in text and "Second ask" in text,
+              "An ask sent from a nested worktree did not reach the session's own ledger.")
+        check("Both asks reconciled." in text,
+              "A note written from a nested worktree did not reach the session's own ledger.")
+        check(not (nested / ".context").exists(),
+              "The ledger hook opened a second record inside the nested worktree.")
+
+        other = {"cwd": str(nested), "session_id": "root-contract-other",
+                 "prompt": "An ask from a session that started in the nested worktree."}
+        r = subprocess.run(["bash", str(hook), "submit"], input=json.dumps(other),
+                           text=True, capture_output=True, cwd=nested, env=env)
+        check((nested / ".context" / "intent-ledger.md").exists(),
+              "A session that STARTED in the nested worktree lost its own ledger.")
+        check("started in the nested worktree" not in ledger.read_text(),
+              "Another session's ask leaked into this session's ledger.")
+
+        clear_markers()
+        work = base / "intake-repo"
+        subprocess.run(["git", "init", "-q", str(work)], check=True, capture_output=True)
+        subprocess.run([*git, "-C", str(work), "commit", "-q", "--allow-empty", "-m", "init"],
+                       check=True, capture_output=True)
+        inner = work / ".context" / "inner"
+        subprocess.run(["git", "-C", str(work), "worktree", "add", "-q", str(inner), "-b", "inner"],
+                       check=True, capture_output=True)
+        e = {"CLAUDE_SESSION_ROOT_DIR": roots}
+        sid = {"session_id": "contract-root"}
+        intake("submit", {**sid, "cwd": str(work), "prompt": "investigate the flaky login test"}, e)
+        intake("answered", {**sid, "cwd": str(work), "tool_name": "AskUserQuestion"}, e)
+        out = intake("submit", {**sid, "cwd": str(inner), "prompt": "check the footer color too"}, e)
+        check("TASK INTAKE GATE" not in out,
+              "A message sent from a nested worktree re-armed the gate mid-run: the hook looked for "
+              "the plan in the nested worktree instead of the session's root.")
+        check(len(list((work / ".context").glob("*-plan.md"))) == 1,
+              "The session root does not hold exactly one plan.")
+        check(not list(inner.glob(".context/*-plan.md")),
+              "The intake hook opened a second plan inside the nested worktree.")
+        clear_markers()
+
+
+def check_native_slot_serializes_native_work_across_sessions() -> None:
+    result = run(["bash", str(ROOT / "bin" / "native-slot.test.sh")])
+    check(result.returncode == 0,
+          f"bin/native-slot.test.sh failed:\n{result.stdout}\n{result.stderr}")
+    sweep = (ROOT / "hooks" / "port-registry-sweep.sh").read_text()
+    check("native-slot.sh" in sweep and "has_native_project" in sweep,
+          "The SessionStart report no longer covers the native slot.")
+    with tempfile.TemporaryDirectory(prefix="native-sweep-") as tmp:
+        project = Path(tmp) / "project"
+        (project / "ios" / "App.xcodeproj").mkdir(parents=True)
+        e = {**os.environ, "CLAUDE_CONFIG_ROOT": str(ROOT), "CLAUDE_PROJECT_DIR": str(project),
+             "NATIVE_SLOT_DIR": str(Path(tmp) / "slot")}
+        r = subprocess.run(["bash", str(ROOT / "hooks" / "port-registry-sweep.sh")],
+                           text=True, capture_output=True, cwd=project, env=e)
+        check("native-slot.sh run" in r.stdout,
+              "A session opening in a native project was not told the native-slot protocol.")
 
 
 def check_intake_has_an_off_switch() -> None:
