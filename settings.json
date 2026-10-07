@@ -11,7 +11,12 @@
       "Edit(~/.gnupg/**)",
       "Write(~/.ssh/**)",
       "Write(~/.aws/**)",
-      "Write(~/.gnupg/**)"
+      "Write(~/.gnupg/**)",
+      "Bash(xcrun simctl shutdown all*)",
+      "Bash(xcrun simctl erase all*)",
+      "Bash(git stash)",
+      "Bash(git stash pop*)",
+      "Bash(git stash clear*)"
     ]
   },
   "hooks": {
