@@ -54,11 +54,14 @@ inputs visible; that shot IS the documentation. Save screenshots INSIDE a worksp
 e.g. `.context/…`), never `/tmp`. Use `evaluate_script` for DOM/state, not `take_snapshot` (which dumps
 tens of KB). No edge inputs, no bug-hunt here — `/sk:test-eyeball` adds those.
 
-**Circle the change so the reviewer sees what moved.** A bare surface shot makes them hunt for it. From
-the changed element's `getBoundingClientRect()`, inject a fixed-position overlay `<div>` sized to it (a
-few px border, rounded corners, a soft box-shadow ring, `pointer-events:none`, top `z-index`) plus a
-small label naming the change; `take_screenshot({filePath})`; then remove the overlay. One colour for
-AFTER, another for BEFORE. A box + label reads faster than an arrow. Works for any element in any UI.
+**Circle the change so the reviewer sees what moved.** A bare surface shot makes them hunt for it. Insert
+a temporary caption banner in normal flow above the captured content, reserving space for the small label
+that names the change. Keep the caption visible at desktop and mobile widths. After inserting the banner,
+recompute the changed element's `getBoundingClientRect()` and inject only a fixed-position ring overlay
+`<div>` sized to it (a few px border, rounded corners, a soft box-shadow ring, `pointer-events:none`,
+top `z-index`). Verify the caption and changed content are visible without overlap or cropping, then
+`take_screenshot({filePath})` and remove both the ring and banner. One ring colour for AFTER, another for
+BEFORE. A box + label reads faster than an arrow. Works for any element in any UI.
 
 **Capture BEFORE and AFTER of each change, not just the end state — the reviewer wants the delta.**
 - A visual/style change (colour, spacing, border): AFTER is the live element; for BEFORE, force the

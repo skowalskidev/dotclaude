@@ -1,6 +1,6 @@
 ---
 name: work-isolate-environment
-description: Give this session its own lane of local dev ports, so two or more stacks can run at once instead of fighting over :3000. Allocates a stable slot per worktree, wires each service through the env knob it already reads, sweeps whatever a dead session left behind, and tears down clean. Use for "isolate my environment", "give this session its own ports", "run two stacks at once", "EADDRINUSE", "AxiosError Network Error", or when a second dev server will not boot. Works in any repo, personal or work, containerised or not.
+description: Give this session its own lane of local dev ports, so two or more stacks can run at once instead of fighting over :3000. Allocates a stable slot per worktree, wires each service through the env knob it already reads, sweeps whatever a dead session left behind, and tears down clean. Use for "isolate my environment", "give this session its own ports", "run two stacks at once", "EADDRINUSE", "AxiosError Network Error", or when a second dev server will not boot. Works in any repo, personal or work, containerised or not. Also use the one machine-wide capacity lease for this session's simulator, when "simulators clash between sessions", "builds pin the CPU" or "full test suites compete for CPU".
 argument-hint: "[optional: services to isolate, e.g. 'web and api']"
 ---
 
@@ -24,6 +24,24 @@ sweep implements and the preflight and teardown rules.
 **Yours is the judgement half:** which services in THIS project bind a host port, which env knob
 carries a port into each one, which ports cannot move at all, and what to do when the answer is
 "nothing here can be isolated without a bigger change than you were asked for".
+
+## The native half: the simulator and the build
+
+Ports are one shared resource; a native build and a simulator are the other, and they are shared by
+the whole machine, not by a lane. When the project has a native app (an Xcode project, a Swift
+package, a Gradle build), apply `~/.claude/references/dev-server-hygiene.md` §
+"Machine-wide capacity", which owns the protocol:
+
+1. This session's OWN simulator, named for the workspace, claimed with
+   `~/.claude/bin/native-slot.sh claim-sim <udid> --for "<what>"`. Exit 75 defers use of a device
+   owned by another session.
+2. This worktree's OWN derived-data path, passed on the command line (`-derivedDataPath`), never a
+   tracked setting.
+3. Every build, test run and boot enters the shared lease through `native-slot.sh run` or
+   `local-capacity.py run`; exit 75 defers that heavy step.
+
+TEST: `native-slot.sh list` names this session beside its simulator, and no build of this session
+runs outside the shared lease.
 
 ## Phase 0 — sweep and take a lane
 
@@ -162,6 +180,9 @@ Kill the process group, release the lane, then verify the port AND the registry 
 
 If teardown never happens, the next run's sweep recovers it. That is the design, not an excuse to skip
 this.
+
+Native half: shut the session's simulator down at every hand-back, and at workspace teardown run
+`~/.claude/bin/native-slot.sh release-sim <udid>`.
 
 ## Phase 6 — learn, and only when it recurs
 

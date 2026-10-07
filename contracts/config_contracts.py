@@ -35,9 +35,13 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
         "purpose": "Non-blocking machine-wide heavy-work lease with process and simulator ownership checks.",
         "criteria": [
-            "Admit one heavy lease across workspaces; concurrent claims and unknown simulator state cannot both succeed.",
+            "Admit one heavy lease across workspaces; concurrent claims, load over twice logical cores and unknown simulator state cannot succeed.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
-            "Release only the matching token after recorded child processes and booted simulators are clear; signal only the runner's own process group.",
+            "Bound boot to 60 seconds, bootstatus and install to 120 seconds each, and the foreground run to 60 minutes by default; a failed boot starts no later stage.",
+            "Attempt bounded shutdown of only the recorded simulator after command groups stop on success, failure or timeout; retain the lease if any device is not Shutdown.",
+            "Release only the matching token after recorded child processes and simulator state are clear; signal only the runner's own process group.",
+            "Bridge existing BSD file locks through untracked bridge.json; keep simulator claims and orphaned owners until inspected, never auto-reap them.",
+            "Migrate an older lease schema explicitly under lock, preserving its owner and child identity; ordinary reads never silently replace it.",
             "Store no command arguments or environment values; reject unsafe state paths and malformed lease data.",
         ],
     },
@@ -429,6 +433,9 @@ CONTRACTS: dict[str, dict] = {
             "Own the machine-wide capacity protocol: one heavy lease, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
+            "Every native build, test and simulator lifecycle uses bin/local-capacity.py or its "
+            "bin/native-slot.sh compatibility frontend; failed admission defers heavy work, "
+            "and bounded cleanup touches only the recorded simulator.",
         ],
     },
     "references/git-pr-deploy.md": {
@@ -485,6 +492,8 @@ CONTRACTS: dict[str, dict] = {
             "One planner, flat leaf workers. No middle tier.",
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
+            "Native build prompts name the shared capacity engine or its compatibility frontend, a bounded stage and explicit worker cap; a per-run lock file is not the coordination.",
+            "A multi-layer change freezes its contract page and fixture first, then starts every layer in one batch; the whole heavy suite runs once per change set, by the orchestrator; a worker returns exactly once.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
             "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
@@ -706,6 +715,11 @@ CONTRACTS: dict[str, dict] = {
             "index-before-functions), so the human never has to ask whether it ships.",
             "A cross-owner gap is kept in the owner's scope: a ticket, a comment, and an explicit "
             "blocking line in the Deploy TLDR — never completed unilaterally.",
+            "A gap inside the PR's own scope is built in the PR while it is a draft. A ticket is for "
+            "another owner's work, a step release order forces into a later release, or a deferral "
+            "Simon stated, and each ticket names which.",
+            "Re-reads the project's working rules and deploy docs after every merge of the default "
+            "branch that changed them, and re-checks the PR and its Deploy TLDR against the new rule.",
             "Runs safely one-per-branch when several execute at once: each touches only its own "
             "branch, a cross-owner fix is a ticket + comment + blocking line on the owner's PR, and "
             "the assembled PR-set includes drafts, not only ready PRs.",
@@ -1310,6 +1324,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Reads references/dev-server-hygiene.md for the protocol and bin/port-slot.sh for the "
             "allocation. It owns the per-project judgement only and restates neither.",
+            "Covers the native half by pointer: this session's own claimed simulator, its own "
+            "derived-data path passed on the command line, and every heavy build through "
+            "bin/local-capacity.py or its native-slot frontend. The protocol stays in references/dev-server-hygiene.md.",
             "Discovery treats the mechanical scan as a FLOOR, not an answer. The ports that matter most "
             "arrive through config and no package.json scan will ever see them.",
             "The project's one-time SETUP is discovered from its own docs (CLAUDE.md, then "
@@ -1577,13 +1594,14 @@ CONTRACTS: dict[str, dict] = {
         "criteria": ["Detects and reports. Never kills anything.", "Silent when nothing is found."],
     },
     "hooks/port-registry-sweep.sh": {
-        "mission": "A session knows which ports are genuinely held before it binds one, so two stacks never fight.",
-        "purpose": "SessionStart: reconciles the shared port registry and names who holds which port.",
+        "mission": "A session sees claimed ports and heavy capacity before binding or building, without a noisy idle web startup.",
+        "purpose": "SessionStart: reconciles the shared port registry and names who holds which port, "
+                   "the heavy lease and each simulator claim.",
         "criteria": [
             "Reports only. Never kills a process and never releases another session's claim.",
-            "Silent when no port is claimed anywhere.",
-            "Reconciles on every session start, so a session that died without releasing cannot "
-            "block anyone the next day. That is what keeps the file honest without hand-maintenance.",
+            "Silent when no port, heavy lease or simulator claim is active and the workspace holds no native project.",
+            "Prints fail-fast exit-75 capacity instructions in a native project and names an active lease in any project; the helper bounds its simulator probe.",
+            "Reconciles port claims on session start but never auto-reaps a heavy lease or simulator claim.",
         ],
     },
     "hooks/retro-trigger-log.sh": {
@@ -1637,6 +1655,9 @@ CONTRACTS: dict[str, dict] = {
             "it with the refusals, the redaction, and planning-and-tracking.md's ban on promoting "
             "verbatim prompts out of the worktree. logs/intent-reconcile.jsonl keeps the ORIGINAL "
             "posture: counts and enums only, never prompt text.",
+            "One ledger per session: resolves its root through bin/session-root.sh, so a shell that "
+            "moved into a worktree nested under the session's root still appends to that root's "
+            "ledger. `note` reads the session id from CLAUDE_CODE_SESSION_ID because it has no payload.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
@@ -1650,6 +1671,7 @@ CONTRACTS: dict[str, dict] = {
             "Keeps default session gauntlets on current execution with the independent judge off, without adding a loop-options interview.",
             "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
             "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
+            "One plan per session: resolves its root through bin/session-root.sh, so a prompt sent while the shell sits in a worktree nested under the session's root reads that root's plan and opens no second one.",
             "Arms on a task opening, stays quiet for follow-ups inside it.",
             "Refreshes the approval stamp on every mid-run message, so APPROVAL_TTL_MIN measures how long the task has been silent, never how long it has run.",
             "Does not arm on an automated system/background-task notification (a completed background "
@@ -1751,6 +1773,50 @@ CONTRACTS: dict[str, dict] = {
             "init_scratch runs in the PARENT shell. `x=\"$(scratch f)\"` runs scratch in a subshell, so "
             "creating the temp dir there loses the variable and the EXIT trap cleans nothing — that left "
             "963 abandoned temp dirs before it was found.",
+        ],
+    },
+    "bin/native-slot.sh": {
+        "mission": "Simon's existing native callers share the same heavy lease as every other local project without losing their familiar commands.",
+        "purpose": "Thin compatibility frontend for bin/local-capacity.py.",
+        "criteria": [
+            "Delegate run, list, claim-sim, release-sim and jobs to bin/local-capacity.py; never create a second lock or simulator ledger.",
+            "Return exit 75 before the wrapped command starts when the shared lease, legacy bridge or load gate refuses admission.",
+            "Keep a dead or interrupted holder visible for explicit inspection; never auto-reap another session's claim.",
+            "Use an isolated state root in offline tests and boot no simulator.",
+        ],
+    },
+    "bin/native-slot.test.sh": {
+        "mission": "A compatibility change cannot bypass the shared lease or silently take an orphaned device.",
+        "purpose": "Offline frontend checks against a temporary capacity root.",
+        "criteria": [
+            "Asserts a second caller is deferred with exit 75 while a live holder runs and starts no command.",
+            "Asserts an orphaned holder blocks admission until explicit inspection and release.",
+            "Asserts another session's simulator cannot be claimed or released; boots no simulator.",
+        ],
+    },
+    "bin/session-root.sh": {
+        "mission": "A session keeps ONE plan and ONE ledger for its whole run, so Simon never finds his asks split across two records.",
+        "purpose": "Remembers the first git root a session resolved and answers it while the shell is "
+                   "in that root or a worktree nested under it.",
+        "criteria": [
+            "The single owner of the rule: hooks/task-intake.sh and hooks/intent-ledger.sh both ask "
+            "it and neither re-derives it.",
+            "A shell inside a worktree nested under the remembered root answers the remembered root. "
+            "A shell outside it re-homes the session to the new git root.",
+            "A session that STARTS in a nested worktree owns that worktree: the record is per session id.",
+            "An empty session id, or a directory outside git, is answered without writing a record.",
+            "Strips a session id to letters, digits, dot, underscore and hyphen before using it as a "
+            "file name.",
+            "Honors CLAUDE_SESSION_ROOT_DIR so tests never write the live records; prunes records "
+            "older than 14 days.",
+        ],
+    },
+    "bin/session-root.test.sh": {
+        "mission": "A change to the session-root rule cannot split a session's plan or merge two sessions' records without a failing check.",
+        "purpose": "Checks for session-root.sh against a temp repository with a nested worktree.",
+        "criteria": [
+            "Asserts the nested-worktree case, the starts-nested case and the re-home case separately.",
+            "Asserts a crafted session id cannot write outside the state directory.",
         ],
     },
     "bin/port-slot.sh": {

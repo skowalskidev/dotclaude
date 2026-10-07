@@ -192,49 +192,91 @@ Map the confusing symptom back to its environmental cause; it saves enormous tim
 
 ## Machine-wide capacity
 
-DO admit each heavy local build, full test suite, browser batch or simulator session through
-`bin/local-capacity.py` before starting it. The default is ONE heavy lease across all projects and
-worktrees on this machine. Model calls, editing and lightweight checks can continue independently.
-This is cooperative admission, not an OS CPU ceiling. Do not create a per-repository gate root or
-nest a second lease inside the first. TEST: two workspaces cannot acquire the heavy slot together.
+DO admit each heavy build, full test suite, browser batch and simulator lifecycle through
+`bin/local-capacity.py`. Its default is one lease across local projects and worktrees; model calls,
+small reads, edits and scoped lightweight checks continue while the slot is held. This is cooperative
+admission, not an OS CPU ceiling. Do not create a per-repository gate or nest another lease inside
+one already held. TEST: two sessions cannot enter heavy work together.
 
 ```sh
 python3 ~/.claude/bin/local-capacity.py status
-python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-build-or-test-command>
+python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-command>
 ```
 
-DO keep simulator boot, install, testing and shutdown within the SAME lease. Use
-`run --owner <session-id> --simulator <udid> -- <foreground-script>` for a script that performs that
-lifecycle; the helper does not boot the device. For tools spanning several calls, use
-`acquire --owner <session-id> --pid <persistent-agent-pid> --simulator <udid>`, retain its token in
-the local task record, and `release --token <token>` only after cleanup. Verify the agent PID and
-start identity; the PID of a one-shot tool shell is not a session owner. Use a workspace-owned UDID
-and derived-data directory; never use ambiguous `booted` or change another session's device.
+DO defer a heavy step on exit 75 and record the holder and resume action in the living plan. Recheck
+at the next task boundary, without a tight retry loop. Heavy-work admission also defers when observed
+load exceeds twice the logical core count; simulator admission additionally defers when any device is
+Booted, Booting or Shutting Down outside the lease. A failed capacity probe is
+unknown, never permission to proceed. TEST:
+a rejected command has not started and the small work remains runnable.
 
-DO handle exit 75 as a deferred heavy step. Record the holder and resume action in the living plan,
-then continue work that needs no lease. Recheck at the next task boundary, not in a tight retry loop.
-The gate refuses admission while any unleased simulator is booted, including the requested device.
-Ask its owning session to finish and shut it down; never run `shutdown all`, erase devices or kill
-Apple services. A failed probe is unknown capacity, not an empty machine.
+DO keep simulator boot, bootstatus, install, test and shutdown under ONE lease. Claim an owned UDID
+with `claim-sim --udid <udid> --owner <session-id>` and use
+`run --owner <session-id> --simulator <udid> -- <foreground-script>`. The helper never boots a
+device; after the command group stops, the runner also attempts bounded shutdown of only its
+recorded UDID on normal exit, failure or timeout. In the script, run each
+`stage --timeout-seconds <n> -- <command>`
+under the owned runner. Bound `simctl boot` to 60 seconds, `simctl bootstatus` to 120 seconds and
+install to 120 seconds. Stop immediately when boot fails; do not enter bootstatus or the suite after
+that failure. `stage` returns 124 after stopping only its own command group on timeout. Never use an
+ambiguous `booted` destination, `shutdown all`, a foreign UDID or a foreign derived-data directory.
+Release the owned simulator claim only after verifying Shutdown; retain the lease and a cleanup
+action if the bounded shutdown attempt fails. Use a foreground script with fail-fast stages and a
+shutdown trap; the runner checks shutdown again before release:
 
-DO keep orphaned leases visible. PID death, PID reuse or a timeout never proves its child build or
-simulator stopped. Inspect the saved lease and resource ownership before an explicit release;
-release rejects a still-booted recorded device. An interrupted `run` retains its lease for inspection.
-For an unresolved launch whose owner has exited, inspect its receipt and process tree, then use
-`release --token <token> --orphan-inspected`; a live owner or recorded command group still refuses.
-Stop only processes whose identity and ownership are established. Retain caches and shut-down
-devices for reuse; cleanup is not a cold-cache reset.
+```sh
+python3 ~/.claude/bin/local-capacity.py claim-sim --udid "$UDID" --owner "$SESSION_ID"
+python3 ~/.claude/bin/local-capacity.py run --owner "$SESSION_ID" --simulator "$UDID" -- sh -eu -c '
+  udid=$1; app=$2
+  cleanup() { python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 60 -- xcrun simctl shutdown "$udid" || true; }
+  trap cleanup EXIT
+  python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 60 -- xcrun simctl boot "$udid"
+  python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 120 -- xcrun simctl bootstatus "$udid" -b
+  python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 120 -- xcrun simctl install "$udid" "$app"
+  # Run the scoped native test here, with an explicit job cap and its own bounded stage.
+' _ "$UDID" "$APP"
+```
 
-DO cap the runner's own parallelism inside the lease. Start native verification with `xcodebuild
--jobs 4 -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1` on hosts
-with at least 8 logical cores; use at most half the cores (minimum 1) on smaller hosts. These are
-conservative initial caps, not measured optima. Set equivalent explicit worker limits for other
-runners; an environment label alone does not enforce them. Keep full app compilation out of a
-compile-independent test task and reuse `test-without-building` only for matching build artifacts.
-Record before/after elapsed time, contention and coverage before changing the shared limit.
+DO verify the exact UDID is Shutdown before `release-sim --udid "$UDID" --owner "$SESSION_ID"`,
+including when `run` deferred before boot and the claim was the only operation.
+TEST: a failed boot starts zero subsequent stages, and any non-Shutdown device blocks lease release.
 
-TEST: a simulator remains leased until shutdown; a conflicting or orphaned owner is reported without
-termination; native test runners cannot multiply destinations behind a one-slot lease.
+DO give a foreground `run` at most 60 minutes by default (`--max-min 60`). Raise `--max-min` only
+for a justified full suite with measured duration; a prior 39-minute suite fits the default. Let
+the runner's own supervisor cancel at its deadline; a runner timeout retains uncertain resources for
+inspection. Treat PID death, PID reuse and an interrupted command as ownership questions, not proof
+of cleanup. Inspect the saved receipt and process tree before an explicit
+`release --token <token> --orphan-inspected`; a live owner, recorded child group or booted simulator
+still refuses release. Keep shut-down simulators, derived data and caches for the next scoped run.
+If an older lease schema is reported, run `python3 ~/.claude/bin/local-capacity.py migrate` to
+upgrade that receipt under lock before any new admission; the owner and child identity remain held.
+
+DO cap native runner parallelism inside the lease: `xcodebuild -jobs 4
+-parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1` on hosts with at
+least 8 logical cores, or at most half the cores (minimum 1) on smaller hosts. Apply explicit worker
+limits to Gradle and other runners. The default is a scoped fixture or changed files in seconds;
+compile only when source changed and use `test-without-building` only for matching artifacts. For
+web suites, start at two workers (`vitest --maxWorkers=2` or
+`node --test --test-concurrency=2`) after confirming the installed CLI accepts that flag. Treat
+failures under machine overload as inconclusive and rerun the affected scoped check when the load
+clears. The orchestrator runs a permitted full gate once per change set after scoped checks pass;
+record any skipped gate as unverified, never passed. One failed boot left
+a slot idle for 51 minutes. Another observed run had 12 concurrent `xcodebuild` processes and load
+155–597 on 8 cores; its full suite took 39 minutes while scoped checks took seconds. A separate
+web run's full suite rose from 80 to 408 seconds while load was 213–436, with Vitest timeouts
+observed when load reached 600–995. Record elapsed time, contention and coverage before changing
+these caps. TEST: no worker repeats the full suite, and no overloaded failure is treated as a
+clean pass.
+
+DO use `bin/native-slot.sh` only as a compatibility frontend to this same engine. Its `run`, `list`,
+`claim-sim`, `release-sim` and `jobs` commands share the local-capacity lease and claims; it owns no
+second slot or simulator ledger. If an older project still uses file locks, write an untracked
+`~/.claude/state/local-capacity/bridge.json` containing
+`{"lockPaths":["/absolute/existing-lock-path"]}` so `run` takes each existing BSD lock without
+waiting. Keep project-specific lock paths out of git. A configured bridge makes `acquire` refuse,
+since a separate multi-call lease cannot hold the legacy lock safely. Existing claims are never
+automatically reaped. TEST: legacy-lock contention yields exit 75 before any new command starts.
+
 
 ## Track what you started
 

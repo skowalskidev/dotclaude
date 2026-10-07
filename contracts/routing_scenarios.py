@@ -249,6 +249,9 @@ SCENARIOS: list[dict] = [
     {"phrase": "isolate my environment", "expect": "work-isolate-environment"},
     {"phrase": "give this session its own ports", "expect": "work-isolate-environment"},
     {"phrase": "run two stacks at once", "expect": "work-isolate-environment"},
+    {"phrase": "simulators clash between sessions", "expect": "work-isolate-environment"},
+    {"phrase": "builds pin the CPU", "expect": "work-isolate-environment"},
+    {"phrase": "full test suites compete for CPU", "expect": "work-isolate-environment"},
 
     # --- Before/after mockups ----------------------------------------------------------
     {"phrase": "mock this up", "expect": "ship-mockup-before-after"},

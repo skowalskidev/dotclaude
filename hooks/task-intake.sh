@@ -202,6 +202,12 @@ submit)
   # approval gate (for example, "Why is this route slow?"). Initialization is locked and idempotent.
   TASK_CWD="$(json_field '.cwd')"
   [ -d "$TASK_CWD" ] || TASK_CWD="${CLAUDE_PROJECT_DIR:-$PWD}"
+  # One session, one plan: a shell that moved into a worktree nested under the session's own root
+  # still reads and writes that root's plan. bin/session-root.sh owns the rule.
+  if [ -x "$CFG_ROOT/bin/session-root.sh" ]; then
+    KEPT_ROOT="$("$CFG_ROOT/bin/session-root.sh" "$SESSION_ID" "$TASK_CWD" 2>/dev/null)"
+    [ -n "$KEPT_ROOT" ] && [ -d "$KEPT_ROOT" ] && TASK_CWD="$KEPT_ROOT"
+  fi
   # Decide BEFORE init: init opens a fresh planning plan when the last one is complete, and that new
   # plan must not read as the approved task still running.
   IN_FLIGHT=0

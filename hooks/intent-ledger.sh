@@ -56,6 +56,8 @@ INPUT=""
 jf() { printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null; }
 
 SID="$(jf '.session_id' | tr -cd '[:alnum:]._-')"
+# `note` runs from the session's own shell with no payload, so it reads the id from the environment.
+[ -n "$SID" ] || SID="$(printf '%s' "${CLAUDE_CODE_SESSION_ID:-}" | tr -cd '[:alnum:]._-')"
 [ -n "$SID" ] || SID="unknown"
 
 LEDGER=""
@@ -116,6 +118,12 @@ resolve() {
   root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || return 1
   [ -n "$root" ] || return 1                                  # not a git repo: routine, no fix
   root="$(cd -P "$root" 2>/dev/null && pwd -P)" || return 1
+  # One session, one ledger: a shell that moved into a worktree nested under the session's own root
+  # still belongs to that root. bin/session-root.sh owns the rule; task-intake.sh asks it too.
+  if [ "$SID" != "unknown" ] && [ -x "$CFG_ROOT/bin/session-root.sh" ]; then
+    kept="$("$CFG_ROOT/bin/session-root.sh" "$SID" "$cwd" 2>/dev/null)"
+    [ -n "$kept" ] && [ -d "$kept" ] && root="$kept"
+  fi
   [ "$root" = "$(cd -P "$HOME" 2>/dev/null && pwd -P)" ] && return 1   # $HOME is not a project
 
   # The config repo is PUSHED to GitHub, and `git check-ignore` returns 0 for any path inside it

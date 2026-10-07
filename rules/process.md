@@ -15,8 +15,8 @@ TEST: implementation resolves to `mid`/`small`, never `top`/`design`; GPT design
 OpenAI or API fallback. Verify every delegated result on disk.
 
 ### Fan out verification, and only rebuild what changed
-Run INDEPENDENT lightweight checks as parallel tool calls. Admit heavy local work through
-`references/dev-server-hygiene.md` § Machine-wide capacity; per-session independence is not spare CPU.
+Run independent light checks in parallel. Gate heavy work per
+`references/dev-server-hygiene.md` § Machine-wide capacity.
 **Rebuild a shared dependency only when it actually changed**; **background the long pole** so editing
 continues. **Iterate with the CHEAP check, verify HEAVY once per change set.** Run typecheck or the
 affected tests while editing and before each commit; run the full build, suite, simulator and real-app
@@ -202,9 +202,10 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
 - **Track every process/server/port you start, and shut them ALL down at task end.** List anything
   backgrounded — dev/preview servers, watchers, tunnels, `stripe listen`, a held
   `:3000`/`:3100` port — then kill each and VERIFY it's gone, so nothing keeps burning CPU or a port.
-- **Take a LANE before binding a port, and release it when done.** `bin/port-slot.sh` claims this
-  worktree's slot; a port held by another live session → take the next lane, never wait on it or kill
-  their server. Protocol: `references/dev-server-hygiene.md`.
+- **Claim a port lane and heavy lease before binding, building or booting.** Use `bin/port-slot.sh`
+  and `bin/local-capacity.py run`. Port conflict → next lane; exit 75 → defer heavy work and keep
+  reading/editing. Release the lane when done, the lease after owned simulator shutdown. Protocol:
+  `references/dev-server-hygiene.md`.
 - **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev`/`jest`/
   `vite` reparented to PID 1 pins a core nobody watches; `bin/kill-orphan-workers.sh` clears a BURNING
   framework worker (20%+ CPU, 5+ min) or an idle-and-old agent orphan (PPID 1, 5+ min), never a

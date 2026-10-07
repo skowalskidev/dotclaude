@@ -348,13 +348,38 @@ the same gate, and a busy gate defers only the heavy step.
   resolve and record each install, build and test command's executable and version inside its actual child
   working directory and shell; carry the project-selected runtime into that command. TEST: no worker install
   starts before cache warming ends, and each child resolves the required runtime before its batch begins.
+- **Admit native work through the shared capacity lease named in each worker prompt.** Use
+  `bin/local-capacity.py run` or the `bin/native-slot.sh` compatibility frontend. Exit 75 defers
+  only the heavy step; keep lightweight edits and checks moving. Do not nest leases or wait
+  without a deadline. TEST: prompts for native workers name the shared engine, a worker cap,
+  and the scoped command it will run.
+- **Freeze the contract, then build every layer in one batch.** When a change spans layers that meet at a
+  contract (a server, a web client, a native client), the orchestrator writes the contract page and its
+  example fixture FIRST and commits them; then one worker per layer starts in the same dispatch batch and
+  builds against the fixture. DON'T chain the layers so each waits for the previous one's code. A contract
+  change found mid-round becomes a numbered rule in the page and goes to every layer in one message. e.g.
+  a three-layer change ran server, then web, then native, and repeated the chain each of the 3 times the
+  contract moved. TEST: every layer's prompt names the same committed contract page and fixture, and the
+  layer workers start in one batch.
+- **The orchestrator runs the heavy suite; a worker runs its own files.** A worker's prompt names the
+  single test files or the scoped command it iterates with. The whole native unit bundle, the whole e2e
+  run and the full build run ONCE per change set, by the orchestrator, after every worker's edits are in
+  (`rules/process.md` § "Fan out verification"). e.g. a native unit bundle of 37-48 minutes ran 5 times
+  in one ship run, once per fixer. TEST: full heavy-suite runs equal change sets, and no worker prompt
+  names a whole-suite command.
+- **A worker runs long commands in the foreground and ends its turn once, with its final report.**
+  Put bounded stage timeouts in the foreground command; a boot failure stops before bootstatus or
+  the suite. Report exit 75 as a deferred heavy step with the holder and next action. A worker that
+  backgrounds a build and returns "still waiting" forces another orchestration round; one run had
+  35 such returns. TEST: each worker returns one final report and no stage waits indefinitely.
 - **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
   suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
   the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a
   13-minute suite run. TEST: every full-suite run follows a clean marker grep and a passing build of the
   same tree.
-- **Background the long pole and keep working.** A dependency install or a first cold build blocks nothing
-  you are currently editing — start it detached and carry on with files that don't need it.
+- **Keep the long pole supervised while editing continues.** Start a dependency install or cold
+  build in a foreground worker with the shared lease and bounded deadline; the orchestrator can
+  continue independent edits. Do not detach a raw native build from its owner.
 - **Expect sublinear speedup.** Parallel jobs contend for CPU: three checks measured 104s serial vs 56s
   parallel (1.9x, not 3x), and each individual job got slower. Fan out because the wall-clock is free, not
   because it scales linearly — and don't fan out so wide that everything thrashes.

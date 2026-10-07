@@ -54,9 +54,10 @@ can collect reports arriving at different times; missing reports stay pending. T
 evidence and review receipts without a background watcher. Shared changes require authorization.
 
 Heavy local builds and simulator work use one machine-wide capacity lease. Editing and lightweight
-checks can continue while another session holds it. The lease spans simulator boot through shutdown;
-an orphaned owner requires inspection before release. This coordinates participating sessions, not
-arbitrary applications or an OS CPU ceiling. See `references/dev-server-hygiene.md` and
+checks can continue while another session holds it. The runner attempts bounded shutdown of only
+its owned simulator before release; failed cleanup and orphaned owners retain the lease for
+inspection. This coordinates participating sessions, not arbitrary applications or an OS CPU ceiling.
+See `references/dev-server-hygiene.md` and
 `references/session-performance.md`.
 
 Ordinary sessions use current-session execution with the independent judge off and no loop-options

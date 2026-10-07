@@ -7,6 +7,7 @@ import json
 import multiprocessing
 import os
 import signal
+import fcntl
 import subprocess
 import sys
 import tempfile
@@ -49,6 +50,9 @@ class GateTests(unittest.TestCase):
         self.probe = mock.patch.object(gate, "observe_booted", return_value=[])
         self.probe.start()
         self.addCleanup(self.probe.stop)
+        self.pressure = mock.patch.object(gate, "simulator_pressure", return_value=(0, 8))
+        self.pressure.start()
+        self.addCleanup(self.pressure.stop)
 
     def test_competing_processes_get_one_slot(self):
         ctx = multiprocessing.get_context("fork")
@@ -108,6 +112,25 @@ class GateTests(unittest.TestCase):
                 gate.acquire(self.root, "mine", os.getpid(), None)
         self.assertIsNone(gate.read_state(self.root))
 
+    def test_load_preflight_blocks_every_heavy_command(self):
+        with mock.patch.object(gate, "simulator_pressure", return_value=(17, 8)):
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "build", os.getpid(), None)
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_explicit_migration_preserves_old_live_receipt(self):
+        token = gate.acquire(self.root, "mine", os.getpid(), None)
+        old = gate.read_state(self.root)
+        del old["stages"]
+        gate.write_state(self.root, old)
+        with self.assertRaises(gate.GateError):
+            gate.read_state(self.root)
+        self.assertIn("migrated", gate.migrate(self.root))
+        migrated = gate.read_state(self.root)
+        self.assertEqual(migrated["token"], token)
+        self.assertEqual(migrated["pid_start"], old["pid_start"])
+        self.assertEqual(migrated["stages"], [])
+
     def test_release_needs_shutdown(self):
         token = gate.acquire(self.root, "mine", os.getpid(), SIM)
         with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
@@ -121,7 +144,7 @@ class GateTests(unittest.TestCase):
         token = gate.acquire(self.root, "mine", os.getpid(), None)
         data = (self.root / "lease.json").read_text()
         self.assertIn(token, data)
-        self.assertEqual(set(json.loads(data)), {"owner", "pid", "pid_start", "simulator", "token", "created", "child"})
+        self.assertEqual(set(json.loads(data)), {"owner", "pid", "pid_start", "simulator", "token", "created", "child", "stages"})
         self.assertNotIn("PATH", data)
         self.assertNotIn("argv", data)
 
@@ -165,9 +188,82 @@ class GateTests(unittest.TestCase):
         self.assertIsNone(gate.read_state(self.root))
 
     def test_run_retains_lease_on_simulator_or_child_group(self):
-        with mock.patch.object(gate, "observe_booted", side_effect=[[], [SIM]]):
+        with mock.patch.object(gate, "observe_booted", side_effect=[[], [SIM]]), \
+             mock.patch.object(gate, "shutdown_owned", side_effect=gate.GateError("still active")):
             self.assertEqual(gate.run_command(self.root, "mine", SIM, [sys.executable, "-c", "pass"]), gate.BUSY)
         self.assertIsNotNone(gate.read_state(self.root))
+
+    def test_stage_has_its_own_deadline_inside_run(self):
+        code = gate.run_command(self.root, "mine", None,
+                                [sys.executable, str(SCRIPT), "stage", "--timeout-seconds", "0.2", "--", "sleep", "5"])
+        self.assertEqual(code, gate.TIMEOUT)
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_whole_run_timeout_with_stage_cleans_or_retains_stage_receipt(self):
+        code = gate.run_command(self.root, "mine", None,
+                                [sys.executable, str(SCRIPT), "stage", "--timeout-seconds", "30", "--", "sleep", "30"],
+                                max_seconds=0.6)
+        self.assertIn(code, (gate.TIMEOUT, gate.BUSY))
+        lease = gate.read_state(self.root)
+        if lease is not None:
+            for stage in lease["stages"]:
+                if gate.group_alive(stage["pgid"]):
+                    with self.assertRaises(gate.Busy):
+                        gate.release(self.root, lease["token"])
+
+    def test_stage_receipt_limit_rejects_before_writing(self):
+        gate.acquire(self.root, "mine", os.getpid(), None, child_pending=True)
+        lease = gate.read_state(self.root)
+        pgid = os.getpgrp()
+        lease["child"] = {"pid": pgid, "pgid": pgid, "pid_start": "known"}
+        lease["stages"] = [{"pid": 1000 + index, "pgid": 1000 + index, "pid_start": "known"}
+                           for index in range(64)]
+        gate.write_state(self.root, lease)
+        with self.assertRaises(gate.GateError):
+            gate.record_stage(self.root, 2000, "known")
+        self.assertEqual(gate.read_state(self.root), lease)
+
+    def test_legacy_flock_survives_supervisor_death_while_child_runs(self):
+        lock_path = Path(self.tmp.name).resolve() / "old.lock"
+        self.root.mkdir()
+        (self.root / "bridge.json").write_text(json.dumps({"lockPaths": [str(lock_path)]}))
+        sim_fixture = self.root / "booted.json"
+        sim_fixture.write_text('{"devices":{}}')
+        pressure_fixture = self.root / "pressure.json"
+        pressure_fixture.write_text('{"load":0,"cores":8}')
+        env = dict(os.environ, LOCAL_CAPACITY_SIMCTL_JSON=str(sim_fixture),
+                   LOCAL_CAPACITY_PRESSURE_JSON=str(pressure_fixture))
+        runner = subprocess.Popen([sys.executable, str(SCRIPT), "--root", str(self.root),
+                                   "run", "--owner", "runner", "--", "sleep", "30"],
+                                  env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+        group = None
+        try:
+            deadline = time.monotonic() + 8
+            while time.monotonic() < deadline:
+                lease = gate.read_state(self.root)
+                if lease and lease["child"] and "pgid" in lease["child"]:
+                    group = lease["child"]["pgid"]
+                    break
+                time.sleep(0.05)
+            self.assertIsNotNone(group)
+            runner.kill()
+            runner.wait(timeout=5)
+            fd = os.open(lock_path, os.O_RDONLY)
+            try:
+                with self.assertRaises(BlockingIOError):
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                os.close(fd)
+        finally:
+            if group is not None:
+                try:
+                    os.killpg(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            if runner.poll() is None:
+                runner.kill()
+                runner.wait()
+            runner.stderr.close()
 
     def test_manual_release_rejects_live_recorded_group(self):
         token = gate.acquire(self.root, "mine", os.getpid(), None, child_pending=True)
@@ -179,6 +275,43 @@ class GateTests(unittest.TestCase):
         finally:
             gate.terminate_group(child)
         gate.release(self.root, token)
+
+    def test_simulator_cleanup_targets_exact_device_and_verifies_shutdown(self):
+        states = [{SIM: "Booted", "11111111-2222-3333-4444-555555555555": "Booted"},
+                  {SIM: "Shutdown", "11111111-2222-3333-4444-555555555555": "Booted"}]
+        with mock.patch.object(gate, "probe_devices", side_effect=states), \
+             mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0)) as called:
+            gate.shutdown_owned(SIM)
+        self.assertEqual(called.call_args.args[0], ["/usr/bin/xcrun", "simctl", "shutdown", SIM])
+        self.assertEqual(called.call_count, 1)
+
+    def test_simulator_cleanup_failure_retains_lease(self):
+        with mock.patch.object(gate, "shutdown_owned", side_effect=gate.GateError("still Booting")):
+            self.assertEqual(gate.run_command(self.root, "mine", SIM, [sys.executable, "-c", "pass"]), gate.BUSY)
+        self.assertIsNotNone(gate.read_state(self.root))
+
+    def test_successful_run_shuts_exact_simulator_before_release(self):
+        with mock.patch.object(gate, "shutdown_owned") as shutdown:
+            self.assertEqual(gate.run_command(self.root, "mine", SIM, [sys.executable, "-c", "pass"]), 0)
+        shutdown.assert_called_once_with(SIM)
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_running_child_group_defers_simulator_shutdown(self):
+        with mock.patch.object(gate, "group_alive", return_value=True), \
+             mock.patch.object(gate, "shutdown_owned") as shutdown:
+            self.assertEqual(gate.run_command(self.root, "mine", SIM, [sys.executable, "-c", "pass"]), gate.BUSY)
+        shutdown.assert_not_called()
+        self.assertIsNotNone(gate.read_state(self.root))
+
+    def test_booting_device_blocks_release(self):
+        token = gate.acquire(self.root, "mine", os.getpid(), SIM)
+        self.probe.stop()
+        try:
+            with mock.patch.object(gate, "probe_devices", return_value={SIM: "Booting"}):
+                with self.assertRaises(gate.Busy):
+                    gate.release(self.root, token)
+        finally:
+            self.probe.start()
 
     def test_failed_receipt_never_grants_command_and_pending_needs_inspection(self):
         marker = Path(self.tmp.name) / "started"
@@ -202,6 +335,7 @@ class GateTests(unittest.TestCase):
                 "s=importlib.util.spec_from_file_location('g',sys.argv[1]); "
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
+                "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
                 "g.acquire(Path(sys.argv[2]),'crashed',os.getpid(),None,child_pending=True); "
                 "r,w=os.pipe(); "
                 "subprocess.Popen(['/bin/sh','-c',"
@@ -217,11 +351,12 @@ class GateTests(unittest.TestCase):
         self.assertEqual(lease["child"], {"state": "pending"})
         gate.release(self.root, lease["token"], orphan_inspected=True)
 
-    def test_real_run_signal_retains_receipt_and_stops_group(self):
+    def test_real_run_signal_stops_group_before_releasing(self):
         code = ("import importlib.util,sys; from pathlib import Path; from unittest import mock; "
                 "s=importlib.util.spec_from_file_location('g',sys.argv[1]); "
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
+                "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
                 "sys.exit(g.run_command(Path(sys.argv[2]),'runner',None,"
                 "[sys.executable,'-c','import time; time.sleep(30)']))")
         runner = subprocess.Popen([sys.executable, "-c", code, str(SCRIPT), str(self.root)],
@@ -243,7 +378,9 @@ class GateTests(unittest.TestCase):
             _, stderr = runner.communicate(timeout=10)
             self.assertEqual(runner.returncode, 130, stderr)
             self.assertFalse(gate.group_alive(lease["child"]["pgid"]))
-            self.assertEqual(gate.read_state(self.root)["child"], lease["child"])
+            current = gate.read_state(self.root)
+            if current is not None:
+                self.assertEqual(current["child"], lease["child"])
         finally:
             if runner.poll() is None:
                 runner.kill()
