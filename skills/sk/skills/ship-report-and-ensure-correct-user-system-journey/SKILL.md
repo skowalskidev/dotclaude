@@ -115,7 +115,8 @@ because it repeats its own intention, which is the same failure Phase 1 exists t
 So fan out per `~/.claude/references/parallelization.md`: one verdict pass per criterion (or per small
 group of related ones), each given the criterion text and the repo but NOT the session narrative, each
 told to default to NOT MET and to change its mind only by pointing at the code that makes the criterion
-true. A criterion nobody can evidence is not met, whatever the session remembers.
+true. A criterion nobody can evidence is not met, whatever the session remembers. When `/sk:ship-review`
+already ran these judges, re-judge only the criteria whose code its fix round touched.
 
 Every criterion comes back with one verdict, provisional until Phase 4 puts a test behind it:
 

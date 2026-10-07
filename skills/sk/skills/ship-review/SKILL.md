@@ -45,10 +45,16 @@ Project databases, cloud accounts and other service credentials still follow Ste
 3. **When a fix round would follow, run independent lenses IN PARALLEL before fixing anything**:
    the correctness pass, a cross-layer parity lens (every value two layers derive or decode) and a
    money/data lens, each over the whole diff, each told to report ALL findings. Hand every lens the
-   list of already-decided rules and refuted findings so none is re-raised. Triage the union once,
-   write the decisions down as rules every layer implements, and fix in ONE round. TEST: a second
-   fix round runs only for a finding the first round's fix itself introduced. (The fix for nine
-   serial single-review rounds, each surfacing one new defect class.)
+   list of already-decided rules and refuted findings so none is re-raised. Add the per-criterion
+   verdict judges of `/sk:ship-report-and-ensure-correct-user-system-journey` to this SAME fan-out
+   when the plan carries acceptance criteria, so their gaps land in the one fix round. At hand-back
+   re-judge only the criteria whose code the fix round touched; a verdict on code the fix round
+   changes is provisional until that recheck. Triage the union once, write the decisions down as
+   rules every layer implements, and fix in ONE round. TEST: a second fix round, or any fix round
+   after a criterion judge's first pass, runs only for a finding a fix itself introduced. (The fix
+   for nine serial single-review rounds, each surfacing one new defect class, and for criterion
+   judges run only at hand-back, which found an approved string never applied and removals with no
+   test, costing a third fix round and a simulator re-run.)
 4. If subscription authentication, quota or the selected model is unavailable, stop and report it.
    Do not switch to a model API on your own. A model-API review runs only through the pal MCP, when Simon
    asks for it by name, with a key from this repo's boundary (`rules/connectors.md`) and his per-call yes.

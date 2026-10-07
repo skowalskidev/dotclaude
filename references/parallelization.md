@@ -352,6 +352,12 @@ them as parallel tool calls rather than chaining them into one sequential shell 
   `timeout` around the wait. Workers still edit in parallel; only the build queues. e.g. 7 worktree agents
   each running a cold `xcodebuild` on one simulator hit load average 657 and stalled ~25 min; one lock
   brought it to 248 within 8 min. TEST: every dispatch prompt that runs a native build names the shared lock.
+- **Cut the lane that owns a machine-serial resource SMALLEST.** A simulator, an emulator, one physical
+  device or one fixed port makes its lane the critical path. DO split that lane by feature whenever the
+  files are disjoint: each builder edits in parallel and queues its builds on the lock above. e.g. a
+  native-app builder carried more than one feature while the web side had one builder per feature, and it
+  finished last in every round at 76, 71 and 91 minutes against 13 to 27 for the web builders. TEST: in a
+  dispatch plan, the lane holding the serial resource has no more features than any sibling lane.
 - **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
   suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
   the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a

@@ -59,7 +59,8 @@ current, reconcile against it.
 4. Tests first, tree-structured — the exhaustive full-diff coverage runs via `/sk:test-automated-full-matrix` (Stage-1 deterministic + Stage-2 judge on the saved setup, saved + posted).
 5. Implement — parallel where independent, delegate edits using the saved setup, verify on disk after each batch.
 6. Observability + failure handling; never fail silently, no dead-end states.
-7. Review before the heavy gate: `/sk:ship-review` over the whole diff, and fix its confirmed findings.
+7. Review before the heavy gate: `/sk:ship-review` over the whole diff, with step 8's criterion judges in
+   the same fan-out, and fix its confirmed findings.
 8. **Prove the ask with the end report** (`/sk:ship-report-and-ensure-correct-user-system-journey`) — the user journey, the system
    journey, the mismatches between them, and what changed on this branch. It then judges those
    journeys against the criteria this plan validated, backs each verdict with a test it writes and
