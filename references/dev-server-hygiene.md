@@ -158,8 +158,8 @@ failure is locatable:
 
 `setup → env → infra → seed → build shared libraries → boot server + verify identity → build frontend → run`
 
-- **`setup` is DISCOVERED, never hardcoded.** Every project prepares differently, so read that
-  project's `CLAUDE.md`, then `CLAUDE.local.md`, then a playbook if one exists, and run what they say.
+- **`setup` is DISCOVERED, never hardcoded.** Apply `references/project-instructions.md` first. When allowed, read that
+  project's `CLAUDE.md`, then `CLAUDE.local.md`, then a playbook if one exists, and run what they say. When ignored, derive setup from source, executable config and CI.
   This is the step whose absence is most often misdiagnosed: a missing install, an unbuilt workspace
   package, an uncompiled native binary a dev script shells out to, or the wrong runtime version each
   produce a server that will not boot, and none of them is a port fault. `references/testing-strategy.md`

@@ -1,6 +1,7 @@
 {
   "_comment": "Copy to connectors/<your-project>.json (untracked overlay) and fill in YOUR project. One manifest per project; matched to a repo by its git origin. Schema + all kinds are documented in references/connectors-setup.md. No secret VALUES go here — only paths/steps; real keys live outside the repo (e.g. ~/.config).",
   "project": "your-project",
+  "ignoreProjectInstructions": false,
   "match": ["YourOrg/your-project", "your-project"],
   "connectors": [
     {

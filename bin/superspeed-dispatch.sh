@@ -85,11 +85,16 @@ if [ "$HAS_GENERAL" -gt 0 ] && [ "$AGENT_SETUP" != full-claude ]; then
     echo "superspeed: Astra's native Codex launcher is unavailable; no Claude fallback." >&2
     exit 2
   }
-elif [ "$HAS_GENERAL" -gt 0 ]; then
-  command -v claude >/dev/null 2>&1 || { echo "superspeed: Claude is unavailable; no Astra fallback." >&2; exit 2; }
 fi
-if [ "$HAS_DESIGN" -gt 0 ]; then
-  command -v claude >/dev/null 2>&1 || { echo "superspeed: Claude Fable is unavailable; no OpenAI fallback for design slices." >&2; exit 2; }
+if [ "$HAS_DESIGN" -gt 0 ] || { [ "$HAS_GENERAL" -gt 0 ] && [ "$AGENT_SETUP" = full-claude ]; }; then
+  (cd "$REPO" && CONDUCTOR_WORKSPACE_PATH="$REPO" "$SCRIPT_DIR/claude-launch.py" --version >/dev/null) || {
+    if [ "$HAS_DESIGN" -gt 0 ]; then
+      echo "superspeed: Claude Fable launcher is unavailable; no OpenAI fallback for design slices." >&2
+    else
+      echo "superspeed: Claude launcher is unavailable; no Astra fallback." >&2
+    fi
+    exit 2
+  }
 fi
 
 # The run directory MUST live inside the repo. A slice runs with the repo as its working directory and
@@ -452,20 +457,19 @@ RULES
   (
     cd "$REPO" || exit 1
     S0=$(date +%s)
-    # Backgrounded then waited on, ONLY so the real claude PID can be recorded. Behaviour is
-    # identical to running it in the foreground. The PID is what the sampler is matched against.
+    # Backgrounded then waited on so the launcher PID can be recorded for the sampler.
     if [ "$SLICE_PROVIDER" = openai ]; then
       AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
         "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --model "$SLICE_MODEL" --cd "$REPO" --output-format json \
         --events-file "$SD/events.jsonl" > "$SD/result.json" 2> "$SD/stderr.txt" &
     elif [ "$MODEL_ROUTE" = design ]; then
-      AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_ALLOW_CROSS_PROVIDER=1 \
+      CONDUCTOR_WORKSPACE_PATH="$REPO" AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_ALLOW_CROSS_PROVIDER=1 \
         CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
-        -u ANTHROPIC_BASE_URL -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX -u CLAUDE_CODE_USE_FOUNDRY claude -p "$PROMPT" \
+        -u ANTHROPIC_BASE_URL -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX -u CLAUDE_CODE_USE_FOUNDRY "$SCRIPT_DIR/claude-launch.py" -p "$PROMPT" \
         --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     else
-      AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off claude -p "$PROMPT" \
+      CONDUCTOR_WORKSPACE_PATH="$REPO" AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off "$SCRIPT_DIR/claude-launch.py" -p "$PROMPT" \
         --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     fi

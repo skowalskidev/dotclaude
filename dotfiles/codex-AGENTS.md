@@ -14,7 +14,7 @@ Do not infer an auth failure from a missing tool, or assume a login-shell CLI us
 
 Use `~/.claude/references/skill-stack.md` to route the task and its existing living plan to resume it.
 Skills under `~/.agents/skills` are links to the canonical files, not separate configurations.
-Keep project-specific instructions in the project's AGENTS.md and nested instruction files.
+Before reading project instruction Markdown, resolve `python3 ~/.claude/bin/agent_runtime.py policy --cwd <workspace>` and apply `~/.claude/references/project-instructions.md`. Keep project-specific instructions in the project when its policy allows them.
 
 Read `~/.claude/references/agent-hosts.md` when configuring or troubleshooting a host.
 Hooks require native trust; written instructions remain applicable when a hook is unavailable.

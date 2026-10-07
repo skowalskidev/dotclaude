@@ -21,8 +21,8 @@ any such step, here or in a subagent prompt, the manifest + reference were read 
 
 **DO check the FALLBACK before reporting a project capability unavailable — an MCP failing to connect is
 not a missing capability.** ToolSearch finding none of a stdio MCP's tools means the SERVER didn't load,
-not that the service is down. Read the fallback from the manifest, the project's `CLAUDE.md`, and its
-`CLAUDE.local.md`, then drive the same endpoint another way — an SDK + credential, a CLI, or a library
+not that the service is down. Read the fallback from the manifest and, after applying
+`references/project-instructions.md`, allowed project docs; then drive the same endpoint another way — an SDK + credential, a CLI, or a library
 (e.g. firebase MCP down → `firebase-admin` + the work ADC; chrome-devtools MCP down → Playwright over
 CDP on the debug port). TEST: no capability is called unavailable until those sources were read and the
 fallback tried.

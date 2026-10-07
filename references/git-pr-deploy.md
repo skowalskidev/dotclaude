@@ -61,7 +61,7 @@ cannot:
   only the PR/remote layer; the local commit-when-done authorization is unchanged. TEST: a hand-back
   reports what was built and stops, carrying no PR next-step, ready-flip prompt, or reviewer ask I
   didn't request.
-- Read the project's CLAUDE.md AND CLAUDE.local.md and relevant plan docs at the start of the task — the
+- Apply `references/project-instructions.md` before project docs. When allowed, read the project's CLAUDE.md AND CLAUDE.local.md and relevant plan docs at the start of the task — the
   local file carries machine-local setup, test accounts and secrets-by-reference the committed one omits.
 - Merge/rebase the latest default branch in before working, and re-evaluate the plan against what changed (e.g., redesigns that must now be used).
 - Resolve all merge conflicts by merging the default branch into the feature/base branch before merging the PR.
@@ -71,7 +71,7 @@ cannot:
   match the PR title to the ticket title, put the ticket link in the PR body, and link only the tickets
   the PR delivers. That reference owns the routine; apply it on any task that carries a ticket.
 - When adopting someone else's branch: check whether it reinvents logic that already exists; run full review tooling on it and fix all findings with no loose ends; verify none of it breaks existing behavior; compare it against the reference implementation for missing parts (tests, error handling, logging) and add them.
-- Build and run with the project's documented commands to verify before declaring done.
+- Build and run with allowed project commands; when project instructions are ignored, derive them from source, executable config and CI.
 - When finished: fix everything with no loose ends, commit, then tear down all processes and clean up the environment for other testing. Open/flip a PR only when I ask or a `sk:ship-*` skill does it (see the PR-ops rule at the top of this section).
 
 **DO check open PRs before claiming a sequential number** — a migration file number, an ADR number, a
@@ -174,6 +174,7 @@ Then prove the merge yourself, and force:
 
 A merge is a request to deploy, not a deployment. After merging and pushing, **watch the autodeploy
 through to a running state and prove the thing works in the deployed environment**, then loop:
+Keep the same project-instruction policy active before consulting a deploy runbook in this loop.
 
 1. Merge, push, and watch the pipeline to completion. A green pipeline is not proof; it means the
    artifact built.

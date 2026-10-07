@@ -58,6 +58,12 @@ def project(cwd):
     work_match = identity.get('workOrgMatch', '')
     boundary = 'work' if remote and work_match and work_match in remote else 'personal'
     path, manifest = matches[0] if matches else (None, {})
+    for candidate, record in [*matches, *shared]:
+        if 'ignoreProjectInstructions' in record:
+            if record.get('shared') is True:
+                raise ValueError('ignoreProjectInstructions belongs only in a project connector manifest: ' + candidate.name)
+            if not isinstance(record['ignoreProjectInstructions'], bool):
+                raise ValueError('ignoreProjectInstructions must be a boolean in ' + candidate.name)
     if manifest.get('boundary', boundary) != boundary:
         raise ValueError('Connector manifest and identity.local.json disagree about the project boundary')
     names = {item.get('name') for item in manifest.get('connectors', [])}
@@ -106,6 +112,23 @@ def subscription_policy(args):
                 'openai_base_url': 'https://chatgpt.com/backend-api/codex',
                 'chatgpt_base_url': 'https://chatgpt.com/backend-api/'}
     return [value for key, setting in settings.items() for value in ('-c', key + '=' + toml(setting))]
+
+
+def reject_project_doc_override(args):
+    """A caller must not silently undo this project's native instruction exclusion."""
+    remaining = iter(args)
+    for arg in remaining:
+        if arg == '--':
+            break
+        value = None
+        if arg in ('-c', '--config'):
+            value = next(remaining, '')
+        elif arg.startswith('--config='):
+            value = arg.split('=', 1)[1]
+        elif arg.startswith('-c') and len(arg) > 2:
+            value = arg[2:].lstrip('=')
+        if value is not None and value.split('=', 1)[0].strip().strip('\"\'') == 'project_doc_max_bytes':
+            raise ValueError('ignoreProjectInstructions is enabled; project_doc_max_bytes cannot be overridden')
 
 
 def subscription_environment():
@@ -213,6 +236,8 @@ def native_hooks():
 def overrides(cwd):
     _, manifest, boundary = project(cwd)
     result = ['-c', 'hooks=' + toml(native_hooks())]
+    if manifest.get('ignoreProjectInstructions', False):
+        result += ['-c', 'project_doc_max_bytes=0']
     for connector in manifest.get('connectors', []):
         if connector.get('kind') not in ('mcp-http', 'mcp-stdio'):
             continue
@@ -297,10 +322,13 @@ def launch():
         billing = subscription_policy(args)
         check_subscription_auth(args)
         config, home = overrides(cwd)
-        manifest_path, _, boundary = project(cwd)
+        manifest_path, manifest, boundary = project(cwd)
+        if manifest.get('ignoreProjectInstructions', False):
+            reject_project_doc_override(args)
         env = dict(subscription_environment(), AGENT_MODEL_PROVIDER='openai', AGENT_CODEX_LAUNCH_CWD=str(cwd),
                    AGENT_CODEX_MANIFEST=str(manifest_path or ''), AGENT_CODEX_BOUNDARY=boundary)
-        # Pass TOML as argv, never shell code. Explicit caller overrides retain native precedence.
+        # Pass TOML as argv, never shell code. Caller overrides retain native precedence
+        # except for the active project's instruction exclusion.
         binary = executable()
         config += retired_overrides(cwd, home)
         try:
@@ -324,6 +352,7 @@ def context(cwd):
              'Codex inference: ChatGPT subscription only, including workers and reviews; no API fallback. '
              'rules/connectors.md governs every other model API.',
              'Connector manifest: ' + (str(path) if path else 'none matched')]
+    lines.append(policy_context(cwd))
     if manifest.get('sharedFrom'):
         lines.append('Shared connector manifests: ' + ', '.join(manifest['sharedFrom']))
     for connector in manifest.get('connectors', []):
@@ -338,6 +367,15 @@ def context(cwd):
     for file in [ROOT / 'CLAUDE.md', *sorted((ROOT / 'rules').glob('*.md'))]:
         lines += ['\n--- ' + str(file) + ' ---', file.read_text()]
     return '\n'.join(lines)
+
+
+def policy_context(cwd):
+    path, manifest, _ = project(cwd)
+    if not manifest.get('ignoreProjectInstructions', False):
+        return 'Project instruction policy: default; repository instructions load normally.'
+    return ('Project instruction policy: ignoreProjectInstructions=true from ' + str(path) +
+            '. Read ' + str(ROOT / 'references/project-instructions.md') +
+            ' before using repository documentation; preserve personal ~/.claude instructions.')
 
 
 def adapted_payloads(payload):
@@ -435,19 +473,21 @@ def install(home, replace=False):
 
 
 def configure_conductor():
-    """Set only the supported executable key; leave model/provider preferences intact."""
+    """Set both supported executable keys; leave model/provider preferences intact."""
     path = Path.home() / '.conductor/settings.toml'
     text = path.read_text() if path.exists() else ''
-    entry = 'codex_executable_path = ' + toml(str(ROOT / 'bin/codex-launch.py')) + '\n'
     # User-level keys must precede the first table; never append them inside [models].
     first_table = re.search(r'^\s*\[', text, re.M)
     split = first_table.start() if first_table else len(text)
     top, rest = text[:split], text[split:]
-    pattern = r'^[ \t]*(?:codex_executable_path|"codex_executable_path")[ \t]*=.*(?:\n|$)'
-    if re.search(pattern, top, re.M):
-        top = re.sub(pattern, lambda _: entry, top, flags=re.M)
-    else:
-        top = entry + top
+    for key, script in (('codex_executable_path', 'codex-launch.py'),
+                        ('claude_code_executable_path', 'claude-launch.py')):
+        entry = key + ' = ' + toml(str(ROOT / 'bin' / script)) + '\n'
+        pattern = r'^[ \t]*(?:' + key + r'|"' + key + r'")[ \t]*=.*(?:\n|$)'
+        if re.search(pattern, top, re.M):
+            top = re.sub(pattern, lambda _: entry, top, flags=re.M)
+        else:
+            top = entry + top
     updated = top + rest
     if updated == text:
         return
@@ -465,10 +505,11 @@ def configure_conductor():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
-    for action in ('context', 'doctor'):
+    for action in ('context', 'doctor', 'policy'):
         sub.add_parser(action).add_argument('--cwd', default=os.getcwd())
     hooks = sub.add_parser('hook')
     hooks.add_argument('event', choices=sorted(EVENTS))
+    sub.add_parser('policy-hook')
     setup = sub.add_parser('install')
     setup.add_argument('--replace', action='store_true')
     setup.add_argument('--conductor', action='store_true')
@@ -480,6 +521,16 @@ def main():
                 configure_conductor()
         elif args.action == 'context':
             print(context(args.cwd))
+        elif args.action == 'policy':
+            print(policy_context(args.cwd))
+        elif args.action == 'policy-hook':
+            payload = json.load(sys.stdin)
+            cwd = payload.get('cwd') or os.getcwd()
+            if project(cwd)[1].get('ignoreProjectInstructions', False):
+                print(json.dumps({'hookSpecificOutput': {'hookEventName': 'SessionStart',
+                    'additionalContext': policy_context(cwd)}}))
+            else:
+                print('{}')
         elif args.action == 'doctor':
             path, manifest, boundary = project(args.cwd)
             print('Manifest:', path or 'none', '\nCodex home:', subscription_home())

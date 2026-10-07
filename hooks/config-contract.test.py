@@ -79,7 +79,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("agent-setups-preserve-provider-choice",
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
-     "Native Codex reads current shared sources, preserves profile boundaries and propagates hook decisions without copying credentials."),
+     "Native Codex reads current shared sources and propagates hook decisions; Claude and Codex launchers preserve the selected project's instruction boundary without copying credentials."),
     ("dashboard-runtime-preserves-completion",
      "The shared dashboard initializes one task record, rejects false completion and lost updates, "
      "exports portable evidence, and stops only its receipt-verified viewer."),
@@ -1000,6 +1000,10 @@ def check_routing_no_undeclared_trigger_collisions() -> None:
 def check_routing_hooks_fire_for_the_tools_they_target() -> None:
     _, hook_routing = _routing()
     hooks_cfg = settings().get("hooks", {})
+    session_commands = [h.get("command") for group in hooks_cfg.get("SessionStart", [])
+                        for h in group.get("hooks", [])]
+    check('$HOME/.claude/bin/agent_runtime.py policy-hook' in session_commands,
+          "SessionStart must call the project-instruction policy hook before a project doc can supply guidance.")
 
     for case in hook_routing:
         groups = hooks_cfg.get(case["event"], [])
@@ -1155,6 +1159,9 @@ def check_native_codex_shares_canonical_config() -> None:
     result = run(["python3", str(ROOT / "bin" / "agent_runtime.test.py")])
     check(result.returncode == 0,
           f"Native Codex propagation/boundary suite failed:\n{result.stdout}\n{result.stderr}")
+    claude = run(["python3", str(ROOT / "bin" / "claude-launch.test.py")])
+    check(claude.returncode == 0,
+          f"Native Claude instruction-policy suite failed:\n{claude.stdout}\n{claude.stderr}")
 
 
 def check_codex_subscription_only_inference() -> None:

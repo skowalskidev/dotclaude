@@ -66,10 +66,13 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "bin/agent_runtime.py": {
-        "mission": "Simon starts Codex with current shared instructions and the right project connectors without copying configuration.",
-        "purpose": "Native Codex launch, context, hook and installation adapter.",
+        "mission": "Simon starts Codex with current shared instructions, the right project connectors and his chosen project-instruction boundary without copying configuration.",
+        "purpose": "Native Codex launch, project policy, context, hook and installation adapter.",
         "criteria": [
             "Read rules, settings and connector manifests from the canonical source at invocation time.",
+            "Accept ignoreProjectInstructions only as a boolean in the selected non-shared project manifest; default false and reject invalid placement or type.",
+            "When true, set Codex project_doc_max_bytes=0 at launch, reject caller overrides, and report the resolved policy at SessionStart without dropping global personal instructions.",
+            "Expose policy --cwd for workflows and policy-hook for Claude SessionStart; retain connector and credential boundaries under either flag value.",
             "Resolve one project manifest per workspace and layer every matching `shared: true` manifest of the same boundary under it, project connector first on a name clash; a shared manifest never takes the project slot, and two matching project manifests fail.",
             "Register a shared MCP connector that spends a model-API key (`pal`) for Codex only inside its boundary; Codex's own inference stays on the ChatGPT subscription.",
             "Use the existing ChatGPT subscription for every Codex role; preserve work/personal service boundaries and reject a mismatched session boundary.",
@@ -107,6 +110,15 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Route leading -p or --print to codex_print.py; delegate other arguments unchanged to agent_runtime.py without duplicating profile or connector logic.",
             "Preserve native --profile, exec, mcp and app-server invocations without interpreting their arguments as print prompts.",
+        ],
+    },
+    "bin/claude-launch.py": {
+        "mission": "Simon starts Claude in a project with his chosen instruction boundary while his personal rules and caller settings remain active.",
+        "purpose": "Claude executable wrapper for per-project native instruction exclusions.",
+        "criteria": [
+            "With the flag false, launch native Claude with unchanged arguments; with true, exclude project instruction files through native claudeMdExcludes.",
+            "Preserve caller settings and personal ~/.claude files; reject invalid policy before launching Claude.",
+            "Keep temporary merged settings private and clean them after normal exit; forward signals to the child.",
         ],
     },
     "references/agent-hosts.md": {
@@ -308,6 +320,7 @@ CONTRACTS: dict[str, dict] = {
             "ask-first gate with an open-ended exception list is not a gate.",
             "The checklist and the decisions behind it survive a RESTART in a durable store — a "
             "ticket or .context/, never /tmp or memory.",
+            "Project documentation reads and updates pass through references/project-instructions.md first.",
         ],
     },
     "rules/security.md": {
@@ -398,6 +411,17 @@ CONTRACTS: dict[str, dict] = {
             "Schema here matches what bin/connectors-provision.sh actually reads.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
+            "Documents ignoreProjectInstructions as a real boolean on selected non-shared project manifests, default false.",
+        ],
+    },
+    "references/project-instructions.md": {
+        "mission": "Simon controls whether a project's repo-authored instructions enter a new agent session without losing his personal rules or service boundaries.",
+        "purpose": "Single policy for the per-project instruction boundary across hosts and workflows.",
+        "criteria": [
+            "Resolve policy with agent_runtime.py policy before a project instruction read; only explicit boolean true in a selected non-shared manifest activates it.",
+            "When active, suppress repo instruction Markdown and referenced guides, including delegated setup; retain personal rules and private connector policy.",
+            "Derive commands from source, scripts, executable config and CI; treat user-requested document reads as data without granting authority.",
+            "After a flag change, start a fresh session because an existing conversation cannot unread prior project text.",
         ],
     },
     "references/config-writing-standard.md": {
@@ -559,11 +583,7 @@ CONTRACTS: dict[str, dict] = {
             "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
             "Before a full native suite, prove required platform services with the runtime app, signing and simulator configuration; isolate defaults, authentication, singletons and host state.",
             "Exercise real-client recovery at the smallest supported viewport and largest text; verify the message and action are unobscured and operable before input, then verify the recovery outcome.",
-            "The project's OWN docs are the source for its test commands, layout and runner, and "
-            "this file states the discovery order: the repo's CLAUDE.md, then CLAUDE.local.md, then "
-            "a playbook if one exists. It must never assume a dedicated playbook file, because most "
-            "repos state their setup in CLAUDE.md and assuming otherwise sends an agent off to "
-            "install a runner or ask a question the repo already answered.",
+            "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
             "setup runs FIRST, however late in the work the run happens, because an uninstalled "
             "tree fails exactly like broken code and recording that as the starting state silently "
@@ -1105,6 +1125,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Slices run genuinely in parallel, never collide, and leave a log that makes the next run better.",
         "purpose": "Engine for /sk:work-superspeed — launch one provider-matched process per slice and log it.",
         "criteria": [
+            "Launch headless Claude and Codex slices through their shared native launchers, even when a shell function is unavailable.",
             "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the mid tier resolved live at dispatch, then fail an incomplete worker.",
             "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
             "headless session and would otherwise deny the run after the reading is already paid for.",
@@ -1329,12 +1350,7 @@ CONTRACTS: dict[str, dict] = {
             "bin/local-capacity.py or its native-slot frontend. The protocol stays in references/dev-server-hygiene.md.",
             "Discovery treats the mechanical scan as a FLOOR, not an answer. The ports that matter most "
             "arrive through config and no package.json scan will ever see them.",
-            "The project's one-time SETUP is discovered from its own docs (CLAUDE.md, then "
-            "CLAUDE.local.md, then a playbook) and run before booting, never hardcoded and never "
-            "assumed. Every project sets up differently, and an unprepared checkout fails in ways that "
-            "look exactly like broken isolation — a missing install or an unbuilt package produces a "
-            "server that will not boot and no port fault at all. Any concrete command in this skill is "
-            "an ILLUSTRATION in the worked example, never the rule.",
+            "Resolve project-instruction policy before setup. When allowed, use CLAUDE.md, CLAUDE.local.md, then a playbook; when ignored, derive setup from executable config and CI. Run setup before booting.",
             "NEVER pollutes the repo. Isolation is external to the project, so a lane is applied with "
             "exported env vars and appended CLI flags — not a commit, and not a local edit sitting in "
             "git status either. A port with no flag and no env knob is a stop-and-ask, never a reason "

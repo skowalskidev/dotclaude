@@ -47,7 +47,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 |---|---|
 | `CLAUDE.md` | Thin **index** for all projects — points at `rules/` + `references/` and the project-boundary rule; the actual rules live in `rules/` |
 | `rules/` | **Always-on** behavioral rules (auto-loaded every session, one concern per file): `security`, `communication`, `copy-quality`, `process`, `engineering-standards`, `ui-conventions` (always-on; `paths:` scoping is ignored at user level), `skills-workflow`, `config-repo`, `connectors`, `self-healing-config`, `living-plan` |
-| `references/` | **On-demand** deep how-to catalogs (zero context cost until read; shared by `CLAUDE.md` + the `sk` skills): `research` (read at the start of every workflow run, not on demand), `contracts-and-outcomes`, `planning-and-tracking`, `parallelization`, `testing-strategy`, `dev-server-hygiene`, `code-best-practices`, `git-pr-deploy`, `api-empirical-iteration`, `browser-debugging`, `connectors-setup`, `skill-stack`, `user-journey-review`, `tldr-report-formats` |
+| `references/` | **On-demand** deep how-to catalogs (zero context cost until read; shared by `CLAUDE.md` + the `sk` skills): `research` (read at the start of every workflow run, not on demand), `contracts-and-outcomes`, `planning-and-tracking`, `parallelization`, `testing-strategy`, `dev-server-hygiene`, `code-best-practices`, `git-pr-deploy`, `api-empirical-iteration`, `browser-debugging`, `connectors-setup`, `project-instructions`, `skill-stack`, `user-journey-review`, `tldr-report-formats` |
 | `settings.json` | Hook wiring + `permissions.deny` (Edit/Write tamper-denies on the key dirs; DENY-only, no `ask` tier, so nothing prompts) |
 | `hooks/intent-ledger.sh` | UserPromptSubmit + Stop — appends every ask verbatim to the worktree's `.context/intent-ledger.md`, and requests a fresh reconciliation after every new ask, plan or pivot, with a bounded stop guard. Full prompts retain trailing requirements; each message reminds the agent to update the gauntlet plan. The only hook that writes into a project, so its refusals are the contract; redirects out of the tracked tree inside `~/.claude`. Kill switch: `CLAUDE_INTENT_LEDGER=off` |
 | `hooks/task-intake.sh` | UserPromptSubmit + PreToolUse + PostToolUse — requires every new task proposal to find/create the workspace's one plan-backed dashboard, proposes the skills, and DENIES Agent/Task/Workflow until you confirm |
@@ -65,18 +65,19 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/background-process-guard.py` | PreToolUse Bash guard — blocks installing a persistent process (crontab install, `launchctl load`, `systemctl enable`, LaunchAgents/Daemons writes). Override: `CLAUDE_ALLOW_DAEMON=1` |
 | `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, layers in any `shared:true` manifest matching the repo, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
-| `bin/agent_runtime.py` + `bin/codex-launch.py` | Native Codex adapter and executable; enforces subscription-only inference and separate project connector boundaries |
+| `bin/agent_runtime.py` + `bin/codex-launch.py` + `bin/claude-launch.py` | Native host launchers; resolve per-project instruction policy before Claude or Codex starts, while Codex enforces subscription-only inference and separate service boundaries |
+| `bin/agent_runtime.test.py` + `bin/claude-launch.test.py` | Offline native host policy and launcher regression tests |
 | `bin/agent_setup.py` + `bin/codex_print.py` | Current-chat provider dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
 | `dotfiles/codex-AGENTS.md` | Native instruction entrypoint linked into the Codex subscription home |
 | `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
-| `connectors/` | Per-project connector manifests (`<project>.json`): which connectors each project uses, boundary, env, read/write policy, CLI profile, auth steps. No secrets — only paths. A manifest may set `shared: true` (e.g. a `personal-shared.json` matched by a path substring) to layer its connectors under every matching project instead of copying them |
+| `connectors/` | Per-project connector manifests (`<project>.json`): connectors, boundary, env, read/write policy, CLI profile, auth steps, and optional boolean `ignoreProjectInstructions` (default `false`). No secrets, only paths. A `shared: true` manifest layers connectors under matching projects but cannot set the instruction flag |
 | `skills/sk/skills/work-gauntlet-loop/` | `/sk:work-gauntlet-loop` — continue the default session gauntlet; configure Ralph or independent judgement when requested |
 | `skills/sk/skills/work-ralph-loop/` | `/sk:work-ralph-loop` — direct or composed fresh-worker completion |
 | `references/workflow-loops.md` + `bin/workflow-dashboard.*` | Default session gauntlet with continuous request reconciliation; Ralph and independent judgement are optional. `init` creates/reuses one task record, `link` prints the live URL when the gauntlet app is running (else the canonical offline HTML), and receipt-verified `stop` closes only its live viewer; Session record pools plan sources, decisions, history, artifacts and remaining work without a second store |
 | `apps/gauntlet/` | Reusable Next.js live gauntlet viewer (Node 24 via nvm; `cd apps/gauntlet && npm install`), served on fixed port 4747. `bin/workflow-dashboard.py serve` starts or attaches to it, registers the plan over `/api/projects`, and prints the live `http://127.0.0.1:4747/p?plan=<abs>` URL; `export` still writes the offline single-file dashboard for sharing. Untracked runtime state: `~/.claude/state/gauntlet-projects.json` (registry) and `~/.claude/state/gauntlet-server.json` (server receipt) |
 | `bin/mockup-shell.html` + `bin/mockup-build.py` (+ `bin/mockup-shell.test.py`, `bin/mockup-synthetic-spec.json`) | The one spec-driven shell every `/sk:ship-mockup-before-after` mockup is built through (viewport-first stage, one collapsible rail, presentation mode, hint bar; every switch tears the old mount down and opens the target's default state); the builder inlines a `spec.json` and extracts it back losslessly; the Playwright test proves the switch reset and the one-Before rail grouping against the synthetic spec |
 | `skills/sk/` | My personal (`/sk:*`) skill plugin. Claude Code reads it here; `bootstrap.sh` symlinks it into `~/.agents/skills/` for Codex. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
-| `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here), subscription `CODEX_HOME` and `codex` launcher function |
+| `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here), subscription `CODEX_HOME` and `codex`/`claude` launcher functions |
 | `dotfiles/gitignore_global` | The live `~/.gitignore_global` (symlinked here), git's `core.excludesFile` — personal/secret patterns plus `.context/`, so the agent scratch dir is ignored in every repo without touching any committed `.gitignore` |
 | `hooks/config-status.sh` | SessionStart hook — flags uncommitted config so Claude offers to sync |
 | `hooks/worktree-freshness.sh` | SessionStart hook — warns once when this worktree's branch is 10+ commits behind main, so stale-base work is caught before it starts rather than at merge. Detects and reports only |
@@ -126,16 +127,20 @@ between the agents. Standalone ChatGPT conversations do not load files from your
 
 1. Install Codex on PATH and Python 3.11+ (`python3 --version`). Use the existing ChatGPT login in
    `~/.codex`. Fill in `identity.local.json` and your untracked project manifests.
+   Set `ignoreProjectInstructions: true` only in a selected project manifest to suppress repo-provided instruction Markdown in new sessions; leave it absent or `false` for normal project docs.
 2. Run `bash ~/.claude/dotfiles/bootstrap.sh`. It links skills and the native AGENTS.md into
    `~/.codex`. If an AGENTS.md already exists, review it first, then run
    `python3 ~/.claude/bin/agent_runtime.py install --replace`. This archives the old file once and
    creates the link. It never copies or changes authentication files.
 3. Source the shell snippet described below. Its `codex` function uses
-   `~/.claude/bin/codex-launch.py`; direct invocation works without shell initialization.
-4. For Conductor, run `python3 ~/.claude/bin/agent_runtime.py install --conductor`. This sets only
-   `codex_executable_path` in `~/.conductor/settings.toml`, preserving model/provider preferences and
+   `~/.claude/bin/codex-launch.py`; its `claude` function uses `~/.claude/bin/claude-launch.py`.
+   Direct launcher invocation works without shell initialization. Start a fresh chat after changing
+   `ignoreProjectInstructions`; a running chat retains text it already loaded.
+4. For Conductor, run `python3 ~/.claude/bin/agent_runtime.py install --conductor`. This sets
+   `codex_executable_path` and `claude_code_executable_path` in `~/.conductor/settings.toml`, preserving model/provider preferences and
    keeping a backup of the prior settings. The equivalent UI is Settings → Storage → Codex executable
    path: enter the absolute path to `~/.claude/bin/codex-launch.py` (expand `~` to your home directory).
+   The Claude path is the absolute path to `~/.claude/bin/claude-launch.py` (expand `~` to your home directory).
 5. Fully restart Conductor after initial wiring. In each Codex profile, open `/hooks` in the Codex
    terminal UI to review and trust the native dispatcher definitions. Do not bypass hook trust.
    The linked AGENTS.md provides the shared instruction entrypoint even before hooks are trusted.
@@ -180,7 +185,7 @@ Run `python3 ~/.claude/bin/agent_setup.test.py` for offline wrapper/dispatch/tel
 | `rules/*.md`, `CLAUDE.md` | Claude's native loader; Codex's linked entrypoint and SessionStart context. Next session, or explicitly re-read during an existing conversation. |
 | `skills/sk/` | Both hosts discover the same files through links. Restart if the skill catalog is stale. |
 | `settings.json` hook commands | Claude's native hook loader; Codex's dispatcher reads the current wiring on each event. New event definitions require a process restart and native trust review. |
-| `connectors/<project>.json` | The Codex launcher projects the current manifest on every process launch. Claude's connector provisioner consumes the same manifest through its native registration path. |
+| `connectors/<project>.json` | Both launchers resolve `ignoreProjectInstructions` before a new process starts. Codex also projects connectors at launch; Claude's provisioner consumes the same manifest. Restart an existing chat after changing the instruction flag. |
 | `identity.local.json` | Both hosts use the same project identity source. Restart Codex when changing service boundaries. |
 
 Codex writes no copied rules or connector settings. Its per-profile `.agent-runtime/` receipt stores

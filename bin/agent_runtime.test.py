@@ -50,10 +50,11 @@ class RuntimeTests(unittest.TestCase):
         file.write_text(json.dumps(value))
         return file
 
-    def manifest(self, name='personal', match=None, boundary='personal', connectors=None):
+    def manifest(self, name='personal', match=None, boundary='personal', connectors=None, **extra):
         return self.write('connectors/' + name + '.json', {
             'match': match or ['PersonalOrg/'], 'boundary': boundary,
             'connectors': connectors or [],
+            **extra,
         })
 
     def connector(self, name='linear', url='https://example.invalid/mcp', **extra):
@@ -89,6 +90,52 @@ class RuntimeTests(unittest.TestCase):
         self.assertIsNotNone(runtime.project(self.cwd)[0])
         self.remote = 'https://github.com/Elsewhere/other.git'
         self.assertIsNone(runtime.project(self.cwd)[0])
+
+    def test_instruction_policy_defaults_off_and_requires_project_boolean(self):
+        self.manifest()
+        self.assertIn('default', runtime.policy_context(self.cwd))
+        self.assertNotIn('project_doc_max_bytes', ' '.join(runtime.overrides(self.cwd)[0]))
+        self.manifest(ignoreProjectInstructions='true')
+        with self.assertRaisesRegex(ValueError, 'must be a boolean'):
+            runtime.project(self.cwd)
+        self.manifest(ignoreProjectInstructions=True)
+        self.assertIn('project_doc_max_bytes=0', runtime.overrides(self.cwd)[0])
+        self.assertIn('ignoreProjectInstructions=true', runtime.policy_context(self.cwd))
+        self.assertIn('ignoreProjectInstructions=true', runtime.context(self.cwd))
+        self.manifest(ignoreProjectInstructions=False)
+        self.assertNotIn('project_doc_max_bytes', ' '.join(runtime.overrides(self.cwd)[0]))
+
+    def test_instruction_policy_rejects_shared_manifest_and_caller_override(self):
+        self.shared()
+        shared_file = self.root / 'connectors/shared.json'
+        record = json.loads(shared_file.read_text())
+        self.write('connectors/shared.json', {**record, 'ignoreProjectInstructions': True})
+        with self.assertRaisesRegex(ValueError, 'only in a project connector manifest'):
+            runtime.project(self.cwd)
+        shared_file.unlink()
+        for args in (['-c', 'project_doc_max_bytes=123'],
+                     ['--config=project_doc_max_bytes=123'],
+                     ['-cproject_doc_max_bytes=123']):
+            with self.subTest(args=args), self.assertRaisesRegex(ValueError, 'cannot be overridden'):
+                runtime.reject_project_doc_override(args)
+
+    def test_policy_hook_emits_context_only_when_enabled(self):
+        self.manifest(ignoreProjectInstructions=True)
+        output = io.StringIO()
+        with patch.object(runtime.sys, 'argv', ['agent_runtime.py', 'policy-hook']), \
+             patch.object(runtime.sys, 'stdin', io.StringIO(json.dumps({'cwd': str(self.cwd)}))), \
+             contextlib.redirect_stdout(output):
+            runtime.main()
+        payload = json.loads(output.getvalue())
+        self.assertIn('ignoreProjectInstructions=true',
+                      payload['hookSpecificOutput']['additionalContext'])
+        self.manifest(ignoreProjectInstructions=False)
+        output = io.StringIO()
+        with patch.object(runtime.sys, 'argv', ['agent_runtime.py', 'policy-hook']), \
+             patch.object(runtime.sys, 'stdin', io.StringIO(json.dumps({'cwd': str(self.cwd)}))), \
+             contextlib.redirect_stdout(output):
+            runtime.main()
+        self.assertEqual(json.loads(output.getvalue()), {})
 
     def test_ambiguous_manifests_fail(self):
         self.manifest('one')
@@ -425,6 +472,7 @@ class RuntimeTests(unittest.TestCase):
         runtime.configure_conductor()
         parsed = tomllib.loads(path.read_text())
         self.assertEqual(parsed['codex_executable_path'], str(self.root / 'bin/codex-launch.py'))
+        self.assertEqual(parsed['claude_code_executable_path'], str(self.root / 'bin/claude-launch.py'))
         self.assertEqual(parsed['models']['default'], 'codex:fixture')
         self.assertEqual(parsed['models']['codex']['default_thinking_level'], 'high')
         self.assertEqual(parsed['codex_provider'], 'default')
@@ -443,6 +491,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(path.read_text().count('codex_executable_path'), 1)
         self.assertEqual(tomllib.loads(path.read_text())['codex_executable_path'],
                          str(self.root / 'bin/codex-launch.py'))
+        self.assertEqual(path.read_text().count('claude_code_executable_path'), 1)
 
     def test_conductor_replaces_indented_root_key_without_invalid_duplicate(self):
         path = self.home / '.conductor/settings.toml'

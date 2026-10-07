@@ -5,3 +5,4 @@ export CODEX_HOME="$HOME/.codex"
 # Always resolve the manifest before the real process starts, including `codex mcp login`.
 # Conductor uses this same executable directly; no login-shell initialization is required there.
 codex() { "$HOME/.claude/bin/codex-launch.py" "$@"; }
+claude() { "$HOME/.claude/bin/claude-launch.py" "$@"; }

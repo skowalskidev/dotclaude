@@ -43,6 +43,7 @@ orchestrator's model is the justified exception. Record the actual model, not a 
 Use `codex -p` as the local equivalent of `claude -p`, with `-p` or `--print` first. Native profile
 selection uses `codex --profile <name>`; other native commands are unchanged. Load the launcher
 function with `source ~/.zsh-work-codex.zsh`, or use its executable form without shell initialization:
+Headless Claude dispatch without that shell function calls `~/.claude/bin/claude-launch.py` directly.
 
 ```bash
 ~/.claude/bin/codex-launch.py -p "Implement the assigned slice"
@@ -111,8 +112,8 @@ launched sessions have no documented cap.
    can exit 0 with well-formed result JSON while the agent is mid-task.
 4. **Cap at 3-5**, and give every slice a self-contained spec with an explicit expected result. A slice
    that stops to ask a question dies silently, because nobody can answer it.
-5. **A fresh worktree is a bare checkout. Read the repo's `CLAUDE.md` and `CLAUDE.local.md` for its
-   setup ritual and follow it exactly** rather than inventing a shortcut. **If neither documents one,
+5. **A fresh worktree is a bare checkout.** Apply `references/project-instructions.md` before any worker reads or carries repo guidance. When allowed, read the repo's `CLAUDE.md` and `CLAUDE.local.md` for its
+   setup ritual and follow it exactly rather than inventing a shortcut. **If neither documents one,
    say so before starting**, not after a slice has already failed on it.
 
 **The lever that beats all of the above is slice balance.** One measured run spent 451s of a 466s round
@@ -181,17 +182,17 @@ fix to its right home.** Beyond the `reconcile.json` causes, read every worker's
 timestamped `<name>.log` (§ "The hand-run session handoff") alongside its result. Diagnose the BOTTLENECK
 from the timestamps — which phase (install / build / the work) ate the wall-clock — and the frictions
 that RECUR. Then improve in two tiers:
-- **Within the run (AUTOMATIC, no config edit):** fold each round's friction fixes and the right setup
-  into the NEXT round's worker blocks — bake the correct instruction in, or point the workers at the
-  project's `CLAUDE.md`/`CLAUDE.local.md` (and `~/.claude`) to read BEFORE they start — so round N+1 is
+- **Within the run (AUTOMATIC, no config edit):** fold each round's friction fixes and permitted setup
+  into the NEXT round's worker blocks — bake the correct instruction in, or when permitted point workers at
+  project docs (and `~/.claude`) to read BEFORE they start — so round N+1 is
   not tripped by what tripped round N.
 - **Across runs, ROUTED to the home that OWNS the fact (ASK-FIRST, per `rules/self-healing-config.md`):**
   a friction or bottleneck that RECURS is durable enough to fix at source, and it goes to the ONE home
   that owns that fact so it stays DRY and reproducible — a PROJECT setup/build fact (how THIS repo builds,
-  warms, what is heavy) to the project's COMMITTED `CLAUDE.md` so every worker and teammate gets it; a
-  machine-local fact to that project's `CLAUDE.local.md`; a GENERIC-methodology fact (the pattern itself)
+  warms, what is heavy) to the project's COMMITTED `CLAUDE.md` when project guidance is allowed; a
+  machine-local fact to that project's `CLAUDE.local.md` when allowed; a GENERIC-methodology fact (the pattern itself)
   to this reference. Each lands through `/sk:claude-config-update`'s gate; a run never edits any of them
-  silently. The system handles ANY future setup step without changing the methodology — the worker reads
+  silently. The system handles ANY future setup step without changing the methodology — when allowed, the worker reads
   the project's own setup section verbatim (whatever steps it lists), the friction surfaces when that
   section is wrong or stale, and the fix is routed to whichever home — dotclaude or the project's own docs
   — keeps it correct. This is the same auto-analyse-never-auto-optimize rule, now fed by worker friction.
@@ -232,7 +233,7 @@ in order: a first-line title `Session <n> (<name>):`; the front-door invoke
 `/sk:meta-dotclaude-copilot-start-here-for-any-task` so the slice runs the right harness autonomously and
 asks nothing — STATE in the block that the task-intake gate is pre-satisfied (this spec IS the ratified
 plan) so the session does NOT call `AskUserQuestion`, which blocks a headless worker forever; the git
-branch-off-START ritual below; the repo's fresh-worktree setup ritual reproduced
+branch-off-START ritual below; when permitted, reproduce the repo's fresh-worktree setup ritual
 VERBATIM from its `CLAUDE.md`/`CLAUDE.local.md` (EVERY step, not just install) — a version manager repoints
 `node`, NOT the `yarn`/`npm` binary, so ASSERT the package manager runs under the pinned runtime (`yarn
 node -v`, or invoke the pinned release directly, e.g. `node .yarn/releases/yarn-<ver>.cjs install`) before a
@@ -337,8 +338,8 @@ the same gate, and a busy gate defers only the heavy step.
   symlinks are relative, so worktree B silently runs worktree A's source — a correctness bug, not a
   slowdown; each worktree installs its own (sped by the package manager's global cache / hardlinks). The
   CONCRETE per-project recipe — the build command, the env that must match, which cache, which packages
-  are heavy — belongs in the PROJECT's COMMITTED `CLAUDE.md`, so ANY worker on the repo (teammate, cloud,
-  worktree) gets it and it stays reproducible; read it BEFORE building, and if it is missing or stale that
+  are heavy — belongs in the PROJECT's COMMITTED `CLAUDE.md` when project guidance is allowed, so ANY worker on the repo (teammate, cloud,
+  worktree) gets it and it stays reproducible; read it BEFORE building when allowed, and if it is missing or stale that
   gap is what the self-improve loop routes back into it.
 - **Warm the package-manager cache once BEFORE fanning out; expect concurrent cold installs to contend.**
   The orchestrator's own START install populates the shared global cache, so each worker's install is

@@ -205,6 +205,7 @@ SCENARIOS: list[dict] = [
     # "create a new skill" got hand-built instead of run through the skill.
     {"phrase": "create a new skill", "expect": "claude-config-update"},
     {"phrase": "change my config", "expect": "claude-config-update"},
+    {"phrase": "ignore project instructions", "expect": "claude-config-update"},
     {"phrase": "make the gauntlet dashboard open the mockup in a new tab", "expect": "claude-config-update"},
     {"phrase": "what am I missing", "expect": "claude-config-self-development-research"},
     {"phrase": "is my Claude setup current", "expect": "claude-config-self-development-research"},
@@ -338,6 +339,6 @@ HOOK_ROUTING: list[dict] = [
     # SessionStart hooks carry no matcher, so every one of them fires on every session. Pinned
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,
-     "expect": ["config-status.sh", "session-connectors.sh", "orphan-worker-sweep.sh",
+     "expect": ["agent_runtime.py", "config-status.sh", "session-connectors.sh", "orphan-worker-sweep.sh",
                 "port-registry-sweep.sh", "session-identity.sh", "worktree-freshness.sh"]},
 ]

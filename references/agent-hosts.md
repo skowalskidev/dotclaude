@@ -1,11 +1,19 @@
 # Native agent hosts
 
 Keep rules, references, skills, identity and project connector manifests under `~/.claude`.
-Use `bin/agent_runtime.py` for the Codex adapter; use `settings.json` for shared hook commands.
+Use `bin/agent_runtime.py` for native host policy and Codex adaptation; use `settings.json` for shared hook commands.
 Keep account credentials in each host's own store. Never copy OAuth tokens between hosts or profiles.
 Use the existing ChatGPT subscription in `~/.codex` for every Codex role, including reviews.
 
 ## Instructions and skills
+
+Apply `references/project-instructions.md` before any project-doc read. Start Claude through
+`~/.claude/bin/claude-launch.py` (or the sourced `claude` shell function) and Codex through
+`~/.claude/bin/codex-launch.py`. Both resolve the selected project's private manifest before native
+instruction loading. The Claude launcher sets the native project-instruction exclusion when the flag
+is true; Codex sets `project_doc_max_bytes=0`, while the linked global `~/.codex/AGENTS.md` stays active.
+SessionStart reports the value. Restart the process and chat after a flag change; existing context
+cannot be cleared in place.
 
 Run `python3 ~/.claude/bin/agent_runtime.py install` once. Add `--conductor` to configure its executable.
 It links the same
@@ -37,6 +45,7 @@ selection. Other invocations, including `exec`, `mcp` and Conductor's `app-serve
 
 Launch with `~/.claude/bin/codex-launch.py`, or `codex` after sourcing the shell snippet.
 In Conductor, set `codex_executable_path` in `~/.conductor/settings.toml` to that absolute path.
+Set `claude_code_executable_path` to `~/.claude/bin/claude-launch.py` for Claude sessions.
 Keep model selection in native Codex configuration; the launcher enforces subscription billing.
 The adapter never replaces built-in model instructions or edits credential files.
 
@@ -116,7 +125,9 @@ Keep the native runtime's trust/auth steps explicit in the hand-back when human 
 - https://learn.chatgpt.com/docs/build-skills
 - https://learn.chatgpt.com/docs/hooks
 - https://learn.chatgpt.com/docs/extend/mcp?surface=cli
+- https://developers.openai.com/codex/config-reference
 - https://code.claude.com/docs/en/memory
+- https://github.com/openai/codex/blob/main/codex-rs/core/src/agents_md.rs
 - https://www.conductor.build/docs/reference/mcp
 - https://www.conductor.build/docs/troubleshooting/issues
 

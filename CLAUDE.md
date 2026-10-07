@@ -22,6 +22,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `workflow-loops.md` — continuous request reconciliation, modular execution, independent judgement and the shared plan/mockup dashboard.
   - `session-performance.md` — after-task reports, bounded measurements and asynchronous coordinator review.
   - `agent-hosts.md` — native host wiring, subscription-only Codex billing and update timing.
+  - `project-instructions.md` — per-project instruction boundary and the required policy check before loading repo guidance.
   - `config-writing-standard.md` — how every line of this config is written: DO-led, banned hedge words, the DEFAULT/NUMBER/TEST rule, the mission format. Enforced by `hooks/config-contract.test.py`.
   - `research.md` is read at the START of every workflow run, not on demand like the rest — the opening research pass is step 1 of `/sk:work-full-detailed-workflow`, so Simon never has to ask for it separately.
   - `skill-stack.md` is the one to read at the START of a task: it maps a task shape to the right skill and to the third-party skills that stack on it, so I never have to remember which to use. `hooks/task-intake.sh` points you there on every new task and BLOCKS Agent/Task/Workflow until I've confirmed the proposal.

@@ -118,6 +118,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "$HOME/.claude/bin/agent_runtime.py policy-hook",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/config-status.sh",
             "timeout": 10
           }

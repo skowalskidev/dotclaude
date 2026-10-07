@@ -234,11 +234,11 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
 
 ## Project documentation rule
 
-**When working on any project that has a `CLAUDE.md` and/or `ABOUT.md`:**
-- Read both at the start of any significant task.
-- Update `CLAUDE.md` when architecture, conventions, pipeline stages, key files, or agent instructions change; update `ABOUT.md` when pipeline stages, AI models, costs, durations, or data structures change.
-- Re-read both before finishing to confirm they reflect the actual codebase.
-- Update both together — they are the project's source of truth for agents and users respectively, and neither is ever left out of date after a change.
+DO apply `references/project-instructions.md` before any project documentation read or update.
+
+**When the project-doc policy allows it and a project has `CLAUDE.md` and/or `ABOUT.md`:**
+- Read both before significant work and again before finishing.
+- Update `CLAUDE.md` for changed architecture, conventions, pipeline stages, key files or agent instructions; update `ABOUT.md` for changed pipeline stages, models, costs, durations or data structures. Keep both accurate together.
 
 ## Test/QA accounts & machine-local secrets — always use `CLAUDE.local.md` (every project)
 

@@ -63,6 +63,7 @@ EOF
 mkdir -p "$TMP/bin"
 cat > "$TMP/bin/claude" <<'STUB'
 #!/usr/bin/env bash
+if [ "${1:-}" = "--version" ]; then printf 'claude fixture\n'; exit 0; fi
 # The dispatcher passes the prompt positionally after -p; the slice dir is named inside it.
 SD="$(printf '%s\n' "$@" | grep -oE '/[^ ]*/slices/[a-zA-Z0-9_-]+' | head -1)"
 [ "${FIXTURE_CLAUDE_FAIL:-}" = 1 ] && exit 7
@@ -72,6 +73,7 @@ printf '{"is_error":false,"num_turns":1,"duration_ms":10,"session_id":"stub","us
 exit 0
 STUB
 chmod +x "$TMP/bin/claude"
+export AGENT_CLAUDE_BIN="$TMP/bin/claude"
 
 cat > "$TMP/bin/codex" <<'STUB'
 #!/usr/bin/env bash

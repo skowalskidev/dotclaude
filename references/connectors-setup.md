@@ -31,6 +31,7 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
 {
   "project": "codebase",
   "boundary": "work",
+  "ignoreProjectInstructions": false,
   "match": ["YourOrg/codebase", "your-org/codebase", "conductor/workspaces/codebase"],
   "connectors": [ { "...": "see connector record" } ]
 }
@@ -38,6 +39,7 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
 
 - `project` — label.
 - `boundary` — `work` | `personal`. Default for connectors that omit their own.
+- `ignoreProjectInstructions` — optional boolean on a selected non-shared project manifest, default `false`. `true` activates `references/project-instructions.md`; shared manifests cannot set it. This does not change connector or credential policy.
 - `match` — array of substrings; the manifest is selected when ANY appears in the repo's `git remote
   get-url origin` (or, for path-based fallback, in the repo path). First matching manifest wins.
 

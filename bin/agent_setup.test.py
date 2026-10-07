@@ -490,10 +490,13 @@ class CommandTests(unittest.TestCase):
         self.home.mkdir()
         self.repo = self.root / 'workspace with spaces'
         self.repo.mkdir()
-        for name in ('agent_setup.py', 'codex_print.py', 'codex-launch.py', 'superspeed-dispatch.sh'):
+        for name in ('agent_setup.py', 'codex_print.py', 'codex-launch.py',
+                     'claude-launch.py', 'superspeed-dispatch.sh'):
             shutil.copy2(SOURCE / name, self.bin / name)
         (self.bin / 'agent_runtime.py').write_text('''import os, sys
 from pathlib import Path
+def project(cwd):
+    return None, {}, 'personal'
 def launch():
     binary = str(Path(__file__).with_name('codex-native'))
     os.execv(binary, [binary, *sys.argv[1:]])
@@ -511,6 +514,7 @@ def launch():
         self.calls = self.root / 'calls.jsonl'
         self.env = {'HOME': str(self.home), 'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
                     'AGENT_CODEX_BIN': str(self.bin / 'codex-native'),
+                    'AGENT_CLAUDE_BIN': str(self.bin / 'claude'),
                     'FIXTURE_CALLS': str(self.calls)}
         stub = '''#!/usr/bin/env python3
 import json, os, re, sys, time
