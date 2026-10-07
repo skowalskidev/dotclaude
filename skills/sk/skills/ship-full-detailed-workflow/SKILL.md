@@ -28,12 +28,12 @@ tickets; a fix that belongs to another PR is handed to that owner via
    the living plan; reconcile against it at stage 9.
 2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the
    rest. Run its full build and suites once, with stage 6, not before the stage 3-5 fixes.
-3. **`/sk:ship-review`** — over the whole diff; fix the confirmed findings.
+3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out; fix the confirmed findings.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
    dial or allowlist relaxation, or an injection surface.
 5. **`/sk:ship-resolve-pr-comments`** — drive EVERY open review thread to a verdict; never hand back a
    list to chase.
-6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification). Verify the user + system
+6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification); re-judge criteria whose evidence or inputs those fixes changed, including dependent readers and configuration. Verify the user + system
    journeys AND every ticket's acceptance criteria against the merged diff, one committed test per
    verdict, close gaps in fix→verify loops. The exhaustive automated coverage + Claude-judge over the
    WHOLE diff is `/sk:test-automated-full-matrix` (run it here — it enumerates every feature, writes the

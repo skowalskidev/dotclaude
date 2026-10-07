@@ -45,17 +45,18 @@ Project databases, cloud accounts and other service credentials still follow Ste
 3. **When a fix round would follow, run independent lenses IN PARALLEL before fixing anything**:
    the correctness pass, a cross-layer parity lens (every value two layers derive or decode) and a
    money/data lens, each over the whole diff, each told to report ALL findings. Hand every lens the
-   list of already-decided rules and refuted findings so none is re-raised. Triage the union once,
-   write the decisions down as rules every layer implements, and fix in ONE round. TEST: a second
-   fix round runs only for a finding the first round's fix itself introduced. (The fix for nine
-   serial single-review rounds, each surfacing one new defect class.)
+   list of already-decided rules and refuted findings so none is re-raised. When the plan carries
+   acceptance criteria, run the per-criterion verdict judges from
+   `/sk:ship-report-and-ensure-correct-user-system-journey` in this same fan-out. Triage the union,
+   write the decisions down as rules every layer implements, and fix the known gaps in one round.
    **DO write, under each rule that changes what a layer stores, sends or skips, its READERS: every
    consumer of that value in every layer, by file.** A rule with no reader list is not ready for a
-   builder. **DO end the round with one fresh judge over the files the round changed, and prove each
-   rule that reaches a rendered surface through the running view.** DON'T accept a unit test of the
-   model as that proof (the fix for a "never store this field" rule that passed every unit test
-   while the control it fed vanished from the screen after each reply). TEST: every such rule names
-   its readers, and the round's report carries the fresh judge's verdict.
+   builder. After the round, use the changed files and their dependent readers, configuration and
+   tests to identify which criterion verdicts may have changed; re-judge those criteria and run one
+   fresh judge over the changed files. Keep an untouched verdict only when its evidence and inputs
+   still apply. Prove each rule that reaches a rendered surface through the running view; a model
+   unit test alone cannot prove it. Resolve newly found or introduced gaps before the heavy gate.
+   TEST: the round's report lists affected readers, refreshed verdicts and the running-view evidence.
 4. If subscription authentication, quota or the selected model is unavailable, stop and report it.
    Do not switch to a model API on your own. A model-API review runs only through the pal MCP, when Simon
    asks for it by name, with a key from this repo's boundary (`rules/connectors.md`) and his per-call yes.

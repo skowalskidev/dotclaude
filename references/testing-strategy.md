@@ -208,6 +208,14 @@ AppleLocale` must read `en_US`; a shared simulator left on a UK region failed 6 
 **Pass `TEST_RUNNER_*` variables in xcodebuild's environment (`TEST_RUNNER_X=y xcodebuild …`), never as a
 trailing argument.** A trailing one becomes a build setting and the test silently skips itself. TEST: a
 full-suite run starts after a locale read, and no `TEST_RUNNER_` appears after `xcodebuild` on the line.
+**Wait for the full runner result within the bounded stage timeout.** Keep the runner's exit status,
+complete log and result bundle; for `xcodebuild`, verify the final `** TEST SUCCEEDED **` or
+`** TEST FAILED **` banner and the result bundle's test summary against the intended suite. A nested
+`Test Suite '…' passed` or `failed` line is only one suite's verdict, not completion; never stop the
+runner on that line. If the runner hangs after printing progress, let the stage timeout terminate only
+its owned process group, then inspect the result bundle. Report an incomplete run when the full result
+cannot be proved. TEST: a green full-suite claim has a completed runner, authoritative result evidence
+and the expected test scope; a timed-out run cannot be called green from a nested suite line.
 
 ## The full automated test matrix — two stages, run unattended
 

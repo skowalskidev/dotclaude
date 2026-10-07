@@ -115,7 +115,9 @@ because it repeats its own intention, which is the same failure Phase 1 exists t
 So fan out per `~/.claude/references/parallelization.md`: one verdict pass per criterion (or per small
 group of related ones), each given the criterion text and the repo but NOT the session narrative, each
 told to default to NOT MET and to change its mind only by pointing at the code that makes the criterion
-true. A criterion nobody can evidence is not met, whatever the session remembers.
+true. A criterion nobody can evidence is not met, whatever the session remembers. When `/sk:ship-review`
+already ran these judges, carry forward only verdicts whose evidence and inputs still apply. Re-judge
+criteria affected by its fix round, including changes to dependent readers, configuration and tests.
 
 Every criterion comes back with one verdict, provisional until Phase 4 puts a test behind it:
 
@@ -252,7 +254,9 @@ Rules for this phase:
 
 Go back to Phase 1 and rebuild both journeys FROM THE CODE. Never from what Phase 5 said it did: a
 loop that trusts its own fix report only ever confirms itself. Then re-run the affected tests and
-Phases 3 and 4 against the same criteria, and reconcile again. Run the FULL suite once, when a round
+the Phase 3 verdicts and Phase 4 tests whose evidence or inputs changed, including dependent readers
+and configuration; carry forward the rest only when their evidence still applies. Reconcile again.
+Run the FULL suite once, when a round
 comes back with nothing actionable, because a fix that broke a neighbour shows up nowhere else
 (`rules/process.md` § Fan out verification). Phase 4's untouched ground-state run stays separate.
 

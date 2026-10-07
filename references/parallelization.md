@@ -373,6 +373,12 @@ the same gate, and a busy gate defers only the heavy step.
   the suite. Report exit 75 as a deferred heavy step with the holder and next action. A worker that
   backgrounds a build and returns "still waiting" forces another orchestration round; one run had
   35 such returns. TEST: each worker returns one final report and no stage waits indefinitely.
+- **Split a lane that owns a serial resource when it shortens the critical path.** Give disjoint
+  features separate editing workers only within the total worker cap and shared heavy-work capacity.
+  Queue their native builds through the capacity lease above; more editors do not add build slots.
+  Use measured lane times and the dependency graph to choose the split, then compare the predicted
+  critical path against the unsplit plan. TEST: the dispatch plan records why each added worker fits
+  the worker and heavy-work caps and is expected to shorten the critical path.
 - **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
   suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
   the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a

@@ -519,6 +519,7 @@ CONTRACTS: dict[str, dict] = {
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
             "Native build prompts name the shared capacity engine or its compatibility frontend, a bounded stage and explicit worker cap; a per-run lock file is not the coordination.",
+            "Split a serial-resource editing lane only when measured critical-path evidence supports it and the added workers fit both the total worker cap and shared heavy-work capacity.",
             "A multi-layer change freezes its contract page and fixture first, then starts every layer in one batch; the whole heavy suite runs once per change set, by the orchestrator; a worker returns exactly once.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
@@ -584,6 +585,7 @@ CONTRACTS: dict[str, dict] = {
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
             "Before a full native suite, prove required platform services with the runtime app, signing and simulator configuration; isolate defaults, authentication, singletons and host state.",
+            "A full native suite waits for the bounded runner to finish and verifies its exit, final result and expected test scope; a nested suite line or timed-out runner cannot establish green.",
             "Exercise real-client recovery at the smallest supported viewport and largest text; verify the message and action are unobscured and operable before input, then verify the recovery outcome.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
@@ -817,6 +819,7 @@ CONTRACTS: dict[str, dict] = {
             "Each criterion is judged by an INDEPENDENT pass that defaults to not-met and is given "
             "the code but not the session narrative. Self-assessment by the context that wrote the "
             "report is the failure this exists to prevent.",
+            "After fixes, re-judge criteria whose evidence or inputs changed, including dependent readers and configuration; carry forward only verdicts whose evidence still applies.",
             "The evidence for a verdict is a test that RAN, not a reading of the code. Phase 4 "
             "writes one named after each criterion, sourcing its cases from the journeys, proves it "
             "fails without the change, runs it and commits it. A met verdict with no passing test "
@@ -1053,7 +1056,8 @@ CONTRACTS: dict[str, dict] = {
             "The journey pass is runnable on its own, so asking to walk a flow does not spend the "
             "multi-model code review to get there.",
             "A fix round's written rules name every reader of a value they change, and the round ends "
-            "with a fresh judge over the files it changed.",
+            "with a fresh judge over the files it changed. Run criterion judges beside review lenses "
+            "before fixes, then refresh verdicts affected by changed dependencies and resolve new gaps before the heavy gate.",
         ],
     },
     "skills/sk/skills/ship-resolve-pr-comments/SKILL.md": {
