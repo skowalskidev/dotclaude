@@ -70,6 +70,8 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("session-performance-and-capacity",
+     "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("codex-subscription-only-inference",
@@ -1195,6 +1197,15 @@ def check_commits_conventional_subject_enforced() -> None:
                   f"commit-msg {'rejected' if want_ok else 'accepted'} {subject!r}. "
                   + ("A false rejection pushes you to --no-verify, which also skips the secret "
                      "gate." if want_ok else "This is the shape the hook exists to stop."))
+
+
+def check_session_performance_and_capacity() -> None:
+    for script in ("session-performance.test.py", "local-capacity.test.py"):
+        result = run(["/usr/bin/python3", str(ROOT / "bin" / script)])
+        check(result.returncode == 0, script + ": " + result.stdout + result.stderr)
+    rule = (ROOT / "rules/self-healing-config.md").read_text()
+    check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
+          "After-run analysis is not routed from the always-on task lifecycle")
 
 
 def check_dashboard_runtime_preserves_completion() -> None:

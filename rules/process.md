@@ -15,7 +15,8 @@ TEST: implementation resolves to `mid`/`small`, never `top`/`design`; GPT design
 OpenAI or API fallback. Verify every delegated result on disk.
 
 ### Fan out verification, and only rebuild what changed
-Run verification for INDEPENDENT units as **parallel tool calls, not one sequential command.**
+Run INDEPENDENT lightweight checks as parallel tool calls. Admit heavy local work through
+`references/dev-server-hygiene.md` § Machine-wide capacity; per-session independence is not spare CPU.
 **Rebuild a shared dependency only when it actually changed**; **background the long pole** so editing
 continues. **Iterate with the CHEAP check, verify HEAVY once per change set.** Run typecheck or the
 affected tests while editing and before each commit; run the full build, suite, simulator and real-app

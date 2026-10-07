@@ -51,6 +51,13 @@ Continue ready authorized work until none remains; a green test for one item clo
 Record a blocker with its next action and continue independent work. Keep deferred work open unless
 Simon explicitly defers it; record who decided, when and the resume condition.
 
+DO retain one deferred after-run analysis item while replacing the intake skeleton or resuming an
+older plan. Apply `references/session-performance.md` after the requested work and verification.
+Link the report in that item; collection by another session never blocks this task's hand-back.
+Run `workflow-dashboard.py init --root <workspace>` on resume to add this item to an older active
+plan. The reserved `after-run-analysis` section belongs to the supervisor; it needs report evidence,
+not another independent judge. Artifact work cannot use this reserved section to bypass judgement.
+
 DO reconcile each source ask against its IDs before any final response or handoff. Record one outcome
 per item: verified with evidence, answered with the answer location, explicitly cancelled/superseded
 with the decision, or still open with its blocker/next action. Close a cancelled item's criterion only

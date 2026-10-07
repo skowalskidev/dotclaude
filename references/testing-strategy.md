@@ -195,6 +195,10 @@ passed; a repeat of the gate names the input that invalidated it.
 
 ## Native simulator suites
 
+DO apply `references/dev-server-hygiene.md` § Machine-wide capacity before booting a simulator or
+starting native verification. Retain the lease across tool calls until the owned device is shut down.
+TEST: a compile command exiting does not release a still-running simulator's capacity.
+
 **DO distinguish compile-only artifacts from runtime-test artifacts.** Before a full native suite,
 run one scoped fixture for each required platform service with the same app, signing and simulator
 configuration. Isolate test defaults, auth, singletons and host state from other app sessions. TEST:

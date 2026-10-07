@@ -13,13 +13,14 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `config-repo.md` — `~/.claude` is a git repo (this config repo); keep it in sync via `/sk:claude-config-sync`.
   - `connectors.md` — connector/credential system: discover the provisioned path first (manifest + browser-debugging), the auth-gate protocol (ask first with numbered steps, then wait), work/personal boundary, prod read-only + gated writes, and the per-project manifest convention (`~/.claude/connectors/<project>.json`).
   - `spend-approval.md` — never run a billable/metered operation (paid model render, credit-consuming API call) without an explicit per-call yes; a diagnose/fix task is not license to spend, and no bisection/retry loop fires paid calls until one works.
-  - `self-healing-config.md` — when a config-rooted problem is diagnosed and resolved mid-session, propose a durable fix and ask to fold it in (event-driven, never a cron).
+  - `self-healing-config.md` — analyze each task at hand-back; route evidence-backed shared fixes through existing authorization (event-driven, never a cron).
   - `living-plan.md` — every session keeps one gauntlet record; capture each new ask, retain unfinished work through tangents, and reconcile all requests before finishing: keep exactly one active plan and regenerate its dashboard after every transition so it tracks EVERY open workstream (tickets, PRs, previews, decisions); a stale snapshot or a second active plan is a stop-and-reconcile, at any check-in not just hand-back.
 
 - **Deep, task-only how-tos** → `~/.claude/references/*.md` (on-demand, zero context cost until read):
   - `research.md` · `contracts-and-outcomes.md` · `planning-and-tracking.md` · `parallelization.md` · `testing-strategy.md` · `dev-server-hygiene.md` · `code-best-practices.md` · `git-pr-deploy.md` · `ticket-lifecycle.md` · `api-empirical-iteration.md` · `browser-debugging.md` · `connectors-setup.md` · `skill-stack.md` · `user-journey-review.md` · `human-pacing.md` · `progress-bar.md` · `tldr-report-formats.md` · `dotclaude-setup.md`
   - `testing-strategy.md` — test gates and shared production-data source fidelity, isolated previews, recompute verification and native simulator suites.
   - `workflow-loops.md` — continuous request reconciliation, modular execution, independent judgement and the shared plan/mockup dashboard.
+  - `session-performance.md` — after-task reports, bounded measurements and asynchronous coordinator review.
   - `agent-hosts.md` — native host wiring, subscription-only Codex billing and update timing.
   - `config-writing-standard.md` — how every line of this config is written: DO-led, banned hedge words, the DEFAULT/NUMBER/TEST rule, the mission format. Enforced by `hooks/config-contract.test.py`.
   - `research.md` is read at the START of every workflow run, not on demand like the rest — the opening research pass is step 1 of `/sk:work-full-detailed-workflow`, so Simon never has to ask for it separately.

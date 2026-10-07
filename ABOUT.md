@@ -48,6 +48,17 @@ return point, and unfinished work stays visible through compaction and handoff. 
 the agent rechecks all recorded asks and continues any ready work. Cancelled or superseded requests
 retain the decision; blocked work retains its next action.
 
+Each task also queues an after-run performance analysis. It runs after the requested work, publishes
+a local report, and lets the session finish without waiting for other sessions. An assigned coordinator
+can collect reports arriving at different times; missing reports stay pending. The helper records
+evidence and review receipts without a background watcher. Shared changes require authorization.
+
+Heavy local builds and simulator work use one machine-wide capacity lease. Editing and lightweight
+checks can continue while another session holds it. The lease spans simulator boot through shutdown;
+an orphaned owner requires inspection before release. This coordinates participating sessions, not
+arbitrary applications or an OS CPU ceiling. See `references/dev-server-hygiene.md` and
+`references/session-performance.md`.
+
 Ordinary sessions use current-session execution with the independent judge off and no loop-options
 interview. [sk] `/sk:work-gauntlet-loop` uses this same record; [sk] `/sk:work-ralph-loop` selects
 standalone Ralph. Both use the `work-` group in the personal `sk` plugin; select those skill names in

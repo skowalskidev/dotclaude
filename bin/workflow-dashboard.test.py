@@ -108,6 +108,50 @@ def stop_fake_app(server, thread):
 
 
 class DashboardTests(unittest.TestCase):
+    def test_analysis_lifecycle_is_preserved_and_needs_no_extra_judge(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / '.context').mkdir()
+            plan = root / '.context' / 'existing-plan.md'
+            original = passed()
+            d.atomic_write(plan, '# Existing work\n\n```dashboard-state\n' + json.dumps(original) + '\n```\n')
+            resumed, _, created = d.initialize(root)
+            self.assertFalse(created)
+            self.assertEqual(resumed, plan.resolve())
+            _, _, state = d.read_plan(plan)
+            self.assertEqual(len(state['sections']), 2)
+            removed = copy.deepcopy(state)
+            removed['sections'].pop()
+            with self.assertRaisesRegex(ValueError, 'Retain after-run-analysis'):
+                d.update(plan, removed, state['revision'])
+            analysis = state['sections'][1]
+            analysis['status'] = 'done'
+            analysis['criteria'][0].update(passed=True, evidence='report.md')
+            state['phase'] = 'complete'
+            updated, _ = d.update(plan, state, state['revision'])
+            self.assertEqual(updated['phase'], 'complete')
+            self.assertEqual(analysis['judge']['verdict'], 'pending')
+            analysis['current'] = {'kind': 'text', 'label': 'Implementation'}
+            with self.assertRaisesRegex(ValueError, 'reserved'):
+                d.validate(state)
+
+    def test_intake_keeps_deferred_analysis_until_reported(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            plan, _, _ = d.initialize(root, title='Work first', slug='task')
+            _, _, state = d.read_plan(plan)
+            ids = [section['id'] for section in state['sections']]
+            self.assertEqual(ids, ['task-intake', 'after-run-analysis'])
+            state['sections'][0]['status'] = 'done'
+            state['sections'][0]['criteria'][0].update(passed=True, evidence='Task verified')
+            state['phase'] = 'complete'
+            with self.assertRaisesRegex(ValueError, 'Complete requires every section done'):
+                d.update(plan, state, state['revision'])
+            state['sections'][1]['status'] = 'done'
+            state['sections'][1]['criteria'][0].update(passed=True, evidence='Local report.md')
+            updated, _ = d.update(plan, state, state['revision'])
+            self.assertEqual(updated['phase'], 'complete')
+
     def test_preview_url_validation_and_export_preserve_assets(self):
         state = fixture()
         for value in (None, 'http://localhost:3000/settings?tab=one#details',

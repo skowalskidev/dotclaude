@@ -190,6 +190,52 @@ Map the confusing symptom back to its environmental cause; it saves enormous tim
 - a query that works locally and fails only at runtime in production → a missing declared
   composite index (no build-time warning exists for this class)
 
+## Machine-wide capacity
+
+DO admit each heavy local build, full test suite, browser batch or simulator session through
+`bin/local-capacity.py` before starting it. The default is ONE heavy lease across all projects and
+worktrees on this machine. Model calls, editing and lightweight checks can continue independently.
+This is cooperative admission, not an OS CPU ceiling. Do not create a per-repository gate root or
+nest a second lease inside the first. TEST: two workspaces cannot acquire the heavy slot together.
+
+```sh
+python3 ~/.claude/bin/local-capacity.py status
+python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-build-or-test-command>
+```
+
+DO keep simulator boot, install, testing and shutdown within the SAME lease. Use
+`run --owner <session-id> --simulator <udid> -- <foreground-script>` for a script that performs that
+lifecycle; the helper does not boot the device. For tools spanning several calls, use
+`acquire --owner <session-id> --pid <persistent-agent-pid> --simulator <udid>`, retain its token in
+the local task record, and `release --token <token>` only after cleanup. Verify the agent PID and
+start identity; the PID of a one-shot tool shell is not a session owner. Use a workspace-owned UDID
+and derived-data directory; never use ambiguous `booted` or change another session's device.
+
+DO handle exit 75 as a deferred heavy step. Record the holder and resume action in the living plan,
+then continue work that needs no lease. Recheck at the next task boundary, not in a tight retry loop.
+The gate refuses admission while any unleased simulator is booted, including the requested device.
+Ask its owning session to finish and shut it down; never run `shutdown all`, erase devices or kill
+Apple services. A failed probe is unknown capacity, not an empty machine.
+
+DO keep orphaned leases visible. PID death, PID reuse or a timeout never proves its child build or
+simulator stopped. Inspect the saved lease and resource ownership before an explicit release;
+release rejects a still-booted recorded device. An interrupted `run` retains its lease for inspection.
+For an unresolved launch whose owner has exited, inspect its receipt and process tree, then use
+`release --token <token> --orphan-inspected`; a live owner or recorded command group still refuses.
+Stop only processes whose identity and ownership are established. Retain caches and shut-down
+devices for reuse; cleanup is not a cold-cache reset.
+
+DO cap the runner's own parallelism inside the lease. Start native verification with `xcodebuild
+-jobs 4 -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1` on hosts
+with at least 8 logical cores; use at most half the cores (minimum 1) on smaller hosts. These are
+conservative initial caps, not measured optima. Set equivalent explicit worker limits for other
+runners; an environment label alone does not enforce them. Keep full app compilation out of a
+compile-independent test task and reuse `test-without-building` only for matching build artifacts.
+Record before/after elapsed time, contention and coverage before changing the shared limit.
+
+TEST: a simulator remains leased until shutdown; a conflicting or orphaned owner is reported without
+termination; native test runners cannot multiply destinations behind a one-slot lease.
+
 ## Track what you started
 
 **DO keep a branch's build caches until the branch lands or is abandoned.** Stop its processes at

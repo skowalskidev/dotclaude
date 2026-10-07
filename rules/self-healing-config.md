@@ -18,12 +18,11 @@ what actually got used. Was there a skill that fitted and never got invoked? A r
 held the answer you worked out from scratch? A hook or guard that should have caught this? Check it against the worktree's
 `.context/intent-ledger.md`, not your memory of the session.
 
-**3. A parallel run left logs.** `/sk:work-superspeed` writes a run directory with per-slice timings, token
-and cache counts, ownership records and an `analysis.json`. Run `/sk:claude-config-self-optimize-analysis-after-run` on it.
-Most of what it finds is about that RUN (re-cut the partition, split the slow slice) and belongs
-nowhere near the config. But when the same finding recurs across runs, it has stopped being a run
-defect and become a config one, and that is this rule's trigger: fold it into
-`references/parallelization.md` or the skill itself via `/sk:claude-config-update`.
+**3. Every task reaches hand-back.** DO queue after-run analysis at task intake and run it after the
+requested work, without waiting for another session. Apply `references/session-performance.md`.
+Keep one report per task batch, including no-finding and missing-evidence outcomes; new evidence
+gets an addendum. TEST: gauntlet and ordinary task hand-backs link a report without a reminder.
+The analysis records findings; it does not independently authorize shared config changes.
 
 The analyser also reports its own blind spots under `INSTRUMENTATION GAPS`. A question the logs cannot
 answer never surfaces on its own, because a missing field looks exactly like a clean run. Treat a

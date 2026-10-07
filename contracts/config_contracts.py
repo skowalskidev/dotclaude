@@ -31,6 +31,36 @@ nothing at runtime.
 """
 
 CONTRACTS: dict[str, dict] = {
+    "bin/local-capacity.py": {
+        "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
+        "purpose": "Non-blocking machine-wide heavy-work lease with process and simulator ownership checks.",
+        "criteria": [
+            "Admit one heavy lease across workspaces; concurrent claims and unknown simulator state cannot both succeed.",
+            "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
+            "Release only the matching token after recorded child processes and booted simulators are clear; signal only the runner's own process group.",
+            "Store no command arguments or environment values; reject unsafe state paths and malformed lease data.",
+        ],
+    },
+    "bin/session-performance.py": {
+        "mission": "Simon receives independently published session evidence without lost reports, duplicate review or another background workload.",
+        "purpose": "Bounded local registration, snapshots, atomic report publication and asynchronous review receipts.",
+        "criteria": [
+            "Publish reports exclusively and atomically in separate UUID directories; later evidence uses addenda without replacing the original.",
+            "Ignore unfinished drafts, retain missing participant counts and identify unseen report content by hash across restarts.",
+            "Reject a review receipt for a hash different from the inspected report; malformed participants cannot hide healthy reports.",
+            "Bound observation commands and output, record unavailable metrics explicitly, and never start models, benchmarks, simulators or background watchers.",
+        ],
+    },
+    "references/session-performance.md": {
+        "mission": "Every task teaches Simon's coordinator what consumed time without interrupting work or inventing performance claims.",
+        "purpose": "Shared lifecycle for ordinary, gauntlet and asynchronous multi-session performance analysis.",
+        "criteria": [
+            "Queue analysis after the requested work for every task; preserve it through handoff and avoid recursive analysis of analysis.",
+            "Participants publish without waiting for peers and never drain the shared cloud backlog or edit shared config independently.",
+            "Keep late and missing reports pending until reviewed or the user changes the roster; a file write never claims to wake a dormant chat.",
+            "Separate observed data, unknowns and inference; clean up only resources with established ownership.",
+        ],
+    },
     "bin/agent_runtime.py": {
         "mission": "Simon starts Codex with current shared instructions and the right project connectors without copying configuration.",
         "purpose": "Native Codex launch, context, hook and installation adapter.",
@@ -96,7 +126,7 @@ CONTRACTS: dict[str, dict] = {
             "Make link discovery regenerate one canonical offline dashboard, select one active plan over completed history and reject multiple active plans.",
             "Keep one plan and one shared renderer across current and Ralph execution; switching modes preserves IDs and evidence.",
             "Require fresh workers for Ralph and separate fresh judges for Gauntlet; unavailable delegation remains blocked.",
-            "Require verified criteria and current-revision judge evidence for completion; budgets and cancellation never count as done.",
+            "Require verified criteria and current-revision judge evidence for artifact completion; the reserved supervisor analysis item needs report evidence without another judge. Budgets never count as done.",
             "Retain standalone offline export and live updates with explicit connection failure; retain all embedded mockup versions and feedback.",
             "Keep one canonical dashboard/mockup path per surface; point the target at the current proposal, store approved snapshots by hash metadata, show each bounded revision at that same link, and wait for user review before the next substantial change.",
             "Preserve approved baseline styles and components during mockup iterations; do not implement against an unseen or unapproved target.",
@@ -152,6 +182,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Project narrative plan sections plus computed artifacts and remaining actions into Session record without storing a duplicate.",
             "Atomically initialize one ordinary plan and canonical dashboard in an empty task workspace; reuse its active record on repeated or concurrent intake.",
+            "Seed and retain a deferred after-run analysis item, migrate active plans on intake, and exempt only this reserved artifact-free lifecycle section from independent judgement.",
             "Regenerate and print an absolute canonical dashboard path; reject zero plans and multiple active plans instead of selecting by modification time.",
             "Allow ordinary current-engine work to run without loop options; keep confirmed options mandatory for Gauntlet and Ralph.",
             "Start or attach to the apps/gauntlet app on fixed port 4747, register the plan at its /api/projects endpoint, and write a runtime receipt naming the app's pid, port and url.",
@@ -294,6 +325,7 @@ CONTRACTS: dict[str, dict] = {
                    "fix at its root, with approval.",
         "criteria": [
             "Ask-first gate. Never auto-applies.",
+            "Run bounded analysis automatically at each task hand-back and retain its local report; shared fixes still require existing authorization.",
             "Event-driven. No cron, no periodic scan, no scheduled sweep.",
             "Keeps BOTH triggers: a part that underperformed, and a part that fitted the task and "
             "was never invoked. The second is invisible unless checked for — a rule that misfires "
@@ -394,6 +426,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Starting, identifying and tearing down dev servers without leaking processes.",
         "criteria": [
             "Every started process is tracked and killed; identity is verified before trusting logs.",
+            "Own the machine-wide capacity protocol: one heavy lease, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
         ],
@@ -1042,9 +1075,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/claude-config-self-optimize-analysis-after-run/SKILL.md": {
         "mission": "Every run leaves this config measurably better at shipping Simon's work, never better at one local metric.",
-        "purpose": "Read one run's logs and propose the next run's partition and instrumentation fixes.",
+        "purpose": "Analyze each task's execution and publish evidence for the next run or assigned coordinator.",
         "criteria": [
-            "Proposes, never applies.",
+            "Publish local findings automatically after each task; participants never apply shared fixes or drain the global backlog independently.",
             "Every suggestion names its evidence (file, number, log line) and the specific change. "
             "No evidence, no finding.",
             "Silence is a valid result; a manufactured suggestion costs more than a missed one.",

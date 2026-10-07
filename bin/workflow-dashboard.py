@@ -102,6 +102,12 @@ def validate(s):
             require(isinstance(c.get('text'), str) and c['text'].strip(), 'Missing criterion text')
             require(type(c.get('passed')) is bool, 'passed must be boolean')
             require(not c['passed'] or (isinstance(c.get('evidence'), str) and c['evidence'].strip()), 'Passed criterion needs evidence')
+        analysis = section['id'] == 'after-run-analysis'
+        if analysis:
+            require([c['id'] for c in checks] == ['after-run-analysis-1'] and
+                    checks[0]['text'] == after_run_section()['criteria'][0]['text'] and
+                    not any(section.get(key) for key in ('before', 'target', 'current', 'previewUrl')),
+                    'After-run analysis is reserved for the supervisor report lifecycle')
         judge = section.get('judge', {})
         require(judge.get('verdict', 'pending') in ('pending', 'pass', 'fail', 'blocked'), 'Invalid judge verdict')
         if judge.get('verdict') == 'pass':
@@ -117,7 +123,7 @@ def validate(s):
                         'Generated target needs explicit approval of its current revision')
         if section['status'] == 'done':
             require(all(c['passed'] for c in checks), 'Done requires every criterion')
-            require(not s['gauntlet'] or judge.get('verdict') == 'pass', 'Done requires judge pass')
+            require(analysis or not s['gauntlet'] or judge.get('verdict') == 'pass', 'Done requires judge pass')
         if section['status'] == 'blocked':
             require(section.get('next'), 'Blocked needs next action')
         for key in ('before', 'target', 'current'):
@@ -195,6 +201,25 @@ def slugify(value):
     return value or 'session-task'
 
 
+def after_run_section():
+    """A supervisor lifecycle item, not a built artifact requiring a second model."""
+    return {
+        'id': 'after-run-analysis',
+        'title': 'After-run analysis',
+        'summary': 'Run after the requested work; retain this item when replacing task intake.',
+        'status': 'todo',
+        'artifactRevision': 1,
+        'next': 'Apply references/session-performance.md after the task and verification.',
+        'criteria': [{
+            'id': 'after-run-analysis-1',
+            'text': 'Publish the local performance report or record unavailable evidence and its retry action.',
+            'passed': False,
+            'evidence': '',
+        }],
+        'judge': {'verdict': 'pending'},
+    }
+
+
 def initial_plan(title, plan, root):
     title = re.sub(r'\s+', ' ', title).strip()[:120] or 'Session task'
     try:
@@ -229,14 +254,15 @@ def initial_plan(title, plan, root):
                 'evidence': '',
             }],
             'judge': {'verdict': 'pending'},
-        }],
+        }, after_run_section()],
     }
     return (
         f'# {title}\n\n'
         '## Status\n\nPLANNING (intake pending)\n\n'
         '## Goal & user journey (current trajectory)\n\nPending task intake.\n\n'
         '## System journey (current trajectory)\n\nThe session will replace this skeleton with the approved task flow.\n\n'
-        '## Tasks\n\n- Record the approved scope and acceptance criteria.\n\n'
+        '## Tasks\n\n- Record the approved scope and acceptance criteria.\n'
+        '- Retain after-run-analysis after the requested work; apply references/session-performance.md.\n\n'
         '## Decisions & rationale\n\n- Ordinary task tracking starts with the independent judge off.\n\n'
         '## Risks & assumptions\n\n- This skeleton is not an approved implementation plan.\n\n'
         '## Sources\n\n- Task intake; replace with the real prompt, tickets and references.\n\n'
@@ -259,7 +285,10 @@ def initialize(root, title='Session task', slug='session-task'):
         require(len(active) <= 1, 'Multiple active dashboard plans; reconcile one before initializing:\n' +
                 '\n'.join(str(path) for path, _ in active))
         if active:
-            plan = active[0][0]
+            plan, state = active[0]
+            if not any(section['id'] == 'after-run-analysis' for section in state['sections']):
+                state['sections'].append(after_run_section())
+                update(plan, state, state['revision'])
             created = False
         else:
             stem = slugify(slug)
@@ -333,6 +362,9 @@ def update(path, replacement, expected):
         new.pop('record', None)
         new['revision'] = old['revision'] + 1
         new['updatedAt'] = now()
+        if any(section['id'] == 'after-run-analysis' for section in old['sections']):
+            require(any(section.get('id') == 'after-run-analysis' for section in new.get('sections', [])),
+                    'Retain after-run-analysis when replacing task intake')
         # Artifact changes invalidate a passing judge even if an agent forgets to reset it.
         previous = {x['id']: x for x in old['sections']}
         for section in new['sections']:

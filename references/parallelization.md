@@ -317,10 +317,9 @@ A `blocked` session sets `status: blocked` + reason in BOTH places and leaves `B
 
 ## Parallelize verification, not just agents
 The section above is about fanning out AGENTS. DO run independent lightweight checks alongside edits.
-Default to one heavy verification batch per machine; parallelize more only with an explicit shared CPU,
-memory, process and simulator budget. Record the active batch, worker cap and owned process IDs. TEST:
-a second heavy suite, browser run or simulator run starts only after the first ends or its shared budget
-is recorded.
+Apply `references/dev-server-hygiene.md` § Machine-wide capacity before heavy verification. Carry the
+same lease protocol and runner worker cap into every dispatch prompt. TEST: independent projects use
+the same gate, and a busy gate defers only the heavy step.
 
 - **Build shared dependencies first, THEN fan out every consumer.** That first step is the only genuinely
   serial one — a consumer checked against a stale or missing shared build reports errors that aren't real.
@@ -349,14 +348,6 @@ is recorded.
   resolve and record each install, build and test command's executable and version inside its actual child
   working directory and shell; carry the project-selected runtime into that command. TEST: no worker install
   starts before cache warming ends, and each child resolves the required runtime before its batch begins.
-- **Serialize builds that share one machine-wide resource, and name the lock in the dispatch prompt.** A
-  native app build (`xcodebuild`, Gradle) is CPU-bound per worktree and a simulator or emulator is one shared
-  device, so N workers building at once thrash the box instead of running in parallel. Before fanning out,
-  put the lock in every worker's prompt: `lockf -k /tmp/<repo>-<tool>.lock <build command>`, with no
-  `timeout` around the wait. Workers still edit in parallel; only the build queues. e.g. 7 worktree agents
-  each running a cold `xcodebuild` on one simulator hit load average 657 and stalled ~25 min; one lock
-  brought it to 248 within 8 min. TEST: every dispatch prompt that runs a native build names its lock and
-  fits the machine's active verification budget; the example lock alone does not coordinate other tools.
 - **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
   suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
   the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a
