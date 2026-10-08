@@ -387,5 +387,133 @@ class GateTests(unittest.TestCase):
                 runner.wait()
 
 
+class PriorityTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve() / "capacity"
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8))):
+            patch = mock.patch.object(gate, name, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def cli(self, *args, load=0):
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        (self.root / "booted.json").write_text('{"devices":{}}')
+        (self.root / "pressure.json").write_text(json.dumps({"load": load, "cores": 8}))
+        env = dict(os.environ, LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"),
+                   LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"))
+        return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
+                              env=env, capture_output=True, text=True, timeout=20)
+
+    def hold_bridge(self):
+        lock_path = Path(self.tmp.name).resolve() / "old.lock"
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        (self.root / "bridge.json").write_text(json.dumps({"lockPaths": [str(lock_path)]}))
+        fd = os.open(lock_path, os.O_RDONLY | os.O_CREAT, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        self.addCleanup(os.close, fd)
+
+    def test_priority_owner_runs_beside_the_holder_and_nothing_is_stopped(self):
+        holder = gate.acquire(self.root, "holder", os.getpid(), None)
+        before = gate.read_state(self.root)
+        gate.prioritize(self.root, "vip", 30, False)
+        token = gate.acquire(self.root, "vip", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root), before)
+        self.assertEqual(gate.read_state(self.root, slot=gate.PRIORITY_SLOT)["token"], token)
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "vip", os.getpid(), None)
+        gate.release(self.root, holder)
+        self.assertEqual(gate.read_state(self.root, slot=gate.PRIORITY_SLOT)["token"], token)
+        gate.release(self.root, token)
+        self.assertIsNone(gate.read_state(self.root, slot=gate.PRIORITY_SLOT))
+
+    def test_priority_owner_skips_the_load_gate_and_others_keep_it(self):
+        gate.prioritize(self.root, "vip", 30, False)
+        with mock.patch.object(gate, "simulator_pressure", return_value=(52.5, 8)):
+            token = gate.acquire(self.root, "vip", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root)["token"], token)
+        gate.release(self.root, token)
+        gate.prioritize(self.root, None, 0, True)
+        with mock.patch.object(gate, "simulator_pressure", return_value=(52.5, 8)):
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "other", os.getpid(), None)
+
+    def test_other_owner_is_deferred_with_the_priority_message_even_when_free(self):
+        self.assertEqual(self.cli("prioritize", "--owner", "vip", "--minutes", "30").returncode, 0)
+        deferred = self.cli("run", "--owner", "other", "--", sys.executable, "-c", "pass")
+        self.assertEqual(deferred.returncode, gate.BUSY)
+        self.assertIn("priority owner is vip until", deferred.stderr)
+        self.assertIsNone(gate.read_state(self.root))
+        self.assertEqual(self.cli("run", "--owner", "vip", "--", sys.executable, "-c", "pass").returncode, 0)
+
+    def test_both_slots_busy_defers_even_the_priority_owner(self):
+        gate.acquire(self.root, "holder", os.getpid(), None)
+        gate.prioritize(self.root, "first", 30, False)
+        gate.acquire(self.root, "first", os.getpid(), None)
+        gate.prioritize(self.root, "second", 30, False)
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "second", os.getpid(), None)
+
+    def test_expired_record_is_ignored_and_cleaned(self):
+        gate.secure_root(self.root)
+        (self.root / "priority.json").write_text(json.dumps({"owner": "vip", "expires": time.time() - 5}))
+        token = gate.acquire(self.root, "other", os.getpid(), None)
+        self.assertEqual((self.root / "priority.json").read_text(), "")
+        gate.release(self.root, token)
+
+    def test_replace_and_clear(self):
+        gate.prioritize(self.root, "first", 30, False)
+        gate.prioritize(self.root, "second", 30, False)
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "first", os.getpid(), None)
+        self.assertEqual(self.cli("prioritize", "--clear").returncode, 0)
+        gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
+
+    def test_minutes_above_the_maximum_or_not_positive_is_rejected(self):
+        for minutes in ("181", "0", "-5", "nan"):
+            result = self.cli("prioritize", "--owner", "vip", "--minutes", minutes)
+            self.assertEqual(result.returncode, 1, minutes)
+        self.assertEqual(self.cli("prioritize", "--owner", "vip", "--minutes", "180").returncode, 0)
+        self.assertEqual(self.cli("prioritize", "--owner", "bad/owner").returncode, 1)
+        self.assertEqual(self.cli("prioritize").returncode, 1)
+
+    def test_status_prints_the_record_only_while_it_is_live(self):
+        self.assertNotIn("priority", self.cli("status").stdout)
+        self.cli("prioritize", "--owner", "vip", "--minutes", "30")
+        lines = [line for line in self.cli("status").stdout.splitlines() if line.startswith("priority: ")]
+        self.assertEqual(len(lines), 1)
+        self.assertIn("vip until", lines[0])
+        self.cli("prioritize", "--clear")
+        self.assertNotIn("priority", self.cli("status").stdout)
+
+    def test_priority_owner_cannot_take_the_holders_simulator(self):
+        gate.acquire(self.root, "holder", os.getpid(), SIM)
+        gate.prioritize(self.root, "vip", 30, False)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "vip", os.getpid(), SIM)
+            token = gate.acquire(self.root, "vip", os.getpid(), None)
+            gate.release(self.root, token)
+
+    def test_priority_run_passes_a_legacy_lock_held_by_another_run_and_stages_work(self):
+        self.hold_bridge()
+        holder = gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
+        with self.assertRaises(gate.Busy):
+            gate.run_command(self.root, "other", None, [sys.executable, "-c", "pass"])
+        gate.prioritize(self.root, "vip", 30, False)
+        staged = [sys.executable, str(SCRIPT), "stage", "--timeout-seconds", "5", "--", sys.executable, "-c", "pass"]
+        self.assertEqual(gate.run_command(self.root, "vip", None, staged), 0)
+        self.assertIsNone(gate.read_state(self.root, slot=gate.PRIORITY_SLOT))
+        self.assertEqual(gate.read_state(self.root)["token"], holder)
+
+    def test_legacy_lock_without_a_capacity_holder_still_blocks_the_priority_owner(self):
+        self.hold_bridge()
+        gate.prioritize(self.root, "vip", 30, False)
+        with self.assertRaises(gate.Busy):
+            gate.run_command(self.root, "vip", None, [sys.executable, "-c", "pass"])
+        self.assertIsNone(gate.read_state(self.root))
+
+
 if __name__ == "__main__":
     unittest.main()

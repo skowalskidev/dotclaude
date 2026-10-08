@@ -204,8 +204,9 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
   `:3000`/`:3100` port — then kill each and VERIFY it's gone, so nothing keeps burning CPU or a port.
 - **Claim a port lane and heavy lease before binding, building or booting.** Use `bin/port-slot.sh`
   and `bin/local-capacity.py run`. Port conflict → next lane; exit 75 → defer heavy work and keep
-  reading/editing. Release the lane when done, the lease after owned simulator shutdown. Protocol:
-  `references/dev-server-hygiene.md`.
+  reading/editing. Release the lane when done, the lease after owned simulator shutdown. Run
+  `prioritize` only when Simon's own message names the task to go first; clear it after.
+  Protocol: `references/dev-server-hygiene.md`.
 - **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev`/`jest`/
   `vite` reparented to PID 1 pins a core nobody watches; `bin/kill-orphan-workers.sh` clears a BURNING
   framework worker (20%+ CPU, 5+ min) or an idle-and-old agent orphan (PPID 1, 5+ min), never a

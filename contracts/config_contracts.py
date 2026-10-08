@@ -35,7 +35,9 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
         "purpose": "Non-blocking machine-wide heavy-work lease with process and simulator ownership checks.",
         "criteria": [
-            "Admit one heavy lease across workspaces; concurrent claims, load over twice logical cores and unknown simulator state cannot succeed.",
+            "Admit one heavy lease across workspaces; concurrent claims, load over twice logical cores and unknown simulator state cannot succeed, except for the priority owner.",
+            "Admit the priority owner (prioritize: default 60, maximum 180 minutes) in a second slot past the load gate, beside the holder; stop, signal or shorten no running job, and defer every other new request with exit 75.",
+            "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
             "Bound boot to 60 seconds, bootstatus and install to 120 seconds each, and the foreground run to 60 minutes by default; a failed boot starts no later stage.",
             "Attempt bounded shutdown of only the recorded simulator after command groups stop on success, failure or timeout; retain the lease if any device is not Shutdown.",
@@ -455,7 +457,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Starting, identifying and tearing down dev servers without leaking processes.",
         "criteria": [
             "Every started process is tracked and killed; identity is verified before trusting logs.",
-            "Own the machine-wide capacity protocol: one heavy lease, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
+            "Own the machine-wide capacity protocol: one heavy lease, the Simon-granted priority record, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
             "Every native build, test and simulator lifecycle uses bin/local-capacity.py or its "

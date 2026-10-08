@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Cooperative, machine-wide admission for local heavy commands and simulators.
 
-The default is one heavy lease. This does not impose an OS CPU or memory limit:
-every participating session must acquire before a heavy command or simulator boot.
+The default is one heavy lease. A priority owner named by `prioritize` may also run in
+a second, parallel slot; nothing already running is stopped. This does not impose an OS
+CPU or memory limit: every participating session must acquire before a heavy command or
+simulator boot.
 """
 
 import argparse
@@ -23,6 +25,11 @@ from pathlib import Path
 
 BUSY = 75
 TIMEOUT = 124
+LEASE_SLOT = "lease.json"
+PRIORITY_SLOT = "priority-lease.json"
+SLOTS = (LEASE_SLOT, PRIORITY_SLOT)
+PRIORITY_DEFAULT_MIN = 60
+PRIORITY_MAX_MIN = 180
 OWNER = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}\Z")
 UDID = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\Z")
 TOKEN = re.compile(r"[0-9a-f]{64}\Z")
@@ -94,8 +101,8 @@ def locked(root):
         os.close(fd)
 
 
-def read_state(root, allow_old=False):
-    fd = secure_open(root / "lease.json")
+def read_state(root, allow_old=False, slot=LEASE_SLOT):
+    fd = secure_open(root / slot)
     try:
         raw = os.read(fd, 16385)
     finally:
@@ -145,9 +152,9 @@ def read_state(root, allow_old=False):
         raise GateError("capacity lease is corrupt; inspect it before retrying") from exc
 
 
-def write_state(root, lease):
+def write_state(root, lease, slot=LEASE_SLOT):
     # A partial write after process failure remains visibly corrupt and blocks admission.
-    fd = secure_open(root / "lease.json")
+    fd = secure_open(root / slot)
     try:
         data = (json.dumps(lease, sort_keys=True, separators=(",", ":")) + "\n").encode() if lease else b""
         os.lseek(fd, 0, os.SEEK_SET)
@@ -156,6 +163,73 @@ def write_state(root, lease):
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def find_lease(root, match):
+    """Return (slot, lease) for the first held lease that `match` accepts, else (None, None)."""
+    for slot in SLOTS:
+        lease = read_state(root, slot=slot)
+        if lease and match(lease):
+            return slot, lease
+    return None, None
+
+
+def read_priority(root):
+    """Return the live priority record, or None. Call under `locked`; clears an expired record."""
+    fd = secure_open(root / "priority.json")
+    try:
+        raw = os.read(fd, 4097)
+    finally:
+        os.close(fd)
+    if not raw:
+        return None
+    try:
+        record = json.loads(raw.decode("utf-8"))
+        if (len(raw) > 4096 or not isinstance(record, dict) or set(record) != {"owner", "expires"} or
+                not isinstance(record["owner"], str) or not OWNER.fullmatch(record["owner"]) or
+                type(record["expires"]) not in (int, float) or not math.isfinite(record["expires"]) or
+                record["expires"] > time.time() + PRIORITY_MAX_MIN * 60 + 60):
+            raise ValueError("invalid priority record")
+    except (UnicodeError, ValueError, TypeError) as exc:
+        raise GateError("priority record is corrupt; run prioritize --clear") from exc
+    if record["expires"] <= time.time():
+        write_priority(root, None)
+        return None
+    return record
+
+
+def write_priority(root, record):
+    fd = secure_open(root / "priority.json")
+    try:
+        data = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode() if record else b""
+        os.lseek(fd, 0, os.SEEK_SET)
+        os.write(fd, data)
+        os.ftruncate(fd, len(data))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def priority_text(record):
+    until = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(record["expires"]))
+    return "%s until %s (%d min left)" % (record["owner"], until, max(1, math.ceil((record["expires"] - time.time()) / 60)))
+
+
+def prioritize(root, owner, minutes, clear):
+    if clear:
+        if owner is not None:
+            raise GateError("prioritize --clear takes no --owner")
+        with locked(root):
+            write_priority(root, None)
+        return "priority cleared"
+    if owner is None or not OWNER.fullmatch(owner):
+        raise GateError("prioritize needs --owner with a safe label, or --clear")
+    if not math.isfinite(minutes) or minutes <= 0 or minutes > PRIORITY_MAX_MIN:
+        raise GateError("--minutes must be above 0 and at most %d" % PRIORITY_MAX_MIN)
+    record = {"owner": owner, "expires": time.time() + minutes * 60}
+    with locked(root):
+        write_priority(root, record)
+    return "priority set: " + priority_text(record)
 
 
 def migrate(root):
@@ -378,9 +452,23 @@ def bridge_paths(root):
     return sorted(set(paths))
 
 
+def priority_overlaps_holder(root, owner):
+    """True when `owner` has live priority and a different owner's run holds the heavy lease."""
+    with locked(root):
+        record = read_priority(root)
+        lease = read_state(root)
+        return bool(record and record["owner"] == owner and lease and lease["owner"] != owner)
+
+
 @contextmanager
-def legacy_bridge(root):
+def legacy_bridge(root, owner=None):
+    """Hold every bridged lock; yield (fds, skipped).
+
+    Only the priority owner, while another owner's run holds the heavy lease, may pass a held
+    lock. `skipped` then tells acquire to use the priority slot alone.
+    """
     fds = []
+    skipped = False
     try:
         for name in bridge_paths(root):
             flags = os.O_RDONLY | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
@@ -391,10 +479,15 @@ def legacy_bridge(root):
                     raise GateError("legacy lock is not a regular file: %s" % name)
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
+                if owner is not None and priority_overlaps_holder(root, owner):
+                    fds.remove(fd)
+                    os.close(fd)
+                    skipped = True
+                    continue
                 raise Busy("legacy native lock is held; defer this heavy job") from exc
             except OSError as exc:
                 raise GateError("legacy native lock cannot be checked: %s" % exc) from exc
-        yield tuple(fds)
+        yield tuple(fds), skipped
     finally:
         for fd in reversed(fds):
             # Inherited children keep the same flock after supervisor exit.
@@ -415,7 +508,7 @@ def holder_text(lease):
     return "holder=%s pid=%s %s%s%s" % (lease["owner"], lease["pid"], condition, sim, command)
 
 
-def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False):
+def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, priority_slot_only=False):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if pid <= 0:
@@ -427,31 +520,54 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
     with locked(root):
         if (legacy_slot_dir() / "slot.d").exists():
             raise Busy("legacy native slot exists; inspect its holder before migration")
-        lease = read_state(root)
-        if lease:
-            raise Busy("heavy slot busy: %s; keep editing or inspect and release its exact token" % holder_text(lease))
+        priority = read_priority(root)
+        is_priority = bool(priority and priority["owner"] == owner)
+        if priority and not is_priority:
+            raise Busy("heavy work deferred: priority owner is %s; retry after it finishes" % priority_text(priority))
+        primary = read_state(root)
+        second = read_state(root, slot=PRIORITY_SLOT)
+        held = [lease for lease in (primary, second) if lease]
+        if not is_priority:
+            if held:
+                raise Busy("heavy slot busy: %s; keep editing or inspect and release its exact token" % holder_text(held[0]))
+            slot = LEASE_SLOT
+        else:
+            if any(lease["owner"] == owner for lease in held):
+                raise Busy("heavy slot busy: %s; the priority owner already holds a lease" % holder_text(next(l for l in held if l["owner"] == owner)))
+            if priority_slot_only and not primary:
+                raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
+            if not primary and not priority_slot_only:
+                slot = LEASE_SLOT
+            elif not second:
+                slot = PRIORITY_SLOT
+            else:
+                raise Busy("both heavy slots busy: %s; %s" % (holder_text(primary), holder_text(second)))
         start = pid_start(pid)
         if not start:
             raise GateError("owner PID is not running or cannot be identified")
-        load, cores = simulator_pressure()
-        if load > 2 * cores:
-            raise Busy("heavy work deferred: 1-minute load %.1f exceeds 2 x %s logical cores; retry at the next task boundary" % (load, cores))
+        if not is_priority:
+            load, cores = simulator_pressure()
+            if load > 2 * cores:
+                raise Busy("heavy work deferred: 1-minute load %.1f exceeds 2 x %s logical cores; retry at the next task boundary" % (load, cores))
+        other_sims = {lease["simulator"] for lease in held if lease["simulator"]}
         if simulator:
             target = simulator.upper()
+            if target in other_sims:
+                raise Busy("simulator %s is in use by the other heavy lease" % target)
             claims = read_claims(root)
             legacy = legacy_claims()
             if target in legacy:
                 raise Busy("simulator %s has an unverified legacy claim by %s" % (target, legacy[target]))
             if target in claims and claims[target] != owner:
                 raise Busy("simulator %s is claimed by %s" % (target, claims[target]))
-        booted = observe_booted()
+        booted = [udid for udid in observe_booted() if udid not in other_sims]
         if booted:
             raise Busy("heavy slot unavailable: booted simulators %s; inspect their owner and shut them down before acquiring" % ",".join(booted))
         lease = {"owner": owner, "pid": pid, "pid_start": start,
                  "simulator": simulator.upper() if simulator else None,
                  "token": secrets.token_hex(32), "created": time.time(),
                  "child": {"state": "pending"} if child_pending else None, "stages": []}
-        write_state(root, lease)
+        write_state(root, lease, slot)
         return lease["token"]
 
 
@@ -459,8 +575,8 @@ def release(root, token, orphan_inspected=False):
     if not TOKEN.fullmatch(token):
         raise GateError("invalid release token")
     with locked(root):
-        lease = read_state(root)
-        if not lease or not secrets.compare_digest(lease["token"], token):
+        slot, lease = find_lease(root, lambda item: secrets.compare_digest(item["token"], token))
+        if not lease:
             raise GateError("release token does not match the current lease")
         child = lease["child"]
         if child is not None:
@@ -474,18 +590,20 @@ def release(root, token, orphan_inspected=False):
         for stage in lease["stages"]:
             if group_alive(stage["pgid"]):
                 raise Busy("recorded stage group %s is still running; inspect it before releasing" % stage["pgid"])
-        booted = observe_booted()
+        other_sims = {item["simulator"] for item in (read_state(root, slot=name) for name in SLOTS if name != slot)
+                      if item and item["simulator"]}
+        booted = [udid for udid in observe_booted() if udid not in other_sims]
         if lease["simulator"] in booted:
             raise Busy("owned simulator %s is still booted; shut it down, then release this token" % lease["simulator"])
         if booted:
             raise Busy("booted simulators %s remain; inspect them before releasing" % ",".join(booted))
-        write_state(root, None)
+        write_state(root, None, slot)
 
 
 def require_groups_stopped(root, token):
     with locked(root):
-        lease = read_state(root)
-        if not lease or not secrets.compare_digest(lease["token"], token):
+        _, lease = find_lease(root, lambda item: secrets.compare_digest(item["token"], token))
+        if not lease:
             raise GateError("command lease changed before simulator cleanup")
         child = lease["child"]
         if child is None or "state" in child:
@@ -511,11 +629,11 @@ def record_child(root, token, pid, start):
     if not start:
         raise GateError("launched command identity could not be recorded")
     with locked(root):
-        lease = read_state(root)
-        if not lease or not secrets.compare_digest(lease["token"], token) or lease["child"] != {"state": "pending"}:
+        slot, lease = find_lease(root, lambda item: secrets.compare_digest(item["token"], token))
+        if not lease or lease["child"] != {"state": "pending"}:
             raise GateError("command lease changed before its child could be recorded")
         lease["child"] = {"pid": pid, "pgid": pid, "pid_start": start}
-        write_state(root, lease)
+        write_state(root, lease, slot)
 
 
 def terminate_group(child):
@@ -545,12 +663,16 @@ def launch_granted(command, read_fd, legacy_fds=(), env=None):
                             pass_fds=(read_fd, *legacy_fds), start_new_session=True, env=env)
 
 
+def owns_group(lease):
+    return isinstance(lease["child"], dict) and lease["child"].get("pgid") == os.getpgrp()
+
+
 def record_stage(root, pid, start):
     if not start:
         raise GateError("stage identity could not be recorded")
     with locked(root):
-        lease = read_state(root)
-        if not lease or not isinstance(lease["child"], dict) or lease["child"].get("pgid") != os.getpgrp():
+        slot, lease = find_lease(root, owns_group)
+        if not lease:
             raise GateError("stage must run inside an owned foreground run")
         if pid_start(lease["pid"]) != lease["pid_start"]:
             raise GateError("stage owner is no longer live")
@@ -558,7 +680,7 @@ def record_stage(root, pid, start):
             raise GateError("stage receipt limit reached; finish existing stages before starting another")
         stage = {"pid": pid, "pgid": pid, "pid_start": start}
         lease["stages"].append(stage)
-        write_state(root, lease)
+        write_state(root, lease, slot)
         return stage
 
 
@@ -566,10 +688,10 @@ def finish_stage(root, stage):
     if group_alive(stage["pgid"]):
         return
     with locked(root):
-        lease = read_state(root)
-        if lease and stage in lease["stages"]:
+        slot, lease = find_lease(root, lambda item: stage in item["stages"])
+        if lease:
             lease["stages"].remove(stage)
-            write_state(root, lease)
+            write_state(root, lease, slot)
 
 
 def stage_command(root, seconds, command):
@@ -585,12 +707,12 @@ def stage_command(root, seconds, command):
             os.fstat(fd)
     except (ValueError, OSError) as exc:
         raise GateError("stage legacy lock descriptors are unavailable") from exc
-    if bridge_paths(root) and not legacy_fds:
-        raise GateError("stage would lose the legacy lock bridge")
     with locked(root):
-        lease = read_state(root)
-        if not lease or not isinstance(lease["child"], dict) or lease["child"].get("pgid") != os.getpgrp():
+        slot, lease = find_lease(root, owns_group)
+        if not lease:
             raise GateError("stage must run inside an owned foreground run")
+    if bridge_paths(root) and not legacy_fds and slot != PRIORITY_SLOT:
+        raise GateError("stage would lose the legacy lock bridge")
     interrupted = [None]
     old_handlers = {}
     def stop(sig, _frame):
@@ -644,14 +766,15 @@ def stage_command(root, seconds, command):
             signal.signal(sig, handler)
 
 
-def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds):
+def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, priority_slot_only=False):
     if not command:
         raise GateError("run requires a foreground command after --")
     if command[0] == "--":
         command = command[1:]
     if not command:
         raise GateError("run requires a foreground command after --")
-    token = acquire(root, owner, os.getpid(), simulator, child_pending=True, allow_bridge=True)
+    token = acquire(root, owner, os.getpid(), simulator, child_pending=True, allow_bridge=True,
+                    priority_slot_only=priority_slot_only)
     metrics["token"] = token
     metrics["start"] = time.monotonic()
     metrics["wait"] = metrics["start"] - metrics["requested"]
@@ -728,8 +851,8 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
 def run_command(root, owner, simulator, command, max_seconds=3600):
     metrics = {"requested": time.monotonic()}
     try:
-        with legacy_bridge(root) as legacy_fds:
-            code = _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds)
+        with legacy_bridge(root, owner) as (legacy_fds, bridge_skipped):
+            code = _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, bridge_skipped)
             if "token" in metrics:
                 try:
                     if simulator:
@@ -783,6 +906,10 @@ def main(argv=None):
     unclaim_parser.add_argument("--udid", required=True)
     unclaim_parser.add_argument("--owner", required=True)
     sub.add_parser("migrate")
+    priority_parser = sub.add_parser("prioritize")
+    priority_parser.add_argument("--owner")
+    priority_parser.add_argument("--minutes", type=float, default=PRIORITY_DEFAULT_MIN)
+    priority_parser.add_argument("--clear", action="store_true")
     args = parser.parse_args(argv)
     root = root_path(args.root or (os.environ.get("LOCAL_CAPACITY_RUN_ROOT") if args.action == "stage" else None))
     global SIMCTL_FIXTURE, PRESSURE_FIXTURE
@@ -800,8 +927,14 @@ def main(argv=None):
         if args.action == "status":
             with locked(root):
                 lease = read_state(root)
+                second = read_state(root, slot=PRIORITY_SLOT)
+                priority = read_priority(root)
                 booted = observe_booted()
-                print(holder_text(lease) if lease else ("heavy slot unavailable" if booted else "heavy slot free"))
+                print(holder_text(lease) if lease else ("heavy slot unavailable" if booted or second else "heavy slot free"))
+                if second:
+                    print("priority slot: " + holder_text(second))
+                if priority:
+                    print("priority: " + priority_text(priority))
                 print("booted simulators: " + (", ".join(booted) if booted else "none"))
                 for udid, owner in sorted(read_claims(root).items()):
                     print("simulator claim: %s owner=%s" % (udid, owner))
@@ -827,6 +960,8 @@ def main(argv=None):
             print("simulator claimed")
         elif args.action == "migrate":
             print(migrate(root))
+        elif args.action == "prioritize":
+            print(prioritize(root, args.owner, args.minutes, args.clear))
         else:
             release_sim(root, args.udid, args.owner)
             print("simulator claim released")
