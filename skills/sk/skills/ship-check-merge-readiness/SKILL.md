@@ -117,9 +117,10 @@ land, in what order, and what would have broken otherwise.
 
 ## Step 5 — Prove the assembly, then hand back
 
-- Build + all suites + the repo's static gate on the rebased tip. Under `/sk:ship-full-detailed-workflow`,
-  run this bullet once with its stage 6, after the review and thread fixes; hand back after assembly. Re-run the journey/verify pass
-  if the PR carries one; a rebase can re-introduce a defect a sibling already fixed.
+- Apply `rules/process.md` § Fan out verification and `references/testing-strategy.md` §§ Defects first
+  and Native simulator suites. Finish the whole authorized batch, including Step 6 thread fixes,
+  before the final full relevant suites, build and static gate. Under `/sk:ship-full-detailed-workflow`,
+  use its stage 6. Reuse valid evidence; re-judge findings invalidated by the rebase.
 - Confirm the exhaustive full-diff review from Step 2 actually covered EVERY changed file, and where
   the project has a full-repo static scan (not only a diff-scoped/new-only gate) run THAT too — the
   new-only gate's blind spot is exactly the orphaned or half-migrated file a rebase leaves in a diff
@@ -129,12 +130,12 @@ land, in what order, and what would have broken otherwise.
   the assembly holds and every blocking dependency is tracked.
 - **Four execution traps quietly break the proof — check each.** (1) A PR stacked on a non-default
   branch has its heavy CI jobs SKIPPED (only the PR targeting the default branch runs the full suite);
-  skipped ≠ passed, so verify the stacked branches LOCALLY (build + suites + static gate). (2) A gate
+  skipped ≠ passed, so cover missing evidence in the final local gate. (2) A gate
   fix can INTRODUCE a new finding — extracting a helper to cut complexity creates a duplication finding,
   a test's alias-path mock string trips an unlisted-dependency check — so re-run the static gate after
-  EACH fix and iterate to clean, one fix is not the end. (3) A pre-push hook can fail on an unrelated
-  missing local tool (a linter binary nobody installed) and block every push; run the one gate that
-  matters manually, push `--no-verify`, and flag the environment gap. (4) A sibling branch checked out
+  the fixes that affect it and iterate to clean under the policy above. (3) A pre-push hook can fail on an
+  unrelated missing local tool. Diagnose the environment gap, restore the required tool and rerun the
+  affected hook; leave required hooks enabled. (4) A sibling branch checked out
   in a git worktree UNDER the repo root (`.claude/worktrees/<name>/`) makes the primary checkout's suite
   LIE: unless the project's test globber excludes that path, running from the main checkout globs BOTH
   its own tests and the worktree's copies and double-counts (one run read 680 tests where the real count
@@ -157,7 +158,8 @@ framework — so there is one.
    parallelism is what makes an exhaustive re-verify affordable.
 2. **Classify on the bar, act on it, never leave it an open "your call":**
    - **fix-here** — a real practical gap, or a serious-if-rare money/data bug, AND the fix is small +
-     safe. Do it, re-run the gate (a fix can introduce a NEW finding — see Step 5), commit.
+     safe. Fix it here; verify with the final batch gate in Step 5, or its affected-check retry if
+     that gate already failed, then commit.
    - **refute** — not a real gap (cosmetic, dormant, or already handled on the branch). Reply with the
      CODE reasoning (file:line, the actual logic), resolve.
    - **follow-up** — real but LATENT (does not break the common path in today's prod) or a multi-site

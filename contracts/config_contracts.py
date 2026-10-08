@@ -311,16 +311,16 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
+            "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
+            "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
+            "Keep native compile checks and relevant backend payment, auth and data tests; preserve required hooks and CI without bypassing them to impose batch timing.",
             "Keep every role on the actual chat provider except GPT design work on the Fable tier; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
             "A mid-run message is QUEUED, never an interrupt, and Simon never has to label it.",
             "New UI is seeded up to, never through: he types the new inputs himself.",
-            "Browser and dev-server verification is ask-first, and this file names every standing "
-            "exception to it. There is exactly ONE. Widening that list, or letting an exception be "
-            "recorded in the skill that benefits from it instead of here, is the regression: an "
-            "ask-first gate with an open-ended exception list is not a gate.",
+            "Keep web UI verification as the existing default; require explicit opt-in for iPhone/iOS simulator runtime tests, UI tests and native screenshots, never inferred from all-tests or full-matrix requests.",
             "The checklist and the decisions behind it survive a RESTART in a durable store — a "
             "ticket or .context/, never /tmp or memory.",
             "Project documentation reads and updates pass through references/project-instructions.md first.",
@@ -431,6 +431,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Every line of this config tells the reader what to DO, so a rule read once is a rule applied.",
         "purpose": "The one standard for how every rule, reference, skill and contract line is written.",
         "criteria": [
+            "Schedule the contract suite once after the complete config batch and review fixes converge; defer evidence reuse and failure reruns to the shared testing policy.",
             "Mandates DO-led instructions, a DON'T only where the wrong behaviour is the tempting "
             "default, and the WHY in one clause. Anthropic's own guidance is that affirmative framing "
             "outperforms prohibition, so a mirror-image DON'T on every DO dilutes the ones that matter.",
@@ -456,6 +457,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Several sessions run their stacks at once, and none leaves a process or a held port behind.",
         "purpose": "Starting, identifying and tearing down dev servers without leaking processes.",
         "criteria": [
+            "Apply the shared verification timing policy; resource admission never creates a per-file or per-worker test obligation.",
             "Every started process is tracked and killed; identity is verified before trusting logs.",
             "Own the machine-wide capacity protocol: one heavy lease, the Simon-granted priority record, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
@@ -513,6 +515,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
         "criteria": [
+            "Inspect delegated diffs on disk without routine test execution; no per-feature, per-commit or per-worker-batch checks override the shared policy.",
             "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
@@ -522,17 +525,14 @@ CONTRACTS: dict[str, dict] = {
             "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
             "Native build prompts name the shared capacity engine or its compatibility frontend, a bounded stage and explicit worker cap; a per-run lock file is not the coordination.",
             "Split a serial-resource editing lane only when measured critical-path evidence supports it and the added workers fit both the total worker cap and shared heavy-work capacity.",
-            "A multi-layer change freezes its contract page and fixture first, then starts every layer in one batch; the whole heavy suite runs once per change set, by the orchestrator; a worker returns exactly once.",
+            "Freeze the contract and fixture before dispatching every layer together; workers return once with changed files and a check inventory, and the orchestrator owns final verification under the shared batch policy.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
             "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
             "worker's friction + timestamped log to self-diagnose the bottleneck and improve in two tiers "
             "— auto next-round, ask-first routed to the fact's owner); superspeed and hyperspeed point to "
             "it, not restate it.",
-            "A fresh-worktree worker reuses the orchestrator's warmed build via the cross-worktree cache "
-            "(rebuilding only its diff's packages, skipping the build for typecheck+test slices) and never "
-            "shares one node_modules; the concrete per-project recipe lives in the project's committed "
-            "CLAUDE.md, which the worker reads before building.",
+            "Reuse shared dependency build caches for needed setup or permitted verification; never share node_modules across worktrees. Keep project build recipes in allowed project guidance.",
         ],
     },
     "references/planning-and-tracking.md": {
@@ -579,6 +579,12 @@ CONTRACTS: dict[str, dict] = {
         "mission": "The suite proves the thing works and spends nothing doing it.",
         "purpose": "Test structure, gates, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
+            "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
+            "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
+            "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
+            "Fix final-gate failures and rerun affected checks; broaden only when changed inputs invalidate coverage, and never count partial or skipped scope as a full pass.",
+            "Require explicit native opt-in for iPhone/iOS simulator runtime tests, UI tests and screenshots; generic all-tests or full-matrix requests do not qualify. Keep compile-only native checks and backend payment, auth and data tests.",
+            "Judge test design before final execution; fan out preparation and judgments, deduplicate suite runs, and report unrequested native runtime coverage as skipped.",
             "Keep production export credentials outside the preview runtime; reject production destinations before creating write-capable clients and verify the refusal offline.",
             "Preserve source dates and record persisted-source or recomputed mode; require complete inputs for post-refresh claims and verify API and visible values against the selected mode.",
             "Retain the requested local preview with a working URL and scoped stop/restart commands; stop exporters and unrelated workers.",
@@ -586,9 +592,9 @@ CONTRACTS: dict[str, dict] = {
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
-            "Before a full native suite, prove required platform services with the runtime app, signing and simulator configuration; isolate defaults, authentication, singletons and host state.",
+            "After explicit native opt-in, prove required platform services with the runtime app, signing and simulator configuration before the suite; isolate defaults, authentication, singletons and host state.",
             "A full native suite waits for the bounded runner to finish and verifies its exit, final result and expected test scope; a nested suite line or timed-out runner cannot establish green.",
-            "Exercise real-client recovery at the smallest supported viewport and largest text; verify the message and action are unobscured and operable before input, then verify the recovery outcome.",
+            "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
             "setup runs FIRST, however late in the work the run happens, because an uninstalled "
@@ -628,7 +634,9 @@ CONTRACTS: dict[str, dict] = {
     "skills/sk/skills/maintenance-code-cleanup-repo/SKILL.md": {
         "mission": "Dead code and drift leave the repo for good, verified gone rather than reported gone.",
         "purpose": "Repo cleanup as audit, adversarial verify, fix, re-verify.",
-        "criteria": ["Claims are verified before deletion; the build and tests stay green throughout."],
+        "criteria": [
+            "Verify claims before deletion; record existing baseline evidence and schedule build and test execution at the final gate under the shared policy.",
+        ],
     },
     "skills/sk/skills/test-copilot/SKILL.md": {
         "mission": "Simon's own eyes catch the journey defects a green suite cannot, one paced step at a time, with the cause already diagnosed from the logs.",
@@ -656,9 +664,8 @@ CONTRACTS: dict[str, dict] = {
             "distinct from /sk:test-copilot, the human journey, which runs THIS for its machine pass.",
             "Enumerates EVERY feature in the diff (git diff + plan criteria + Linear) as a matrix row; "
             "a feature with no row is a hole. Covers the whole diff, never samples down.",
-            "Two stages per feature: Stage-1 deterministic tests (happy path + edges, writes the "
-            "missing one); Stage-2 Claude-as-judge against intent + acceptance criteria + user-sense, "
-            "even when Stage-1 is green, on several independent bias-mitigated lenses.",
+            "Prepare deterministic coverage and independently judge every feature before final execution; the coordinator deduplicates suites, reuses valid proof and runs uncovered checks under the shared policy.",
+            "Report covered, gap, needs-driving and skipped counts; generic matrix invocation never opts into native runtime, UI tests or screenshots, and unrun cases never count as covered.",
             "The METHOD lives in references/testing-strategy.md; this skill points at it and does not "
             "restate it. Fans out via /sk:work-hyperspeed.",
             "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
@@ -709,6 +716,7 @@ CONTRACTS: dict[str, dict] = {
                    "master, verify criteria + journeys with a test per verdict, multi-model + security "
                    "review, resolve threads, screenshot, meet the Deploy-TLDR standard, reconcile.",
         "criteria": [
+            "Defer automated verification until the whole authorized batch and review fixes converge; compose the shared timing, evidence-reuse and failure-rerun policy.",
             "Composes /sk:ship-check-merge-readiness, "
             "/sk:ship-report-and-ensure-correct-user-system-journey, /sk:ship-review, "
             "/sk:ship-resolve-pr-comments, /sk:ship-screenshot-changes and /sk:ship-pr; does not "
@@ -716,8 +724,7 @@ CONTRACTS: dict[str, dict] = {
             "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
-            "Fires the browser legs (/sk:test-eyeball, /sk:test-copilot) only when the diff changes UI, "
-            "and asks first, per the no-auto-browser rule; it never boots a browser by default.",
+            "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
             "Runs a landing gate before reconciling: the journey, the matrix, the screenshots, resolved "
@@ -733,6 +740,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Assembles a PR and its stack onto current master, resolves every review thread to "
                    "fix / refute / follow-up, and reaches a ship-to-prod-as-is verdict.",
         "criteria": [
+            "Include thread fixes before the final batch gate, reuse valid evidence, and apply shared native opt-in and affected-check retry rules without disabling required hooks.",
             "Checks what master changed in the data the PR reads (tables, enums, stored values), with a read-only production group-by, because a merged sibling can change it with no file conflict.",
             "Every open review thread ends fixed, refuted with code reasoning, or ticketed — never an "
             "open 'your call'; a claim is verified against the current code before being trusted.",
@@ -798,6 +806,7 @@ CONTRACTS: dict[str, dict] = {
                    "writes and commits, then closes the gaps between them, looping until the "
                    "journeys hold.",
         "criteria": [
+            "Use existing baseline evidence, diagnose specific uncertainty only, and schedule final execution after all gap fixes; preserve native opt-in and evidence-reuse requirements.",
             "Reads references/tldr-report-formats.md for the three shapes; owns orchestration only.",
             "Reports on a branch against its base OR on uncommitted work in progress, says which, "
             "and keeps the two separate when both exist. Merging them hides which half is safe.",
@@ -822,16 +831,11 @@ CONTRACTS: dict[str, dict] = {
             "the code but not the session narrative. Self-assessment by the context that wrote the "
             "report is the failure this exists to prevent.",
             "After fixes, re-judge criteria whose evidence or inputs changed, including dependent readers and configuration; carry forward only verdicts whose evidence still applies.",
-            "The evidence for a verdict is a test that RAN, not a reading of the code. Phase 4 "
-            "writes one named after each criterion, sourcing its cases from the journeys, proves it "
-            "fails without the change, runs it and commits it. A met verdict with no passing test "
-            "drops to not met, because a file:line is exactly what phase 3 already produced. A "
-            "green test never upgrades a verdict on its own, and no gate is weakened to reach one.",
+            "Write criterion-derived tests in Phase 4; execute under the shared batch policy or cite valid passing proof. Keep unexecuted verdicts provisional; a code reading or green test alone never upgrades a verdict.",
             "Phases 1 to 3 are read-only and phase 4 writes tests ONLY. Phase 5 alone edits product "
             "code, against a criterion or finding written first, because a phase that edits the code "
             "under test can make its own test pass.",
-            "Phase 5 lands one conventional commit per test or gap, never on the default branch, "
-            "with the affected build and tests run before each.",
+            "Phase 5 lands one conventional commit per test or gap, never on the default branch; use shared final-batch verification without per-commit builds or tests.",
             "The loop stops on convergence OR on a finding that survives two consecutive rounds OR "
             "on a decision only Simon can make, and says which. An unbounded loop is not a "
             "guarantee of correctness.",
@@ -914,6 +918,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Substantial work runs research to hand-back in one pass, with nothing skipped and no catalog duplicated.",
         "purpose": "The harness index for substantial work. Points at the reference catalogs.",
         "criteria": [
+            "Plan and write test coverage before implementation; execute the automated matrix at the final gate after all authorized features and review fixes converge, under the shared testing policy.",
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
             "Names rules/living-plan.md among the always-on rules it does not restate.",
@@ -1051,6 +1056,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent reviewers and a cold user-journey pass catch defects before the PR opens without API billing Simon did not ask for.",
         "purpose": "Subscription-backed pre-PR review plus the user-journey pass, work/personal aware.",
         "criteria": [
+            "Schedule review-fix tests, typechecks and pathway coverage under the shared batch policy; native runtime and screenshots still require explicit opt-in.",
             "Use the selected subscription setup for every review pass and preserve project service boundaries. Run a model-API review only through pal, when Simon asks for it by name, with a key from the repo's own boundary, and never for Codex.",
             "Carries the journey pass as a step, reading references/user-journey-review.md rather "
             "than restating it. The reviewers judge the diff; only that pass judges whether a person "

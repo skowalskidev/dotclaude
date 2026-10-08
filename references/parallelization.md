@@ -317,7 +317,10 @@ A `blocked` session sets `status: blocked` + reason in BOTH places and leaves `B
 - **Cap an in-session fan-out at 10 concurrent.** `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` is 10 here (60 per session total); at most 10 background agents run at once and the rest queue. Launching many more than 10 in ONE batch gets the excess REJECTED, not queued (observed: 20 launched → 19 accepted, the 20th errored `You can run 10 subagents at once`). DO cut the work into ≤10 slices, or dispatch in waves of ≤10 and expect ~N/10 waves of wall-clock. TEST: no single launch batch exceeds 10 agents unless the waves are deliberate.
 
 ## Parallelize verification, not just agents
-The section above is about fanning out AGENTS. DO run independent lightweight checks alongside edits.
+DO apply `rules/process.md` § Fan out verification and `references/testing-strategy.md` §§ Defects first
+and Native simulator suites to every worker and the orchestrator. Schedule automated verification at
+the end of the whole authorized task batch, including review fixes; carry exceptions from those owners
+into dispatch prompts.
 Apply `references/dev-server-hygiene.md` § Machine-wide capacity before heavy verification. Carry the
 same lease protocol and runner worker cap into every dispatch prompt. TEST: independent projects use
 the same gate, and a busy gate defers only the heavy step.
@@ -328,11 +331,11 @@ the same gate, and a busy gate defers only the heavy step.
 - **Only rebuild a shared dependency when that dependency actually changed.** Track what you touched. A
   needless rebuild of one shared package measured ~54s per cycle on one repo.
 - **A fresh-worktree worker REUSES the orchestrator's build — it does not rebuild cold.** A worktree
-  worker (hyperspeed/offshoot, or a teammate/cloud session in a fresh checkout) starts bare, so the reflex
-  is a full cold rebuild — the wall. Instead: the orchestrator WARMS the build once at START; each worker
-  runs the IDENTICAL build command so unchanged packages restore from the build tool's cross-worktree
-  cache (a HIT), rebuilding ONLY the packages its own diff touched. Classify the slice by DELIVERABLE
-  first — a typecheck+unit-test slice needs no app build and no native/`go` build at all, only
+  worker (hyperspeed/offshoot, or a teammate/cloud session in a fresh checkout) starts bare. When a
+  build is needed for setup or permitted verification, the orchestrator warms the shared dependency
+  cache once; workers use the IDENTICAL command to restore unchanged packages from the build tool's
+  cross-worktree cache (a HIT), rebuilding ONLY changed dependencies needed by that command. Classify the slice by DELIVERABLE
+  first — a test-writing slice needs no app build and no native/`go` build at all, only
   cache-restored libs; reserve a full app build for a bundle/e2e/dev-boot slice. VERIFY the hits (dry-run
   the build), never assume. NEVER share one `node_modules` across worktrees: a monorepo's internal-package
   symlinks are relative, so worktree B silently runs worktree A's source — a correctness bug, not a
@@ -351,7 +354,7 @@ the same gate, and a busy gate defers only the heavy step.
   starts before cache warming ends, and each child resolves the required runtime before its batch begins.
 - **Admit native work through the shared capacity lease named in each worker prompt.** Use
   `bin/local-capacity.py run` or the `bin/native-slot.sh` compatibility frontend. Exit 75 defers
-  only the heavy step; keep lightweight edits and checks moving. Do not nest leases or wait
+  only the heavy step; keep edits and permitted diagnostics moving. Do not nest leases or wait
   without a deadline. TEST: prompts for native workers name the shared engine, a worker cap,
   and the scoped command it will run.
 - **Freeze the contract, then build every layer in one batch.** When a change spans layers that meet at a
@@ -362,12 +365,9 @@ the same gate, and a busy gate defers only the heavy step.
   a three-layer change ran server, then web, then native, and repeated the chain each of the 3 times the
   contract moved. TEST: every layer's prompt names the same committed contract page and fixture, and the
   layer workers start in one batch.
-- **The orchestrator runs the heavy suite; a worker runs its own files.** A worker's prompt names the
-  single test files or the scoped command it iterates with. The whole native unit bundle, the whole e2e
-  run and the full build run ONCE per change set, by the orchestrator, after every worker's edits are in
-  (`rules/process.md` § "Fan out verification"). e.g. a native unit bundle of 37-48 minutes ran 5 times
-  in one ship run, once per fixer. TEST: full heavy-suite runs equal change sets, and no worker prompt
-  names a whole-suite command.
+- **Give the final gate one orchestrator owner.** Workers implement and report their changed files
+  and proposed checks; they run diagnostics only under the policy above. TEST: no worker prompt
+  mandates an automated test run after its feature, commit or dispatch batch.
 - **A worker runs long commands in the foreground and ends its turn once, with its final report.**
   Put bounded stage timeouts in the foreground command; a boot failure stops before bootstatus or
   the suite. Report exit 75 as a deferred heavy step with the holder and next action. A worker that
@@ -379,25 +379,15 @@ the same gate, and a busy gate defers only the heavy step.
   Use measured lane times and the dependency graph to choose the split, then compare the predicted
   critical path against the unsplit plan. TEST: the dispatch plan records why each added worker fits
   the worker and heavy-work caps and is expected to shorten the critical path.
-- **After each merge or cherry-pick batch, grep for conflict markers and run the build before the full
-  suite.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after resolving, then a build-only pass (minutes) before
-  the full suite. e.g. a leftover marker in an asset JSON and a duplicate type each surfaced only inside a
-  13-minute suite run. TEST: every full-suite run follows a clean marker grep and a passing build of the
-  same tree.
+- **Inspect merge resolutions for conflict markers.** Run `git grep -nE '^(<<<<<<<|>>>>>>>)'` after
+  resolving; defer compilation to the final gate unless a specific issue needs a diagnostic.
+  TEST: the final suite uses converged code with clean resolutions and its required build evidence.
 - **Keep the long pole supervised while editing continues.** Start a dependency install or cold
   build in a foreground worker with the shared lease and bounded deadline; the orchestrator can
   continue independent edits. Do not detach a raw native build from its owner.
 - **Expect sublinear speedup.** Parallel jobs contend for CPU: three checks measured 104s serial vs 56s
   parallel (1.9x, not 3x), and each individual job got slower. Fan out because the wall-clock is free, not
   because it scales linearly — and don't fan out so wide that everything thrashes.
-- **Verify at TASK boundaries — not after every edit, and not only at the end.** Both extremes cost more
-  than they save, and the end-loaded one is worse: errors CASCADE across unit boundaries, so a single
-  broken file in a shared package emits a wall of unrelated "cannot find module" failures downstream and
-  you debug the noise instead of the defect. Worse still, some defects never surface as a compile error at
-  all — e.g. an incomplete runtime list that compiled clean and would have silently dropped records — and
-  those are only caught by looking at what a change touched while it is still one change.
-- **Batch edits that share a verification surface, then verify once.** Doing all the work behind one
-  surface, verifying, then the next, beats interleaving them and paying a full fan-out each time.
 - **Triage before reacting to a failure.** Separate YOUR errors from pre-existing and environmental ones
   FIRST — an unbuilt shared dependency can emit hundreds of spurious errors with nothing to do with your
   change. Filter by path, or take a baseline on a clean tree, before reading a single line.
@@ -420,7 +410,7 @@ the same gate, and a busy gate defers only the heavy step.
 - **Haiku also fits simple, high-volume PARALLEL fan-out**, not just single mechanical edits: a fleet each doing a well-specified, low-judgement pass over its own slice — a leak/pattern scan, a classification, a mechanical audit, a "read these files and report X". It is cheap and fast, and reads semantically not just by pattern (one run: 19 Haiku agents scanned a ~135-file tree in ~2 min for ~1.1M tokens, and surfaced two leaks a plain `grep` missed). DO keep the tiers distinct: the top tier, on either provider, orchestrates, Fable designs, the mid tier implements where correctness or nuance matters, and Haiku does the parallel grunt-work. DON'T give Haiku a logic edit, a nuanced review, or any pass where a wrong answer is costly. TEST: every Haiku slice is one where a wrong answer is cheap and the spec leaves no judgement call.
 - Match the model to the judgement required. Escalate to the `sonnet` tier the moment a call needs taste — haiku will otherwise silently reword things it shouldn't, drop information, and mis-scope.
 - **Route by tier alias, never by version.** Delegate Claude work with `haiku` / `sonnet` / `opus` / `fable` — the Agent `model` enum and `claude -p --model` both take them — so every call gets the best current model at that tier. Delegate OpenAI work to `agent_setup.resolve_tier('openai', tier)`, which ranks the live Codex model cache (`~/.codex/models_cache.json`) by `priority`; Codex has no CLI alias, so the resolver is the only source of an OpenAI worker model. Don't hard-code a model version or family name in a rule, default or skill example. The tier guard in `bin/agent_setup.py` is by resolved tier (`tier_of`): only `mid`/`small` may implement, whatever the model's name or version. TEST: `grep -rnE 'claude-(opus|sonnet|haiku|fable)-[0-9]|gpt-[0-9]'` over `rules/`, `references/`, `skills/sk/`, `contracts/` and non-test `bin/` returns nothing.
-- Reserve the top tier, on either provider, for orchestration, review and design decisions. Run build/tests in the orchestrator after each batch and fix the integration seams without taking implementation ownership back from the smaller worker.
+- Reserve the top tier, on either provider, for orchestration, review and design decisions. Inspect integration seams after each worker batch; keep implementation with the smaller worker and automated verification at the final gate.
 
 ## Give every agent a precise, self-contained spec
 The spawn prompt is the ONLY channel — a subagent inherits none of the parent conversation — so
@@ -453,13 +443,9 @@ expected result (an agent told only what to do cannot tell you it failed), and n
 - **Precise, not long.** Anthropic's own worked spec is four sentences. An orchestrator that hasn't
   read the code is the node LEAST able to prescribe implementation, so specify the boundary and the
   acceptance test, then stop.
-- **DO give each code slice a `verify` that runs every check CI would run on its files**: the
-  formatter and linter over EVERY file it edits (an existing file included, not only the new ones),
-  its owned tests, the project's diff-scoped static audit, and a typecheck when no other slice's
-  unfinished edit can break it (else one package typecheck right after fan-out). DON'T accept tests
-  alone as a slice's proof (the fix for web slices that ran their tests while a fixture cast failed
-  typecheck, and an edited existing file left unformatted, both surfacing only in reconcile). TEST:
-  every edited code file has a formatter, lint and audit result in its slice's `verify.txt`.
+- **DO give each code slice a final-gate check inventory** covering formatting, lint, owned tests,
+  static audit and typecheck for every edited file. Return the inventory without running it during
+  implementation. TEST: the orchestrator collects every slice's coverage into the final gate.
 - **DO search the whole repo for callers, tests and fixtures of each changed entry point** (the RPC,
   endpoint or function a slice changes). Assign each caller, fixture and persisted state transition to
   a slice or the reconciler, including omission, explicit clear, failure/retry and the next request.
@@ -505,7 +491,7 @@ is circumstantial — vendor design decisions, a deleted tutorial, bug reports, 
 not experimental. What IS well-supported is the other half: spec quality and disjoint ownership.
 
 ## Never trust a sub-agent's self-report — verify on disk
-- Agents will confidently tell you a file is clean when they never touched it. After every delegated batch, prove it yourself with `grep`/`git diff`/tests. Treat the report as a claim to check, not evidence.
+- Agents will confidently tell you a file is clean when they never touched it. After every delegated batch, inspect it yourself with `grep`/`git diff`; defer automated tests to the final gate. Treat the report as a claim to check, not evidence.
 - Ask agents to paste real command output rather than summarise it — and still check.
 
 ## An agent you called "read-only" is not read-only unless you took its tools away

@@ -1,12 +1,12 @@
 # Testing strategy
 
-Write tests first, then implement.
+Write regression tests early, then implement; execute them under § Defects first.
 
-- Structure testing as a tree: unit → integration → e2e per section. Verify each part individually first, then collectively — higher-level tests build on locally-tested parts.
+- Structure testing as a tree: unit → integration → e2e per section. At final verification, run lower-level coverage before dependent higher-level checks.
 - Plan both unit and e2e suites so they can run in parallel.
 - Split tests into "runnable now" vs "needs extra resources" (second accounts, other platforms). The latter become prioritized follow-up tickets with instructions — or an immediate flag if blocking.
 - Write the test plan simple → complex: seed scenarios for every case, happy path first, then edge cases. Save progress to a file so every part is tracked and ticked off.
-- Never assume someone else's code or branch works as described — test it, and budget time to fix it.
+- Verify someone else's code or branch at the batch gate; budget time to fix failures.
 
 ## The suite must never spend money
 
@@ -165,39 +165,60 @@ the cleanup command targets only this preview and releases its claimed ports.
   The visual and UX half is precisely what a human pass is for.
 - **Default scenario matrix for any user-facing feature:** happy path, error state, empty state,
   loading state, auth-guard behaviour, validation and boundary cases. DO exercise failure and recovery
-  in the real client at the smallest supported viewport and largest supported text. TEST: the message
-  and recovery action are visible, unobscured and operable before input, and recovery reaches its expected outcome.
-- **Sequence slow whole-repo gates to protect the iteration loop** — run them once before the
-  final commit, not after every commit.
-- **DO run the project's diff-scoped static audits (complexity, dead code, duplication) right after
-  the parallel reconcile, before any whole suite or build**, and fix what they find with the audit
-  alone. DON'T meet an audit failure first in the final gate (the fix for an audit that failed a new
-  module's complexity after two full suite runs, forcing a refactor and a third). TEST: the static
-  audits pass before the first full gate and stay in the final one.
-- **After editing a SHARED module, run the WHOLE package suite before calling it green, not just the
-  test file whose name matches it.** Sibling files assert on a shared module's literal strings and
-  behaviour, so the same-named test is not the blast radius. TEST: the full package suite ran green
-  locally before the change was declared done. (the fix for a prompt-string edit whose same-named test
-  passed while a sibling test file, pinning two of the changed strings, failed only in CI.)
+  in the real client at final verification, at the smallest supported viewport and largest supported text,
+  subject to § Native simulator suites. TEST: record visible recovery evidence or an explicit native
+  runtime skip; unexecuted cases are never green.
+- **DO run diff-scoped static audits (complexity, dead code, duplication) at the final gate before
+  whole suites or builds.** Fix audit findings with the affected audit alone; carry its passing evidence
+  into the gate. TEST: a passing audit is not rerun unless its inputs changed.
+- **DO include the WHOLE package suite when a shared module changes.** A same-named test does not cover
+  sibling consumers. Schedule this once at the batch gate, or reuse matching full-package evidence.
+  TEST: a shared-module green verdict names full-package coverage, not one matching test file.
 - **DO tie a coverage verdict to its source revision, collection directory and complete test invocation.**
   Use partial reruns to diagnose failures; they do not replace full-run coverage. TEST: the reported
   percentage traces to complete collection for the same revision being judged.
 
 ## Defects first
 
-**DO run the defect finders — the code review (`/sk:ship-review`), PR-thread resolution, the test-matrix
-Stage-2 judge, the journey judge — and land their fixes BEFORE the heavy gate and the real-app check.**
-The heavy gate (full build, whole suite, device/simulator suite, real-app check) then runs ONCE on the
-reviewed code. DON'T run the heavy gate and then review: every finding after it buys another full
-rebuild (the fix for a branch rebuilt and re-tested on a simulator six times because review and the
-matrix judge ran after verification). TEST: no review or judge finding lands after the heavy gate
-passed; a repeat of the gate names the input that invalidated it.
+**DO default to zero automated tests, typechecks or verification builds during the whole authorized
+task batch.** A batch includes every authorized feature and its review fixes, not one feature, commit or edit. Write regression
+tests early without executing them. Run an early targeted diagnostic only for a concrete issue that
+needs it or Simon's explicit request; record the reason and scope. Compile an implementation dependency
+only when required to continue the work. DON'T turn cheap checks or dependency builds into a per-edit
+verification loop. Leave required hooks and CI enabled and unchanged.
+
+**DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
+PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant
+suites and builds ONCE on the converged, reviewed batch, followed by the real-app check within its
+platform scope. Include native compile checks for native changes and relevant backend payment, auth
+and data coverage. Apply § Native simulator suites before scheduling device/simulator work.
+
+**DO reuse passing local or CI evidence for the same relevant source, dependencies, configuration and
+environment.** Record each command, scope, revision or source fingerprint, input match and result/log
+proof. Map that evidence to the final batch; a new commit SHA alone does not invalidate unchanged inputs.
+A prior partial run covers only its recorded scope, never the whole suite. Final verification remains
+mandatory: run every uncovered relevant check, and report blocked or skipped coverage honestly.
+
+**DO fix final-gate failures and rerun the affected checks.** Reuse the passing remainder; rerun a broader
+suite only when a source, dependency, configuration or environment change invalidates its coverage.
+TEST: no routine mid-batch run, no duplicate final suite from a later workflow stage, and every rerun
+names its failure or invalidated inputs. Every completion claim links the full relevant evidence.
 
 ## Native simulator suites
+
+**DO default iPhone/iOS simulator runtime tests, UI tests and screenshot capture to SKIPPED unless Simon
+explicitly requests that native activity.** “All tests”, a full automated matrix or a generic UI change
+is not opt-in. Do not boot a simulator, launch the app or capture native screenshots to complete an
+unrequested check. Keep compile-only native checks for native changes and backend payment, auth and data
+tests in the final gate. Record unrun runtime/UI cases and their reason separately from passing checks;
+never infer a runtime pass from a compile. TEST: each native runtime/UI/capture run cites Simon's request,
+and a default native batch completes with compile/backend evidence and honest runtime skips.
 
 DO apply `references/dev-server-hygiene.md` § Machine-wide capacity before booting a simulator or
 starting native verification. Retain the lease across tool calls until the owned device is shut down.
 TEST: a compile command exiting does not release a still-running simulator's capacity.
+
+DO apply the following runtime procedure only after that opt-in.
 
 **DO distinguish compile-only artifacts from runtime-test artifacts.** Before a full native suite,
 run one scoped fixture for each required platform service with the same app, signing and simulator
@@ -229,20 +250,26 @@ from `git diff <base>...HEAD` cross-referenced with the plan's acceptance criter
 (`/sk:plan-stable-persistent-dynamic-complete-full-plan`) and the Linear tickets — code with no
 criterion, or a criterion with no code, is itself a finding. The deliverable is a MATRIX: one row per
 feature — `feature · layer (frontend/backend) · Stage-1 test(file) · Stage-2 judgment · verdict
-(COVERED / GAP / NEEDS-DRIVING)`. Every feature ends with a verdict; a feature with no row is a hole.
+(COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Every feature ends with a verdict; a feature with no row is a hole.
 Cover the WHOLE diff — every changed file's features, backend, frontend, tests and docs included; never
 sample down to the "high-risk" files and eyeball the rest. TEST: the matrix's row set equals the diff's
-feature set, and the run states "N of N features covered".
+feature set, and the run reports covered, gap, needs-driving and skipped counts without calling unrun
+cases covered.
 
-**Stage 1 — deterministic tests, on every feature.** Run its unit/integration/e2e coverage, happy path
-AND edge cases (empty, huge, unicode, concurrent, boundary, the auth guard). Where a feature has no
-test, WRITE one that fails against broken code — the job is that every feature ends covered, not a
-report that one was not. Deterministic checks (schema, id-shape, bounds) run first: cheapest, catch the
-most. A rendered frontend interaction a unit test structurally cannot reach is marked NEEDS-DRIVING and
-handed to `/sk:test-copilot`, never faked green with a network mock.
+**Stage 1 — deterministic coverage for every feature.** Prepare unit/integration/e2e tests early,
+covering happy path AND edge cases (empty, huge, unicode, concurrent, boundary, auth guard). Write a
+missing regression test to detect the broken behavior; keep execution pending until review converges.
+At the final batch gate, run each distinct relevant suite once, cheapest first, or attach matching
+passing evidence under § Defects first. A suite shared by several rows runs once for all those rows.
+Mark an unreachable rendered interaction NEEDS-DRIVING and hand it to `/sk:test-copilot`; mark unrequested
+native runtime/UI cases SKIPPED under § Native simulator suites. Never fake green with a network mock.
 
-**Stage 2 — the selected setup's judge, on top of green.** Reuse the saved workflow setup under
-`references/parallelization.md`; every judge uses the current chat's provider, including after a resume or retry.
+**Stage 2 — the selected setup's judge, before final execution.** Stage numbers identify coverage and
+judgment, not execution order. Judge the code, test design and available evidence while Stage-1 execution
+is pending; land the findings before the final batch gate. Afterwards attach its results to the same
+matrix without automatically repeating the judge or suites. Reopen affected judgments only for new
+findings or changed inputs. Reuse the saved workflow setup under `references/parallelization.md`;
+every judge uses the current chat's provider, including after a resume or retry.
 A passing assertion proves the code does what
 someone thought to assert; it never proves the feature does what it was FOR. So for each feature — with
 extra, multi-step reasoning for a complex or multi-call one — the judge reads the real inputs, outputs and
@@ -257,14 +284,15 @@ agree with each other. Sources: openlayer.com/blog/llm-as-judge-evaluation-guide
 confident-ai.com/blog/why-llm-as-a-judge-is-the-best-llm-evaluation-method, deepeval.com/blog/llm-as-a-judge.
 
 **Stage 2 covers the WHOLE diff — every feature, including one already GREEN under automated tests and
-one a unit test structurally cannot reach.** A rendered frontend surface is fully judgeable from its
-code, props and render logic without a browser: what it shows in each state, from what data. So the
+one a unit test structurally cannot reach or whose native runtime is SKIPPED.** A rendered frontend
+surface is fully judgeable from its code, props and render logic without a browser: what it shows in each state, from what data. So the
 "unreachable by a unit test" NEEDS-DRIVING label is a STAGE-1 (deterministic-reachability) marker ONLY —
 it never exempts a surface from the Stage-2 reasoning judgment. Reason over that surface from its code; a
 surface stays NEEDS-DRIVING for only the pixel/animation/feel a code pass genuinely cannot settle, not
 the whole thing. (the fix for a run that punted every frontend render to a browser wholesale.)
 
-**Fan out, save, post.** The features are disjoint, so fan the two stages out per-feature — via
+**Fan out, save, post.** Fan test preparation and judgments out per feature; the coordinator deduplicates
+suite execution at the final batch gate. Dispatch via
 `/sk:work-hyperspeed` at 3-5+ slices, else an in-session Workflow under the concurrency cap
 (`references/parallelization.md`). SAVE the matrix under the run's `.context/`, and POST it to the PR's
 tests section, GitHub-native, on the posting rails `/sk:ship-screenshot-changes` Step 5 owns — so the

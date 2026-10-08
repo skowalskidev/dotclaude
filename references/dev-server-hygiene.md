@@ -275,13 +275,12 @@ upgrade that receipt under lock before any new admission; the owner and child id
 DO cap native runner parallelism inside the lease: `xcodebuild -jobs 4
 -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1` on hosts with at
 least 8 logical cores, or at most half the cores (minimum 1) on smaller hosts. Apply explicit worker
-limits to Gradle and other runners. The default is a scoped fixture or changed files in seconds;
-compile only when source changed and use `test-without-building` only for matching artifacts. For
+limits to Gradle and other runners. Apply `rules/process.md` § Fan out verification to scheduling;
+use `test-without-building` only for matching artifacts. For
 web suites, start at two workers (`vitest --maxWorkers=2` or
 `node --test --test-concurrency=2`) after confirming the installed CLI accepts that flag. Treat
 failures under machine overload as inconclusive and rerun the affected scoped check when the load
-clears. The orchestrator runs a permitted full gate once per change set after scoped checks pass;
-record any skipped gate as unverified, never passed. One failed boot left
+clears. Record any skipped gate as unverified, never passed. One failed boot left
 a slot idle for 51 minutes. Another observed run had 12 concurrent `xcodebuild` processes and load
 155–597 on 8 cores; its full suite took 39 minutes while scoped checks took seconds. A separate
 web run's full suite rose from 80 to 408 seconds while load was 213–436, with Vitest timeouts

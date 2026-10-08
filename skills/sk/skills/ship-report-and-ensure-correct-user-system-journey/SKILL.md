@@ -21,8 +21,8 @@ This skill owns orchestration only. It reads and never restates:
   deliberately dropped, superseded) and the rule that the ORIGINALS get re-read, never a summary.
 - **`~/.claude/references/user-journey-review.md`** — how a journey is judged as the person meeting it
   for the first time.
-- **`~/.claude/references/testing-strategy.md`** — how tests are written, layered, seeded and gated,
-  the scenario matrix, and the failure classes automation cannot catch.
+- **`~/.claude/references/testing-strategy.md`** — apply § Defects first and § Native simulator suites
+  to every phase below; use its test methods and scenario matrix.
 - **`~/.claude/references/contracts-and-outcomes.md`** — a test named after each criterion, and assert
   the artifact rather than the interaction.
 
@@ -137,22 +137,22 @@ Scope creep is a finding here, not a note for later.
 
 A `file:line` is a reading of the code, and a reading is all Phase 3 can produce without running
 anything. This phase replaces it with evidence: a test per criterion, derived from the criterion and
-from the journeys Phase 1 wrote, written here, run here, committed here.
+from the journeys Phase 1 wrote. Write the tests here; schedule execution under the shared policy
+before claiming an evidenced verdict.
 
 **The Phase 2 gate applies unchanged: no baseline, no tests.**
 
-**Prepare the environment, then record the ground state.** The test command, where tests live, which
-runner, the test accounts and the one-time setup are all stated in the project: its `CLAUDE.md`, its
-gitignored `CLAUDE.local.md`, and any playbook, in that order, per `references/testing-strategy.md`.
-Running last is not evidence anyone already prepared the tree; a fresh worktree usually has not been,
-and its failures are not a baseline. Prepare it, then run the suite untouched and write down every test
-already failing and the skipped count. "Fix until green" is impossible if the base is red, and that
-count is what proves later that no gate got weaker.
+**Prepare the environment, then record existing baseline evidence.** Discover the runner, test
+accounts and one-time setup through the shared testing reference. Record known pre-existing failures
+and skipped counts from applicable local or CI results; mark missing evidence unknown. Diagnose a
+concrete baseline uncertainty with a targeted check under the shared policy, not an untouched
+whole-suite run.
 
 Met, Partly met and Not met each get a test. Deliberately dropped and Superseded never do, because
 testing a dropped part builds it back. Where `/sk:ship-review` Step 5 already wrote one that covers a
-criterion, run that and cite it: it enumerates by toggle pathway before the PR, this phase enumerates
-by acceptance criterion after the work, and the overlap is real.
+criterion, reuse it and cite its still-valid proof or include it in the scheduled gate: it enumerates
+by toggle pathway before the PR, this phase enumerates by acceptance criterion after the work, and
+the overlap is real.
 
 How each one is built:
 
@@ -165,7 +165,7 @@ How each one is built:
   written from the diff tests what was built instead of what was agreed. Fan out per
   `references/parallelization.md`: one writer per criterion or small group, each denied the session
   narrative, exactly as Phase 3.
-- **Prove it discriminates.** Put the implementing files back to base
+- **Prove it discriminates at the scheduled execution gate.** Put the implementing files back to base
   (`git checkout <base> -- <files>`), run that test alone, watch it fail, restore. If that breaks the
   build, neutralize instead: flip the new flag off, or stub the new function to its old return. If
   neither is practical, assert a value only the change can produce and say so in one line. A test
@@ -191,9 +191,10 @@ Then reconcile. The test outranks the reading:
 | Not met, Partly met | fails | Confirmed. A gap for Phase 5 |
 | Not met, Partly met | passes | Suspect the test before the verdict |
 
-**A Met verdict with no passing test drops to Not met.** "The code looks right" is exactly what Phase
-3 already produced. The asymmetry is deliberate: a failing test is near irrefutable, a passing one is
-worth exactly its discrimination, so a green test never upgrades a verdict on its own. **Contradicted
+**Keep a code-read Met verdict provisional until scheduled execution.** At the gate, mark
+policy-excluded native runtime/UI coverage unverified with its reason; do not turn that exclusion
+into a Not met defect. For required executed coverage, a Met verdict without passing proof drops
+to Not met. A passing test is worth its discrimination, so it never upgrades a verdict on its own. **Contradicted
 invalidates the batch it came from** — re-judge the other criteria that verdict pass covered, because
 one misreading rarely travels alone.
 
@@ -203,22 +204,23 @@ Rules for this phase:
   of a seam (a missing export, no test id) is a Phase 5 finding with the exact edit named, not licence
   to make it here. A phase that can edit the code under test can make its own test pass, and then the
   loop only ever confirms itself. `git diff --stat` after every delegated batch shows test paths only.
-- **A green test commits alone, a red test commits with its fix.** Passing and discriminating earns
-  its own `test(<scope>): <criterion>` commit. Red, or unrunnable for want of a seam, is held
-  uncommitted until Phase 5 lands it in the same commit as the fix. Never commit a red suite: it
-  breaks bisect and CI for every commit in between.
+- **Keep tests and fixes in logical commits.** A test needing a Phase 5 fix or seam belongs in
+  that fix's commit; an independent test gets `test(<scope>): <criterion>`. Checkpoint commits may
+  precede the scheduled gate with verification pending. Never claim them green before proof or
+  commit a known unresolved failing test separately from its fix.
 - **Never weaken a gate to get green.** No threshold lowered, no `skip` or `only`, no ignore-list
   entry, no baseline rewritten, no retry added, no assertion loosened to fit what the code happens to
-  do. Prove it rather than claim it: the skipped count is not above the ground state, and the diff
-  touches no runner config, lint config, ignore list or baseline. A policy that genuinely has to move
+  do. Compare skipped counts within the same execution scope when baseline evidence exists;
+  record policy-excluded native coverage as unverified separately, without adding `skip` or `only`.
+  Check the diff for weakened runner config, lint config, ignore lists or baselines. A policy that genuinely has to move
   is a line in the questions block.
 - **A flaky test is evidence for nothing.** Run it three times; if they disagree, do not commit it and
   send the criterion back to Undecidable with the flake named. A retry or a longer timeout is
   gate-weakening under another name.
-- **Undecidable from code now has a much higher bar.** With a dev server, seeded state and a browser
-  in scope it means only: Simon's judgement, a credential or platform nobody here has, a billable call
-  the suite must not make, or real elapsed time with no collapse gate. Anything else is a test not yet
-  written.
+- **Distinguish undecidable evidence from policy-excluded coverage.** Native runtime/UI cases
+  without opt-in remain unverified with that reason. Within authorized execution scope, Undecidable
+  means Simon's judgement, an unavailable credential or platform, a billable call the suite must not
+  make, or real elapsed time with no collapse gate. Anything else is a test not yet written.
 - **Never install test infrastructure.** Tests go where the project already puts them, in the runner
   it already uses. A new framework or directory convention is scope creep, and only a repo whose own
   docs and tree say nothing about testing is a question for Simon rather than a thing to install.
@@ -230,7 +232,7 @@ Fix, in this order, each as its own commit with a conventional subject:
 1. **Contradicted criteria.** The code was believed to do this and a test says it does not. It is the
    most wrong thing on the list, so it goes first.
 2. **Criteria that are not met or partly met.** This is the point of the phase. The red test Phase 4
-   held goes in the same commit as the fix, and the commit waits until it is green.
+   held goes in the same commit as the fix; its verdict waits for the scheduled passing proof.
 3. **Journey defects the report flagged** — a silent early stop with no user-visible outcome, a missing
    empty, loading or error state, a dead end. `references/user-journey-review.md` has the standard.
 4. **Scope creep.** Every item gets an ACTION, not a note: remove it in its own commit, or keep it and
@@ -242,10 +244,9 @@ Rules for this phase:
 
 - **Stay inside what was validated.** Closing a gap is not licence to build the next idea. Anything
   genuinely new is one line at the end, flagged as out of scope.
-- **Run the affected build and tests before each commit**, Phase 4's tests included, and say what was
-  run. A fix that does not turn its own test green is not a fix, and one that reds another criterion's
-  test is a new gap. The browser belongs to Phase 4, which holds the standing authorization; this
-  phase does not open one to check its own work, and Phase 6 re-runs the live rung anyway.
+- **Schedule the affected build and tests under the shared policy**, Phase 4's tests included, and
+  say what ran. Keep unexecuted verdicts provisional. The browser belongs to Phase 4; Phase 6
+  refreshes live evidence only when its inputs changed.
 - **Branch first if HEAD is on the default branch.** Never commit straight to `master` or `main`.
 - **Delegate the edits and verify them on disk**, per `references/parallelization.md`. A subagent's
   self-report is not evidence that a file changed.
@@ -253,17 +254,19 @@ Rules for this phase:
 ## Phase 6 · Re-derive, re-run, judge again
 
 Go back to Phase 1 and rebuild both journeys FROM THE CODE. Never from what Phase 5 said it did: a
-loop that trusts its own fix report only ever confirms itself. Then re-run the affected tests and
-the Phase 3 verdicts and Phase 4 tests whose evidence or inputs changed, including dependent readers
-and configuration; carry forward the rest only when their evidence still applies. Reconcile again.
-Run the FULL suite once, when a round
-comes back with nothing actionable, because a fix that broke a neighbour shows up nowhere else
-(`rules/process.md` § Fan out verification). Phase 4's untouched ground-state run stays separate.
+loop that trusts its own fix report only ever confirms itself. Refresh Phase 3 verdicts whose
+evidence or inputs changed, including dependent readers and configuration; carry forward the rest
+only when their evidence still applies. Schedule affected Phase 4 tests under the shared policy,
+then reconcile their results.
+Apply `rules/process.md` § Fan out verification to the final gate after the whole authorized task
+batch and review fixes converge. Reuse still-valid proof; no separate untouched whole-suite
+baseline is required.
 
-Green means no failure outside Phase 4's ground-state list and no rise in the skipped count. A
-pre-existing failure is not this run's job and is reported by name, with one exception: one sitting on
-a criterion under judgement blocks that criterion, so it becomes a gap like any other. You cannot
-evidence a verdict through a test that was already red.
+Report green only for the executed scope, with no newly skipped tests within that scope. Record
+policy-excluded native coverage as unverified separately. Call a failure pre-existing only with
+baseline proof; missing evidence means unknown origin. A proven pre-existing failure is reported
+by name, with one exception: one sitting on a criterion under judgement blocks that criterion, so
+it becomes a gap like any other. You cannot evidence a verdict through a test that was already red.
 
 Repeat until it comes back with nothing actionable. Four stop conditions that are not done:
 
@@ -284,8 +287,8 @@ Repeat until it comes back with nothing actionable. Four stop conditions that ar
   fail without the change, so "it matches the plan" is checkable rather than claimed. A criterion with
   no test says why on the same line.
 - What was fixed this run, one line each with its commit.
-- **What was already red before this run started**, so a pre-existing failure is never mistaken for
-  something this work broke.
+- **Proven pre-existing failures and failures of unknown origin**, each with its evidence status;
+  list unverified coverage separately.
 - What is left, and why: a decision he owes, a blocker, or something out of scope.
 - **Reconcile the ledger and promote it out**, because the worktree is disposable and it dies there.
   Append one verdict per recorded ask, tagged with its source, via

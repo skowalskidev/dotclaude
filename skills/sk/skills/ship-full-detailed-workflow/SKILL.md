@@ -27,7 +27,7 @@ tickets; a fix that belongs to another PR is handed to that owner via
 1. **`/sk:plan-stable-persistent-dynamic-complete-full-plan`** — fold every ticket and criterion into
    the living plan; reconcile against it at stage 9.
 2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the
-   rest. Run its full build and suites once, with stage 6, not before the stage 3-5 fixes.
+   rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
 3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out; fix the confirmed findings.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
    dial or allowlist relaxation, or an injection surface.
@@ -43,10 +43,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    per-ticket verification out — one adversarial verifier per ticket reading the real code against its
    criteria — via a Workflow or `/sk:work-superspeed` / `/sk:work-hyperspeed`
    (`references/parallelization.md`).
-7. **`/sk:ship-screenshot-changes`** — when the diff changes a frontend surface: capture each changed
-   surface AND ALWAYS post them onto the PR (GitHub-native, whenever a PR is open — never opt-in, never
-   a text reference in the body instead). Plan the post from the start of the sweep, not as an
-   end-of-run afterthought.
+7. **`/sk:ship-screenshot-changes`** — capture changed web surfaces and explicitly requested native
+   surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images
+   onto the open PR (GitHub-native); plan the post from the start of the sweep.
 8. **`/sk:ship-pr`** — the PR body carries the Deploy-TLDR.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
@@ -55,7 +54,7 @@ tickets; a fix that belongs to another PR is handed to that owner via
 
 **Running the stages on a multi-layer PR:** fix rounds follow `references/parallelization.md` §
 "Parallelize verification, not just agents": the contract page first, every layer in one batch, the
-heavy suite once per change set by the orchestrator, native work through `bin/native-slot.sh`.
+final gate by the orchestrator under the verification policy above, native work through `bin/native-slot.sh`.
 
 **Landing gate — a stage that RAN but didn't LAND its artifact is not done.** Before stage 9 reconciles,
 fetch the pushed PR (`gh pr view <n> --json body,comments` plus the `reviewThreads` GraphQL query) and
@@ -65,8 +64,8 @@ reads ✓ against the FETCHED PR, never against memory of having run the stage. 
 verified the user + system journey, then handed back with it never posted to the PR body.)
 - Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
 - Matrix (stage 6): the `/sk:test-automated-full-matrix` results table is on the PR.
-- Screenshots (stage 7): every changed frontend surface's image is on the PR — skip only when the diff
-  touches no frontend surface, and say which.
+- Screenshots (stage 7): every surface eligible under stage 7 has its image on the PR; record native
+  surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
 - Threads (stage 5): 0 unresolved review threads.
 - Deploy-TLDR (stage 8): the PR body opens with it.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning

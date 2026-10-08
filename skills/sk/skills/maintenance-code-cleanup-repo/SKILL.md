@@ -1,6 +1,6 @@
 ---
 name: maintenance-code-cleanup-repo
-description: Full file-by-file repo cleanup — dead code, duplicated rules, doc drift, and organization — run as an audit → adversarial-verify → fix → re-verify loop that keeps the build and tests green throughout. Use for "clean up the repo", "clean up the codebase", "find dead code", "make this DRY", "the README is out of date", "reorganize this repo", or any request to remove rot without breaking behaviour. Also use before a big refactor, so the refactor starts from a repo with no dead weight in it.
+description: Full file-by-file repo cleanup — dead code, duplicated rules, doc drift, and organization — run as an audit → adversarial-verify → fix → re-verify loop with a final build and test gate. Use for "clean up the repo", "clean up the codebase", "find dead code", "make this DRY", "the README is out of date", "reorganize this repo", or any request to remove rot without breaking behaviour. Also use before a big refactor, so the refactor starts from a repo with no dead weight in it.
 ---
 
 # Repo cleanup
@@ -59,18 +59,13 @@ When CI lacks config the app needs, **derive it from the deploy config rather th
 the workflow or into repo secrets.** The deploy config already has the values, so a second copy is
 a second thing to drift. Take only plaintext entries so a real secret can never be surfaced.
 
-### 2. Record a baseline BEFORE touching anything
+### 2. Record existing baseline evidence BEFORE touching anything
 
-Run and write down the actual numbers:
-
-```bash
-nvm use && npx tsc --noEmit && npm run lint && npm run test:run
-```
-
-You need the exact test count, the exact lint problem count, and a clean typecheck. Without a
-baseline you cannot tell "I broke 3 tests" from "3 tests were already failing", and you will spend an
-hour on the wrong one. If the baseline is not green, say so and fix or quarantine that first — you
-cannot cleanup on top of a red build.
+DO apply `references/testing-strategy.md` § Defects first and § Native simulator suites to all
+checks in this skill. Record test and lint counts, typecheck status and known failures from applicable
+local or CI results; mark missing evidence unknown. Use a targeted check for a concrete baseline
+uncertainty under that policy. DON'T run an untouched whole-suite baseline by default.
+TEST: baseline claims cite existing proof or the specific uncertainty that required diagnosis.
 
 Then merge the default branch in. Cleaning a branch that is 8 commits behind means re-doing the
 conflicts later, and possibly deleting something main just started using.
@@ -299,7 +294,8 @@ the repo's `CLAUDE.md`, so the next agent checks instead of re-proposing the sam
 Tests, types and lint passing prove the code still compiles and behaves. They do not prove a
 1400-line page still RENDERS the same, because none of them look at the markup.
 
-For a pure move, capture the built artifact first, move, rebuild, and diff. For a prerendered page
+For a pure move, retain an existing matching baseline artifact and compare it at the scheduled
+final gate. If none exists, schedule the baseline artifact build there too. For a prerendered page
 that is the HTML in the build output; normalize the two or three things that legitimately change
 every build (chunk hashes, module ids, the build id) and everything else must be identical.
 
@@ -402,9 +398,10 @@ than suppressing — a "removed/superseded" section legitimately names files tha
 shipped plan document is a record of the past. Detect those by heading and by directory, not by
 weakening the check.
 
-## Verification, every time
+## Verification at the final gate
 
-After each batch, all four, and compare against the baseline:
+DO schedule these checks under the shared policy after all cleanup edits and review fixes converge,
+and compare with the recorded baseline evidence:
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run knip && npm run test:run

@@ -6,15 +6,14 @@ argument-hint: "[PR number / branch / diff to test]"
 
 # The full automated test matrix — autonomous, two-stage
 
-Run this on a finished diff or PR to prove EVERY feature it added is covered — exhaustively and
+Run this on a finished diff or PR to assess EVERY feature it added, with an evidence-backed verdict,
 UNATTENDED. It runs autonomously: no AskUserQuestion, no pacing, no human step, so it is safe to leave
 on a diff overnight. It is DISTINCT from `/sk:test-copilot` (the human-driven journey); co-pilot runs
 THIS for its machine pass, then adds the human judgment on top.
 
-**The method is `~/.claude/references/testing-strategy.md` § "The full automated test matrix" — read it,
-do not restate it here.** It owns the feature enumeration, the two stages (deterministic +
-Claude-as-judge), the exhaustiveness, the hyperspeed fan-out, and the save+post-to-PR format. This SKILL
-is the flow that runs it, and the SSOT other skills point at.
+**Read `~/.claude/references/testing-strategy.md` § The full automated test matrix, § Defects first
+and § Native simulator suites.** Apply their batch timing, evidence reuse and native opt-in to this flow.
+TEST: invoking this skill alone does not authorize native runtime/UI tests or screenshot capture.
 
 ## Run it
 
@@ -22,14 +21,17 @@ is the flow that runs it, and the SSOT other skills point at.
    criteria (`/sk:plan-stable-persistent-dynamic-complete-full-plan`) and the Linear tickets — one
    matrix row per feature (feature · layer · Stage-1 test · Stage-2 judgment · verdict). A feature with
    no row is a hole.
-2. **Fan the two stages out per feature** (`~/.claude/references/parallelization.md`): `/sk:work-hyperspeed`
-   at 3-5+ disjoint slices, else an in-session Workflow under the concurrency cap. Each slice runs Stage
-   1 (deterministic — WRITE the missing test where a feature has none) then Stage 2 (Claude-as-judge,
-   several independent lenses, defaulting a lens to "fails" when unsure).
-3. **Assemble the matrix, save + post.** Save it under the run's `.context/`; POST it to the PR's tests
+2. **Fan preparation and judgments out per feature** (`~/.claude/references/parallelization.md`):
+   `/sk:work-hyperspeed` at 3-5+ disjoint slices, else an in-session Workflow under the concurrency cap.
+   Each slice prepares Stage-1 tests, writes missing regressions, and completes Stage-2 judgment against
+   code, test design and available evidence. Land review fixes before execution; do not run a suite per row.
+3. **Run the final batch gate once.** The coordinator deduplicates suites across all rows, reuses matching
+   passing evidence and runs uncovered relevant checks. Attach results to the matrix; a later workflow
+   stage consumes them without rerunning unchanged coverage. Fix failures and rerun affected checks.
+4. **Assemble the matrix, save + post.** Save it under the run's `.context/`; POST it to the PR's tests
    section GitHub-native, on `/sk:ship-screenshot-changes` Step 5's posting rails.
-4. **Autonomous to the end.** No human step. A rendered frontend interaction a unit test structurally
-   cannot reach is marked NEEDS-DRIVING and handed to `/sk:test-copilot`, never faked green. Report the
-   matrix and the verdict: every feature COVERED, or the list of GAPs (missing tests) and NEEDS-DRIVING.
+5. **Autonomous to the end.** No human step. Mark unreachable rendered interactions NEEDS-DRIVING and
+   hand them to `/sk:test-copilot`; mark unrequested native runtime/UI cases SKIPPED with the reason.
+   Report COVERED, GAP, NEEDS-DRIVING and SKIPPED counts and evidence. Never call unrun coverage green.
 
 Extra context for this run (if any): $ARGUMENTS

@@ -15,14 +15,11 @@ TEST: implementation resolves to `mid`/`small`, never `top`/`design`; GPT design
 OpenAI or API fallback. Verify every delegated result on disk.
 
 ### Fan out verification, and only rebuild what changed
-Run independent light checks in parallel. Gate heavy work per
-`references/dev-server-hygiene.md` § Machine-wide capacity.
-**Rebuild a shared dependency only when it actually changed**; **background the long pole** so editing
-continues. **Iterate with the CHEAP check, verify HEAVY once per change set.** Run typecheck or the
-affected tests while editing and before each commit; run the full build, suite, simulator and real-app
-check once, after review and gap fixes converge (`references/testing-strategy.md` § Defects
-first). WHY: a full Next build after each small fix cost ~40 min for a 5-min change. TEST: a
-repeated full gate names what invalidated the last one.
+DO defer tests/typechecks/builds across the whole batch and review fixes; allow concrete diagnostics
+or explicit requests. Keep hooks/CI. Verify once at convergence; reuse proof, rerun affected coverage.
+Keep native compile/backend checks; native runtime/UI/screenshots are opt-in.
+Apply `references/testing-strategy.md` §§ Defects first and Native simulator suites.
+TEST: no routine per-edit/feature/commit runs; mandatory final coverage uses matching inputs.
 
 ### Claims about third parties must come from primary sources
 
@@ -108,8 +105,8 @@ can give (a credential, a prod authorization, a decision where guessing wrong wa
 interrupt. On a blocker, do every other item first and stop with that one named. If you find yourself
 writing "say the word and I'll continue" — that's the bug. Continue.
 
-**Work in fix → verify → fix loops until a clean pass.** Re-run whatever found the problems (tests, build,
-audit, review, browser pass), fix what it surfaces, then run it again — verification generates new
+**Work in fix → verify → fix loops until a clean pass**, using the batch timing above. Re-run the affected
+check after a failure; preserve passing evidence for unaffected scope. Verification generates new
 work, and stopping after the first fix round is how a "done" lands with known loose ends. If a loop
 stops converging (the same failure recurs, or a fix needs a decision only I can make), stop and tell me
 where it stands.
@@ -126,9 +123,9 @@ TEST: every ask in the ledger has a verdict against it. A missing verdict is a m
 
 ### Commit when a task is finished (durable authorization)
 **When a task is complete and verified, commit it — you do NOT need to ask first.** This is standing
-authorization overriding the default ask-first behavior. Before committing, run the
-affected checks (unless docs-only) and confirm they pass. If on the default branch (`main`),
-create a branch first. Use conventional commit messages in the imperative mood. Never commit or
+authorization overriding the default ask-first behavior. Use the batch's final verification evidence
+before the completion commit; an intermediate checkpoint commit does not trigger extra checks.
+If on the default branch (`main`), create a branch first. Use conventional commit messages in the imperative mood. Never commit or
 disturb my uncommitted WIP in the main checkout when working in a worktree.
 
 **Commit only — I own PR and remote operations; never do or raise them unprompted.** After the local
@@ -173,14 +170,16 @@ edits outside the session's checkpoints, and nothing Bash writes is checkpointed
 the restore point is git — commit the good state, or branch, before starting.
 
 ### Self-verify a UI change in the browser before handing back — the default
-**DO open the local preview / dev server and screenshot every frontend surface you changed, then scan
+**DO open the local preview / dev server and screenshot every web frontend surface you changed, then scan
 each for gross visual breakage — overlap, overflow, cutoff, unreadable contrast, colliding
 wrapped elements, broken layout — and FIX it before handing back.** Do this proactively on any
-UI/frontend edit, without asking first; it is the default, on top of the usual build/typecheck/tests.
+web UI/frontend edit, without asking first, after the batch's review fixes converge. Native iPhone/iOS
+runtime/UI checks and screenshot capture follow the explicit opt-in above; do not boot a simulator to
+satisfy this browser rule.
 WHY: a chart that flex-wrapped into a fixed-height container and overlapped the section below shipped
 because nobody looked — a screenshot catches that class in seconds.
 Static checks that need no running app (grep, layout math, reading rendered output) need no browser.
-TEST: a UI diff handed back with no screenshot of each changed surface, or carrying a visible
+TEST: a web UI diff handed back with no screenshot of each changed surface, or carrying a visible
 overlap/overflow/cutoff a screenshot would have surfaced, broke the rule.
 
 **Seed the backend, hand me the frontend.** When a change adds new UI, seed only the backend

@@ -94,8 +94,9 @@ did not drop, you compressed.
 
 ## Policing, so this cannot rot
 
-**DO run `/usr/bin/python3 ~/.claude/hooks/config-contract.test.py` after every config edit, and loop
-until it passes.**
+**DO run `/usr/bin/python3 ~/.claude/hooks/config-contract.test.py` once after the complete config edit
+batch and review fixes converge.** Apply `testing-strategy.md` § Defects first to evidence reuse and
+failure reruns. TEST: edits within one authorized batch do not each trigger a contract-suite run.
 **DON'T narrow a check to make a line pass.** A failure means the line is wrong. Widen the check only
 when it fires on text that genuinely qualifies — a guard that cries wolf gets switched off, so a
 false positive is a defect in the check.

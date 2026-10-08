@@ -23,10 +23,10 @@ Read each catalog when its stage is in play:
   he ratified, each pivot, and the closing reconciliation of asked against built.
 - **Parallelize & delegate** → `~/.claude/references/parallelization.md` — fan out across tasks AND
   stages using the saved setup for every worker and reviewer. Verify on disk and review the delegated diff.
-- **Test** → `~/.claude/references/testing-strategy.md` — tests first, structured as a tree
+- **Test** → `~/.claude/references/testing-strategy.md` — plan coverage as a tree
   (unit → integration → e2e), gated "needs-resources" suites; the exhaustive full-diff automated
   matrix (Stage-1 deterministic + Stage-2 judge on the saved setup, saved + posted to the PR) is
-  `/sk:test-automated-full-matrix`, run at stage 4.
+  `/sk:test-automated-full-matrix`, run at stage 9 after implementation and review fixes converge.
 - **Dev server & lanes** → `~/.claude/references/dev-server-hygiene.md` — take a LANE before binding a
   port (`bin/port-slot.sh`, or `/sk:work-isolate-environment` to wire a project up), identity-handshake
   the server before trusting a log line, process-group teardown. Several sessions run at once, so
@@ -56,8 +56,8 @@ current, reconcile against it.
    `prompt-derived`, and his approval is the ratification. That is the common case, not the edge one.
 3. Verify the foundation assumptions (read the real code, check online, run an empirical spike) — and
    read the project's contracts before changing any unit that has one.
-4. Tests first, tree-structured — the exhaustive full-diff coverage runs via `/sk:test-automated-full-matrix` (Stage-1 deterministic + Stage-2 judge on the saved setup, saved + posted).
-5. Implement — parallel where independent, delegate edits using the saved setup, verify on disk after each batch.
+4. Plan tree-structured coverage and write needed tests; defer execution to step 9.
+5. Implement the whole authorized task batch, including every feature; delegate independent edits using the saved setup and inspect the returned diffs on disk.
 6. Observability + failure handling; never fail silently, no dead-end states.
 7. Review before the heavy gate: `/sk:ship-review` over the whole diff, with step 8's criterion judges in
    the same fan-out, and fix its confirmed findings.
@@ -67,8 +67,9 @@ current, reconcile against it.
    commits, closes any gap in code, and reconciles the ledger's asks against what was built, so
    step 2's plan and the shipped result are the same thing. Simon should never have to ask for it.
    Its gap fixes land here; its hand-back follows step 9's pass.
-9. Build/verify ONCE on the reviewed, gap-closed code with the project's commands, draft PR, tear down
-   scratch, track deploy steps (`rules/process.md` § Fan out verification).
+9. Run the full relevant suites and automated matrix on the converged code, using the timing, retry
+   and evidence-reuse policy in `rules/process.md` § Fan out verification. Apply the testing reference
+   sections Defects first and Native simulator suites. Draft PR, tear down scratch, track deploy steps.
 10. Watch the deploy through and loop on what it surfaces; shipping is not done when the merge lands.
 
 Extra task context for this run (if any): $ARGUMENTS

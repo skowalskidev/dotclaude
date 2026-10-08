@@ -97,9 +97,10 @@ anything from Step 3, verify each finding empirically:
      type breaks the chain). Do NOT fix; record the refuting evidence in the report so the
      finding doesn't resurface next review.
 3. **Fix everything VERIFIED (and justified LATENT).** One logical fix per commit, each with a
-   test that fails against the unfixed code (mutation-check when cheap); run the affected
-   suites + scoped tsc before each commit. Pure product/ops decisions (semantics changes,
-   new kill-switches, spec changes) are NOT auto-fixed — present them with the prod evidence
+   test that fails against the unfixed code (mutation-check when cheap). Schedule all checks in
+   Steps 4–6 under `references/testing-strategy.md` § Defects first and § Native simulator suites.
+   Pure product/ops decisions (semantics changes, new kill-switches, spec changes) are NOT
+   auto-fixed — present them with the prod evidence
    and a recommendation instead.
 4. **Close the loop.** Final report gains a per-finding verdict column
    (VERIFIED-FIXED @commit / LATENT-FIXED @commit / REFUTED + evidence / DECISION-NEEDED) and an
@@ -112,8 +113,8 @@ actually EXISTS for every pathway the change creates — not just the happy path
 produced by a setting or toggle that changes the feature's behavior (codebase example: an
 annual-offer on/off switch, or a different offer percentage, altering a generated link). List the
 interacting settings and their states; for each combination that changes the outcome: if an E2E
-test already covers it, run it; if none exists, WRITE one (a test that fails without the change),
-and drive the pathway live where that adds confidence. Absent E2E coverage is itself a finding to
+test already covers it, include it in the scheduled gate; if none exists, WRITE one (a test that
+fails without the change), and drive the pathway live where that adds confidence. Absent E2E coverage is itself a finding to
 fix before signing off — a branch with no test that no one exercised is not "reviewed."
 
 ## Step 6 — Walk it as a first-time user
