@@ -218,12 +218,27 @@ DO apply `references/dev-server-hygiene.md` § Machine-wide capacity before boot
 starting native verification. Retain the lease across tool calls until the owned device is shut down.
 TEST: a compile command exiting does not release a still-running simulator's capacity.
 
-DO apply the following runtime procedure only after that opt-in.
+DO use `references/ios-simulator.md` for simulator execution. Apply the following runtime procedure
+only after that opt-in.
 
 **DO distinguish compile-only artifacts from runtime-test artifacts.** Before a full native suite,
 run one scoped fixture for each required platform service with the same app, signing and simulator
 configuration. Isolate test defaults, auth, singletons and host state from other app sessions. TEST:
 each service fixture and any persisted-state assertions pass before the full suite starts.
+
+DO treat `CODE_SIGNING_ALLOWED=NO` as compile-only evidence, never proof that Keychain or another
+entitlement-dependent service works at runtime. For those tests, use the project's supported simulator
+signing and existing entitlements; `CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=-` selects ad hoc
+signing when that project supports it. Inspect the built host's signature and entitlements with
+`codesign --display --entitlements :- <App.app>`, then run
+the scoped service fixture before expanding coverage. DON'T require signing for every simulator test,
+add entitlements blindly or weaken product authentication to repair a test host. TEST: the fixture
+uses the same signed host as the suite and proves its required service operation. Apple documents
+[entitlements in the code signature](https://developer.apple.com/documentation/bundleresources/entitlements),
+[entitlement inspection](https://developer.apple.com/documentation/bundleresources/diagnosing-issues-with-entitlements)
+and the [ad hoc pseudo-identity](https://developer.apple.com/documentation/security/seccodesignatureflags/adhoc);
+ad hoc signing is not a developer identity (checked 2026-10-09).
+
 **Pin the simulator to the CI locale before the full suite.** `xcrun simctl spawn <udid> defaults read -g
 AppleLocale` must read `en_US`; a shared simulator left on a UK region failed 6 date tests that pass in CI.
 **Pass `TEST_RUNNER_*` variables in xcodebuild's environment (`TEST_RUNNER_X=y xcodebuild …`), never as a

@@ -153,6 +153,8 @@ wrapper dies, and the actual server **grandchild survives** and keeps squatting 
 
 ## Boot order, stated once
 
+DO use `references/ios-simulator.md` for iOS simulator work.
+
 One entrypoint, not five terminals for the human. Write the order in the script header so a
 failure is locatable:
 
@@ -252,7 +254,7 @@ python3 ~/.claude/bin/local-capacity.py run --owner "$SESSION_ID" --simulator "$
   cleanup() { python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 60 -- xcrun simctl shutdown "$udid" || true; }
   trap cleanup EXIT
   python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 60 -- xcrun simctl boot "$udid"
-  python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 120 -- xcrun simctl bootstatus "$udid" -b
+  python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 120 -- xcrun simctl bootstatus "$udid"
   python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 120 -- xcrun simctl install "$udid" "$app"
   # Run the scoped native test here, with an explicit job cap and its own bounded stage.
 ' _ "$UDID" "$APP"
@@ -297,19 +299,44 @@ waiting. Keep project-specific lock paths out of git. A configured bridge makes 
 since a separate multi-call lease cannot hold the legacy lock safely. Existing claims are never
 automatically reaped. TEST: legacy-lock contention yields exit 75 before any new command starts.
 
+DO preserve the inherited environment and `LOCAL_CAPACITY_LEGACY_FDS` through EVERY intermediary
+that launches a `stage`. Python closes nonstandard descriptors by default; explicitly pass the
+positive descriptor tuple to `subprocess.run` or `Popen`:
+
+```python
+import os
+import subprocess
+
+legacy_fds = tuple(int(value) for value in
+                   os.environ.get("LOCAL_CAPACITY_LEGACY_FDS", "").split(",") if value)
+if any(fd <= 0 for fd in legacy_fds):
+    raise ValueError("invalid inherited capacity descriptor")
+env = os.environ.copy()
+subprocess.run(stage_command, check=True, env=env, pass_fds=legacy_fds)
+```
+
+DO retain this contract at each wrapper boundary, including wrappers launched by another wrapper.
+DON'T use `close_fds=False`, remove bridge validation, drop the inherited environment or acquire a
+nested lease. The stage's fail-closed descriptor check is intentional. TEST: an offline
+run → Python wrapper → stage succeeds with explicit inheritance, rejects omission before its payload,
+and excludes a competing lock owner while held. Python's
+[`subprocess` documentation](https://docs.python.org/3/library/subprocess.html#subprocess.Popen)
+defines `pass_fds` and the default `close_fds` behavior (checked 2026-10-09).
+
 
 ## Track what you started
 
 **DO keep a branch's build caches until the branch lands or is abandoned.** Stop its processes at
-hand-back, but leave the derived data, build output and shut-down simulator created for that branch;
+hand-back unless an explicitly requested preview remains under its bounded owned lifecycle; leave
+the derived data, build output and shut-down simulator created for that branch;
 review fixes and the ship run reuse them. DON'T delete them at an intermediate hand-back (the fix for
 a simulator and derived data deleted after the build, then rebuilt cold for review fixes). TEST:
 re-entering the branch reuses its build; workspace teardown removes it.
 
 
 **The RULE is owned by `~/.claude/rules/process.md` § "Clean up after yourself"**, which is always-on
-and so already loaded: track every process you start, kill it at task end, verify it's gone by checking
-the port rather than by trusting the kill, and sweep orphaned framework AND agent-spawned workers
+and so already loaded: track every process you start, stop it when its authorized lifecycle ends,
+verify it's gone by checking the port rather than by trusting the kill, and sweep orphaned framework AND agent-spawned workers
 (`chrome-devtools-mcp`, `wrangler`/`workerd`, headless `codex exec`) machine-wide rather than only your
 own. Not restated here.
 

@@ -181,8 +181,7 @@ Kill the process group, release the lane, then verify the port AND the registry 
 If teardown never happens, the next run's sweep recovers it. That is the design, not an excuse to skip
 this.
 
-Native half: shut the session's simulator down at every hand-back, and at workspace teardown run
-`~/.claude/bin/native-slot.sh release-sim <udid>`.
+DO apply `references/ios-simulator.md` for the native lifecycle, including requested preview hand-back.
 
 ## Phase 6 — learn, and only when it recurs
 

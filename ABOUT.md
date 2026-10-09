@@ -57,7 +57,7 @@ Heavy local builds and simulator work use one machine-wide capacity lease. Editi
 checks can continue while another session holds it. The runner attempts bounded shutdown of only
 its owned simulator before release; failed cleanup and orphaned owners retain the lease for
 inspection. This coordinates participating sessions, not arbitrary applications or an OS CPU ceiling.
-See `references/dev-server-hygiene.md` and
+See `references/dev-server-hygiene.md`, `references/ios-simulator.md` and
 `references/session-performance.md`.
 
 Ordinary sessions use current-session execution with the independent judge off and no loop-options

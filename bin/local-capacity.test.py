@@ -223,6 +223,71 @@ class GateTests(unittest.TestCase):
             gate.record_stage(self.root, 2000, "known")
         self.assertEqual(gate.read_state(self.root), lease)
 
+    def test_python_wrapper_preserves_bridge_or_fails_before_payload(self):
+        # Exercise the real run -> Python -> stage boundary, with no live state or simctl.
+        self.root.mkdir(mode=0o700)
+        lock_path = Path(self.tmp.name).resolve() / "legacy.lock"
+        (self.root / "bridge.json").write_text(json.dumps({"lockPaths": [str(lock_path)]}))
+        sim_fixture = self.root / "booted.json"
+        sim_fixture.write_text('{"devices":{}}')
+        pressure_fixture = self.root / "pressure.json"
+        pressure_fixture.write_text('{"load":0,"cores":8}')
+        env = dict(os.environ, LOCAL_CAPACITY_SIMCTL_JSON=str(sim_fixture),
+                   LOCAL_CAPACITY_PRESSURE_JSON=str(pressure_fixture))
+        marker = self.root / "payload-ran"
+        # This independent process opens the lock afresh; inherited bridge FDs cannot
+        # turn its flock into a same-open-description success.
+        competitor = """
+import fcntl, os, sys
+fd = os.open(sys.argv[1], os.O_RDONLY)
+try:
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+except BlockingIOError:
+    sys.exit(75)
+finally:
+    os.close(fd)
+"""
+        payload = """
+import subprocess, sys
+from pathlib import Path
+result = subprocess.run([sys.executable, '-c', sys.argv[1], sys.argv[2]],
+                        capture_output=True, timeout=5)
+assert result.returncode == 75, result.stderr
+Path(sys.argv[3]).write_text('competitor excluded')
+"""
+        wrapper = """
+import os, subprocess, sys
+fds = tuple(int(value) for value in
+            os.environ.get('LOCAL_CAPACITY_LEGACY_FDS', '').split(',') if value)
+assert fds and all(fd > 0 for fd in fds)
+options = {'pass_fds': fds} if sys.argv[1] == 'preserve' else {}
+result = subprocess.run(sys.argv[2:], env=os.environ.copy(), timeout=10, **options)
+sys.exit(result.returncode)
+"""
+        for mode in ("preserve", "omit"):
+            with self.subTest(mode=mode):
+                marker.unlink(missing_ok=True)
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT), "--root", str(self.root),
+                     "run", "--owner", "wrapper-test", "--", sys.executable, "-c", wrapper,
+                     mode, sys.executable, str(SCRIPT), "stage", "--timeout-seconds", "5",
+                     "--", sys.executable, "-c", payload, competitor, str(lock_path), str(marker)],
+                    env=env, capture_output=True, text=True, timeout=20)
+                if mode == "preserve":
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(marker.read_text(), "competitor excluded")
+                else:
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("stage legacy lock descriptors are unavailable", result.stderr)
+                    self.assertFalse(marker.exists(), "stage executed after losing its bridge FDs")
+                self.assertIsNone(gate.read_state(self.root))
+                # Normal exit relinquishes the bridge as well as the capacity receipt.
+                fd = os.open(lock_path, os.O_RDONLY)
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                finally:
+                    os.close(fd)
+
     def test_legacy_flock_survives_supervisor_death_while_child_runs(self):
         lock_path = Path(self.tmp.name).resolve() / "old.lock"
         self.root.mkdir()

@@ -43,6 +43,7 @@ CONTRACTS: dict[str, dict] = {
             "Attempt bounded shutdown of only the recorded simulator after command groups stop on success, failure or timeout; retain the lease if any device is not Shutdown.",
             "Release only the matching token after recorded child processes and simulator state are clear; signal only the runner's own process group.",
             "Bridge existing BSD file locks through untracked bridge.json; keep simulator claims and orphaned owners until inspected, never auto-reap them.",
+            "Reject stages whose Python intermediary lost inherited legacy lock descriptors before any payload runs; explicit pass_fds preserves the bridge and excludes competing lock owners.",
             "Migrate an older lease schema explicitly under lock, preserving its owner and child identity; ordinary reads never silently replace it.",
             "Store no command arguments or environment values; reject unsafe state paths and malformed lease data.",
         ],
@@ -458,13 +459,28 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Starting, identifying and tearing down dev servers without leaking processes.",
         "criteria": [
             "Apply the shared verification timing policy; resource admission never creates a per-file or per-worker test obligation.",
-            "Every started process is tracked and killed; identity is verified before trusting logs.",
+            "Track and stop every started process; retain explicitly requested previews only through their bounded owned lifecycle. Verify identity before trusting logs.",
+            "Route iOS simulator execution to references/ios-simulator.md without duplicating its preflight, preview evidence or recovery procedure.",
+            "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
             "Own the machine-wide capacity protocol: one heavy lease, the Simon-granted priority record, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
             "Every native build, test and simulator lifecycle uses bin/local-capacity.py or its "
             "bin/native-slot.sh compatibility frontend; failed admission defers heavy work, "
             "and bounded cleanup touches only the recorded simulator.",
+        ],
+    },
+    "references/ios-simulator.md": {
+        "mission": "Simon receives the requested simulator preview or test evidence without stale artifacts, unowned devices or leaked services.",
+        "purpose": "Shared iOS simulator preflight, execution, preview hand-back and recovery playbook.",
+        "criteria": [
+            "Compose existing capacity and testing owners; preserve native opt-in, worker limits, stage deadlines and runtime signing policy without duplicating them.",
+            "Preflight effective DEVELOPER_DIR, selected Xcode, runtime, explicit UDID, matching app artifact, backend identity and requested GUI before boot; discover installed capabilities without global switches, automatic installs or unbounded searches.",
+            "Discover Device Hub and legacy Simulator read-only under selected Xcode; open the GUI only inside admission after owned boot readiness. A missing GUI name never establishes that its runtime is missing.",
+            "Keep one foreground lease through fail-fast stages and viewing; separate process launch, simulator-screen evidence and desktop GUI evidence, reporting permission gaps without changing permissions.",
+            "Bound requested preview retention with a local owner/device/app/service receipt, absolute deadlines and exact stop/restart commands; verify owned Shutdown before release and retain caches.",
+            "Diagnose toolchain, boot, descriptor, signing, artifact, backend, overload, incomplete-result and discovery failures; fixture UI never proves native-service or live-backend correctness.",
+            "Require explicit scoped authorization and no competing simulator, physical-device or debug activity before shared-service recovery; never reset shared services automatically at hand-back or bypass ownership locks.",
         ],
     },
     "references/git-pr-deploy.md": {
@@ -593,6 +609,7 @@ CONTRACTS: dict[str, dict] = {
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
             "After explicit native opt-in, prove required platform services with the runtime app, signing and simulator configuration before the suite; isolate defaults, authentication, singletons and host state.",
+            "Route simulator execution to references/ios-simulator.md; unsigned compile evidence cannot prove Keychain runtime behavior. Use project-supported signing and existing entitlements without weakening product authentication or requiring signing for every test.",
             "A full native suite waits for the bounded runner to finish and verifies its exit, final result and expected test scope; a nested suite line or timed-out runner cannot establish green.",
             "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
@@ -1364,6 +1381,7 @@ CONTRACTS: dict[str, dict] = {
             "Covers the native half by pointer: this session's own claimed simulator, its own "
             "derived-data path passed on the command line, and every heavy build through "
             "bin/local-capacity.py or its native-slot frontend. The protocol stays in references/dev-server-hygiene.md.",
+            "Apply references/ios-simulator.md for native hand-back; retain explicitly requested previews through their bounded owned lifecycle instead of unconditional shutdown.",
             "Discovery treats the mechanical scan as a FLOOR, not an answer. The ports that matter most "
             "arrive through config and no package.json scan will ever see them.",
             "Resolve project-instruction policy before setup. When allowed, use CLAUDE.md, CLAUDE.local.md, then a playbook; when ignored, derive setup from executable config and CI. Run setup before booting.",
