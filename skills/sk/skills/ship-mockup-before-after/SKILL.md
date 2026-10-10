@@ -469,6 +469,12 @@ render surface, so the check happens there — do NOT run `open <file>` per rebu
 browser tab; regenerate the gauntlet and play one sound instead, per `references/workflow-loops.md` §
 preview/mockup.)
 
+**DO verify a built mockup with `python3 ~/.claude/bin/mockup-shots.py <mockup.html> <outdir>` and read every
+PNG it writes** (the fix for a clipped dropdown and a toast covering a confirm button that only a
+JS-running render showed). The built-in browser pane cannot open `file://`, and a scratch-dir file renders as
+a static snapshot there. TEST: every variant/persona/state PNG was viewed before handing back, and the
+command exited 0.
+
 **DO fix the CLASS and fold it forward.** When a divergence traces to how this skill works — a
 measurement it skips, a token it never reads, a state it forgets — propose the durable fix to this skill
 through `/sk:claude-config-update` so the next mockup is exact from the first render. That is the

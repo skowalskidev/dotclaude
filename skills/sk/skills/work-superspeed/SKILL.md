@@ -266,7 +266,7 @@ already in context.
    `rules/process.md` § "Fan out verification", not this run. TEST: a run followed by another fix run
    records affected checks only in `reconcile.json`. (The fix for nine fix runs that each paid the
    full suite.)
-6. **Give every fixed file a `cause`: `slice`, `late_scope` or `reconciler`.** The taxonomy, and why
+6. **Give every fixed file a `cause`: `slice`, `late_scope`, `reconciler` or `planned_wiring`.** The taxonomy, and why
    only `slice` means the partition needs changing, is in `references/parallelization.md` §
    "Self-improving a parallel run" — shared with hyperspeed, not restated here.
 7. Record what you had to fix, so the next partition is better:
@@ -276,7 +276,8 @@ cat > .superspeed/run-1/reconcile.json <<'EOF'
 { "files_fixed": [
     { "file": "apps/api/src/routes/foo.ts", "cause": "slice" },
     { "file": "apps/web/src/Panel.tsx",     "cause": "late_scope" },
-    { "file": "apps/api/src/routes/bar.ts", "cause": "reconciler" }
+    { "file": "apps/api/src/routes/bar.ts", "cause": "reconciler" },
+    { "file": "apps/web/src/index.ts",      "cause": "planned_wiring" }
   ], "conflicts": 0, "gate": "pass", "seconds": 120 }
 EOF
 ```
@@ -287,7 +288,7 @@ EOF
 python3 ~/.claude/bin/superspeed-analyse.py .superspeed/run-1
 ```
 
-It reports idle capacity, imbalance ratio, cache read/write ratio, achieved concurrency, ownership
+It reports idle capacity, imbalance ratio, cache read/write ratio, inference concurrency, ownership
 leaks, duplicated reads, reconcile rework, failed slices, and whether fanning out was worth it at all.
 Every finding carries the specific change to make next time.
 

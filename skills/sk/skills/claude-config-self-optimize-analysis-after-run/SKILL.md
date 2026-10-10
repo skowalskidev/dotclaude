@@ -30,7 +30,7 @@ this command rather than analyzing an unrelated newest run:
 python3 ~/.claude/bin/superspeed-analyse.py <run-dir>
 ```
 
-That yields idle capacity, imbalance ratio, cache read/write ratio, achieved concurrency, ownership
+That yields idle capacity, imbalance ratio, cache read/write ratio, inference concurrency, ownership
 leaks, duplicated reads, reconcile rework, failed slices, and a fan-out-worth-it verdict.
 
 **Clear the cloud backlog only when explicitly assigned cloud-backlog analysis.** Local report

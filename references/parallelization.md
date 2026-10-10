@@ -158,8 +158,10 @@ use this loop; it is defined ONCE here and neither restates it.
 - `slice` — the slice got it wrong. The ONLY cause that means the PARTITION needs changing.
 - `late_scope` — the ask changed after dispatch. The partition was fine for what it was told.
 - `reconciler` — you broke it while assembling. Not the slice's fault, not the partition's.
+- `planned_wiring` — a file the partition always meant the reconciler to edit (the glue that joins the
+  slices). Not an error and not rework: DO record it under this cause, never under `reconciler`.
 
-Recording all three as one number gets two of them the wrong prescription — measured across two
+Recording the causes as one number gets two of them the wrong prescription — measured across two
 consecutive runs whose identical rework counts came from opposite causes.
 
 **Analyse every run, then heal only what RECURS.** AUTO-run

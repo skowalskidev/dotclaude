@@ -310,6 +310,9 @@ missing input and action. A passing criterion needs an evidence path/result. A j
 `agentId`, a different `builderId`, `artifactRevision`, `reference` and `evidence`.
 Image assets use `kind=image`, `label`, `path`, `source`, `capturedAt` and `viewport`; HTML assets
 use `kind=html`, `label`, `path` and `source`. Text assets use `kind=text`, `label` and `text`.
+DO write an asset `path` relative to the PLAN file's directory, so a plan in `.context/` references
+`mockup/x.html`, not `.context/mockup/x.html`. TEST: `validate` reports "Missing asset" with a doubled
+`.context/.context/` when the path is written worktree-relative.
 
 ## Render and update
 

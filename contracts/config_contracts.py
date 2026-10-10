@@ -195,6 +195,17 @@ CONTRACTS: dict[str, dict] = {
             "Route validated version, variant, persona and state fragments on load and history navigation; What’s new selects the declared variant/state target with a fallback and flashes that state’s selector, while reduced motion leaves a static marker.",
         ],
     },
+    "bin/mockup-shots.py": {
+        "mission": "Simon never receives a mockup whose clipped menu or covered button only a JavaScript-running render would have shown.",
+        "purpose": "Screenshots a built mockup headlessly: the shell once, then every variant, persona and state capture with its JavaScript running.",
+        "criteria": [
+            "Read the #spec JSON from the built mockup the way bin/mockup-build.py --extract does; replace every @@ASSET:id@@ token from spec.assets before loading a capture.",
+            "Write exactly one PNG per variant x persona x state, named <variant>-<persona>-<state>.png at the persona's w x h, plus shell.png; --filter SUBSTR keeps only matching capture names.",
+            "Post mockup:goto-state for the state and wait 1500 ms for entrance animations before each screenshot.",
+            "Print every page error with its capture name and exit 1 when any occurred; exit 2 when the browser runtime or the arguments are unusable.",
+            "Python 3.9+, standard library only; run the browser through Node Playwright resolved from MOCKUP_SHOTS_NODE_MODULES, NODE_PATH, the global npm root, ./node_modules or ~/.claude/node_modules.",
+        ],
+    },
     "bin/workflow-dashboard.py": {
         "mission": "Simon sees truthful task progress and its full durable record through one reusable live and portable viewer.",
         "purpose": "Shared plan discovery, narrative projection, state validation, atomic update and HTML serving engine.",
@@ -544,7 +555,7 @@ CONTRACTS: dict[str, dict] = {
             "Freeze the contract and fixture before dispatching every layer together; workers return once with changed files and a check inventory, and the orchestrator owns final verification under the shared batch policy.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
-            "slice/late_scope/reconciler, analyse-every-run, heal-only-recurring, plus harvesting each "
+            "slice/late_scope/reconciler/planned_wiring, analyse-every-run, heal-only-recurring, plus harvesting each "
             "worker's friction + timestamped log to self-diagnose the bottleneck and improve in two tiers "
             "— auto next-round, ask-first routed to the fact's owner); superspeed and hyperspeed point to "
             "it, not restate it.",
@@ -1200,6 +1211,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Keep unreported provider cost, API duration and cache writes null in emitted analysis; suppress findings that require those missing measurements.",
             "Every metric prints the action it implies. A number with no action attached is noise.",
+            "Name what each concurrency figure measures: inference concurrency is summed model time over wall; only the PARALLELISM verdict, from wall overlap and pairwise intersection, may say slices are serialising, and no finding contradicts it.",
+            "Record reconcile causes as slice, late_scope, reconciler or planned_wiring; only slice (rework) and reconciler (error) raise findings, and planned_wiring raises none.",
             "Reports its own blind spots under INSTRUMENTATION GAPS, so missing log fields surface "
             "instead of looking like a clean run.",
             "Says plainly when fanning out was not worth it, rather than only ever justifying it.",

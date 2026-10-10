@@ -231,14 +231,13 @@ for s in slices:
 # 5. ACHIEVED CONCURRENCY — did fanning out actually overlap anything?
 api_sum = sum(s["api_s"] for s in slices)
 conc = api_sum / fanout if fanout else 0
-print(f"achieved concurrency: {conc:.2f}x  (sum of API time {api_sum:.0f}s inside {fanout}s wall)"
+# This is INFERENCE concurrency (summed model time / wall). It is not wall overlap: a slice that
+# spends its wall in builds, tests or tool waits shows a low ratio here while every pair still
+# overlapped in time. The finding is therefore raised after the PARALLELISM verdict below, which
+# owns the word "serialising".
+print(f"inference concurrency: {conc:.2f}x  (sum of API time {api_sum:.0f}s inside {fanout}s wall)"
       if api_measured else "inference concurrency: not reported; use process overlap below")
-if api_measured and conc < 1.5 and len(slices) >= 3:
-    findings.append({
-        "metric": "low_concurrency", "value": f"{conc:.2f}x", "severity": "high",
-        "action": f"{len(slices)} slices produced only {conc:.2f}x overlap. They are serialising. Check "
-                  "for a shared lock, one slice blocking on another's file, or account-level throttling.",
-    })
+low_inference = api_measured and conc < 1.5 and len(slices) >= 3
 
 # 6. OWNERSHIP LEAKS — two slices writing the same file is the expensive failure.
 owners = {}
@@ -277,20 +276,25 @@ if dupes:
 # prescription. Measured 2026-08-08: run-1's rework was genuine slice error, where "tighten the
 # accept line" was the right advice; run-2's was the ask changing after dispatch, where the same
 # advice was wrong because the slices were correct. Identical in the data, opposite responses.
-# So the cause is declared per file, and only `slice` earns a finding.
+# So the cause is declared per file: `slice`, `late_scope`, `reconciler`, `planned_wiring`. Only
+# `slice` (rework) and `reconciler` (error) earn a finding.
 rec_entries = reconcile.get("files_fixed", [])
 rec_files = [e if isinstance(e, str) else e.get("file", "") for e in rec_entries]
 causes = {e.get("file"): e.get("cause") for e in rec_entries if isinstance(e, dict)}
 slice_fault = [f for f in rec_files if f in owners and causes.get(f) == "slice"]
 late_scope = [f for f in rec_files if causes.get(f) == "late_scope"]
 recon_fault = [f for f in rec_files if causes.get(f) == "reconciler"]
+# `planned_wiring` is glue the partition always meant the reconciler to write. It is neither an
+# error nor rework, so it is counted for the report line and excluded from every finding below.
+planned_wiring = [f for f in rec_files if causes.get(f) == "planned_wiring"]
 # A bare string carries no cause. Reported as a gap rather than guessed at — guessing is what
 # produced the wrong prescription in the first place.
 undeclared_cause = [f for f in rec_files if f in owners and f not in causes]
 
 if rec_files:
     print(f"reconcile rework   : {len(slice_fault)} slice-fault, {len(late_scope)} late-scope, "
-          f"{len(recon_fault)} reconciler's own, of {len(rec_files)} fixed files")
+          f"{len(recon_fault)} reconciler's own, {len(planned_wiring)} planned wiring (not rework), "
+          f"of {len(rec_files)} fixed files")
 if slice_fault:
     findings.append({
         "metric": "rework", "value": f"{len(slice_fault)} files", "severity": "medium",
@@ -308,8 +312,8 @@ if recon_fault:
 if undeclared_cause:
     gaps.append(("a `cause` on each reconcile.json entry",
                  "whether the reconciler fixed a file because a slice got it wrong, because the ask "
-                 "changed after dispatch, or because the reconciler broke it. Without it all three "
-                 "get one prescription and two of them are wrong."))
+                 "changed after dispatch, because the reconciler broke it, or because it was planned "
+                 "wiring. Without it all four get one prescription and three of them are wrong."))
 
 # 8b. VERIFICATION — did each slice's own scoped check actually pass?
 #
@@ -519,6 +523,25 @@ else:
                       "another: check for a concurrency limiter, and compare against one session.",
         })
     print("  (standing check; a regression here would otherwise be silent)")
+
+if low_inference:
+    if diag.get("verdict", "").startswith("PARALLEL"):
+        # Slices overlapped in time; the model was idle for much of that wall. Not serialisation.
+        findings.append({
+            "metric": "low_inference_share", "value": f"{conc:.2f}x", "severity": "low",
+            "action": f"Slices overlapped in wall time, but model inference ran only {conc:.2f}x "
+                      "across them: most slice wall went to tools, builds or waits. Check the slowest "
+                      "tool command per slice (see slice_dominated_by_one_command) and scope it.",
+        })
+    elif not diag:
+        # No start/end data, so overlap cannot be judged; say only what was measured.
+        findings.append({
+            "metric": "low_inference_share", "value": f"{conc:.2f}x", "severity": "medium",
+            "action": f"Model inference ran only {conc:.2f}x across {len(slices)} slices. Wall overlap "
+                      "was not recorded, so serialisation is unproven: re-run with the instrumented "
+                      "dispatcher to tell serialising from tool-bound slices.",
+        })
+    # SERIALISED / PARTIAL: the `parallelism` finding above already states it; no second finding.
 
 # ---- SLICE FORENSICS: what each worker actually DID between API calls ----------------------------
 # Measured 2026-08-07: `claude -p` workers genuinely overlap. Six workers did 5.62x the API work in
