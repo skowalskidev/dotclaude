@@ -508,6 +508,29 @@ class DashboardTests(unittest.TestCase):
             active.unlink()
             self.assertEqual(d.discover_plan(root), completed.resolve())
 
+    def test_link_and_init_report_an_invalid_plan_instead_of_skipping_it(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / '.context'
+            context.mkdir()
+            (context / 'notes-plan.md').write_text('# not a dashboard plan\n')
+            state = fixture()
+            state.update(gauntlet=False, optionsConfirmedAt=None, phase='executing')
+            bad = context / 'session-plan.md'
+            bad.write_text('```dashboard-state\n' + json.dumps(state) + '\n```\n')
+            with self.assertRaisesRegex(ValueError, 'failed validation(.|\n)*session-plan.md: Unknown phase'):
+                d.discover_plan(root)
+            cli = subprocess.run(
+                [sys.executable, str(DASHBOARD_SCRIPT), 'link', '--root', str(root)],
+                capture_output=True, text=True,
+            )
+            self.assertNotEqual(cli.returncode, 0)
+            self.assertIn('Unknown phase', cli.stderr)
+            self.assertNotIn('No dashboard plan found', cli.stderr)
+            with self.assertRaisesRegex(ValueError, 'Unknown phase'):
+                d.initialize(root)
+            self.assertEqual(sorted(p.name for p in context.glob('*-plan.md')), ['notes-plan.md', 'session-plan.md'])
+
     def test_serve_attaches_when_healthy_registers_and_writes_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)

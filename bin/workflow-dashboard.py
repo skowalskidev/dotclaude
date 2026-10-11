@@ -186,13 +186,20 @@ def workspace_root(root):
 
 
 def plan_candidates(context):
-    candidates = []
+    # A file with no dashboard-state block is not a dashboard plan and is skipped. One WITH a block that
+    # fails to parse or validate is reported, never skipped: skipping made `link` say "not found" and let
+    # `init` create a second plan beside the broken one.
+    candidates, rejected = [], []
     for path in sorted(Path(context).glob('*-plan.md')):
         try:
+            if not BLOCK.search(path.read_text()):
+                continue
             state = read_plan(path)[2]
-        except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError):
+        except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
+            rejected.append(f'{path.resolve()}: {exc}')
             continue
         candidates.append((path.resolve(), state))
+    require(not rejected, 'Dashboard plan failed validation; fix it, then retry:\n' + '\n'.join(rejected))
     return candidates
 
 
