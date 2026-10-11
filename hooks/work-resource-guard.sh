@@ -56,9 +56,11 @@ print(json.dumps({"hookSpecificOutput":{"hookEventName":"PreToolUse","permission
 # at the start, after a shell separator (; & | (), or after leading VAR=val assignments.
 # This deliberately does NOT match the program name appearing inside a quoted argument
 # (e.g. codex exec "...firebase..." or git commit -m "fix firebase") so prose never trips
-# a CLI-account check. Case-sensitive: real CLI names are lowercase.
+# a CLI-account check. Command-position wrappers (exec, command, nohup, time, env, sudo) are
+# transparent, so `cd x && exec stripe listen` is still an invocation of stripe.
+# Case-sensitive: real CLI names are lowercase.
 is_cmd() {
-  printf '%s' "$cmd" | grep -qE "(^|[;&|(]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*$1([[:space:]]|$)"
+  printf '%s' "$cmd" | grep -qE "(^|[;&|(]|&&|\|\|)[[:space:]]*(((exec|command|nohup|time|env|sudo)[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*)*$1([[:space:]]|$)"
 }
 
 # --- connector manifests: data-driven work/personal boundary + read-only/gated lookups (~/.claude/connectors/) ---
@@ -235,6 +237,13 @@ if [ "$tool" = "Bash" ]; then
       case "$cmd" in
         *--project-name=*|*--help*|*" -h"*|*version*) : ;;
         *)
+          # An explicit key is not a fall-through to [default]: it names the account directly. Allow
+          # --api-key / STRIPE_API_KEY= unless the value is a literal live-mode key, which has no
+          # business in a command line (read it from the app's env file instead).
+          if printf '%s' "$cmd" | grep -qE -- '(--api-key[ =]|STRIPE_API_KEY=)' \
+             && ! printf '%s' "$cmd" | grep -qE -- '[rs]k_live_'; then
+            exit 0
+          fi
           _sp="$(connector_cli_profile stripe)"
           deny "Blocked by personal-resource policy: a bare 'stripe' command in a personal repo uses the CLI's [default] profile, which on your machine may be your WORK account (live key). Pin the personal profile explicitly: stripe --project-name=${_sp:-<your-personal-profile>} ...${_sp:+  (create it once with: stripe login --project-name=$_sp)}" ;;
       esac

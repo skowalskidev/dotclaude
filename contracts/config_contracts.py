@@ -676,6 +676,10 @@ CONTRACTS: dict[str, dict] = {
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
+            "Proves the human is on the watched server (his first request in the log, the host to expect "
+            "named) and halts when a step's expected request is absent; gates payment on a test-mode "
+            "session id; binds external-provider forwarders to the app's own credentials with matching "
+            "account identity; reconstructs steps he skipped. Method lives in testing-strategy.md.",
             "Runs /sk:test-automated-full-matrix for its machine pass (Phase 2) rather than restating "
             "the automated method; the two skills are distinct (human journey vs autonomous matrix).",
         ],
@@ -1362,6 +1366,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Serves a local dev port to the tailnet and clears the three blockers that each "
                    "render a page which looks fine and is not, in any repo.",
         "criteria": [
+            "Verifies the share and its teardown by fetching every printed hostname on every tailscale "
+            "node, never by `tailscale serve status`, which can read empty while the share is live.",
             "Binds the dev server to loopback BEFORE sharing it, and proves the LAN can no longer "
             "reach it. Serve proxies from the machine's own loopback, so binding wide exposes a box "
             "holding real credentials to every device on the local network and buys nothing.",
@@ -1766,6 +1772,9 @@ CONTRACTS: dict[str, dict] = {
             "not exempt, so git cannot launder the command after it.",
             "A rule fires on an INVOCATION, never on a name appearing in prose; "
             "hooks/work-resource-guard.test.py pins both directions.",
+            "A command-position wrapper (exec, env, command, nohup, time, sudo) does not hide a CLI "
+            "from the profile rule, and an explicit non-live key (--api-key, STRIPE_API_KEY=) counts "
+            "as pinning the account.",
             "A CLI whose default profile belongs to the other boundary is denied when "
             "unpinned, not just when the wrong profile is named explicitly.",
             "Reads shared:true manifests too, so a shared connector's boundary is enforced "

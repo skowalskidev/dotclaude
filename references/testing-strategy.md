@@ -152,6 +152,42 @@ the cleanup command targets only this preview and releases its claimed ports.
 - **Triangulate three signals after every scenario:** the runtime log, the dev-server console,
   and a re-read of the persisted records. The UI can look right while the write is wrong.
 
+## Human-driven sessions — prove the environment and the provider identity
+
+A person clicking through a journey while Claude watches logs only works when both sit on the SAME
+server and the SAME external accounts. Prove that before the first step with a side effect, not after
+something has gone wrong.
+
+**DO name the host he must see in the address bar, and make his first request the proof.** Give the
+exact URL (the tailnet or LAN preview, never a bookmark), have him load it, and find that request in
+the watched log, with its correlation id, before step 2.
+**DO stop the walkthrough the moment a step's expected request is absent from the log.** Silence from
+the watched server means he is on a different server, such as production; treat it as a blocker, not a
+quiet success.
+**DO treat a payment step as gated.** Read the checkout session id from the server log or the
+provider API before telling him to pay: a test-mode id (Stripe `cs_test_`) is a go, a live-mode id
+(`cs_live_`) is a stop, and nobody pays.
+
+**DO derive every local forwarder or listener for an external provider (Stripe `listen`, a webhook
+relay, a tunnel) from the APP's own credentials**, read from the app's env file and passed explicitly
+(`STRIPE_API_KEY` or `--api-key`), never from a CLI profile that merely points at the same vendor.
+**DO prove account identity on both sides before the session**: fetch the account id with the app's
+key and with the forwarder's key (Stripe `GET /v1/account`) and require them equal. A separate sandbox
+account per key is normal, so equal vendor name proves nothing.
+**DON'T override the app's configured secret or key because it disagrees with a counterpart you have
+not identity-checked.** A hash comparison against the wrong account's listener reports a healthy
+config as broken, and the "fix" then breaks delivery. Re-check any finding built on an unverified
+counterpart before reporting it.
+**DO replay a missed event instead of re-running the action** (Stripe `events resend <evt>` reaches a
+running listener).
+
+**DO reconstruct skipped steps when he reports a later step than the one you gave him.** Read the log
+and the persisted state for each skipped step and check it, before continuing; never assume the steps
+he did ahead of you ran against the watched server.
+
+TEST: before any side-effecting step, the log holds his first request and the provider identities
+match; a step whose expected request is missing halts the run.
+
 ## Layering and coverage arguments
 
 - **Cheapest first.** Pure/offline checks before anything live.

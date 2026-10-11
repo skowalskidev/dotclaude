@@ -107,6 +107,13 @@ time in Phase 4 — a field he never filled is a field neither of you has verifi
 and it worked" is exactly the report that precedes him finding the flow makes no sense. Pre-fill
 only what is off the path being tested (a login, an unrelated account setting).
 
+### 1.6 Bind external providers to the app's own credentials
+If the journey touches an external provider (payments, email, SMS, a webhook source), start any local
+forwarder or listener from the APP's env file credentials, then prove both sides are the same provider
+account. Method and the TEST are in `testing-strategy.md` § Human-driven sessions. Add the forwarder
+to the teardown checklist now. The connector manifest's CLI profile is for admin reads, never for
+the app's webhook path.
+
 ---
 
 ## Phase 2 — the machine pass: run `/sk:test-automated-full-matrix`
@@ -143,9 +150,16 @@ single log line: something answering on the port is not the same as your server 
 agent reading a stale process's logs will confidently report on code that isn't running. That
 failure mode invalidates this entire skill, so do not skip it.
 
-Then tail the log with a live filter for errors, warnings and correlation ids. Earning the ask
-(`rules/communication.md`) is what makes this phase exist: reading the log is the job.
+Then tail the log with a live filter for errors, warnings and correlation ids. Reading the log is
+the job: Claude's only view of Simon's session is what the server prints.
 
+### 4.1b Prove he is on YOUR server, before step 1
+Apply `testing-strategy.md` § Human-driven sessions. Give him the exact URL to open (for a phone,
+the verified share from `/sk:work-preview-on-phone`) and say which host the address bar must show.
+Find his first request in the watched log. Absent after one retry: stop, because he is on another
+server, possibly production. Before any payment step, read the checkout session id from the log and
+continue only on a test-mode id.
+TEST: no step with a side effect runs until his first request is in the log.
 ### 4.2 The pacing contract — the part that must not be got wrong
 
 Pace Simon per `references/human-pacing.md` — overview once, one action per message, a progress count,
@@ -161,11 +175,16 @@ shared with hyperspeed; read it there. The browser-journey shape they take here:
 > *Watching:* `PATCH /api/prospects/*` and the browser console.
 
 ### 4.3 After each step
-- **Works** → log it, advance. One line.
+- **Works** → log it, advance. One line. "Works" needs the step's expected request in the log; a UI
+  that looks right with no matching request means he is not on the watched server.
+- **He reports a later step than you gave him** → reconstruct the skipped steps from the log and the
+  persisted state, check each, then continue.
 - **Problem** → do NOT start fixing. First: pull the correlated log lines and quote the relevant
   ones; say what they show, or say plainly that the server saw nothing (itself a finding); read
   back the persisted state, because the UI can look right while the write is wrong; record the
   observation with a severity. Then ask only for what you genuinely can't infer.
+  Before blaming config for a mismatch between app and provider, prove which account each side is on
+  (`testing-strategy.md`); don't override the app's configured secret on an unverified comparison.
   **Fix a blocker before proceeding** — otherwise you collect nine failures with one root cause
   and the last six steps were never really tested. Log non-blockers and keep moving.
 
@@ -213,7 +232,8 @@ comes back clean; one round of fixes is not the end.
   testing problem must end up documented.
 - **Teardown checklist, enumerated and reported**: turn the verbose logging back down, **turn
   every test gate OFF and clear any allowlist**, remove scratch data, kill every process you
-  started and verify by checking the port (not by trusting the kill), sweep orphaned workers.
+  started (forwarders, listeners and phone shares included) and verify by checking the port and by
+  fetching each share hostname (not by trusting the kill), sweep orphaned workers.
   Leaving a time-collapse flag on in a shared environment is a live incident waiting to happen.
 - **Commit** one logical commit per fix, per the standing commit rule.
 - **Report a results matrix**: step, result, evidence, severity — plus what was fixed, what

@@ -53,6 +53,19 @@ link. **DO hand Simon that exact link and wait.** It is a one-time tailnet setti
 It prints the URL to open. **DO read the printed hostname and use it verbatim** — it is the host every
 step below must match.
 
+**DO verify the share by fetching it, never by `tailscale serve status`.** That command reads the
+daemon's config and can print `No serve config` while the share is live, notably when the CLI warns of
+a client/daemon version mismatch. Fetch each hostname and expect the dev server's own headers:
+
+```bash
+curl -sI --max-time 10 "https://<printed-host>/" | grep -i '^x-powered-by'
+```
+
+TEST: the dev server's header appears. **DO enumerate this machine's tailscale nodes** when the CLI
+warns of a mismatch, or a re-run prints a different hostname (a Homebrew `tailscaled` beside the
+Tailscale app is two nodes with two names): `tailscale status`, then repeat the check and the Step 6
+teardown for every node and hostname.
+
 ## Step 3 · Allow the host on the dev server, and verify the pattern MATCHES
 
 **DO expect this to be already broken, because its failure is silent.** The dev server keeps returning
@@ -138,11 +151,15 @@ A `?v=<n>` query also works. Clearing website data is the last resort — it sig
 tailscale serve --https=443 off
 ```
 
-**DO confirm nothing was ever public**, since serve and funnel are one command apart:
+**DO verify teardown by fetching every hostname from Step 2**, on every node:
 
 ```bash
-tailscale funnel status    # expect: No serve config
+curl -s -o /dev/null -w '%{http_code}\n' --max-time 10 "https://<each-host>/"
 ```
+
+TEST: each request fails or returns a non-dev-server response. `serve status` reporting nothing is
+not proof, for the reason in Step 2. **DO also confirm nothing was ever public**, since serve and
+funnel are one command apart: `tailscale funnel status` expects `No serve config`.
 
 Leave the dev-origin entry and the dev credential in place; both are development-only and are what
 makes the next preview a single command.
