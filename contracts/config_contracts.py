@@ -499,9 +499,11 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
-            "Follows the repo's own merge method; after a squash merge the hand-back names the leftover source branch and its deletion gate result.",
+            "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
+            "A commit is chained after its checks with &&, never ;, so a failing check stops it.",
             "Owns the safe merged-branch-deletion rule: confirm with the user first (never delete "
-            "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed, then git branch -D "
+            "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed OR the content proof "
+            "(git cherry shows no + / merge-tree changes nothing) for a cherry-picked branch, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
             "Points to references/ticket-lifecycle.md for the ticket to branch to PR lifecycle; does "

@@ -18,6 +18,11 @@ needs `--force-with-lease`.
 
 The trap is "this message is short enough to inline". There is no such message. Write the file.
 
+**DO chain a commit after its checks with `&&`: `npm test && npm run build && git commit -F msg.txt`.**
+**DON'T join them with `;` or a newline in one command.** `;` runs the commit when a check fails, and
+the red commit then needs an `--amend` (the fix for a commit that landed with a failing config test).
+TEST: no `git commit` in a command is reachable after a failed check.
+
 ## The shape of the message
 
 `~/.claude/.githooks/commit-msg` enforces the subject line in the config repo and rejects anything
@@ -122,11 +127,13 @@ that moved is a local branch; origin is untouched unless the user said "push".
 **DO integrate a branch by MERGING it — a merge commit that keeps the branch tip as an ancestor of the
 target — so `git branch --merged` and `git merge-base --is-ancestor <branch> main` later PROVE it landed.**
 The user wants to SEE, unambiguously, that a branch was merged in.
-**DON'T rebase, squash, or re-implement a branch's work into the target when the source branch will
-outlive the merge.** Those rewrite patch-ids, so `git cherry` reads all `+` and the source branch shows as
-UNMERGED even though its work is in — the exact ambiguity that made two finished feature branches look like
-unmerged work at cleanup time. If a squash/rebase is genuinely wanted, delete the source branch in the SAME
-step so no ref is left behind claiming to be unmerged.
+**DON'T rebase, squash, cherry-pick, or re-implement a branch's work into the target when the source
+branch will outlive the merge.** Each one puts NEW commits on the target, so `git branch --merged` and
+`--is-ancestor` both report the source branch as UNMERGED even though its work is in — the exact ambiguity that made two finished feature branches look like
+unmerged work at cleanup time. If a squash, rebase or cherry-pick is genuinely wanted, run the deletion gate below on the source
+branch and put its deletion to the user in the SAME hand-back, so no ref is left behind claiming to be
+unmerged. Skip `cherry-pick -x` when picking from a private agent branch: git documents `-x` for
+publicly visible branches only.
 **DO use the merge method the repo's default branch already uses** (read its last 20 subjects: `(#NNN)`
 on every one means squash). Where the repo squashes, squash, run the deletion gate below on the source
 branch, and put its deletion to the user in the same hand-back. Squash fits a short-lived one-change
@@ -152,8 +159,13 @@ Then prove the merge yourself, and force:
 
 1. **Gate on the default branch, not HEAD.** `git merge-base --is-ancestor <branch> origin/<default>`
    (exit 0 = every commit on the branch is already in the default branch), OR — for a squash/rebase
-   merge, which is not an ancestor — `gh pr view <branch> --json state -q .state` is `MERGED`. Resolve
-   `<default>` with `git symbolic-ref --short refs/remotes/origin/HEAD`.
+   merge, which is not an ancestor — `gh pr view <branch> --json state -q .state` is `MERGED`, OR — for
+   a branch with no PR whose commits were cherry-picked or re-applied — the content proof: `git cherry
+   origin/<default> <branch>` prints no `+` line (git matches each commit by its diff, so a clean
+   cherry-pick reads `-`), or, when a pick was edited or conflict-resolved,
+   `git merge-tree --write-tree origin/<default> <branch>` exits 0 and prints `origin/<default>`'s own
+   tree id (merging would change nothing). Resolve `<default>` with
+   `git symbolic-ref --short refs/remotes/origin/HEAD`.
 2. **If the gate passed only via gh `MERGED` (not ancestry), also prove nothing local-only.** A squash
    or rebase merge puts a REWRITTEN commit into the default branch, so the branch's own tip is not
    contained in it — and if that tip carries commits added AFTER the merge, `gh MERGED` is still true
@@ -163,7 +175,7 @@ Then prove the merge yourself, and force:
 3. **Only once a gate above holds, delete with `git branch -D <branch>`.** The gate is the seatbelt, so
    `-D` here is safe and correct, and it is the only form that works from a stale worktree. `-d` is not
    a safety upgrade over this; it is an unreliable HEAD-relative check that produces false negatives.
-4. **Never `-D` a branch no gate passed.** Without the ancestry (or gh-`MERGED`-plus-pushed) proof, `-D`
+4. **Never `-D` a branch no gate passed.** Without the ancestry, gh-`MERGED`-plus-pushed, or content proof, `-D`
    really can drop unmerged commits — the proof is what makes it safe, not the flag.
 
 ## Deployment tracking
