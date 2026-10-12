@@ -264,6 +264,47 @@ in the surface's version history; ask for approval only when the target changes,
 Use the existing mockup feedback/pick loop for design approval. A dashboard comment is proposed feedback;
 only the user's explicit approval (in chat or an exported approve verdict the agent reads) freezes it.
 
+## Build from a supplied design source: 1:1 on the first build
+
+DO apply this whenever the task supplies a design source (a canvas, an exported board set, mockup HTML
+or images). The rules act before and during the build; a comparison made only at hand-back finds drift
+after the work is spent. A prose ticket that describes the design never replaces reading the source.
+
+DO finish these four steps at intake, before any layout is written or briefed:
+1. **Read the source end to end:** every board, state variant, size, colour, radius, gap and string.
+   Write its absolute path into the plan and into every builder brief.
+2. **Render every board in every state to its own image** at the board's viewport, one target per
+   board and state, at a versioned path. Open a board's own file when it sits in a cross-origin frame.
+   Reject a blank render (one colour, or a file under 5 KB) and re-render it.
+3. **Write the element map:** one row per design element naming the existing component it maps to (the
+   source's "today" screenshots show which), `new`, or `conflict: design shows X, app has Y`. Put every
+   conflict in the front-loaded question block, answered before the build starts.
+4. **Build the state harness first:** per board, a fixture, mock or launch argument that renders the
+   app in the board's state with the board's exact sample data (same route, counts, names, dates) and
+   chrome (viewport, sidebar, theme, locale, scroll). Prove each capture command runs against a
+   placeholder before the screen is written.
+
+DO put in every builder's first brief the capture command, the absolute path of its boards' target
+images, and "iterate until the built capture matches the board" as the acceptance test.
+DON'T brief a builder to write UI it cannot see, or leave capture to the orchestrator at the end.
+For native screens, ask for the capture opt-in in the intake question block
+(`references/testing-strategy.md` § Native simulator suites) and name it in the brief.
+
+DO use the board's value for every size, radius, blur, colour and string. A token is used only when it
+equals that value; a nearest token is a deviation (e.g. a 14 px board radius is not the 12 px token).
+
+DO run a fidelity gate per slice, before its test gate. Evidence is one side-by-side image per board
+(board | built, same state, same data) plus a deviation list in the builder's hand-back, one row per
+difference: element, board value, built value, reason. Green tests are not fidelity evidence. Give the
+dashboard one section per board, the board image as target and the built capture as current from the
+first build.
+DO check text a board draws on a surface several apps share (paywall, plan table, settings) in every
+app that draws it, against one copy table per shared surface.
+
+TEST: before a slice is handed back, each of its boards has a target image, a capture command and a
+side-by-side; a difference between the two images that is absent from the deviation list, or a shared
+string unmatched in one app, fails the gate.
+
 ## State schema (version 1)
 
 DO initialize every field shown below. Add sections and criteria for the real task; do not retain

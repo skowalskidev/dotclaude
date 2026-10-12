@@ -222,6 +222,12 @@ python3 ~/.claude/bin/local-capacity.py prioritize --owner <session-id> [--minut
 python3 ~/.claude/bin/local-capacity.py prioritize --clear
 ```
 
+DO give `prioritize` and every `run` and `claim-sim` of every worker on that task the identical `--owner`
+string, and write that string into each worker's brief. The priority match is on the exact string, so a
+worker under another name is a different owner and gets exit 75 naming the priority owner (the fix for
+workers refused for about 90 minutes under a second name). TEST: each worker's `--owner` equals the owner on
+`status`'s `priority:` line.
+
 DO plan around these effects while the record is live (default 60 minutes, hard maximum 180; an
 expired record is ignored and removed): the named owner is admitted beside the current holder in a second slot, so at
 most two heavy jobs run, and skips the load gate. No running job is stopped, signalled or shortened,
@@ -260,6 +266,13 @@ python3 ~/.claude/bin/local-capacity.py run --owner "$SESSION_ID" --simulator "$
 ' _ "$UDID" "$APP"
 ```
 
+DO name the simulator on EVERY `run` whose command can boot one, including an `xcodebuild test` with a
+simulator destination and a script that never calls `simctl boot`. Without `--simulator`, `run` cannot
+release while a device is Booted: it retains the lease, and every later `run` exits 75. DO read `status`
+at the first 75 (the `holder=` line and `booted simulators:`) instead of retrying; shut down the booted
+owned UDID, then use the inspected release below. TEST: every native `run` line carries `--simulator <udid>`, and no 75
+is retried before `status` was read.
+
 DO verify the exact UDID is Shutdown before `release-sim --udid "$UDID" --owner "$SESSION_ID"`,
 including when `run` deferred before boot and the claim was the only operation.
 TEST: a failed boot starts zero subsequent stages, and any non-Shutdown device blocks lease release.
@@ -273,6 +286,15 @@ of cleanup. Inspect the saved receipt and process tree before an explicit
 still refuses release. Keep shut-down simulators, derived data and caches for the next scoped run.
 If an older lease schema is reported, run `python3 ~/.claude/bin/local-capacity.py migrate` to
 upgrade that receipt under lock before any new admission; the owner and child identity remain held.
+
+DO stop a native run by sending SIGTERM to its `run` supervisor, the `pid=` on `status`'s `holder=` line:
+it terminates its own command group. DON'T kill only the wrapper scripts or the parent of `xcodebuild`;
+the build process reparents, keeps running with no parent and keeps the lease. When the holder reads
+`orphan / PID reused` with `command_group=<pgid> (running)`, list the group with `pgrep -g <pgid> -l`,
+stop its build process, and confirm `status` no longer shows `(running)` before the inspected release
+above. A mid-run message to a worker says "let it finish" or names the process to stop, never only "do
+not rerun". TEST: after a stop, `status` shows no running command group and `pgrep -fl xcodebuild` names
+only live runs.
 
 DO cap native runner parallelism inside the lease: `xcodebuild -jobs 4
 -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1` on hosts with at

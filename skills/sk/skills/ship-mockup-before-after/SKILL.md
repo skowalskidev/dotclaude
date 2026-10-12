@@ -112,7 +112,8 @@ mockup still defaulting to the superseded design, is the violation.
 DO use the shared dashboard protocol's Reference setup: supplied images, named platforms or none.
 Draft the target from those inputs and the real product context, iterate with Simon, and freeze his
 approved design revision as the implementation's reference. Missing screenshots never block drafting.
-Pass every supplied or approved artifact by absolute path to builders and have them read it.
+Pass every supplied or approved artifact by absolute path to builders and have them read it. For a
+supplied design source, apply `references/workflow-loops.md` § Build from a supplied design source.
 TEST: the implementation is judged against the approved target, not a later unapproved proposal.
 
 ## Choose the medium — a downloadable HTML FILE, or a Claude artifact URL

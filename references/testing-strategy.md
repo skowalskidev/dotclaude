@@ -235,7 +235,9 @@ proof. Map that evidence to the final batch; a new commit SHA alone does not inv
 A prior partial run covers only its recorded scope, never the whole suite. Final verification remains
 mandatory: run every uncovered relevant check, and report blocked or skipped coverage honestly.
 
-**DO fix final-gate failures and rerun the affected checks.** Reuse the passing remainder; rerun a broader
+**DO fix final-gate failures and rerun the affected checks** (native: the failed classes only, with
+`xcodebuild -only-testing:<target>/<class>`; the full suite runs once, at convergence, from the
+orchestrator). Reuse the passing remainder; rerun a broader
 suite only when a source, dependency, configuration or environment change invalidates its coverage.
 TEST: no routine mid-batch run, no duplicate final suite from a later workflow stage, and every rerun
 names its failure or invalidated inputs. Every completion claim links the full relevant evidence.
@@ -249,6 +251,9 @@ unrequested check. Keep compile-only native checks for native changes and backen
 tests in the final gate. Record unrun runtime/UI cases and their reason separately from passing checks;
 never infer a runtime pass from a compile. TEST: each native runtime/UI/capture run cites Simon's request,
 and a default native batch completes with compile/backend evidence and honest runtime skips.
+DO ask for the opt-in at intake, in the front-loaded question block, when a supplied design source covers
+native screens; a grant covers scoped captures of those screens, never the runtime suite. TEST: no
+builder of a native screen is briefed blind for want of an unasked opt-in.
 
 DO apply `references/dev-server-hygiene.md` § Machine-wide capacity before booting a simulator or
 starting native verification. Retain the lease across tool calls until the owned device is shut down.
@@ -280,8 +285,10 @@ AppleLocale` must read `en_US`; a shared simulator left on a UK region failed 6 
 **Pass `TEST_RUNNER_*` variables in xcodebuild's environment (`TEST_RUNNER_X=y xcodebuild …`), never as a
 trailing argument.** A trailing one becomes a build setting and the test silently skips itself. TEST: a
 full-suite run starts after a locale read, and no `TEST_RUNNER_` appears after `xcodebuild` on the line.
-**Wait for the full runner result within the bounded stage timeout.** Keep the runner's exit status,
-complete log and result bundle; for `xcodebuild`, verify the final `** TEST SUCCEEDED **` or
+**Wait for the full runner result within the bounded stage timeout.** Redirect any run expected to take
+over 5 minutes to a log file (`> "$LOG" 2>&1`) and read progress and failures from that file; DON'T pipe
+it through `grep | tail`, which shows nothing until exit and then drops the failure list. Keep the
+runner's exit status, complete log and result bundle; for `xcodebuild`, verify the final `** TEST SUCCEEDED **` or
 `** TEST FAILED **` banner and the result bundle's test summary against the intended suite. A nested
 `Test Suite '…' passed` or `failed` line is only one suite's verdict, not completion; never stop the
 runner on that line. If the runner hangs after printing progress, let the stage timeout terminate only

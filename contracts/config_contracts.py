@@ -150,6 +150,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep one canonical dashboard/mockup path per surface; point the target at the current proposal, store approved snapshots by hash metadata, show each bounded revision at that same link, and wait for user review before the next substantial change.",
             "Preserve approved baseline styles and components during mockup iterations; do not implement against an unseen or unapproved target.",
             "Accept screenshots, platform names or no references; freeze explicit user approval of an AI-drafted target before judging implementation against it.",
+            "Build from a supplied design source 1:1: read it and render every board in every state to a non-blank target image before any layout; map elements to components and raise conflicts before the build; give builders a capture loop, board sample data, the board's values and a per-slice side-by-side gate with a deviation list; check shared-surface text in every app.",
             "Signal a rebuilt preview/mockup only through the dashboard: regenerate the gauntlet and play one sound; never open the file or put open in a subagent brief.",
             "Own the same-machine handoff lifecycle as SSOT: prepare stamps a repeatable resume manifest and bumps a hop; resolve maps a pasted dashboard link, dashboard html or plan back to its plan; a resumed run reuses the recorded options with no second interview; the manifest survives normal updates.",
         ],
@@ -474,6 +475,7 @@ CONTRACTS: dict[str, dict] = {
             "Route iOS simulator execution to references/ios-simulator.md without duplicating its preflight, preview evidence or recovery procedure.",
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
             "Own the machine-wide capacity protocol: one heavy lease, the Simon-granted priority record, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
+            "Every worker of a task uses the one owner string the priority record names; every native run names its simulator; a run is stopped through its supervisor, and a 75 is diagnosed with status before any retry.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
             "Every native build, test and simulator lifecycle uses bin/local-capacity.py or its "
@@ -555,6 +557,7 @@ CONTRACTS: dict[str, dict] = {
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
             "Native build prompts name the shared capacity engine or its compatibility frontend, a bounded stage and explicit worker cap; a per-run lock file is not the coordination.",
+            "A prompt for a worker that builds a visible screen names its design source, target images and capture command; it never defers capture to the orchestrator.",
             "Split a serial-resource editing lane only when measured critical-path evidence supports it and the added workers fit both the total worker cap and shared heavy-work capacity.",
             "Freeze the contract and fixture before dispatching every layer together; workers return once with changed files and a check inventory, and the orchestrator owns final verification under the shared batch policy.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
@@ -583,7 +586,7 @@ CONTRACTS: dict[str, dict] = {
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every out-of-code surface the work touches (edge/CDN, a design tool, a third-party "
             "console, a dashboard) is asked for before the plan, and each ticket names the inputs "
-            "its implementer must obtain.",
+            "its implementer must obtain, including a visible change's design source path and board ids.",
             "Before a ticket goes to a build, every decision it depends on is resolved INTO the ticket "
             "(the option chosen plus a one-line why) and every requirement is present, so a builder that "
             "cannot ask — a cloud session, a parallel part, a teammate — misses nothing and guesses nothing.",
@@ -626,6 +629,7 @@ CONTRACTS: dict[str, dict] = {
             "After explicit native opt-in, prove required platform services with the runtime app, signing and simulator configuration before the suite; isolate defaults, authentication, singletons and host state.",
             "Route simulator execution to references/ios-simulator.md; unsigned compile evidence cannot prove Keychain runtime behavior. Use project-supported signing and existing entitlements without weakening product authentication or requiring signing for every test.",
             "A full native suite waits for the bounded runner to finish and verifies its exit, final result and expected test scope; a nested suite line or timed-out runner cannot establish green.",
+            "Redirect a run expected to exceed 5 minutes to a log file and read the file; rerun native failures by class and run the full suite once at convergence; ask for the native capture opt-in at intake when a design source covers native screens.",
             "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
@@ -1362,6 +1366,7 @@ CONTRACTS: dict[str, dict] = {
             "since the artifact lives on Claude. There is no dev route to delete.",
             "Changes a component when the mockup needs it changed rather than forking it. A forked "
             "copy proves nothing about the real screen.",
+            "Points a supplied design source at references/workflow-loops.md for the 1:1 build rules and restates none of them.",
         ],
     },
     "skills/sk/skills/work-preview-on-phone/SKILL.md": {
