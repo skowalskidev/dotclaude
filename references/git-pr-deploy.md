@@ -182,6 +182,59 @@ Then prove the merge yourself, and force:
 
 - Keep a running list of everything that must be applied at deploy time — prod configs, indexes, rules, functions, env vars — so nothing is missed when shipping.
 
+## Release preflight before building or uploading
+
+**DO read the provider's current publication state before the first release-only build, archive,
+package or export in each release attempt.** Apply `rules/connectors.md` to resolve the provisioned
+read path and account. Match the remote app/package and environment to the intended artifact, then
+check version eligibility, release-channel state and the build/release identifier strategy.
+Ordinary development builds and tests do not need this publication check.
+
+**DO record one timestamped preflight result in the living plan:** source command or console URL,
+account/team and app identity, remote version/channel states, chosen candidate and eligibility
+evidence. Reuse a fresh provider response when it covers these constraints; label conclusions
+derived from that response and current provider rules. Do not require a second API or credential
+for evidence the supported release tool already supplies.
+
+**DO either check consumed identifiers before manually choosing one, or use the provider's documented
+automatic allocation.** For manual selection, inspect complete relevant results, including pagination
+and processing uploads; empty or incomplete results do not prove availability. For automatic selection,
+record the enabled mode and retain the actual assigned identifier from the export/upload receipt.
+Do not report the archive's original build number as the uploaded number when the provider changed it.
+
+**DO check App Store Connect before a TestFlight/App Store archive:** match team, app record and
+bundle ID; read approved and submitted marketing versions (including approved versions awaiting
+release) and the candidate version's release-train state. Choose a version eligible for another
+upload and apply the identifier strategy above. When approval or a closed train prevents more uploads,
+advance the marketing version; increasing only the build number does not resolve that constraint.
+For a new train, establish eligibility from the app's current state and Apple's current requirements;
+absence of a train record alone proves neither eligibility nor failure.
+
+Apple associates uploads by bundle ID and version and identifies each build by its build string.
+Check [Upload builds](https://developer.apple.com/help/app-store-connect/manage-builds/upload-builds/),
+[Create a new version](https://developer.apple.com/help/app-store-connect/update-your-app/create-a-new-version/)
+and [View builds and metadata](https://developer.apple.com/help/app-store-connect/manage-builds/view-builds-and-metadata/)
+for the current rules and available status evidence. Xcode's `manageAppVersionAndBuildNumber=true`
+can manage the build number during distribution; confirm support with installed `xcodebuild -help`
+and [Preparing your app for distribution](https://developer.apple.com/documentation/xcode/preparing-your-app-for-distribution).
+This does not replace the marketing-version/train check. Keep project version numbers out of this catalog.
+
+**DO recheck eligibility after a resume or candidate/target change and immediately before upload.**
+Use current provider evidence or supported validation; query again when existing evidence no longer
+covers the candidate. Compare the artifact's identity, marketing version and selected identifier
+strategy with that evidence, then verify the actual identifier in the distribution receipt. Resolve
+changed remote state before publishing; reuse an artifact only while its metadata remains eligible.
+
+**DO stop release packaging/upload when required state is unavailable or ambiguous**, record the
+exact missing evidence and use the connector's documented fallback or auth gate. Continue independent
+local work. **DON'T infer eligibility from source metadata, old archives or a prior successful release,
+or deliberately use a rejected upload as the discovery step.** This check grants no publication permission.
+
+TEST: each release attempt has live-state evidence predating its first release-only build/archive
+and an artifact/identifier-strategy match before upload; unknown version eligibility causes zero
+release archives or uploads. Closed trains and wrong app/team are resolved before expensive work;
+identifier collisions are prevented by live manual checks or documented automatic allocation.
+
 ## Shipping is not done until the deploy is verified
 
 A merge is a request to deploy, not a deployment. After merging and pushing, **watch the autodeploy

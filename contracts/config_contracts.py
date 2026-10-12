@@ -496,7 +496,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/git-pr-deploy.md": {
         "mission": "A commit is navigable a year later and a deploy is verified working, not assumed working.",
-        "purpose": "Commit shape, PR hygiene, and verifying a deploy actually worked.",
+        "purpose": "Commit shape, PR hygiene, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
@@ -506,6 +506,8 @@ CONTRACTS: dict[str, dict] = {
             "(git cherry shows no + / merge-tree changes nothing) for a cherry-picked branch, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
+            "Require timestamped current provider identity and version/channel eligibility before release packaging; unknown eligibility stops archives/uploads, not independent local work. Reuse applicable fresh provider evidence without requiring duplicate access.",
+            "Check Apple approved/submitted versions and candidate train state; recheck after resume or candidate/target changes and before upload. Require live manual identifier checks or documented automatic allocation with the actual distribution receipt.",
             "Points to references/ticket-lifecycle.md for the ticket to branch to PR lifecycle; does "
             "not own it.",
         ],
