@@ -526,6 +526,7 @@ class DashboardTests(unittest.TestCase):
             )
             self.assertNotEqual(cli.returncode, 0)
             self.assertIn('Unknown phase', cli.stderr)
+            self.assertIn('expected one of: blocked, complete, paused, planning, running', cli.stderr)
             self.assertNotIn('No dashboard plan found', cli.stderr)
             with self.assertRaisesRegex(ValueError, 'Unknown phase'):
                 d.initialize(root)

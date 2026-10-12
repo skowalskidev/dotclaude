@@ -44,6 +44,11 @@ def require(condition, message):
         raise ValueError(message)
 
 
+def require_one_of(value, allowed, message):
+    """Enum check whose error names the valid values, so a caller fixes it in one step."""
+    require(value in allowed, f"{message} {value!r}; expected one of: {', '.join(sorted(allowed))}")
+
+
 def valid_preview_url(value):
     if not isinstance(value, str) or not re.match(r'^https?://', value, re.I):
         return False
@@ -59,9 +64,9 @@ def valid_preview_url(value):
 def validate(s):
     require(s.get('schemaVersion') == 1, 'Unsupported schemaVersion')
     require(isinstance(s.get('title'), str) and s['title'].strip(), 'Missing title')
-    require(s.get('engine') in ('current', 'ralph'), 'Unknown engine')
+    require_one_of(s.get('engine'), ('current', 'ralph'), 'Unknown engine')
     require(type(s.get('gauntlet')) is bool, 'gauntlet must be boolean')
-    require(s.get('referenceMode') in ('images', 'names', 'none'), 'Unknown reference mode')
+    require_one_of(s.get('referenceMode'), ('images', 'names', 'none'), 'Unknown reference mode')
     require(isinstance(s.get('inspiration'), str), 'inspiration must be text')
     selected = s.get('optionsConfirmedAt')
     if selected is not None:
@@ -70,7 +75,7 @@ def validate(s):
         require(s['referenceMode'] != 'names' or s['inspiration'].strip(), 'Name the selected platforms')
     if s.get('phase') in ('running', 'complete') and (s['gauntlet'] or s['engine'] == 'ralph'):
         require(selected is not None, 'Select run options before starting work')
-    require(s.get('phase') in ('planning', 'running', 'paused', 'blocked', 'complete'), 'Unknown phase')
+    require_one_of(s.get('phase'), ('planning', 'running', 'paused', 'blocked', 'complete'), 'Unknown phase')
     require(type(s.get('revision')) is int and s['revision'] >= 1, 'Invalid revision')
     require(type(s.get('iteration')) is int and s['iteration'] >= 0, 'Invalid iteration')
     require(type(s.get('maxIterations')) is int and s['maxIterations'] > 0, 'Invalid maxIterations')
@@ -91,7 +96,7 @@ def validate(s):
         if section.get('previewUrl') is not None:
             require(valid_preview_url(section['previewUrl']),
                     'previewUrl must be an absolute HTTP(S) URL without credentials or whitespace')
-        require(section.get('status') in STATES, 'Unknown section status')
+        require_one_of(section.get('status'), STATES, 'Unknown section status')
         require(type(section.get('artifactRevision')) is int and section['artifactRevision'] > 0, 'Invalid artifact revision')
         checks = section.get('criteria')
         require(isinstance(checks, list) and checks, 'Each section needs criteria')
@@ -109,7 +114,7 @@ def validate(s):
                     not any(section.get(key) for key in ('before', 'target', 'current', 'previewUrl')),
                     'After-run analysis is reserved for the supervisor report lifecycle')
         judge = section.get('judge', {})
-        require(judge.get('verdict', 'pending') in ('pending', 'pass', 'fail', 'blocked'), 'Invalid judge verdict')
+        require_one_of(judge.get('verdict', 'pending'), ('pending', 'pass', 'fail', 'blocked'), 'Invalid judge verdict')
         if judge.get('verdict') == 'pass':
             require(judge.get('agentId') and judge.get('builderId') and judge['agentId'] != judge['builderId'], 'Judge must be independent')
             require(judge.get('artifactRevision') == section['artifactRevision'], 'Judge evidence is stale')
@@ -129,7 +134,7 @@ def validate(s):
         for key in ('before', 'target', 'current'):
             asset = section.get(key)
             if asset:
-                require(asset.get('kind') in ('text', 'image', 'html'), 'Unknown asset kind')
+                require_one_of(asset.get('kind'), ('text', 'image', 'html'), 'Unknown asset kind')
                 require(asset.get('label'), 'Asset needs a name')
                 if asset['kind'] != 'text':
                     require(asset.get('path') and asset.get('source'), 'Captured asset needs path and provenance')
