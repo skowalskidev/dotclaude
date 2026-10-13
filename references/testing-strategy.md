@@ -205,6 +205,18 @@ the expected first screen renders with no redirect away, no failed call the page
 local service. Fix or re-route the entry before he sees it. TEST: step 1's address was loaded by
 Claude in that state this session, and what rendered matches the step's Expect line.
 
+**DO run every later step yourself before you send it, the same way:** in your own browser, from the state
+he is in (same storage, same account), and send it only when the Expect screen appears. DON'T write a
+step from the code's happy path. TEST: each step sent has a run by Claude from his state with its Expect
+line observed (the fix for three steps that bounced to another screen, reused storage in a "new" private
+window, or made an account outside the plan, each costing him a round trip).
+
+**DO keep him signed in and give him a reset he can run.** Never delete or reset an account he may be
+signed into. A reset step hands him the one line that clears the browser's storage and names the next
+URL. Private windows of one browser share storage, so "open a private window" is not a reset; a
+different browser or profile is. TEST: no account is deleted while he may hold its login, and every
+reset step is one line plus the URL that follows it.
+
 **DO name the host he must see in the address bar, and make his first request the proof.** Give the
 exact URL (the tailnet or LAN preview, never a bookmark), have him load it, and find that request in
 the watched log, with its correlation id, before step 2.

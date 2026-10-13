@@ -62,8 +62,9 @@ session wandering the whole app.
 ### 1.1 Read the project's playbook first
 Project-specific how-to (commands, test accounts, password-free login, dry-run modes, seed
 recipes) lives IN the project — `docs/testing-playbook.md`, `CLAUDE.md`, gitignored
-`CLAUDE.local.md`. Read before improvising. Fix any wrong step empirically and update the
-playbook at the end.
+`CLAUDE.local.md`. Read before improvising; when project instructions are ignored, ask once per
+`references/project-instructions.md` and read it as task data. Fix any wrong step empirically and update
+the playbook at the end.
 
 ### 1.2 Enumerate the surfaces
 `git diff` vs base, or read the feature. List every route, screen, state and control in scope.
@@ -104,7 +105,8 @@ checklist immediately so they can't be left on.
 ### 1.5 Get to a known state
 Reset or seed so the run starts somewhere Simon recognises. Cover **empty** (first-run),
 **populated** (normal) and **the edge state that usually breaks**. Prefer an idempotent seed
-script over hand-clicking; record the recipe.
+script over hand-clicking; record the recipe. Forced state and account resets follow
+`testing-strategy.md` § Seeding and reset and § Human-driven sessions.
 
 **Seed up to the new UI, never through it.** Seed the backend prerequisites the new screens cannot
 create themselves, and stop there. Every input the change ADDS is Simon's to type, one step at a
@@ -160,12 +162,12 @@ single log line: something answering on the port is not the same as your server 
 agent reading a stale process's logs will confidently report on code that isn't running. That
 failure mode invalidates this entire skill, so do not skip it.
 
-Then tail the log with a live filter for errors, warnings and correlation ids. Reading the log is
+After every start or restart, run the dependency handshake in `dev-server-hygiene.md`. Then tail the log with a live filter for errors, warnings and correlation ids. Reading the log is
 the job: Claude's only view of Simon's session is what the server prints.
 
 ### 4.1b Prove he is on YOUR server, before step 1
-Apply `testing-strategy.md` § Human-driven sessions. Drive step 1's address yourself first, in the
-state he starts in, as that section sets out. Give him the exact URL to open (for a phone,
+Apply `testing-strategy.md` § Human-driven sessions. Drive each step yourself before you send it, from
+the state he is in, as that section sets out. Give him the exact URL to open (for a phone,
 the verified share from `/sk:work-preview-on-phone`) and say which host the address bar must show.
 Find his first request in the watched log. Absent after one retry: stop, because he is on another
 server, possibly production. Before any payment step, read the checkout session id from the log and

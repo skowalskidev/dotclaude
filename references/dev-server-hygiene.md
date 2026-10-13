@@ -129,6 +129,19 @@ out a distinct impostor, which is why all three are needed.
 This is cheap to implement and eliminates an entire class of phantom results. It is the single
 highest-value guard here.
 
+### Dependency handshake — after every start and restart
+
+An identity-verified server can still run with a rejected key.
+
+**DO send one end-to-end request through each external dependency the journey uses (a model call, a
+search, a payment sandbox) and read that service's log for a refused credential, before anyone else
+touches the stack.** When an env file and the managed secret store both hold a key and the file wins,
+start with that variable emptied for the one command (`<KEY_VAR>= <start command>`).
+**DON'T hand the stack to a tester on the strength of the identity handshake alone.**
+TEST: after each start or restart the log holds one successful request per dependency and no refused
+credential (the fix for a restart that read a stale key from an env file, so every ask fell back to its
+intake question).
+
 ### 3. Process-group teardown
 The classic leak: you launch through a package-manager wrapper, kill the wrapper's pid, the
 wrapper dies, and the actual server **grandchild survives** and keeps squatting the port.
