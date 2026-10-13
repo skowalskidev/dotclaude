@@ -489,6 +489,23 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
         check("Still do E." in ledger.read_text() and long_ask in ledger.read_text(),
               "Later requests overwrote earlier source messages.")
 
+        # The ledger is never its own note source: `cat ledger >> ledger` never ends. Try the plain
+        # path, a path spelled through `..`, and a symlink; each must exit 2 with the ledger intact.
+        link = base / "ledger-alias.md"
+        link.symlink_to(ledger)
+        for spelling in (ledger, ledger.parent / ".." / ".context" / ledger.name, link):
+            before = ledger.read_bytes()
+            try:
+                result = subprocess.run(["bash", str(hook), "note", "pivot", str(spelling)],
+                                        text=True, capture_output=True, cwd=repo, env=env, timeout=10)
+            except subprocess.TimeoutExpired:
+                check(False, f"Ledger note with the ledger as its source never ended: {spelling}")
+                continue
+            check(result.returncode == 2 and "is the ledger itself" in result.stderr,
+                  f"Ledger note accepted the ledger as its own source ({spelling}): {result.stderr}")
+            check(ledger.exists() and ledger.read_bytes() == before,
+                  f"Ledger changed or was deleted by a note naming it as the source ({spelling}).")
+
 
 def check_intake_arms_on_a_task_opening() -> None:
     clear_markers()

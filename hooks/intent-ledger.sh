@@ -260,6 +260,15 @@ note)
   esac
   [ -f "$src" ] || { echo "note: no such file: $src" >&2; exit 2; }
   resolve || { echo "note: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
+  # The source must never be the ledger. `cat ledger >> ledger` reads what it is appending, never
+  # reaches end of file, and once grew a ledger to 170 GB. `-ef` is true for the same inode, so a
+  # symlink, a hardlink or a relative spelling of the ledger is caught too, not only an equal string.
+  # Checked before the lock and before any write; the refusal must also spare `rm -f "$src"` below,
+  # which would otherwise delete the ledger.
+  if [ "$src" -ef "$LEDGER" ]; then
+    echo "note: refusing: $src is the ledger itself. Write the note to a scratch file and pass that." >&2
+    exit 2
+  fi
   acquire "$LEDGER" || { echo "note: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
   { printf '\n## %s · %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$kind"; cat "$src"; printf '\n'; } \

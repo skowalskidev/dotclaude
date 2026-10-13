@@ -1758,6 +1758,9 @@ CONTRACTS: dict[str, dict] = {
             "One ledger per session: resolves its root through bin/session-root.sh, so a shell that "
             "moved into a worktree nested under the session's root still appends to that root's "
             "ledger. `note` reads the session id from CLAUDE_CODE_SESSION_ID because it has no payload.",
+            "`note` exits 2 when its source file is the ledger (same inode, any spelling or symlink): "
+            "`cat ledger >> ledger` never ends and once grew a ledger to 170 GB. The refusal also "
+            "spares the ledger from the `rm -f` of the source.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
