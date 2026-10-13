@@ -77,3 +77,9 @@ now fails on a paragraph that appears in two config files.
 
 - Don't invent new things: if the existing system already provides a behavior, the new feature retains that behavior and scope — do not change present behavior unless explicitly asked.
 - Note what already works in the codebase and build on it rather than rebuilding it.
+- **DO make at most one small, reversible change for a defect in code outside your task that you cannot
+  reproduce** (a screen on the tester's device), then write the finding up with its evidence and stop.
+  A second unconfirmed attempt is a ticket, not a fix. DON'T iterate on the tester's device by guesswork:
+  each unconfirmed change risks a regression in code you do not own. TEST: at most one change per such
+  defect, and a finding naming the evidence (the fix for three layout tweaks to an unowned
+  screen, two reverted, when the cause was the viewport height with the keyboard open).

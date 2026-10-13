@@ -427,7 +427,10 @@ CONTRACTS: dict[str, dict] = {
     "references/code-best-practices.md": {
         "mission": "A second copy of any behaviour never gets written, so a fix in one place is a fix everywhere.",
         "purpose": "DRY/SRP, reuse before building, observability, UX standards, scope discipline.",
-        "criteria": ["Owns the single-source-of-truth guidance the other catalogs point at."],
+        "criteria": [
+            "Owns the single-source-of-truth guidance the other catalogs point at.",
+            "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
+        ],
     },
     "references/connectors-setup.md": {
         "mission": "A new project's connectors work first try, from one manifest, with no credential in a repo.",
