@@ -122,6 +122,12 @@ silently missing.
   For a visible change, name the design source's absolute path, board ids and measured spec path,
   restate no board value in ticket prose, and apply `references/workflow-loops.md` § Build from a
   supplied design source.
+- **DO list the prerequisites of any check you propose BEFORE you estimate it.** Read from the code and
+  the provider what it needs (credentials, catalog objects, settings, accounts), confirm each exists, and
+  give the time estimate only after, naming what is missing. DON'T send Simon to fetch one input for a
+  check whose other prerequisites are unverified. TEST: a proposed check that needs something from him
+  lists each prerequisite as found or missing before any estimate (the fix for a "15-minute" payment
+  sandbox check proposed twice while the catalog objects it reads did not exist in the account).
 
 ## Before building, the ticket is a complete, decision-resolved spec — the builder cannot ask
 

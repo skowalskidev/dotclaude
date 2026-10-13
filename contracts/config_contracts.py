@@ -597,6 +597,7 @@ CONTRACTS: dict[str, dict] = {
             "Every ticket the plan names is a full clickable Linear link, never a bare id.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
+            "Every proposed check lists its prerequisites from the code and the provider, each confirmed found or missing, before any time estimate or any ask for an input.",
             "Every out-of-code surface the work touches (edge/CDN, a design tool, a third-party "
             "console, a dashboard) is asked for before the plan, and each ticket names the inputs "
             "its implementer must obtain, including a visible change's design source path, board ids "
