@@ -1,7 +1,8 @@
 # TLDR report formats — the block shapes a human reads to judge work
 
-On-demand catalog. Sole owner of the SHAPE of the three human-readable blocks that describe a piece of
-work: what the user goes through, what the system does, and what changed on this branch. Read it when
+On-demand catalog. Sole owner of the SHAPE of the human-readable blocks that describe a piece of
+work: what the user goes through, what the system does, what changed on this branch, and, when the change
+is near money, what it does to a payment path. Read it when
 writing a plan, a ticket, a PR body, or an end report.
 
 **Boundary.** This file owns the SHAPE — which parts, in what order, and the test each block has to
@@ -9,11 +10,11 @@ pass. `rules/copy-quality.md` owns the WRITING: lead with the answer, the Five W
 the both-ways check for redundant clutter and missing information, no AI-sounding copy, no em dashes.
 `rules/communication.md` owns where questions go. Don't restate either here.
 
-Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (all three), `/sk:ship-pr` (user journey and system journey in the PR body),
+Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (every block), `/sk:ship-pr` (user journey and system journey in the PR body),
 `/sk:work-full-detailed-workflow` and `references/planning-and-tracking.md` (Block 1 AND Block 2 open every
 plan, reflecting its current trajectory). One owner, so a format fixed once is fixed everywhere.
 
-## The glance test — what all three blocks must pass
+## The glance test — what every block must pass
 
 Simon reads these while switching between several things at once, so a block that needs a run-up has
 failed. Each one has to answer, at a glance: what is this about, what is happening, what does it do.
@@ -98,3 +99,19 @@ them as two groups rather than one list.
   so they never get buried in the table.
 - **What did NOT change that someone might assume did** — the neighbouring feature left alone, the
   setting that still defaults the old way. One line each, only where the assumption is likely.
+
+## Block 4 · Change near money
+
+Only when the change touches or opens a payment path: a checkout, a paywall, a plan gate, a price or a
+billing webhook. It goes beside Block 3 in every hand-back, unasked. DON'T wait for "do the paywalls need
+testing?"; the diff already answers it.
+
+1. **One line first:** `Payment files changed:` followed by the list from `git diff <base>...HEAD` over
+   the payment code, or the word `none`. Write `none` out.
+2. **A table, one row per entry that opens the paywall** (a screen, a button, a route, a limit that
+   now reaches it, new or changed), with these columns: the entry, what happens after paying (the
+   redirect, the webhook, the entitlement write, the screen they land on), and the one check it needs
+   (a test-mode checkout, a replayed event, a named test).
+
+TEST: a change that reaches a payment path hands back this line and table, and a row exists for every
+entry the diff changed (the fix for a hand-back that left the paywall question for Simon to ask).

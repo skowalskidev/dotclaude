@@ -16,7 +16,8 @@ re-establish its own context and then be immediately judgeable.
 
 This skill owns orchestration only. It reads and never restates:
 
-- **`~/.claude/references/tldr-report-formats.md`** — Blocks 1, 2 and 3, and the cross-check.
+- **`~/.claude/references/tldr-report-formats.md`** — Blocks 1, 2 and 3, the cross-check, and Block 4
+  when the change touches or opens a payment path.
 - **`~/.claude/references/planning-and-tracking.md`** — the verdict vocabulary (carried in,
   deliberately dropped, superseded) and the rule that the ORIGINALS get re-read, never a summary.
 - **`~/.claude/references/user-journey-review.md`** — how a journey is judged as the person meeting it

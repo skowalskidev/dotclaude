@@ -666,7 +666,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The shape of the three human-readable blocks: user journey, system journey, "
                    "changes on this branch.",
         "criteria": [
-            "Sole owner of all three block SHAPES. planning-and-tracking.md, pr, end-report and "
+            "Sole owner of every block SHAPE. planning-and-tracking.md, pr, end-report and "
             "full-detailed-workflow point here and never restate a format.",
             "Owns shape only. rules/copy-quality.md keeps the writing standard and the Five Ws "
             "check; rules/communication.md keeps where questions go.",
@@ -676,6 +676,8 @@ CONTRACTS: dict[str, dict] = {
             "comparing neither is the failure mode, because the comparison is the whole point.",
             "Every block passes the glance test: real names, one line per step, no rediscovery, "
             "and something the reader can act on at the end.",
+            "A change that touches or opens a payment path hands back Block 4 unasked: the payment "
+            "files changed (or `none`) and a row per paywall entry with what follows paying and its one check.",
         ],
     },
     "references/user-journey-review.md": {
