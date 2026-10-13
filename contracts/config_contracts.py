@@ -158,6 +158,7 @@ CONTRACTS: dict[str, dict] = {
             "Take one capture per surface from the real backend, label every other fixture string product-produced or sample data, and add one long-content case per new element.",
             "Assert each new element's position against its nearest neighbour in every route that draws it, not only offsets on the main screen.",
             "When one design difference is reported on a screen, audit every new element on it in the same turn (present, position, copy), fix all, and report the list.",
+            "A screen is not called matching until every sheet, tab and dialog its buttons open, one level deep, has been opened and checked against its board.",
             "Signal a rebuilt preview/mockup only through the dashboard: regenerate the gauntlet and play one sound; never open the file or put open in a subagent brief.",
             "Own the same-machine handoff lifecycle as SSOT: prepare stamps a repeatable resume manifest and bumps a hop; resolve maps a pasted dashboard link, dashboard html or plan back to its plan; a resumed run reuses the recorded options with no second interview; the manifest survives normal updates.",
         ],

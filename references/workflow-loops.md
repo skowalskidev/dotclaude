@@ -366,10 +366,12 @@ A finding with no spec id or no number is sent back, never recorded.
 
 DO audit the whole screen in the same turn when anyone reports one design difference on it. Check
 every new element on that screen against its board: present, position against its nearest neighbour,
-copy. Fix all of them and report the list. DON'T fix only the one named. TEST: the reply to a
-single-difference report lists every new element on the screen with a verdict, and a second report on
-that screen finds none the list missed (the fix for four differences on one screen found one screenshot
-at a time).
+copy. Fix all of them and report the list. Then follow every button on the screen one level deep: open
+each sheet, tab and dialog it opens, and check those against their boards too. DON'T fix only the one
+named, and DON'T claim "the screen matches" until its openers were opened. TEST: the reply to a
+single-difference report lists every new element on the screen and every opener it reaches with a
+verdict, and a second report on that screen finds none the list missed (the fix for four differences on
+one screen found one screenshot at a time, then the same gaps again in the sheet its button opened).
 
 DO give the dashboard one section per board from the first build: the board image as `target`, the
 built capture as `current`, the spec and the measurement report under `links`, and four criteria
