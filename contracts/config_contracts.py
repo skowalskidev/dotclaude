@@ -440,6 +440,7 @@ CONTRACTS: dict[str, dict] = {
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected non-shared project manifests, default false.",
+            "Keeps one tested log query per production connector kind, re-tested at first need; after 2 failed log reads a session switches to the provider's own record of the event.",
         ],
     },
     "references/project-instructions.md": {

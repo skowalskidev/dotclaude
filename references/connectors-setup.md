@@ -205,6 +205,23 @@ query endpoint with a broad token, because no route was recorded.)
 TEST: a production schema change traces to a merged PR and a pipeline run, or to Simon's hands, or to
 his yes for that file with a saved restore copy and a rolled-back dry run before it.
 
+## Production log reads: one tested query per connector
+
+**DO keep one tested log query per production connector kind in the table below** (kind, command,
+query dialect, date last run), and re-run it the first time a session needs logs, before the incident
+needs it. A documented endpoint can be removed and its replacement can use another dialect.
+**DO switch to the provider's own record of the event after 2 failed log reads** (a payment provider's
+session list, a database's rows, a deploy history). DON'T try a third query shape.
+TEST: a session whose log read failed twice has read a provider record before any further log attempt
+(the fix for several minutes lost on a removed log endpoint, then a replacement in another SQL dialect,
+when database and payment-provider reads already held the cause).
+
+| Kind | Command | Dialect | Last run |
+|---|---|---|---|
+
+No row is recorded yet. The first session that proves a query adds its row, with no hostname, account or
+project identifier.
+
 ## Known verification items (confirm during first live run)
 
 - Same-named server at local vs project scope: local should win; confirm no conflict.
