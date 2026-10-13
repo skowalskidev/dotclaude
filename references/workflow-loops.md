@@ -315,6 +315,20 @@ that gap is a spec row, measured from the kept element's edge. DON'T hand a buil
 category exemption ("keep the current frame", "ignore the chrome"). (the fix for a new line that sat
 15 pt too far from a kept input, unmeasured, because its spacing was filed under a broad deviation)
 
+DO list every route that draws the feature at intake, before the harness is built. Grep for every
+reader of the feature's data (a reply field, a flag, a quota value) and list every entry that reaches a
+screen drawing it. Each route gets a capture and a measured spec, or a written exemption naming why.
+DON'T measure only the screen the board is named for. TEST: the number of routes with a capture and a
+report, plus exemptions, equals the number of readers the grep found (the fix for a second route that
+kept the old design because only the main screen was ever captured).
+
+DO take, for each surface, one capture from the real backend, and label every other fixture string in
+the report `product-produced` or `sample data`. Add one long-content case per new element: the longest
+real value its field can hold. DON'T let a fixture carry copy the product never writes, or only short
+values; both hide missing copy and wrapping. TEST: each surface has a real-backend capture, no fixture
+string is unlabelled, and each new element has a long-content capture (the fix for a pill that wrapped
+under a long place name only the real data produced).
+
 DO put in every builder's first brief the spec path, the capture and measure commands, the absolute
 path of its boards' target images, and the fidelity gate below as the acceptance test.
 DON'T brief a builder to write UI it cannot see, or leave capture to the orchestrator at the end.
@@ -327,7 +341,9 @@ against the spec, in the board's state with the board's data:
 - **Boxes.** Read each row's built box (web: the element's bounding client rect; native: its
   accessibility frame in a UI test, e.g. `XCUIElement.frame`) and compare width, height, anchor offset
   and every gap. Tolerance: 1 px on web, 2 pt on native. Commit these as assertions in the project's
-  existing UI test runner.
+  existing UI test runner. Add one position assertion per new element against its nearest neighbour,
+  in every route that draws it (e.g. the plan line's top is at or below the composer's bottom): a slot
+  that exists is not the slot the board draws.
 - **Text and type.** Each string equals the spec's exactly. Font size, weight, line height, colour and
   radius equal the spec's (web: computed style; native: the value the view code declares).
 - **Regions.** Crop each new element together with its four neighbours from the board image and from
@@ -348,6 +364,13 @@ region crops and agreed deviations, and no builder narrative. It opens every reg
 re-runs the measure command, and returns one row per difference: spec id, board value, built value.
 A finding with no spec id or no number is sent back, never recorded.
 
+DO audit the whole screen in the same turn when anyone reports one design difference on it. Check
+every new element on that screen against its board: present, position against its nearest neighbour,
+copy. Fix all of them and report the list. DON'T fix only the one named. TEST: the reply to a
+single-difference report lists every new element on the screen with a verdict, and a second report on
+that screen finds none the list missed (the fix for four differences on one screen found one screenshot
+at a time).
+
 DO give the dashboard one section per board from the first build: the board image as `target`, the
 built capture as `current`, the spec and the measurement report under `links`, and four criteria
 (boxes, text and type, regions, judge) whose evidence is the report's counts. A board section reaches
@@ -358,7 +381,8 @@ app that draws it, against one copy table per shared surface.
 TEST: before a slice is handed back, each of its boards has a spec, a target image, capture and
 measure commands, a report with zero failed and zero unmeasured rows, and a judge verdict. A new
 element with no spec row, a deviation naming no element id, a nearest token without Simon's answer,
-or a shared string unmatched in one app fails the gate.
+a route that reads the feature's data with no capture or exemption, or a shared string unmatched in
+one app fails the gate.
 
 ## State schema (version 1)
 
