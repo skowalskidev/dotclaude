@@ -500,6 +500,7 @@ CONTRACTS: dict[str, dict] = {
             "Compose existing capacity and testing owners; preserve native opt-in, worker limits, stage deadlines and runtime signing policy without duplicating them.",
             "Preflight effective DEVELOPER_DIR, selected Xcode, runtime, explicit UDID, matching app artifact, backend identity and requested GUI before boot; discover installed capabilities without global switches, automatic installs or unbounded searches.",
             "Discover Device Hub and legacy Simulator read-only under selected Xcode; open the GUI only inside admission after owned boot readiness. A missing GUI name never establishes that its runtime is missing.",
+            "Run GUI discovery and the capacity status before any native launch, a repo script included; a script that assumes one GUI layout is fixed, not worked around in the invocation.",
             "Keep one foreground lease through fail-fast stages and viewing; separate process launch, simulator-screen evidence and desktop GUI evidence, reporting permission gaps without changing permissions.",
             "Bound requested preview retention with a local owner/device/app/service receipt, absolute deadlines and exact stop/restart commands; verify owned Shutdown before release and retain caches.",
             "Diagnose toolchain, boot, descriptor, signing, artifact, backend, overload, incomplete-result and discovery failures; fixture UI never proves native-service or live-backend correctness.",

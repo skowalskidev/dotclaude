@@ -27,6 +27,11 @@ shared playbook. Complete all five checks before boot:
    without opening it. Check Device Hub and legacy Simulator by capability, not a version-number
    branch or `open -a Simulator`. For a headless test, record GUI as unnecessary. If a requested GUI
    is missing, stop before boot and report the missing component; do not search the whole disk.
+   Run the snippet below and `python3 ~/.claude/bin/local-capacity.py status` before ANY native launch,
+   a repo launch script included, and read the script first. When it assumes one GUI layout (it opens
+   `Simulator` by name), fix the script to use the discovery, not the invocation. TEST: no native launch
+   precedes a recorded discovery result and load status (the fix for a repo script that failed with
+   "Unable to find application named 'Simulator'" on a toolchain where the GUI is Device Hub).
 4. **App artifact.** Record the `.app` path, bundle identifier, scheme/configuration, simulator SDK
    and architecture, source revision plus uncommitted-input fingerprint, generated inputs, dependencies
    and signing/entitlements. Reuse cached output only when those inputs match the requested branch.
