@@ -659,6 +659,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep review judges on the selected workflow setup through the shared parallelization protocol.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
+            "Time every new or changed time budget on a read against production, read-only, before release; record the measured figure beside the constant, and a budget under 2x that figure is a finding.",
             "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
             "After explicit native opt-in, prove required platform services with the runtime app, signing and simulator configuration before the suite; isolate defaults, authentication, singletons and host state.",
             "Route simulator execution to references/ios-simulator.md; unsigned compile evidence cannot prove Keychain runtime behavior. Use project-supported signing and existing entitlements without weakening product authentication or requiring signing for every test.",

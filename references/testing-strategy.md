@@ -301,6 +301,12 @@ match; a step whose expected request is missing halts the run.
 - **DO include the WHOLE package suite when a shared module changes.** A same-named test does not cover
   sibling consumers. Schedule this once at the batch gate, or reuse matching full-package evidence.
   TEST: a shared-module green verdict names full-package coverage, not one matching test file.
+- **DO time every new or changed time budget on a read against production before release.** Run the same
+  read read-only through the provisioned path, record the measured figure beside the constant, and
+  treat a budget under 2x the measured time as a finding. DON'T accept a budget checked only against
+  local data, where a warm local cache answers in milliseconds. TEST: each changed budget has a
+  production-measured figure next to it (the fix for a 2 second budget on three parallel cache reads
+  that took about 3 seconds in production, so a feature passed every local check and was missing live).
 - **DO tie a coverage verdict to its source revision, collection directory and complete test invocation.**
   Use partial reruns to diagnose failures; they do not replace full-run coverage. TEST: the reported
   percentage traces to complete collection for the same revision being judged.
