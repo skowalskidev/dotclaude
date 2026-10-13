@@ -519,7 +519,7 @@ CONTRACTS: dict[str, dict] = {
             "(git cherry shows no + / merge-tree changes nothing) for a cherry-picked branch, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
-            "After an authorized push, read the PR's merge state and the CI run for the pushed sha; no run is a failure to investigate. Run the repo's ordering checks before pushing a base merge.",
+            "After an authorized push or ready-flip, read the PR's merge state and confirm within a minute a CI run for the head sha is in progress; no run is a failure to investigate, and a run queued behind a superseded one is cancelled. Run the repo's ordering checks before pushing a base merge.",
             "After merging the base: reinstall dependencies, re-download test browsers, compare applied migrations with the files by name and number, and read git status for tool-rewritten files before the next commit.",
             "Require timestamped current provider identity and version/channel eligibility before release packaging; unknown eligibility stops archives/uploads, not independent local work. Reuse applicable fresh provider evidence without requiring duplicate access.",
             "A build number named in a ticket is an example: read the highest uploaded identifier (the store's API, else ask the user once) before the archive starts and build the next.",

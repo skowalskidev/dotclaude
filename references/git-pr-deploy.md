@@ -92,9 +92,12 @@ Applies once a push is authorized (Simon asked, or a `sk:ship-*` flow that pushe
 **DO read the PR's merge state and the CI runs for the pushed commit after every push:**
 `gh pr view <n> --json mergeable,mergeStateStatus` and `gh run list --commit <sha>`. Expect
 `MERGEABLE` and one run for that sha within 5 minutes. DON'T read "no checks" as a quiet state: a
-PR that conflicts with its base starts no run. TEST: each push records the merge state and a run id for
-its sha, or the named reason there is none (the fix for CI that never started for an hour because the
-PR conflicted with main).
+PR that conflicts with its base starts no run. Do the same within 1 minute of any state change that
+should start CI (marking a PR ready): confirm a run for the head commit is `in_progress`, and cancel
+(`gh run cancel <id>`) an older run it is queued behind. TEST: each push records the merge state and a run
+id for its sha, or the named reason there is none (the fix for CI that never started for an hour because
+the PR conflicted with main, and for required checks left at "waiting for status" for ten minutes behind
+a superseded run).
 
 **DO run the repo's own ordering and migration checks before pushing a merge of the base** (the CI gate
 list from `references/testing-strategy.md` § Defects first; e.g. a rule that a new migration is numbered
