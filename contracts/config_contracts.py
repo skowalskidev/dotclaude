@@ -646,6 +646,8 @@ CONTRACTS: dict[str, dict] = {
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
             "Own the live-variant check: before a walk, review or capture of a journey dealt per person, read production's arms and 72-hour shares as aggregates, report stopped and missing arms, and walk only a live arm unless Simon names another.",
             "A human's default walk starts at the real entry with a fresh account; a state is seeded directly only past 15 minutes of walking and is labelled; Claude loads step 1's address in his starting state first.",
+            "Each forced test state records the ids it wrote, removes exactly those, reads the count back and states it.",
+            "The journey matrix of an account feature includes signing in on a second browser or device with empty storage; device storage never stands in for a server-owned fact.",
             "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "

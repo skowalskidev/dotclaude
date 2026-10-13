@@ -72,6 +72,12 @@ bypasses for anything blocking a fast loop:
 - **Seeded records must satisfy the production access rules.** A seed that only works because
   it was written with admin god-mode produces a UI that shows nothing.
 - **Code-as-seed beats a saved data snapshot.** Snapshots rot and break clean checkouts.
+- **Record every forced state and remove exactly what you wrote.** DO note the id of each row you write
+  to force a state (a usage row, a temporary limit, a flag) when you write it, delete those ids and no
+  others, read the count back, and state it ("wrote 6, removed 6, 0 remain"). DON'T clean up with a
+  condition you invent afterwards. TEST: the written count equals the removed count and a re-read finds
+  none (the fix for a time-based cleanup condition that matched nothing one second later and left the
+  rows behind).
 
 ## Production source fidelity
 
@@ -248,6 +254,12 @@ match; a step whose expected request is missing halts the run.
 - **DO run diff-scoped static audits (complexity, dead code, duplication) at the final gate before
   whole suites or builds.** Fix audit findings with the affected audit alone; carry its passing evidence
   into the gate. TEST: a passing audit is not rerun unless its inputs changed.
+- **DO add a second-device row to the journey matrix of any account feature:** sign in as the same
+  account in a second browser profile or device with empty storage and repeat the feature's core action.
+  DON'T read a fact the server owns (plan, quota, entitlement, a saved choice) from device storage.
+  TEST: the row passes with empty storage, and no client-side store read stands in for a server-owned
+  fact (the fix for a member who could not search from a second browser because a request id was set
+  only where onboarding had run).
 - **DO include the WHOLE package suite when a shared module changes.** A same-named test does not cover
   sibling consumers. Schedule this once at the batch gate, or reuse matching full-package evidence.
   TEST: a shared-module green verdict names full-package coverage, not one matching test file.
