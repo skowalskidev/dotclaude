@@ -78,6 +78,8 @@ Ralph call executes inside that supervisor’s confirmed run; direct Ralph owns 
 DO enter ordinary work in this order: resolve plan and authorization → export dashboard → execute one
 ready item → verify → persist → export → repeat. Insert ask options → record answer before execution
 only for requested custom options or direct Ralph; insert judge after verification only when enabled.
+For a section whose target is a design board, verify is the fidelity gate in § Build from a supplied
+design source, run before the test gate; tests alone never move that section to `review` or `done`.
 TEST: selecting an engine creates no second plan, dashboard, options interview or budget.
 
 ## Ask for run options first
@@ -266,44 +268,97 @@ only the user's explicit approval (in chat or an exported approve verdict the ag
 
 ## Build from a supplied design source: 1:1 on the first build
 
-DO apply this whenever the task supplies a design source (a canvas, an exported board set, mockup HTML
-or images). The rules act before and during the build; a comparison made only at hand-back finds drift
-after the work is spent. A prose ticket that describes the design never replaces reading the source.
+DO apply this whenever the task supplies a design source (a canvas, an exported board set, mockup HTML,
+images, or a mockup Simon approved). The rules act before and during the build; a comparison made only
+at hand-back finds drift after the work is spent. A prose ticket that describes the design never
+replaces reading the source, and only the measurement report below can say a screen matches.
 
-DO finish these four steps at intake, before any layout is written or briefed:
+DO finish these five steps at intake, before any layout is written or briefed:
 1. **Read the source end to end:** every board, state variant, size, colour, radius, gap and string.
    Write its absolute path into the plan and into every builder brief.
 2. **Render every board in every state to its own image** at the board's viewport, one target per
    board and state, at a versioned path. Open a board's own file when it sits in a cross-origin frame.
    Reject a blank render (one colour, or a file under 5 KB) and re-render it.
-3. **Write the element map:** one row per design element naming the existing component it maps to (the
-   source's "today" screenshots show which), `new`, or `conflict: design shows X, app has Y`. Put every
-   conflict in the front-loaded question block, answered before the build starts.
-4. **Build the state harness first:** per board, a fixture, mock or launch argument that renders the
+3. **Write the measured spec** (next paragraph), one file per board and state.
+4. **Settle every conflict** the spec lists, in the front-loaded question block, each with the pick
+   you recommend.
+5. **Build the state harness first:** per board, a fixture, mock or launch argument that renders the
    app in the board's state with the board's exact sample data (same route, counts, names, dates) and
-   chrome (viewport, sidebar, theme, locale, scroll). Prove each capture command runs against a
-   placeholder before the screen is written.
+   chrome (viewport, sidebar, theme, locale, scroll), with animations stopped, fonts loaded and the
+   clock fixed. Prove the capture and measure commands run against a placeholder before the screen is
+   written.
 
-DO put in every builder's first brief the capture command, the absolute path of its boards' target
-images, and "iterate until the built capture matches the board" as the acceptance test.
+DO write the measured spec at `.context/design-spec/<board>-<state>.md`, one row per element the board
+adds or changes. Each row carries: a stable id the build exposes as its test identifier; the exact
+text; width and height; the offset from a NAMED anchor (parent edge, screen edge or safe-area edge);
+the gap to the adjacent element on all four sides, kept chrome and screen edges included; font size,
+weight and line height; colours; radius; and the existing component and token each value maps to, or
+`new`. Extract every number from the source's own values (inline styles, exported node data, the
+rendered board's element boxes). DON'T read a number off an image by eye when the source carries it;
+a flat image is measured in pixels at its 1x scale and its rows are marked `from image`.
+TEST: every element the board adds has a row, every row cell holds a number or a string, and each
+builder and judge brief names the spec's path.
+
+DO list three kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
+a board value that equals no token on the project's scale; a board value a project gate rejects (run
+the gate list in `references/testing-strategy.md` § Defects first on the untouched branch to learn
+which); a board element that contradicts a kept component (`design shows X, app has Y`). Default for
+the first two: keep the board's value, carried the way the gate accepts (a token added for it, or the
+gate's own exception syntax). A nearest token needs Simon's answer; the row then carries the agreed
+value and its delta from the board (e.g. a 14 px board radius on the 12 px token reads `12 px, -2,
+agreed <date>`). With no answer, build the recommended pick and show the row as an open decision in
+the board's section.
+
+DO write an agreed deviation as a list of existing elements by id, each with what stays and who
+agreed. It never covers an element the board adds, nor the gap between a new element and a kept one:
+that gap is a spec row, measured from the kept element's edge. DON'T hand a builder or a judge a
+category exemption ("keep the current frame", "ignore the chrome"). (the fix for a new line that sat
+15 pt too far from a kept input, unmeasured, because its spacing was filed under a broad deviation)
+
+DO put in every builder's first brief the spec path, the capture and measure commands, the absolute
+path of its boards' target images, and the fidelity gate below as the acceptance test.
 DON'T brief a builder to write UI it cannot see, or leave capture to the orchestrator at the end.
 For native screens, ask for the capture opt-in in the intake question block
 (`references/testing-strategy.md` § Native simulator suites) and name it in the brief.
 
-DO use the board's value for every size, radius, blur, colour and string. A token is used only when it
-equals that value; a nearest token is a deviation (e.g. a 14 px board radius is not the 12 px token).
+DO run the fidelity gate per slice, before its test gate: the builder runs it until it passes, and the
+supervisor re-runs the same committed commands before accepting the hand-back. Three mechanical checks
+against the spec, in the board's state with the board's data:
+- **Boxes.** Read each row's built box (web: the element's bounding client rect; native: its
+  accessibility frame in a UI test, e.g. `XCUIElement.frame`) and compare width, height, anchor offset
+  and every gap. Tolerance: 1 px on web, 2 pt on native. Commit these as assertions in the project's
+  existing UI test runner.
+- **Text and type.** Each string equals the spec's exactly. Font size, weight, line height, colour and
+  radius equal the spec's (web: computed style; native: the value the view code declares).
+- **Regions.** Crop each new element together with its four neighbours from the board image and from
+  the built capture at the same scale, never downscaled, and save the pair with a difference image.
+  When board and build render in the same engine, report the differing-pixel ratio (per-pixel colour
+  threshold 0.1, anti-aliased pixels excluded); a region over 1% fails until every differing area is
+  fixed, or listed in the report with its spec id and cause for the judge to accept or reject.
 
-DO run a fidelity gate per slice, before its test gate. Evidence is one side-by-side image per board
-(board | built, same state, same data) plus a deviation list in the builder's hand-back, one row per
-difference: element, board value, built value, reason. Green tests are not fidelity evidence. Give the
-dashboard one section per board, the board image as target and the built capture as current from the
-first build.
+DO hand back the measurement report at `.context/design-spec/<board>-<state>.report.md`: one line per
+spec row with spec value, built value and delta, then counts of rows, passed, failed and unmeasured.
+PASS is zero failed and zero unmeasured rows. DON'T write "matches the design" on a whole-screen
+side-by-side, green tests, or a report with an unmeasured row; a row nobody measured is reported
+`unmeasured` with what it needs (an opt-in, a harness state).
+
+DO give each slice one fresh read-only fidelity judge that did not build it. This judge belongs to the
+gate, so it runs with `--judge off` too. Its brief holds the spec, target images, built captures,
+region crops and agreed deviations, and no builder narrative. It opens every region crop at full size,
+re-runs the measure command, and returns one row per difference: spec id, board value, built value.
+A finding with no spec id or no number is sent back, never recorded.
+
+DO give the dashboard one section per board from the first build: the board image as `target`, the
+built capture as `current`, the spec and the measurement report under `links`, and four criteria
+(boxes, text and type, regions, judge) whose evidence is the report's counts. A board section reaches
+`done` only with all four passed on its current `artifactRevision`.
 DO check text a board draws on a surface several apps share (paywall, plan table, settings) in every
 app that draws it, against one copy table per shared surface.
 
-TEST: before a slice is handed back, each of its boards has a target image, a capture command and a
-side-by-side; a difference between the two images that is absent from the deviation list, or a shared
-string unmatched in one app, fails the gate.
+TEST: before a slice is handed back, each of its boards has a spec, a target image, capture and
+measure commands, a report with zero failed and zero unmeasured rows, and a judge verdict. A new
+element with no spec row, a deviation naming no element id, a nearest token without Simon's answer,
+or a shared string unmatched in one app fails the gate.
 
 ## State schema (version 1)
 

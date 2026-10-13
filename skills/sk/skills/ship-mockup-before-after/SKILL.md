@@ -113,7 +113,8 @@ DO use the shared dashboard protocol's Reference setup: supplied images, named p
 Draft the target from those inputs and the real product context, iterate with Simon, and freeze his
 approved design revision as the implementation's reference. Missing screenshots never block drafting.
 Pass every supplied or approved artifact by absolute path to builders and have them read it. For a
-supplied design source, apply `references/workflow-loops.md` § Build from a supplied design source.
+supplied design source, the mockup he approved included, apply `references/workflow-loops.md` § Build
+from a supplied design source.
 TEST: the implementation is judged against the approved target, not a later unapproved proposal.
 
 ## Choose the medium — a downloadable HTML FILE, or a Claude artifact URL

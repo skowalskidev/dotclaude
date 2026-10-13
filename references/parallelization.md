@@ -438,10 +438,12 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   duplicate that breaks the integrated build. e.g. 4 worktree agents each added the same image sets, 2
   declared the same type, and 2 branches both took migration 200. TEST: no two dispatch prompts are free to
   create the same asset, type or ID.
-- **DO give a builder of a visible screen its design source, target images and capture command in the
-  first brief** (`references/workflow-loops.md` § Build from a supplied design source). DON'T write "the
-  orchestrator screenshots the result": a builder that cannot see its screen ships layout errors one
-  look would catch. TEST: every UI-building prompt names a capture command and a target image path.
+- **DO give a builder of a visible screen its design source, measured spec, target images, capture and
+  measure commands and the project's gate constraints in the first brief**
+  (`references/workflow-loops.md` § Build from a supplied design source), and require the measurement
+  report in its hand-back. DON'T write "the orchestrator screenshots the result": a builder that cannot
+  see its screen ships layout errors one look would catch. TEST: every UI-building prompt names a spec
+  path, a capture command and a target image path, and every such hand-back carries a report.
 - **State the OUTPUT FORMAT, not just the task.** This is the one field Anthropic requires that the
   rest of this list doesn't already cover (their four: objective, output format, tool/source
   guidance, task boundaries). In a Workflow script, make it a real JSON schema via `agent(prompt,

@@ -150,7 +150,10 @@ CONTRACTS: dict[str, dict] = {
             "Keep one canonical dashboard/mockup path per surface; point the target at the current proposal, store approved snapshots by hash metadata, show each bounded revision at that same link, and wait for user review before the next substantial change.",
             "Preserve approved baseline styles and components during mockup iterations; do not implement against an unseen or unapproved target.",
             "Accept screenshots, platform names or no references; freeze explicit user approval of an AI-drafted target before judging implementation against it.",
-            "Build from a supplied design source 1:1: read it and render every board in every state to a non-blank target image before any layout; map elements to components and raise conflicts before the build; give builders a capture loop, board sample data, the board's values and a per-slice side-by-side gate with a deviation list; check shared-surface text in every app.",
+            "Build from a supplied design source 1:1: at intake render every board and state to a non-blank target image and write a measured spec, one numbered row per new element, mapped to its component and token.",
+            "Settle off-scale, gate-rejected and kept-component conflicts at intake; keep the board's value unless Simon agrees a nearest token; an agreed deviation names existing elements by id and never covers a new element or its gap to kept chrome.",
+            "Gate each design slice before its tests: box assertions within 1 px web and 2 pt native, exact text and type, full-size region crops, and a fresh fidelity judge; zero failed and zero unmeasured rows, reported with counts, is the pass.",
+            "Give each board one dashboard section with the board image as target, the built capture as current, and the spec and measurement report as links; check shared-surface text in every app.",
             "Signal a rebuilt preview/mockup only through the dashboard: regenerate the gauntlet and play one sound; never open the file or put open in a subagent brief.",
             "Own the same-machine handoff lifecycle as SSOT: prepare stamps a repeatable resume manifest and bumps a hop; resolve maps a pasted dashboard link, dashboard html or plan back to its plan; a resumed run reuses the recorded options with no second interview; the manifest survives normal updates.",
         ],
@@ -164,6 +167,7 @@ CONTRACTS: dict[str, dict] = {
             "Preserve planning authorization and use the shared dashboard template and runtime tests.",
             "Select the existing workflow or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor.",
             "Detect a handoff first: resume from a pasted dashboard link/html/plan via resolve, reusing the recorded engine and options without a second interview.",
+            "Hold every section built from a design source to the shared fidelity gate before review, on either engine and with the judge off; restate none of the gate.",
         ],
     },
     "skills/sk/skills/work-handoff-prepare-and-pickup/SKILL.md": {
@@ -557,7 +561,7 @@ CONTRACTS: dict[str, dict] = {
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per machine; record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
             "Native build prompts name the shared capacity engine or its compatibility frontend, a bounded stage and explicit worker cap; a per-run lock file is not the coordination.",
-            "A prompt for a worker that builds a visible screen names its design source, target images and capture command; it never defers capture to the orchestrator.",
+            "A prompt for a worker that builds a visible screen names its design source, measured spec, target images and capture command, and its hand-back carries the measurement report; it never defers capture to the orchestrator.",
             "Split a serial-resource editing lane only when measured critical-path evidence supports it and the added workers fit both the total worker cap and shared heavy-work capacity.",
             "Freeze the contract and fixture before dispatching every layer together; workers return once with changed files and a check inventory, and the orchestrator owns final verification under the shared batch policy.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
@@ -586,7 +590,8 @@ CONTRACTS: dict[str, dict] = {
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every out-of-code surface the work touches (edge/CDN, a design tool, a third-party "
             "console, a dashboard) is asked for before the plan, and each ticket names the inputs "
-            "its implementer must obtain, including a visible change's design source path and board ids.",
+            "its implementer must obtain, including a visible change's design source path, board ids "
+            "and measured spec path, with no board value restated in ticket prose.",
             "Before a ticket goes to a build, every decision it depends on is resolved INTO the ticket "
             "(the option chosen plus a one-line why) and every requirement is present, so a builder that "
             "cannot ask — a cloud session, a parallel part, a teammate — misses nothing and guesses nothing.",
@@ -630,6 +635,9 @@ CONTRACTS: dict[str, dict] = {
             "Route simulator execution to references/ios-simulator.md; unsigned compile evidence cannot prove Keychain runtime behavior. Use project-supported signing and existing entitlements without weakening product authentication or requiring signing for every test.",
             "A full native suite waits for the bounded runner to finish and verifies its exit, final result and expected test scope; a nested suite line or timed-out runner cannot establish green.",
             "Redirect a run expected to exceed 5 minutes to a log file and read the file; rerun native failures by class and run the full suite once at convergence; ask for the native capture opt-in at intake when a design source covers native screens.",
+            "List the project's CI gate commands at intake, run each gate under 2 minutes once on the untouched branch, and run the whole list before the first push; never learn a gate from a failed CI run.",
+            "Report executed, passed, failed and skipped counts per test class; zero executed is not run, never a pass.",
+            "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
             "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
@@ -962,6 +970,7 @@ CONTRACTS: dict[str, dict] = {
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
             "Names rules/living-plan.md among the always-on rules it does not restate.",
+            "Sends a supplied design source through the intake in references/workflow-loops.md before any builder is briefed, and restates none of it.",
         ],
     },
     "skills/sk/skills/plan-stable-persistent-dynamic-complete-full-plan/SKILL.md": {

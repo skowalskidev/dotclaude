@@ -43,6 +43,11 @@ bypasses for anything blocking a fast loop:
 - **Stub at the service boundary, never in the test.** `if (isStub()) return <fixture>` at the
   call site inside the app. Intercepting network calls from inside a spec asserts against a
   fiction; a boundary stub keeps routing, auth, validation and persistence in play.
+- **DO trace from the side effect a check must observe back to its entry point, in the mode the check
+  runs in (fixture, mock or live), before running it.** A path the fixture returns ahead of is not
+  observable in that mode; name in the plan the mode that exercises it. TEST: no check runs twice in
+  a mode whose fixture stubs the code under observation (the fix for an event check run three times
+  on a fixture that never reached the code firing it).
 - **Every test-only bypass needs a defence-in-depth production lock** — gate on
   `flag === on && mode !== production`, checked independently in each layer, so a stray flag in
   a production deploy cannot neuter a real call.
@@ -223,6 +228,14 @@ needs it or Simon's explicit request; record the reason and scope. Compile an im
 only when required to continue the work. DON'T turn cheap checks or dependency builds into a per-edit
 verification loop. Leave required hooks and CI enabled and unchanged.
 
+**DO read the project's CI configuration at intake and write its gate list into the plan:** every
+command CI runs that can fail the change (lints, audits, design-system checks, type checks, pinned
+source tests), each with its local command. Run each gate that takes under 2 minutes once on the
+untouched branch and record what it forbids; this is the one diagnostic the batch runs by default.
+Write those constraints into every builder brief, and run the whole list once at convergence, before
+the first push. DON'T learn a gate from a failed CI run. TEST: the first CI run on a new pull request
+fails on no gate that has a local command (the fix for five gates found one push at a time).
+
 **DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
 PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant
 suites and builds ONCE on the converged, reviewed batch, followed by the real-app check within its
@@ -234,6 +247,11 @@ environment.** Record each command, scope, revision or source fingerprint, input
 proof. Map that evidence to the final batch; a new commit SHA alone does not invalidate unchanged inputs.
 A prior partial run covers only its recorded scope, never the whole suite. Final verification remains
 mandatory: run every uncovered relevant check, and report blocked or skipped coverage honestly.
+
+**DO report executed, passed, failed and skipped counts per suite or test class.** A class with zero
+executed tests is `not run`, listed with the flag or service it needs. DON'T accept or pass upward
+"0 failures" alone. TEST: every verification line carries the four counts, and no class with zero
+executed tests counts as passing (the fix for opt-in classes accepted as green at 50 skipped, 0 failed).
 
 **DO fix final-gate failures and rerun the affected checks** (native: the failed classes only, with
 `xcodebuild -only-testing:<target>/<class>`; the full suite runs once, at convergence, from the
@@ -252,7 +270,8 @@ tests in the final gate. Record unrun runtime/UI cases and their reason separate
 never infer a runtime pass from a compile. TEST: each native runtime/UI/capture run cites Simon's request,
 and a default native batch completes with compile/backend evidence and honest runtime skips.
 DO ask for the opt-in at intake, in the front-loaded question block, when a supplied design source covers
-native screens; a grant covers scoped captures of those screens, never the runtime suite. TEST: no
+native screens; a grant covers scoped captures and the frame-assertion test classes of those screens,
+never the runtime suite. TEST: no
 builder of a native screen is briefed blind for want of an unasked opt-in.
 
 DO apply `references/dev-server-hygiene.md` § Machine-wide capacity before booting a simulator or

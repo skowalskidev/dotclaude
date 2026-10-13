@@ -21,4 +21,7 @@ DO dispatch the selected engine within existing authorization and any required t
 - `ralph` → `/sk:work-ralph-loop`, passing the same plan and already confirmed options.
 DO retain supervisor ownership of the shared plan, dashboard and any enabled independent judge.
 Run the shared judge stage after each build result and route its gaps back to the selected engine.
+DO hold every section built from a design source to that reference's fidelity gate before `review`:
+its pass is the measurement report, never a side-by-side read by eye, on either engine and with the
+judge off.
 TEST: both engines keep the same plan and viewer; selecting Ralph starts no second options interview.

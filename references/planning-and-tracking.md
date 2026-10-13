@@ -104,8 +104,9 @@ silently missing.
 - **DO make each ticket name the inputs its implementer must obtain before starting** — mockup/design
   references, that out-of-code config, a sample payload — so the downstream agent asks Simon for them
   instead of guessing. A ticket that needs a mockup and does not say so produces a confidently wrong build.
-  For a visible change, name the design source's absolute path and board ids, and apply
-  `references/workflow-loops.md` § Build from a supplied design source.
+  For a visible change, name the design source's absolute path, board ids and measured spec path,
+  restate no board value in ticket prose, and apply `references/workflow-loops.md` § Build from a
+  supplied design source.
 
 ## Before building, the ticket is a complete, decision-resolved spec — the builder cannot ask
 

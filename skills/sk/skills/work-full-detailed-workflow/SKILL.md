@@ -55,7 +55,9 @@ current, reconcile against it.
    yes to. **With no ticket the prompt IS the plan**: derive it, record the source as
    `prompt-derived`, and his approval is the ratification. That is the common case, not the edge one.
 3. Verify the foundation assumptions (read the real code, check online, run an empirical spike) — and
-   read the project's contracts before changing any unit that has one.
+   read the project's contracts before changing any unit that has one. When the task supplies a design
+   source, finish the intake in `~/.claude/references/workflow-loops.md` § Build from a supplied design
+   source here, before step 5 briefs a builder.
 4. Plan tree-structured coverage and write needed tests; defer execution to step 9.
 5. Implement the whole authorized task batch, including every feature; delegate independent edits using the saved setup and inspect the returned diffs on disk.
 6. Observability + failure handling; never fail silently, no dead-end states.
