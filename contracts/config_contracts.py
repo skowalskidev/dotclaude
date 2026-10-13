@@ -638,6 +638,8 @@ CONTRACTS: dict[str, dict] = {
             "List the project's CI gate commands at intake, run each gate under 2 minutes once on the untouched branch, and run the whole list before the first push; never learn a gate from a failed CI run.",
             "Report executed, passed, failed and skipped counts per test class; zero executed is not run, never a pass.",
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
+            "Own the live-variant check: before a walk, review or capture of a journey dealt per person, read production's arms and 72-hour shares as aggregates, report stopped and missing arms, and walk only a live arm unless Simon names another.",
+            "A human's default walk starts at the real entry with a fresh account; a state is seeded directly only past 15 minutes of walking and is labelled; Claude loads step 1's address in his starting state first.",
             "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
@@ -672,6 +674,7 @@ CONTRACTS: dict[str, dict] = {
             "Judges the journey as a user meets it, not as the code is organised.",
             "Empty, loading and error are checked on every surface, and the wait is a stage in its "
             "own right. Those are the three an AI-built flow ships without.",
+            "Sends a flow that differs per person or device to the live-variant check in testing-strategy.md and restates none of it.",
         ],
     },
     # --- Simon's own skills --------------------------------------------------------
@@ -698,6 +701,10 @@ CONTRACTS: dict[str, dict] = {
             "account identity; reconstructs steps he skipped. Method lives in testing-strategy.md.",
             "Runs /sk:test-automated-full-matrix for its machine pass (Phase 2) rather than restating "
             "the automated method; the two skills are distinct (human journey vs autonomous matrix).",
+            "Before the walk and unasked, reports the arms production deals now per platform, stopped and "
+            "missing arms included, and pins the walk to a live arm named in the charter. Method lives in testing-strategy.md.",
+            "Starts the default walk at the real entry with a fresh account and the lead-up, labels each "
+            "directly seeded state, and loads step 1's address itself in the human's starting state before handing it over.",
         ],
     },
     "skills/sk/skills/test-automated-full-matrix/SKILL.md": {

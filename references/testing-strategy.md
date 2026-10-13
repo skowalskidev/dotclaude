@@ -39,7 +39,8 @@ bypasses for anything blocking a fast loop:
   records will my test mode wake up? Delete them or prove the allowlist blocks them.
 - **Force state directly instead of walking the flow.** Keep a cheat sheet mapping each
   precondition to the fastest direct-write command plus its verification command. Don't repeat
-  a twelve-step onboarding for every scenario.
+  a twelve-step onboarding for every scenario. A person's first walk is the exception
+  (§ Human-driven sessions).
 - **Stub at the service boundary, never in the test.** `if (isStub()) return <fixture>` at the
   call site inside the app. Intercepting network calls from inside a spec asserts against a
   fiction; a boundary stub keeps routing, auth, validation and persistence in play.
@@ -157,11 +158,46 @@ the cleanup command targets only this preview and releases its claimed ports.
 - **Triangulate three signals after every scenario:** the runtime log, the dev-server console,
   and a re-read of the persisted records. The UI can look right while the write is wrong.
 
+## Live variants: walk and judge what production deals now
+
+DO run this before planning any walk, review or capture of a journey that passes through something
+dealt per person or per device: an experiment arm, a feature flag, a pricing or onboarding variant, a
+platform split. Skip it only when the code on the path shows no such dimension.
+
+DO read what production deals NOW, read-only, through the provisioned path (`rules/connectors.md`),
+as aggregates and never one person's row: per dimension and per platform, each arm dealt in the last
+72 hours with its share, and each arm with zero deals in that window marked `stopped` with its last
+deal date. Compare with the branch: an arm production deals that the branch lacks is `missing here`.
+Take the arms from the data. A config file, a memory, or Simon's own account of which arms are live
+is a claim to check against it.
+
+DO report it before the walk starts in at most 6 lines: the dimension, the live arms and shares per
+platform, every `stopped` arm and every `missing here` arm.
+
+DO pin the walk to an arm production is dealing: the largest share unless Simon names another, the
+nearest live arm when the branch lacks the largest. Name the arm, how it is pinned and its share in
+the plan (a paced walk's charter). DON'T pace a person through, review or capture an arm with zero
+deals in the window unless he asks for that arm by name.
+
+TEST: the plan names a dimension, an arm, its 72-hour share and the read's UTC time, and no walked
+arm has zero recent deals (the fix for a walk planned on an arm production had stopped dealing days
+earlier, while a newer arm was absent from the branch).
+
 ## Human-driven sessions — prove the environment and the provider identity
 
 A person clicking through a journey while Claude watches logs only works when both sit on the SAME
 server and the SAME external accounts. Prove that before the first step with a side effect, not after
 something has gone wrong.
+
+**DO start the default walk where a real person starts:** the real entry point, a fresh account or
+device, and the whole lead-up that produces the state under test, so he judges the change in its
+context. Seed a state directly only when walking cannot reach it in under 15 minutes (a used-up quota,
+a later billing state), and label each such step `seeded` in the plan and when he reaches it.
+**DO drive the entry yourself before giving step 1:** load the exact address step 1 names, in the
+state he will be in (signed out, fresh device or profile) and the environment he will use, and confirm
+the expected first screen renders with no redirect away, no failed call the page needs and no missing
+local service. Fix or re-route the entry before he sees it. TEST: step 1's address was loaded by
+Claude in that state this session, and what rendered matches the step's Expect line.
 
 **DO name the host he must see in the address bar, and make his first request the proof.** Give the
 exact URL (the tailnet or LAN preview, never a bookmark), have him load it, and find that request in

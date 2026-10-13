@@ -22,6 +22,8 @@ journey review asks whether the person on the other end can get through it.
   feel lost.
 - Enumerate every touchpoint. A step that silently assumes earlier state which was never set up is a
   gap, and it is invisible to anyone who already knows the feature.
+- Before walking a flow that differs per person or per device, apply
+  `references/testing-strategy.md` § Live variants and walk an arm production deals now.
 
 ## Every step present and connected — no dead ends
 

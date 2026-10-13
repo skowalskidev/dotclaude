@@ -47,6 +47,10 @@ is the recommended option:
 
 If he already said all this, don't ask. State your reading in one line and move.
 
+**Find the live variants before the charter, unasked.** When the journey passes through anything dealt
+per person or per device, apply `testing-strategy.md` § Live variants: report what production deals
+now, pin the walk to a live arm, and name that arm in the charter.
+
 Write a one-line **charter** before starting: *explore \<area\>, using \<setup\>, to discover
 \<information\>* — and say what is explicitly NOT covered. Scope stated up front prevents the
 session wandering the whole app.
@@ -91,7 +95,8 @@ Full detail in `testing-strategy.md`. The two that matter most here:
 - **Collapse time**, and remember a time-collapse switch is **inseparable from an allowlist** —
   fast-forwarding in a shared environment wakes every stale record and can fire real side
   effects at abandoned data.
-- **Force state directly** rather than walking a twelve-step flow to reach it.
+- **Force state directly** rather than walking a twelve-step flow to reach it, for the machine pass
+  and for re-doing one step after a fix. His first walk starts at the real entry (1.5).
 
 Say plainly which gates you added, how they're production-locked, and add them to the teardown
 checklist immediately so they can't be left on.
@@ -106,6 +111,11 @@ create themselves, and stop there. Every input the change ADDS is Simon's to typ
 time in Phase 4 — a field he never filled is a field neither of you has verified, and "I seeded it
 and it worked" is exactly the report that precedes him finding the flow makes no sense. Pre-fill
 only what is off the path being tested (a login, an unrelated account setting).
+
+**Start his walk at the real entry with a fresh account, lead-up included, by default** (the fix for
+an account seeded straight into the state under test, which hid the journey leading to it). The
+threshold for seeding a state directly, and its `seeded` label, are in `testing-strategy.md` §
+Human-driven sessions.
 
 ### 1.6 Bind external providers to the app's own credentials
 If the journey touches an external provider (payments, email, SMS, a webhook source), start any local
@@ -154,7 +164,8 @@ Then tail the log with a live filter for errors, warnings and correlation ids. R
 the job: Claude's only view of Simon's session is what the server prints.
 
 ### 4.1b Prove he is on YOUR server, before step 1
-Apply `testing-strategy.md` § Human-driven sessions. Give him the exact URL to open (for a phone,
+Apply `testing-strategy.md` § Human-driven sessions. Drive step 1's address yourself first, in the
+state he starts in, as that section sets out. Give him the exact URL to open (for a phone,
 the verified share from `/sk:work-preview-on-phone`) and say which host the address bar must show.
 Find his first request in the watched log. Absent after one retry: stop, because he is on another
 server, possibly production. Before any payment step, read the checkout session id from the log and
