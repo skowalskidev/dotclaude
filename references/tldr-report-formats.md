@@ -113,5 +113,9 @@ testing?"; the diff already answers it.
    redirect, the webhook, the entitlement write, the screen they land on), and the one check it needs
    (a test-mode checkout, a replayed event, a named test).
 
+3. **One row per account state that can reach a pay button**, with the server's precondition and the
+   production press-to-session rate, per `references/testing-strategy.md` § Layering and coverage
+   arguments.
+
 TEST: a change that reaches a payment path hands back this line and table, and a row exists for every
 entry the diff changed (the fix for a hand-back that left the paywall question for Simon to ask).

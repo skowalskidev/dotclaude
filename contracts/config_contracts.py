@@ -664,6 +664,7 @@ CONTRACTS: dict[str, dict] = {
             "Claude runs every later step in its own browser from his state and sends it only when the Expect screen appears; an account he may be signed into is never deleted or reset, and a reset step is one storage-clearing line plus the next URL.",
             "Each forced test state records the ids it wrote, removes exactly those, reads the count back and states it.",
             "The journey matrix of an account feature includes signing in on a second browser or device with empty storage; device storage never stands in for a server-owned fact.",
+            "A pay path is reported safe only with one row per account state that can reach a pay button: the server's precondition read and the production press-to-session rate; presses with no sessions is a finding.",
             "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
@@ -688,7 +689,7 @@ CONTRACTS: dict[str, dict] = {
             "Every block passes the glance test: real names, one line per step, no rediscovery, "
             "and something the reader can act on at the end.",
             "A change that touches or opens a payment path hands back Block 4 unasked: the payment "
-            "files changed (or `none`) and a row per paywall entry with what follows paying and its one check.",
+            "files changed (or `none`) and a row per paywall entry with what follows paying and its one check, plus a row per account state with its precondition and production press-to-session rate.",
         ],
     },
     "references/user-journey-review.md": {

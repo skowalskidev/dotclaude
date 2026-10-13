@@ -290,6 +290,14 @@ match; a step whose expected request is missing halts the run.
   TEST: the row passes with empty storage, and no client-side store read stands in for a server-owned
   fact (the fix for a member who could not search from a second browser because a request id was set
   only where onboarding had run).
+- **DO verify a pay path for every account state that can reach a pay button before reporting it
+  safe.** List each arm, each sign-up route, and guest and verified accounts; read the server's
+  preconditions for each state; check production for each state's press-to-session rate over the last
+  7 days. A state with presses and zero sessions is a finding, whatever the diff says. DON'T report a
+  path working after walking it from one account state, or locally with no payment provider. TEST: the
+  report has one row per account state with the precondition read and the production rate (the fix for
+  a payment path called low risk from an empty diff, while one class of account had been refused by the
+  checkout since an arm launched).
 - **DO include the WHOLE package suite when a shared module changes.** A same-named test does not cover
   sibling consumers. Schedule this once at the batch gate, or reuse matching full-package evidence.
   TEST: a shared-module green verdict names full-package coverage, not one matching test file.
