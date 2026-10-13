@@ -85,6 +85,33 @@ in the same directory; when another open PR already adds it, take the next free 
 number from the default branch alone (the fix for two open PRs both adding migration 197). TEST: no
 two open PRs add the same numbered file.
 
+## After a push, and after merging the base in
+
+Applies once a push is authorized (Simon asked, or a `sk:ship-*` flow that pushes is running).
+
+**DO read the PR's merge state and the CI runs for the pushed commit after every push:**
+`gh pr view <n> --json mergeable,mergeStateStatus` and `gh run list --commit <sha>`. Expect
+`MERGEABLE` and one run for that sha within 5 minutes. DON'T read "no checks" as a quiet state: a
+PR that conflicts with its base starts no run. TEST: each push records the merge state and a run id for
+its sha, or the named reason there is none (the fix for CI that never started for an hour because the
+PR conflicted with main).
+
+**DO run the repo's own ordering and migration checks before pushing a merge of the base** (the CI gate
+list from `references/testing-strategy.md` § Defects first; e.g. a rule that a new migration is numbered
+above every migration on the base). TEST: the first CI run after a base merge fails on no gate that has
+a local command.
+
+**DO finish four steps after merging the base, before the next commit:**
+1. Reinstall dependencies with the project's lockfile command.
+2. Re-download the test browsers and pinned binaries (a base dependency bump can change the browser a
+   test tool needs).
+3. After any migration rename, compare the local stack's applied migrations with the files by name and
+   number, and state which files are applied (a stale record of the old name hides a base migration
+   that took its number).
+4. Read `git status` for tracked files a tool rewrote, and revert or explain each.
+TEST: the hand-back names the install, the browser download, the applied-migration comparison and the
+`git status` result.
+
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 
 **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
