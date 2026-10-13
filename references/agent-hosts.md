@@ -72,6 +72,17 @@ Existing hook commands are read from `settings.json` on each event, and rule con
 For immediate instruction updates in an existing conversation, explicitly re-read the changed rules.
 TEST: change a fixture rule/hook/connector once; the next read/event/launch observes it with no copy step.
 
+## Image generation
+
+DO generate images through the Codex ChatGPT subscription's built-in image tool, never a paid API:
+`~/.claude/bin/codex-launch.py exec -i <reference.png> --sandbox workspace-write "<prompt naming the
+absolute output path and size>"`, with `AGENT_ALLOW_CROSS_PROVIDER=1` when Simon named the host from
+a Claude chat, one process per image, from a Python driver that prints the scene head after patching
+(a silent no-op replace cost a regeneration). DON'T call a bare `codex` from a subprocess (its PATH
+binary rejects the subscription config), and put `-i` before `--sandbox`, never last (the prompt is
+swallowed as another image). TEST: every image on disk traces to one `codex-launch.py exec` line
+and no OpenAI or Gemini API call appears in the shell.
+
 ## Hooks
 
 Review native definitions in `/hooks` in the selected Codex profile before relying on enforcement.

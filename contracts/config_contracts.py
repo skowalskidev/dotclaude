@@ -189,6 +189,16 @@ CONTRACTS: dict[str, dict] = {
             "Keep one supervisor, judge owner, options answer, viewer and iteration budget per invocation.",
         ],
     },
+    "bin/design-board.py": {
+        "mission": "Simon opens one shareable board and judges many real-looking variants side by side, Figma-like, then picks.",
+        "purpose": "Builds the exploration form of a mockup: phone frames in titled sections on a pan/zoom whiteboard from a spec.json, with measurement hooks for the capture loop; extracts the spec back.",
+        "criteria": [
+            "Render entirely from the spec: title, lead, sections, frames with label, title, hypothesis, note, pick, hidden, night, and either inner html or an image; no project strings in bin/design-board.html.",
+            "Expose window.__measure() returning per-frame overflow past the phone bottom and the data-oneline cells that wrapped, and window.__flatten() returning each frame's page box for a full-page capture.",
+            "Round-trip: extract returns the spec that built the board, minus the embedded font bytes; the output opens from file:// with no external request.",
+            "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip.",
+        ],
+    },
     "bin/mockup-build.py": {
         "mission": "Simon opens any mockup and sees the design itself first, in one familiar shell that never shifts between rounds.",
         "purpose": "Builds every /sk:ship-mockup-before-after deliverable by inlining a spec.json into the generic bin/mockup-shell.html, and extracts the spec back out.",

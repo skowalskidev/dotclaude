@@ -1,6 +1,6 @@
 ---
 name: ship-mockup-before-after
-description: Show a planned visible change as a before/after mockup before building it — a real screenshot as BEFORE, a measured HTML/CSS overlay as AFTER, one per plan part — shipped as a self-contained HTML file or artifact that reviewers comment on and hand back as a build spec. After approval, implements and proves each difference on the real screen. Use for "mock this up", "show me before and after", "what will this look like", "I want to see it before you build it", "implement the mockup", "the screen doesn't match the mockup", or any plan with a visible change.
+description: Show a planned visible change as a before/after mockup before building it — a real screenshot as BEFORE, a measured HTML/CSS overlay as AFTER, one per plan part — shipped as a self-contained HTML file or artifact that reviewers comment on and hand back as a build spec. After approval, implements and proves each difference on the real screen. Use for "mock this up", "show me before and after", "what will this look like", "I want to see it before you build it", "implement the mockup", "the screen doesn't match the mockup", "mock up many design variants from different angles, Figma-like", "give me more design variants to choose from", or any plan with a visible change.
 argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 ---
 
@@ -158,6 +158,13 @@ WHY: regeneration then becomes "re-render this JSON" (mechanical, loss-free) ins
 UI" (lossy — verbatim structured data survives an LLM round-trip 91% vs 14% for a summary).
 TEST: with the render layer deleted, `#spec` alone still holds every variant, version, selection and
 comment; re-running `render(spec)` reproduces the mockup exactly.
+
+## Many variants to choose from: the design board
+
+DO build an exploration of many variants (an A/B board, "different angles", a Figma-like deliverable)
+through `bin/design-board.py` as `references/workflow-loops.md` § Shareable design board sets out; the
+shell below is the decision form for one surface. TEST: a variants ask produces one board file with
+`data-frame` tags, not a rail of switchable variants.
 
 ## One shell for every mockup: build it through `bin/mockup-build.py`, never hand-roll the chrome
 

@@ -203,9 +203,11 @@ into a narrow mobile layout.
 New task overviews use this shell, not a second bespoke gallery. Reuse an existing canonical entry
 path when connecting an ongoing surface. TEST: opening an old version still shows its original picks.
 
-DO build every preview/mockup asset through the standard shell —
-`python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>`, which inlines the `#spec` into
-`~/.claude/bin/mockup-shell.html` — never hand-roll a bespoke self-contained HTML. The shell owns
+DO build every preview/mockup asset through a standard shell, never a hand-rolled self-contained
+HTML: the decision form, one surface before/after, through
+`python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>` (inlines the `#spec` into
+`~/.claude/bin/mockup-shell.html`); the exploration form, many variants side by side, through
+`python3 ~/.claude/bin/design-board.py build <spec.json> <out.html>` (§ Shareable design board). The shell owns
 fit-to-viewport scaling, so a mockup built through it is uniform and full-width; a hand-rolled fixed-
 width iframe renders clipped, with a dead side gutter, and every surface looks different. When the build
 is fanned out to a subagent, the orchestrator's brief passes the shell path and says "author a
@@ -359,6 +361,52 @@ TEST: before a slice is handed back, each of its boards has a spec, a target ima
 measure commands, a report with zero failed and zero unmeasured rows, and a judge verdict. A new
 element with no spec row, a deviation naming no element id, a nearest token without Simon's answer,
 or a shared string unmatched in one app fails the gate.
+
+## Shareable design board: the default form for a visual mockup ask
+
+DO answer any ask for design mockups, variants, "different angles", an A/B test board or a
+"Figma-like" deliverable with ONE self-contained board built by `bin/design-board.py`: phone frames
+on a pan/zoom whiteboard, grouped in titled sections, each frame carrying a label, a title, a
+one-line hypothesis and a pairing note that names the frame it tests against. Build every frame
+from the project's real CSS, font, tokens and components (the money block, plan cards, buttons it
+ships), with hero art as real raster images. DON'T draw a mockup as a Docs widget, an SVG or a
+token-only sketch; it will be judged next to a real app and lose. (the fix for a round of eight SVG
+paywalls rejected as toddler-level next to a Claude Design export)
+TEST: the deliverable opens from `file://`, every frame is `data-frame`-tagged, and a grep of the
+build spec finds the project's font file and colour tokens, not invented hex.
+
+DO generate hero art through the subscription image path in `references/agent-hosts.md` § Image
+generation, one scene per frame with the product's mascot or brand object as the reference image,
+portrait, no text in the image, a calm lower third for UI. DON'T use a paid API or stock photos the
+project does not ship.
+
+DO open the board with a Today section: the variants production is dealing now, read from the
+experiment tables as 72-hour shares (`references/testing-strategy.md` § Live variants), captured
+from the real components with the repo's own fixture harness, labelled with arm and share. A screen
+that needs a native simulator is listed as not shown unless Simon opts in. TEST: the Today section
+cites the table and date it was read from, and each capture names its fixture run.
+
+DO measure before every capture and fix in the shared CSS, never per frame: `window.__measure()`
+reports overflow past the phone bottom and every `data-oneline` cell that wrapped; add a gap check
+between the content blocks (the dead band above a bottom-pinned block was invisible to the overflow
+check) and a surface-contrast check when the body reads flat. DEFAULT: 0 overflow, 0 wrapped, one
+rhythm between blocks. TEST: the measure call runs in the capture script, and its result is in the
+hand-back evidence, not a visual guess.
+
+DO give every fact one home on a screen and every screen three surfaces: the section background,
+the cards on it, and one tinted panel around the decision with the only saturated accent. A chip
+reuses an established mark; never a new figurative line drawing at 16 px. DON'T add a summary card
+that repeats the deal card or a benefit line that repeats the headline; a tidy container for a repeat
+is still a repeat. TEST: no figure or sentence appears twice on one screen.
+
+DO give every interactive state that matters its own open-state frame (a terms sheet, a drawer, a
+selected plan), so the static capture shows it without a click. DO badge picks on the frame and, on
+request, move the not-picked frames off the board while keeping them in the spec (`hidden: true`).
+TEST: a reviewer sees every reviewed state in the full-page capture.
+
+DO publish the board as a claude.ai artifact when asked for a shareable link: the Artifact tool when
+the harness exposes it, else the composer route in `references/browser-debugging.md` § Publish an
+HTML file as an artifact. Hand back the local path and the link together.
 
 ## State schema (version 1)
 

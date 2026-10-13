@@ -256,6 +256,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "full test suites compete for CPU", "expect": "work-isolate-environment"},
 
     # --- Before/after mockups ----------------------------------------------------------
+    {"phrase": "mock up many design variants from different angles, Figma-like", "expect": "ship-mockup-before-after"},
+    {"phrase": "give me more design variants to choose from", "expect": "ship-mockup-before-after"},
     {"phrase": "mock this up", "expect": "ship-mockup-before-after"},
     {"phrase": "show me before and after", "expect": "ship-mockup-before-after"},
     {"phrase": "what will this look like", "expect": "ship-mockup-before-after"},
