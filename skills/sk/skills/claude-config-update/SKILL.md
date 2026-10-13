@@ -1,6 +1,6 @@
 ---
 name: claude-config-update
-description: The only route for changing Simon's own ~/.claude config or a CLAUDE.md he maintains — rules, references, sk/sk-work skills, hooks, bin engines (gauntlet dashboard, mockup shell), connector manifests, settings wiring. Takes pasted corrections or a stated new part, picks where it belongs, previews, and edits only after a yes. Use for any config change, "ignore project instructions", "create a new skill", "make this correction permanent", "add this rule to my UI conventions", "make the gauntlet dashboard open the mockup in a new tab", or "make this stick". Not the built-in /update-config.
+description: The only route for changing Simon's own ~/.claude config or a CLAUDE.md he maintains — rules, references, sk/sk-work skills, hooks, bin engines (gauntlet dashboard, mockup shell), connector manifests, settings wiring. Takes pasted corrections or a stated new part, picks where it belongs, previews, and edits only after a yes. Use for any config change, "ignore project instructions", "create a new skill", "make this correction permanent", "add this rule to my UI conventions", "make the gauntlet dashboard open the mockup in a new tab", "record this lesson for later", or "make this stick". Not the built-in /update-config.
 argument-hint: "paste the correction-prompts / rule to fold in — the target is proposed for you"
 ---
 
@@ -159,6 +159,25 @@ than duplicate it.
   wanted. You often need both the wrong output and the correction to see the real rule.
 - If the correction is a single vague line ("no, do it properly"), ask for one concrete detail of what
   was wrong — a generic rule can't be extracted from a non-specific complaint.
+
+### Lessons that arrive before the fix, during a draft, or after it lands
+
+- **DO append a lesson to `.context/config-lessons.md` in the session's worktree the moment it is
+  observed**, whenever Simon says to record now and fix later, or a change for the same concern is
+  already drafted or landed. One entry: what happened, the mechanism, the rule that prevents it, and a
+  status of `open`, `on <branch>`, `landed <sha>` or `dropped <who, when>`. DON'T keep a lesson only
+  in chat, in a report, or in a file under another name.
+- **DO read every lesson source before drafting, again at the gate, and again before landing:** that
+  file, the after-run report's suggestions, and ledger entries newer than the draft. Fold each `open`
+  entry on the branch's concern into the SAME `config-update/<slug>` branch as a further commit, rerun
+  Step 6b and show the new diff. DON'T land a branch while an `open` entry on its concern sits
+  outside it.
+- **DO draft a follow-up branch unprompted when a lesson on a landed concern arrives**, sharpening the
+  landed lines, and name it in a gate block. One concern costs Simon one request.
+
+TEST: at landing, and before the worktree is removed, the file holds zero `open` entries on the
+branch's concern, and every entry names a branch, a sha or a drop decision (the fix for three lessons
+recorded after a draft, which landed without them and took a second request).
 
 ## Step 3 · Extract the learning behind each correction
 
@@ -360,8 +379,9 @@ first fix.
   ```
 - **Reconcile before reporting.** Step 3 decomposes a multi-topic paste into one learning per standing
   rule, and that is the drop-prone step: fold in three of four and the run still reads as a clean
-  success. So check every extracted learning, and every ask in this worktree's
-  `.context/intent-ledger.md`, against what was actually applied, one verdict each. A learning dropped
+  success. So check every extracted learning, every `.context/config-lessons.md` entry, and every
+  ask in this worktree's `.context/intent-ledger.md`, against what was actually applied, one verdict
+  each. A learning dropped
   at the gate is `deliberately dropped` with who decided and when, not an omission. Append the result
   with `~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>`.
 - Report what changed: the target file, the section(s), and a one-line summary of each learning folded in.

@@ -200,6 +200,7 @@ SCENARIOS: list[dict] = [
     {"phrase": "sync my config", "expect": "claude-config-sync"},
     {"phrase": "commit my config", "expect": "claude-config-sync"},
     {"phrase": "make this correction permanent", "expect": "claude-config-update"},
+    {"phrase": "record this lesson for later", "expect": "claude-config-update"},
     {"phrase": "add this rule to my UI conventions", "expect": "claude-config-update"},
     # Any config CHANGE routes here, not just a correction — this is the pair that was missing when
     # "create a new skill" got hand-built instead of run through the skill.

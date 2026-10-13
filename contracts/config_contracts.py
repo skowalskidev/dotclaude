@@ -1608,6 +1608,8 @@ CONTRACTS: dict[str, dict] = {
             "the same gate block, then waits.",
             "Updates config_contracts.py and routing_scenarios.py alongside the edit, then runs the "
             "suite and loops until clean. Tests that do not grow with the config stop protecting it.",
+            "Records a late or deferred lesson in the worktree's .context/config-lessons.md, folds every "
+            "open entry on a branch's concern into that branch before it lands, and gives each entry a verdict.",
         ],
     },
     # your work-skills plugin (e.g. sk-work) is job-specific, lives untracked in work/, and is outside this registry by design.
