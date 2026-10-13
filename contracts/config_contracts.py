@@ -596,6 +596,8 @@ CONTRACTS: dict[str, dict] = {
             "console, a dashboard) is asked for before the plan, and each ticket names the inputs "
             "its implementer must obtain, including a visible change's design source path, board ids "
             "and measured spec path, with no board value restated in ticket prose.",
+            "The plan states the business goal in one line; every rule decided during the work carries a "
+            "sentence on how it serves that goal, and a rule that reduces it goes to Simon before it is built.",
             "Before a ticket goes to a build, every decision it depends on is resolved INTO the ticket "
             "(the option chosen plus a one-line why) and every requirement is present, so a builder that "
             "cannot ask — a cloud session, a parallel part, a teammate — misses nothing and guesses nothing.",

@@ -50,6 +50,21 @@ explicitly dropped is simply no longer in the document, and the plan still reads
 - **Run that check again after every revision.** Revisions are where things fall out, and the later
   the revision the less anyone remembers what the original asked for.
 
+## Check every decided rule against the goal it serves
+
+A criterion can be met and still work against the reason the ticket exists. Judged one by one, a rule
+from a review round passes; judged against the goal, it undoes it.
+
+- **DO state the business goal in one line at the top of the plan**, in the asker's words ("always
+  encourage people to buy the paid plan"), not in the ticket's mechanism.
+- **DO write one sentence beside every rule decided during the work** (a review round, a design call, a
+  scope cut): how it serves that goal. DON'T accept "criterion met" as that sentence.
+- **DO put a rule that reduces the goal in the question block, before it is built.** It does not wait
+  for a reviewer to notice.
+- TEST: every decided rule carries a how-it-serves line, and a rule with no line, or a line that says
+  it reduces the goal, has a question against it (the fix for a review-round rule that hid an upgrade
+  prompt, built and judged met, when the ticket's purpose was to encourage upgrades).
+
 ## A pre-existing ticket is a claim about the past — verify it against today's code
 
 An older ticket, spec or plan was written against the codebase as it stood then. Some of it has since
