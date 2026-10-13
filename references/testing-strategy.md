@@ -177,6 +177,13 @@ deal date. Compare with the branch: an arm production deals that the branch lack
 Take the arms from the data. A config file, a memory, or Simon's own account of which arms are live
 is a claim to check against it.
 
+DO compare it, before step 1 on EACH platform of a human walk, with the arms the local server dealt
+this device (read from the server's log or the store it writes): print both side by side per dimension.
+When they differ, copy production's split settings into the local stack (an isolated local store only,
+per § Prepare derived state) and read the dealt arms again. No step 1 is sent until the two match or
+the difference is stated in the walk's opening line. A platform whose local settings table is empty
+deals no arm at all.
+
 DO report it before the walk starts in at most 6 lines: the dimension, the live arms and shares per
 platform, every `stopped` arm and every `missing here` arm.
 
@@ -186,8 +193,10 @@ the plan (a paced walk's charter). DON'T pace a person through, review or captur
 deals in the window unless he asks for that arm by name.
 
 TEST: the plan names a dimension, an arm, its 72-hour share and the read's UTC time, and no walked
-arm has zero recent deals (the fix for a walk planned on an arm production had stopped dealing days
-earlier, while a newer arm was absent from the branch).
+arm has zero recent deals. For each platform walked it also holds the local-dealt and production arms
+side by side, matching or with the difference stated (the fix for a walk planned on an arm production
+had stopped dealing days earlier, and for a second platform handed over with no arms dealt locally
+because its settings table was empty).
 
 ## Human-driven sessions — prove the environment and the provider identity
 

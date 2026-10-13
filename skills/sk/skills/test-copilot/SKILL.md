@@ -49,7 +49,8 @@ If he already said all this, don't ask. State your reading in one line and move.
 
 **Find the live variants before the charter, unasked.** When the journey passes through anything dealt
 per person or per device, apply `testing-strategy.md` § Live variants: report what production deals
-now, pin the walk to a live arm, and name that arm in the charter.
+now, compare it with what the local server dealt on EACH platform before that platform's step 1, pin
+the walk to a live arm, and name that arm in the charter.
 
 Write a one-line **charter** before starting: *explore \<area\>, using \<setup\>, to discover
 \<information\>* — and say what is explicitly NOT covered. Scope stated up front prevents the
