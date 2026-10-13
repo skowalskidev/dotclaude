@@ -485,6 +485,7 @@ CONTRACTS: dict[str, dict] = {
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
             "Own the machine-wide capacity protocol: one heavy lease, the Simon-granted priority record, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
             "Every worker of a task uses the one owner string the priority record names; every native run names its simulator; a run is stopped through its supervisor, and a 75 is diagnosed with status before any retry.",
+            "A restart stops the launcher's process group, confirms zero listeners, and confirms the new listener started after the stop.",
             "After every start or restart, one end-to-end request through each external dependency and a read of its log for a refused credential precede any hand-over; the identity handshake alone is not enough.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",

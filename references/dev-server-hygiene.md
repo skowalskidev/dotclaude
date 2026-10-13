@@ -149,6 +149,12 @@ wrapper dies, and the actual server **grandchild survives** and keeps squatting 
 - Launch each service in its **own process group** and kill the whole **group**, so no
   descendant outlives the orchestrator.
 - Never `kill $PID` on something you launched through a wrapper.
+- **A restart is a teardown plus a start.** Stop the launcher's group, confirm zero listeners on the port,
+  start the new server, then confirm the listener's start time is newer than the stop. A launcher that
+  outlives the kill respawns its own server with the old settings, and the new one dies on "address in
+  use" while the port still looks healthy. TEST: after every restart the port has one listener and it
+  started after the stop (the fix for a restart whose old launcher had already respawned a server with
+  the old settings).
 
 ## Signal and trap discipline (hard-won specifics)
 
