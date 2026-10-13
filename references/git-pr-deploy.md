@@ -228,6 +228,11 @@ automatic allocation.** For manual selection, inspect complete relevant results,
 and processing uploads; empty or incomplete results do not prove availability. For automatic selection,
 record the enabled mode and retain the actual assigned identifier from the export/upload receipt.
 Do not report the archive's original build number as the uploaded number when the provider changed it.
+A build number named in a ticket or plan is an example, not a reservation: before the archive starts, find
+the highest identifier already uploaded (the store's API when a key is provisioned, else ask the user once)
+and build the next one. TEST: the archive's identifier is above the highest uploaded one, read before the
+build began (the fix for an archive built as "99" because a ticket said so, refused as a duplicate after ten
+minutes of build time).
 
 **DO check App Store Connect before a TestFlight/App Store archive:** match team, app record and
 bundle ID; read approved and submitted marketing versions (including approved versions awaiting

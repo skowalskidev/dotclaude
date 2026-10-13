@@ -522,6 +522,7 @@ CONTRACTS: dict[str, dict] = {
             "After an authorized push, read the PR's merge state and the CI run for the pushed sha; no run is a failure to investigate. Run the repo's ordering checks before pushing a base merge.",
             "After merging the base: reinstall dependencies, re-download test browsers, compare applied migrations with the files by name and number, and read git status for tool-rewritten files before the next commit.",
             "Require timestamped current provider identity and version/channel eligibility before release packaging; unknown eligibility stops archives/uploads, not independent local work. Reuse applicable fresh provider evidence without requiring duplicate access.",
+            "A build number named in a ticket is an example: read the highest uploaded identifier (the store's API, else ask the user once) before the archive starts and build the next.",
             "Check Apple approved/submitted versions and candidate train state; recheck after resume or candidate/target changes and before upload. Require live manual identifier checks or documented automatic allocation with the actual distribution receipt.",
             "Points to references/ticket-lifecycle.md for the ticket to branch to PR lifecycle; does "
             "not own it.",
