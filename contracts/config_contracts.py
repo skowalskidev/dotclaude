@@ -651,6 +651,7 @@ CONTRACTS: dict[str, dict] = {
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
             "Own the live-variant check: before a walk, review or capture of a journey dealt per person, read production's arms and 72-hour shares as aggregates, report stopped and missing arms, and walk only a live arm unless Simon names another.",
             "Before step 1 on each platform of a human walk, print the arms the local server dealt this device beside production's; copy production's split settings locally when they differ, and send no step until they match or the difference is stated.",
+            "On a simulator walk the agent performs every relaunch (terminate, launch with the local server address, screenshot) and the tester's step starts from the confirmed screen; never tell him to reopen the app.",
             "A human's default walk starts at the real entry with a fresh account; a state is seeded directly only past 15 minutes of walking and is labelled; Claude loads step 1's address in his starting state first.",
             "Claude runs every later step in its own browser from his state and sends it only when the Expect screen appears; an account he may be signed into is never deleted or reset, and a reset step is one storage-clearing line plus the next URL.",
             "Each forced test state records the ids it wrote, removes exactly those, reads the count back and states it.",

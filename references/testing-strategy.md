@@ -220,6 +220,15 @@ step from the code's happy path. TEST: each step sent has a run by Claude from h
 line observed (the fix for three steps that bounced to another screen, reused storage in a "new" private
 window, or made an account outside the plan, each costing him a round trip).
 
+**DO perform every simulator relaunch yourself, and start his step from the screen you confirmed:**
+terminate the app (`xcrun simctl terminate <udid> <bundle>`), launch it with the local server address
+(`xcrun simctl launch <udid> <bundle>`, the address as a launch argument or a `SIMCTL_CHILD_`-prefixed
+environment variable), and screenshot it (`xcrun simctl io <udid> screenshot <file>`). DON'T tell him
+to reopen the app from the home screen: only your launch points at the local server. TEST: no step to
+the tester says to reopen or relaunch the app, and each step that follows a relaunch names the
+screenshot that confirmed its starting screen (the fix for a tester told to reopen the app who got a
+white screen).
+
 **DO keep him signed in and give him a reset he can run.** Never delete or reset an account he may be
 signed into. A reset step hands him the one line that clears the browser's storage and names the next
 URL. Private windows of one browser share storage, so "open a private window" is not a reset; a
