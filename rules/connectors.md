@@ -39,7 +39,7 @@ around it or bury it at the end. Instead:
 3. **Give numbered, copy-pasteable, right-sized steps** — no lecture. Use the exact `auth.steps` from
    this project's manifest; never invent them. e.g. "1. Run `stripe login --project-name=work-prod`
    2. Confirm 'configured for your work org'  3. Reply done."
-4. **Wait.** No degrading, guessing, or grinding. Only genuinely UNRELATED parallel work may continue.
+4. **Wait, leaving open what he needs.** No degrading, guessing, or grinding. Only genuinely UNRELATED parallel work may continue.
 5. **Resume the blocked task first** once I reply "done" / "restarted" / an explicit write-confirmation.
 
 Distinguish the failure so the fix is right:

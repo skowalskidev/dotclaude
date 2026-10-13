@@ -20,7 +20,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `research.md` · `contracts-and-outcomes.md` · `planning-and-tracking.md` · `parallelization.md` · `testing-strategy.md` · `dev-server-hygiene.md` · `code-best-practices.md` · `git-pr-deploy.md` · `ticket-lifecycle.md` · `api-empirical-iteration.md` · `browser-debugging.md` · `connectors-setup.md` · `skill-stack.md` · `user-journey-review.md` · `human-pacing.md` · `progress-bar.md` · `tldr-report-formats.md` · `dotclaude-setup.md`
   - `testing-strategy.md` — test gates, the project's CI gate list, live production variants and the proof steps for a paced human walk, shared production-data source fidelity, isolated previews, recompute verification and native simulator suites.
   - `ios-simulator.md` — simulator preflight, staged execution, preview evidence, bounded hand-back and recovery.
-  - `workflow-loops.md` — continuous request reconciliation, modular execution, independent judgement, the shared plan/mockup dashboard and building a screen 1:1 from a supplied design source.
+  - `workflow-loops.md` — continuous request reconciliation, modular execution, independent judgement, the shared plan/mockup dashboard, the shareable design board for mockup variants, and building a screen 1:1 from a supplied design source.
   - `session-performance.md` — after-task reports, bounded measurements and asynchronous coordinator review.
   - `agent-hosts.md` — native host wiring, subscription-only Codex billing and update timing.
   - `project-instructions.md` — per-project instruction boundary and the required policy check before loading repo guidance.
