@@ -137,11 +137,14 @@ TEST: it returns a VALIDATION error. A restriction error means the credential is
 
 ## Step 5 · The phone is caching the page
 
-**DO open it in a private tab.** Safari caches the HTML document, which points at the previous asset
-URLs, so a correct fix reads as no fix at all. This costs a whole debugging round every time it is
-missed.
+**DO beat the cache with a normal tab and a `?v=<n>` query, a new `n` per rebuild, for any walk of more
+than one load.** Safari caches the HTML document, which points at the previous asset URLs, so a correct
+fix reads as no fix at all. This costs a whole debugging round every time it is missed.
 
-A `?v=<n>` query also works. Clearing website data is the last resort — it signs him out everywhere.
+**DO keep the private tab for a one-load check only.** A private tab on a phone keeps its storage only
+while its page stays alive, and switching apps to send a screenshot is enough to lose the login (the fix
+for a walk that landed back on sign-in mid-way, with the server holding the session and logging no
+refusal). Clearing website data is the last resort: it signs him out everywhere.
 
 ## Step 6 · Tear the share down
 

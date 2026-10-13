@@ -1414,6 +1414,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Serves a local dev port to the tailnet and clears the three blockers that each "
                    "render a page which looks fine and is not, in any repo.",
         "criteria": [
+            "Beats the phone's page cache with a normal tab and a ?v=<n> query for any multi-load walk; a private tab is for a one-load check, because it loses its storage when the app is switched away.",
             "Verifies the share and its teardown by fetching every printed hostname on every tailscale "
             "node, never by `tailscale serve status`, which can read empty while the share is live.",
             "Binds the dev server to loopback BEFORE sharing it, and proves the LAN can no longer "
