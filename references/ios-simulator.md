@@ -86,7 +86,7 @@ DO run these stages in order, with explicit UDID and fail-fast exit handling. Wr
 | Boot | `xcrun simctl boot "$UDID"`; enter only with the claimed device in Shutdown |
 | Wait | `xcrun simctl bootstatus "$UDID"`; use installed help, omit `-b` because it can initiate a new boot |
 | Install | `xcrun simctl install "$UDID" "$APP"`; confirm artifact and bundle identifier |
-| Launch | `xcrun simctl launch "$UDID" "$BUNDLE_ID"`; pass only supported options and the project's declared configuration |
+| Launch | The project's own launch script when it has one (read it first, per step 3); else `xcrun simctl launch "$UDID" "$BUNDLE_ID"` with every option and `SIMCTL_CHILD_` variable the project's declared configuration passes |
 | GUI (visible preview only) | Open the resolved path inside the lease after boot readiness, select the owned UDID and verify no unrelated device started |
 | Ready | Verify backend identity and the requested app/test readiness signal; preserve startup logs and errors |
 | Capture (requested UI/preview/capture only) | `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; inspect the image for the intended app and state |

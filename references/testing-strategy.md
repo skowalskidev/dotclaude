@@ -204,6 +204,32 @@ A person clicking through a journey while Claude watches logs only works when bo
 server and the SAME external accounts. Prove that before the first step with a side effect, not after
 something has gone wrong.
 
+**DO hand him a production-equivalent stack, proved by one preflight before step 1.** Check every axis
+the journey touches and fix each miss before he starts:
+1. Provider keys come from the source the project's launch path reads (its vault or secret store). Run
+   `dev-server-hygiene.md` § Dependency handshake; a 401 or 403 is a stale override to fix, not a finding.
+2. Every flag, experiment and split on the path deals what production deals (§ Live variants).
+3. A fresh test account reaches the plan, trial and entitlement production gives a new account on that
+   platform, read read-only from production as aggregates.
+4. Every app and server starts through the project's own launch scripts, never a hand-rolled command
+   that drops their environment.
+5. The branch holds the latest head of every PR under test: after `git fetch`, each
+   `git merge-base --is-ancestor "$(gh pr view <n> --json headRefOid -q .headRefOid)" HEAD` exits 0.
+6. The journey's first 3 steps, and the first step that reaches each provider, run end to end in his
+   state (a search returns results, a typed date parses, a new account lands on the expected plan).
+**DON'T blank, fake or strip a key, flag or service to save cost or time.** A degraded stack fails like
+a product bug and he cannot tell which. When cost is the concern, ask once in the front-loaded block
+whether the session runs on billable keys; his yes covers the actions he drives, and each billable call
+you fire still needs its own yes (`rules/spend-approval.md`). For a declined call, run its free half
+(the handshake) and list the step as a gap.
+**DO list every remaining non-production gap in the session overview once, one line each** (a checkout
+with no test key, a bypass he picked), so he never meets one as a bug.
+TEST: no step fails for an environment reason a preflight of that step would have caught, and every gap
+he meets was in the overview (the fix for a local stack whose search and model keys were blanked to
+avoid billing, so every typed search failed during a human test and read as a product bug).
+This governs the stack the project's launch scripts start; a preview over imported production records
+keeps § Local preview's credential boundary and lists its stubbed providers as gaps.
+
 **DO start the default walk where a real person starts:** the real entry point, a fresh account or
 device, and the whole lead-up that produces the state under test, so he judges the change in its
 context. Seed a state directly only when walking cannot reach it in under 15 minutes (a used-up quota,
@@ -221,13 +247,15 @@ line observed (the fix for three steps that bounced to another screen, reused st
 window, or made an account outside the plan, each costing him a round trip).
 
 **DO perform every simulator relaunch yourself, and start his step from the screen you confirmed:**
-terminate the app (`xcrun simctl terminate <udid> <bundle>`), launch it with the local server address
-(`xcrun simctl launch <udid> <bundle>`, the address as a launch argument or a `SIMCTL_CHILD_`-prefixed
-environment variable), and screenshot it (`xcrun simctl io <udid> screenshot <file>`). DON'T tell him
+terminate the app (`xcrun simctl terminate <udid> <bundle>`), launch it through the project's own launch
+script, which passes the local server address and the rest of its environment (`references/ios-simulator.md`
+Launch row), and screenshot it (`xcrun simctl io <udid> screenshot <file>`). DON'T run a bare
+`xcrun simctl launch` when the project has a launch script: it drops that environment. DON'T tell him
 to reopen the app from the home screen: only your launch points at the local server. TEST: no step to
-the tester says to reopen or relaunch the app, and each step that follows a relaunch names the
-screenshot that confirmed its starting screen (the fix for a tester told to reopen the app who got a
-white screen).
+the tester says to reopen or relaunch the app, every launch traces to the project's script, and each
+step that follows a relaunch names the screenshot that confirmed its starting screen (the fix for a
+tester told to reopen the app, and for a bare launch without the script's environment, both a white
+screen).
 
 **DO keep him signed in and give him a reset he can run.** Never delete or reset an account he may be
 signed into. A reset step hands him the one line that clears the browser's storage and names the next
