@@ -30,10 +30,10 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `skill-stack.md` is the one to read at the START of a task: it maps a task shape to the right skill and to the third-party skills that stack on it, so I never have to remember which to use. `hooks/task-intake.sh` points you there on every new task and BLOCKS Agent/Task/Workflow until I've confirmed the proposal.
   - The `sk` skills (esp. `/sk:work-full-detailed-workflow`) point at these same catalogs, so a rule has ONE home.
 
-- **Project-specific** instructions live in each project's own `CLAUDE.md` / `CLAUDE.local.md` (and its `docs/`), never here.
+- **Project-specific** instructions live in each project's own `CLAUDE.md` / `CLAUDE.local.md` (and its `docs/`), or in its auto-memory when its manifest ignores project instructions (`references/project-instructions.md`), never here.
 
 ## Where a new lesson goes
 - Always-on behavioral rule → the matching `rules/*.md`.
 - Deep task-only how-to → the matching `references/*.md` (skills already point to it).
-- Project-specific → that project's `CLAUDE.md` (team) or `CLAUDE.local.md` (personal).
+- Project-specific → that project's `CLAUDE.md` (team) or `CLAUDE.local.md` (personal); its auto-memory when the project's instructions are ignored (`references/project-instructions.md`).
 - Route it with `/sk:claude-config-update`, which knows this layout (named to stay distinct from Claude Code's built-in `/update-config`, which edits `settings.json` hooks/permissions rather than instructions).

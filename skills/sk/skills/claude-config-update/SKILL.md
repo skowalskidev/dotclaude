@@ -82,7 +82,8 @@ a backstop — the shape `rules/security.md` already uses.
 **Structure/altitude router — keep the layout clean.** Route each piece to its right home: always-on
 behavioral → `rules/`; deep how-to → `references/`; executable enforcement → `hooks/`; engine logic →
 `bin/`; user-invocable flow → `skills/`; per-project specifics → `connectors/*.json` (or a project
-`CLAUDE.local.md`); deterministic wiring → `settings.json`. **Top-level `~/.claude/CLAUDE.md` stays a
+`CLAUDE.local.md`, or the project's auto-memory when its instructions are ignored, per
+`references/project-instructions.md`); deterministic wiring → `settings.json`. **Top-level `~/.claude/CLAUDE.md` stays a
 thin index** (one line per rule/reference), never the detail.
 
 ## Step 1 · Resolve the target (INFER + PROPOSE — don't ask upfront)
@@ -102,7 +103,8 @@ then present the top options and let him pick. Candidates:
 - a shared **reference catalog** in `~/.claude/references/*.md` (a deep, task-only how-to loaded on demand — code best practices, planning, testing, parallelization, git/PR/deploy, api-empirical-iteration). If the learning is a detailed process rule, it usually belongs in the matching catalog, and the skills that use it already point to it, so one edit updates every consumer (DRY),
 - the **global** `~/.claude/CLAUDE.md` (an always-on cross-project behavioral rule — security, response/copy style, orchestration — that must be in context every turn, not lazy-loaded),
 - the current project's **committed** `CLAUDE.md`,
-- the current project's **local** `CLAUDE.local.md`.
+- the current project's **local** `CLAUDE.local.md`,
+- the project's **auto-memory**, instead of both project files when its manifest sets `ignoreProjectInstructions` (`references/project-instructions.md`).
 
 **Catalog-first for deep rules; skills stay thin.** The `sk` skills are now thin: SKILL.md is a short pointer that tells the agent which `~/.claude/references/*.md` catalog(s) to read. So when a learning is a detailed process/how-to, fold it into the CATALOG, not into the skill body — adding prose to a skill that should just point is the anti-pattern. Reserve edits to a SKILL.md itself for its trigger `description`, its pointer list, or genuinely skill-specific orchestration. Always-on behavioral rules go to CLAUDE.md; deep task-only detail goes to a `references/` catalog.
 
