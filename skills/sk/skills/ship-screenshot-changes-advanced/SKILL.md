@@ -7,9 +7,11 @@ argument-hint: [changed routes or journeys; whole app only when requested]
 # Advanced screenshot review
 
 DO read `~/.claude/references/screenshot-review.md` and execute its procedure for the requested scope.
-Keep one case per scenario × viewport × variant, including blocked and unrun requirements.
+Keep one case per scenario × viewport × variant, including blocked and unrun requirements, and
+present them one row per point: web desktop, web mobile, iOS and their videos side by side in fixed columns.
 Return the local report and an actionable TLDR with findings, gaps and next actions.
-TEST: every required case has a report row, and its conditions appear above its evidence.
+TEST: every point has one row with a cell for every column (a gap shows its status and reason), and each
+case's conditions appear above its evidence.
 
 DO keep this invocation local by default. Publication needs explicit authorization; invoking this skill
 does not invoke `/sk:ship-screenshot-changes` or its PR-post behavior. Preserve independent QA gates.

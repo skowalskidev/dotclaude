@@ -201,6 +201,7 @@ CONTRACTS: dict[str, dict] = {
             "Derive capture and review counts separately from cases; never count missing evidence or unreviewed captures as passes.",
             "Reject duplicate IDs, unknown statuses, missing assets and paths escaping the manifest directory; escape metadata and embed original local asset bytes without scripts or network requests.",
             "Place conditions above each uncropped image and retain every gap with its reason and next action in the inline gallery.",
+            "Render one row per point with one cell per declared column in the same order on every row, each cell holding that column's screenshots and videos; reject a point lacking a case for any declared column or a case naming an undeclared column, and cap mobile-width images at 300px.",
         ],
     },
     "references/screenshot-review.md": {
@@ -210,6 +211,7 @@ CONTRACTS: dict[str, dict] = {
             "Inventory source branches and real UI states across the declared scope; require empty and full states at every selected supported layout and disclose secondary sampling.",
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
+            "Group evidence by point: every case carries a point and a column, the manifest declares the ordered columns, and a platform or size a point lacks shows its status and reason in its cell, never dropped or listed apart.",
             "Use installed native recording only when useful; reset before deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
         ],
     },
@@ -219,6 +221,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Route advanced conditional-state and responsive screenshot requests to references/screenshot-review.md while preserving the existing quick screenshot skill.",
             "Return the local report and separate capture/review counts without implicitly posting to a PR or replacing independent QA.",
+            "Present one case per scenario x viewport x variant as one row per point, with web desktop, web mobile, iOS and their videos side by side in fixed columns.",
         ],
     },
     "bin/design-board.py": {
@@ -1031,8 +1034,9 @@ CONTRACTS: dict[str, dict] = {
             "git-only detached-ref as fallback, never an external host; fails loud and verifies the "
             "images render (not camo-broken).",
             "Keeps ONE marker-tagged screenshot comment per PR and edits it in place, replacing only "
-            "the re-captured surfaces' blocks (never appends a second comment); embeds mobile shots "
-            "at 300px width and desktop shots full width.",
+            "the re-captured points' rows (never appends a second comment); posts one table with one row "
+            "per point and fixed Desktop, Mobile, iOS columns holding screenshots and video links, "
+            "mobile and iOS shots as 300px-wide HTML images and a status in any cell lacking evidence.",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],
     },

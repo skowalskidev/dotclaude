@@ -89,6 +89,11 @@ DO use schemaVersion 1 and the following shape (illustrative unrun case, not pro
   "scope": "Changed /items route and create-item journey",
   "coverageStrategy": "Empty/full at selected layouts; list breakpoints, critical crosses and secondary sampling here",
   "exclusions": [],
+  "columns": [
+    {"id": "web-desktop", "label": "Web desktop"},
+    {"id": "web-mobile", "label": "Web mobile"},
+    {"id": "ios", "label": "iOS"}
+  ],
   "run": {
     "revision": "source revision",
     "dirtyFingerprint": "clean or hash of working changes including untracked source",
@@ -98,6 +103,8 @@ DO use schemaVersion 1 and the following shape (illustrative unrun case, not pro
   },
   "cases": [{
     "id": "items-empty-small",
+    "point": "Items: empty list",
+    "column": "web-mobile",
     "surface": "Items",
     "route": "/items",
     "account": "new member fixture",
@@ -119,24 +126,36 @@ DO use schemaVersion 1 and the following shape (illustrative unrun case, not pro
 }
 ```
 
-DO create one row per scenario × viewport × variant, with a unique alphanumeric/hyphen/underscore id.
+DO create one case per scenario × viewport × variant, with a unique alphanumeric/hyphen/underscore id.
 Use captureStatus `captured|blocked|not-run|not-applicable` and reviewStatus `not-reviewed|pass|finding`.
 Captured cases require `image`; all other capture statuses require `reason` and `not-reviewed`.
 Attach optional `video` and `trace` paths to the relevant case. Resolve asset paths relative to the
 manifest directory; only contained local PNG/JPEG/WebP, MP4/WebM and ZIP files are accepted, at most
 100 MiB per asset and 256 MiB total per report. Split larger runs into explicitly scoped reports with
 a common index retaining all cases; never omit evidence silently. Record review assertions and findings in expected/observed, and the next action in
-every case. TEST: invalid status, duplicate id, missing evidence or unsafe path fails rendering clearly.
+every case.
 
-DO inspect the generated report in the available browser: TLDR table first, all cases inline, conditions
-immediately above each screenshot, original aspect ratio preserved, readable desktop and mobile page.
+DO group evidence by the POINT being shown, never by viewport or platform. `point` is the scenario or
+claim in plain words (e.g. "Chat card: Advertiser disclosure open"); `column` is one id from the
+top-level ordered `columns` list (web desktop, web mobile, iOS, any other size or platform captured).
+The report renders ONE ROW per point, with one cell per column in the same order on every row. Each
+cell holds that column's screenshots and videos, each case keeping its own conditions above its image;
+before/after variants and extra breakpoints in one column stack inside that cell. Every point needs at
+least one case in every declared column: a platform or size the point does not cover gets a
+`not-applicable`, `blocked` or `not-run` case whose `reason` shows in the cell, never a dropped cell
+and never a separate list. Mobile and iOS images render at most 300px wide, desktop at full cell width.
+TEST: rendering fails when a point lacks a case for any declared column, and each point appears once. TEST: invalid status, duplicate id, missing evidence or unsafe path fails rendering clearly.
+
+DO inspect the generated report in the available browser: TLDR table first (one row per point, one
+status cell per column), then the gallery table (one row per point, all cases inline in their column
+cell), conditions immediately above each screenshot, original aspect ratio preserved, readable desktop and mobile page.
 The renderer embeds exact asset bytes in one offline HTML file, uses no network or external scripts,
 escapes metadata and derives counts from cases, not supplied percentages. Retain the manifest and
 capture scripts for reproducibility; sharing the HTML shares all embedded evidence. Keep secrets and
 real-user captures private; screenshot masking does not sanitize trace network payloads.
 TEST: the report works offline and exposes findings, unreviewed captures and all gaps without manual app clicking.
 
-DO hand back the local report link plus a compact Area · Verdict/gap · Next action table. State counts
+DO hand back the local report link plus a compact Point · Verdict/gap · Next action table, one row per point with each column's status in it. State counts
 for capture statuses and review statuses separately, disclose sampled coverage and missing video, and
 name any reviewer decision. Publication requires explicit authorization for destination and content.
 TEST: Simon can review the intended UI journey from the report without driving the app himself.
