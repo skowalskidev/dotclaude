@@ -33,6 +33,7 @@ SAFETY: set[str] = {
     "hooks/work-resource-guard.sh",
     "hooks/config-edit-guard.py",
     "hooks/background-process-guard.py",
+    "hooks/secret-echo-guard.py",
     "hooks/git-commit-guard.py",
     # The intake gate is a compliance guard: its "denials" are the gate arming by design, not misfires.
     "hooks/task-intake.sh",

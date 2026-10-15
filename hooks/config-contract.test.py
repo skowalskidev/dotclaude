@@ -76,6 +76,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("codex-subscription-only-inference",
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
+    ("secret-echo-guard-denies-printed-credentials-both-ways",
+     "A Bash command that prints a credential value is denied, awkward variants included, while a consumed value, a help verb and text that names a command all pass."),
     ("agent-setups-preserve-provider-choice",
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
@@ -1199,6 +1201,16 @@ def check_codex_subscription_only_inference() -> None:
     result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")])
     check(result.returncode == 0,
           f"Git commit/push guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_secret_echo_guard_denies_printed_credentials_both_ways() -> None:
+    settings_cmds = [h.get("command", "") for g in settings().get("hooks", {}).get("PreToolUse", [])
+                     if g.get("matcher") == "Bash" for h in g.get("hooks", [])]
+    check(any(c.endswith("hooks/secret-echo-guard.py") for c in settings_cmds),
+          "settings.json must wire hooks/secret-echo-guard.py on the Bash PreToolUse matcher.")
+    result = run(["python3", str(ROOT / "hooks/secret-echo-guard.test.py")])
+    check(result.returncode == 0,
+          f"Secret-echo guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_agent_setups_preserve_provider_choice() -> None:

@@ -37,6 +37,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/background-process-guard.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/secret-echo-guard.py",
+            "timeout": 10
           }
         ]
       },

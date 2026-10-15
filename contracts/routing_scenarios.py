@@ -317,7 +317,7 @@ SCENARIOS: list[dict] = [
 HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Bash",
      "expect": ["work-resource-guard.sh",
-                "git-commit-guard.py", "background-process-guard.py"]},
+                "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py"]},
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},
     # chrome-devtools tools fire only the mcp__.* work guard; UI self-verification is the default,

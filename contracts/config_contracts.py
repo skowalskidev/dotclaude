@@ -395,7 +395,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Provenance, not plausibility, is the test. Trusted = Simon in chat.",
             "Never claims a retired guard still runs — the read-blockers (security-guard.py, "
-            "crown-jewel-read-guard.py) are gone, and no read-blocker is rebuilt.",
+            "crown-jewel-read-guard.py) are gone, and no read-blocker is rebuilt. The one command "
+            "guard, hooks/secret-echo-guard.py, denies printing a value and never blocks file reads.",
             "The real credential control is stated: never surface a secret VALUE into chat, context, "
             "an artifact, a commit or a PR; using a secret (a path passed to a tool, a key loaded "
             "into a program) stays allowed — the value becoming visible is the line.",
@@ -1765,6 +1766,23 @@ CONTRACTS: dict[str, dict] = {
             "enable, LaunchAgents/Daemons writes); list and remove pass.",
             "Overridable with CLAUDE_ALLOW_DAEMON=1 when Simon asked for that process.",
             "Fails open on a malformed payload.",
+        ],
+    },
+    "hooks/secret-echo-guard.py": {
+        "mission": "A credential value never lands in the transcript because a command printed it, while using that credential stays frictionless.",
+        "purpose": "PreToolUse: denies a command whose normal output is a credential value, unless the output is consumed.",
+        "criteria": [
+            "Denies only commands that print a value, each verified against the tool's own help or docs: "
+            "stripe config --list and listen --print-secret, gh auth token and status --show-token, "
+            "gcloud auth print-access-token and print-identity-token, aws configure export-credentials "
+            "and get of a secret key or session token, firebase login:ci, security find-generic-password "
+            "-w/-g and dump-keychain -d, op read and item get --reveal, a bare env/printenv dump.",
+            "Allows a consumed value: redirected to a file, piped to a consumer, or captured by $(...) "
+            "into an assignment or another command's argument. Help, status and list verbs pass.",
+            "Judges what the shell runs, not text: awkward spacing, an absolute path, &&, ;, pipes, "
+            "sh -c, eval and xargs are parsed; a quoted string or heredoc body naming a command never fires.",
+            "Never blocks reading a secret FILE (rules/security.md); fails open on a malformed payload.",
+            "hooks/secret-echo-guard.test.py pins both directions.",
         ],
     },
     "hooks/config-status.sh": {

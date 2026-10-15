@@ -43,6 +43,7 @@ _DENY_SIGNATURES = {
     "Blocked:": "hooks/work-resource-guard.sh",
     "config-edit-guard": "hooks/config-edit-guard.py",
     "background-process": "hooks/background-process-guard.py",
+    "prints a credential value": "hooks/secret-echo-guard.py",
 }
 
 
