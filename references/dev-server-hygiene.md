@@ -217,18 +217,18 @@ Map the confusing symptom back to its environmental cause; it saves enormous tim
 ## Machine-wide capacity
 
 DO admit each heavy build, full test suite, browser batch and simulator lifecycle through
-`bin/local-capacity.py`. It admits at most two leases (`HEAVY_SLOTS`) across local projects and
-worktrees, one per owner, so two sessions run heavy work at once; model calls, small reads, edits and
-scoped lightweight checks continue while both are held. This is cooperative admission, not an OS CPU
+`bin/local-capacity.py`. It admits at most three leases (`HEAVY_SLOTS`) across local projects and
+worktrees, one per owner, so three sessions run heavy work at once; model calls, small reads, edits and
+scoped lightweight checks continue while all are held. This is cooperative admission, not an OS CPU
 ceiling. DON'T create a per-repository gate or nest another lease inside one already held.
-TEST: a third owner gets exit 75 naming both holders, and the same owner asking twice gets exit 75.
+TEST: a fourth owner gets exit 75 naming all three holders, and the same owner asking twice gets exit 75.
 
 ```sh
 python3 ~/.claude/bin/local-capacity.py status
 python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-command>
 ```
 
-DO read `status` first: it prints `heavy slot 1 of 2` and `heavy slot 2 of 2`, each free or its holder.
+DO read `status` first: it prints `heavy slot 1 of 3` through `heavy slot 3 of 3`, each free or its holder.
 DO defer a heavy step on exit 75 and record the holder and resume action in the living plan. Recheck
 at the next task boundary, without a tight retry loop. Heavy-work admission also defers when observed
 load exceeds twice the logical core count; simulator admission additionally defers when any device is
@@ -254,9 +254,9 @@ workers refused for about 90 minutes under a second name). TEST: each worker's `
 
 DO plan around these effects while the record is live (default 60 minutes, hard maximum 180; an
 expired record is ignored and removed): the named owner skips the load gate and takes the first slot
-to free, and the two-lease ceiling still holds. No running job is stopped, signalled or shortened,
-and a holder finishes normally. When both slots are already held, the priority owner gets exit 75
-naming both holders until one finishes. Every other owner asking for a new lease gets exit 75 naming
+to free, and the three-lease ceiling still holds. No running job is stopped, signalled or shortened,
+and a holder finishes normally. When every slot is already held, the priority owner gets exit 75
+naming all holders until one finishes. Every other owner asking for a new lease gets exit 75 naming
 the priority owner and expiry, so the priority owner is also next in line. `status` prints one
 `priority: <owner> until <time>` line. Simulator rules do not change: the priority owner may use
 only its own claimed UDID.
@@ -343,7 +343,7 @@ second slot or simulator ledger. If an older project still uses file locks, writ
 `{"lockPaths":["/absolute/existing-lock-path"]}` so `run` takes each existing BSD lock without
 waiting. Keep project-specific lock paths out of git. A configured bridge makes `acquire` refuse,
 since a separate multi-call lease cannot hold the legacy lock safely. A held legacy lock is passed
-only when a different owner's run holds the first slot, and the passing run takes the second slot;
+only when a different owner's run holds the first slot, and the passing run takes a free slot other than the first;
 a lock held with no lease defers every owner. Existing claims are never automatically reaped.
 TEST: legacy-lock contention yields exit 75 before any new command starts.
 

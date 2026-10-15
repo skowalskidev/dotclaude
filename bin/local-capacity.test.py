@@ -98,9 +98,11 @@ class GateTests(unittest.TestCase):
         gate.write_state(self.root, lease)
         self.assertIn("orphan", gate.holder_text(lease))
         other = gate.acquire(self.root, "another", os.getpid(), None)
+        filler = gate.acquire(self.root, "filler", os.getpid(), None)
         with self.assertRaises(gate.Busy) as refused:
-            gate.acquire(self.root, "third", os.getpid(), None)
+            gate.acquire(self.root, "fourth", os.getpid(), None)
         self.assertIn("orphan", str(refused.exception))
+        gate.release(self.root, filler)
         gate.release(self.root, other)
         gate.release(self.root, token)
 
@@ -111,8 +113,9 @@ class GateTests(unittest.TestCase):
         gate.write_state(self.root, lease)
         self.assertIn("PID reused", gate.holder_text(lease))
         gate.acquire(self.root, "other", os.getpid(), None)
+        gate.acquire(self.root, "filler", os.getpid(), None)
         with self.assertRaises(gate.Busy) as refused:
-            gate.acquire(self.root, "third", os.getpid(), None)
+            gate.acquire(self.root, "fourth", os.getpid(), None)
         self.assertIn("PID reused", str(refused.exception))
 
     def test_foreign_booted_simulator_and_probe_failure_block(self):
@@ -130,24 +133,26 @@ class GateTests(unittest.TestCase):
                 gate.acquire(self.root, "build", os.getpid(), None)
         self.assertIsNone(gate.read_state(self.root))
 
-    def test_two_owners_are_admitted_and_a_third_is_refused_naming_both(self):
+    def test_three_owners_are_admitted_and_a_fourth_is_refused_naming_all(self):
         first = gate.acquire(self.root, "alpha", os.getpid(), None)
         second = gate.acquire(self.root, "beta", os.getpid(), None)
+        third = gate.acquire(self.root, "gamma", os.getpid(), None)
         self.assertEqual(gate.read_state(self.root)["token"], first)
         self.assertEqual(gate.read_state(self.root, slot=gate.SECOND_SLOT)["token"], second)
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT)["token"], third)
         with self.assertRaises(gate.Busy) as refused:
-            gate.acquire(self.root, "gamma", os.getpid(), None)
-        for name in ("alpha", "beta"):
+            gate.acquire(self.root, "delta", os.getpid(), None)
+        for name in ("alpha", "beta", "gamma"):
             self.assertIn("holder=" + name, str(refused.exception))
         self.assertIn("all %d heavy slots busy" % gate.HEAVY_SLOTS, str(refused.exception))
         gate.release(self.root, first)
-        third = gate.acquire(self.root, "gamma", os.getpid(), None)
-        self.assertEqual(gate.read_state(self.root)["token"], third)
-        gate.release(self.root, second)
-        gate.release(self.root, third)
+        fourth = gate.acquire(self.root, "delta", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root)["token"], fourth)
+        for token in (second, third, fourth):
+            gate.release(self.root, token)
 
     def test_ceiling_is_the_named_constant_and_matches_the_slot_files(self):
-        self.assertEqual(gate.HEAVY_SLOTS, 2)
+        self.assertEqual(gate.HEAVY_SLOTS, 3)
         self.assertEqual(len(gate.SLOTS), gate.HEAVY_SLOTS)
 
     def test_one_owner_holds_at_most_one_lease(self):
@@ -173,8 +178,10 @@ class GateTests(unittest.TestCase):
         self.assertEqual((self.root / "priority-lease.json").read_text().count(lease["token"]), 1)
         beta = gate.acquire(self.root, "beta", os.getpid(), None)
         self.assertEqual(gate.read_state(self.root)["token"], beta)
+        gamma = gate.acquire(self.root, "gamma", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT)["token"], gamma)
         with self.assertRaises(gate.Busy):
-            gate.acquire(self.root, "gamma", os.getpid(), None)
+            gate.acquire(self.root, "delta", os.getpid(), None)
 
     def test_each_simulator_is_owned_by_one_lease(self):
         other = "11111111-2222-3333-4444-555555555555"
@@ -584,10 +591,11 @@ class PriorityTests(unittest.TestCase):
     def test_priority_owner_is_next_in_line_when_two_ordinary_owners_hold_both_slots(self):
         first = gate.acquire(self.root, "one", os.getpid(), None)
         gate.acquire(self.root, "two", os.getpid(), None)
+        gate.acquire(self.root, "three", os.getpid(), None)
         gate.prioritize(self.root, "vip", 30, False)
         with self.assertRaises(gate.Busy) as refused:
             gate.acquire(self.root, "vip", os.getpid(), None)
-        self.assertIn("all 2 heavy slots busy", str(refused.exception))
+        self.assertIn("all 3 heavy slots busy", str(refused.exception))
         gate.release(self.root, first)
         with self.assertRaises(gate.Busy) as deferred:
             gate.acquire(self.root, "other", os.getpid(), None)
@@ -595,8 +603,9 @@ class PriorityTests(unittest.TestCase):
         token = gate.acquire(self.root, "vip", os.getpid(), None)
         self.assertEqual(gate.read_state(self.root)["token"], token)
 
-    def test_both_slots_busy_defers_even_the_priority_owner(self):
+    def test_every_slot_busy_defers_even_the_priority_owner(self):
         gate.acquire(self.root, "holder", os.getpid(), None)
+        gate.acquire(self.root, "middle", os.getpid(), None)
         gate.prioritize(self.root, "first", 30, False)
         gate.acquire(self.root, "first", os.getpid(), None)
         gate.prioritize(self.root, "second", 30, False)
@@ -626,16 +635,18 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(self.cli("prioritize", "--owner", "bad/owner").returncode, 1)
         self.assertEqual(self.cli("prioritize").returncode, 1)
 
-    def test_status_prints_both_slots_free_and_held(self):
+    def test_status_prints_every_slot_free_and_held(self):
         free = self.cli("status").stdout.splitlines()
-        self.assertEqual(free[:2], ["heavy slot 1 of 2: free", "heavy slot 2 of 2: free"])
+        self.assertEqual(free[:3], ["heavy slot %d of 3: free" % number for number in (1, 2, 3)])
         gate.acquire(self.root, "alpha", os.getpid(), None)
         lines = self.cli("status").stdout.splitlines()
-        self.assertTrue(lines[0].startswith("heavy slot 1 of 2: holder=alpha "), lines)
-        self.assertEqual(lines[1], "heavy slot 2 of 2: free")
+        self.assertTrue(lines[0].startswith("heavy slot 1 of 3: holder=alpha "), lines)
+        self.assertEqual(lines[1], "heavy slot 2 of 3: free")
         gate.acquire(self.root, "beta", os.getpid(), None)
+        gate.acquire(self.root, "gamma", os.getpid(), None)
         lines = self.cli("status").stdout.splitlines()
-        self.assertTrue(lines[1].startswith("heavy slot 2 of 2: holder=beta "), lines)
+        self.assertTrue(lines[1].startswith("heavy slot 2 of 3: holder=beta "), lines)
+        self.assertTrue(lines[2].startswith("heavy slot 3 of 3: holder=gamma "), lines)
 
     def test_status_prints_the_record_only_while_it_is_live(self):
         self.assertNotIn("priority", self.cli("status").stdout)
@@ -662,6 +673,16 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(gate.run_command(self.root, "other", None, staged), 0)
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
         self.assertEqual(gate.read_state(self.root)["token"], holder)
+
+    def test_a_bridged_run_takes_the_third_file_when_the_second_is_held(self):
+        self.hold_bridge()
+        gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
+        middle = gate.acquire(self.root, "middle", os.getpid(), None, allow_bridge=True)
+        self.assertEqual(gate.read_state(self.root, slot=gate.SECOND_SLOT)["token"], middle)
+        token = gate.acquire(self.root, "other", os.getpid(), None, allow_bridge=True, second_slot_only=True)
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT)["token"], token)
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "late", os.getpid(), None, allow_bridge=True, second_slot_only=True)
 
     def test_legacy_lock_without_a_capacity_holder_still_blocks_every_owner(self):
         self.hold_bridge()

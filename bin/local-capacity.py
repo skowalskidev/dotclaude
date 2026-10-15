@@ -25,10 +25,11 @@ from pathlib import Path
 
 BUSY = 75
 TIMEOUT = 124
-HEAVY_SLOTS = 2  # the one ceiling: how many owners may hold a heavy lease at once
+HEAVY_SLOTS = 3  # the one ceiling: how many owners may hold a heavy lease at once
 LEASE_SLOT = "lease.json"
 SECOND_SLOT = "priority-lease.json"  # file name kept so leases already on disk stay valid
-SLOTS = (LEASE_SLOT, SECOND_SLOT)
+THIRD_SLOT = "lease-3.json"
+SLOTS = (LEASE_SLOT, SECOND_SLOT, THIRD_SLOT)
 assert len(SLOTS) == HEAVY_SLOTS
 PRIORITY_DEFAULT_MIN = 60
 PRIORITY_MAX_MIN = 180
@@ -466,7 +467,7 @@ def legacy_bridge(root, owner=None):
     """Hold every bridged lock; yield (fds, skipped).
 
     Only an owner, while another owner's run holds the first heavy lease, may pass a held
-    lock. `skipped` then tells acquire to use the second slot alone.
+    lock. `skipped` then tells acquire to use a slot other than the first.
     """
     fds = []
     skipped = False
@@ -532,11 +533,11 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
             raise Busy("heavy slot busy: %s; one owner holds at most one lease" % holder_text(mine))
         if second_slot_only and not states[0]:
             raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
-        free = [name for name, lease in zip(SLOTS, states) if not lease]
+        free = [name for name, lease in zip(SLOTS, states) if not lease and not (second_slot_only and name == LEASE_SLOT)]
         if not free:
             raise Busy("all %d heavy slots busy: %s; keep editing or inspect and release an exact token" %
                        (HEAVY_SLOTS, "; ".join(holder_text(lease) for lease in held)))
-        slot = SECOND_SLOT if second_slot_only else free[0]
+        slot = free[0]
         start = pid_start(pid)
         if not start:
             raise GateError("owner PID is not running or cannot be identified")
@@ -706,7 +707,7 @@ def stage_command(root, seconds, command):
         slot, lease = find_lease(root, owns_group)
         if not lease:
             raise GateError("stage must run inside an owned foreground run")
-    if bridge_paths(root) and not legacy_fds and slot != SECOND_SLOT:
+    if bridge_paths(root) and not legacy_fds and slot == LEASE_SLOT:
         raise GateError("stage would lose the legacy lock bridge")
     interrupted = [None]
     old_handlers = {}

@@ -755,7 +755,7 @@ def check_native_slot_serializes_native_work_across_sessions() -> None:
         fake = config / "bin" / "native-slot.sh"
         fake.write_text("#!/bin/sh\n"
                         "if [ \"$FAKE_NATIVE_STATE\" = held ]; then printf 'holder=other pid=42 live\\nbooted simulators: none\\n'; "
-                        "else printf 'heavy slot 1 of 2: free\\nheavy slot 2 of 2: free\\nbooted simulators: none\\n'; fi\n")
+                        "else printf 'heavy slot 1 of 3: free\\nheavy slot 2 of 3: free\\nheavy slot 3 of 3: free\\nbooted simulators: none\\n'; fi\n")
         fake.chmod(0o700)
         project = Path(tmp) / "project"
         (project / "ios" / "App.xcodeproj").mkdir(parents=True)
