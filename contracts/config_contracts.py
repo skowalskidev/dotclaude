@@ -1598,6 +1598,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Builds an artifact (visual craft applied directly, no separate design skill) with explainer + before/after + verdict cards grouped into sections, not chat prose.",
             "Every card and every section is selectable and carries a comment field.",
+            "A card about anything a user sees carries real screenshots of each state at desktop and "
+            "mobile (390 wide), labelled with state and width, a not-built state captured from the app "
+            "and labelled Preview; other cards say so.",
             "Renders a pick-one choice as RADIO buttons (one pre-selected) and an apply/include edit as "
             "a CHECKBOX defaulting to CHECKED (opt-out); the two controls never look the same.",
             "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",

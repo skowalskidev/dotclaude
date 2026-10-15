@@ -26,6 +26,16 @@ Structure every thing under discussion as a CARD, grouped into SECTIONS (tiers):
 - **What it does** — FIRST, a plain-English explainer that assumes Simon does NOT know the jargon.
 - **Before / After** — where a change is involved, the current state beside a concrete preview snippet
   of the change (real config or code, side by side). Omit for a card that is pure explanation.
+  DO show a card about anything a user sees (a screen, a placement, a component state, on-screen
+  wording) as real screenshots of EACH state at BOTH desktop and mobile (390 wide), embedded as base64
+  data URIs or files beside the HTML referenced by relative path, each labelled with its state and
+  width. Capture "Today" from the running app, and a state not built yet from the app with the change
+  applied temporarily (DOM injection or a local build), labelled "Preview". Capture per
+  `/sk:ship-screenshot-changes`. DON'T draw a stand-in. A card with no visible surface (a pure logic or
+  data rule) says "No visible surface" instead. e.g. a placement decision shows the screen with and
+  without the placement, desktop and mobile.
+  TEST: every user-visible card carries 2 labelled images per state (desktop, mobile 390), and every
+  other card says "No visible surface".
 - **Verdict / why** — one line: the call and the reason.
 
 ## Make it selectable — a CHOICE is a radio, an INCLUDE is a checkbox (checked by default)
