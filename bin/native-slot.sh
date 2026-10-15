@@ -5,6 +5,8 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ENGINE="$HERE/local-capacity.py"
 export LOCAL_CAPACITY_LEGACY_SLOT_DIR="${NATIVE_SLOT_DIR:-$HOME/.claude/native-slot}"
+# bash 3.2 (macOS /bin/bash) treats an empty array expansion as unbound under set -u, so every
+# array that can be empty is expanded as ${ROOT[@]+"${ROOT[@]}"}.
 ROOT=()
 [ -z "${LOCAL_CAPACITY_ROOT:-}" ] || ROOT=(--root "$LOCAL_CAPACITY_ROOT")
 
@@ -14,7 +16,7 @@ session() {
   if [ -n "${CLAUDE_NATIVE_SESSION:-}" ]; then printf '%s' "$CLAUDE_NATIVE_SESSION"; return; fi
   basename "$(workspace)"
 }
-engine() { python3 "$ENGINE" "${ROOT[@]}" "$@"; }
+engine() { python3 "$ENGINE" ${ROOT[@]+"${ROOT[@]}"} "$@"; }
 
 case "${1:-}" in
   run)
