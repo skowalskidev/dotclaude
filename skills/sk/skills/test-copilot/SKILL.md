@@ -43,7 +43,8 @@ is the recommended option:
 3. **How deep?** — happy path · happy path + edges · adversarial (empty, huge, unicode,
    double-click, back button, refresh mid-flow, expired state).
 4. **Anything to bypass?** — a wait or delay, a paid action, an external service, an email/SMS
-   step, a scheduled job.
+   step, a scheduled job. Default: none. Bypass only what he picks here; everything else stays
+   production-equivalent per `testing-strategy.md` § Human-driven sessions.
 
 If he already said all this, don't ask. State your reading in one line and move.
 

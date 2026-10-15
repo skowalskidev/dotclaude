@@ -135,7 +135,10 @@ An identity-verified server can still run with a rejected key.
 
 **DO send one end-to-end request through each external dependency the journey uses (a model call, a
 search, a payment sandbox) and read that service's log for a refused credential, before anyone else
-touches the stack.** When an env file and the managed secret store both hold a key and the file wins,
+touches the stack.** Where that request is billable, prove the key with a free authenticated call (a
+model-list or account endpoint) unless Simon gave that one call its yes (`rules/spend-approval.md`).
+Treat a 401 or 403 as a key-source fault and fix it before handing over; never blank or fake the key
+instead. When an env file and the managed secret store both hold a key and the file wins,
 start with that variable emptied for the one command (`<KEY_VAR>= <start command>`).
 **DON'T hand the stack to a tester on the strength of the identity handshake alone.**
 TEST: after each start or restart the log holds one successful request per dependency and no refused

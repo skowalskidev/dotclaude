@@ -529,6 +529,7 @@ CONTRACTS: dict[str, dict] = {
             "Every worker of a task uses the one owner string the priority record names; every native run names its simulator; a run is stopped through its supervisor, and a 75 is diagnosed with status before any retry.",
             "A restart stops the launcher's process group, confirms zero listeners, and confirms the new listener started after the stop.",
             "After every start or restart, one end-to-end request through each external dependency and a read of its log for a refused credential precede any hand-over; the identity handshake alone is not enough.",
+            "A billable dependency is proved with a free authenticated call unless Simon gave that call its yes; a 401 or 403 is a key-source fault fixed before hand-over, never a reason to blank the key.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "
             "protocol; bin/port-registry.sh implements it.",
             "Every native build, test and simulator lifecycle uses bin/local-capacity.py or its "
@@ -544,6 +545,7 @@ CONTRACTS: dict[str, dict] = {
             "Preflight effective DEVELOPER_DIR, selected Xcode, runtime, explicit UDID, matching app artifact, backend identity and requested GUI before boot; discover installed capabilities without global switches, automatic installs or unbounded searches.",
             "Discover Device Hub and legacy Simulator read-only under selected Xcode; open the GUI only inside admission after owned boot readiness. A missing GUI name never establishes that its runtime is missing.",
             "Run GUI discovery and the capacity status before any native launch, a repo script included; a script that assumes one GUI layout is fixed, not worked around in the invocation.",
+            "Launch through the project's own launch script when one exists; a bare simctl launch passes every option and variable the project's configuration declares.",
             "Keep one foreground lease through fail-fast stages and viewing; separate process launch, simulator-screen evidence and desktop GUI evidence, reporting permission gaps without changing permissions.",
             "Bound requested preview retention with a local owner/device/app/service receipt, absolute deadlines and exact stop/restart commands; verify owned Shutdown before release and retain caches.",
             "Diagnose toolchain, boot, descriptor, signing, artifact, backend, overload, incomplete-result and discovery failures; fixture UI never proves native-service or live-backend correctness.",
@@ -697,6 +699,7 @@ CONTRACTS: dict[str, dict] = {
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
             "Own the live-variant check: before a walk, review or capture of a journey dealt per person, read production's arms and 72-hour shares as aggregates, report stopped and missing arms, and walk only a live arm unless Simon names another.",
             "Before step 1 on each platform of a human walk, print the arms the local server dealt this device beside production's; copy production's split settings locally when they differ, and send no step until they match or the difference is stated.",
+            "Before step 1 of a human walk, preflight production parity: key source, dealt arms, new-account enrolment, launch scripts, PR heads and the first steps; never blank or fake a key or flag; list remaining gaps once.",
             "On a simulator walk the agent performs every relaunch (terminate, launch with the local server address, screenshot) and the tester's step starts from the confirmed screen; never tell him to reopen the app.",
             "A human's default walk starts at the real entry with a fresh account; a state is seeded directly only past 15 minutes of walking and is labelled; Claude loads step 1's address in his starting state first.",
             "Claude runs every later step in its own browser from his state and sends it only when the Expect screen appears; an account he may be signed into is never deleted or reset, and a reset step is one storage-clearing line plus the next URL.",
@@ -771,6 +774,7 @@ CONTRACTS: dict[str, dict] = {
             "Starts the default walk at the real entry with a fresh account and the lead-up, labels each "
             "directly seeded state, and runs each step itself in the human's state before handing it over.",
             "Reads the project's testing guide as task data (asking once when project instructions are ignored) and runs the dependency handshake after every stack start or restart; method lives in references.",
+            "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
         ],
     },
     "skills/sk/skills/test-automated-full-matrix/SKILL.md": {
