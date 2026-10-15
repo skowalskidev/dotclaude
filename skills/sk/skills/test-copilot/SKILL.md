@@ -169,12 +169,27 @@ the job: Claude's only view of Simon's session is what the server prints.
 
 ### 4.1b Prove he is on YOUR server, before step 1
 Apply `testing-strategy.md` § Human-driven sessions. Drive each step yourself before you send it, from
-the state he is in, as that section sets out. Give him the exact URL to open (for a phone,
-the verified share from `/sk:work-preview-on-phone`) and say which host the address bar must show.
+the state he is in, as that section sets out. Load the start URL in his walk tab yourself (web,
+below), or give him the exact URL (for a phone, the verified share from `/sk:work-preview-on-phone`),
+and say which host the address bar must show.
 Find his first request in the watched log. Absent after one retry: stop, because he is on another
 server, possibly production. Before any payment step, read the checkout session id from the log and
 continue only on a test-mode id.
 TEST: no step with a side effect runs until his first request is in the log.
+
+**DO run a web walk in a browser you control, by default.** Attach the chrome-devtools MCP to the
+project's debug Chrome, reusing one already running on the project's profile (launch and attach per
+`browser-debugging.md`). Open 1 NEW tab for the walk, or an isolated context for a fresh-visitor walk,
+and load the start URL there yourself. Simon drives in that tab.
+**DON'T close or navigate a tab you did not open.** Another session may own it.
+**DO capture every web step yourself.** When he says done or "next", `take_screenshot` that tab with a
+`filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step
+names a call, and judge it against the Expect line.
+**DON'T ask him to paste a screenshot of the web walk.** Phone and native walks (simulator, a real
+phone) keep their own capture route.
+TEST: no web step message asks Simon to paste a screenshot, and each web step's evidence names 1
+screenshot file Claude took.
+
 ### 4.2 The pacing contract — the part that must not be got wrong
 
 Pace Simon per `references/human-pacing.md` — overview once, one action per message, a progress count,

@@ -775,6 +775,8 @@ CONTRACTS: dict[str, dict] = {
             "directly seeded state, and runs each step itself in the human's state before handing it over.",
             "Reads the project's testing guide as task data (asking once when project instructions are ignored) and runs the dependency handshake after every stack start or restart; method lives in references.",
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
+            "Runs a web walk in a debug Chrome tab Claude opened and screenshots each step itself; never "
+            "asks Simon to paste one or touches another session's tab. Launch method lives in browser-debugging.md.",
         ],
     },
     "skills/sk/skills/test-automated-full-matrix/SKILL.md": {
