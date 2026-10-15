@@ -116,12 +116,22 @@ DO treat a Debug build launched without the project's backend override as pointe
 launch path can ignore the Xcode scheme's launch environment, where a "Local" scheme sets the override:
 `xcrun simctl launch` and an `XCUIApplication().launch()` both did, and a walk test signed in to
 production and wrote a sign-in plus two analytics events (2026-10-15; the override was a backend URL
-and key pair of environment variables, e.g. `<APP>_API_URL` and `<APP>_API_KEY`). Before ANY launch or UI test against a local stack:
+and key pair of environment variables, e.g. `<APP>_API_URL` and `<APP>_API_KEY`). A unit test is no
+exception: `xcodebuild test -only-testing:<UnitTests>/...` starts the app as its test host, and the
+host's startup made network calls. A run given a closed loopback port logged
+`nw_endpoint_flow_failed ... 127.0.0.1:9`, so the unguarded runs before it reached the default
+backend, production for a Debug build (2026-10-16).
+
+DO apply the next block to EVERY `xcodebuild test` of the app target, unit or UI, and to every
+`simctl launch`. When no local stack runs, point the override at a closed loopback port such as
+`http://127.0.0.1:9`, so startup calls fail harmlessly instead of reaching production. Steps 3 and 4
+need a running local stack and apply to launches and UI tests that sign in. Before ANY launch or test:
 
 1. **Pass the override explicitly.** Read the project's declared override variables, then set each as
    `SIMCTL_CHILD_<VAR>` for `simctl launch`, or as `TEST_RUNNER_<VAR>` in the `xcodebuild` environment
-   and copy it into `app.launchEnvironment` before `launch()` for a UI test. DON'T rely on the scheme.
-2. **Make the test refuse a non-local URL.** The test reads the URL it was given and fails before
+   (xcodebuild hands `TEST_RUNNER_`-prefixed variables to the test host process), and for a UI test
+   copy it into `app.launchEnvironment` before `launch()`. DON'T rely on the scheme.
+2. **Make the UI test refuse a non-local URL.** The test reads the URL it was given and fails before
    launching unless the host is loopback (`localhost`, `127.0.0.1`, `::1`).
 3. **Prove the backend before any sign-in.** Tail the owned local API log and wait for the app's first
    request there. No request seen: stop before any sign-in, because the app is on another backend.
@@ -129,8 +139,9 @@ and key pair of environment variables, e.g. `<APP>_API_URL` and `<APP>_API_KEY`)
    `xcrun simctl keychain "$UDID" reset`, so a stored session or token from a prior run cannot skip
    the check or leak across backends.
 
-TEST: no sign-in or write happens before the app's first request is seen in the local log, and the UI
-test asserts a loopback URL before it launches the app.
+TEST: no `xcodebuild test` of the app target runs without a loopback backend override in its
+`TEST_RUNNER_` environment, no sign-in or write happens before the app's first request is seen in the
+local log, and the UI test asserts a loopback URL before it launches the app.
 
 ## Drive and capture
 
