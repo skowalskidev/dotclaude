@@ -3,7 +3,8 @@
 DO use this playbook for an explicitly requested simulator preview, native runtime test or simulator
 recovery. Compose `references/testing-strategy.md` and `references/dev-server-hygiene.md`; retain their
 opt-in, signing, capacity, stage-deadline, worker-limit and cleanup policies. Default an interactive
-preview request to a visible GUI; headless test success does not fulfill that request. TEST: the run
+preview request to a visible GUI; headless test success does not fulfill that request. Read this file
+before booting for ANY native step, a co-pilot walk or screenshot capture included. TEST: the run
 records the requested activity and its evidence separately from skipped native work.
 
 ## Preflight before claiming or booting
@@ -87,9 +88,10 @@ DO run these stages in order, with explicit UDID and fail-fast exit handling. Wr
 | Wait | `xcrun simctl bootstatus "$UDID"`; use installed help, omit `-b` because it can initiate a new boot |
 | Install | `xcrun simctl install "$UDID" "$APP"`; confirm artifact and bundle identifier |
 | Launch | The project's own launch script when it has one (read it first, per step 3); else `xcrun simctl launch "$UDID" "$BUNDLE_ID"` with every option and `SIMCTL_CHILD_` variable the project's declared configuration passes |
-| GUI (visible preview only) | Open the resolved path inside the lease after boot readiness, select the owned UDID and verify no unrelated device started |
+| GUI (visible preview, walk or capture) | Open the resolved path inside the lease after boot readiness, select the owned UDID and verify no unrelated device started |
 | Ready | Verify backend identity and the requested app/test readiness signal; preserve startup logs and errors |
-| Capture (requested UI/preview/capture only) | `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; inspect the image for the intended app and state |
+| Drive (requested walk, preview or capture) | Navigate with the installed simulator driver per Drive and capture below; Simon is never asked to open the GUI or tap |
+| Capture (requested UI/preview/capture only) | `axe screenshot --udid "$UDID" --output "$CAPTURE"` (or `xcrun simctl io "$UDID" screenshot "$CAPTURE"`); inspect the image for the intended app and state |
 | Test or hold | Run the requested scoped checks, or retain the owned preview until its stated deadline |
 | Cleanup | Stop exact owned service groups, shut down the owned UDID and verify Shutdown before claim release |
 
@@ -107,6 +109,48 @@ preview. Capture the desktop/window through an already authorized mechanism when
 macOS screenshot/accessibility permission is an evidence gap; report it without automatically changing
 permissions or declaring the app broken. TEST: a preview receipt states exactly which of these proofs
 was obtained, and does not call unseen desktop contents verified.
+
+## Drive and capture
+
+DO open the simulator GUI yourself for every requested iOS walk, preview or capture: the resolved
+`$sim_gui` above, inside the admitted lifecycle, with the owned UDID selected and verified. DON'T ask
+Simon to open the window, pick the device or run `open -a Simulator`, which fails on Xcode 27 where
+Device Hub replaces Simulator.app.
+
+DO navigate the app and take every screenshot yourself with an installed simulator driver. Default to
+the AXe CLI (cameroncooke/AXe, MIT, 2.3k stars, last push 2026-07-21). Its README states
+support for Xcode 26 and 27 and that Xcode 27 automation uses Device Hub, so Simulator.app is not
+required. It drives one step at a time on a booted UDID, which fits a paced walk. Run `axe --version`;
+when absent, `brew install cameroncooke/axe/axe` (also in `dotfiles/Brewfile`), then read `axe --help`
+and the help of each subcommand used. DON'T run `axe init`: it writes skill files into AI clients, a
+config change only Simon authorizes.
+
+DO loop one step at a time, every command with the explicit `--udid "$UDID"` inside a bounded stage:
+
+1. **Read:** `axe describe-ui --udid "$UDID"` lists each element's label, id, type and frame.
+2. **Act:** `axe tap --label "<text>"` (or `--id`; add `--element-type Button` when labels repeat and
+   `--wait-timeout 5` after a transition), `axe type '<text>'` into a focused field (US keyboard
+   characters only), `axe swipe --start-x --start-y --end-x --end-y`. An element missing from
+   `describe-ui` gets a tap at `-x/-y` from its frame, and the missing accessibility label goes in the
+   findings.
+3. **Capture:** `axe screenshot` to a file inside the workspace; read the image and confirm the
+   intended screen before the next step.
+
+DO split a co-pilot walk by the rule in `/sk:test-copilot`: you drive the lead-up and every step that is
+not new, and Simon types only the inputs the change adds, in the GUI window you opened. Screenshot each
+step yourself either way.
+
+DON'T hand navigation to Simon because no driver is installed; install it (above) and continue. A
+driver gap that survives install (an element no tool can reach) is named in the receipt with the
+step, never delegated silently.
+
+DO record the driver and its version in the receipt. TEST: no walk step asks Simon to open the
+simulator, tap a screen that is not a new input, or paste a screenshot, and each step names a capture
+file you took.
+
+Rejected as the default, rechecked 2026-10-15: Maestro (mobile-dev-inc/Maestro, 16k stars) is built
+around scripted YAML flows and its README names no Xcode version support; XCUITest is Apple's own but
+needs a compiled test per path. Recheck both when AXe fails on a toolchain.
 
 ## Hold for the user, then clean up
 
@@ -162,13 +206,14 @@ another device session is active.
 
 ## Primary sources
 
-DO recheck installed help when the toolchain changes. Online sources checked 2026-10-09:
+DO recheck installed help when the toolchain changes. Online sources checked 2026-10-09 (AXe row 2026-10-15):
 
 | Source | Scope |
 |---|---|
 | [Apple command-line selection](https://developer.apple.com/documentation/xcode/configuring-command-line-tools-settings) | Per-command `DEVELOPER_DIR` without changing the global selection |
 | [Apple Device Hub](https://developer.apple.com/documentation/xcode/device-hub) and [WWDC26 Device Hub](https://developer.apple.com/videos/play/wwdc2026/260/) | Device Hub GUI; Xcode 27 introduction and shared underlying technology with `devicectl` |
 | [Apple command-line tool reference](https://developer.apple.com/documentation/xcode/xcode-command-line-tool-reference) | Installed `simctl` and `devicectl` help is the capability reference |
+| [AXe README](https://github.com/cameroncooke/AXe) and installed `axe --help` | Xcode 26/27 support, Device Hub, `describe-ui`, `tap`, `type`, `swipe`, `screenshot` |
 | [Apple device captures](https://developer.apple.com/documentation/xcode/capturing-screenshots-and-videos-from-devices) | Device screenshots and videos; separate from observing a macOS window |
 
 DO keep Python FD and native signing sources with their owning procedures above; do not duplicate

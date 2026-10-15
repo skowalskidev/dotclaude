@@ -546,6 +546,7 @@ CONTRACTS: dict[str, dict] = {
             "Discover Device Hub and legacy Simulator read-only under selected Xcode; open the GUI only inside admission after owned boot readiness. A missing GUI name never establishes that its runtime is missing.",
             "Run GUI discovery and the capacity status before any native launch, a repo script included; a script that assumes one GUI layout is fixed, not worked around in the invocation.",
             "Launch through the project's own launch script when one exists; a bare simctl launch passes every option and variable the project's configuration declares.",
+            "Claude opens the simulator GUI itself and navigates and captures every screenshot with an installed driver (AXe by default: describe-ui, tap, type, swipe, screenshot), installing it when absent; Simon is never asked to open the simulator or tap, and the receipt records the driver version.",
             "Keep one foreground lease through fail-fast stages and viewing; separate process launch, simulator-screen evidence and desktop GUI evidence, reporting permission gaps without changing permissions.",
             "Bound requested preview retention with a local owner/device/app/service receipt, absolute deadlines and exact stop/restart commands; verify owned Shutdown before release and retain caches.",
             "Diagnose toolchain, boot, descriptor, signing, artifact, backend, overload, incomplete-result and discovery failures; fixture UI never proves native-service or live-backend correctness.",
@@ -777,6 +778,8 @@ CONTRACTS: dict[str, dict] = {
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
             "Runs a web walk in a debug Chrome tab Claude opened and screenshots each step itself; never "
             "asks Simon to paste one or touches another session's tab. Launch method lives in browser-debugging.md.",
+            "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
+            "drives the app and captures each step itself, and Simon types only the inputs the change adds.",
         ],
     },
     "skills/sk/skills/test-automated-full-matrix/SKILL.md": {

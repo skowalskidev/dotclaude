@@ -27,7 +27,8 @@ Read, don't restate: `~/.claude/references/user-journey-review.md` (what to look
 while he drives: dead ends, the three states, the wait, when a lock needs a reason),
 `~/.claude/references/testing-strategy.md` (gates, seeding, reason-coded logging, failure classes
 automation can't catch), `~/.claude/references/dev-server-hygiene.md` (port preflight, identity
-handshake, teardown), `~/.claude/references/browser-debugging.md`.
+handshake, teardown), `~/.claude/references/browser-debugging.md`, and for any iPhone/native step
+`~/.claude/references/ios-simulator.md` (read it BEFORE booting a simulator).
 
 ---
 
@@ -185,10 +186,18 @@ and load the start URL there yourself. Simon drives in that tab.
 **DO capture every web step yourself.** When he says done or "next", `take_screenshot` that tab with a
 `filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step
 names a call, and judge it against the Expect line.
-**DON'T ask him to paste a screenshot of the web walk.** Phone and native walks (simulator, a real
-phone) keep their own capture route.
+**DON'T ask him to paste a screenshot of the web walk.** A real-phone walk keeps its own capture route.
 TEST: no web step message asks Simon to paste a screenshot, and each web step's evidence names 1
 screenshot file Claude took.
+
+**DO run an iPhone simulator walk through `references/ios-simulator.md`, read before the first boot.**
+Claude opens the simulator GUI itself, then navigates and screenshots every step with the installed
+driver (§ Drive and capture). Simon types only the NEW inputs from 1.5, in that window.
+**DON'T ask him to open the simulator, tap through screens that are not new inputs, or paste a
+screenshot.** (the fix for a walk that booted a device and installed the app, then asked him to open
+the window and tap through)
+TEST: no native step message asks Simon to open the simulator or paste a screenshot, and each step's
+evidence names 1 capture file Claude took.
 
 ### 4.2 The pacing contract — the part that must not be got wrong
 

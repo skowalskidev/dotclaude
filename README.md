@@ -9,7 +9,7 @@ Made by Simon. Fork it and make it yours.
 ## Make it yours (quickstart)
 
 1. Clone it to `~/.claude`: `git clone https://github.com/skowalskidev/dotclaude.git ~/.claude` (or clone elsewhere and point Claude Code at it).
-2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq).
+2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq, axe).
 3. Run `bash dotfiles/bootstrap.sh`. It wires the safe parts (Claude + Codex skill links, dotfile symlinks, hook bits, the secret-scan gate), scaffolds `identity.local.json` from the template, then prints a checklist of anything left to do and **fails loud until it is all done**. Re-run it until it says `Ready`.
 4. Edit `identity.local.json` with your own accounts: the git-origin substring that marks a WORK repo, your work and personal emails, and your work and personal cloud projects. Untracked, so it is never pushed; it drives the work/personal guard and the boundary context injected each session.
 5. Set up connectors per project with `/sk:setup-connectors` (or copy `connectors/example.json.example` to `connectors/<project>.json`). Schema and steps in `references/connectors-setup.md`.
@@ -92,7 +92,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `.githooks/commit-msg` | Conventional-commit gate — rejects a non-conforming subject line. The written standard lives in `references/git-pr-deploy.md`; this makes it bite in this repo |
 | `dotfiles/sync-config.sh` | On-demand commit + push of config changes (used by `/sk:claude-config-sync`) |
 | `dotfiles/cloud-setup.sh` | Cloud counterpart to `bootstrap.sh` — clones this repo and non-destructively symlinks it into `~/.claude` on a fresh cloud box (Claude Code on the web, a container). Paste its contents into the environment's setup-script field; comment out the hook-layer lines for a skills-only install |
-| `dotfiles/Brewfile` | Reproducible CLI deps (gitleaks, jq) — `brew bundle` |
+| `dotfiles/Brewfile` | Reproducible CLI deps (gitleaks, jq, axe) — `brew bundle` |
 | `skills/sk/skills/claude-config-sync/` | The `/sk:claude-config-sync` skill — safe commit + push of this repo |
 | `skills/sk/skills/setup-connectors/` | The `/sk:setup-connectors` skill — guided connector setup + doctor + migration audit (no arg does all three) |
 | `skills/sk/skills/claude-config-self-development-research/` | The `/sk:claude-config-self-development-research` skill — quarterly research pass over the config, the skills, the packs and the CLI deps against primary sources; proposes, never applies |
@@ -268,7 +268,7 @@ Native adapter details and verified upstream references live in `references/agen
 3. **Make the hooks executable** (git preserves the bit, but ensure it): `chmod +x ~/.claude/hooks/*.py ~/.claude/hooks/*.sh ~/.claude/.githooks/*` — the `.githooks` ones too, or a non-executable `commit-msg` silently no-ops while reading as enforcement.
 4. **Install tooling + enable the secret-scan gate** (see [§ Staying in sync](#staying-in-sync-no-daemon)):
    ```bash
-   brew bundle --file ~/.claude/dotfiles/Brewfile     # gitleaks, jq
+   brew bundle --file ~/.claude/dotfiles/Brewfile     # gitleaks, jq, axe
    git -C ~/.claude config core.hooksPath .githooks    # secret gate + conventional-commit gate
    ```
    The SessionStart sync-reminder hook is already wired in `settings.json` (no separate install). There is
