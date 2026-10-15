@@ -98,6 +98,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `skills/sk/skills/claude-config-self-development-research/` | The `/sk:claude-config-self-development-research` skill — quarterly research pass over the config, the skills, the packs and the CLI deps against primary sources; proposes, never applies |
 | `bin/superspeed-dispatch.sh` | Engine for `/sk:work-superspeed`: launches provider-matched workers with exclusive file ownership, checks each effective Claude child's verification against user/project/local permissions before launch, verifies artifacts on disk, and records timing and status. Static preflight refuses unsupported commands; it never grants permissions. |
 | `bin/superspeed-dispatch.test.sh` | Regression test for the dispatcher, with `claude` stubbed so it spends nothing. Asserts the one failure no other signal catches: that the run EXITS once its slices do. A bare `wait` also waits on the concurrency sampler it kills afterwards, which deadlocks a run whose slices all succeeded. Also asserts the sampler stops, the per-slice completion lines and parallel summary are printed, and each slice writes its own status so a killed run still holds the truth |
+| `bin/screenshot-report.py` (+ `bin/screenshot-report.test.py`) | Offline screenshot report renderer for `/sk:ship-screenshot-changes-advanced`; schema and procedure in `references/screenshot-review.md`. Uses Python standard library; no new dependency or credential |
 | `bin/design-board.py` + `bin/design-board.html` (+ `bin/design-board.test.py`) | The spec-driven whiteboard every mockup-variants ask is built through: phone frames in titled sections on a pan/zoom canvas, picks badged, hidden frames kept in the spec, `window.__measure()` and `window.__flatten()` hooks for the capture loop; `build`, `extract`, `example`. `references/workflow-loops.md` § Shareable design board owns the method |
 | `bin/mockup-shots.py` | Screenshots a built mockup headlessly (Node Playwright, spec extracted in Python): `shell.png` plus one PNG per variant x persona x state with JavaScript running; exits 1 on any page error. `/sk:ship-mockup-before-after` names it in its real-app check |
 | `bin/superspeed-analyse.py` | Turns one superspeed run directory into waste metrics and actions: idle capacity, slice imbalance, cache read/write ratio, inference concurrency, ownership leaks, duplicated reads, reconcile rework, dead slices, fan-out-worth-it, plus the log's own `INSTRUMENTATION GAPS`. Writes `analysis.json` |
@@ -426,3 +427,10 @@ the top telling Claude when to skip it.
 When your Claude config changes (this `CLAUDE.md`, a hook, an `sk` skill, `settings.json`),
 commit it here: `git -C ~/.claude add -A && git -C ~/.claude commit -m "..."`. Never commit a secret — the
 allowlist `.gitignore` + belt guard it; scan staged content before pushing.
+
+### Advanced screenshot reviews
+
+Invoke `/sk:ship-screenshot-changes-advanced` for conditional states and responsive evidence.
+The existing skill bootstrap discovers the new folder; restart the agent session after syncing.
+No additional setup or secret is required. Generated reports and source captures stay in the project’s
+private `.context/` directory. The config contract suite includes the renderer’s offline tests.
