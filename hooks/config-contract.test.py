@@ -118,7 +118,7 @@ CRITERIA: list[tuple[str, str]] = [
      "own root. Both hooks ask bin/session-root.sh, so a prompt or a note sent from the nested "
      "worktree lands in the session's root and opens no second record there."),
     ("native-slot-serializes-native-work-across-sessions",
-     "The compatibility frontend uses the one shared capacity lease, defers conflicts with exit 75, "
+     "The compatibility frontend uses the shared capacity leases, defers conflicts with exit 75, "
      "and a native project hears the protocol while an idle web project stays silent."),
 
     # --- The task-intake gate: what you asked for on 2026-08-03 ---------------------
@@ -755,7 +755,7 @@ def check_native_slot_serializes_native_work_across_sessions() -> None:
         fake = config / "bin" / "native-slot.sh"
         fake.write_text("#!/bin/sh\n"
                         "if [ \"$FAKE_NATIVE_STATE\" = held ]; then printf 'holder=other pid=42 live\\nbooted simulators: none\\n'; "
-                        "else printf 'heavy slot free\\nbooted simulators: none\\n'; fi\n")
+                        "else printf 'heavy slot 1 of 2: free\\nheavy slot 2 of 2: free\\nbooted simulators: none\\n'; fi\n")
         fake.chmod(0o700)
         project = Path(tmp) / "project"
         (project / "ios" / "App.xcodeproj").mkdir(parents=True)

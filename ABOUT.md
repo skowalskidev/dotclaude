@@ -53,9 +53,9 @@ a local report, and lets the session finish without waiting for other sessions. 
 can collect reports arriving at different times; missing reports stay pending. The helper records
 evidence and review receipts without a background watcher. Shared changes require authorization.
 
-Heavy local builds and simulator work use one machine-wide capacity lease. Editing and lightweight
-checks can continue while another session holds it. The runner attempts bounded shutdown of only
-its owned simulator before release; failed cleanup and orphaned owners retain the lease for
+Heavy local builds and simulator work use machine-wide capacity leases, two at once, one per
+session. Editing and lightweight checks can continue while both are held. The runner attempts
+bounded shutdown of only its owned simulator before release; failed cleanup and orphaned owners retain the lease for
 inspection. This coordinates participating sessions, not arbitrary applications or an OS CPU ceiling.
 See `references/dev-server-hygiene.md`, `references/ios-simulator.md` and
 `references/session-performance.md`.

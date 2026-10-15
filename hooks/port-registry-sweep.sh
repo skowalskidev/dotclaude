@@ -58,12 +58,11 @@ native_report() {
   [ -x "$NATIVE_SH" ] || return 0
   local out
   out="$("$NATIVE_SH" list 2>/dev/null)"
-  if [ "$out" = "heavy slot free
-booted simulators: none" ]; then
-    has_native_project || return 0
-  elif [ -z "$out" ]; then
+  if [ -z "$out" ]; then
     has_native_project || return 0
     out="Capacity status unavailable; inspect before native work."
+  elif ! printf '%s\n' "$out" | grep -qvE '^(heavy slot [0-9]+ of [0-9]+: free|booted simulators: none)$'; then
+    has_native_project || return 0
   fi
 
   printf '%s\n' "NOTE: heavy builds and simulators are shared by every local session on this machine.

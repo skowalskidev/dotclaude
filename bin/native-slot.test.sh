@@ -20,10 +20,10 @@ check() {
 }
 SIM=AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE
 
-check 'empty status uses the shared gate' 'heavy slot free' "$("$NS" list | head -1)"
+check 'empty status uses the shared gate' 'heavy slot 1 of 2: free' "$("$NS" list | head -1)"
 CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'unit tests' -- sh -c 'exit 7' >/dev/null
 check 'run passes child status' 7 "$?"
-check 'run releases completed command' 'heavy slot free' "$("$NS" list | head -1)"
+check 'run releases completed command' 'heavy slot 1 of 2: free' "$("$NS" list | head -1)"
 
 CLAUDE_NATIVE_SESSION=alpha "$NS" claim-sim "$SIM" --for 'iOS tests' >/dev/null
 check 'claim visible through shared status' yes "$("$NS" list | grep -q "simulator claim: $SIM owner=alpha" && echo yes || echo no)"

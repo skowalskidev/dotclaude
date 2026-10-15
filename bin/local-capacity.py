@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Cooperative, machine-wide admission for local heavy commands and simulators.
 
-The default is one heavy lease. A priority owner named by `prioritize` may also run in
-a second, parallel slot; nothing already running is stopped. This does not impose an OS
-CPU or memory limit: every participating session must acquire before a heavy command or
-simulator boot.
+At most HEAVY_SLOTS owners hold a heavy lease at once, one lease per owner. A priority owner
+named by `prioritize` is admitted ahead of every other new request and past the load guard;
+nothing already running is stopped. This does not impose an OS CPU or memory limit: every
+participating session must acquire before a heavy command or simulator boot.
 """
 
 import argparse
@@ -25,9 +25,11 @@ from pathlib import Path
 
 BUSY = 75
 TIMEOUT = 124
+HEAVY_SLOTS = 2  # the one ceiling: how many owners may hold a heavy lease at once
 LEASE_SLOT = "lease.json"
-PRIORITY_SLOT = "priority-lease.json"
-SLOTS = (LEASE_SLOT, PRIORITY_SLOT)
+SECOND_SLOT = "priority-lease.json"  # file name kept so leases already on disk stay valid
+SLOTS = (LEASE_SLOT, SECOND_SLOT)
+assert len(SLOTS) == HEAVY_SLOTS
 PRIORITY_DEFAULT_MIN = 60
 PRIORITY_MAX_MIN = 180
 OWNER = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}\Z")
@@ -452,20 +454,19 @@ def bridge_paths(root):
     return sorted(set(paths))
 
 
-def priority_overlaps_holder(root, owner):
-    """True when `owner` has live priority and a different owner's run holds the heavy lease."""
+def other_owner_holds_first_slot(root, owner):
+    """True when a different owner's run holds the first heavy lease, so a held legacy lock is theirs."""
     with locked(root):
-        record = read_priority(root)
         lease = read_state(root)
-        return bool(record and record["owner"] == owner and lease and lease["owner"] != owner)
+        return bool(lease and lease["owner"] != owner)
 
 
 @contextmanager
 def legacy_bridge(root, owner=None):
     """Hold every bridged lock; yield (fds, skipped).
 
-    Only the priority owner, while another owner's run holds the heavy lease, may pass a held
-    lock. `skipped` then tells acquire to use the priority slot alone.
+    Only an owner, while another owner's run holds the first heavy lease, may pass a held
+    lock. `skipped` then tells acquire to use the second slot alone.
     """
     fds = []
     skipped = False
@@ -479,7 +480,7 @@ def legacy_bridge(root, owner=None):
                     raise GateError("legacy lock is not a regular file: %s" % name)
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
-                if owner is not None and priority_overlaps_holder(root, owner):
+                if owner is not None and other_owner_holds_first_slot(root, owner):
                     fds.remove(fd)
                     os.close(fd)
                     skipped = True
@@ -508,7 +509,7 @@ def holder_text(lease):
     return "holder=%s pid=%s %s%s%s" % (lease["owner"], lease["pid"], condition, sim, command)
 
 
-def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, priority_slot_only=False):
+def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if pid <= 0:
@@ -524,24 +525,18 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         is_priority = bool(priority and priority["owner"] == owner)
         if priority and not is_priority:
             raise Busy("heavy work deferred: priority owner is %s; retry after it finishes" % priority_text(priority))
-        primary = read_state(root)
-        second = read_state(root, slot=PRIORITY_SLOT)
-        held = [lease for lease in (primary, second) if lease]
-        if not is_priority:
-            if held:
-                raise Busy("heavy slot busy: %s; keep editing or inspect and release its exact token" % holder_text(held[0]))
-            slot = LEASE_SLOT
-        else:
-            if any(lease["owner"] == owner for lease in held):
-                raise Busy("heavy slot busy: %s; the priority owner already holds a lease" % holder_text(next(l for l in held if l["owner"] == owner)))
-            if priority_slot_only and not primary:
-                raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
-            if not primary and not priority_slot_only:
-                slot = LEASE_SLOT
-            elif not second:
-                slot = PRIORITY_SLOT
-            else:
-                raise Busy("both heavy slots busy: %s; %s" % (holder_text(primary), holder_text(second)))
+        states = [read_state(root, slot=name) for name in SLOTS]
+        held = [lease for lease in states if lease]
+        mine = next((lease for lease in held if lease["owner"] == owner), None)
+        if mine:
+            raise Busy("heavy slot busy: %s; one owner holds at most one lease" % holder_text(mine))
+        if second_slot_only and not states[0]:
+            raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
+        free = [name for name, lease in zip(SLOTS, states) if not lease]
+        if not free:
+            raise Busy("all %d heavy slots busy: %s; keep editing or inspect and release an exact token" %
+                       (HEAVY_SLOTS, "; ".join(holder_text(lease) for lease in held)))
+        slot = SECOND_SLOT if second_slot_only else free[0]
         start = pid_start(pid)
         if not start:
             raise GateError("owner PID is not running or cannot be identified")
@@ -553,7 +548,7 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         if simulator:
             target = simulator.upper()
             if target in other_sims:
-                raise Busy("simulator %s is in use by the other heavy lease" % target)
+                raise Busy("simulator %s is in use by another heavy lease" % target)
             claims = read_claims(root)
             legacy = legacy_claims()
             if target in legacy:
@@ -711,7 +706,7 @@ def stage_command(root, seconds, command):
         slot, lease = find_lease(root, owns_group)
         if not lease:
             raise GateError("stage must run inside an owned foreground run")
-    if bridge_paths(root) and not legacy_fds and slot != PRIORITY_SLOT:
+    if bridge_paths(root) and not legacy_fds and slot != SECOND_SLOT:
         raise GateError("stage would lose the legacy lock bridge")
     interrupted = [None]
     old_handlers = {}
@@ -766,7 +761,7 @@ def stage_command(root, seconds, command):
             signal.signal(sig, handler)
 
 
-def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, priority_slot_only=False):
+def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, second_slot_only=False):
     if not command:
         raise GateError("run requires a foreground command after --")
     if command[0] == "--":
@@ -774,7 +769,7 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
     if not command:
         raise GateError("run requires a foreground command after --")
     token = acquire(root, owner, os.getpid(), simulator, child_pending=True, allow_bridge=True,
-                    priority_slot_only=priority_slot_only)
+                    second_slot_only=second_slot_only)
     metrics["token"] = token
     metrics["start"] = time.monotonic()
     metrics["wait"] = metrics["start"] - metrics["requested"]
@@ -926,13 +921,13 @@ def main(argv=None):
             PRESSURE_FIXTURE = candidate
         if args.action == "status":
             with locked(root):
-                lease = read_state(root)
-                second = read_state(root, slot=PRIORITY_SLOT)
+                states = [read_state(root, slot=name) for name in SLOTS]
                 priority = read_priority(root)
                 booted = observe_booted()
-                print(holder_text(lease) if lease else ("heavy slot unavailable" if booted or second else "heavy slot free"))
-                if second:
-                    print("priority slot: " + holder_text(second))
+                owned = {lease["simulator"] for lease in states if lease and lease["simulator"]}
+                free_text = "unavailable (booted simulator without a lease)" if set(booted) - owned else "free"
+                for number, lease in enumerate(states, 1):
+                    print("heavy slot %d of %d: %s" % (number, HEAVY_SLOTS, holder_text(lease) if lease else free_text))
                 if priority:
                     print("priority: " + priority_text(priority))
                 print("booted simulators: " + (", ".join(booted) if booted else "none"))

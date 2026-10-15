@@ -24,13 +24,18 @@ spec.loader.exec_module(gate)
 SIM = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
 
 
-def competing(root, queue, event):
+def competing(root, queue, event, owner):
     with mock.patch.object(gate, "observe_booted", return_value=[]):
         event.wait()
-        try:
-            queue.put(("ok", gate.acquire(Path(root), "competitor", os.getpid(), None)))
-        except gate.Busy:
-            queue.put(("busy", ""))
+        for _ in range(200):
+            try:
+                queue.put(("ok", gate.acquire(Path(root), owner, os.getpid(), None)))
+            except gate.Busy as exc:
+                if "being checked by another session" in str(exc):
+                    time.sleep(0.01)  # state-lock contention is a retry; only a full ceiling is the answer
+                    continue
+                queue.put(("busy", ""))
+            return
 
 
 def hold_lock(root, ready, done):
@@ -54,10 +59,11 @@ class GateTests(unittest.TestCase):
         self.pressure.start()
         self.addCleanup(self.pressure.stop)
 
-    def test_competing_processes_get_one_slot(self):
+    def test_competing_processes_get_exactly_the_ceiling(self):
         ctx = multiprocessing.get_context("fork")
         queue, event = ctx.Queue(), ctx.Event()
-        children = [ctx.Process(target=competing, args=(str(self.root), queue, event)) for _ in range(2)]
+        children = [ctx.Process(target=competing, args=(str(self.root), queue, event, "competitor%d" % number))
+                    for number in range(gate.HEAVY_SLOTS + 1)]
         for child in children:
             child.start()
         event.set()
@@ -65,8 +71,9 @@ class GateTests(unittest.TestCase):
         for child in children:
             child.join(10)
             self.assertEqual(child.exitcode, 0)
-        self.assertEqual(sorted(item[0] for item in answers), ["busy", "ok"])
-        self.assertEqual(gate.read_state(self.root)["token"], next(value for kind, value in answers if kind == "ok"))
+        self.assertEqual(sorted(item[0] for item in answers), ["busy"] + ["ok"] * gate.HEAVY_SLOTS)
+        admitted = {value for kind, value in answers if kind == "ok"}
+        self.assertEqual({gate.read_state(self.root, slot=name)["token"] for name in gate.SLOTS}, admitted)
 
     def test_busy_lock_returns_without_waiting_for_holder(self):
         ctx = multiprocessing.get_context("fork")
@@ -90,8 +97,11 @@ class GateTests(unittest.TestCase):
         lease["pid"] = 999999
         gate.write_state(self.root, lease)
         self.assertIn("orphan", gate.holder_text(lease))
-        with self.assertRaises(gate.Busy):
-            gate.acquire(self.root, "another", os.getpid(), None)
+        other = gate.acquire(self.root, "another", os.getpid(), None)
+        with self.assertRaises(gate.Busy) as refused:
+            gate.acquire(self.root, "third", os.getpid(), None)
+        self.assertIn("orphan", str(refused.exception))
+        gate.release(self.root, other)
         gate.release(self.root, token)
 
     def test_pid_reuse_is_visible(self):
@@ -100,8 +110,10 @@ class GateTests(unittest.TestCase):
         lease["pid_start"] = "old process start"
         gate.write_state(self.root, lease)
         self.assertIn("PID reused", gate.holder_text(lease))
-        with self.assertRaises(gate.Busy):
-            gate.acquire(self.root, "other", os.getpid(), None)
+        gate.acquire(self.root, "other", os.getpid(), None)
+        with self.assertRaises(gate.Busy) as refused:
+            gate.acquire(self.root, "third", os.getpid(), None)
+        self.assertIn("PID reused", str(refused.exception))
 
     def test_foreign_booted_simulator_and_probe_failure_block(self):
         with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
@@ -117,6 +129,63 @@ class GateTests(unittest.TestCase):
             with self.assertRaises(gate.Busy):
                 gate.acquire(self.root, "build", os.getpid(), None)
         self.assertIsNone(gate.read_state(self.root))
+
+    def test_two_owners_are_admitted_and_a_third_is_refused_naming_both(self):
+        first = gate.acquire(self.root, "alpha", os.getpid(), None)
+        second = gate.acquire(self.root, "beta", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root)["token"], first)
+        self.assertEqual(gate.read_state(self.root, slot=gate.SECOND_SLOT)["token"], second)
+        with self.assertRaises(gate.Busy) as refused:
+            gate.acquire(self.root, "gamma", os.getpid(), None)
+        for name in ("alpha", "beta"):
+            self.assertIn("holder=" + name, str(refused.exception))
+        self.assertIn("all %d heavy slots busy" % gate.HEAVY_SLOTS, str(refused.exception))
+        gate.release(self.root, first)
+        third = gate.acquire(self.root, "gamma", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root)["token"], third)
+        gate.release(self.root, second)
+        gate.release(self.root, third)
+
+    def test_ceiling_is_the_named_constant_and_matches_the_slot_files(self):
+        self.assertEqual(gate.HEAVY_SLOTS, 2)
+        self.assertEqual(len(gate.SLOTS), gate.HEAVY_SLOTS)
+
+    def test_one_owner_holds_at_most_one_lease(self):
+        gate.acquire(self.root, "alpha", os.getpid(), None)
+        with self.assertRaises(gate.Busy) as refused:
+            gate.acquire(self.root, "alpha", os.getpid(), None)
+        self.assertIn("one owner holds at most one lease", str(refused.exception))
+        self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
+
+    def test_load_guard_defers_the_second_admission_too(self):
+        gate.acquire(self.root, "alpha", os.getpid(), None)
+        with mock.patch.object(gate, "simulator_pressure", return_value=(17, 8)):
+            with self.assertRaises(gate.Busy) as refused:
+                gate.acquire(self.root, "beta", os.getpid(), None)
+        self.assertIn("exceeds 2 x 8 logical cores", str(refused.exception))
+        self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
+
+    def test_a_lease_already_in_the_second_file_still_counts_with_no_migration(self):
+        gate.acquire(self.root, "alpha", os.getpid(), None)
+        lease = gate.read_state(self.root)
+        gate.write_state(self.root, lease, gate.SECOND_SLOT)
+        gate.write_state(self.root, None)
+        self.assertEqual((self.root / "priority-lease.json").read_text().count(lease["token"]), 1)
+        beta = gate.acquire(self.root, "beta", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root)["token"], beta)
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "gamma", os.getpid(), None)
+
+    def test_each_simulator_is_owned_by_one_lease(self):
+        other = "11111111-2222-3333-4444-555555555555"
+        gate.acquire(self.root, "alpha", os.getpid(), SIM)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "beta", os.getpid(), SIM)
+            gate.acquire(self.root, "beta", os.getpid(), other)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM, "99999999-2222-3333-4444-555555555555"]):
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "gamma", os.getpid(), None)
 
     def test_explicit_migration_preserves_old_live_receipt(self):
         token = gate.acquire(self.root, "mine", os.getpid(), None)
@@ -485,13 +554,13 @@ class PriorityTests(unittest.TestCase):
         gate.prioritize(self.root, "vip", 30, False)
         token = gate.acquire(self.root, "vip", os.getpid(), None)
         self.assertEqual(gate.read_state(self.root), before)
-        self.assertEqual(gate.read_state(self.root, slot=gate.PRIORITY_SLOT)["token"], token)
+        self.assertEqual(gate.read_state(self.root, slot=gate.SECOND_SLOT)["token"], token)
         with self.assertRaises(gate.Busy):
             gate.acquire(self.root, "vip", os.getpid(), None)
         gate.release(self.root, holder)
-        self.assertEqual(gate.read_state(self.root, slot=gate.PRIORITY_SLOT)["token"], token)
+        self.assertEqual(gate.read_state(self.root, slot=gate.SECOND_SLOT)["token"], token)
         gate.release(self.root, token)
-        self.assertIsNone(gate.read_state(self.root, slot=gate.PRIORITY_SLOT))
+        self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
     def test_priority_owner_skips_the_load_gate_and_others_keep_it(self):
         gate.prioritize(self.root, "vip", 30, False)
@@ -511,6 +580,20 @@ class PriorityTests(unittest.TestCase):
         self.assertIn("priority owner is vip until", deferred.stderr)
         self.assertIsNone(gate.read_state(self.root))
         self.assertEqual(self.cli("run", "--owner", "vip", "--", sys.executable, "-c", "pass").returncode, 0)
+
+    def test_priority_owner_is_next_in_line_when_two_ordinary_owners_hold_both_slots(self):
+        first = gate.acquire(self.root, "one", os.getpid(), None)
+        gate.acquire(self.root, "two", os.getpid(), None)
+        gate.prioritize(self.root, "vip", 30, False)
+        with self.assertRaises(gate.Busy) as refused:
+            gate.acquire(self.root, "vip", os.getpid(), None)
+        self.assertIn("all 2 heavy slots busy", str(refused.exception))
+        gate.release(self.root, first)
+        with self.assertRaises(gate.Busy) as deferred:
+            gate.acquire(self.root, "other", os.getpid(), None)
+        self.assertIn("priority owner is vip until", str(deferred.exception))
+        token = gate.acquire(self.root, "vip", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root)["token"], token)
 
     def test_both_slots_busy_defers_even_the_priority_owner(self):
         gate.acquire(self.root, "holder", os.getpid(), None)
@@ -543,6 +626,17 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(self.cli("prioritize", "--owner", "bad/owner").returncode, 1)
         self.assertEqual(self.cli("prioritize").returncode, 1)
 
+    def test_status_prints_both_slots_free_and_held(self):
+        free = self.cli("status").stdout.splitlines()
+        self.assertEqual(free[:2], ["heavy slot 1 of 2: free", "heavy slot 2 of 2: free"])
+        gate.acquire(self.root, "alpha", os.getpid(), None)
+        lines = self.cli("status").stdout.splitlines()
+        self.assertTrue(lines[0].startswith("heavy slot 1 of 2: holder=alpha "), lines)
+        self.assertEqual(lines[1], "heavy slot 2 of 2: free")
+        gate.acquire(self.root, "beta", os.getpid(), None)
+        lines = self.cli("status").stdout.splitlines()
+        self.assertTrue(lines[1].startswith("heavy slot 2 of 2: holder=beta "), lines)
+
     def test_status_prints_the_record_only_while_it_is_live(self):
         self.assertNotIn("priority", self.cli("status").stdout)
         self.cli("prioritize", "--owner", "vip", "--minutes", "30")
@@ -561,23 +655,30 @@ class PriorityTests(unittest.TestCase):
             token = gate.acquire(self.root, "vip", os.getpid(), None)
             gate.release(self.root, token)
 
-    def test_priority_run_passes_a_legacy_lock_held_by_another_run_and_stages_work(self):
+    def test_any_run_passes_a_legacy_lock_held_by_another_run_and_stages_work(self):
         self.hold_bridge()
         holder = gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
-        with self.assertRaises(gate.Busy):
-            gate.run_command(self.root, "other", None, [sys.executable, "-c", "pass"])
-        gate.prioritize(self.root, "vip", 30, False)
         staged = [sys.executable, str(SCRIPT), "stage", "--timeout-seconds", "5", "--", sys.executable, "-c", "pass"]
-        self.assertEqual(gate.run_command(self.root, "vip", None, staged), 0)
-        self.assertIsNone(gate.read_state(self.root, slot=gate.PRIORITY_SLOT))
+        self.assertEqual(gate.run_command(self.root, "other", None, staged), 0)
+        self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
         self.assertEqual(gate.read_state(self.root)["token"], holder)
 
-    def test_legacy_lock_without_a_capacity_holder_still_blocks_the_priority_owner(self):
+    def test_legacy_lock_without_a_capacity_holder_still_blocks_every_owner(self):
         self.hold_bridge()
-        gate.prioritize(self.root, "vip", 30, False)
+        for owner in ("vip", "other"):
+            if owner == "vip":
+                gate.prioritize(self.root, "vip", 30, False)
+            else:
+                gate.prioritize(self.root, None, 0, True)
+            with self.assertRaises(gate.Busy):
+                gate.run_command(self.root, owner, None, [sys.executable, "-c", "pass"])
+            self.assertIsNone(gate.read_state(self.root))
+
+    def test_the_holders_own_second_run_never_passes_the_legacy_lock(self):
+        self.hold_bridge()
+        gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
         with self.assertRaises(gate.Busy):
-            gate.run_command(self.root, "vip", None, [sys.executable, "-c", "pass"])
-        self.assertIsNone(gate.read_state(self.root))
+            gate.run_command(self.root, "holder", None, [sys.executable, "-c", "pass"])
 
 
 if __name__ == "__main__":
