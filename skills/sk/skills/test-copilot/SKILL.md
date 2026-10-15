@@ -179,8 +179,8 @@ continue only on a test-mode id.
 TEST: no step with a side effect runs until his first request is in the log.
 
 **DO run a web walk in a browser you control, by default.** Attach the chrome-devtools MCP to the
-project's debug Chrome, reusing one already running on the project's profile (launch and attach per
-`browser-debugging.md`). Open 1 NEW tab for the walk, or an isolated context for a fresh-visitor walk,
+project's test browser (Chrome for Testing), reusing one already running on the project's profile
+(launch and attach per `browser-debugging.md` § The test browser). Open 1 NEW tab for the walk, or an isolated context for a fresh-visitor walk,
 and load the start URL there yourself. Simon drives in that tab.
 **DON'T close or navigate a tab you did not open.** Another session may own it.
 **DO capture every web step yourself.** When he says done or "next", `take_screenshot` that tab with a

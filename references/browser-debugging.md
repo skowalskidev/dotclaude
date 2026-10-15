@@ -2,8 +2,28 @@
 
 A user-scope MCP for verifying UI changes in a **real, logged-in browser** — the live-eyes complement to automated tests (Playwright/Cypress/etc.). Use it to sanity-check a flow visually, grab screenshots, and inspect real network calls; keep automated specs as the committed regression coverage.
 
-**Setup:** launch Chrome as a SEPARATE instance with its OWN `--user-data-dir`, never your everyday profile:
-`open -na "Google Chrome" --args --remote-debugging-port=9222 --user-data-dir="$HOME/.chrome-<project>-debug" --no-first-run --no-default-browser-check <url>`. The dedicated profile is what makes the port open reliably: passing `--remote-debugging-port` while Chrome is ALREADY running on that profile just hands the flag to the running instance (it owns the profile's singleton lock), which never opens the port — `DevToolsActivePort` is never written, nothing binds 9222, and the MCP fails with "Could not connect". So poll until `curl -s http://127.0.0.1:9222/json/version` succeeds before attaching. A dedicated profile starts logged OUT, so sign in ONCE in that window; it persists the session across runs. The MCP attaches to that instance.
+## The test browser — every browser operation runs in Chrome for Testing
+
+**DO run every browser operation in Chrome for Testing, the visibly marked test browser: co-pilot
+walks, eyeball passes, screenshots, login flows, and any state Simon is to look at or click.** Launch
+it with `~/.claude/bin/test-browser.sh launch` (resolves the newest Playwright build at run time) and
+attach the chrome-devtools MCP to it. Playwright's bundled Chromium is the same browser, so a
+Playwright run also qualifies.
+**DON'T open, attach to, or drive Simon's everyday Chrome, with any profile or isolated context.** He
+cannot tell which window is his, and he clicks in the wrong one. (the fix for a co-pilot walk opened in
+his own Chrome window)
+**DO seed a state he is to see or click inside the test browser and hold it open: 1 window per viewport
+he needs**, sized with `--size` (e.g. 390x844 phone, 1280x800 desktop) and placed with `--pos`. For a
+scripted scenario, a headed Playwright run with `headless: false` and no `channel` that walks to the
+state and calls `page.pause()` does the same.
+**DON'T set Playwright `channel: 'chrome'` or `executablePath` to Google Chrome**, and don't run a state
+he is to look at headless.
+WHY: a window marked "Chrome for Testing" is unmistakably the agent's, so he clicks only where he is meant to.
+TEST: `ps -o command= -p $(lsof -nP -iTCP:9222 -sTCP:LISTEN -t)` names `Google Chrome for Testing`,
+and no `/Applications/Google Chrome.app` process carries `--remote-debugging-port`.
+
+**Setup:** launch the test browser as a SEPARATE instance with its OWN `--user-data-dir`, never your everyday profile:
+`~/.claude/bin/test-browser.sh launch [--port 9222] [--profile "$HOME/.chrome-<project>-debug"] [--size WxH] <url>`. It exits 0 when the port is open (reusing a Chrome for Testing already there), 5 when the port belongs to another browser (pick another `--port`), 4 when no build is cached (`npx playwright install chromium`). The dedicated profile is what makes the port open reliably: passing `--remote-debugging-port` while a Chrome is ALREADY running on that profile just hands the flag to the running instance (it owns the profile's singleton lock), which never opens the port — `DevToolsActivePort` is never written, nothing binds 9222, and the MCP fails with "Could not connect". So poll until `curl -s http://127.0.0.1:9222/json/version` succeeds before attaching. A dedicated profile starts logged OUT, so sign in ONCE in that window; it persists the session across runs. The MCP attaches to that instance.
 
 **Core loop:** `navigate_page` → `wait_for({text:[…]})` → `take_snapshot` (accessibility tree with `uid`s) → act via `click({uid})` / `fill` / `evaluate_script` → `take_screenshot`. `take_screenshot` accepts `{filePath}` (save straight to disk, e.g. for PR screenshots) and `{fullPage}`. Inspect the backend with `list_network_requests` + `get_network_request({reqid})` (status, request/response headers incl. bearer token, body).
 

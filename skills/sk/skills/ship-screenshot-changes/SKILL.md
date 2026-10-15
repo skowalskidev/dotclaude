@@ -23,8 +23,8 @@ project's documented token/impersonate recipe. If the project has no recipe, get
 cheapest safe way (attach to an already-signed-in debug Chrome, or ask for a one-time manual login in the
 debug window) and add the recipe you worked out to that project's `CLAUDE.local.md` so it's instant next time.
 
-Debug browser = chrome-devtools MCP attached to a Chrome launched with
-`--remote-debugging-port=9222 --user-data-dir=<throwaway>`.
+Debug browser = chrome-devtools MCP attached to the test browser, launched per
+`browser-debugging.md` § The test browser (Chrome for Testing, never Simon's own Chrome).
 
 **Take a lane before booting anything, and before claiming 9222.** Several sessions run at once and all
 want the same ports, so `~/.claude/bin/port-slot.sh` gives this worktree its own set and

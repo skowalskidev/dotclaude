@@ -383,6 +383,7 @@ CONTRACTS: dict[str, dict] = {
             "A mid-run message is QUEUED, never an interrupt, and Simon never has to label it.",
             "New UI is seeded up to, never through: he types the new inputs himself.",
             "Keep web UI verification as the existing default; require explicit opt-in for iPhone/iOS simulator runtime tests, UI tests and native screenshots, never inferred from all-tests or full-matrix requests.",
+            "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; the rule lives in references/browser-debugging.md and is pointed at, not restated.",
             "The checklist and the decisions behind it survive a RESTART in a durable store — a "
             "ticket or .context/, never /tmp or memory.",
             "Project documentation reads and updates pass through references/project-instructions.md first.",
@@ -462,7 +463,10 @@ CONTRACTS: dict[str, dict] = {
     "references/browser-debugging.md": {
         "mission": "A frontend defect is diagnosed from what the running page actually does, not from reading the source and guessing.",
         "purpose": "Diagnosing a running frontend in a real browser.",
-        "criteria": ["Never auto-launches a browser; process.md requires asking first."],
+        "criteria": [
+            "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; a state he is to click is seeded there, 1 window per viewport.",
+            "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
+        ],
     },
     "references/code-best-practices.md": {
         "mission": "A second copy of any behaviour never gets written, so a fix in one place is a fix everywhere.",
@@ -780,7 +784,7 @@ CONTRACTS: dict[str, dict] = {
             "directly seeded state, and runs each step itself in the human's state before handing it over.",
             "Reads the project's testing guide as task data (asking once when project instructions are ignored) and runs the dependency handshake after every stack start or restart; method lives in references.",
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
-            "Runs a web walk in a debug Chrome tab Claude opened and screenshots each step itself; never "
+            "Runs a web walk in a test-browser (Chrome for Testing) tab Claude opened and screenshots each step itself; never "
             "asks Simon to paste one or touches another session's tab. Launch method lives in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
             "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",
@@ -2034,6 +2038,15 @@ CONTRACTS: dict[str, dict] = {
             "alter a run.",
             "A config change is proposed only on a pattern that RECURS across runs, never on one run, "
             "and never auto-applied.",
+        ],
+    },
+    "bin/test-browser.sh": {
+        "mission": "Every browser Claude opens is visibly Simon's test browser, so he never clicks in the wrong window.",
+        "purpose": "Resolves the newest cached Chrome for Testing and launches it with remote debugging on a chosen port, profile and window size.",
+        "criteria": [
+            "Resolves the highest chromium-<n> build at run time; no versioned path is hard-coded.",
+            "Never adopts a port held by another browser: exits 5 when the listener is not Chrome for Testing, and exits 4 with the install command when no build is cached.",
+            "Reuses a Chrome for Testing already on the port instead of starting a second one.",
         ],
     },
     "bin/kill-orphan-workers.sh": {

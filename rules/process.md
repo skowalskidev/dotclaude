@@ -170,17 +170,16 @@ edits outside the session's checkpoints, and nothing Bash writes is checkpointed
 the restore point is git — commit the good state, or branch, before starting.
 
 ### Self-verify a UI change in the browser before handing back — the default
-**DO open the local preview / dev server and screenshot every web frontend surface you changed, then scan
+**DO open the local preview / dev server in Chrome for Testing (`browser-debugging.md`; never Simon's own Chrome) and screenshot every web frontend surface you changed, then scan
 each for gross visual breakage — overlap, overflow, cutoff, unreadable contrast, colliding
-wrapped elements, broken layout — and FIX it before handing back.** Do this proactively on any
-web UI/frontend edit, without asking first, after the batch's review fixes converge. Native iPhone/iOS
-runtime/UI checks and screenshot capture follow the explicit opt-in above; do not boot a simulator to
-satisfy this browser rule.
-WHY: a chart that flex-wrapped into a fixed-height container and overlapped the section below shipped
+wrapped elements, broken layout — and FIX it before handing back.** Do this on any web UI
+edit without asking, after the batch's review fixes converge. Native iOS runtime/UI checks and
+screenshots follow the explicit opt-in above; boot no simulator for this rule.
+WHY: a chart that flex-wrapped and overlapped the section below shipped
 because nobody looked — a screenshot catches that class in seconds.
-Static checks that need no running app (grep, layout math, reading rendered output) need no browser.
+Static checks (grep, layout math, rendered output) need no browser.
 TEST: a web UI diff handed back with no screenshot of each changed surface, or carrying a visible
-overlap/overflow/cutoff a screenshot would have surfaced, broke the rule.
+overlap/overflow/cutoff a screenshot would have surfaced, or any window not marked "Chrome for Testing", broke the rule.
 
 **Seed the backend, hand me the frontend.** When a change adds new UI, seed only the backend
 prerequisites the UI can't create, then walk me through entering the data through the new screens

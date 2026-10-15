@@ -30,18 +30,14 @@ contain unmerged branch work.
 
 Never ask Simon to paste a Lighthouse JSON report. Drive it with the `chrome-devtools` MCP.
 
-**Setup.** Simon's everyday Chrome usually runs WITHOUT `--remote-debugging-port`, and you cannot add the
-flag to a running instance. **Do NOT kill his Chrome** — he loses his tabs. Launch a *separate* instance
-with its own profile:
+**Setup.** Launch the test browser per `~/.claude/references/browser-debugging.md` § The test browser, with a
+scratch profile and a free port:
 ```bash
 SCRATCH=<your scratchpad dir>
-mkdir -p "$SCRATCH/chrome-debug-profile"
-nohup "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
-  --remote-debugging-port=9222 \
-  --user-data-dir="$SCRATCH/chrome-debug-profile" \
-  --no-first-run --no-default-browser-check about:blank > "$SCRATCH/chrome-debug.log" 2>&1 &
-sleep 5 && curl -s http://127.0.0.1:9222/json/version
+~/.claude/bin/test-browser.sh launch --port 9222 --profile "$SCRATCH/chrome-debug-profile"
+curl -s http://127.0.0.1:9222/json/version
 ```
+Exit 5 means another browser holds the port: pick a free `--port`. Do NOT kill Simon's Chrome.
 A fresh profile is signed out — fine for public pages. For auth-gated pages use the password-free
 custom-token login (see the project's testing playbook); **never type a password into a form.**
 
@@ -66,8 +62,8 @@ for (const [id,a] of Object.entries(r.audits)) if (a.score!==null && a.score<1)
 When the `chrome-devtools` MCP isn't connected, or the target is the live production URL, run the
 Lighthouse CLI yourself against a headless debug Chrome:
 ```bash
-# 1. headless debug Chrome (separate profile — never touch Simon's main Chrome)
-nohup "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+# 1. headless Chrome for Testing (separate profile — never touch Simon's main Chrome)
+nohup "$(~/.claude/bin/test-browser.sh path)" \
   --remote-debugging-port=9222 --user-data-dir="$SCRATCH/lh-chrome" \
   --no-first-run --no-default-browser-check --headless=new about:blank &>/dev/null &
 # 2. install lighthouse into scratch and run it under NODE 24 (see below)
