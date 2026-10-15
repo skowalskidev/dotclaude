@@ -1972,6 +1972,7 @@ CONTRACTS: dict[str, dict] = {
             "Delegate run, list, claim-sim, release-sim and jobs to bin/local-capacity.py; never create a second lock or simulator ledger.",
             "Return exit 75 before the wrapped command starts when the shared leases, legacy bridge or load gate refuses admission.",
             "Keep a dead or interrupted holder visible for explicit inspection; never auto-reap another session's claim.",
+            "Expand every array that can be empty as ${ARR[@]+\"${ARR[@]}\"}; macOS /bin/bash 3.2 treats a bare empty \"${ARR[@]}\" as unbound under set -u.",
             "Use an isolated state root in offline tests and boot no simulator.",
         ],
     },
@@ -1982,6 +1983,7 @@ CONTRACTS: dict[str, dict] = {
             "Asserts a second caller is deferred with exit 75 while a live holder runs and starts no command.",
             "Asserts an orphaned holder blocks admission until explicit inspection and release.",
             "Asserts another session's simulator cannot be claimed or released; boots no simulator.",
+            "Runs the frontend under /bin/bash with LOCAL_CAPACITY_ROOT unset and a temporary HOME, so an empty-array regression fails here.",
         ],
     },
     "bin/session-root.sh": {

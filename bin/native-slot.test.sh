@@ -67,5 +67,14 @@ chmod +x "$TMP/fakebin/sysctl"
 JOBS="$(PATH="$TMP/fakebin:$PATH" "$NS" jobs)"
 check '12-core host still caps native jobs at four' 4 "$JOBS"
 
+# Regression: with no LOCAL_CAPACITY_ROOT the root array is empty, and macOS /bin/bash 3.2 reports an
+# empty "${ROOT[@]}" as an unbound variable under set -u. Run under that bash with a throwaway HOME
+# so the default state root stays out of the real config.
+mkdir -p "$TMP/home"
+OUT="$(HOME="$TMP/home" env -u LOCAL_CAPACITY_ROOT /bin/bash "$NS" list 2>&1)"
+check 'empty root array works under /bin/bash' 0 "$?"
+check 'empty root array reaches the engine' 'heavy slot 1 of' "$(printf '%s' "$OUT" | head -1 | cut -c1-15)"
+case "$OUT" in *unbound*) check 'no unbound variable error' none unbound ;; esac
+
 [ "$FAILS" -eq 0 ] && { echo 'ALL PASSED'; exit 0; }
 echo "$FAILS FAILED"; exit 1
