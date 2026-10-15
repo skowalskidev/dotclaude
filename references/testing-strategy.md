@@ -516,6 +516,13 @@ Worth an explicit check whenever the change touches one:
   justification; verify the policy didn't get weaker independently of the check.
 - **Silent degradation reads exactly like success.** Verify a quality artifact was actually
   consumed (look for the "real data" marker), not merely that nothing errored.
+- **A guard tested only on its builder's own cases proves only what the builder imagined.** DO test
+  a content guard (a filter that blocks banned output: a recommendation, a price, a claim) against
+  at least 10 cases its builder did not write, from the brief or an independent judge: indirect
+  phrasings, follow-up chips and links as well as the direct form, plus the ordinary sentences it
+  must leave alone. TEST: the caught-list and the pass-list each hold cases the builder did not
+  author. (the fix for a model-output guard whose own tests were green while it missed 14 of 20
+  indirect phrasings a judge wrote.)
 
 ## Project specifics live in the project — read its own docs FIRST (self-healing)
 - Apply `references/project-instructions.md` before the project-doc discovery below. When project instructions are ignored, derive commands from source, executable config and CI.

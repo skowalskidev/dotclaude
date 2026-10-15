@@ -194,6 +194,33 @@ CONTRACTS: dict[str, dict] = {
             "Keep one supervisor, judge owner, options answer, viewer and iteration budget per invocation.",
         ],
     },
+    "bin/screenshot-report.py": {
+        "mission": "Simon reviews captured UI evidence and outstanding gaps in one portable report without driving the app.",
+        "purpose": "Validated offline screenshot review renderer.",
+        "criteria": [
+            "Derive capture and review counts separately from cases; never count missing evidence or unreviewed captures as passes.",
+            "Reject duplicate IDs, unknown statuses, missing assets and paths escaping the manifest directory; escape metadata and embed original local asset bytes without scripts or network requests.",
+            "Place conditions above each uncropped image and retain every gap with its reason and next action in the inline gallery.",
+        ],
+    },
+    "references/screenshot-review.md": {
+        "mission": "Simon sees every required UI state and responsive layout with honest evidence and actionable gaps.",
+        "purpose": "Advanced scenario inventory, capture and report procedure.",
+        "criteria": [
+            "Inventory source branches and real UI states across the declared scope; require empty and full states at every selected supported layout and disclose secondary sampling.",
+            "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
+            "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
+            "Use installed native recording only when useful; reset before deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
+        ],
+    },
+    "skills/sk/skills/ship-screenshot-changes-advanced/SKILL.md": {
+        "mission": "Simon gets a comprehensive screenshot review with visible conditions and next actions from one invocation.",
+        "purpose": "Thin advanced screenshot review entrypoint.",
+        "criteria": [
+            "Route advanced conditional-state and responsive screenshot requests to references/screenshot-review.md while preserving the existing quick screenshot skill.",
+            "Return the local report and separate capture/review counts without implicitly posting to a PR or replacing independent QA.",
+        ],
+    },
     "bin/design-board.py": {
         "mission": "Simon opens one shareable board and judges many real-looking variants side by side, Figma-like, then picks.",
         "purpose": "Builds the exploration form of a mockup: phone frames in titled sections on a pan/zoom whiteboard from a spec.json, with measurement hooks for the capture loop; extracts the spec back.",

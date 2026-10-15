@@ -173,3 +173,12 @@ DO recheck installed help when the toolchain changes. Online sources checked 202
 
 DO keep Python FD and native signing sources with their owning procedures above; do not duplicate
 those policies here. TEST: this playbook composes one capacity owner and one testing owner.
+
+## Walkthrough recording
+
+DO record explicitly requested simulator walkthroughs with the installed `simctl io <owned-UDID>
+recordVideo` capability inside the existing admitted lifecycle. Confirm its help before invocation,
+wait for `Recording started`, replay the reset journey, then send SIGINT to the owned recorder and
+await its exit before shutdown or lease release. Inspect the finalized video from first to last state.
+TEST: the receipt identifies the owned recorder, completed file and playback check; no recording
+process survives hand-back.

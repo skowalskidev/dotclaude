@@ -113,3 +113,11 @@ and a source record. Inspect existing snapshots or a named post-refresh state wi
 The hand-back includes the local URL and stop/restart commands. Production stays
 read-only, and the preview runtime carries no production credentials. Procedure:
 `references/testing-strategy.md`.
+
+## Review complete UI states
+
+Use `/sk:ship-screenshot-changes-advanced` for empty/full states, conditional scenarios and responsive
+layouts. It returns an offline report with an actionable summary table and conditions above every
+screenshot. Blocked and unrun cases remain visible; captured evidence does not imply a pass.
+Useful walkthroughs include video when the installed capture tool supports it. Reports stay local
+until publication is authorized. The quick `/sk:ship-screenshot-changes` workflow remains available.

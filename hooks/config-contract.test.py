@@ -80,6 +80,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
      "Native Codex reads current shared sources and propagates hook decisions; Claude and Codex launchers preserve the selected project's instruction boundary without copying credentials."),
+    ("screenshot-report-preserves-evidence",
+     "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
     ("dashboard-runtime-preserves-completion",
      "The shared dashboard initializes one task record, rejects false completion and lost updates, "
      "exports portable evidence, and stops only its receipt-verified viewer."),
@@ -1353,6 +1355,11 @@ def check_session_performance_and_capacity() -> None:
     rule = (ROOT / "rules/self-healing-config.md").read_text()
     check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
           "After-run analysis is not routed from the always-on task lifecycle")
+
+
+def check_screenshot_report_preserves_evidence() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "screenshot-report.test.py")])
+    check(result.returncode == 0, "Screenshot report regression: " + result.stdout + result.stderr)
 
 
 def check_dashboard_runtime_preserves_completion() -> None:
