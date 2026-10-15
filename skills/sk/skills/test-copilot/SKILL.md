@@ -191,8 +191,10 @@ TEST: no web step message asks Simon to paste a screenshot, and each web step's 
 screenshot file Claude took.
 
 **DO run an iPhone simulator walk through `references/ios-simulator.md`, read before the first boot.**
-Claude opens the simulator GUI itself, then navigates and screenshots every step with the installed
-driver (§ Drive and capture). Simon types only the NEW inputs from 1.5, in that window.
+Claude opens the simulator GUI itself, then navigates and screenshots every step with the driver that
+section proves (XCUITest by default), against the local backend override it sets explicitly (§ Local
+backend safety, which stops a Debug build from signing in to production). Simon types only the NEW
+inputs from 1.5, in that window.
 **DON'T ask him to open the simulator, tap through screens that are not new inputs, or paste a
 screenshot.** (the fix for a walk that booted a device and installed the app, then asked him to open
 the window and tap through)

@@ -546,7 +546,8 @@ CONTRACTS: dict[str, dict] = {
             "Discover Device Hub and legacy Simulator read-only under selected Xcode; open the GUI only inside admission after owned boot readiness. A missing GUI name never establishes that its runtime is missing.",
             "Run GUI discovery and the capacity status before any native launch, a repo script included; a script that assumes one GUI layout is fixed, not worked around in the invocation.",
             "Launch through the project's own launch script when one exists; a bare simctl launch passes every option and variable the project's configuration declares.",
-            "Claude opens the simulator GUI itself and navigates and captures every screenshot with an installed driver (AXe by default: describe-ui, tap, type, swipe, screenshot), installing it when absent; Simon is never asked to open the simulator or tap, and the receipt records the driver version.",
+            "Claude opens the simulator GUI itself and navigates and captures every screenshot, with XCUITest as the proven default and AXe only after a recorded changed-screen check (its Xcode 27 tap no-op is dated, root cause unclaimed); Simon is never asked to open the simulator or tap, and the receipt records the driver.",
+            "Before any launch or UI test against a local stack, pass the project's backend override explicitly (SIMCTL_CHILD_ or TEST_RUNNER_ variables, never the scheme), refuse a non-loopback URL, see the app's first request in the local log before any sign-in, and wipe prior app state with uninstall plus keychain reset on the owned device.",
             "Keep one foreground lease through fail-fast stages and viewing; separate process launch, simulator-screen evidence and desktop GUI evidence, reporting permission gaps without changing permissions.",
             "Bound requested preview retention with a local owner/device/app/service receipt, absolute deadlines and exact stop/restart commands; verify owned Shutdown before release and retain caches.",
             "Diagnose toolchain, boot, descriptor, signing, artifact, backend, overload, incomplete-result and discovery failures; fixture UI never proves native-service or live-backend correctness.",
@@ -779,7 +780,7 @@ CONTRACTS: dict[str, dict] = {
             "Runs a web walk in a debug Chrome tab Claude opened and screenshots each step itself; never "
             "asks Simon to paste one or touches another session's tab. Launch method lives in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
-            "drives the app and captures each step itself, and Simon types only the inputs the change adds.",
+            "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",
         ],
     },
     "skills/sk/skills/test-automated-full-matrix/SKILL.md": {
