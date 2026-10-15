@@ -21,15 +21,21 @@ class ReportTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / 'shots').mkdir()
         (self.root / 'shots' / 'one.png').write_bytes(PNG)
-        self.case = dict(id='empty-small', surface='Items', route='/items', account='fixture',
+        self.case = dict(id='empty-small', point='Items: empty list', column='web-mobile', surface='Items', route='/items', account='fixture',
                          variant='after', conditions=['Zero items'], steps=['Open items'],
                          expected='Empty visible; rows absent', observed='Empty visible',
                          nextAction='Review', browser='Chromium', theme='light', locale='en',
                          deviceMode='emulated', viewport=dict(width=390, height=844, dpr=1),
                          captureStatus='captured', reviewStatus='not-reviewed', image='shots/one.png')
         self.doc = dict(schemaVersion=1, title='Review', scope='Items', coverageStrategy='All declared cases',
+                        columns=[dict(id='web-desktop', label='Web desktop'), dict(id='web-mobile', label='Web mobile')],
                         exclusions=[], run=dict(revision='abc', dirtyFingerprint='clean', timestamp='now',
                                                 environment='local', dataMode='fixture'), cases=[self.case])
+        self.desktop = dict(self.case, id='empty-wide', column='web-desktop', viewport=dict(width=1440, height=900, dpr=1),
+                            captureStatus='not-applicable', reason='Layout identical to mobile here',
+                            image=None)
+        self.desktop.pop('image')
+        self.doc['cases'].append(self.desktop)
 
     def test_portable_exact_bytes_and_conditions_before_image(self):
         html = report.render(self.doc, self.root)
@@ -38,11 +44,10 @@ class ReportTests(unittest.TestCase):
         self.assertIn('height:auto', html)
         self.assertIn('1 captured', html)
         self.assertIn('0 pass', html)
-        self.assertIn('/items<br>fixture<br>Zero items', html)
-
+        
     def test_image_context_visible_before_collapsed_details(self):
         html = report.render(self.doc, self.root)
-        section = html.split('<section id="empty-small">', 1)[1].split('</section>', 1)[0]
+        section = html.split('<section id="empty-small" class="case">', 1)[1].split('</section>', 1)[0]
         visible, details = section.split('<details>', 1)
         for label, value in (('Where', '/items'), ('Account', 'fixture'),
                              ('Viewport', '390 × 844 @ 1'), ('Variant', 'after')):
@@ -70,9 +75,9 @@ class ReportTests(unittest.TestCase):
             c.pop('image')
             self.doc['cases'].append(c)
         html = report.render(self.doc, self.root)
-        for text in ('4 cases', '1 blocked', '1 not-run', '1 not-applicable', '4 not-reviewed', '0 pass'):
+        for text in ('5 cases', '1 blocked', '1 not-run', '2 not-applicable', '5 not-reviewed', '0 pass'):
             self.assertIn(text, html)
-        self.assertEqual(html.count('Evidence gap:'), 3)
+        self.assertEqual(html.count('Evidence gap:'), 4)
         self.doc.pop('coveragePercent')
         self.assertEqual(html, report.render(self.doc, self.root))
 
@@ -121,9 +126,51 @@ class ReportTests(unittest.TestCase):
         (self.root / 'trace.zip').write_bytes(b'PK\x03\x04synthetic')
         self.case.update(video='demo.webm', trace='trace.zip')
         html = report.render(self.doc, self.root)
-        self.assertIn('<video controls', html)
+        self.assertIn('<video class="narrow" controls', html)
         self.assertIn('data:video/webm;base64,', html)
         self.assertIn('download="empty-small-trace.zip"', html)
+
+    def test_one_row_per_point_with_fixed_column_order_and_stacked_variants(self):
+        (self.root / 'shots' / 'wide.png').write_bytes(PNG)
+        self.desktop.update(captureStatus='captured', reviewStatus='not-reviewed', image='shots/wide.png')
+        self.desktop.pop('reason')
+        before = dict(self.desktop, id='empty-wide-before', variant='before')
+        other = dict(self.case, id='full-small', point='Items: full list')
+        other_wide = dict(self.desktop, id='full-wide', point='Items: full list')
+        self.doc['cases'] = [other, self.case, before, self.desktop, other_wide]
+        html = report.render(self.doc, self.root)
+        self.assertIn('2 points', html)
+        gallery = html.split('<table class="gallery">', 1)[1]
+        rows = gallery.split('<tr id="point-')[1:]
+        self.assertEqual(len(rows), 2)
+        self.assertIn('Items: full list', rows[0])
+        self.assertIn('Items: empty list', rows[1])
+        for row in rows:
+            self.assertLess(row.index('id="empty-wide') if 'empty-wide' in row else row.index('id="full-wide"'),
+                            row.index('id="empty-small"') if 'empty-small' in row else row.index('id="full-small"'))
+        self.assertLess(rows[1].index('id="empty-wide-before"'), rows[1].index('id="empty-wide"'))
+        self.assertEqual(rows[1].count('<img'), 3)
+        self.assertIn('<img class="narrow"', rows[1])
+        self.assertIn('<img src=', rows[1])
+
+    def test_missing_cell_unknown_column_and_bad_columns_rejected(self):
+        self.doc['cases'].remove(self.desktop)
+        with self.assertRaisesRegex(ValueError, 'no case for column web-desktop'):
+            report.render(self.doc, self.root)
+        self.doc['cases'].append(self.desktop)
+        self.desktop['column'] = 'ios'
+        with self.assertRaisesRegex(ValueError, 'declared column ids'):
+            report.render(self.doc, self.root)
+        self.desktop['column'] = 'web-desktop'
+        for columns in ([], [dict(id='a', label='A'), dict(id='a', label='B')], [dict(id='a')]):
+            with self.subTest(columns=columns):
+                doc = copy.deepcopy(self.doc)
+                doc['columns'] = columns
+                with self.assertRaises(ValueError):
+                    report.render(doc, self.root)
+        del self.case['point']
+        with self.assertRaisesRegex(ValueError, 'point'):
+            report.render(self.doc, self.root)
 
     def test_required_conditions_and_viewport(self):
         for key, value in (('conditions', []), ('viewport', dict(width=True, height=844, dpr=1)),

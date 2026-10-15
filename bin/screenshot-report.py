@@ -66,10 +66,22 @@ def validate(doc, root):
         raise ValueError('run: expected provenance object')
     for key in ('revision', 'dirtyFingerprint', 'timestamp', 'environment', 'dataMode'):
         require_text(run, key)
+    columns = doc.get('columns')
+    if not isinstance(columns, list) or not columns:
+        raise ValueError('columns: expected an ordered list of {id, label} platform or size columns')
+    column_ids = []
+    for column in columns:
+        if not isinstance(column, dict):
+            raise ValueError('columns: expected {id, label} objects')
+        cid = require_text(column, 'id')
+        require_text(column, 'label')
+        if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]*', cid) or cid in column_ids:
+            raise ValueError(f'columns: duplicate or unsafe column id: {cid}')
+        column_ids.append(cid)
     cases = doc.get('cases')
     if not isinstance(cases, list) or not cases:
         raise ValueError('cases: expected at least one case, including unrun requirements')
-    ids, evidence, budget = set(), {}, [0]
+    ids, evidence, budget, cells = set(), {}, [0], set()
     for case in cases:
         if not isinstance(case, dict):
             raise ValueError('case: expected object')
@@ -77,9 +89,12 @@ def validate(doc, root):
         if not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_-]*', ident) or ident in ids:
             raise ValueError(f'id: duplicate or unsafe case id: {ident}')
         ids.add(ident)
-        for key in ('surface', 'route', 'account', 'variant', 'expected', 'observed',
+        for key in ('point', 'surface', 'route', 'account', 'variant', 'expected', 'observed',
                     'nextAction', 'browser', 'theme', 'locale', 'deviceMode'):
             require_text(case, key)
+        if case.get('column') not in column_ids:
+            raise ValueError(f'{ident}: column must be one of the declared column ids: {column_ids}')
+        cells.add((case['point'], case['column']))
         text_list(case, 'conditions', True)
         text_list(case, 'steps', True)
         viewport = case.get('viewport')
@@ -101,6 +116,11 @@ def validate(doc, root):
             raise ValueError(f'{ident}: captured case requires image')
         evidence[ident] = {kind: asset(root, case[kind], kind, budget)
                            for kind in ('image', 'video', 'trace') if case.get(kind)}
+    for point in dict.fromkeys(c['point'] for c in cases):
+        for cid in column_ids:
+            if (point, cid) not in cells:
+                raise ValueError(f'point "{point}": no case for column {cid}; add a case with its '
+                                 'status (not-run, blocked or not-applicable) and reason')
     return evidence
 
 
@@ -108,45 +128,69 @@ def render(doc, root):
     evidence = validate(doc, root)
     e = lambda value: escape(str(value), quote=True)
     cases = doc['cases']
+    columns = doc['columns']
+    points = list(dict.fromkeys(c['point'] for c in cases))
+    cells = {}
+    for c in cases:
+        cells.setdefault((c['point'], c['column']), []).append(c)
+    row_id = {p: f'point-{i + 1}' for i, p in enumerate(points)}
     captures = Counter(c['captureStatus'] for c in cases)
     reviews = Counter(c['reviewStatus'] for c in cases)
-    summary = ' · '.join([f'{len(cases)} cases'] +
+    summary = ' · '.join([f'{len(points)} point' + ('' if len(points) == 1 else 's'), f'{len(cases)} cases'] +
                          [f'{captures[k]} {k}' for k in sorted(CAPTURE)] +
                          [f'{reviews[k]} {k}' for k in sorted(REVIEW)])
+    head = ''.join(f'<th>{e(col["label"])}</th>' for col in columns)
     parts = ['<!doctype html><html lang="en"><meta charset="utf-8">',
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; media-src data:; style-src \'unsafe-inline\'">',
              f'<title>{e(doc["title"])}</title>',
-             '<style>body{font:16px/1.5 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1440px;color:#222;background:#fff}h1{font-size:28px}h2{font-size:22px}a{color:#174c99}table{border-collapse:collapse;width:100%;min-width:1000px}td,th{border:1px solid #bbb;padding:8px;text-align:left;vertical-align:top}section{border-top:2px solid #aaa;margin-top:36px;padding-top:16px}img,video{display:block;max-width:100%;height:auto}p,li,td{overflow-wrap:anywhere}.table{overflow-x:auto}.conditions{background:#f3f4f6;padding:12px}dt{font-weight:600}dd{margin:0 0 10px}pre{white-space:pre-wrap}</style>',
+             '<style>body{font:16px/1.5 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1800px;color:#222;background:#fff}h1{font-size:28px}h2{font-size:22px}h3{font-size:16px;margin:0 0 6px}a{color:#174c99}table{border-collapse:collapse;width:100%}table.summary{min-width:1000px}table.gallery{min-width:1300px}td,th{border:1px solid #bbb;padding:8px;text-align:left;vertical-align:top}th.point,td.point{min-width:180px;max-width:240px}img,video{display:block;max-width:100%;height:auto}img.narrow,video.narrow{max-width:300px}p,li,td{overflow-wrap:anywhere}.table{overflow-x:auto;margin-top:16px}.case{border-top:2px solid #aaa;margin-top:14px;padding-top:10px}.case:first-child{border-top:0;margin-top:0;padding-top:0}.conditions{background:#f3f4f6;padding:8px}.conditions ul{margin:4px 0;padding-left:18px}dt{font-weight:600}dd{margin:0 0 10px}pre{white-space:pre-wrap}</style>',
              f'<h1>{e(doc["title"])}</h1><p><strong>{e(summary)}</strong></p>',
              '<p>Capture counts describe evidence, not approval. Review verdicts are supplied by the reviewer.</p>',
              f'<p><b>Scope:</b> {e(doc["scope"])}</p><p><b>Coverage:</b> {e(doc["coverageStrategy"])}</p>',
              '<p><b>Exclusions:</b> ' + e('; '.join(doc['exclusions']) or 'None declared') + '</p>',
              '<details><summary>Run provenance</summary><p>' + e(' · '.join(f'{k}: {v}' for k, v in doc['run'].items())) + '</p></details>',
-             '<div class="table"><table><thead><tr><th>Surface / scenario</th><th>Where / conditions</th><th>Viewport / variant</th><th>Capture / review</th><th>Observed</th><th>Next action</th></tr></thead><tbody>']
-    for c in cases:
-        v = c['viewport']
-        parts.append(f'<tr><td><a href="#{e(c["id"])}">{e(c["surface"])} / {e(c["id"].replace("-", " ").replace("_", " "))}</a></td><td>{e(c["route"])}<br>{e(c["account"])}<br>{e("; ".join(c["conditions"]))}</td><td>{e(v["width"])} × {e(v["height"])} @ {e(v["dpr"])} / {e(c["variant"])}</td><td>{e(c["captureStatus"])} / {e(c["reviewStatus"])}</td><td>{e(c["observed"])}</td><td>{e(c["nextAction"])}</td></tr>')
+             f'<div class="table"><table class="summary"><thead><tr><th class="point">Point</th>{head}<th>Next actions</th></tr></thead><tbody>']
+    for point in points:
+        row = [f'<tr><td class="point"><a href="#{row_id[point]}">{e(point)}</a></td>']
+        actions = []
+        for col in columns:
+            group = cells[(point, col['id'])]
+            row.append('<td>' + '<br>'.join(
+                f'<a href="#{e(c["id"])}">{e(c["captureStatus"])} / {e(c["reviewStatus"])}</a>' for c in group) + '</td>')
+            actions.extend(f'{col["label"]}: {c["nextAction"]}' for c in group)
+        row.append('<td>' + '<br>'.join(e(a) for a in actions) + '</td></tr>')
+        parts.extend(row)
     parts.append('</tbody></table></div>')
-    for c in cases:
-        parts.append(f'<section id="{e(c["id"])}"><h2>{e(c["surface"])} / {e(c["id"])}</h2><div class="conditions"><b>Conditions</b><ul>')
-        parts.extend(f'<li>{e(x)}</li>' for x in c['conditions'])
-        v = c['viewport']
-        parts.append(f'</ul><p><b>Where:</b> {e(c["route"])} · <b>Account:</b> {e(c["account"])} · <b>Viewport:</b> {e(v["width"])} × {e(v["height"])} @ {e(v["dpr"])} · <b>Variant:</b> {e(c["variant"])}</p>')
-        parts.append('<details><summary>Reproduction and capture details</summary><p>' + e(' · '.join(f'{k}: {c[k]}' for k in ('browser', 'theme', 'locale', 'deviceMode'))) + '</p>')
-        parts.append('<b>Reproduce</b><ol>')
-        parts.extend(f'<li>{e(x)}</li>' for x in c['steps'])
-        parts.append(f'</ol></details><p><b>Expected:</b> {e(c["expected"])}</p><p><b>Observed:</b> {e(c["observed"])}</p><p><b>Status:</b> {e(c["captureStatus"])} / {e(c["reviewStatus"])}</p><p><b>Next action:</b> {e(c["nextAction"])}</p></div>')
-        assets = evidence[c['id']]
-        if 'image' in assets:
-            parts.append(f'<img src="{assets["image"]}" alt="{e(c["surface"])}: {e(c["id"])}">')
-        else:
-            parts.append(f'<p><b>Evidence gap:</b> {e(c["reason"])}</p>')
-        if 'video' in assets:
-            parts.append(f'<video controls preload="metadata" src="{assets["video"]}"></video>')
-        if 'trace' in assets:
-            parts.append(f'<p><a download="{e(c["id"])}-trace.zip" href="{assets["trace"]}">Download investigation trace</a></p>')
-        parts.append('</section>')
+    parts.append(f'<div class="table"><table class="gallery"><thead><tr><th class="point">Point</th>{head}</tr></thead><tbody>')
+    for point in points:
+        surfaces = '; '.join(dict.fromkeys(c['surface'] for c in cases if c['point'] == point))
+        parts.append(f'<tr id="{row_id[point]}"><td class="point"><h2>{e(point)}</h2><p>{e(surfaces)}</p></td>')
+        for col in columns:
+            parts.append('<td>')
+            for c in cells[(point, col['id'])]:
+                v = c['viewport']
+                narrow = ' class="narrow"' if v['width'] <= 500 else ''
+                parts.append(f'<section id="{e(c["id"])}" class="case"><h3>{e(c["id"])}</h3><div class="conditions"><b>Conditions</b><ul>')
+                parts.extend(f'<li>{e(x)}</li>' for x in c['conditions'])
+                parts.append(f'</ul><p><b>Where:</b> {e(c["route"])} · <b>Account:</b> {e(c["account"])} · <b>Viewport:</b> {e(v["width"])} × {e(v["height"])} @ {e(v["dpr"])} · <b>Variant:</b> {e(c["variant"])}</p>')
+                parts.append('<details><summary>Reproduction and capture details</summary><p>' + e(' · '.join(f'{k}: {c[k]}' for k in ('browser', 'theme', 'locale', 'deviceMode'))) + '</p>')
+                parts.append('<b>Reproduce</b><ol>')
+                parts.extend(f'<li>{e(x)}</li>' for x in c['steps'])
+                parts.append(f'</ol></details><p><b>Expected:</b> {e(c["expected"])}</p><p><b>Observed:</b> {e(c["observed"])}</p><p><b>Status:</b> {e(c["captureStatus"])} / {e(c["reviewStatus"])}</p><p><b>Next action:</b> {e(c["nextAction"])}</p></div>')
+                assets = evidence[c['id']]
+                if 'image' in assets:
+                    parts.append(f'<img{narrow} src="{assets["image"]}" alt="{e(c["point"])}: {e(c["id"])}">')
+                else:
+                    parts.append(f'<p><b>Evidence gap:</b> {e(c["reason"])}</p>')
+                if 'video' in assets:
+                    parts.append(f'<video{narrow} controls preload="metadata" src="{assets["video"]}"></video>')
+                if 'trace' in assets:
+                    parts.append(f'<p><a download="{e(c["id"])}-trace.zip" href="{assets["trace"]}">Download investigation trace</a></p>')
+                parts.append('</section>')
+            parts.append('</td>')
+        parts.append('</tr>')
+    parts.append('</tbody></table></div>')
     return ''.join(parts) + '</html>'
 
 
