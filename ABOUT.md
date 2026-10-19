@@ -103,7 +103,8 @@ Shared runtime: `bin/workflow-dashboard.*`. Protocol and attribution:
 Runtime plan/evidence files stay in the task workspace and must be preserved before deleting it.
 The cleanup skill promotes durable outcomes first, uses the runtime helper to stop only a viewer whose
 receipt, output and command match the worktree, then verifies its dashboard, PID, worktree and local
-branch are gone.
+branch are gone. Conductor folder cleanup follows `skills/sk/skills/meta-cleanup-worktrees/SKILL.md`,
+including app archive requests and verification of reclaimed workspace storage.
 
 ## Production-data preview
 
