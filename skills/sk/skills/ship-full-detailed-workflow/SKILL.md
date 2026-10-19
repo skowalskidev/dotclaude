@@ -42,8 +42,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    criteria — via a Workflow or `/sk:work-superspeed` / `/sk:work-hyperspeed`
    (`references/parallelization.md`).
 7. **`/sk:ship-screenshot-changes`** — capture changed web surfaces and explicitly requested native
-   surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images
-   onto the open PR (GitHub-native); plan the post from the start of the sweep.
+   surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
+   journey videos onto the open PR (GitHub-native); plan the post from the start of the sweep.
 8. **`/sk:ship-pr`** — the PR body carries the Deploy-TLDR.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
@@ -63,7 +63,7 @@ verified the user + system journey, then handed back with it never posted to the
 - Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
 - Matrix (stage 6): the results table is on the PR, including each feature's simulation evidence or
   concrete N/A reason, and explicit verdicts for required cases that did not run.
-- Screenshots (stage 7): every surface eligible under stage 7 has its image on the PR; record native
+- Screenshots (stage 7): every surface eligible under stage 7 has its image and journey video on the PR; record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
 - Threads (stage 5): 0 unresolved review threads.
 - Deploy-TLDR (stage 8): the PR body opens with it.

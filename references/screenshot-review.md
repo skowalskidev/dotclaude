@@ -50,14 +50,28 @@ expected absent content before capture. Inspect every image for clipping, wrong 
 loading state. Let AI propose missing cases and classify findings, never silently rewrite expected
 outputs, baselines or skips. TEST: captured is separate from pass; a missing image cannot pass.
 
-DO capture authentic base/head evidence for visual comparisons with matching data, viewport and
+DO capture every changed surface and journey BEFORE (the base branch or `origin/main`) and AFTER (the
+change), screenshots and video both, with the same seeded state, data and viewport. A new surface shows
+`n/a: new, no before` in its before cell, never a missing cell. Post a PR with one table row per point,
+BEFORE left of AFTER in the same row (layout owned by `/sk:ship-screenshot-changes`). TEST: an evidence post with an after but no before and no `new, no before` note
+broke the rule.
+
+DO capture authentic base/head evidence with matching data, viewport and
 conditions. Use separate cases with variant `before` and `after`, recording revisions in conditions.
 Label any CSS reconstruction `simulated-before`; never present it as a base checkout. Keep original
 images unaltered and uncropped in the gallery. TEST: each comparison discloses its source and any mismatch.
 
 ## Record useful walkthroughs
 
-DO add native video for multistep journeys, transitions or motion when the installed stack supports it.
+DO record one short walkthrough video per changed user journey, by default, beside its screenshots.
+Web: Playwright `recordVideo` or a Chrome for Testing screencast. Verify it plays: `ffprobe` duration
+above 0 and one extracted frame showing the real screen. Post it to the PR with the screenshots
+through `/sk:ship-screenshot-changes`. Skip only a change with no visible UI, and state that skip in
+the report. DON'T hand back screenshots alone for a changed journey because video looked optional (the
+fix for a four-PR evidence run that posted images and no clips).
+TEST: a journey report or PR post with screenshots but no video and no stated no-UI skip broke the rule.
+
+DO also add video for transitions or motion outside a journey when the installed stack supports it.
 Explore first, save the explicit replay, reset state, then record a deliberate pass. Preserve findings
 from exploration even when the final recording succeeds. In Playwright use
 its supported video configuration or feature-detected `page.screencast`; retain successful demo videos,
@@ -66,9 +80,10 @@ recorder, then inspect playback from first to last state and check readable labe
 annotations are optional when the installed API supports them. TEST: a linked video opens and shows the
 actual replay, not exploration or an unfinished file.
 
-DO use the native simulator owner’s recording procedure for explicitly requested simulator video.
-Use keyframes and record the missing video capability when the existing browser tool only captures
-screenshots; do not invent a recorder or install one. Keep traces as optional investigation evidence,
+DO record simulator video with `xcrun simctl io <udid> recordVideo` under the native simulator owner's
+slot rules, only when native capture is explicitly requested; apply the same verify-it-plays check.
+Use keyframes and record the missing video capability when the installed tool cannot record; do not
+install a second recorder. Keep traces as optional investigation evidence,
 never call a trace an executable replay. TEST: native opt-in and ownership remain intact, and no recording
 process survives hand-back.
 
@@ -142,7 +157,7 @@ Render each point as a heading and shared explanation ABOVE its own screenshot t
 heading → table for every point; reserve table columns for platforms/sizes, with no Point or
 description column. Use one cell per declared column in the same order for every point. Each
 cell holds that column's screenshots and videos, each case keeping its own conditions above its image;
-before/after variants and extra breakpoints in one column stack inside that cell. Every point needs at
+before and after sit side by side inside that cell, before on the left; extra breakpoints stack. Every point needs at
 least one case in every declared column: a platform or size the point does not cover gets a
 `not-applicable`, `blocked` or `not-run` case whose `reason` shows in the cell, never a dropped cell
 and never a separate list. Mobile and iOS images render at most 300px wide, desktop at full cell width.

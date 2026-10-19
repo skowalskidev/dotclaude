@@ -212,7 +212,9 @@ CONTRACTS: dict[str, dict] = {
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
             "Group evidence by point: every case carries a point and a column, the manifest declares the ordered columns, and a platform or size a point lacks shows its status and reason in its cell, never dropped or listed apart.",
-            "Use installed native recording only when useful; reset before deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
+            "Record one walkthrough video per changed journey by default (web Playwright recordVideo or Chrome for Testing screencast; simulator simctl recordVideo only under native opt-in), verify it plays with ffprobe duration and one real-screen frame, post it with the screenshots, and skip only a no-UI change with the skip stated.",
+            "Capture every changed surface and journey before (base branch) and after, screenshots and video, in the same state and viewport, posted on a PR as one table row per point with before left of after in the same row; a new surface states `new, no before`.",
+            "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
         ],
     },
     "skills/sk/skills/ship-screenshot-changes-advanced/SKILL.md": {
@@ -222,6 +224,7 @@ CONTRACTS: dict[str, dict] = {
             "Route advanced conditional-state and responsive screenshot requests to references/screenshot-review.md while preserving the existing quick screenshot skill.",
             "Return the local report and separate capture/review counts without implicitly posting to a PR or replacing independent QA.",
             "Present one case per scenario x viewport x variant within its point heading/table block, with platform media side by side in fixed columns and no Point column.",
+            "Record one verified walkthrough video per changed journey and capture every changed surface and journey before and after by default, per the reference; never treat either as optional.",
         ],
     },
     "bin/design-board.py": {
@@ -869,7 +872,7 @@ CONTRACTS: dict[str, dict] = {
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
-            "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures, and report unrequested native surfaces as not run.",
+            "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each changed journey's video, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
             "Runs a landing gate before reconciling: the journey, the matrix, the screenshots, resolved "
@@ -1045,8 +1048,9 @@ CONTRACTS: dict[str, dict] = {
             "git-only detached-ref as fallback, never an external host; fails loud and verifies the "
             "images render (not camo-broken).",
             "Keeps ONE marker-tagged screenshot comment per PR and edits it in place, replacing only "
-            "re-captured point blocks, each enclosing its heading, explanation and complete table; preserve untouched blocks and migrate legacy rows without losing evidence.",
-            "Post one heading above each point's own table, with Desktop, Mobile, iOS media side by side, no Point column, 300px-wide mobile/iOS images and a status in every gap cell.",
+            "re-captured point rows, each opened by its point marker; preserve untouched rows and migrate the older heading-per-point layout without losing evidence.",
+            "Post ONE table with one row per point: a point-label first cell, then BEFORE left of AFTER per platform or size in the same row (Desktop before | Desktop after | Mobile before | Mobile after | iOS pairs), 200px-wide mobile/iOS images and a status in every gap cell; never stack befores and afters apart.",
+            "Films one verified walkthrough video per changed journey and captures every changed surface and journey BEFORE and AFTER by default, posted as one table row per point with before left of after; skips only a no-UI change and states the skip, and a new surface states `new, no before`. The detail lives in references/screenshot-review.md.",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],
     },
