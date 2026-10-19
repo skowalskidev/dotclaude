@@ -31,6 +31,15 @@ nothing at runtime.
 """
 
 CONTRACTS: dict[str, dict] = {
+    "bin/node-runtime.zsh": {
+        "mission": "Simon runs the same Node 24 toolchain from terminals and agents in every working directory.",
+        "purpose": "Select the newest installed stable nvm Node 24 without interactive shell initialization.",
+        "criteria": [
+            "Select Node, npm and npx from one Node 24 installation; skip incomplete and prerelease installations.",
+            "Reapply after login PATH setup without duplicate entries or changes to unrelated paths; report a missing installation explicitly.",
+            "Verify login and non-login shells, directory independence, numeric patch ordering and repeated sourcing in temporary fixtures.",
+        ],
+    },
     "bin/local-capacity.py": {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
         "purpose": "Non-blocking machine-wide heavy-work lease with process and simulator ownership checks.",
