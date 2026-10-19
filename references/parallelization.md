@@ -316,6 +316,12 @@ A `blocked` session sets `status: blocked` + reason in BOTH places and leaves `B
 - Don't go overboard and cause clashes, and don't parallelize for its own sake.
 - Route a request that lands mid-task per `rules/process.md` § "A message that arrives mid-run is a QUEUED task, not an interrupt".
 - Orchestrate agents so they don't clash on shared state — e.g. not all mutating the same account/CLI/shared file at once.
+- **Gate every fan-out on the machine's free capacity.** Before dispatching parallel agents or a
+  workflow, run `python3 ~/.claude/bin/local-capacity.py cpu`. On `DEFER` (exit 75), run the slices
+  serially or wait for the next task boundary. On `GO`, start at most as many workers that build, test,
+  boot or run a stack as `status` shows free heavy slots; read-only and model-only workers count only
+  against the 10 below. Thresholds live in `references/dev-server-hygiene.md` § Machine-wide capacity.
+  TEST: a parallel dispatch that started while the check read `DEFER` broke the rule.
 - **Cap an in-session fan-out at 10 concurrent.** `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` is 10 here (60 per session total); at most 10 background agents run at once and the rest queue. Launching many more than 10 in ONE batch gets the excess REJECTED, not queued (observed: 20 launched → 19 accepted, the 20th errored `You can run 10 subagents at once`). DO cut the work into ≤10 slices, or dispatch in waves of ≤10 and expect ~N/10 waves of wall-clock. TEST: no single launch batch exceeds 10 agents unless the waves are deliberate.
 
 ## Parallelize verification, not just agents

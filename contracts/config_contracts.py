@@ -42,11 +42,16 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/local-capacity.py": {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
-        "purpose": "Non-blocking machine-wide heavy-work lease with process and simulator ownership checks.",
+        "purpose": "Non-blocking machine-wide admission for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
         "criteria": [
-            "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request, load over twice logical cores and unknown simulator state cannot succeed, except for the priority owner past the load guard.",
-            "Admit the priority owner (prioritize: default 60, maximum 180 minutes) first and past the load gate, in the first slot to free; stop, signal or shorten no running job, and defer every other new request with exit 75.",
+            "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
+            "Defer every acquire, run, claim-sim and stack-acquire with exit 75 naming the reading when CPU idle is below 20%, load exceeds 1.5 x logical cores or compressed memory exceeds 6 GiB; cpu prints one GO or DEFER line.",
+            "Count at most MAX_BOOTED_SIMULATORS (1) device machine-wide: claimed, leased or not Shutdown, unleased devices included; a second claim-sim or simulator run exits 75 naming the holder, the same owner included.",
+            "Admit the priority owner (prioritize: default 60, maximum 180 minutes) first, in the first slot to free; it passes no cap and no CPU, load or memory guard. Stop, signal or shorten no running job; defer other new requests with exit 75.",
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
+            "Cap Docker dev stacks at floor(VM GiB / 3), at least 1 and at most 2, counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
+            "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
+            "Watchdog and status flag, read-only, processes at or above 200% ps CPU aged 120 seconds or more, unleased booted simulators, idle claims and extra Chrome for Testing instances, naming each simulator's owner; they stop nothing.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
             "Bound boot to 60 seconds, bootstatus and install to 120 seconds each, and the foreground run to 60 minutes by default; a failed boot starts no later stage.",
             "Attempt bounded shutdown of only the recorded simulator after command groups stop on success, failure or timeout; retain the lease if any device is not Shutdown.",
@@ -546,7 +551,8 @@ CONTRACTS: dict[str, dict] = {
             "Track and stop every started process; retain explicitly requested previews only through their bounded owned lifecycle. Verify identity before trusting logs.",
             "Route iOS simulator execution to references/ios-simulator.md without duplicating its preflight, preview evidence or recovery procedure.",
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
-            "Own the machine-wide capacity protocol: three heavy leases, one per owner, the Simon-granted priority record, explicit runner limits, owned simulator lifecycle and no automatic orphan takeover.",
+            "Own the machine-wide capacity protocol: three heavy leases, one simulator, the stack cap and idle-stack teardown, the CPU/load/memory guards, the watchdog, the Simon-granted priority record that passes no cap, explicit runner limits and no automatic orphan takeover.",
+            "Web runners start at two workers, Playwright included (--workers=2, since its default is half the logical cores); a scripted Playwright run closes each context after its batch.",
             "Every worker of a task uses the one owner string the priority record names; every native run names its simulator; a run is stopped through its supervisor, and a 75 is diagnosed with status before any retry.",
             "A restart stops the launcher's process group, confirms zero listeners, and confirms the new listener started after the stop.",
             "After every start or restart, one end-to-end request through each external dependency and a read of its log for a refused credential precede any hand-over; the identity handshake alone is not enough.",
@@ -639,6 +645,7 @@ CONTRACTS: dict[str, dict] = {
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per session; the machine admits three leases, so record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
             "Native build prompts name the shared capacity engine or its compatibility frontend, a bounded stage and explicit worker cap; a per-run lock file is not the coordination.",
+            "Run local-capacity.py cpu before any parallel dispatch; DEFER means serial or wait, and GO admits at most the free heavy slots of workers that build, test, boot or run a stack.",
             "A prompt for a worker that builds a visible screen names its design source, measured spec, target images and capture command, and its hand-back carries the measurement report; it never defers capture to the orchestrator.",
             "Split a serial-resource editing lane only when measured critical-path evidence supports it and the added workers fit both the total worker cap and shared heavy-work capacity.",
             "Freeze the contract and fixture before dispatching every layer together; workers return once with changed files and a check inventory, and the orchestrator owns final verification under the shared batch policy.",
@@ -1825,6 +1832,7 @@ CONTRACTS: dict[str, dict] = {
             "Reports only. Never kills a process and never releases another session's claim.",
             "Silent when no port, heavy lease or simulator claim is active and the workspace holds no native project.",
             "Prints fail-fast exit-75 capacity instructions in a native project and names an active lease in any project; the helper bounds its simulator probe.",
+            "Surfaces every watchdog and idle-stack line from capacity status in any project; clear watchdog, zero-simulator and dev-stack count lines stay silent.",
             "Reconciles port claims on session start but never auto-reaps a heavy lease or simulator claim.",
         ],
     },
@@ -1982,6 +1990,7 @@ CONTRACTS: dict[str, dict] = {
             "'no listener' alone would delete a valid claim mid-boot.",
             "Never kills a process and never releases another session's claim. Conflicts are "
             "reported to Simon, who decides.",
+            "sessions prints the working directory of every live Claude session and writes nothing; it is the one live-session detector other engines call.",
             "Exit codes stay meaningful: 3 held by another live session, 4 a listener nobody "
             "claimed. The EXIT trap must preserve them.",
             "Release surfaces who was waiting, so the hand-off between sessions reaches Simon. It "
@@ -2022,7 +2031,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Asserts a second caller is deferred with exit 75 while a live holder runs and starts no command.",
             "Asserts an orphaned holder blocks admission until explicit inspection and release.",
-            "Asserts another session's simulator cannot be claimed or released; boots no simulator.",
+            "Asserts another session's simulator cannot be claimed or released, and a second simulator is refused with exit 75 while one is claimed; boots no simulator.",
             "Runs the frontend under /bin/bash with LOCAL_CAPACITY_ROOT unset and a temporary HOME, so an empty-array regression fails here.",
         ],
     },

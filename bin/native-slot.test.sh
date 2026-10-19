@@ -9,9 +9,11 @@ export LOCAL_CAPACITY_ROOT="$TMP/capacity"
 export NATIVE_SLOT_DIR="$TMP/legacy"
 export LOCAL_CAPACITY_SIMCTL_JSON="$LOCAL_CAPACITY_ROOT/booted.json"
 export LOCAL_CAPACITY_PRESSURE_JSON="$LOCAL_CAPACITY_ROOT/pressure.json"
+export LOCAL_CAPACITY_HOST_JSON="$LOCAL_CAPACITY_ROOT/host.json"
 mkdir -p "$LOCAL_CAPACITY_ROOT" "$NATIVE_SLOT_DIR"
 printf '{"devices":{}}\n' > "$LOCAL_CAPACITY_SIMCTL_JSON"
 printf '{"load":0,"cores":8}\n' > "$LOCAL_CAPACITY_PRESSURE_JSON"
+printf '{}\n' > "$LOCAL_CAPACITY_HOST_JSON"
 FAILS=0
 trap 'rm -rf "$TMP"' EXIT
 check() {
@@ -19,6 +21,7 @@ check() {
     printf 'FAIL %s: expected [%s], got [%s]\n' "$1" "$2" "$3"; FAILS=$((FAILS + 1)); fi
 }
 SIM=AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE
+SIM2=11111111-2222-3333-4444-555555555555
 
 check 'empty status uses the shared gate' 'heavy slot 1 of 3: free' "$("$NS" list | head -1)"
 CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'unit tests' -- sh -c 'exit 7' >/dev/null
@@ -31,6 +34,11 @@ CLAUDE_NATIVE_SESSION=beta "$NS" claim-sim "$SIM" >/dev/null 2>&1
 check 'another owner cannot claim simulator' 75 "$?"
 CLAUDE_NATIVE_SESSION=beta "$NS" release-sim "$SIM" >/dev/null 2>&1
 check 'another owner cannot release simulator' 1 "$?"
+CLAUDE_NATIVE_SESSION=beta "$NS" claim-sim "$SIM2" >/dev/null 2>&1
+check 'a second simulator is refused machine-wide while one is claimed' 75 "$?"
+CLAUDE_NATIVE_SESSION=beta "$NS" run --for 'second sim' --udid "$SIM2" -- true >/dev/null 2>&1
+check 'a second simulator run is refused before its command starts' 75 "$?"
+check 'status names the simulator cap' yes "$("$NS" list | grep -q "simulators in use: 1 of 1" && echo yes || echo no)"
 CLAUDE_NATIVE_SESSION=alpha "$NS" release-sim "$SIM" >/dev/null
 check 'owner releases shut-down simulator' 0 "$?"
 

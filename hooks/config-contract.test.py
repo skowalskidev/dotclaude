@@ -758,7 +758,9 @@ def check_native_slot_serializes_native_work_across_sessions() -> None:
         fake = config / "bin" / "native-slot.sh"
         fake.write_text("#!/bin/sh\n"
                         "if [ \"$FAKE_NATIVE_STATE\" = held ]; then printf 'holder=other pid=42 live\\nbooted simulators: none\\n'; "
-                        "else printf 'heavy slot 1 of 3: free\\nheavy slot 2 of 3: free\\nheavy slot 3 of 3: free\\nbooted simulators: none\\n'; fi\n")
+                        "else printf 'heavy slot 1 of 3: free\\nheavy slot 2 of 3: free\\nheavy slot 3 of 3: free\\nbooted simulators: none\\n"
+                        "simulators in use: 0 of 1\\nwatchdog: clear\\ndev stacks: 1 of 2 (Docker VM 7.8 GiB): /w/a (a running)\\n'; "
+                        "[ \"$FAKE_NATIVE_STATE\" = hot ] && printf 'watchdog: HOT pid=501 SpringBoard cpu=400%% age=300s\\n'; fi\n")
         fake.chmod(0o700)
         project = Path(tmp) / "project"
         (project / "ios" / "App.xcodeproj").mkdir(parents=True)
@@ -782,6 +784,11 @@ def check_native_slot_serializes_native_work_across_sessions() -> None:
                               text=True, capture_output=True, cwd=web, env=e)
         check("holder=other" in held.stdout,
               "A held lease was hidden from a session with no native project.")
+        e["FAKE_NATIVE_STATE"] = "hot"
+        hot = subprocess.run(["bash", str(ROOT / "hooks" / "port-registry-sweep.sh")],
+                             text=True, capture_output=True, cwd=web, env=e)
+        check("watchdog: HOT pid=501" in hot.stdout,
+              "A runaway process flagged by the capacity watchdog was hidden from a web session at start.")
 
 
 def check_intake_has_an_off_switch() -> None:
