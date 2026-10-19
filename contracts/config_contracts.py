@@ -201,7 +201,7 @@ CONTRACTS: dict[str, dict] = {
             "Derive capture and review counts separately from cases; never count missing evidence or unreviewed captures as passes.",
             "Reject duplicate IDs, unknown statuses, missing assets and paths escaping the manifest directory; escape metadata and embed original local asset bytes without scripts or network requests.",
             "Place conditions above each uncropped image and retain every gap with its reason and next action in the inline gallery.",
-            "Render one row per point with one cell per declared column in the same order on every row, each cell holding that column's screenshots and videos; reject a point lacking a case for any declared column or a case naming an undeclared column, and cap mobile-width images at 300px.",
+            "Render each point heading above its own media table with no Point column; preserve declared column order, stacked variants and videos, and cap mobile-width images at 300px. Reject missing cells and undeclared columns.",
         ],
     },
     "references/screenshot-review.md": {
@@ -221,7 +221,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Route advanced conditional-state and responsive screenshot requests to references/screenshot-review.md while preserving the existing quick screenshot skill.",
             "Return the local report and separate capture/review counts without implicitly posting to a PR or replacing independent QA.",
-            "Present one case per scenario x viewport x variant as one row per point, with web desktop, web mobile, iOS and their videos side by side in fixed columns.",
+            "Present one case per scenario x viewport x variant within its point heading/table block, with platform media side by side in fixed columns and no Point column.",
         ],
     },
     "bin/design-board.py": {
@@ -1040,9 +1040,8 @@ CONTRACTS: dict[str, dict] = {
             "git-only detached-ref as fallback, never an external host; fails loud and verifies the "
             "images render (not camo-broken).",
             "Keeps ONE marker-tagged screenshot comment per PR and edits it in place, replacing only "
-            "the re-captured points' rows (never appends a second comment); posts one table with one row "
-            "per point and fixed Desktop, Mobile, iOS columns holding screenshots and video links, "
-            "mobile and iOS shots as 300px-wide HTML images and a status in any cell lacking evidence.",
+            "re-captured point blocks, each enclosing its heading, explanation and complete table; preserve untouched blocks and migrate legacy rows without losing evidence.",
+            "Post one heading above each point's own table, with Desktop, Mobile, iOS media side by side, no Point column, 300px-wide mobile/iOS images and a status in every gap cell.",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],
     },

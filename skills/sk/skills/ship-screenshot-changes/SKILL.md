@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — whenever the branch has an open PR — posts them (one table row per point: desktop, mobile and iOS side by side) onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and for a visual change a BEFORE/AFTER pair — hands them back (opened in Finder), and — whenever the branch has an open PR — posts them (one heading and table per point: desktop, mobile and iOS side by side) onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [optional focus, e.g. "the new dashboard section"]
 ---
 
@@ -130,34 +130,40 @@ journey mode, post the step shots in filename (step) order, each captioned with 
 reads as the flow top to bottom. TEST: every open PR whose diff changed a frontend surface carries the
 posted screenshots (verified inline below), never only a local hand-back or a body reference to them.
 
-**Post ONE TABLE, one ROW per point, never a list scattered by viewport.** A point is the surface, scenario
-or journey step being shown (e.g. "Advertiser disclosure open"). Columns are fixed, in this order on every
-row: **Point · Desktop · Mobile · iOS**, then any other platform or size captured; a column no point uses
-is omitted. Each cell holds that column's screenshot, then its video as a link (`[video](<url>)`), in the
-same row. Before/after: BEFORE then AFTER stacked inside the same cell, each labelled. A cell the point
-applies to but lacks evidence for says its status and reason in text (`not run: <reason>`, `blocked:
-<reason>`); a cell the point does not cover says `n/a: <reason>`. Never drop a cell, and never move a gap
-to a separate list. Journey mode: each step is a point, rows in step order.
+**Post one heading and one screenshot table PER POINT.** A point is the surface, scenario or journey
+step being shown (e.g. "Advertiser disclosure open"). Put its numbered heading and brief explanatory
+text ABOVE its own table, then repeat heading → table for the next point. Reserve table columns for
+**Desktop · Mobile · iOS**, then any other platform or size captured, in the same order for every point;
+omit a column no point uses. Never add a Point or description column: text beside the screenshots
+wastes the width needed to read them. Journey mode: each step is a point, blocks in step order.
 
-**Use HTML inside the table, because markdown images carry no width:** desktop
+Each cell holds that column's screenshot, then its video as a link (`[video](<url>)`). Before/after:
+BEFORE then AFTER stacked inside the same cell, each labelled. A cell the point applies to but lacks
+evidence for says its status and reason (`not run: <reason>`, `blocked: <reason>`); a cell the point does
+not cover says `n/a: <reason>`. Keep every gap in its platform cell.
+
+**Use HTML inside each table, because markdown images carry no width:** desktop
 `<img src="<url>" width="520" alt="<point> desktop">`, mobile and iOS
-`<img src="<url>" width="300" alt="<point> mobile">`. The row scrolls sideways on a narrow screen, which
-beats a stretched phone shot. A one-line caption above each image names its variant and viewport.
-TEST: every posted point is exactly one table row; each row has a cell for every column in the same
-order; every mobile and iOS image is `<img … width="300">`; no image or video sits outside the table.
+`<img src="<url>" width="300" alt="<point> mobile">`. Keep screenshots side by side; allow horizontal
+scroll on narrow screens rather than shrinking readable phone shots. A one-line caption above each
+image names its variant and viewport; shared explanation belongs above the table.
+TEST: N points produce N separate tables, each preceded by its point heading; each table has only
+platform/size columns in the same order, every mobile and iOS image is `<img … width="300">`, and no
+image or video sits outside its point's table.
 
 **Keep ONE screenshot comment per PR and edit it in place — never append a second.** Open the comment
-body with `<!-- sk:screenshot-changes -->` and keep the table header outside any block and wrap each
-point's `<tr>` in `<!-- point:<slug> -->` … `<!-- /point:<slug> -->`. Before posting, find the marked comment:
+body with `<!-- sk:screenshot-changes -->` and wrap each point's COMPLETE heading, explanation and
+table in `<!-- point:<slug> -->` … `<!-- /point:<slug> -->`. Before posting, find the marked comment:
 `gh api repos/$REPO/issues/$PR/comments --paginate --jq '.[] | select(.body | startswith("<!-- sk:screenshot-changes -->")) | .id'`.
-None → create it. Found → fetch its current body, replace ONLY the rows for points re-captured this
-run, append rows for new points, keep every untouched row verbatim, drop a row only when its
+None → create it. Found → fetch its current body, replace ONLY the blocks for points re-captured this
+run, append blocks for new points, keep every untouched block verbatim, drop a block only when its
 point left the diff, and write it back with `gh api -X PATCH repos/$REPO/issues/comments/$ID -F body=@<file>`
-— never a body reconstructed from memory. Older UNMARKED screenshot comments from before this rule:
-name them in the hand-back, delete none without a yes. (e.g. renaming one switch re-shoots that one
-point; only its row changes and the comment count stays the same.) TEST: after any run the PR has
-exactly one comment starting with the marker, and a re-run changes that comment's `updated_at`, not
-the number of comments.
+— never a body reconstructed from memory. For an existing one-table comment, migrate each current
+row into a complete point block once, preserving its text, media URLs, statuses and order. Older
+UNMARKED screenshot comments: name them in the hand-back, delete none without a yes. (e.g. renaming
+one switch re-shoots that one point; only its block changes and the comment count stays the same.)
+TEST: the PR has exactly one marked comment; a re-run changes its `updated_at`, not the comment count,
+and every point marker encloses its heading and complete table.
 
 **GitHub-only — never an external host.** In a PRIVATE repo (a work repo usually is), GitHub's Camo proxy
 can't authenticate: `raw.githubusercontent.com`, release assets and external hosts all render as a BROKEN
@@ -206,7 +212,7 @@ and NOT camo-broken:
 ```bash
 gh api -H "Accept: application/vnd.github.full+json" "repos/$REPO/issues/comments/<id>" --jq '.body_html' > /tmp/c.html
 grep -c 'camo.githubusercontent' /tmp/c.html   # expect 0; nonzero = renders broken
-grep -c '<table' /tmp/c.html                  # expect 1; the one point-per-row table
+grep -o '<table' /tmp/c.html | wc -l           # expect the posted point count, one table per point
 ```
 TEST: the PR comment shows every posted screenshot inline, and nothing was hosted outside github.com.
 

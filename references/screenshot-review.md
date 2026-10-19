@@ -138,16 +138,18 @@ every case.
 DO group evidence by the POINT being shown, never by viewport or platform. `point` is the scenario or
 claim in plain words (e.g. "Chat card: Advertiser disclosure open"); `column` is one id from the
 top-level ordered `columns` list (web desktop, web mobile, iOS, any other size or platform captured).
-The report renders ONE ROW per point, with one cell per column in the same order on every row. Each
+Render each point as a heading and shared explanation ABOVE its own screenshot table. Repeat
+heading → table for every point; reserve table columns for platforms/sizes, with no Point or
+description column. Use one cell per declared column in the same order for every point. Each
 cell holds that column's screenshots and videos, each case keeping its own conditions above its image;
 before/after variants and extra breakpoints in one column stack inside that cell. Every point needs at
 least one case in every declared column: a platform or size the point does not cover gets a
 `not-applicable`, `blocked` or `not-run` case whose `reason` shows in the cell, never a dropped cell
 and never a separate list. Mobile and iOS images render at most 300px wide, desktop at full cell width.
-TEST: rendering fails when a point lacks a case for any declared column, and each point appears once. TEST: invalid status, duplicate id, missing evidence or unsafe path fails rendering clearly.
+TEST: rendering fails when a point lacks a case for any declared column, and N points produce N separate heading/table blocks with no text-only column. TEST: invalid status, duplicate id, missing evidence or unsafe path fails rendering clearly.
 
 DO inspect the generated report in the available browser: TLDR table first (one row per point, one
-status cell per column), then the gallery table (one row per point, all cases inline in their column
+status cell per column), then each point heading above its own gallery table (all cases inline in their platform
 cell), conditions immediately above each screenshot, original aspect ratio preserved, readable desktop and mobile page.
 The renderer embeds exact asset bytes in one offline HTML file, uses no network or external scripts,
 escapes metadata and derives counts from cases, not supplied percentages. Retain the manifest and

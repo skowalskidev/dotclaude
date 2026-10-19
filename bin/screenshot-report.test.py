@@ -130,7 +130,7 @@ class ReportTests(unittest.TestCase):
         self.assertIn('data:video/webm;base64,', html)
         self.assertIn('download="empty-small-trace.zip"', html)
 
-    def test_one_row_per_point_with_fixed_column_order_and_stacked_variants(self):
+    def test_one_heading_and_table_per_point_with_fixed_columns_and_stacked_variants(self):
         (self.root / 'shots' / 'wide.png').write_bytes(PNG)
         self.desktop.update(captureStatus='captured', reviewStatus='not-reviewed', image='shots/wide.png')
         self.desktop.pop('reason')
@@ -140,12 +140,18 @@ class ReportTests(unittest.TestCase):
         self.doc['cases'] = [other, self.case, before, self.desktop, other_wide]
         html = report.render(self.doc, self.root)
         self.assertIn('2 points', html)
-        gallery = html.split('<table class="gallery">', 1)[1]
-        rows = gallery.split('<tr id="point-')[1:]
+        rows = html.split('class="point-block">')[1:]
+        self.assertEqual(html.count('<table class="gallery"'), 2)
         self.assertEqual(len(rows), 2)
         self.assertIn('Items: full list', rows[0])
         self.assertIn('Items: empty list', rows[1])
         for row in rows:
+            heading, table = row.split('<table class="gallery"', 1)
+            self.assertIn('<h2>', heading)
+            self.assertNotIn('class="point"', table)
+            self.assertEqual(table.count('<td>'), 2)
+            self.assertEqual(table.count('<th>'), 2)
+            self.assertLess(table.index('Web desktop'), table.index('Web mobile'))
             self.assertLess(row.index('id="empty-wide') if 'empty-wide' in row else row.index('id="full-wide"'),
                             row.index('id="empty-small"') if 'empty-small' in row else row.index('id="full-small"'))
         self.assertLess(rows[1].index('id="empty-wide-before"'), rows[1].index('id="empty-wide"'))

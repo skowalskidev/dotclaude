@@ -8,9 +8,10 @@ argument-hint: [changed routes or journeys; whole app only when requested]
 
 DO read `~/.claude/references/screenshot-review.md` and execute its procedure for the requested scope.
 Keep one case per scenario × viewport × variant, including blocked and unrun requirements, and
-present them one row per point: web desktop, web mobile, iOS and their videos side by side in fixed columns.
+present each point as a heading above its own table: web desktop, web mobile, iOS and their videos
+side by side in fixed columns, with no Point or description column.
 Return the local report and an actionable TLDR with findings, gaps and next actions.
-TEST: every point has one row with a cell for every column (a gap shows its status and reason), and each
+TEST: N points have N heading/table blocks with a cell for every column (a gap shows its status and reason), and each
 case's conditions appear above its evidence.
 
 DO keep this invocation local by default. Publication needs explicit authorization; invoking this skill

@@ -144,7 +144,7 @@ def render(doc, root):
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; media-src data:; style-src \'unsafe-inline\'">',
              f'<title>{e(doc["title"])}</title>',
-             '<style>body{font:16px/1.5 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1800px;color:#222;background:#fff}h1{font-size:28px}h2{font-size:22px}h3{font-size:16px;margin:0 0 6px}a{color:#174c99}table{border-collapse:collapse;width:100%}table.summary{min-width:1000px}table.gallery{min-width:1300px}td,th{border:1px solid #bbb;padding:8px;text-align:left;vertical-align:top}th.point,td.point{min-width:180px;max-width:240px}img,video{display:block;max-width:100%;height:auto}img.narrow,video.narrow{max-width:300px}p,li,td{overflow-wrap:anywhere}.table{overflow-x:auto;margin-top:16px}.case{border-top:2px solid #aaa;margin-top:14px;padding-top:10px}.case:first-child{border-top:0;margin-top:0;padding-top:0}.conditions{background:#f3f4f6;padding:8px}.conditions ul{margin:4px 0;padding-left:18px}dt{font-weight:600}dd{margin:0 0 10px}pre{white-space:pre-wrap}</style>',
+             '<style>body{font:16px/1.5 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1800px;color:#222;background:#fff}h1{font-size:28px}h2{font-size:22px}h3{font-size:16px;margin:0 0 6px}a{color:#174c99}table{border-collapse:collapse;width:100%}table.summary{min-width:1000px}table.gallery{table-layout:fixed}.point-block{margin-top:32px}.point-block>h2{margin-bottom:6px}.point-block>p{margin-top:0}td,th{border:1px solid #bbb;padding:8px;text-align:left;vertical-align:top}th.point,td.point{min-width:180px;max-width:240px}img,video{display:block;max-width:100%;height:auto}img.narrow,video.narrow{max-width:300px}p,li,td{overflow-wrap:anywhere}.table{overflow-x:auto;margin-top:16px}.case{border-top:2px solid #aaa;margin-top:14px;padding-top:10px}.case:first-child{border-top:0;margin-top:0;padding-top:0}.conditions{background:#f3f4f6;padding:8px}.conditions ul{margin:4px 0;padding-left:18px}dt{font-weight:600}dd{margin:0 0 10px}pre{white-space:pre-wrap}</style>',
              f'<h1>{e(doc["title"])}</h1><p><strong>{e(summary)}</strong></p>',
              '<p>Capture counts describe evidence, not approval. Review verdicts are supplied by the reviewer.</p>',
              f'<p><b>Scope:</b> {e(doc["scope"])}</p><p><b>Coverage:</b> {e(doc["coverageStrategy"])}</p>',
@@ -162,10 +162,10 @@ def render(doc, root):
         row.append('<td>' + '<br>'.join(e(a) for a in actions) + '</td></tr>')
         parts.extend(row)
     parts.append('</tbody></table></div>')
-    parts.append(f'<div class="table"><table class="gallery"><thead><tr><th class="point">Point</th>{head}</tr></thead><tbody>')
     for point in points:
         surfaces = '; '.join(dict.fromkeys(c['surface'] for c in cases if c['point'] == point))
-        parts.append(f'<tr id="{row_id[point]}"><td class="point"><h2>{e(point)}</h2><p>{e(surfaces)}</p></td>')
+        parts.append(f'<section id="{row_id[point]}" class="point-block"><h2>{e(point)}</h2><p>{e(surfaces)}</p>')
+        parts.append(f'<div class="table"><table class="gallery" style="min-width:{len(columns) * 320}px"><thead><tr>{head}</tr></thead><tbody><tr>')
         for col in columns:
             parts.append('<td>')
             for c in cells[(point, col['id'])]:
@@ -189,8 +189,7 @@ def render(doc, root):
                     parts.append(f'<p><a download="{e(c["id"])}-trace.zip" href="{assets["trace"]}">Download investigation trace</a></p>')
                 parts.append('</section>')
             parts.append('</td>')
-        parts.append('</tr>')
-    parts.append('</tbody></table></div>')
+        parts.append('</tr></tbody></table></div></section>')
     return ''.join(parts) + '</html>'
 
 
