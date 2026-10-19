@@ -1,6 +1,6 @@
 ---
 name: meta-cleanup-worktrees
-description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. It lists and CONFIRMS before it deletes anything, stops only a dashboard viewer whose runtime receipt proves it belongs to that worktree, never force-deletes, and BLOCKS any worktree with another live session, uncommitted changes, unpushed commits, or an open/unmerged PR. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
+description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. For explicit disk-space cleanup, measures the whole requested root including archives and prunes verified inactive generated caches without deleting source or branches, even in unmerged workspaces. It lists and CONFIRMS before it deletes anything, stops only a dashboard viewer whose runtime receipt proves it belongs to that worktree, never force-deletes, and BLOCKS whole-worktree removal with another live session, uncommitted changes, unpushed commits, or an open/unmerged PR. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "free disk space in Conductor", "clean up archived Conductor caches", "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
 argument-hint: "[optional repo path; defaults to the current repo]"
 ---
 
@@ -8,7 +8,8 @@ argument-hint: "[optional repo path; defaults to the current repo]"
 
 Sweep the worktrees and branches for THIS repo that are provably finished — merged, clean, and idle —
 remove ordinary worktrees and request Conductor archives through the app. Verify the matching folders
-are gone before calling their cleanup complete. NEVER touch anything still being worked on.
+are gone before calling whole-workspace cleanup complete. For disk-space requests, use cache pruning
+below as a separate operation. NEVER remove source or branches still being worked on.
 Conservative by construction: it LISTS and CONFIRMS before deleting, and never force-deletes.
 
 ## Reuse, don't reimplement
@@ -24,17 +25,50 @@ Conservative by construction: it LISTS and CONFIRMS before deleting, and never f
 
 ## Scope
 
-This repo only — every worktree `git worktree list` reports for it, wherever it lives. Don't hardcode a
-root: this machine keeps worktrees under `<repo>/.claude/worktrees/`, other setups under
+Default branch/worktree cleanup to this repo only: every worktree `git worktree list` reports for it,
+wherever it lives. Don't hardcode a root: this machine keeps worktrees under `<repo>/.claude/worktrees/`, other setups under
 `~/conductor/workspaces/<project>/*`, and filtering to one prefix silently no-ops the whole run on the
 other layout. The safety is the EXCLUSIONS plus the gate, never a path prefix: never the main checkout,
 never the current worktree, never a detached-HEAD worktree. Expand to other repositories only on an
-explicit cross-repository request. Read the bundled Conductor skill at
+explicit cross-repository request; an explicit whole-root disk cleanup covers all projects beneath that
+root. Read the bundled Conductor skill at
 `/Applications/Conductor.app/Contents/Resources/conductor-skill/skills/conductor/SKILL.md` before
 handling Conductor workspaces. Only the user controls local managed workspaces through the app;
 there is no local workspace CLI/API. Never mutate its database or bypass its archive flow.
-Keep `~/conductor/repos` main clones, `archived-contexts`, chat history and shared application state
-out of deletion scope; never recursively delete `~/conductor`.
+Preserve main clones, chat/app metadata and shared application state; never recursively delete
+`~/conductor` or an entire archive because it is archived. Apply these two operations separately:
+
+- **Workspace/branch lifecycle:** follow Steps 1–6 and the full merged/clean gate; app-managed
+  workspace archiving remains user-controlled through Conductor.
+- **Disk/cache pruning:** first measure the WHOLE requested root with `du -sk`, then each top-level
+  category, including `workspaces`, `archived-contexts`, `repos` and other children. Inventory the
+  largest paths in every category; an archives-only or workspaces-only sweep is incomplete for a root
+  request. Use the cache gate below, then Steps 4–6 only for its confirmed cache paths; do not fetch,
+  delete refs, prune worktree metadata or remove workspace folders during a cache-only pass.
+
+### Cache gate for an explicit disk-space or archive cleanup
+
+Treat that request as authorization to dispose of verified inactive generated contents within its
+scope, including archive directories; do not request permission again for already authorized caches.
+Keep the exact keep-list above all candidates. Preserve unique source, materials, designs, attachments,
+secrets and chat/app metadata regardless of archive status. Never equate an ignored path with a cache.
+
+Prove each candidate is an untracked, reproducible generated directory from its contents/metadata and
+project configuration: e.g. Xcode DerivedData with matching plist metadata, dependency installs with
+retained manifests/lockfiles, `.next` outputs, or old test-result bundles whose needed evidence is
+already retained. A basename alone is insufficient. Use generator metadata or saved ownership evidence
+when archive Git metadata is absent; unresolved ownership, reproducibility or unique-data questions → BLOCK that candidate.
+Record canonical root/path, owning project/archive, evidence, size and action; reject links escaping
+scope and never traverse them. Require no active workspace users, cwd users or open files beneath the
+candidate: filter one `lsof -nP` snapshot by exact path boundaries, never `lsof +D`; incomplete visibility
+→ BLOCK. Recheck identity, keep-list, links, data classification and activity immediately before deletion.
+
+An idle unmerged or dirty workspace may pass this cache gate: preserve its source, branch and dirty
+files, remove ONLY the proven generated paths. Whole-folder merge/clean gates do not govern cache-only
+pruning. Keep current-workspace caches excluded; touch main-clone caches only when the explicit request
+includes that context and this same gate passes. Report unresolved or active cache paths as retained.
+TEST: an unmerged workspace's disposable cache can be reclaimed while its source and branch remain;
+an archive's unique design file remains even when a generated sibling directory is removed.
 
 ## Step 1 — refresh the merge state (one network read)
 
@@ -107,7 +141,7 @@ as Step 4's separate extra-confirmed step.
 
 ## Step 3 — the SAFE gate (ALL must hold, or BLOCK with a printed reason)
 
-A worktree is removable only if EVERY check passes:
+For whole-worktree or branch removal, EVERY check must pass; cache-only pruning uses the Scope cache gate:
 
 1. **Merged:** `git rev-list --count origin/<default>..<branch>` is `0` (ancestor-merged) **OR**
    `gh pr view <branch> --json state -q .state` is `MERGED`. The OR is load-bearing: a squash- or
@@ -143,7 +177,8 @@ claim disk cleanup while a matching directory remains.
 
 Show a table, grouped: ✅ removable · ⏳ app archive required · ⛔ blocked (with the exact reason) ·
 🌱 branch-only. Include repository, branch/HEAD, exact path, aliases, before-size and planned action. Then use
-AskUserQuestion and act ONLY on Simon's yes.
+AskUserQuestion for actions not already authorized and act ONLY within Simon's confirmed scope.
+For cache-only pruning, list exact generated paths and their evidence separately from whole worktrees.
 
 For each removable worktree, list its canonical `.context/*-dashboard.html` files and any verified
 viewer PID under `Dashboard cleanup`. The worktree confirmation covers deleting those disposable files
@@ -165,7 +200,9 @@ someone else authored, even when it is the counterpart of a local orphan Simon i
 
 ## Step 5 — remove, safely (only after yes)
 
-For each confirmed candidate, recheck identity, branch/HEAD, path/link targets, keep-list, cleanliness,
+For confirmed cache paths, re-run the cache gate, delete only those generated directories and skip
+workspace/branch lifecycle operations below. For whole-worktree candidates, recheck identity,
+branch/HEAD, path/link targets, keep-list, cleanliness,
 local-only commits, tracked/untracked/ignored data safety and idleness immediately before destruction. Changed evidence → BLOCK and refresh
 its inventory; an earlier yes never covers a different path or newly created work.
 
@@ -177,7 +214,7 @@ its inventory; an earlier yes never covers a different path or newly created wor
 
 For a Conductor-managed workspace, ask Simon to archive its exact workspace name and canonical path
 in the Conductor app. Leave it pending until he does, then verify the disk result. Do not run
-`git worktree remove` or `rm` on it, even when idle. Preserve Conductor's archive/history state.
+`git worktree remove` or `rm` on the workspace itself, even when idle. Preserve Conductor's archive/history state.
 An archive script runs before archiving and handles resources outside the workspace; do not add a
 script to delete its own workspace. Sources: [workflow](https://www.conductor.build/docs/concepts/workflow)
 and [scripts](https://www.conductor.build/docs/reference/scripts).
@@ -208,21 +245,24 @@ The normal worktree removal deletes its `.context` directory, including the plan
 mockups, evidence and runtime receipt. Never preserve a second dashboard archive during cleanup; promote
 the durable decisions and verdicts first through `references/planning-and-tracking.md`.
 
-Then once, at the end: `git worktree prune -v`, only after preserving the mapping evidence.
-Verify `git worktree list` AND every exact inventory path. A completed workspace cleanup requires the
+After workspace/branch lifecycle cleanup only: `git worktree prune -v`, only after preserving the mapping evidence.
+Verify `git worktree list` AND every exact inventory path. A completed whole-workspace cleanup requires the
 whole matching tree, including `node_modules`, build caches and listed dashboards, to be absent;
 verify owned aliases are absent as links and stopped viewer PIDs remain gone. Verify removed local
 refs with `git show-ref --verify --quiet refs/heads/<branch>` returning nonzero.
 
 ## Step 6 — report verified disk cleanup and pending archives
 
-Repeat `du -sk` for surviving inventory paths and workspace roots; record absent paths as zero with
-an explicit absence check. Report before/after KiB, completed paths, retained paths with reasons,
-and exact workspace names/paths still awaiting app archive. Do not credit ref deletion as reclaimed
+Repeat `du -sk` for the requested root, every measured category and surviving candidate paths;
+record removed paths as zero with an explicit absence check. Report actual before/after KiB for root
+and categories, removed paths, retained paths with reasons, and exact workspace names/paths awaiting
+app archive. Do not credit ref deletion as reclaimed
 workspace storage, or an archive request as completed disk cleanup. Name managed workspaces from
 verified inventory evidence; aliases are hints, never ownership proof. For a true branch-only cleanup
 with no matching directory, report branch removal and zero workspace storage reclaimed.
-TEST: every proposed path has a verified absent result or a named pending/blocked reason.
+For cache-only pruning, verify only cache paths are absent and source/branches remain. Branch-only
+ref counts never satisfy a disk-space request. TEST: every candidate has a verified result or reason;
+the report accounts for the whole requested root, not just workspace listings.
 
 ## The gotchas this skill must never trip
 

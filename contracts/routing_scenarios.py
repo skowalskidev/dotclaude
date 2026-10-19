@@ -186,6 +186,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "write my standup", "expect": "meta-report-standup-weekly"},
     {"phrase": "monday morning standup", "expect": "meta-report-standup-weekly"},
     {"phrase": "what did I do last week", "expect": "meta-report-standup-weekly"},
+    {"phrase": "free disk space in Conductor", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "clean up archived Conductor caches", "expect": "meta-cleanup-worktrees"},
     {"phrase": "clean up Conductor folders", "expect": "meta-cleanup-worktrees"},
     {"phrase": "clean up merged worktrees", "expect": "meta-cleanup-worktrees"},
     {"phrase": "remove done worktrees and branches", "expect": "meta-cleanup-worktrees"},
