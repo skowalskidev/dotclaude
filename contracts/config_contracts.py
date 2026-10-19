@@ -569,6 +569,10 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Shared iOS simulator preflight, execution, preview hand-back and recovery playbook.",
         "criteria": [
             "Compose existing capacity and testing owners; preserve native opt-in, worker limits, stage deadlines and runtime signing policy without duplicating them.",
+            "Run simulator work through the project's one recorded recipe (build once, one headless device, launch with documented environment, XCUITest to a named screen, screenshot, shut down) with its measured duration; without one, a spike of at most 20 minutes creates it first.",
+            "Stop after one failed boot, install or launch and report it; reuse the built app and xctestrun; at most one boot per device per task; every xcodebuild test passes -collect-test-diagnostics never.",
+            "Boot headless; open the GUI only when Simon asked to look. Shut down and release the claim when the task's last simulator step ends; a device left booted for Simon is named with its shutdown command.",
+            "Never run AXe on a device with a live XCUITest run; an AXe tap uses --post-delay and a changed-screen check.",
             "Preflight effective DEVELOPER_DIR, selected Xcode, runtime, explicit UDID, matching app artifact, backend identity and requested GUI before boot; discover installed capabilities without global switches, automatic installs or unbounded searches.",
             "Discover Device Hub and legacy Simulator read-only under selected Xcode; open the GUI only inside admission after owned boot readiness. A missing GUI name never establishes that its runtime is missing.",
             "Run GUI discovery and the capacity status before any native launch, a repo script included; a script that assumes one GUI layout is fixed, not worked around in the invocation.",

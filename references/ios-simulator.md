@@ -2,10 +2,44 @@
 
 DO use this playbook for an explicitly requested simulator preview, native runtime test or simulator
 recovery. Compose `references/testing-strategy.md` and `references/dev-server-hygiene.md`; retain their
-opt-in, signing, capacity, stage-deadline, worker-limit and cleanup policies. Default an interactive
-preview request to a visible GUI; headless test success does not fulfill that request. Read this file
-before booting for ANY native step, a co-pilot walk or screenshot capture included. TEST: the run
-records the requested activity and its evidence separately from skipped native work.
+opt-in, signing, capacity, stage-deadline, worker-limit and cleanup policies. Boot headless by
+default: `xcrun simctl boot` opens no window. Open the GUI only when Simon asked to look (an interactive
+preview, or a co-pilot walk where he types); headless test success does not fulfill that request.
+Read this file before booting for ANY native step, a co-pilot walk or screenshot capture included.
+Run ONE device machine-wide: the capacity owner's `MAX_BOOTED_SIMULATORS` refuses a second.
+TEST: the run records the requested activity and its evidence separately from skipped native work.
+
+## Use the project's one proven recipe
+
+DO run simulator work through the project's ONE recorded recipe: one command or script that builds
+once, boots one device headless, installs, launches with the documented environment, drives XCUITest
+to a NAMED screen, screenshots it and shuts down. Record it where the project keeps its run commands
+(a script, or the project's `CLAUDE.md` when the project-doc policy allows), with its measured duration
+on this machine. DON'T re-derive build flags, launch environment and backend wiring per task.
+DO make a bounded spike the first step when the project has no proven recipe: one device, one screen,
+at most 20 minutes, and its only output is that recipe. The feature task starts after the spike.
+DO stop after ONE failed boot, install or launch and report the exact command, exit and log lines.
+DON'T re-boot, rebuild or switch drivers in a loop; reuse the built `.app` and `.xctestrun` for every
+attempt. WHY: churned boots and rebuilds under load left devices launched, idle and never on the target
+screen. TEST: a simulator task report names the recipe it used, or the spike that created it, and shows
+at most one boot per device per task.
+
+The recipe, on Apple's own stack (simctl and XCUITest; install nothing):
+
+| Step | Command |
+|---|---|
+| Build once | `xcodebuild build-for-testing -scheme "$SCHEME" -destination id="$UDID" -derivedDataPath "$DD"`; reuse its `.app` and `.xctestrun` |
+| Device, once | `xcrun simctl create agent "<device type id>" "<runtime id>"`; reuse that UDID on later tasks. Turn off Siri & Search in its Settings at creation (a developer-forums workaround for simulator Spotlight CPU, thread 682253; Apple names no root cause) |
+| Boot | `xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID"`; no GUI, no second device, no shutdown between steps |
+| Install and launch | `xcrun simctl install "$UDID" "$APP"`, then `SIMCTL_CHILD_<VAR>=… xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` |
+| Drive | ONE `xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination id="$UDID" -only-testing:<UITests>/<Walk>/test<Screen> -collect-test-diagnostics never -parallel-testing-enabled NO` per walk, settings passed as `TEST_RUNNER_<VAR>` |
+| Capture | `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; video per Walkthrough recording below |
+| Shut down | `xcrun simctl shutdown "$UDID"` once, when the task's last simulator step ends, then `release-sim` |
+
+DO pass `-collect-test-diagnostics never` to every `xcodebuild test` and `test-without-building`.
+WHY: the default is `on-failure` (`xcodebuild -help`, Xcode 27.1), and a failed session then collects a
+sysdiagnose that can run for about 10 minutes (mobile-dev-inc/Maestro#3633). TEST: no `xcodebuild`
+test invocation in the run omits the flag.
 
 ## Preflight before claiming or booting
 
@@ -84,10 +118,10 @@ DO run these stages in order, with explicit UDID and fail-fast exit handling. Wr
 
 | Stage | Command or proof |
 |---|---|
-| Boot | `xcrun simctl boot "$UDID"`; enter only with the claimed device in Shutdown |
+| Boot | `xcrun simctl boot "$UDID"`, headless; enter only with the claimed device in Shutdown |
 | Wait | `xcrun simctl bootstatus "$UDID"`; use installed help, omit `-b` because it can initiate a new boot |
 | Install | `xcrun simctl install "$UDID" "$APP"`; confirm artifact and bundle identifier |
-| Launch | The project's own launch script when it has one (read it first, per step 3); else `xcrun simctl launch "$UDID" "$BUNDLE_ID"` with every option and `SIMCTL_CHILD_` variable the project's declared configuration passes, the backend override included (see Local backend safety below) |
+| Launch | The project's own launch script when it has one (read it first, per step 3); else `xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` with every option and `SIMCTL_CHILD_` variable the project's declared configuration passes, the backend override included (see Local backend safety below) |
 | GUI (visible preview, walk or capture) | Open the resolved path inside the lease after boot readiness, select the owned UDID and verify no unrelated device started |
 | Ready | Verify backend identity and the requested app/test readiness signal; preserve startup logs and errors. TEST: the app's first request appears in the owned local API log before any sign-in or other write |
 | Drive (requested walk, preview or capture) | Navigate and capture per Drive and capture below; Simon is never asked to open the GUI or tap |
@@ -163,15 +197,16 @@ parameterised test that takes the step name, fits a paced walk. Read every scree
 intended screen before the next step.
 
 DO treat the AXe CLI (cameroncooke/AXe, MIT, 2.3k stars, last push 2026-07-21) as an optional fast
-path, used only after a no-op check. Observed failure, 2026-10-15, Xcode 27.0 with AXe 1.8.0:
-`axe describe-ui` worked, but `axe tap` (by label, by id and by coordinates) and `axe button home`
-printed success and changed nothing on screen. Root cause not established. Its README states Xcode 27
-support, so recheck it on a later release. To try it, run `axe --version` (install with
+path, used only after a no-op check, and NEVER on a device where an XCUITest run is live. Two open
+issues explain the 2026-10-15 failures on Xcode 27: `axe tap` exits before the simulator HID daemon
+activates its service, so the tap is dropped while success is printed (AXe#71; `--post-delay 0.5`
+delivered 3 of 3 there; fix PR #73 unmerged), and `axe describe-ui` restarts testmanagerd, which ends
+other XCUITest runners' sessions (AXe#76). To try it, run `axe --version` (install with
 `brew install cameroncooke/axe/axe` when absent; DON'T run `axe init`, which writes skill files into AI
-clients), then tap one element and read `axe describe-ui --udid "$UDID"` or take a screenshot to prove the
-screen changed. Unchanged: switch to XCUITest at once, no retry. Changed: continue with `describe-ui`
+clients), then `axe tap ... --post-delay 0.5` on one element and take a screenshot to prove the screen
+changed. Unchanged: switch to XCUITest at once, no retry. Changed: continue with `describe-ui`
 (read), `tap --label`/`--id`/`type`/`swipe` (act) and `axe screenshot` (capture), re-checking after
-each transition.
+each transition. TEST: no AXe command runs while an `xcodebuild test` on the same UDID is live.
 
 DO split a co-pilot walk by the rule in `/sk:test-copilot`: you drive the lead-up and every step that is
 not new, and Simon types only the inputs the change adds, in the GUI window you opened. Screenshot each
@@ -188,6 +223,12 @@ Rejected as the default, rechecked 2026-10-15: Maestro (mobile-dev-inc/Maestro, 
 around scripted YAML flows and its README names no Xcode version support.
 
 ## Hold for the user, then clean up
+
+DO shut down the device and release its claim as soon as the task's last capture or walk ends, not at
+the end of the session. Leave ONE device booted at hand-back only when Simon asked to look at it, and
+name its UDID and the exact `xcrun simctl shutdown <UDID>` command in the hand-back. TEST: after
+hand-back, `local-capacity.py status` shows no simulator claim or booted device for this owner unless
+the hand-back names it.
 
 DO retain an explicitly requested preview at hand-back as the exception to end-of-turn cleanup.
 Keep its runner and capacity lease alive throughout viewing. Default the viewing deadline to the
@@ -227,6 +268,7 @@ research an unresolved failure against current primary sources before repeating 
 | Stale backend or blank web content | Check service SHA/run ID/cwd, app endpoint configuration and port ownership. A responding foreign listener never passes readiness. |
 | GUI cannot be inspected | Preserve simulator-screen evidence separately; name missing desktop evidence/permission. Do not silently grant permissions. |
 | Slow admission or overloaded run | Record capacity/load and the current holder; defer per the capacity protocol. Do not self-prioritize, loosen thresholds or kill unrelated work. |
+| `watchdog: HOT` on a simulator process | The named owner shuts down its own UDID and reports it; never stop another owner's device. On the next boot of that device, confirm Siri & Search is off before driving. |
 | Incomplete xcodebuild result | Apply the testing owner's full-result procedure. A nested passing suite or timed-out runner cannot establish success. |
 | Stale Apple discovery | Compare fresh `simctl` actual device states with supported `devicectl` inspection and GUI state. Do not infer a phantom process or recreate a device from the GUI alone. |
 
@@ -241,7 +283,7 @@ another device session is active.
 
 ## Primary sources
 
-DO recheck installed help when the toolchain changes. Online sources checked 2026-10-09 (AXe row 2026-10-15):
+DO recheck installed help when the toolchain changes. Online sources checked 2026-10-09 (AXe README row 2026-10-15, last three rows 2026-10-20):
 
 | Source | Scope |
 |---|---|
@@ -250,6 +292,9 @@ DO recheck installed help when the toolchain changes. Online sources checked 202
 | [Apple command-line tool reference](https://developer.apple.com/documentation/xcode/xcode-command-line-tool-reference) | Installed `simctl` and `devicectl` help is the capability reference |
 | [AXe README](https://github.com/cameroncooke/AXe) and installed `axe --help` | Claimed Xcode 26/27 support and commands; `tap` was a no-op on Xcode 27.0 here (2026-10-15) |
 | [Apple device captures](https://developer.apple.com/documentation/xcode/capturing-screenshots-and-videos-from-devices) | Device screenshots and videos; separate from observing a macOS window |
+| [AXe#71](https://github.com/cameroncooke/AXe/issues/71), [#73](https://github.com/cameroncooke/AXe/pull/73), [#76](https://github.com/cameroncooke/AXe/issues/76) (open, read 2026-10-20) | Dropped first gesture on Xcode 27 and its `--post-delay` workaround; `describe-ui` ending other XCUITest sessions |
+| [Maestro#3633](https://github.com/mobile-dev-inc/Maestro/issues/3633) and installed `xcodebuild -help` (Xcode 27.1, 2026-10-20) | `-collect-test-diagnostics on-failure` default and the sysdiagnose delay |
+| [Developer forums thread 682253](https://developer.apple.com/forums/thread/682253) | Community Siri & Search workaround for simulator Spotlight CPU (Xcode 13 era; no Apple root cause) |
 
 DO keep Python FD and native signing sources with their owning procedures above; do not duplicate
 those policies here. TEST: this playbook composes one capacity owner and one testing owner.
@@ -257,7 +302,7 @@ those policies here. TEST: this playbook composes one capacity owner and one tes
 ## Walkthrough recording
 
 DO record explicitly requested simulator walkthroughs with the installed `simctl io <owned-UDID>
-recordVideo` capability inside the existing admitted lifecycle. Confirm its help before invocation,
+recordVideo --codec=h264` capability (the installed default is hevc) inside the existing admitted lifecycle. Confirm its help before invocation,
 wait for `Recording started`, replay the reset journey, then send SIGINT to the owned recorder and
 await its exit before shutdown or lease release. Inspect the finalized video from first to last state.
 TEST: the receipt identifies the owned recorder, completed file and playback check; no recording
