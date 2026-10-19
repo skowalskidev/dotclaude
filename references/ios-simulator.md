@@ -143,6 +143,14 @@ TEST: no `xcodebuild test` of the app target runs without a loopback backend ove
 `TEST_RUNNER_` environment, no sign-in or write happens before the app's first request is seen in the
 local log, and the UI test asserts a loopback URL before it launches the app.
 
+DO build every simulator test signed, with Xcode's default ad-hoc "Sign to Run Locally".
+DON'T pass `CODE_SIGNING_ALLOWED=NO` to an `xcodebuild` test of the app target: the unsigned app loses
+its keychain items across a relaunch, so a signed-in session comes back signed out and a relaunch or
+cold-start test fails as if the product were broken (the fix for a cold-start UI test that failed two
+unsigned runs and passed 2/2 signed).
+TEST: no app-target `xcodebuild test` carries `CODE_SIGNING_ALLOWED=NO`, and a relaunch test that
+fails on the signed-out screen is rerun signed before it is called a product bug.
+
 ## Drive and capture
 
 DO open the simulator GUI yourself for every requested iOS walk, preview or capture: the resolved
@@ -222,7 +230,7 @@ research an unresolved failure against current primary sources before repeating 
 | GUI missing | Check both selected-bundle candidates and installed capabilities. Stop the visible-preview path before boot; report a separate headless result only when requested. |
 | Boot or bootstatus failure/timeout | Inspect the exact UDID's actual state and logs. Do not enter install/tests or hide a boot retry in `bootstatus -b`; clean up the owned lifecycle. |
 | Legacy bridge descriptor error | Inspect every Python intermediary's `pass_fds` and inherited environment. Repair the caller; keep validation and the single lease. |
-| Keychain/signing failure | Compare the built host's signature and entitlements to its runtime configuration; execute the scoped platform-service fixture before the suite. Keep product auth unchanged. |
+| Keychain/signing failure, or signed out after a relaunch | Check the build did not pass `CODE_SIGNING_ALLOWED=NO`. Compare the built host's signature and entitlements to its runtime configuration; execute the scoped platform-service fixture before the suite. Keep product auth unchanged. |
 | Install/launch/wrong screen | Compare bundle ID, simulator architecture, source/build fingerprint and launch configuration. Inspect startup logs; do not repeatedly reinstall a mismatched artifact. |
 | Stale backend or blank web content | Check service SHA/run ID/cwd, app endpoint configuration and port ownership. A responding foreign listener never passes readiness. |
 | GUI cannot be inspected | Preserve simulator-screen evidence separately; name missing desktop evidence/permission. Do not silently grant permissions. |
