@@ -1,14 +1,15 @@
 ---
 name: meta-cleanup-worktrees
-description: Safely clean up DONE git worktrees, their plan dashboards, and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. It lists and CONFIRMS before it deletes anything, stops only a dashboard viewer whose runtime receipt proves it belongs to that worktree, never force-deletes, and BLOCKS any worktree with another live session, uncommitted changes, unpushed commits, or an open/unmerged PR. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
+description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo — remove only the ones that are provably finished (merged into master, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. It lists and CONFIRMS before it deletes anything, stops only a dashboard viewer whose runtime receipt proves it belongs to that worktree, never force-deletes, and BLOCKS any worktree with another live session, uncommitted changes, unpushed commits, or an open/unmerged PR. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
 argument-hint: "[optional repo path; defaults to the current repo]"
 ---
 
 # Clean up DONE worktrees and branches — safely
 
 Sweep the worktrees and branches for THIS repo that are provably finished — merged, clean, and idle —
-remove them, and name the Conductor sessions for Simon to archive. NEVER touch anything still being
-worked on. Conservative by construction: it LISTS and CONFIRMS before deleting, and never force-deletes.
+remove ordinary worktrees and request Conductor archives through the app. Verify the matching folders
+are gone before calling their cleanup complete. NEVER touch anything still being worked on.
+Conservative by construction: it LISTS and CONFIRMS before deleting, and never force-deletes.
 
 ## Reuse, don't reimplement
 
@@ -27,7 +28,13 @@ This repo only — every worktree `git worktree list` reports for it, wherever i
 root: this machine keeps worktrees under `<repo>/.claude/worktrees/`, other setups under
 `~/conductor/workspaces/<project>/*`, and filtering to one prefix silently no-ops the whole run on the
 other layout. The safety is the EXCLUSIONS plus the gate, never a path prefix: never the main checkout,
-never the current worktree, never a detached-HEAD worktree.
+never the current worktree, never a detached-HEAD worktree. Expand to other repositories only on an
+explicit cross-repository request. Read the bundled Conductor skill at
+`/Applications/Conductor.app/Contents/Resources/conductor-skill/skills/conductor/SKILL.md` before
+handling Conductor workspaces. Only the user controls local managed workspaces through the app;
+there is no local workspace CLI/API. Never mutate its database or bypass its archive flow.
+Keep `~/conductor/repos` main clones, `archived-contexts`, chat history and shared application state
+out of deletion scope; never recursively delete `~/conductor`.
 
 ## Step 1 — refresh the merge state (one network read)
 
@@ -45,10 +52,22 @@ it directly, never by filtering to a hardcoded path prefix (that filter is what 
 - the CURRENT worktree: `git rev-parse --show-toplevel`
 - any detached-HEAD worktree (no branch to reason about)
 
-Then `ls` the common parent of the listed worktrees on disk (the `.claude/worktrees/` or
-`~/conductor/workspaces/<project>/` dir, whichever this repo uses) and reconcile against the listing —
-git stops listing a worktree once its metadata is pruned while the checkout still sits on disk
-(`dev-server-hygiene.md`).
+Inventory the filesystem independently of Git: enumerate `~/conductor/workspaces` and every configured
+alternate workspace root, plus the parents of this repo's listed worktrees. Read configured locations
+from Conductor user settings; record absent or unreadable roots. Do not stop at a discovered common
+parent: directories can survive after all worktree metadata AND branch refs disappear.
+
+Join each directory to this repo using its canonical Git common directory and origin, then its branch
+and HEAD, or a previously saved inventory carrying that evidence. Record canonical path, repository,
+branch, HEAD, managed/archive status, alias links and `du -sk` size BEFORE deleting any refs or metadata.
+Do not infer ownership from project-folder names, city names, or a same-named branch in another repo.
+Retain every unresolved mapping with its reason. Inspect only metadata and paths; never print copied
+credentials or `.env` contents. Keep the inventory outside any directory proposed for removal.
+
+Canonicalize roots and candidate paths without traversing symlinks outside the authorized scope.
+Inventory alias links separately, deduplicate targets, and never count their target sizes twice.
+Only remove a confirmed owned alias as a link after its target's cleanup decision; retain unknown links.
+TEST: a directory missing from both Git listings and local heads still receives a mapped or blocked row.
 
 Also enumerate `.context/*-dashboard.runtime.json` inside each candidate. Treat a receipt as owned only
 when its `plan` and `output` resolve inside that worktree, the plan exists, and `ps -p <pid> -o command=`
@@ -71,6 +90,8 @@ comm -23 <(git for-each-ref --format='%(refname:short)' refs/heads | sort) \
   | grep -vxF "$DEF"      # never the default; the current branch is already dropped (it has this worktree)
 ```
 
+Join EVERY branch-only candidate to the filesystem inventory before calling its workspace gone.
+A matching residual directory remains a workspace cleanup item even if Git reports no worktree.
 Each that PASSES the merge gate (Step 3 #1) is a 🌱 branch-only candidate. It STILL has a local-only
 question when the gate passed ONLY via gh `MERGED` (a squash/rebase tip can carry post-merge commits that
 are in no default branch) — apply `references/git-pr-deploy.md` §'s pushed check before `-D`. One that
@@ -101,16 +122,27 @@ A worktree is removable only if EVERY check passes:
    A verified viewer is removable-after-confirmation and appears in the candidate table with its PID;
    a live `claude`/`node` session or unverified viewer → BLOCK. An idle `zsh` sitting in it → removable
    but WARN (removing it orphans that shell's cwd). Cross-check with `bin/port-registry.sh reap`.
-5. **Not the current worktree, not the main checkout.**
+5. **Protected paths/refs:** exclude current, main, default, detached HEAD and the explicit keep-list.
+6. **Owned and disposable:** require Step 2's repository/branch identity proof and no unique user
+   data in EVERY workspace proposed for removal, including ordinary Git worktrees and app archives.
+   Keep the tracked-file clean/merge checks; also inventory untracked AND ignored paths and classify
+   each as reproducible output or safely preserved user data. A clean Git status alone is insufficient.
+   Inspect metadata/paths without exposing credential contents. Copied secrets, local databases and
+   unknown ignored files are not disposable caches; unresolved data safety → BLOCK.
+   For orphan or interrupted-deletion directories, compare tracked files to the saved merged HEAD.
+   Missing metadata or refs requires equivalent saved proof of identity, merge state and data safety;
+   inability to establish any of them → BLOCK. Idleness and root membership alone never pass.
 
 A PR that is CLOSED-but-not-merged is NOT merged → BLOCK. A merged branch with NO worktree is a 🌱
 branch-only candidate (Step 2 enumerates these): the merge gate applies, plus — if it passed only via
 gh `MERGED`, not ancestry — the pushed check from `references/git-pr-deploy.md` §, since there is no
-worktree to read local-only commits from. Then `git branch -D`; no worktree to remove.
+worktree to read local-only commits from. Delete its ref only after the inventory and gate; do not
+claim disk cleanup while a matching directory remains.
 
 ## Step 4 — present and CONFIRM (never delete unprompted)
 
-Show a table, grouped: ✅ removable · ⛔ blocked (with the exact reason) · 🌱 branch-only. Then use
+Show a table, grouped: ✅ removable · ⏳ app archive required · ⛔ blocked (with the exact reason) ·
+🌱 branch-only. Include repository, branch/HEAD, exact path, aliases, before-size and planned action. Then use
 AskUserQuestion and act ONLY on Simon's yes.
 
 For each removable worktree, list its canonical `.context/*-dashboard.html` files and any verified
@@ -133,24 +165,36 @@ someone else authored, even when it is the counterpart of a local orphan Simon i
 
 ## Step 5 — remove, safely (only after yes)
 
-For each confirmed-removable worktree:
+For each confirmed candidate, recheck identity, branch/HEAD, path/link targets, keep-list, cleanliness,
+local-only commits, tracked/untracked/ignored data safety and idleness immediately before destruction. Changed evidence → BLOCK and refresh
+its inventory; an earlier yes never covers a different path or newly created work.
 
 - For each verified dashboard viewer listed at the gate, run
   `python3 "$HOME/.claude/bin/workflow-dashboard.py" stop <plan> --expect-pid <pid>`. The helper re-runs
   the receipt/worktree/output/command checks, sends `TERM` only to that confirmed PID, waits up to 5
   seconds and verifies it exited. If ownership changed or it survives, BLOCK that worktree instead of
   widening the kill. Re-run the idle check after the viewer exits.
-- `git worktree remove <path>` — NEVER `--force`. Its refusal on a dirty or locked tree is the seatbelt.
-  It DELETES the worktree's whole tree, `node_modules` included (tens of thousands of files), so it runs
-  for MINUTES — give it a long timeout. A short cap (e.g. 60s) kills it mid-delete and leaves the worktree
-  `prunable` with the dir still on disk; finish that one by `git worktree prune` then `rm -rf <path>`
-  (idle-checked, as in the on-disk-dir bullet below).
-- For a dir that is ON DISK but git NO LONGER tracks (Step 2's reconcile caught it; `git worktree remove`
-  errors "is not a working tree"): confirm it is idle (`lsof -nP -d cwd | grep -F <path>`, Step 3 #4) and
-  under the repo's worktrees dir (`.claude/worktrees/` or `~/conductor/workspaces/<project>/`), then
-  `rm -rf <path>` — only after an explicit EXTRA confirm,
-  since git cannot manage it. This is the directory half of an archived workspace that left both a branch
-  and its on-disk tree.
+
+For a Conductor-managed workspace, ask Simon to archive its exact workspace name and canonical path
+in the Conductor app. Leave it pending until he does, then verify the disk result. Do not run
+`git worktree remove` or `rm` on it, even when idle. Preserve Conductor's archive/history state.
+An archive script runs before archiving and handles resources outside the workspace; do not add a
+script to delete its own workspace. Sources: [workflow](https://www.conductor.build/docs/concepts/workflow)
+and [scripts](https://www.conductor.build/docs/reference/scripts).
+
+For each confirmed-removable ordinary worktree or proven abandoned filesystem residue:
+
+- For a registered non-Conductor worktree, use `git worktree remove <path>` without `--force`.
+  Allow minutes for `node_modules` deletion; monitor completion rather than impose a short timeout.
+  If interrupted, retain the saved inventory and recheck the gate. A `prunable` entry is not permission
+  to delete: preserve identity evidence before pruning, and classify any remaining directory below.
+- For an unregistered directory, first prove it is abandoned filesystem residue, not still managed by
+  Conductor. Unknown management status → BLOCK. Apply the full identity, merge, data and idle gates,
+  then get an EXTRA confirmation naming that exact canonical path before manual recursive removal.
+  Never replace failed `git worktree remove` with root-prefix/idle-only `rm -rf`.
+
+For each confirmed branch, including a branch-only orphan or a branch left after app archiving:
+
 - Delete the branch with `git branch -D <branch>`, but ONLY after Step 3 #1's merge gate passed. Do NOT
   reach for `git branch -d` as the "safe" form here: its merged test is against the CURRENT HEAD, so a
   stale worktree (HEAD behind the default branch) makes it REFUSE a branch genuinely merged to
@@ -164,26 +208,21 @@ The normal worktree removal deletes its `.context` directory, including the plan
 mockups, evidence and runtime receipt. Never preserve a second dashboard archive during cleanup; promote
 the durable decisions and verdicts first through `references/planning-and-tracking.md`.
 
-Then once, at the end: `git worktree prune -v` (reclaims the removed entries + any `fallow-*` scratch
-worktrees git has already orphaned). VERIFY against disk: `ls` the workspaces dir AND `git worktree list`
-must both agree the removed ones are gone (storage-vs-listing), every listed dashboard path is absent,
-every stopped viewer PID remains gone, and
-`git show-ref --verify --quiet refs/heads/<branch>` exits nonzero for every removed local branch.
+Then once, at the end: `git worktree prune -v`, only after preserving the mapping evidence.
+Verify `git worktree list` AND every exact inventory path. A completed workspace cleanup requires the
+whole matching tree, including `node_modules`, build caches and listed dashboards, to be absent;
+verify owned aliases are absent as links and stopped viewer PIDs remain gone. Verify removed local
+refs with `git show-ref --verify --quiet refs/heads/<branch>` returning nonzero.
 
-## Step 6 — name the sessions for Simon to archive
+## Step 6 — report verified disk cleanup and pending archives
 
-The skill cannot touch the Conductor/Claude UI. Applies ONLY when a worktree was actually removed — on a
-run that only deleted branch orphans (the `.claude/worktrees/` case, where nothing archivable was
-touched), there is nothing to name, so say so and stop. For each removed worktree, report:
-`Archive Conductor workspace <codename> (alias <friendly-name>)`.
-
-- `<codename>` = the last path segment of the worktree (the reliable key).
-- `<friendly-name>` = reverse-lookup the `~/conductor/workspaces/<project>/*` symlinks for one whose
-  target is `<codename>`. A codename may carry several or stale aliases — the codename is authoritative,
-  the alias is a readable hint. Verify the symlink's target codename still had a worktree. Simon archives
-  them from the Conductor app. On a `.claude/worktrees/` layout there is no alias symlink and no
-  Conductor workspace — the codename IS the dir and the "session" is a live Claude session, so report
-  the codename alone and skip the alias lookup.
+Repeat `du -sk` for surviving inventory paths and workspace roots; record absent paths as zero with
+an explicit absence check. Report before/after KiB, completed paths, retained paths with reasons,
+and exact workspace names/paths still awaiting app archive. Do not credit ref deletion as reclaimed
+workspace storage, or an archive request as completed disk cleanup. Name managed workspaces from
+verified inventory evidence; aliases are hints, never ownership proof. For a true branch-only cleanup
+with no matching directory, report branch removal and zero workspace storage reclaimed.
+TEST: every proposed path has a verified absent result or a named pending/blocked reason.
 
 ## The gotchas this skill must never trip
 
@@ -201,11 +240,10 @@ meta-cleanup deletes only the remote COUNTERPART of a local orphan it removes, e
 repo-wide remote purge (a shared remote is hundreds of others' branches)** · **keep-list Simon names is
 hard-excluded ABOVE the gate** · **the merged-remote-counterpart offer is SURFACED in the gate, never
 left for Simon to ask** · **a remote counterpart authored by a TEAMMATE is never offered or deleted —
-only Simon's own, by `%ae %an` tip author** · **on-disk dir git no longer
-tracks — `git worktree remove` errors; idle-check then `rm -rf`, extra-confirmed** · **`git worktree
-remove` is SLOW (deletes `node_modules`, tens of thousands of files) — long timeout; a short cap kills it
-mid-delete and the worktree goes `prunable` with the dir left on disk, finish with `prune` + `rm -rf`** ·
-**a dashboard viewer is exempt from the idle block only after its receipt, plan path, output path and
-process command all match that worktree; stop it after confirmation, then re-run the idle gate** ·
-`lsof +D` hangs (use
-`-d cwd`) · stale/duplicate session symlinks (verify the target codename still has a worktree).
+only Simon's own, by `%ae %an` tip author** · **orphan and interrupted-deletion directories require
+saved identity, merge and data-safety proof plus exact-path extra confirmation; idle/root alone is
+insufficient** · **Conductor-managed workspaces stay pending until Simon archives them in the app
+and disk verification passes** · **a dashboard viewer is exempt from the idle block only after its
+receipt, plan path, output path and process command all match that worktree; stop it after confirmation,
+then re-run the idle gate** · `lsof +D` hangs (use `-d cwd`) · stale/duplicate aliases require a proven
+target mapping; never follow them outside scope.

@@ -79,6 +79,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `apps/gauntlet/` | Reusable Next.js live gauntlet viewer (Node 24 via nvm; `cd apps/gauntlet && npm install`), served on fixed port 4747. `bin/workflow-dashboard.py serve` starts or attaches to it, registers the plan over `/api/projects`, and prints the live `http://127.0.0.1:4747/p?plan=<abs>` URL; `export` still writes the offline single-file dashboard for sharing. Untracked runtime state: `~/.claude/state/gauntlet-projects.json` (registry) and `~/.claude/state/gauntlet-server.json` (server receipt) |
 | `bin/mockup-shell.html` + `bin/mockup-build.py` (+ `bin/mockup-shell.test.py`, `bin/mockup-synthetic-spec.json`) | The one spec-driven shell every `/sk:ship-mockup-before-after` mockup is built through (viewport-first stage, one collapsible rail, presentation mode, hint bar; every switch tears the old mount down and opens the target's default state); the builder inlines a `spec.json` and extracts it back losslessly; the Playwright test proves the switch reset and the one-Before rail grouping against the synthetic spec |
 | `skills/sk/` | My personal (`/sk:*`) skill plugin. Claude Code reads it here; `bootstrap.sh` symlinks it into `~/.agents/skills/` for Codex. **`skills/sk-work/` is NOT tracked** — see [§ Not tracked](#not-tracked-and-why) |
+| `bin/node-runtime.zsh` | Node 24 selection for login, interactive and non-interactive zsh shells; tested with `python3 bin/node-runtime.test.py` |
 | `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here), subscription `CODEX_HOME` and `codex`/`claude` launcher functions |
 | `dotfiles/gitignore_global` | The live `~/.gitignore_global` (symlinked here), git's `core.excludesFile` — personal/secret patterns plus `.context/`, so the agent scratch dir is ignored in every repo without touching any committed `.gitignore` |
 | `hooks/config-status.sh` | SessionStart hook — flags uncommitted config so Claude offers to sync, and names every `config-update/*` branch not yet on `main` |
@@ -228,12 +229,10 @@ Native adapter details and verified upstream references live in `references/agen
 - **macOS** with Xcode Command Line Tools (`xcode-select -p`), so `/usr/bin/python3`, `git` exist.
 - **GitHub CLI** `gh` installed and authenticated **as your personal account** — verify: `gh auth status`
   (must show your account). If not authenticated, tell the user to run `gh auth login` — do not proceed.
-- **Node** via `nvm` if you'll build anything. Per `rules/engineering-standards.md` that means the
-  current Active LTS, and a project's own `.nvmrc` always wins over any version named here — run
-  `nvm install && nvm use` inside the repo. As of Aug 2026 the Active LTS lines are 22 and 24
-  (20 is EOL; 26 becomes LTS in Oct 2026). Do not pin a number in this file — it goes stale, and
-  `hooks/config-contract.test.py` fails the build when it names an EOL runtime. The gauntlet app needs
-  Node 24: `nvm use 24 && cd apps/gauntlet && npm install` once.
+- **Node 24** via `nvm`: run `nvm install 24 && nvm alias default 24` once.
+  Source `bin/node-runtime.zsh` as described in step 2 so terminal and agent shells use the
+  same installed Node 24 patch, including commands run from project subdirectories.
+  For the gauntlet app, run `cd apps/gauntlet && npm install` once.
 - **Username:** `settings.json` hook commands use absolute `$HOME/...` paths. If your `settings.json`
   still carries a hardcoded home dir, repoint the paths at your own `$HOME`: `sed -i '' "s#/Users/<olduser>#$HOME#g" ~/.claude/settings.json`.
 
@@ -268,6 +267,14 @@ Native adapter details and verified upstream references live in `references/agen
    ```bash
    [ -f "$HOME/.zsh-work-codex.zsh" ] && source "$HOME/.zsh-work-codex.zsh"
    ```
+   For Node 24, append this line to `~/.zshenv`, `~/.zprofile` and `~/.zshrc`, after existing
+   PATH or nvm setup. Preserve existing shell content; create `.zshenv` if absent. An explicit
+   request to fix shell runtime selection authorizes this wiring.
+   ```zsh
+   [ -f "$HOME/.claude/bin/node-runtime.zsh" ] && source "$HOME/.claude/bin/node-runtime.zsh"
+   ```
+   Verify `node --version` and `command -v node npm npx` in fresh `zsh -lc` and `zsh -c`
+   shells from home, a repository and its subdirectory. Expect v24 and one nvm bin directory.
 3. **Make the hooks executable** (git preserves the bit, but ensure it): `chmod +x ~/.claude/hooks/*.py ~/.claude/hooks/*.sh ~/.claude/.githooks/*` — the `.githooks` ones too, or a non-executable `commit-msg` silently no-ops while reading as enforcement.
 4. **Install tooling + enable the secret-scan gate** (see [§ Staying in sync](#staying-in-sync-no-daemon)):
    ```bash

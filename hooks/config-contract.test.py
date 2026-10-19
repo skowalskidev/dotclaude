@@ -70,6 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
     ("session-performance-and-capacity",
      "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
     ("intent-ledger-retains-and-rechecks-new-asks",
@@ -1124,7 +1125,7 @@ def _declared_config_parts() -> set[str]:
     """
     parts: set[str] = {"CLAUDE.md", "settings.json"}
     for pattern in ("rules/*.md", "references/*.md", "connectors/*.json",
-                    "bin/*.sh", "bin/*.py", ".githooks/*"):
+                    "bin/*.sh", "bin/*.py", "bin/*.zsh", ".githooks/*"):
         parts |= {str(p.relative_to(ROOT)) for p in ROOT.glob(pattern)
                   if p.is_file() and not p.name.endswith(".test.py")}
     for p in (ROOT / "hooks").glob("*"):
@@ -1358,6 +1359,11 @@ def check_commits_conventional_subject_enforced() -> None:
                   f"commit-msg {'rejected' if want_ok else 'accepted'} {subject!r}. "
                   + ("A false rejection pushes you to --no-verify, which also skips the secret "
                      "gate." if want_ok else "This is the shape the hook exists to stop."))
+
+
+def check_node24_shell_runtime():
+    result = run(["/usr/bin/python3", str(ROOT / "bin/node-runtime.test.py")])
+    check(result.returncode == 0, "Node shell fixtures failed: " + result.stdout + result.stderr)
 
 
 def check_session_performance_and_capacity() -> None:

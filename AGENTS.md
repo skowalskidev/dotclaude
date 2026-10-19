@@ -33,3 +33,8 @@ Keep the thin entry skills `work-gauntlet-loop` and `work-ralph-loop` in the `sk
 Keep shared runtime in `bin/workflow-dashboard.*`; plan and mockup skills compose the same catalog.
 Run `python3 hooks/config-contract.test.py` after changes; it includes the dashboard runtime tests.
 Use the test-only intake state override in that suite so verification cannot clear live session gates.
+
+## Shell runtime
+
+Use `bin/node-runtime.zsh` through the shell wiring in README.md. Run
+`python3 bin/node-runtime.test.py` after changes to Node selection.

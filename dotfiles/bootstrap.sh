@@ -99,6 +99,16 @@ else
 fi
 echo
 
+# Node selection must run both before non-login commands and after login PATH setup.
+node_source='[ -f "$HOME/.claude/bin/node-runtime.zsh" ] && source "$HOME/.claude/bin/node-runtime.zsh"'
+for shell_file in "$HOME/.zshenv" "$HOME/.zprofile" "$HOME/.zshrc"; do
+  if grep -qsF "$node_source" "$shell_file" 2>/dev/null; then
+    ok "Node runtime sourced by ${shell_file##*/}"
+  else
+    todo "append after PATH setup in $shell_file: $node_source"
+  fi
+done
+
 # 4) Identity overlay — your accounts. Created from the template; FAIL LOUD until you fill it in.
 echo "4. Identity overlay (your accounts, untracked)"
 if [ ! -f "$ROOT/identity.local.json" ]; then
