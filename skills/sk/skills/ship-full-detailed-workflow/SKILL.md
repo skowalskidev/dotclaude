@@ -36,11 +36,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
 6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification); re-judge criteria whose evidence or inputs those fixes changed, including dependent readers and configuration. Verify the user + system
    journeys AND every ticket's acceptance criteria against the merged diff, one committed test per
    verdict, close gaps in fix→verify loops. The exhaustive automated coverage + Claude-judge over the
-   WHOLE diff is `/sk:test-automated-full-matrix` (run it here — it enumerates every feature, writes the
-   missing tests over happy path + edges, judges intent + UX, and saves + posts the matrix to the PR);
-   ship-report's per-ticket verdicts read that matrix rather than re-deriving coverage. When it splits
-   into 3-5+ independent tickets, fan the
-   per-ticket verification out — one adversarial verifier per ticket reading the real code against its
+   WHOLE diff is `/sk:test-automated-full-matrix`; run it here, then read that same matrix for
+   ship-report's per-ticket verdicts, including each feature's simulation applicability and evidence.
+   When it splits into 3-5+ independent tickets, fan the per-ticket verification out — one adversarial verifier per ticket reading the real code against its
    criteria — via a Workflow or `/sk:work-superspeed` / `/sk:work-hyperspeed`
    (`references/parallelization.md`).
 7. **`/sk:ship-screenshot-changes`** — capture changed web surfaces and explicitly requested native
@@ -63,7 +61,8 @@ scratch file, or a green local run is INCOMPLETE — return to its stage and pos
 reads ✓ against the FETCHED PR, never against memory of having run the stage. (the fix for a run that
 verified the user + system journey, then handed back with it never posted to the PR body.)
 - Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
-- Matrix (stage 6): the `/sk:test-automated-full-matrix` results table is on the PR.
+- Matrix (stage 6): the results table is on the PR, including each feature's simulation evidence or
+  concrete N/A reason, and explicit verdicts for required cases that did not run.
 - Screenshots (stage 7): every surface eligible under stage 7 has its image on the PR; record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
 - Threads (stage 5): 0 unresolved review threads.

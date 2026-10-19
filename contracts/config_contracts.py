@@ -685,7 +685,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, gates, production-data preview fidelity and the no-billable-calls guarantee.",
+        "purpose": "Test structure, gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
@@ -697,6 +697,9 @@ CONTRACTS: dict[str, dict] = {
             "Preserve source dates and record persisted-source or recomputed mode; require complete inputs for post-refresh claims and verify API and visible values against the selected mode.",
             "Retain the requested local preview with a working URL and scoped stop/restart commands; stop exporters and unrelated workers.",
             "Keep review judges on the selected workflow setup through the shared parallelization protocol.",
+            "Assess simulation applicability per feature; exercise relevant real application/database transitions with controlled clocks, isolated data and zero external requests, or record a concrete N/A reason.",
+            "Assert exact per-entity outcomes beyond changed page and batch limits; cover applicable eligibility, event-order, fairness, concurrency, lease, retry, ambiguous-provider and idempotency timelines without requiring a full cross-product.",
+            "Make mock failures observable outside application catches; drain complete scans under explicit bounds, record reproducible seeds and evidence, and disclose provider races and unsupported runtime semantics.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Time every new or changed time budget on a read against production, read-only, before release; record the measured figure beside the constant, and a budget under 2x that figure is a finding.",
@@ -808,6 +811,7 @@ CONTRACTS: dict[str, dict] = {
             "Report covered, gap, needs-driving and skipped counts; generic matrix invocation never opts into native runtime, UI tests or screenshots, and unrun cases never count as covered.",
             "The METHOD lives in references/testing-strategy.md; this skill points at it and does not "
             "restate it. Fans out via /sk:work-hyperspeed.",
+            "Include simulation applicability and evidence for each feature under testing-strategy.md; required but unrun cases remain explicit gaps or skips, never N/A or covered.",
             "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
         ],
     },
@@ -864,6 +868,7 @@ CONTRACTS: dict[str, dict] = {
             "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
+            "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",

@@ -27,23 +27,22 @@ through to the real client, and the first evidence is the bill.
 A flow that takes a day to reach never gets tested properly. Build dev-only, clearly-guarded
 bypasses for anything blocking a fast loop:
 
-- **Collapse time.** For any cooldown, scheduled job, trial window, retry backoff or
-  "comes back tomorrow" step, add one switch that dispatches immediately and compresses retry
-  windows to seconds. Read it from config, not a code constant, so it flips per scenario
-  without a redeploy.
+- **Collapse time for manual reachability; advance clocks for scheduling proof.** A guarded config
+  switch can dispatch immediately or compress retry windows for a manual walk. To prove cooldowns,
+  jobs, expiry or retries, use § Local time-driven simulations; keep the real delays and due checks.
 - **A time-collapse switch is INSEPARABLE from an allowlist.** Collapsing time in a shared
   environment makes every stale record suddenly eligible, so you can fire real side effects at
   abandoned test data. Never ship the fast-forward without an "only these subjects" guard —
   and treat "non-allowlisted subject produces zero side effects" as its own test scenario.
 - **Audit what already exists before flipping the switch.** Distinct from seeding: what stale
   records will my test mode wake up? Delete them or prove the allowlist blocks them.
-- **Force state directly instead of walking the flow.** Keep a cheat sheet mapping each
-  precondition to the fastest direct-write command plus its verification command. Don't repeat
-  a twelve-step onboarding for every scenario. A person's first walk is the exception
-  (§ Human-driven sessions).
-- **Stub at the service boundary, never in the test.** `if (isStub()) return <fixture>` at the
-  call site inside the app. Intercepting network calls from inside a spec asserts against a
-  fiction; a boundary stub keeps routing, auth, validation and persistence in play.
+- **Seed preconditions directly.** Keep a cheat sheet mapping each precondition to its direct-write
+  command and verification command. Exercise the transition under test through its real entry point;
+  rewriting due dates or marking jobs complete cannot prove scheduling. A person's first walk follows
+  § Human-driven sessions.
+- **Stub only external provider boundaries.** Replace the provider transport or adapter in test
+  setup; keep the real routing, auth, validation, policy and persistence. A fake must not return ahead
+  of the code being proved. Verify unexpected calls fail the test, including when the app catches them.
 - **DO trace from the side effect a check must observe back to its entry point, in the mode the check
   runs in (fixture, mock or live), before running it.** A path the fixture returns ahead of is not
   observable in that mode; name in the plan the mode that exercises it. TEST: no check runs twice in
@@ -61,8 +60,8 @@ bypasses for anything blocking a fast loop:
 
 - **Idempotent, fixed ids, relative time.** Overwrite semantics so it re-runs; fixed ids so
   specs can name their rows; timestamps computed relative to now, with far-future sentinels for
-  "never expires". Absolute dates in fixtures rot and the suite goes red months later for no
-  code reason.
+  "never expires". A deterministic simulation can fix both its anchor and clock; record them together.
+  An absolute fixture date without a controlled clock rots.
 - **Baseline seed vs per-test seed.** The global seed holds only what is genuinely shared and
   read-only; per-scenario state is re-established per test.
 - **Namespace whatever you create** so parallel work never reads someone else's rows. Assert on
@@ -78,6 +77,89 @@ bypasses for anything blocking a fast loop:
   condition you invent afterwards. TEST: the written count equals the removed count and a re-read finds
   none (the fix for a time-based cleanup condition that matched nothing one second later and left the
   rows behind).
+
+## Local time-driven simulations
+
+**DO assess simulation applicability for every feature in the full matrix.** Run an isolated local
+simulation when the changed behavior depends on elapsed time, scheduled/queued work, pagination,
+retries, changing eligibility or a multi-step external side effect. Record one simulation subrow with
+its scenario evidence, or `N/A` with the concrete reason; N/A describes applicability, not a passing
+verdict. Select the relevant cases below, not their full cross-product for every change. Mark a required
+but unrun case GAP or SKIPPED with its reason. TEST: no affected feature lacks this assessment.
+
+**DO execute the real entry point, workers, policy and any persistence in an isolated runtime.**
+When the path uses a database, load its relevant production schema, migrations, defaults and stored
+functions into an isolated database. Replace only external provider boundaries. Give the runtime zero
+production credentials and deny external network access by default, allowing only its local test
+services. Verify destination refusal offline. Prove
+lock/concurrency claims with independent connections and the engine semantics they require; a serial
+emulator cannot establish them. TEST: effects and any persisted states come from production code, zero
+external requests escape, and unsupported database/runtime behavior is an explicit coverage gap.
+
+**DO drive all consulted clocks from one recorded virtual timeline.** Control application time,
+database time/defaults/stored functions when used, and timers or monotonic clocks the path reads.
+Install controls before startup captures time. Advance through real due checks without rewriting due
+fields or bypassing guards. Assert each consulted clock and any written timestamps after each advance.
+Use timer execution when callbacks matter; freezing Date alone does not execute timers. Check catch-up
+behavior after a clock jump when callbacks can accumulate. Test immediately before, at and after each
+changed time boundary, plus timezone/DST crossings when calendar time affects the result. Restore clock
+and timer hooks after each run. TEST: an advancing application clock cannot pass with a frozen database
+clock or an unexecuted callback hidden underneath it.
+
+**DO seed named synthetic cohorts and compute expected outcomes independently of the code under test.**
+Exercise 0, 1, limit−1, limit and limit+1 for each changed limit. A paginated path needs enough eligible
+records for at least 3 source pages; a batched path needs at least 2 processing batches. Include eligible
+and ineligible cohorts and another tenant when tenant scope exists. Check exact entity-and-step sets,
+payloads, duplicate counts, persisted outcomes and rejection reasons, not totals alone. TEST: swapping
+one recipient for another, losing a later page or sending twice fails even when the total is unchanged.
+
+**DO select failure timelines from the changed mechanisms and record each selected case in the matrix.**
+
+| Mechanism | Required scenarios when affected |
+| --- | --- |
+| Eligibility and controls | Change eligibility before enrollment, each later step and final dispatch; verify allowed and blocked transitions, opt-out, expiration, kill switch, stale/failed provider reads and recovery. |
+| Events and reconciliation | Deliver duplicates, out-of-order events, equal-timestamp events and delayed events; reconcile current authoritative state. Exercise signatures/authentication when event ingestion changes. |
+| Queue fairness and limits | Put blocked/poisoned work before healthy work beyond a page or batch boundary; exercise holds, caps, backpressure and recovery; prove healthy work progresses. |
+| Workers and leases | Overlap two workers while work is active; expire/reclaim a lease and let the stale worker resume; assert the fencing/ownership rule and per-entity effects. |
+| Retry and partial failure | Fail before persistence, after persistence, after provider acceptance and before acknowledgement; exercise transient/permanent errors, timeout, bounded backoff/jitter, total attempts across retry layers, exhaustion and recovery. |
+| Idempotency | Replay the same logical operation, retry with a changed payload and cross the provider's documented key-retention window; assert the application's reconciliation policy for each outcome. |
+
+**DO preserve ambiguous provider outcomes in the model.** Distinguish rejected, accepted and unknown
+outcomes; an acknowledgement timeout cannot prove the provider did nothing. Model the actual provider
+contract, including its idempotency scope and retention, and state any lag or last-read race the app
+cannot close. TEST: no exactly-once or never-send claim rests only on a fake provider's stronger behavior.
+
+**DO make provider fakes strict and observable outside application error handling.** Validate method,
+path, identity, payload and planned response; accumulate unexpected calls and contract/assertion failures
+outside callbacks the app can catch, then fail on that accumulator at the test boundary. Assert the exact
+allowed call ledger and zero unintended effects after each phase. TEST: a swallowed assertion or an
+unexpected request still fails the test even when the worker reports a handled error.
+
+**DO advance and drain work with explicit limits.** Record maximum ticks/iterations and a wall-time
+ceiling before running; process a complete source scan and all due work at each required checkpoint.
+Stop only after proving no unexplained due work remains, with delayed retries/holds accounted for, or
+fail at the bound. An empty first page is not completion. TEST: the full named cohort reaches its
+expected state within the bound, without sleeping through production-sized delays.
+
+**DO add bounded generated action sequences when interacting transitions can invalidate an invariant.**
+Use the project's existing stateful/property-test tooling or a small seeded driver; compare each step
+with an independent model or invariant. Record the seed, action trace and minimal reproducer for a
+failure. Keep fixed regression scenarios too. TEST: rerunning a failing seed reproduces the violation;
+new tooling or an exhaustive combination sweep is not a prerequisite for a simple change.
+
+**DO attach reproducible proof to the same matrix.** Record source revision, command, database/runtime,
+seed, clock anchor and advances, cohort and exact expected/actual outcomes, mock ledger, drain bounds,
+executed counts and known gaps. Preserve counterexamples as regression tests. TEST: the judge can trace
+each verdict from an input through the real transitions to stored state and side effects; simulated
+provider success never claims live delivery or production lock behavior that the harness did not prove.
+
+Apply the relevant provider/runtime's current contract. Sources checked 2026-10-19:
+[clock modes](https://playwright.dev/docs/clock),
+[event delivery](https://docs.stripe.com/webhooks),
+[idempotent requests](https://docs.stripe.com/api/idempotent_requests),
+[bounded retries](https://docs.aws.amazon.com/wellarchitected/latest/framework/rel_mitigate_interaction_failure_limit_retries.html),
+[stateful testing](https://hypothesis.readthedocs.io/en/latest/stateful.html).
+These inform the scenarios; they do not require those vendors or libraries.
 
 ## Production source fidelity
 
@@ -446,8 +528,9 @@ run it and read its matrix; none of them restate the method.
 from `git diff <base>...HEAD` cross-referenced with the plan's acceptance criteria
 (`/sk:plan-stable-persistent-dynamic-complete-full-plan`) and the Linear tickets — code with no
 criterion, or a criterion with no code, is itself a finding. The deliverable is a MATRIX: one row per
-feature — `feature · layer (frontend/backend) · Stage-1 test(file) · Stage-2 judgment · verdict
-(COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Every feature ends with a verdict; a feature with no row is a hole.
+feature — `feature · layer (frontend/backend) · simulation applicability/evidence · Stage-1 test(file) ·
+Stage-2 judgment · verdict (COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Apply § Local time-driven simulations
+to its simulation subrow. Every feature ends with a verdict; a feature with no row is a hole.
 Cover the WHOLE diff — every changed file's features, backend, frontend, tests and docs included; never
 sample down to the "high-risk" files and eyeball the rest. TEST: the matrix's row set equals the diff's
 feature set, and the run reports covered, gap, needs-driving and skipped counts without calling unrun
@@ -459,7 +542,8 @@ missing regression test to detect the broken behavior; keep execution pending un
 At the final batch gate, run each distinct relevant suite once, cheapest first, or attach matching
 passing evidence under § Defects first. A suite shared by several rows runs once for all those rows.
 Mark an unreachable rendered interaction NEEDS-DRIVING and hand it to `/sk:test-copilot`; mark unrequested
-native runtime/UI cases SKIPPED under § Native simulator suites. Never fake green with a network mock.
+native runtime/UI cases SKIPPED under § Native simulator suites. Keep code under observation real;
+provider fakes prove only the behavior and contract they model.
 
 **Stage 2 — the selected setup's judge, before final execution.** Stage numbers identify coverage and
 judgment, not execution order. Judge the code, test design and available evidence while Stage-1 execution
