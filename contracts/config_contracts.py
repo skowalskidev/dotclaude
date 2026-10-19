@@ -1583,34 +1583,26 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/meta-cleanup-worktrees/SKILL.md": {
-        "mission": "Simon's finished worktrees, branches and their Claude sessions get cleared away without any work-in-progress ever being lost, so a machine full of dead workspaces becomes just the live ones.",
-        "purpose": "Safely remove DONE worktrees, their task dashboards and branches, then name the sessions to archive.",
+        "mission": "Simon reclaims finished workspace storage and branches without losing work, while every retained folder has a clear reason.",
+        "purpose": "Safely clean finished worktrees, Conductor folders, dashboards and branches with verified disk outcomes.",
         "criteria": [
-            "Lists each candidate's canonical dashboards and verified viewer PID at the confirmation gate, then deletes those artifacts with the approved worktree.",
-            "Exempts only a viewer whose receipt, plan, output, PID command and worktree all match; a mismatch or another live process blocks cleanup.",
-            "Stops each confirmed owned viewer, rechecks idleness, and verifies its PID and every listed dashboard path remain gone after worktree removal.",
-            "Removes a worktree/branch ONLY when its branch is ancestor-merged into origin/<default> OR "
-            "its PR is gh-MERGED (the OR covers squash and rebase merges).",
-            "BLOCKS any worktree that is dirty, has unpushed or local-only commits, has a live session "
-            "cwd'd in it, has an open or closed-unmerged PR, or is the current or main checkout.",
-            "Discovers branch-only orphans whose worktree is already archived — merged local heads-with-"
-            "no-worktree, with the default branch filtered out even when it is not checked out — not only "
-            "git worktree list, so the usual leftover gets caught.",
-            "Never --force on git worktree remove; deletes a branch with git branch -D only after the "
-            "merge gate passes (ancestor of origin/<default>, or gh-MERGED AND fully pushed), because git "
-            "branch -d's HEAD-relative check falsely refuses a merged branch from a stale worktree.",
-            "Lists and CONFIRMS before deleting, and hard-excludes any keep-list Simon names above the "
-            "gate; remote-branch deletion is a separate extra-confirmed step, surfaced as its own opt-in "
-            "question in the gate (never left for Simon to ask) and restricted to branches Simon himself "
-            "authored (tip author %ae %an), never a teammate's.",
-            "Enumerates worktrees from git worktree list wherever they live — never a hardcoded "
-            "~/conductor path prefix, which silently no-ops the whole run on a .claude/worktrees/ "
-            "layout; the safety is the exclusions (main, current, detached) plus the gate.",
-            "Verifies cleanup against on-disk storage, not just git worktree list, and names the "
-            "sessions (codename, plus a Conductor alias when that layout has one) for Simon to "
-            "archive without touching the Claude UI.",
-            "Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh and points to process.md + "
-            "dev-server-hygiene.md; does not restate them.",
+            "Lists canonical dashboards, verified viewer PIDs, repository, branch/HEAD, exact paths, aliases, sizes and actions before confirmation.",
+            "Exempts only a viewer whose receipt, plan, output, PID command and worktree match; mismatches and other active sessions block cleanup.",
+            "Stops confirmed owned viewers, rechecks idleness and verifies their PIDs and dashboard paths remain absent after removal.",
+            "Removes branches only after proving ancestry into origin/<default> or a merged PR plus the required pushed check; blocks unmerged PRs and local-only commits.",
+            "Excludes current, main, default, detached, dirty, active, unpushed and explicitly kept worktrees or branches; rechecks gates and identity immediately before destruction.",
+            "Enumerates all registered worktrees, branch-only candidates and filesystem directories under ~/conductor/workspaces and configured alternate roots, even after metadata and branch refs vanish; never relies only on listed worktrees’ common parent.",
+            "Joins directories to canonical Git common-directory/origin and branch/HEAD or saved inventory evidence; city names, project basenames and matching branch names alone never prove ownership. Retains unknown mappings with reasons.",
+            "Captures canonical mappings and du -sk sizes before deleting refs or metadata; preserves evidence outside deletion targets and blocks changed identities.",
+            "Requires data-safety proof for every workspace removal, including ordinary worktrees and app archives: tracked files pass clean/merge checks, untracked and ignored paths are reproducible or safely preserved. Unknown files, databases or copied secrets block deletion without exposing contents.",
+            "Requires equivalent saved identity, merge and data-safety proof for orphan or interrupted-deletion directories; missing metadata or refs never waive the gate. Idleness and root membership alone never authorize deletion.",
+            "Uses Conductor app archive requests naming exact workspaces/paths for managed local workspaces; never bypasses management with git removal, recursive deletion or database mutation. Keeps them pending until app action and disk verification finish.",
+            "Uses non-forced git worktree remove for ordinary registered worktrees; requires proven abandoned status, full safety gates and exact-path extra confirmation before manually removing filesystem residue.",
+            "Canonicalizes roots and targets without following symlinks outside scope; removes only confirmed owned aliases as links after their target decision. Preserves main clones, archived-contexts, chat history and shared Conductor state.",
+            "Limits cleanup to this repo unless cross-repository scope is explicit; never deletes ~/conductor wholesale or enumerates remote-only branches for a purge.",
+            "Surfaces remote counterparts as a separate opt-in confirmation, limited to merged branches authored by Simon and corresponding to local branches being removed.",
+            "Verifies exact workspace trees, node_modules, build caches, dashboards, owned aliases and removed refs are absent; measures after-sizes and names pending/blocked paths. Ref deletion or an archive request alone never counts as reclaimed storage.",
+            "Reuses bin/port-registry.sh and bin/kill-orphan-workers.sh; points to process.md and dev-server-hygiene.md for shared teardown rules.",
         ],
     },
     "skills/sk/skills/meta-report-standup-weekly/SKILL.md": {
