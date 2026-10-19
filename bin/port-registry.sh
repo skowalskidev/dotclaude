@@ -35,6 +35,7 @@
 #   port-registry.sh reconcile                          drop stale rows, report what went
 #   port-registry.sh reap                               reconcile PLUS the deeper liveness signals
 #   port-registry.sh whoami                             show this session's identity
+#   port-registry.sh sessions                           cwd of every live Claude session (no writes)
 #
 # Exit codes: 0 ok · 2 usage · 3 held by another live session · 4 a listener nobody claimed
 #             · 5 an orphaned lane: workspace gone but its server is still listening
@@ -603,6 +604,7 @@ main() {
     reconcile) cmd_reconcile ;;
     reap) cmd_reap ;;
     whoami) cmd_whoami ;;
+    sessions) claude_cwds ;;
     --help | -h | help) usage ;;
     *) usage >&2; exit 2 ;;
   esac

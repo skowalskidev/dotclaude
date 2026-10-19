@@ -7,7 +7,6 @@ import json
 import multiprocessing
 import os
 import signal
-import fcntl
 import subprocess
 import sys
 import tempfile
@@ -22,10 +21,13 @@ spec = importlib.util.spec_from_file_location("local_capacity", SCRIPT)
 gate = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(gate)
 SIM = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+SIM2 = "11111111-2222-3333-4444-555555555555"
 
 
 def competing(root, queue, event, owner):
-    with mock.patch.object(gate, "observe_booted", return_value=[]):
+    with mock.patch.object(gate, "observe_booted", return_value=[]), \
+         mock.patch.object(gate, "compressed_gib", return_value=0), \
+         mock.patch.object(gate, "cpu_idle_percent", return_value=90):
         event.wait()
         for _ in range(200):
             try:
@@ -58,6 +60,12 @@ class GateTests(unittest.TestCase):
         self.pressure = mock.patch.object(gate, "simulator_pressure", return_value=(0, 8))
         self.pressure.start()
         self.addCleanup(self.pressure.stop)
+        self.memory = mock.patch.object(gate, "compressed_gib", return_value=0)
+        self.memory.start()
+        self.addCleanup(self.memory.stop)
+        self.idle = mock.patch.object(gate, "cpu_idle_percent", return_value=90)
+        self.idle.start()
+        self.addCleanup(self.idle.stop)
 
     def test_competing_processes_get_exactly_the_ceiling(self):
         ctx = multiprocessing.get_context("fork")
@@ -167,7 +175,7 @@ class GateTests(unittest.TestCase):
         with mock.patch.object(gate, "simulator_pressure", return_value=(17, 8)):
             with self.assertRaises(gate.Busy) as refused:
                 gate.acquire(self.root, "beta", os.getpid(), None)
-        self.assertIn("exceeds 2 x 8 logical cores", str(refused.exception))
+        self.assertIn("exceeds 1.5 x 8 logical cores", str(refused.exception))
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
     def test_a_lease_already_in_the_second_file_still_counts_with_no_migration(self):
@@ -184,15 +192,100 @@ class GateTests(unittest.TestCase):
             gate.acquire(self.root, "delta", os.getpid(), None)
 
     def test_each_simulator_is_owned_by_one_lease(self):
-        other = "11111111-2222-3333-4444-555555555555"
         gate.acquire(self.root, "alpha", os.getpid(), SIM)
         with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
             with self.assertRaises(gate.Busy):
                 gate.acquire(self.root, "beta", os.getpid(), SIM)
-            gate.acquire(self.root, "beta", os.getpid(), other)
+            gate.acquire(self.root, "beta", os.getpid(), None)  # non-simulator heavy work runs beside it
         with mock.patch.object(gate, "observe_booted", return_value=[SIM, "99999999-2222-3333-4444-555555555555"]):
             with self.assertRaises(gate.Busy):
                 gate.acquire(self.root, "gamma", os.getpid(), None)
+
+    def test_simulator_cap_is_one_named_constant(self):
+        self.assertEqual(gate.MAX_BOOTED_SIMULATORS, 1)
+
+    def test_second_simulator_refused_while_one_is_booted_naming_the_holder(self):
+        gate.acquire(self.root, "alpha", os.getpid(), SIM)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy) as refused:
+                gate.acquire(self.root, "beta", os.getpid(), SIM2)
+            with self.assertRaises(gate.Busy):
+                gate.claim_sim(self.root, SIM2, "beta")
+        self.assertIn("holder=alpha", str(refused.exception))
+        self.assertIn("1 of 1 machine-wide simulator", str(refused.exception))
+        self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
+        self.assertEqual(gate.read_claims(self.root), {})
+
+    def test_unleased_booted_simulator_blocks_a_new_simulator(self):
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy) as refused:
+                gate.acquire(self.root, "beta", os.getpid(), SIM2)
+        self.assertIn("booted with no claim or lease", str(refused.exception))
+
+    def test_a_claim_holds_the_cap_even_for_its_own_owner(self):
+        gate.claim_sim(self.root, SIM, "alpha")
+        for owner in ("alpha", "beta"):
+            with self.assertRaises(gate.Busy) as refused:
+                gate.acquire(self.root, owner, os.getpid(), SIM2)
+            self.assertIn("claimed by alpha", str(refused.exception))
+            with self.assertRaises(gate.Busy):
+                gate.claim_sim(self.root, SIM2, owner)
+        token = gate.acquire(self.root, "alpha", os.getpid(), SIM)
+        gate.release(self.root, token)
+        gate.release_sim(self.root, SIM, "alpha")
+        gate.claim_sim(self.root, SIM2, "beta")
+
+    def test_memory_guard_defers_heavy_work(self):
+        with mock.patch.object(gate, "compressed_gib", return_value=gate.MAX_COMPRESSED_GIB + 1):
+            with self.assertRaises(gate.Busy) as refused:
+                gate.acquire(self.root, "build", os.getpid(), None)
+        self.assertIn("memory compressor holds 7.0 GiB, above 6 GiB", str(refused.exception))
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_compressed_memory_is_read_from_vm_stat(self):
+        self.memory.stop()
+        try:
+            output = ("Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+                      "Pages occupied by compressor:           491520.\n")
+            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=output)):
+                self.assertAlmostEqual(gate.compressed_gib(), 7.5)
+            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="changed")):
+                with self.assertRaises(gate.GateError):
+                    gate.compressed_gib()
+        finally:
+            self.memory.start()
+
+    def test_cpu_idle_is_read_from_the_second_top_sample(self):
+        self.idle.stop()
+        try:
+            output = ("Processes: 700 total\nCPU usage: 2.0% user, 1.0% sys, 97.0% idle \n"
+                      "Processes: 700 total\nCPU usage: 70.1% user, 19.9% sys, 10.0% idle \n")
+            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=output)) as top:
+                self.assertEqual(gate.cpu_idle_percent(), 10.0)
+            self.assertEqual(top.call_args.args[0], ["/usr/bin/top", "-l", "2", "-n", "0", "-s", "1"])
+            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="CPU usage: 1% idle")):
+                with self.assertRaises(gate.GateError):
+                    gate.cpu_idle_percent()
+        finally:
+            self.idle.start()
+
+    def test_choked_cpu_defers_acquire_and_claim_with_the_reading(self):
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=12):
+            for call in (lambda: gate.acquire(self.root, "build", os.getpid(), None),
+                         lambda: gate.claim_sim(self.root, SIM, "build")):
+                with self.assertRaises(gate.Busy) as refused:
+                    call()
+                self.assertIn("CPU idle 12% is below 20%", str(refused.exception))
+        self.assertIsNone(gate.read_state(self.root))
+        self.assertEqual(gate.read_claims(self.root), {})
+
+    def test_load_guard_is_one_and_a_half_per_core(self):
+        self.assertEqual(gate.LOAD_PER_CORE, 1.5)
+        with mock.patch.object(gate, "simulator_pressure", return_value=(12, 8)):
+            gate.release(self.root, gate.acquire(self.root, "at-limit", os.getpid(), None))
+        with mock.patch.object(gate, "simulator_pressure", return_value=(12.5, 8)):
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "over", os.getpid(), None)
 
     def test_explicit_migration_preserves_old_live_receipt(self):
         token = gate.acquire(self.root, "mine", os.getpid(), None)
@@ -477,6 +570,8 @@ sys.exit(result.returncode)
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
+                "m=mock.patch.object(g,'compressed_gib',return_value=0); m.start(); "
+                "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
                 "g.acquire(Path(sys.argv[2]),'crashed',os.getpid(),None,child_pending=True); "
                 "r,w=os.pipe(); "
                 "subprocess.Popen(['/bin/sh','-c',"
@@ -498,6 +593,8 @@ sys.exit(result.returncode)
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
+                "m=mock.patch.object(g,'compressed_gib',return_value=0); m.start(); "
+                "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
                 "sys.exit(g.run_command(Path(sys.argv[2]),'runner',None,"
                 "[sys.executable,'-c','import time; time.sleep(30)']))")
         runner = subprocess.Popen([sys.executable, "-c", code, str(SCRIPT), str(self.root)],
@@ -533,17 +630,19 @@ class PriorityTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
-        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8))):
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("compressed_gib", 0), ("cpu_idle_percent", 90)):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
 
-    def cli(self, *args, load=0):
+    def cli(self, *args, load=0, host=None):
         self.root.mkdir(mode=0o700, exist_ok=True)
         (self.root / "booted.json").write_text('{"devices":{}}')
         (self.root / "pressure.json").write_text(json.dumps({"load": load, "cores": 8}))
+        (self.root / "host.json").write_text(json.dumps(host or {}))
         env = dict(os.environ, LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"),
-                   LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"))
+                   LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
+                   LOCAL_CAPACITY_HOST_JSON=str(self.root / "host.json"))
         return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
                               env=env, capture_output=True, text=True, timeout=20)
 
@@ -569,16 +668,23 @@ class PriorityTests(unittest.TestCase):
         gate.release(self.root, token)
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
-    def test_priority_owner_skips_the_load_gate_and_others_keep_it(self):
+    def test_priority_owner_keeps_the_load_and_memory_guards(self):
         gate.prioritize(self.root, "vip", 30, False)
-        with mock.patch.object(gate, "simulator_pressure", return_value=(52.5, 8)):
-            token = gate.acquire(self.root, "vip", os.getpid(), None)
-        self.assertEqual(gate.read_state(self.root)["token"], token)
-        gate.release(self.root, token)
-        gate.prioritize(self.root, None, 0, True)
-        with mock.patch.object(gate, "simulator_pressure", return_value=(52.5, 8)):
-            with self.assertRaises(gate.Busy):
-                gate.acquire(self.root, "other", os.getpid(), None)
+        for probe, value in (("simulator_pressure", (52.5, 8)), ("compressed_gib", 9), ("cpu_idle_percent", 5)):
+            with mock.patch.object(gate, probe, return_value=value):
+                for simulator in (None, SIM):
+                    with self.assertRaises(gate.Busy):
+                        gate.acquire(self.root, "vip", os.getpid(), simulator)
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_prioritize_does_not_bypass_the_simulator_cap(self):
+        gate.acquire(self.root, "holder", os.getpid(), SIM)
+        gate.prioritize(self.root, "vip", 30, False)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy) as refused:
+                gate.acquire(self.root, "vip", os.getpid(), SIM2)
+        self.assertIn("holder=holder", str(refused.exception))
+        self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
     def test_other_owner_is_deferred_with_the_priority_message_even_when_free(self):
         self.assertEqual(self.cli("prioritize", "--owner", "vip", "--minutes", "30").returncode, 0)
@@ -634,6 +740,21 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(self.cli("prioritize", "--owner", "vip", "--minutes", "180").returncode, 0)
         self.assertEqual(self.cli("prioritize", "--owner", "bad/owner").returncode, 1)
         self.assertEqual(self.cli("prioritize").returncode, 1)
+
+    def test_cpu_check_prints_one_go_or_defer_line(self):
+        go = self.cli("cpu")
+        self.assertEqual(go.returncode, 0, go.stderr)
+        self.assertEqual(len(go.stdout.splitlines()), 1)
+        self.assertTrue(go.stdout.startswith("GO idle=100%"), go.stdout)
+        (self.root / "pressure.json").write_text(json.dumps({"load": 1, "cores": 8, "idle": 8.5, "compressed_gib": 7}))
+        env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
+                   LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
+        defer = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "cpu"],
+                               env=env, capture_output=True, text=True, timeout=20)
+        self.assertEqual(defer.returncode, gate.BUSY)
+        self.assertTrue(defer.stdout.startswith("DEFER idle=8%"), defer.stdout)
+        self.assertIn("CPU idle 8% is below 20%", defer.stdout)
+        self.assertIn("memory compressor holds 7.0 GiB", defer.stdout)
 
     def test_status_prints_every_slot_free_and_held(self):
         free = self.cli("status").stdout.splitlines()
@@ -700,6 +821,180 @@ class PriorityTests(unittest.TestCase):
         gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
         with self.assertRaises(gate.Busy):
             gate.run_command(self.root, "holder", None, [sys.executable, "-c", "pass"])
+
+
+LAUNCHD = "launchd_sim /Users/x/Library/Developer/CoreSimulator/Devices/%s/data/var/run/launchd_bootstrap.plist"
+RUNTIME = ("/Library/Developer/CoreSimulator/Volumes/iOS_X/Library/Developer/CoreSimulator/Profiles/Runtimes/"
+           "iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/System/Library/CoreServices/SpringBoard.app/SpringBoard")
+BROWSER = "/Users/x/Library/Caches/ms-playwright/chromium-1200/chrome-mac/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing --remote-debugging-port=%d"
+HELPER = ("/Users/x/Library/Caches/ms-playwright/chromium-1200/chrome-mac/Google Chrome for Testing.app/Contents/Frameworks/"
+          "Google Chrome for Testing Framework.framework/Helpers/Google Chrome for Testing Helper (Renderer).app/Contents/MacOS/"
+          "Google Chrome for Testing Helper (Renderer) --type=renderer")
+
+
+def ps_text(*rows):
+    return "\n".join("%d %d %s %s %s" % row for row in rows) + "\n"
+
+
+class WatchdogTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve() / "capacity"
+        gate.secure_root(self.root)
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("compressed_gib", 0), ("cpu_idle_percent", 90)):
+            patch = mock.patch.object(gate, name, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def lines(self, text):
+        with mock.patch.object(gate, "host_fixture", side_effect=lambda key, default: text if key == "ps" else default):
+            return gate.watchdog_lines(self.root)
+
+    def test_hot_simulator_process_is_flagged_with_its_owner(self):
+        gate.claim_sim(self.root, SIM, "alpha")
+        text = ps_text((500, 1, "3.7", "05:00", LAUNCHD % SIM),
+                       (501, 500, "312.0", "04:58", RUNTIME),
+                       (502, 500, "20.0", "04:58", "/x/RuntimeRoot/usr/libexec/backboardd"))
+        hot = [line for line in self.lines(text) if "HOT" in line]
+        self.assertEqual(len(hot), 1, hot)
+        self.assertIn("pid=501 SpringBoard cpu=312%", hot[0])
+        self.assertIn("simulator=%s owner=alpha" % SIM, hot[0])
+        self.assertIn("xcrun simctl shutdown %s" % SIM, hot[0])
+
+    def test_young_or_cool_processes_are_not_flagged(self):
+        text = ps_text((600, 1, "3.0", "00:30", LAUNCHD % SIM2),
+                       (601, 600, "480.0", "00:29", RUNTIME),
+                       (700, 1, "199.0", "01-02:00:00", "/usr/bin/some-daemon"))
+        self.assertFalse([line for line in self.lines(text) if "HOT" in line])
+
+    def test_any_hot_process_is_flagged_not_only_simulators(self):
+        text = ps_text((800, 1, "250.0", "10:00", "/usr/local/bin/node vitest"))
+        hot = [line for line in self.lines(text) if "HOT" in line]
+        self.assertEqual(len(hot), 1)
+        self.assertIn("pid=800 node", hot[0])
+        self.assertNotIn("simulator=", hot[0])
+
+    def test_booted_simulator_without_a_lease_and_an_idle_claim_are_flagged(self):
+        gate.claim_sim(self.root, SIM2, "beta")
+        lines = self.lines(ps_text((900, 1, "1.0", "10:00", LAUNCHD % SIM)))
+        self.assertTrue(any("simulator %s is booted with no lease" % SIM in line for line in lines), lines)
+        self.assertTrue(any("simulator claim %s owner=beta is idle" % SIM2 in line for line in lines), lines)
+
+    def test_a_leased_booted_simulator_is_not_flagged_as_unleased(self):
+        gate.acquire(self.root, "alpha", os.getpid(), SIM)
+        lines = self.lines(ps_text((900, 1, "1.0", "10:00", LAUNCHD % SIM)))
+        self.assertEqual(lines, ["watchdog: clear"])
+
+    def test_more_than_one_test_browser_is_flagged_and_helpers_do_not_count(self):
+        one = ps_text((1000, 1, "5.0", "10:00", BROWSER % 9222), (1001, 1000, "5.0", "10:00", HELPER))
+        self.assertEqual(self.lines(one), ["watchdog: clear"])
+        two = ps_text((1000, 1, "5.0", "10:00", BROWSER % 9222), (1002, 1, "5.0", "10:00", BROWSER % 9223))
+        self.assertTrue(any("2 Chrome for Testing instances (pids 1000,1002)" in line for line in self.lines(two)))
+
+    def test_status_and_watchdog_cli_print_the_flag(self):
+        env_host = {"ps": ps_text((500, 1, "3.7", "05:00", LAUNCHD % SIM), (501, 500, "400.0", "03:00", RUNTIME))}
+        runner = PriorityTests("cli")
+        runner.tmp, runner.root = self.tmp, self.root
+        status = runner.cli("status", host=env_host)
+        self.assertEqual(status.returncode, 0, status.stderr)
+        self.assertIn("watchdog: HOT pid=501 SpringBoard", status.stdout)
+        self.assertIn("simulators in use: 0 of 1", status.stdout)
+        watchdog = runner.cli("watchdog", host=env_host)
+        self.assertIn("watchdog: HOT pid=501", watchdog.stdout)
+        self.assertNotIn("heavy slot", watchdog.stdout)
+
+    def test_elapsed_parses_every_ps_shape(self):
+        self.assertEqual(gate.parse_elapsed("01:05"), 65)
+        self.assertEqual(gate.parse_elapsed("02:00:01"), 7201)
+        self.assertEqual(gate.parse_elapsed("3-00:00:00"), 3 * 86400)
+
+
+class StackTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve() / "capacity"
+        self.host = {"stacks": [], "vm_gib": 7.75, "sessions": [], "activity": {}}
+        for name, value in (("simulator_pressure", (0, 8)), ("compressed_gib", 0), ("cpu_idle_percent", 90)):
+            patch = mock.patch.object(gate, name, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
+        patch = mock.patch.object(gate, "host_fixture", side_effect=lambda key, default: self.host.get(key, default))
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.docker = mock.patch.object(gate, "docker_json_lines", return_value="")
+        self.calls = self.docker.start()
+        self.addCleanup(self.docker.stop)
+
+    def running(self, *workspaces, supabase=True):
+        self.host["stacks"] = [{"project": Path(ws).name, "workdir": ws, "supabase": supabase} for ws in workspaces]
+
+    def test_cap_derives_from_the_docker_vm(self):
+        self.assertEqual(gate.max_stacks(7.75), 2)
+        self.assertEqual(gate.max_stacks(4), 1)
+        self.assertEqual(gate.max_stacks(64), gate.STACK_CEILING)
+        self.assertEqual(gate.max_stacks(None), 1)
+
+    def test_third_stack_is_refused_naming_the_two_and_a_running_one_is_readmitted(self):
+        now = time.time()
+        self.host["activity"] = {"/w/a": now, "/w/b": now}
+        self.running("/w/a", "/w/b")
+        with self.assertRaises(gate.Busy) as refused:
+            gate.stack_acquire(self.root, "gamma", "/w/c")
+        self.assertIn("2 of 2 local dev stacks in use", str(refused.exception))
+        self.assertIn("/w/a", str(refused.exception))
+        gate.stack_acquire(self.root, "alpha", "/w/a")
+
+    def test_fresh_leases_count_before_containers_appear(self):
+        gate.stack_acquire(self.root, "alpha", "/w/a")
+        gate.stack_acquire(self.root, "beta", "/w/b")
+        with self.assertRaises(gate.Busy):
+            gate.stack_acquire(self.root, "gamma", "/w/c")
+        leases = gate.read_stack_leases(self.root)
+        for workspace in leases:
+            leases[workspace]["created"] -= (gate.STACK_START_GRACE_MIN + 1) * 60
+        gate.write_stack_leases(self.root, leases)
+        gate.stack_acquire(self.root, "gamma", "/w/c")
+        self.assertEqual(set(gate.read_stack_leases(self.root)), {"/w/c"})
+
+    def test_prioritize_and_memory_do_not_bypass_the_stack_cap(self):
+        gate.prioritize(self.root, "vip", 30, False)
+        now = time.time()
+        self.host["activity"] = {"/w/a": now, "/w/b": now}
+        self.running("/w/a", "/w/b")
+        with self.assertRaises(gate.Busy):
+            gate.stack_acquire(self.root, "vip", "/w/c")
+        self.running()
+        with mock.patch.object(gate, "compressed_gib", return_value=8):
+            with self.assertRaises(gate.Busy):
+                gate.stack_acquire(self.root, "vip", "/w/c")
+
+    def test_sweep_stops_only_idle_supabase_stacks_and_keeps_volumes(self):
+        old = time.time() - (gate.STACK_IDLE_MIN + 1) * 60
+        self.running("/w/idle", "/w/live", "/w/busy", "/w/mine")
+        self.host["sessions"] = ["/w/live/apps/api"]
+        self.host["activity"] = {"/w/idle": old, "/w/live": old, "/w/busy": time.time(), "/w/mine": old}
+        self.calls.return_value = "abc123\n"
+        lines = gate.stack_sweep(True, exclude="/w/mine")
+        self.assertEqual(len(lines), 1, lines)
+        self.assertIn("stopped idle stack idle", lines[0])
+        commands = [call.args[0] for call in self.calls.call_args_list]
+        label = "label=com.supabase.cli.project=idle"
+        self.assertEqual(commands, [["ps", "-q", "--filter", label], ["stop", "abc123"],
+                                    ["container", "prune", "-f", "--filter", label],
+                                    ["network", "prune", "-f", "--filter", label]])
+        self.assertFalse(any("volume" in command for command in commands))
+
+    def test_sweep_without_apply_only_reports_and_compose_stacks_are_never_stopped(self):
+        old = time.time() - (gate.STACK_IDLE_MIN + 1) * 60
+        self.running("/w/idle")
+        self.host["activity"] = {"/w/idle": old}
+        self.assertIn("stack-sweep --apply", gate.stack_sweep(False)[0])
+        self.running("/w/compose", supabase=False)
+        self.host["activity"] = {"/w/compose": old}
+        self.assertEqual(gate.stack_sweep(True), [])
+        self.calls.assert_not_called()
 
 
 if __name__ == "__main__":

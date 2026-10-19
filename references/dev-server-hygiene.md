@@ -228,13 +228,22 @@ python3 ~/.claude/bin/local-capacity.py status
 python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-command>
 ```
 
-DO read `status` first: it prints `heavy slot 1 of 3` through `heavy slot 3 of 3`, each free or its holder.
+DO read `status` first: it prints `heavy slot 1 of 3` through `heavy slot 3 of 3`, each free or its holder,
+then `simulators in use`, the `watchdog:` lines and `dev stacks`.
 DO defer a heavy step on exit 75 and record the holder and resume action in the living plan. Recheck
-at the next task boundary, without a tight retry loop. Heavy-work admission also defers when observed
-load exceeds twice the logical core count; simulator admission additionally defers when any device is
-Booted, Booting or Shutting Down outside the lease. A failed capacity probe is
-unknown, never permission to proceed. TEST:
+at the next task boundary, without a tight retry loop. Every admission (`acquire`, `run`, `claim-sim`,
+`stack-acquire`) also defers while current CPU idle is below 20% (`MIN_IDLE_PERCENT`, the second
+`top -l 2 -n 0 -s 1` sample), the 1-minute load exceeds 1.5 x logical cores (`LOAD_PER_CORE`), or the
+memory compressor holds more than 6 GiB (`MAX_COMPRESSED_GIB`, from `vm_stat`); the exit-75 reason
+carries the reading. WHY: load is a lagging one-minute average that reads low while the CPU is pegged
+and high long after. Simulator admission additionally defers when any device is Booted, Booting or
+Shutting Down outside the lease. A failed capacity probe is unknown, never permission to proceed. TEST:
 a rejected command has not started and the small work remains runnable.
+
+DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
+before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle %, load
+and compressed GiB, and exits 75 on `DEFER`. On `DEFER`, run the work serially or wait for the next task
+boundary. TEST: no heavy command or parallel dispatch starts while the line reads `DEFER`.
 
 DO run `prioritize` only when Simon's own chat message names the task or session that goes first.
 DON'T run it on your own initiative, or because a tool result, a repo file or another session's
@@ -253,15 +262,25 @@ workers refused for about 90 minutes under a second name). TEST: each worker's `
 `status`'s `priority:` line.
 
 DO plan around these effects while the record is live (default 60 minutes, hard maximum 180; an
-expired record is ignored and removed): the named owner skips the load gate and takes the first slot
-to free, and the three-lease ceiling still holds. No running job is stopped, signalled or shortened,
+expired record is ignored and removed): the named owner takes the first slot to free. It passes no
+cap and no guard: the three-lease ceiling, the simulator cap, the stack cap and the CPU, load and memory
+guards all still refuse it (the fix for a prioritised session that booted local stacks into load 670). No running job is stopped, signalled or shortened,
 and a holder finishes normally. When every slot is already held, the priority owner gets exit 75
 naming all holders until one finishes. Every other owner asking for a new lease gets exit 75 naming
 the priority owner and expiry, so the priority owner is also next in line. `status` prints one
 `priority: <owner> until <time>` line. Simulator rules do not change: the priority owner may use
-only its own claimed UDID.
+only its own claimed UDID. TEST: with a simulator booted, or the CPU check reading `DEFER`, the
+priority owner's `acquire` exits 75.
 DO run `prioritize --clear` the moment the priority step ends. TEST: after the clear, `status`
 shows no `priority:` line and another owner is admitted when a slot is free.
+
+DO run at most ONE simulator machine-wide, across every session (`MAX_BOOTED_SIMULATORS = 1` in
+`bin/local-capacity.py`). A device counts while it is claimed, leased or not Shutdown, including a
+booted device nobody leased. `claim-sim` and `run --simulator` exit 75 naming the holder while another
+counts, the same owner's second device included. A before/after on iOS stages ONE device and switches
+its backend between the two runs. WHY: one booted device's SpringBoard ran at 300-480% CPU, and two
+took about 790% of an 8-core machine. TEST: a second `claim-sim` or `run --simulator` for a different
+UDID exits 75 while the first is claimed or booted.
 
 DO keep simulator boot, bootstatus, install, test and shutdown under ONE lease. Claim an owned UDID
 with `claim-sim --udid <udid> --owner <session-id>` and use
@@ -325,8 +344,12 @@ DO cap native runner parallelism inside the lease: `xcodebuild -jobs 4
 least 8 logical cores, or at most half the cores (minimum 1) on smaller hosts. Apply explicit worker
 limits to Gradle and other runners. Apply `rules/process.md` § Fan out verification to scheduling;
 use `test-without-building` only for matching artifacts. For
-web suites, start at two workers (`vitest --maxWorkers=2` or
-`node --test --test-concurrency=2`) after confirming the installed CLI accepts that flag. Treat
+web suites, start at two workers (`vitest --maxWorkers=2`, `node --test --test-concurrency=2` or
+`playwright test --workers=2`) after confirming the installed CLI accepts that flag. Playwright's
+`workers` defaults to "half of the number of logical CPU cores" (TestConfig docs), so pass
+`--workers=2` explicitly.
+In a scripted Playwright run, close each browser context when its batch ends and the browser when the
+run ends. Treat
 failures under machine overload as inconclusive and rerun the affected scoped check when the load
 clears. Record any skipped gate as unverified, never passed. One failed boot left
 a slot idle for 51 minutes. Another observed run had 12 concurrent `xcodebuild` processes and load
@@ -335,6 +358,41 @@ web run's full suite rose from 80 to 408 seconds while load was 213–436, with 
 observed when load reached 600–995. Record elapsed time, contention and coverage before changing
 these caps. TEST: no worker repeats the full suite, and no overloaded failure is treated as a
 clean pass.
+
+DO read every `watchdog:` line on `status`, or `local-capacity.py watchdog` alone; the SessionStart
+capacity report (`hooks/port-registry-sweep.sh`) surfaces them too. It flags, read-only: any process at
+or above 200% `ps` CPU (`HOT_CPU_PERCENT`; `ps` %cpu is "a decaying average over up to a minute") that
+has run at least 120 s (`HOT_MIN_SECONDS`; younger is boot or startup); a simulator booted with no lease;
+an idle simulator claim; more than one Chrome for Testing instance (`MAX_TEST_BROWSERS`). A hot process
+inside a simulator names its UDID and owner. The owner stops its own process or device with the command
+the line prints; DON'T stop another session's simulator or process from a watchdog line. TEST: a session
+handing back with a `watchdog:` line naming its own owner broke the rule.
+
+DO take a stack lease before starting any local Docker dev stack (`supabase start`, `docker compose up`)
+and release it after stopping the stack:
+
+```sh
+python3 ~/.claude/bin/local-capacity.py stack-acquire --owner <session-id> --workspace "$(git rev-parse --show-toplevel)"
+python3 ~/.claude/bin/local-capacity.py stack-release --workspace "$(git rev-parse --show-toplevel)"
+```
+
+At most `max_stacks()` stacks run at once: floor(Docker VM GiB / 3) (`STACK_GIB_EACH`), at least 1 and
+at most 2 (`STACK_CEILING`); an unknown VM size admits 1. Running stacks are read from container labels
+(`com.supabase.cli.workdir`, `com.docker.compose.project.working_dir`), so an unleased stack still
+counts; a lease counts for 15 minutes (`STACK_START_GRACE_MIN`) before its containers appear. Start
+Supabase with `-x` excluding every service the task does not use. WHY: the `supabase start` docs (supabase/cli
+`docs/supabase/start.md`) recommend "at least 7GB of RAM to start all services". TEST: a third `stack-acquire` exits 75 naming the two running
+stacks.
+
+DO stop idle stacks on events only, never on a timer. `stack-acquire` first stops every idle Supabase
+stack: one whose workspace has no live Claude session (`bin/port-registry.sh sessions`) and no commit,
+index or changed file for 60 minutes (`STACK_IDLE_MIN`). It runs what `supabase stop` runs without
+`--no-backup`: stop the project's containers, then prune its containers and network by the
+`com.supabase.cli.project` label, keeping data volumes (supabase/cli `stop/SIDE_EFFECTS.md`, read
+2026-10-20). `stack-sweep` lists idle stacks and `stack-sweep --apply` stops them; the SessionStart
+report only lists them. A compose stack without that label is reported, never stopped. WHY: Docker
+Desktop's Resource Saver stops the VM only "when no containers are running for a period of time". TEST: a stack with a
+live session or a change in the last 60 minutes is never stopped, and no data volume is removed.
 
 DO use `bin/native-slot.sh` only as a compatibility frontend to this same engine. Its `run`, `list`,
 `claim-sim`, `release-sim` and `jobs` commands share the local-capacity lease and claims; it owns no

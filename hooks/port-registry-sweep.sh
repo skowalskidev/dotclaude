@@ -61,7 +61,7 @@ native_report() {
   if [ -z "$out" ]; then
     has_native_project || return 0
     out="Capacity status unavailable; inspect before native work."
-  elif ! printf '%s\n' "$out" | grep -qvE '^(heavy slot [0-9]+ of [0-9]+: free|booted simulators: none)$'; then
+  elif ! printf '%s\n' "$out" | grep -qvE '^(heavy slot [0-9]+ of [0-9]+: free|booted simulators: none|simulators in use: 0 of [0-9]+|watchdog: clear|dev stacks: .*)$'; then
     has_native_project || return 0
   fi
 
@@ -73,6 +73,7 @@ Before ANY native build, native test run or simulator boot:
 Exit 75 means the heavy step was deferred and the command did not start. Register each simulator
 you create or boot with \`native-slot.sh claim-sim <udid>\`; keep the same lease through shutdown.
 Never kill another session's build or shut down its simulator.
+A \`watchdog:\` or \`idle stack\` line names its owner and the exact stop command; act on your own only.
 Protocol: ~/.claude/references/dev-server-hygiene.md § Machine-wide capacity"
 }
 
