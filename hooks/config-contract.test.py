@@ -1360,8 +1360,10 @@ def check_mockup_shell_preserves_reviewed_deep_links() -> None:
     check(all(token not in shared for token in ('id="copy-spec"', 'id="save-html"', '<textarea')),
           "Shared design viewer exposes implementation or export controls")
     decision = (ROOT / "bin" / "decision-artifact.html").read_text()
-    check(all(token not in decision for token in ("<input", "<textarea", "generate-response", "copy-response", "data-count", "data-select-all")),
-          "Read-only design cards restored response, choice or feedback controls")
+    check(all(token in decision for token in ("feedback=SPEC.feedback===true", 'id="generate-copy"', "navigator.clipboard.writeText(text)", "snapshot===revision")),
+          "Proposal response must be explicit, fresh and copied in one action")
+    check(all(token not in decision for token in ("position:fixed", "generate-response", "copy-response", "data-count", "data-select-all")),
+          "Proposal cards restored covering chrome or separate response actions")
     for adapter in ("mockup-build.py", "design-board.py", "decision-artifact.py"):
         check("compose(" in (ROOT / "bin" / adapter).read_text(), f"{adapter} bypasses the shared frame")
 

@@ -87,8 +87,9 @@ The dashboard has section buttons and overall completion on the left, with Befor
 Current evidence on the right. Session record pools sources, decisions, notes, history, artifacts and
 remaining actions. Mockups, design boards and decision cards share one quiet presentation frame.
 Before/After previews compare only the current pair; earlier rounds live in History. Theme changes
-affect controls only. These artifacts are design viewers: decisions and feedback belong in chat, with
-no response forms or export controls in the viewer. Embedded specs retain all versions and prior
+affect controls only. Mockups and design boards are viewers. Proposal cards show one tradeoff with details collapsed;
+proposals that request feedback provide choices, comments and one corner Generate & copy button.
+It copies the current response for pasting into chat, with a manual-copy field only if copying fails. Embedded specs retain all versions and prior
 metadata for CLI extraction. Downloaded HTML opens offline
 for sharing; the live app at the printed URL self-refreshes over SSE as the plan changes. The template
 stays the same across tasks and modes.

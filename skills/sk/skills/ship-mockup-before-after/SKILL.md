@@ -324,10 +324,10 @@ in History. Keep field-diff metadata in the spec for CLI extraction, without an 
 changed” switch uses the declared state/variant selector or `[data-change]`, defaults off and restores
 the untouched product immediately when disabled.
 
-DO use `bin/decision-artifact.py` to display design/options cards with headings, explanations, previews
-and verdicts, following `/sk:work-ask-reply-in-full-before-after-artifact`. Keep choices, comments and
-answers in chat. All shared artifacts are viewers: no response generation, inputs, selection forms,
-feedback counts or spec/export buttons. Preserve existing metadata inertly in `#spec` for CLI extraction.
+DO route proposal cards through `/sk:work-ask-reply-in-full-before-after-artifact`. Keep this
+Before/After mockup and design boards viewer-only; collect a proposal response in the separate
+decision artifact. Preserve existing metadata inertly in `#spec` for CLI extraction.
+TEST: mockup and board surfaces contain no response inputs or actions.
 
 ## Share it, and run the LOSS-FREE review round-trip
 

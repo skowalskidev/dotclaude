@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Build/extract a read-only design/options viewer using the shared presentation frame.
+"""Build/extract compact proposal cards using the shared presentation frame.
 
 Usage: decision-artifact.py build <spec.json> <out.html>
        decision-artifact.py extract <out.html> <spec.json>
        decision-artifact.py example
 
-sections[].cards[]: id, title, explainer, verdict, before, after.
+sections[].cards[]: id, title, tradeoff, optional detail, before, after.
+Set feedback: true only when collecting proposal decisions and comments.
 before/after map viewport labels to data-URI images or {text: ...}.
 Legacy control/runtime metadata is retained unchanged and never rendered as inputs.
 """
@@ -16,9 +17,9 @@ from presentation_build import compose, extract
 
 HERE = Path(__file__).resolve().parent
 EXAMPLE = {"title": "Choose the next step", "sections": [{"id": "direction", "title": "Direction", "cards": [
-    {"id": "small", "title": "Small update", "explainer": "Adjust the existing flow.", "verdict": "Recommended for the next release."},
-    {"id": "large", "title": "Full redesign", "explainer": "Replace the existing flow."},
-    {"id": "docs", "title": "Update the guide", "explainer": "Describe the selected flow.", "before": {"text": "Existing instructions"}, "after": {"text": "Updated instructions"}}
+    {"id": "small", "title": "Small update", "tradeoff": "Ships sooner; keeps the existing layout."},
+    {"id": "large", "title": "Full redesign", "tradeoff": "Changes the whole flow; takes longer to build."},
+    {"id": "docs", "title": "Update the guide", "tradeoff": "Clarifies the flow; leaves the product unchanged.", "before": {"text": "Existing instructions"}, "after": {"text": "Updated instructions"}}
 ]}]}
 
 

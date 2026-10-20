@@ -162,7 +162,7 @@ def main():
             page.goto(single.as_uri());page.wait_for_timeout(100);page.keyboard.press('b')
             assert page.locator('.mock-pane').get_attribute('data-variant')=='beta', 'B is safe with no baseline'
 
-            # Every artifact is a viewer; old interaction metadata remains inert in #spec.
+            # Pure viewers keep old interaction metadata inert in #spec.
             for artifact in (built,decision_path):
                 page.goto(artifact.as_uri());page.wait_for_timeout(100)
                 assert page.locator('textarea,input[type="radio"],input[type="checkbox"]').count()==0
@@ -181,6 +181,75 @@ def main():
             assert json.loads(page.locator('#spec').text_content())==decision_spec, 'viewing never mutates retained metadata'
             page.click('#open-controls');page.click('[data-jump="direction"]')
             assert page.locator('#presentation-app').evaluate("el=>el.classList.contains('is-collapsed')"), 'section navigation closes the phone sheet'
+
+            # Proposal feedback is explicit and isolated from pure viewers.
+            proposal=copy.deepcopy(decision_spec);proposal['feedback']=True
+            proposal['sections'][0]['cards'][0]['detail']='Supporting evidence stays collapsed.'
+            long_detail=' '.join(['Preserve every meaningful detail.']*9)
+            proposal['sections'][0]['cards'][1].pop('tradeoff')
+            proposal['sections'][0]['cards'][1]['explainer']=long_detail
+            proposal['sections'][0]['cards'][2].pop('tradeoff')
+            proposal['sections'][0]['cards'][2].update(explainer=long_detail,verdict='Clarifies the flow; leaves the product unchanged.')
+            proposal_path=path/'proposal.html';proposal_path.write_text(decision.build(proposal))
+            page.goto(proposal_path.as_uri())
+            page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copied=text}}})")
+            first=page.locator('.decision-card').first
+            assert page.locator('.decision-card').nth(1).locator(':scope > p').count()==0, 'long legacy prose is not a visible summary'
+            assert page.locator('.decision-card').nth(1).locator('.decision-details p').text_content()==long_detail, 'long prose is preserved intact'
+            legacy=page.locator('.decision-card').nth(1)
+            assert not legacy.locator('.decision-details p').is_visible()
+            legacy.locator('.decision-details summary').click()
+            assert legacy.locator('.decision-details p').is_visible()
+            legacy.locator('.decision-details summary').click()
+            assert page.locator('.decision-card').nth(2).locator(':scope > p').inner_text()=='Clarifies the flow; leaves the product unchanged.'
+            assert not page.locator('.decision-card').nth(2).locator('.decision-details p').is_visible()
+            assert first.locator('.decision-details').get_attribute('open') is None
+            assert not first.get_by_text('Supporting evidence stays collapsed.').is_visible()
+            first.locator('.decision-details summary').click()
+            assert first.get_by_text('Supporting evidence stays collapsed.').is_visible()
+            first.locator('[data-choice]').select_option('Revise')
+            first.locator('.decision-feedback summary').click()
+            first.locator('[data-comment]').fill('Keep the existing navigation.')
+            page.locator('#generate-copy').focus();page.keyboard.press('Enter')
+            page.wait_for_function("document.getElementById('generate-copy').textContent==='Copied'")
+            assert 'Small update: Revise\n  Keep the existing navigation.' in page.evaluate('window.copied')
+            first.locator('[data-choice]').select_option('Accept')
+            first.locator('[data-comment]').fill('Use the latest notes.')
+            page.click('#generate-copy')
+            page.wait_for_function("document.getElementById('generate-copy').textContent==='Copied'")
+            assert 'Small update: Accept\n  Use the latest notes.' in page.evaluate('window.copied')
+            assert 'Keep the existing navigation.' not in page.evaluate('window.copied')
+            assert page.locator('#response-fallback').is_hidden()
+            page.evaluate("() => { navigator.clipboard.writeText=async()=>{throw new DOMException('Denied','NotAllowedError')}; }")
+            page.click('#generate-copy')
+            page.wait_for_function("!document.querySelector('.decision-fallback').hidden")
+            assert 'Use the latest notes.' in page.locator('#response-fallback').input_value()
+            assert page.locator('#generate-copy').inner_text()!='Copied'
+            assert page.locator('#response-fallback').evaluate('(e)=>e.selectionEnd===e.value.length && e.selectionStart===0')
+            first.locator('[data-comment]').fill('Changed after denial.')
+            assert page.locator('#response-fallback').is_hidden()
+            page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:undefined})")
+            page.click('#generate-copy')
+            assert 'Changed after denial.' in page.locator('#response-fallback').input_value()
+            # A pending clipboard operation cannot label newer edits as copied.
+            page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:()=>new Promise(resolve=>window.finishCopy=resolve)}})")
+            page.click('#generate-copy')
+            first.locator('[data-comment]').fill('Edited while copying.')
+            page.evaluate('window.finishCopy()')
+            page.wait_for_function("!document.getElementById('generate-copy').disabled")
+            assert page.locator('#generate-copy').inner_text()=='Generate & copy'
+            assert 'Earlier response copied' in page.locator('#frame-status').inner_text()
+            for width in (1440,390,320):
+                page.set_viewport_size({'width':width,'height':844})
+                page.evaluate("document.querySelector('.decision-doc').scrollTop=0")
+                assert page.locator('#mock-stage').evaluate('(e)=>e.scrollWidth<=e.clientWidth'), 'proposal fits phone width'
+                assert page.locator('#generate-copy').evaluate("e=>getComputedStyle(e.parentElement).position==='static'")
+                assert page.locator('#generate-copy').bounding_box()['height']>=44
+                assert page.evaluate("document.querySelector('#generate-copy').getBoundingClientRect().bottom <= document.querySelector('.decision-section').getBoundingClientRect().top"), 'corner action never covers cards'
+            before_button=page.locator('#generate-copy').bounding_box()
+            page.evaluate("document.querySelector('.decision-doc').scrollTop=500")
+            assert page.locator('#generate-copy').bounding_box()==before_button, 'action remains available while cards scroll'
+            assert json.loads(page.locator('#spec').text_content())==proposal, 'feedback never mutates metadata'
 
             assert not errors, errors
             browser.close()

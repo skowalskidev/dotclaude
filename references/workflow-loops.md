@@ -208,12 +208,14 @@ HTML: the decision form, one surface before/after, through
 `python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>` (inlines the `#spec` into
 `~/.claude/bin/mockup-shell.html` adapter); the exploration form, many variants side by side, through
 `python3 ~/.claude/bin/design-board.py build <spec.json> <out.html>` (§ Shareable design board); explicit
-read-only design/options cards through `python3 ~/.claude/bin/decision-artifact.py build <spec.json> <out.html>`.
+compact proposal/design cards through `python3 ~/.claude/bin/decision-artifact.py build <spec.json> <out.html>`.
 All three adapters mechanically compose `bin/presentation-shell.html` through `bin/presentation_build.py`.
 That frame owns structural markup, shell-only typography, System/Light/Dark theme, sidebar behavior,
-offline policy and viewing controls. The builders retain full-spec CLI extraction; the visible artifacts
-contain no response forms, choice/include inputs, comments or spec/export controls. Decisions belong in
-chat. The adapters retain their existing spec formats and isolate product
+offline policy and viewing controls. The builders retain full-spec CLI extraction. Keep mockups and
+design boards viewer-only. For proposal responses, apply
+`skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md`; enable `feedback: true` in the
+decision spec when choices or comments are requested. TEST: only that adapter renders a single
+Generate & copy action, and pure viewers contain no response controls. The adapters isolate product
 content. No artifact hand-rolls frame markup, and the task dashboard remains its own navigation surface.
 The shell owns
 fit-to-viewport scaling, so a mockup built through it is uniform and full-width; a hand-rolled fixed-

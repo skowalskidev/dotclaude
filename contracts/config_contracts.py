@@ -261,17 +261,17 @@ CONTRACTS: dict[str, dict] = {
             "Mockup, board and decision builders mechanically compose the frame; adapters never duplicate its markup or behavior.",
             "Keep shell tokens independent of product tokens, isolate captured pixels, and support System/Light/Dark without remounting content.",
             "Collapse and reopen controls immediately without remounting; expose a labelled keyboard-accessible button; narrow sidebars never overflow horizontally.",
-            "Keep one full #spec data island and offline CSP. Expose only viewing controls; no response, feedback, choice/include forms, copy/spec or export UI. Builders retain lossless CLI extraction.",
+            "Keep one full #spec data island and offline CSP. The shared shell exposes only viewing controls; proposal feedback lives solely in the decision adapter. Builders retain lossless CLI extraction.",
             "Substitute template slots in one pass and escape embedded script terminators; preserve full metadata and deterministic output.",
         ],
     },
     "bin/decision-artifact.py": {
-        "mission": "Simon sees design options clearly and discusses his decision in chat.",
-        "purpose": "Builds and extracts read-only design/options cards in the shared presentation frame.",
+        "mission": "Simon scans proposal tradeoffs and copies his current choices back to chat.",
+        "purpose": "Builds and extracts compact proposal cards in the shared presentation frame.",
         "criteria": [
-            "Render headings, explanations, real before/after previews, verdicts and section navigation; keep all decisions and feedback in chat.",
+            "Render titles and one tradeoff per card, collapsed details, real before/after previews and section navigation.",
             "Require no control schema for new specs. Preserve legacy control/runtime/comments metadata unchanged and inert for deterministic CLI extraction/rebuild.",
-            "Expose no response generation, copy/submit, comment fields, radio/checkbox choices, select-all, kept/dropped counts or export controls on desktop or phone.",
+            "Only feedback: true exposes choices, comments and one reserved corner Generate & copy action; each click copies current inputs, reports success truthfully and offers manual copying after failure without covering content.",
         ],
     },
     "bin/mockup-build.py": {
@@ -1493,7 +1493,7 @@ CONTRACTS: dict[str, dict] = {
             "Cites the validated plan part behind every visible difference and refutes in comments "
             "anything that changed after validation. Unsourced difference is invented scope, and "
             "this is the cheapest moment to catch it.",
-            "Uses decision-artifact.py for read-only design/options cards; selections and comments belong in chat, while embedded metadata retains prior feedback unchanged.",
+            "Routes proposal cards through work-ask-reply-in-full-before-after-artifact; keeps mockups and boards viewer-only and embedded prior feedback unchanged.",
             "Builds every mockup through mockup-build.py and the shared presentation frame: current Before/After comparison, separate History, optional highlights, exact dimensions, full-spec roundtrip, no bespoke chrome or external requests.",
             "Ships as a self-contained HTML FILE for a collaborative/versioned/multi-screenshot "
             "round-trip, or a Claude artifact URL only when small and un-gated — the artifact's size "
@@ -1690,12 +1690,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md": {
-        "mission": "Simon understands the designs and makes his decision in chat.",
-        "purpose": "Explain confusing replies and design options through a read-only before/after viewer.",
+        "mission": "Simon understands each tradeoff and can return his choices without retyping them.",
+        "purpose": "Explain confusing replies and proposals through compact before/after cards.",
         "criteria": [
-            "Build through decision-artifact.py and the shared frame, with explanations, before/after previews and verdict cards in sections.",
-            "Show real desktop/mobile captures for user-visible changes, label not-built captures Preview and identify cards with no visible surface.",
-            "Keep decisions, comments and answers in chat; no response, choice/include, feedback or export controls in any viewer.",
+            "Build through decision-artifact.py and the shared frame; show a 2–5 word title and one tradeoff of at most 25 words, with details collapsed.",
+            "Show real desktop/mobile captures for user-visible changes, label not-built captures Preview and omit empty previews.",
+            "Infer feedback: true for proposals requesting choices or comments; one corner Generate & copy action copies current inputs for chat, with a truthful fallback. Keep pure mockup and board viewers read-only.",
             "Retain complete source and legacy runtime metadata inertly for CLI extraction and deterministic rebuilding; new specs need no control schema.",
         ],
     },
