@@ -1631,6 +1631,8 @@ CONTRACTS: dict[str, dict] = {
             "restarting done work.",
             "Points to rules/living-plan.md; re-invocable on EVERY message — re-reads .context/<slug>-plan.md, "
             "folds the new message in, continues, never restarts done work.",
+            "Routes the finish of work that opened or pushed to a PR through /sk:ship-full-detailed-workflow "
+            "per rules/process.md, before hand-back.",
             "Drives the finish to leave the work refactored/centralised/DRY-SRP (one owner per shared "
             "value/behaviour/component) per rules/engineering-standards.md before the bar reads 100%.",
             "Reuses skill-stack.md + the intake advisory + process.md; owns the entry point, the progress "
