@@ -243,7 +243,7 @@ fulfilled each ask. Its stop feedback is bounded to once per unchanged ledger sn
 **Two shortfalls, two different homes.** An ask that was ratified and not built is a Not-met
 criterion and is closed the way any gap is, by
 `/sk:ship-report-and-ensure-correct-user-system-journey`. An ask that never reached the ledger, or a
-ledger nothing consulted, is a config fault: propose the durable fix and ask, per
+ledger nothing consulted, is a config fault: repair it under
 `rules/self-healing-config.md`. Never route the first into a config change or the second into code.
 
 **Promotion before teardown.** The worktree is disposable and the ledger dies with it by design, so

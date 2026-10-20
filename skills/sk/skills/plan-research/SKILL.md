@@ -65,9 +65,8 @@ user's to answer; anything an agent could answer online, an agent already answer
 
 ## Step 7 · Self-improve
 DO review THIS run at the end: which angle was thin, which source type kept being wrong, what the verify
-pass caught, what the tracker missed. When a durable improvement to this skill emerges, propose it via
-`/sk:claude-config-update` (ask first). Most runs propose nothing — silence is the default
-(`rules/self-healing-config.md`).
+pass caught, what the tracker missed. Apply `rules/self-healing-config.md` to evidence-backed defects
+through `/sk:claude-config-update`. Record no finding when the evidence supports none.
 
 ## Scale to the decision
 DO match the pass to the decision: a one-fact lookup gets a version check, not six agents; a

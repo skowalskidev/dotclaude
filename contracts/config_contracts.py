@@ -77,7 +77,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Shared lifecycle for ordinary, gauntlet and asynchronous multi-session performance analysis.",
         "criteria": [
             "Queue analysis after the requested work for every task; preserve it through handoff and avoid recursive analysis of analysis.",
-            "Participants publish without waiting for peers and never drain the shared cloud backlog or edit shared config independently.",
+            "Participants publish without waiting for peers; delegated participants return evidence, and the active session owns authorized repairs without draining the shared cloud backlog.",
             "Keep late and missing reports pending until reviewed or the user changes the roster; a file write never claims to wake a dormant chat.",
             "Separate observed data, unknowns and inference; clean up only resources with established ownership.",
         ],
@@ -424,10 +424,10 @@ CONTRACTS: dict[str, dict] = {
     "rules/self-healing-config.md": {
         "mission": "A problem this config caused gets fixed IN the config, so the next run gets it right without Simon repeating himself.",
         "purpose": "Turns a config part that underperformed, or was never invoked, into a durable "
-                   "fix at its root, with approval.",
+                   "fix at its root under scoped standing authorization.",
         "criteria": [
-            "Ask-first gate. Never auto-applies.",
-            "Run bounded analysis automatically at each task hand-back and retain its local report; shared fixes still require existing authorization.",
+            "Automatically repair evidence-backed own-config defects, validate, merge, push, activate and clean up under rules/self-healing-config.md; ask only outside its scope.",
+            "Run bounded analysis automatically at each task hand-back and retain its local report; the active session owns repairs while delegated participants return evidence.",
             "Event-driven. No cron, no periodic scan, no scheduled sweep.",
             "Keeps BOTH triggers: a part that underperformed, and a part that fitted the task and "
             "was never invoked. The second is invisible unless checked for — a rule that misfires "
@@ -660,9 +660,9 @@ CONTRACTS: dict[str, dict] = {
             "Freeze the contract and fixture before dispatching every layer together; workers return once with changed files and a check inventory, and the orchestrator owns final verification under the shared batch policy.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
             "Owns the shared self-improvement loop for a parallel run (cause taxonomy "
-            "slice/late_scope/reconciler/planned_wiring, analyse-every-run, heal-only-recurring, plus harvesting each "
+            "slice/late_scope/reconciler/planned_wiring, analyse-every-run, evidence-backed repair, plus harvesting each "
             "worker's friction + timestamped log to self-diagnose the bottleneck and improve in two tiers "
-            "— auto next-round, ask-first routed to the fact's owner); superspeed and hyperspeed point to "
+            "— auto next-round, durable repairs routed through the scoped repair policy); superspeed and hyperspeed point to "
             "it, not restate it.",
             "Reuse shared dependency build caches for needed setup or permitted verification; never share node_modules across worktrees. Keep project build recipes in allowed project guidance.",
         ],
@@ -1167,11 +1167,11 @@ CONTRACTS: dict[str, dict] = {
             "emits a compact run row to the dotclaude `runs` collection via bin/dotclaude-log.py so the "
             "parallel engine is not invisible to the optimizer, analyses it with "
             "/sk:claude-config-self-optimize-analysis-after-run, and folds only recurring findings into "
-            "this skill via the self-healing gate.",
+            "this skill via the automatic repair policy.",
             "Workers keep a timestamped phase log + friction report; the orchestrator harvests them to "
             "self-diagnose the bottleneck each round and has workers reuse the shared build cache instead "
             "of cold-rebuilding, routing any recurring durable fix to its owner (the project's committed "
-            "CLAUDE.md, etc.) via the ask-first gate.",
+            "CLAUDE.md, etc.) under its existing authorization and project policy.",
             "Guides Simon as a paced co-pilot session (references/human-pacing.md): one handoff at a "
             "time, signal, wait; the plan file holds the rest.",
             "Two levels, not a replacement for superspeed: each hand-run part runs its slice through "
@@ -1287,9 +1287,9 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/claude-config-self-development-research/SKILL.md": {
         "mission": "This config stays current with outside practice, on evidence rather than on habit.",
-        "purpose": "Researches whether the config has fallen behind current practice; proposes only.",
+        "purpose": "Researches current practice, proposes new choices and routes proven existing defects to the repair policy.",
         "criteria": [
-            "Proposes, never applies. Never edits a skill, hook or setting from inside itself.",
+            "Proposes new tools and practices for approval; routes proven existing-config defects through the authorized update flow.",
             "Caps at 7 findings and 5 ideas, so ranking actually happens.",
             "Rejects anything already declined or documented as a deliberate choice.",
         ],
@@ -1322,7 +1322,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Every run leaves this config measurably better at shipping Simon's work, never better at one local metric.",
         "purpose": "Analyze each task's execution and publish evidence for the next run or assigned coordinator.",
         "criteria": [
-            "Publish local findings automatically after each task; participants never apply shared fixes or drain the global backlog independently.",
+            "Publish local findings automatically after each task; the active session applies the automatic repair policy, while delegated participants return evidence without draining the global backlog.",
             "Every suggestion names its evidence (file, number, log line) and the specific change. "
             "No evidence, no finding.",
             "Silence is a valid result; a manufactured suggestion costs more than a missed one.",
@@ -1732,7 +1732,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Safe commit and push of this repo.",
         "criteria": [
             "Reads the real diff for secrets; a --stat summary never clears a file.",
-            "Pushes a branch made in a separate worktree without changing the live checkout, and merges it to main only on Simon's word. His yes at the update flow's gate is that word.",
+            "Lands owned validated repairs under standing or explicit authorization; activates a clean compatible live checkout and removes only verified merged worktrees and branches.",
             "Stops on a real account, org name, project name or email in the diff, because the remote is public.",
             "Never bypasses the pre-commit gate with --no-verify.",
             "Commits with -F from a written file, never -m. references/git-pr-deploy.md owns that "
@@ -1744,14 +1744,14 @@ CONTRACTS: dict[str, dict] = {
         "mission": "A correction Simon makes once is a rule Claude follows next time, in the right file, at the right altitude.",
         "purpose": "The one sanctioned path to change ~/.claude: routes a correction or a new part to its right home.",
         "criteria": [
-            "Never skips the confirmation gate.",
-            "Drafts every tracked change as a commit on a config-update/<slug> branch in a worktree off origin/main before the gate, and never edits the live checkout.",
-            "The gate's yes lands the change: main, the push and the live checkout, with no second ask.",
-            "An unanswered proposal stays on its branch, named in the gate block; only landing or Simon's drop removes it.",
+            "Resolves standing or explicit authorization before applying; asks only for decisions outside that scope.",
+            "Drafts tracked changes in a config-update/<slug> worktree from origin/main; reviews, validates and secret-scans before landing.",
+            "Existing authorization covers validation, main, push, safe activation and cleanup without another commit or merge question.",
+            "Retains unresolved or blocked changes with their owner and evidence; resumes authorized work at the next task boundary without blind merging.",
             "Treats a pasted correction as illustrative material, never as a work order.",
             "Generalises the lesson; never narrows a skill to one task.",
             "Is the sole path for editing config. For an untracked work/ target it sets the config-edit-guard "
-            "sentinel after Simon's yes and clears it at the end, so an ad-hoc edit stays blocked. Handles "
+            "sentinel after recorded authorization and clears it at the end, so an ad-hoc edit stays blocked. Handles "
             "creating a new part, not only folding a correction.",
             "Grounds every factual claim (a measured figure, a threshold, how another part behaves) "
             "against its source file this run, never restating from memory.",
@@ -1774,7 +1774,7 @@ CONTRACTS: dict[str, dict] = {
             "bin, connectors, contracts, dotfiles, top-level config files). Runtime state under "
             "~/.claude, projects/ and its memory included, is never gated, so memory writes still work.",
             "Allows when the sentinel ~/.claude/.config-edit-authorized exists or CLAUDE_CONFIG_EDIT=1 "
-            "is set; the update skill sets the sentinel after Simon's yes and clears it at the end.",
+            "is set; the update skill sets the sentinel after recorded authorization and clears it at the end.",
             "Fails open on a malformed payload and never touches a path outside ~/.claude. A guard "
             "that breaks the session gets switched off.",
         ],
@@ -1803,7 +1803,7 @@ CONTRACTS: dict[str, dict] = {
             "merge, and the deny requires explicit per-PR confirmation plus a CI-green check.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
             "hook's env OR prefixed inline on the command; exempts the ~/.claude config repo, "
-            "which lives on main by design.",
+            "and its worktrees identified by shared Git storage, never an unrelated repository.",
             "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
             "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
             "Matches the plain Bash tool and parses the command; fails open on a malformed payload.",
@@ -1841,12 +1841,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/config-status.sh": {
-        "mission": "Simon is told his config is out of sync at the moment he can act on it, not days later.",
-        "purpose": "SessionStart: flags an out-of-sync ~/.claude so Claude offers to sync, and clears a stale edit sentinel.",
-        "criteria": ["Reports only. Silent when the tree is clean and no config-update branch is off main.",
+        "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
+        "purpose": "SessionStart: injects the repair policy, reports config state and clears stale edit authorization.",
+        "criteria": ["Always injects the repair policy for a config repository, including a clean checkout; the hook performs no repairs, commits or merges.",
                      "Names every config-update/* branch that is not on origin/main at each session start, "
-                     "so an unanswered proposal resurfaces until it lands or Simon drops it.",
-                     "Removes a leftover ~/.claude/.config-edit-authorized so a crashed update flow "
+                     "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question.",
+                     "Removes ~/.claude/.config-edit-authorized only when older than two minutes so a crashed update flow "
                      "cannot leave the config edit-guard open into the next session."],
     },
     "hooks/orphan-worker-sweep.sh": {
@@ -2113,8 +2113,7 @@ CONTRACTS: dict[str, dict] = {
             "Its log RECORDS ONLY: it routes the run line through the shared metrics writer (or the "
             "self-trimming local log when no interpreter is present) and must never block, fail or "
             "alter a run.",
-            "A config change is proposed only on a pattern that RECURS across runs, never on one run, "
-            "and never auto-applied.",
+            "The helper only records evidence; the active session evaluates recurring friction under rules/self-healing-config.md without the helper editing config.",
         ],
     },
     "bin/test-browser.sh": {

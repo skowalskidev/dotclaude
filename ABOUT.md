@@ -51,7 +51,10 @@ retain the decision; blocked work retains its next action.
 Each task also queues an after-run performance analysis. It runs after the requested work, publishes
 a local report, and lets the session finish without waiting for other sessions. An assigned coordinator
 can collect reports arriving at different times; missing reports stay pending. The helper records
-evidence and review receipts without a background watcher. Shared changes require authorization.
+evidence and review receipts without a background watcher. Every active session also fixes evidence-backed
+problems in its own config workflow, validates them, syncs them and cleans up the temporary branch.
+This standing authorization avoids repeat commit questions; unresolved access, conflicts and decisions
+outside that scope remain visible in the plan. No manual audit skill invocation is needed.
 
 Heavy local builds and simulator work use machine-wide capacity leases, three at once, one per
 session. Editing and lightweight checks can continue while all are held. The runner attempts

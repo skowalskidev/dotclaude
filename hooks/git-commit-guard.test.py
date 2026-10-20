@@ -65,10 +65,12 @@ def repo(root: Path, name: str, branch: str) -> Path:
     return d
 
 
-def run(cwd: Path, command: str) -> str:
+def run(cwd: Path, command: str, home=None) -> str:
     payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
     env = {k: v for k, v in __import__("os").environ.items()
            if k not in ("CLAUDE_ALLOW_MAIN_COMMIT", "CLAUDE_ALLOW_PR_MERGE", "CLAUDE_ALLOW_COMMIT_M")}
+    if home is not None:
+        env["HOME"] = str(home)
     p = subprocess.run([sys.executable, str(GUARD)], input=json.dumps(payload), text=True,
                        capture_output=True, cwd=cwd, env=env)
     if not p.stdout.strip():
@@ -92,6 +94,30 @@ def main() -> int:
                 passes += 1
             else:
                 failures.append(f"MUST NOT FIRE: {label}: {reason[:90]!r}")
+        home = Path(tmp) / "home"
+        home.mkdir()
+        config = repo(home, ".claude", "main")
+        worktree = Path(tmp) / "config-worktree"
+        subprocess.run(["git", "-C", str(config), "worktree", "add", "-q",
+                        "-b", "config-update/repair", str(worktree)], check=True, capture_output=True)
+        cases = [
+            ("canonical config push", config, f"{PUSH} origin HEAD:main", False),
+            ("config worktree push", worktree, f"{PUSH} origin HEAD:main", False),
+            ("unrelated main push", dirs["main"], f"{PUSH} origin main", True),
+            ("unrelated feature push to main", dirs["feature"], f"{PUSH} origin HEAD:main", True),
+            ("config command targeting other repo", worktree, f"git -C {dirs['main']} push origin main", True),
+            ("foreign bare push uses target branch", worktree, f"git -C {dirs['main']} push", True),
+            ("foreign commit uses target branch", worktree, f"git -C {dirs['main']} commit -F msg.txt", True),
+            ("explicit config worktree target", dirs["feature"], f"git -C {worktree} push origin HEAD:main", False),
+            ("config inline message still denied", worktree, f"{COMMIT} -m fix", True),
+            ("config PR merge still denied", worktree, "gh pr merge 12", True),
+        ]
+        for label, cwd, command, denied in cases:
+            reason = run(cwd, command, home)
+            if bool(reason) == denied:
+                passes += 1
+            else:
+                failures.append(f"CONFIG SCOPE: {label}: got {reason!r}")
     for f in failures:
         print(f)
     print(f"{passes} pass, {len(failures)} fail")

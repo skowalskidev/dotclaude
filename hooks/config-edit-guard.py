@@ -7,7 +7,7 @@ WHY THIS EXISTS
 
 ~/.claude is your config as instructions: rules, skills, hooks, references, contracts.
 `/sk:claude-config-update` is the sanctioned way to change any of it — it routes the change
-to the right home, previews it, gates on your yes, and keeps the contracts/routing tests
+to the right home, previews it, resolves standing or explicit authorization, and keeps the contracts/routing tests
 in step. A hand-edit skips all of that, which is exactly how a change lands with a missing
 contract entry, a missing routing scenario, or an unverified figure in it. So this hook makes
 the skill the ONLY path: it blocks a config Edit/Write unless the flow set its sentinel.
@@ -27,7 +27,7 @@ THE AUTHORIZATION
 
 Allowed when EITHER holds:
   - the sentinel ~/.claude/.config-edit-authorized exists — the /sk:claude-config-update flow
-    touches it right after your yes (Step 6) and removes it at the end (Step 7); or
+    touches it after recording authorization (Step 6) and removes it at the end (Step 7); or
   - CLAUDE_CONFIG_EDIT=1 is in the environment — the documented override for a deliberate
     direct edit you asked for, or a headless batch.
 
@@ -112,10 +112,10 @@ def main() -> int:
                 "permissionDecisionReason": (
                     f"Blocked: `{raw}` is a tracked ~/.claude config file, and config changes "
                     "must go through /sk:claude-config-update, not an ad-hoc edit.\n"
-                    "That skill routes the change to its right home, previews it, gates on your "
-                    "yes, and keeps the contract + routing tests in step — the steps a hand-edit "
+                    "That skill routes the change to its right home, resolves standing or explicit "
+                    "authorization, and keeps contract + routing tests in step — the steps a hand-edit "
                     "skips. Invoke /sk:claude-config-update and state the change; it sets the "
-                    "authorization sentinel after you confirm.\n"
+                    "authorization sentinel after recording that authority.\n"
                     "For a deliberate one-off direct edit: `touch ~/.claude/.config-edit-authorized` "
                     "first (or set CLAUDE_CONFIG_EDIT=1), edit, then remove it — and say you did."
                 ),

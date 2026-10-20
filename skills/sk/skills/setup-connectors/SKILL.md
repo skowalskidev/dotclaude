@@ -139,7 +139,7 @@ Suggest a secret manager only if Simon asks for one.
      so declaring it is what makes the boundary enforceable rather than remembered.
    - If a secret was exposed (world-readable, committed, or pasted anywhere), recommend ROTATING it —
      tightening the mode does not un-expose what was already readable.
-6. **Report** what changed, what was left as-is (and why), and offer `/sk:claude-config-sync` for the manifest change.
+6. **Report** what changed, what was left as-is (and why), and sync tracked config changes under `rules/self-healing-config.md`. Keep ignored manifests local.
 
 ## Mode: enable-prod-write <platform> (separate, on-demand, confirmed, ephemeral)
 
@@ -163,4 +163,4 @@ second, agent-run only as the gated exception). For the platform's `enabledOnDem
 
 A brand-new skill FOLDER needs a Claude Code restart to appear in the slash menu; edits to an existing
 SKILL.md are live. Newly-registered MCP servers load on the NEXT session (advise a restart). After any
-change under `~/.claude`, offer `/sk:claude-config-sync` to commit it (it secret-scans; NEVER commit secrets).
+tracked change under `~/.claude`, finish `/sk:claude-config-sync` within the repair policy above. Never commit secrets or ignored overlays.

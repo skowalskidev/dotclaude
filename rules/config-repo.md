@@ -6,18 +6,17 @@ My whole Claude setup lives in `~/.claude`, which is a git repo mirrored to your
 config repo. That repo is the **single source of truth**: any uncommitted change in
 `~/.claude` means it's out of sync, and `git -C ~/.claude status` is the litmus test.
 
-- **After you change ANYTHING TRACKED under `~/.claude`** — this global `CLAUDE.md`, a hook, an `sk`
-  skill, `settings.json`, the guard allowlist, anything — **offer to commit + push it** so the repo stays
-  current. Use the **`/sk:claude-config-sync`** skill (it reviews the diff, secret-scans, commits, pushes).
+- **DO finish tracked config changes through `/sk:claude-config-sync`** under the standing authority
+  in `rules/self-healing-config.md`. Do not leave a verified repair waiting for a commit question.
   **Not `work/` or `skills/sk-work`** (untracked; the diff would be empty).
 - **When the STRUCTURE changes — update the companion/manifest docs in the SAME change** so they never
   go stale: a new/renamed/removed rule, hook, skill, `bin/` script, `connectors/` manifest, or tooling dep
   means updating `README.md` (the inventory table + `Agent setup` + `Secrets to recreate`), `AGENTS.md` if
   affected, the `CLAUDE.md` index line, and `dotfiles/Brewfile` for a new dependency. `README.md` is the
   reproduce-on-a-new-machine manifest; a stale one silently breaks setup. This is part of "done" for a
-  structural change — and if a change misses it, the `self-healing-config` rule catches it (ask-first).
+  structural change — and if a change misses it, the `self-healing-config` rule catches it.
 - A **SessionStart hook** (`hooks/config-status.sh`) surfaces uncommitted config at the start of each
-  session; when you see that note, offer to sync. No background daemon: syncing is event-driven.
+  session; reconcile ownership and resume authorized repairs. No background daemon: syncing is event-driven.
 - **The remote is PUBLIC. NEVER commit a secret (keys, tokens, `.env`, credentials) or a real account,
   org, project or email**; those stay in the untracked overlay. The allowlist `.gitignore` + `gitleaks`
   gate cover secrets only, so read the diff yourself; if unsure, ask.
@@ -26,7 +25,7 @@ config repo. That repo is the **single source of truth**: any uncommitted change
 - **Route EVERY `~/.claude` change through `/sk:claude-config-update` — mandatory, whenever Simon asks
   for a config change, "create a new skill" included, unprompted.** It fits the structure (thin
   `CLAUDE.md` index, one concern per `rules/*.md`, deep how-to in `references/*.md`, enforcement in
-  `hooks/`, engine in `bin/`, flows in `skills/`), previews, gates on his yes, and keeps the
+  `hooks/`, engine in `bin/`, flows in `skills/`), checks authorization, and keeps the
   contracts/routing tests in step. **`hooks/config-edit-guard.py` enforces it**: it hard-blocks an
   Edit/Write to a tracked config file unless that flow authorized it. Runtime state (`projects/`,
   `logs/`) is never gated, so memory writes work; the hook's message names the one-off override.
