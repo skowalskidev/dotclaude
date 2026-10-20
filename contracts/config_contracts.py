@@ -345,6 +345,7 @@ CONTRACTS: dict[str, dict] = {
             "Render mockup html inside a sandboxed iframe, never through srcdoc or direct DOM injection.",
             "Provide a ⌘K palette for jumping to a section, artifact or the record drawer without a mouse.",
             "Carry no project-specific string; every label, section and asset comes from the served plan's data, never hardcoded into this app.",
+            "Run npm run typecheck successfully on a fresh install by generating route types before TypeScript, without requiring a dev server or previous build.",
         ],
     },
     # --- Top-level -----------------------------------------------------------------
