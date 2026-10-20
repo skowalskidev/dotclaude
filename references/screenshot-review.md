@@ -82,6 +82,15 @@ recorder, then inspect playback from first to last state and check readable labe
 annotations are optional when the installed API supports them. TEST: an inline video plays the
 actual replay, not exploration or an unfinished file.
 
+DO put a caveat of at most two sentences beside each clip showing an injected error or test-only end
+state. Name that state and the verified recording environment. Check the capture setup and network
+evidence before calling an error injected or stating `not production` / `no live actions`; a local
+page URL alone is not proof. For a verified offline recording, e.g. "Local mocked test, not production.
+The final timeout was deliberately injected; no live actions occurred during this recording."
+Keep genuine or unexplained failures visible as findings; state uncertainty when provenance is unknown.
+TEST: the caveat identifies the demonstrated state and its evidence-backed scope, without implying
+production is bug-free or dismissing an unverified error as a test artifact.
+
 DO record simulator video with `xcrun simctl io <udid> recordVideo` under the native simulator owner's
 slot rules, only when native capture is explicitly requested; apply the same verify-it-plays check.
 Use keyframes and record the missing video capability when the installed tool cannot record; do not

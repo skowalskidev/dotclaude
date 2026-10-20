@@ -229,6 +229,7 @@ CONTRACTS: dict[str, dict] = {
             "Record one walkthrough video per changed journey by default (web Playwright recordVideo or Chrome for Testing screencast; simulator simctl recordVideo only under native opt-in), verify it plays with ffprobe duration and one real-screen frame, post it with the screenshots, and skip only a no-UI change with the skip stated.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
             "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
+            "Add at most two caveat sentences beside clips showing injected errors or test-only end states. Verify environment and network evidence before claiming not production or no live actions; retain unknown failures and avoid production bug-free claims.",
         ],
     },
     "skills/sk/skills/ship-screenshot-changes-advanced/SKILL.md": {
@@ -1073,6 +1074,7 @@ CONTRACTS: dict[str, dict] = {
             "Capture verified before/after walkthrough videos per changed journey by default, per references/screenshot-review.md. State a no-UI skip or `new, no before` when applicable; keep screenshots in before/after rows and apply the playable-video fallback when needed.",
             "Publish videos as verified inline players, never ordinary links or thumbnails; retain screenshot rows and use labeled point/platform/before-after player paragraphs in the same comment when table cells suppress playback. Preserve untouched video groups during updates.",
             "Verify rendered players and browser playback for every published clip: duration, advancing time, expected first and last states, no navigation or media errors. Record failed uploads or playback as blocked evidence; a reachable file never passes.",
+            "Carry the shared recording caveat beside each applicable clip in local hand-backs and PR comments, including fallback players, while keeping attachment URLs in their own paragraphs.",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],
     },

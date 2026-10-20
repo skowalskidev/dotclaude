@@ -116,8 +116,10 @@ for the flow, surface mode for the rest.
 
 DO record one short walkthrough video per changed journey beside its screenshots, by default, per
 `~/.claude/references/screenshot-review.md` § Record useful walkthroughs: capture method, the
-ffprobe plus one-frame playback check, and the no-UI skip. Name it `journey-<label>.webm`.
-TEST: a changed journey has a verified clip, or the hand-back states the no-UI skip.
+ffprobe plus one-frame playback check, test-state caveats, and the no-UI skip. Name it
+`journey-<label>.webm`. Carry each required caveat beside its clip in the local hand-back and PR,
+including fallback player paragraphs; keep the attachment URL in its own paragraph.
+TEST: a changed journey has a verified clip with its required caveat, or the hand-back states the no-UI skip.
 
 ## Step 4 — Hand them back
 
