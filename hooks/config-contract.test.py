@@ -71,6 +71,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 
 CRITERIA: list[tuple[str, str]] = [
     ("automatic-config-repair-lifecycle", "Every task session receives scoped repair authority; startup reports unfinished work without committing, merging or discarding it."),
+    ("branch-cleanup-closes-owned-inventory", "Task closure accounts for owned refs; requested repo cleanup surfaces unique branches and preserves recovery, activity and remote-write safeguards."),
     ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
     ("session-performance-and-capacity",
      "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
@@ -1315,6 +1316,38 @@ def check_automatic_config_repair_lifecycle() -> None:
         for stale in ('never auto-applies', 'auto-analyse, never auto-optimize',
                       'offer to commit + push', 'still preview and confirm as normal'):
             check(stale not in content, relative + ' restored obsolete repair gate: ' + stale)
+
+
+def check_branch_cleanup_closes_owned_inventory() -> None:
+    """Guard the instruction boundary; these checks do not delete any real refs."""
+    process = (ROOT / 'rules/process.md').read_text()
+    cleanup = (ROOT / 'skills/sk/skills/meta-cleanup-worktrees/SKILL.md').read_text()
+    check('created or adopted by this task' in process and 'not a' in process
+          and 'repo-wide purge' in process and 'zero owned refs or paths' in process,
+          'Task closure lost owned-scope or disposition accounting')
+    check('left untouched and unlisted' not in cleanup,
+          'Cleanup hides unresolved unique branches again')
+    check(all(text in cleanup for text in ('every BRANCH-ONLY local head',
+          'unique-commit', 'owner or unknown ownership', 'reason and next action',
+          'every local head', 'before/after inventory')),
+          'Cleanup inventory omits unresolved unique refs or final reconciliation')
+    check(all(text in cleanup for text in ('explicitly authorizes needed merges',
+          'full unique diff', 'required checks before',
+          'cleanup request alone', 'never authorizes merging')),
+          'Cleanup no longer distinguishes an authorized merge from branch disposal')
+    check(all(text in cleanup for text in ('authority covering that draft',
+          'entire unique diff', 'zero unexplained still-needed changes',
+          'verify that recovery can be read back', 'every local-only commit')),
+          'Superseded draft retirement lost authority, review or recovery proof')
+    check(all(text in cleanup for text in ('reuse that authorization', 'private external bundle',
+          'all reachable history', 'restoring it into a temporary local repository',
+          'restored tip and object integrity', 'never authorizes publishing history')),
+          'Recovery migration lost existing authority, private preservation or restoration proof')
+    check(all(text in cleanup for text in ('current, main, default, detached HEAD',
+          'backup/recovery refs', 'explicit keep-list', 'no process except',
+          'Conductor-managed workspace', 'OWN opt-in question',
+          'repo-wide remote purge')),
+          'Closure weakened protected refs, live work, Conductor or remote-write safeguards')
 
 
 def check_node24_shell_runtime():

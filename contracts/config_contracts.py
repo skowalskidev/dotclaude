@@ -345,6 +345,7 @@ CONTRACTS: dict[str, dict] = {
             "Render mockup html inside a sandboxed iframe, never through srcdoc or direct DOM injection.",
             "Provide a ⌘K palette for jumping to a section, artifact or the record drawer without a mouse.",
             "Carry no project-specific string; every label, section and asset comes from the served plan's data, never hardcoded into this app.",
+            "Run npm run typecheck successfully on a fresh install by generating route types before TypeScript, without requiring a dev server or previous build.",
         ],
     },
     # --- Top-level -----------------------------------------------------------------
@@ -441,6 +442,7 @@ CONTRACTS: dict[str, dict] = {
             "The checklist and the decisions behind it survive a RESTART in a durable store — a "
             "ticket or .context/, never /tmp or memory.",
             "Project documentation reads and updates pass through references/project-instructions.md first.",
+            "Before hand-back, account for every branch and workspace created or adopted by the task; remove verified disposable work or retain exact protected, active, recovery or blocked reasons and next actions without a global purge.",
         ],
     },
     "rules/security.md": {
@@ -1642,8 +1644,9 @@ CONTRACTS: dict[str, dict] = {
             "Lists canonical dashboards, verified viewer PIDs, repository, branch/HEAD, exact paths, aliases, sizes and actions before confirmation.",
             "Exempts only a viewer whose receipt, plan, output, PID command and worktree match; mismatches and other active sessions block cleanup.",
             "Stops confirmed owned viewers, rechecks idleness and verifies their PIDs and dashboard paths remain absent after removal.",
-            "Removes branches only after proving ancestry into origin/<default> or a merged PR plus the required pushed check; blocks unmerged PRs and local-only commits.",
-            "For whole-worktree/branch removal, excludes current, main, default, detached, dirty, active, unpushed and explicitly kept candidates; rechecks gates and identity immediately before destruction.",
+            "Require ancestry or merged-PR/pushed proof by default; retire an unmerged superseded draft only within recorded authority, with fresh full-diff review, zero needed unexplained changes and verified recovery. Closed status alone never qualifies.",
+            "Inventory unresolved unique local heads with tip, owner, reason and next action; when needed merges are explicitly authorized, inspect and verify the changes before landing, never blindly merge obsolete or unknown work.",
+            "Exclude current, main, default, detached, dirty, active and explicitly kept candidates; preserve backup/recovery history through a verified private bundle migration before removing a redundant ref within authorized cleanup scope. Preserve local-only commits and recheck disposition, recovery and identity before destruction.",
             "Enumerates all registered worktrees, branch-only candidates and filesystem directories under ~/conductor/workspaces and configured alternate roots, even after metadata and branch refs vanish; never relies only on listed worktrees’ common parent.",
             "Joins directories to canonical Git common-directory/origin and branch/HEAD or saved inventory evidence; city names, project basenames and matching branch names alone never prove ownership. Retains unknown mappings with reasons.",
             "Captures canonical mappings and du -sk sizes before deleting refs or metadata; preserves evidence outside deletion targets and blocks changed identities.",
