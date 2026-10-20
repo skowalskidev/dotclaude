@@ -501,6 +501,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Schema here matches what bin/connectors-provision.sh actually reads.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
+            "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected non-shared project manifests, default false.",

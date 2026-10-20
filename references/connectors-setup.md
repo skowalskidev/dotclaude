@@ -135,8 +135,11 @@ completion message. Carry the request in the existing plan, finish and verify th
 factual update with the relevant result/link, send once, and return the Slack permalink. Explicit
 wording supplied by Simon stays unchanged; otherwise summarize the completed task. Ask only for a
 missing or ambiguous recipient, completion condition or required access; do not re-ask permission for
-the same authorized message. If Simon asks only for
-a draft, show it and wait. General connector setup does not authorize automatic future notifications.
+the same authorized message. If Simon asks only for a draft, show it and wait. General connector setup
+does not authorize automatic future notifications.
+
+DO apply `rules/communication.md` and `rules/copy-quality.md` to every outgoing message.
+Use those existing TL;DR and actionable-copy standards; do not define separate Slack writing rules.
 
 DO obey runtime approvals and existing write gates. If a send times out or returns an uncertain
 result, check the target conversation before retrying; never duplicate a message on assumption.
