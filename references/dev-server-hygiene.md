@@ -438,10 +438,12 @@ defines `pass_fds` and the default `close_fds` behavior (checked 2026-10-09).
 
 **DO keep a branch's build caches until the branch lands or is abandoned.** Stop its processes at
 hand-back unless an explicitly requested preview remains under its bounded owned lifecycle; leave
-the derived data, build output and shut-down simulator created for that branch;
-review fixes and the ship run reuse them. DON'T delete them at an intermediate hand-back (the fix for
-a simulator and derived data deleted after the build, then rebuilt cold for review fixes). TEST:
-re-entering the branch reuses its build; workspace teardown removes it.
+the derived data and build output created for that branch; review fixes and the ship run reuse
+them. DON'T delete them at an intermediate hand-back (the fix for derived data deleted after the
+build, then rebuilt cold for review fixes). The shared warmed `agent` simulator is not branch
+state: shut it down and release it, never delete it, and ignore a project's "delete your simulator"
+handover (`references/ios-simulator.md` § One warmed agent device). TEST: re-entering the branch
+reuses its build; workspace teardown removes it, and `agent` survives it.
 
 
 **The RULE is owned by `~/.claude/rules/process.md` § "Clean up after yourself"**, which is always-on

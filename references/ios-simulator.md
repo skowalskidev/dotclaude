@@ -7,6 +7,7 @@ default: `xcrun simctl boot` opens no window. Open the GUI only when Simon asked
 preview, or a co-pilot walk where he types); headless test success does not fulfill that request.
 Read this file before booting for ANY native step, a co-pilot walk or screenshot capture included.
 Run ONE device machine-wide: the capacity owner's `MAX_BOOTED_SIMULATORS` refuses a second.
+Use ONE persistent warmed device named `agent` for every task: find it, never create a fresh one (§ One warmed agent device).
 TEST: the run records the requested activity and its evidence separately from skipped native work.
 
 ## Use the project's one proven recipe
@@ -29,7 +30,7 @@ The recipe, on Apple's own stack (simctl and XCUITest; install nothing):
 | Step | Command |
 |---|---|
 | Build once | `xcodebuild build-for-testing -scheme "$SCHEME" -destination id="$UDID" -derivedDataPath "$DD"`; reuse its `.app` and `.xctestrun` |
-| Device, once | `xcrun simctl create agent "<device type id>" "<runtime id>"`; reuse that UDID on later tasks. Turn off Siri & Search in its Settings at creation (a developer-forums workaround for simulator Spotlight CPU, thread 682253; Apple names no root cause) |
+| Device | Find `agent` by name and reuse its UDID; create and warm it only when absent (§ One warmed agent device) |
 | Boot | `xcrun simctl boot "$UDID" && xcrun simctl bootstatus "$UDID"`; no GUI, no second device, no shutdown between steps |
 | Install and launch | `xcrun simctl install "$UDID" "$APP"`, then `SIMCTL_CHILD_<VAR>=… xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` |
 | Drive | ONE `xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination id="$UDID" -only-testing:<UITests>/<Walk>/test<Screen> -collect-test-diagnostics never -parallel-testing-enabled NO` per walk, settings passed as `TEST_RUNNER_<VAR>` |
@@ -40,6 +41,34 @@ DO pass `-collect-test-diagnostics never` to every `xcodebuild test` and `test-w
 WHY: the default is `on-failure` (`xcodebuild -help`, Xcode 27.1), and a failed session then collects a
 sysdiagnose that can run for about 10 minutes (mobile-dev-inc/Maestro#3633). TEST: no `xcodebuild`
 test invocation in the run omits the flag.
+
+## One warmed agent device
+
+DO keep ONE persistent device named `agent` per machine and reuse it for every task, across sessions,
+branches and projects. A fresh device's first boot starts the system daemons cold, and they crash:
+a new device booted for an `xcodebuild test` run threw PosterBoard and WidgetRenderer crash dialogs
+on macOS, then maild and siriactionsd at shutdown (Xcode 27.1, iOS 27.0 runtime, 2026-10-20). A
+warmed device has already taken those first boots.
+DO find it before any boot: `xcrun simctl list devices --json`, match the name `agent` on the
+selected runtime. Present: reuse its UDID, no creation. Absent: create and warm it once, then reuse.
+DO create it as `agent-warming` so a half-warmed device is never reused, then warm it before driving:
+
+1. `xcrun simctl create agent-warming "<device type id>" "<runtime id>"`, boot it, run `bootstatus`.
+2. Open the GUI yourself (Drive and capture below). In Settings, turn off Siri & Search.
+3. Add a stock image with `xcrun simctl addmedia "$UDID" <image>`, open Photos, pick it, choose
+   Use as Wallpaper. Once per device; the wallpaper extension (PosterBoard) crashes in a loop until a
+   wallpaper exists (Apple Developer Forums thread 805625).
+4. Shut it down, then `xcrun simctl rename "$UDID" agent`. The name `agent` means warmed.
+
+DO shut `agent` down and `release-sim` it at task end, and never delete it. DON'T delete, erase or
+recreate it for a clean state: wipe app state with `xcrun simctl uninstall` plus `keychain reset`
+(Local backend safety). Delete only a device you created for a one-off reason (another runtime, a
+parallel-device experiment), after its task, by its own UDID. A project handover or cleanup rule that
+says "delete your simulator" yields to this section; apply it to one-off devices only. A runtime that
+`agent` cannot run (an OS upgrade removed it) is the one reason to create the next `agent` through
+the steps above and then delete the old one.
+TEST: `xcrun simctl list devices` shows one `agent` before and after the task, its UDID unchanged
+across tasks; no task report shows a device created for a recipe step, and none shows `agent` deleted.
 
 ## Preflight before claiming or booting
 
@@ -254,9 +283,9 @@ process groups; restart repeats preflight and admission with the same local orch
 DO implement cleanup with the owner's signal/trap discipline before launching services. Stop owned
 server groups and verify their ports are clear; shut down only the owned UDID, verify Shutdown, then
 release its claim and lane. The runner releases capacity only after owned resources are clear. Keep
-an uncertain lease and explicit cleanup action when shutdown fails. Retain the shut-down device,
+an uncertain lease and explicit cleanup action when shutdown fails. Retain the shut-down `agent` device,
 derived data and build caches. DON'T reset shared Apple services as routine hand-back cleanup, erase
-or delete simulators, use `shutdown all`, global `killall`, bypass locks or kill unrelated listeners.
+or delete simulators (the shared `agent` above, always), use `shutdown all`, global `killall`, bypass locks or kill unrelated listeners.
 TEST: interruption and viewing expiry both enter exact-owned teardown; a non-Shutdown device never
 produces a successful release receipt.
 
@@ -277,6 +306,7 @@ research an unresolved failure against current primary sources before repeating 
 | GUI cannot be inspected | Preserve simulator-screen evidence separately; name missing desktop evidence/permission. Do not silently grant permissions. |
 | Slow admission or overloaded run | Record capacity/load and the current holder; defer per the capacity protocol. Do not self-prioritize, loosen thresholds or kill unrelated work. |
 | `watchdog: HOT` on a simulator process | The named owner shuts down its own UDID and reports it; never stop another owner's device. On the next boot of that device, confirm Siri & Search is off before driving. |
+| macOS crash dialog from a simulator daemon (PosterBoard, WidgetRenderer, maild, siriactionsd, other) | Read the report in `~/Library/Logs/DiagnosticReports`: a `procPath` under the simulator runtime volume is an Apple simulator bug, not the app under test; an app-bundle `procPath` is the app's own crash and is diagnosed as a product failure. Report the daemon, time and exit reason, once. DON'T reboot, recreate the device or rerun the suite over a daemon report. Confirm `agent` is the warmed device; a fresh device is the usual cause. `SIGTERM_TIMEOUT` reports from maild or siriactionsd at shutdown are expected noise. Disabling ReportCrash (`launchctl`) is machine-wide: offer it as an option and run it only on Simon's explicit yes. |
 | Incomplete xcodebuild result | Apply the testing owner's full-result procedure. A nested passing suite or timed-out runner cannot establish success. |
 | Stale Apple discovery | Compare fresh `simctl` actual device states with supported `devicectl` inspection and GUI state. Do not infer a phantom process or recreate a device from the GUI alone. |
 
@@ -291,7 +321,7 @@ another device session is active.
 
 ## Primary sources
 
-DO recheck installed help when the toolchain changes. Online sources checked 2026-10-09 (AXe README row 2026-10-15, last three rows 2026-10-20):
+DO recheck installed help when the toolchain changes. Online sources checked 2026-10-09 (AXe README row 2026-10-15, last four rows 2026-10-20):
 
 | Source | Scope |
 |---|---|
@@ -302,6 +332,7 @@ DO recheck installed help when the toolchain changes. Online sources checked 202
 | [Apple device captures](https://developer.apple.com/documentation/xcode/capturing-screenshots-and-videos-from-devices) | Device screenshots and videos; separate from observing a macOS window |
 | [AXe#71](https://github.com/cameroncooke/AXe/issues/71), [#73](https://github.com/cameroncooke/AXe/pull/73), [#76](https://github.com/cameroncooke/AXe/issues/76) (open, read 2026-10-20) | Dropped first gesture on Xcode 27 and its `--post-delay` workaround; `describe-ui` ending other XCUITest sessions |
 | [Maestro#3633](https://github.com/mobile-dev-inc/Maestro/issues/3633) and installed `xcodebuild -help` (Xcode 27.1, 2026-10-20) | `-collect-test-diagnostics on-failure` default and the sysdiagnose delay |
+| [Developer forums thread 805625](https://developer.apple.com/forums/thread/805625), [806225](https://developer.apple.com/forums/thread/806225), [744912](https://developer.apple.com/forums/thread/744912) (read 2026-10-20) | Xcode 26.1 wallpaper extension (MercuryPosterExtension/PosterBoard) crash loop and the once-per-device Use as Wallpaper workaround; ReportCrash CPU from that loop, no Apple fix; simulator daemon "quit unexpectedly" alerts as Apple-side assertion failures |
 | [Developer forums thread 682253](https://developer.apple.com/forums/thread/682253) | Community Siri & Search workaround for simulator Spotlight CPU (Xcode 13 era; no Apple root cause) |
 
 DO keep Python FD and native signing sources with their owning procedures above; do not duplicate

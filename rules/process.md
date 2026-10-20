@@ -217,7 +217,8 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
   'next-router-worker|vitest|jest|chrome-devtools-mcp|workerd|codex'` names only yours. Mechanics:
   `references/dev-server-hygiene.md`.
 - **Remove scratch scripts/files** a session created (evals, one-off helpers, temp data) once
-  used; keep intentional artifacts and branch build caches (`references/dev-server-hygiene.md`).
+  used; keep intentional artifacts, branch build caches and the shared warmed `agent` simulator, which is
+  shut down and released, never deleted (`references/dev-server-hygiene.md`, `references/ios-simulator.md`).
 - **DO close every branch and workspace created or adopted by this task before hand-back.** Record
   their owner and disposition in the existing plan, including branch-only refs after workspace removal.
   Retire landed or explicitly superseded work through `/sk:meta-cleanup-worktrees`; this is not a
