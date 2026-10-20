@@ -500,6 +500,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The connector engine's how-to and the manifest schema.",
         "criteria": [
             "Schema here matches what bin/connectors-provision.sh actually reads.",
+            "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected non-shared project manifests, default false.",
@@ -1640,7 +1641,10 @@ CONTRACTS: dict[str, dict] = {
     "skills/sk/skills/setup-connectors/SKILL.md": {
         "mission": "A project's tools reach the right account first try, and Simon does only the steps nobody else can.",
         "purpose": "Guided connector setup, doctor, and migration audit.",
-        "criteria": ["Reads connectors/<project>.json. Asks before creating or reading a credential."],
+        "criteria": [
+            "Reads connectors/<project>.json. Asks before creating or reading a credential.",
+            "Routes official Slack setup and requested completion messages through the shared connector catalog, preserving per-message authorization and unfinished notification tasks.",
+        ],
     },
     "skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md": {
         "mission": "Simon acts on a reply he did not understand: he reads it, picks from it, comments, and hands his exact choices back with no ambiguity.",

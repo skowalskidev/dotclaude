@@ -1,6 +1,6 @@
 ---
 name: setup-connectors
-description: Guided co-pilot to set up, health-check ("doctor"), add, or extend the connectors/credentials for the CURRENT project (Firebase, Linear, Stripe, Twilio, AWS, pal, …). Does everything it can automatically, then hands Simon numbered steps for the rest and waits. Use when connectors aren't working ("can't access Firebase/Stripe/Linear", "not enough permissions"), when first setting up a machine/project, when adding a new connector, to enable a one-off prod write, or to audit the existing setup for insecure credential handling (world-readable key files, a secret inside a repo, a CLI profile defaulting to the wrong work/personal account) and fix it. Reads the per-project manifest in ~/.claude/connectors/<project>.json; the deep spec is references/connectors-setup.md.
+description: Guided co-pilot to set up, health-check ("doctor"), add, or extend the connectors/credentials for the CURRENT project (Firebase, Linear, Stripe, Twilio, AWS, pal, …). Does everything it can automatically, then hands Simon numbered steps for the rest and waits. Use for "connect Slack", "message someone when work is done", or "send a Slack completion message"; also when connectors aren't working ("can't access Firebase/Stripe/Linear", "not enough permissions"), when first setting up a machine/project, when adding a new connector, to enable a one-off prod write, or to audit the existing setup for insecure credential handling (world-readable key files, a secret inside a repo, a CLI profile defaulting to the wrong work/personal account) and fix it. Reads the per-project manifest in ~/.claude/connectors/<project>.json; the deep spec is references/connectors-setup.md.
 argument-hint: "[add | migrate | enable-prod-write <platform>]  — no arg = setup + doctor for the current project"
 ---
 
@@ -20,11 +20,26 @@ The default (no arg) already does **setup + doctor + migration audit**. The name
 focused shortcuts: `add` = register a new connector; `migrate` = run ONLY the audit + migration proposal;
 `enable-prod-write <platform>` = turn on a separate, temporary prod-write pathway.
 
+## Official account connectors and completion messages
+
+DO use the reference's **Official account connectors and completion messages** procedure for hosted
+Slack setup and requested work notifications. Inspect the active host's tools before provisioning.
+DO handle a message through an already connected account directly, without auditing unrelated services.
+DO use the matching shared work manifest even when no project-specific manifest exists; an unrelated
+personal checkout does not authorize work-resource access. An explicit work-message request targets
+the work manifest and still requires checking the connected workspace and recipient.
+DO record a request such as "message someone when work is done" in the living plan with its recipient,
+completion condition and message purpose. After verification, send once under that authorization and
+return the message link. If the work is unfinished, retain the request; do not announce completion.
+TEST: official setup needs no custom Slack app by default; a requested completion message is delivered
+once with a receipt, or remains visibly blocked with the exact missing recipient, access or tool.
+
 ## Mode: setup + doctor (default)
 
 1. **Resolve the project.** `~/.claude/bin/connectors-provision.sh --manifest` prints this project's
-   manifest. If empty, tell Simon no manifest matches this repo, show its `git remote get-url origin`,
-   and offer to create one (`add` mode seeds it) — then stop.
+   manifest; `--manifest --shared "$PWD"` lists matching shared manifests. Use both. If neither
+   matches, show the repo's `git remote get-url origin` and collect the missing setup in `add` mode.
+   An account connector already declared in a matching shared manifest needs no duplicate project file.
 2. **Provision what's automatable.** Run `~/.claude/bin/connectors-provision.sh`. It registers the
    manifest's MCP servers at local scope and warns about any declared key file that is missing. It
    fetches nothing — there is no vault. If it reports "NEW MCP servers were registered", they load
@@ -34,6 +49,8 @@ focused shortcuts: `add` = register a new connector; `migrate` = run ONLY the au
    and combine with live signals:
    - **mcp-\*** — `registered` + not in `~/.claude/mcp-needs-auth-cache.json` = green; `registered` +
      flagged = yellow (needs `/mcp` re-auth); `missing` = yellow (provisioned, restart to load).
+   - **account connectors** — installation is not tool access. Follow the official account procedure
+     above; verify the current host, workspace and supported action before reporting green.
    - **secret-backed** (`key-missing`) — nothing fetches it, so missing = red: relay that connector's
      `auth.steps`, which are the commands that mint the key. Present = green.
    - **cli** (stripe/firebase) — check the profile/login is the right account. `firebase login:list`,

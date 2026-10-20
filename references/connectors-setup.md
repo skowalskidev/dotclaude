@@ -104,6 +104,46 @@ Each `kind` implements the same five behaviors:
 To add a NEW kind: add its case to the `provision`/`readiness` switch in `bin/connectors-provision.sh`
 and (if it exposes tools) to the guard. The manifest, skill, and auth-gate need no change.
 
+## Official account connectors and completion messages
+
+DO start with the official connector offered by the active host. For Slack, use Claude's
+Customize > Connectors > Slack, or ChatGPT's Apps/Plugins > Slack > Connect. Select the intended
+work workspace during OAuth. Check current vendor instructions if the controls differ.
+DON'T create a custom Slack app, request a Client ID, install a local MCP server, or copy tokens
+between hosts when the official connector supplies the requested action.
+Sources: [Claude connectors](https://support.claude.com/en/articles/11176164-use-connectors-to-extend-claude-s-capabilities)
+and [Slack in ChatGPT](https://help.openai.com/en/articles/12525822-using-slack-in-chatgpt), checked 2026-10-20.
+
+DO distinguish three states: installed, tools exposed in this session, and verified action. Discover
+the tools again after Simon connects. If installation is confirmed but tools are absent, use the
+host's new-chat entry (ChatGPT: **Try in chat**) and check there. Report a missing tool separately
+from an OAuth failure. Verify each host independently; ChatGPT success does not prove native Codex
+access, and Claude credentials do not authenticate an OpenAI session.
+
+DO keep shared work connector metadata in one matching shared manifest, with `boundary: work` and
+`gated: true`; remove a project duplicate when moving it. Use `claude-connector` only for the Claude
+account route. Record another host's observed status without inventing an MCP registration or a new
+adapter kind. Keep real workspace/user IDs and proof links in the ignored overlay, never this catalog.
+
+DO confirm the live workspace, signed-in identity and recipient/channel before sending. Resolve an
+ambiguous display name before any write. A requested setup test authorizes one self-DM; return its
+permalink and record the result. Accept Simon's screenshot or receipt as evidence without sending a
+second test. Label evidence from another host accurately.
+
+DO treat "when this work is done, message <recipient> with <purpose>" as authorization for that one
+completion message. Carry the request in the existing plan, finish and verify the work, write a short
+factual update with the relevant result/link, send once, and return the Slack permalink. Explicit
+wording supplied by Simon stays unchanged; otherwise summarize the completed task. Ask only for a
+missing or ambiguous recipient, completion condition or required access; do not re-ask permission for
+the same authorized message. If Simon asks only for
+a draft, show it and wait. General connector setup does not authorize automatic future notifications.
+
+DO obey runtime approvals and existing write gates. If a send times out or returns an uncertain
+result, check the target conversation before retrying; never duplicate a message on assumption.
+If tools or access are missing, retain the message task and provide the exact connection step.
+TEST: every send traces to Simon's request, the intended workspace and recipient, verified task
+completion when applicable, and one delivery receipt or an explicit unresolved outcome.
+
 ## Model-API keys (`pal`)
 
 DEFAULT: workers and reviews run on the Claude or Codex subscription. The one API route is the `pal` MCP,

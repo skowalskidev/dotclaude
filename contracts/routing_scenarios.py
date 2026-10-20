@@ -280,6 +280,9 @@ SCENARIOS: list[dict] = [
 
     # --- Connectors ----------------------------------------------------------------
     {"phrase": "not enough permissions", "expect": "setup-connectors"},
+    {"phrase": "connect Slack", "expect": "setup-connectors"},
+    {"phrase": "message someone when work is done", "expect": "setup-connectors"},
+    {"phrase": "send a Slack completion message", "expect": "setup-connectors"},
 
     # --- Interactive before/after decision artifact --------------------------------
     {"phrase": "make it selectable so I can pick and comment", "expect": "work-ask-reply-in-full-before-after-artifact"},
