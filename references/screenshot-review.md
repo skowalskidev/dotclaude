@@ -53,8 +53,9 @@ outputs, baselines or skips. TEST: captured is separate from pass; a missing ima
 DO capture every changed surface and journey BEFORE (the base branch or `origin/main`) and AFTER (the
 change), screenshots and video both, with the same seeded state, data and viewport. A new surface shows
 `n/a: new, no before` in its before cell, never a missing cell. Post a PR with one table row per point,
-BEFORE left of AFTER in the same row (layout owned by `/sk:ship-screenshot-changes`). TEST: an evidence post with an after but no before and no `new, no before` note
-broke the rule.
+BEFORE left of AFTER in the same row; use the playable-video fallback in `/sk:ship-screenshot-changes`
+when GitHub cannot render players inside table cells. TEST: an evidence post with an after but no
+before and no `new, no before` note broke the rule.
 
 DO capture authentic base/head evidence with matching data, viewport and
 conditions. Use separate cases with variant `before` and `after`, recording revisions in conditions.
@@ -65,11 +66,12 @@ images unaltered and uncropped in the gallery. TEST: each comparison discloses i
 
 DO record one short walkthrough video per changed user journey, by default, beside its screenshots.
 Web: Playwright `recordVideo` or a Chrome for Testing screencast. Verify it plays: `ffprobe` duration
-above 0 and one extracted frame showing the real screen. Post it to the PR with the screenshots
-through `/sk:ship-screenshot-changes`. Skip only a change with no visible UI, and state that skip in
-the report. DON'T hand back screenshots alone for a changed journey because video looked optional (the
+above 0 and one extracted frame showing the real screen. Post it to the PR as a playable inline video
+with the screenshots through that skill's attachment and rendered-playback checks; a text link or
+thumbnail does not pass. Skip only a change with no visible UI, and state that skip in the report. DON'T hand back screenshots alone for a changed journey because video looked optional (the
 fix for a four-PR evidence run that posted images and no clips).
-TEST: a journey report or PR post with screenshots but no video and no stated no-UI skip broke the rule.
+TEST: a journey report or PR post with screenshots but no playable inline video, explicit blocked
+reason or stated no-UI skip broke the rule.
 
 DO also add video for transitions or motion outside a journey when the installed stack supports it.
 Explore first, save the explicit replay, reset state, then record a deliberate pass. Preserve findings
@@ -77,7 +79,7 @@ from exploration even when the final recording succeeds. In Playwright use
 its supported video configuration or feature-detected `page.screencast`; retain successful demo videos,
 not only failures. Match recording size to viewport, finalize by closing the context or stopping the
 recorder, then inspect playback from first to last state and check readable labels. Native action
-annotations are optional when the installed API supports them. TEST: a linked video opens and shows the
+annotations are optional when the installed API supports them. TEST: an inline video plays the
 actual replay, not exploration or an unfinished file.
 
 DO record simulator video with `xcrun simctl io <udid> recordVideo` under the native simulator owner's

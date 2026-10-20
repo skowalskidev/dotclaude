@@ -227,7 +227,7 @@ CONTRACTS: dict[str, dict] = {
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
             "Group evidence by point: every case carries a point and a column, the manifest declares the ordered columns, and a platform or size a point lacks shows its status and reason in its cell, never dropped or listed apart.",
             "Record one walkthrough video per changed journey by default (web Playwright recordVideo or Chrome for Testing screencast; simulator simctl recordVideo only under native opt-in), verify it plays with ffprobe duration and one real-screen frame, post it with the screenshots, and skip only a no-UI change with the skip stated.",
-            "Capture every changed surface and journey before (base branch) and after, screenshots and video, in the same state and viewport, posted on a PR as one table row per point with before left of after in the same row; a new surface states `new, no before`.",
+            "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
             "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
         ],
     },
@@ -1065,12 +1065,14 @@ CONTRACTS: dict[str, dict] = {
             "framework or token.",
             "Posts screenshots to the PR by DEFAULT whenever a PR is open (never opt-in, never only a "
             "body text reference) and GitHub-native — gh --attach or the user-attachments CDN upload, "
-            "git-only detached-ref as fallback, never an external host; fails loud and verifies the "
+            "git-only detached-ref for images only, never an external host; fails loud and verifies the "
             "images render (not camo-broken).",
             "Keeps ONE marker-tagged screenshot comment per PR and edits it in place, replacing only "
             "re-captured point rows, each opened by its point marker; preserve untouched rows and migrate the older heading-per-point layout without losing evidence.",
             "Post ONE table with one row per point: a point-label first cell, then BEFORE left of AFTER per platform or size in the same row (Desktop before | Desktop after | Mobile before | Mobile after | iOS pairs), 200px-wide mobile/iOS images and a status in every gap cell; never stack befores and afters apart.",
-            "Films one verified walkthrough video per changed journey and captures every changed surface and journey BEFORE and AFTER by default, posted as one table row per point with before left of after; skips only a no-UI change and states the skip, and a new surface states `new, no before`. The detail lives in references/screenshot-review.md.",
+            "Capture verified before/after walkthrough videos per changed journey by default, per references/screenshot-review.md. State a no-UI skip or `new, no before` when applicable; keep screenshots in before/after rows and apply the playable-video fallback when needed.",
+            "Publish videos as verified inline players, never ordinary links or thumbnails; retain screenshot rows and use labeled point/platform/before-after player paragraphs in the same comment when table cells suppress playback. Preserve untouched video groups during updates.",
+            "Verify rendered players and browser playback for every published clip: duration, advancing time, expected first and last states, no navigation or media errors. Record failed uploads or playback as blocked evidence; a reachable file never passes.",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],
     },

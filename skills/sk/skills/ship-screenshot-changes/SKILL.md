@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and a BEFORE/AFTER pair for every changed surface and journey — hands them back with a walkthrough video per changed journey (opened in Finder), and — whenever the branch has an open PR — posts them and the videos (one table, one row per point, before left of after: desktop, mobile and iOS pairs) onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and a BEFORE/AFTER pair for every changed surface and journey — hands them back with a walkthrough video per changed journey (opened in Finder), and — whenever the branch has an open PR — posts them with playable inline videos (one screenshot table, one row per point, before left of after: desktop, mobile and iOS pairs) onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [optional focus, e.g. "the new dashboard section"]
 ---
 
@@ -139,16 +139,23 @@ reads as the flow top to bottom. TEST: every open PR whose diff changed a fronte
 posted screenshots (verified inline below) and each changed journey's video, each with its before or a `new, no before` note, or a stated no-UI skip,
 never only a local hand-back or a body reference to them.
 
-**Post ONE table, ONE row per point, BEFORE left of AFTER.** A point is the surface, scenario or journey
+**Post ONE screenshot table, ONE row per point, BEFORE left of AFTER.** A point is the surface, scenario or journey
 step being shown (e.g. "Advertiser disclosure open"). The first cell is the point label (what changed
 or the condition, 2-8 words). Then one BEFORE cell and one AFTER cell per platform or size captured, in
 the order **Desktop before | Desktop after | Mobile before | Mobile after | iOS before | iOS after**; omit
-a pair no point uses. Keep every point's before and after in the SAME row; never stack them in separate
-tables or sections. Journey mode: each step is a row, in step order.
+a pair no point uses. Keep every point's before and after screenshots in the SAME row; never stack them
+in separate tables or sections. Journey mode: each step is a row, in step order.
 
-Each cell holds that column's screenshot, then its video as a link (`[video](<url>)`), uploaded by the
-same route as the images; a failed upload shows `blocked: <reason>` in the cell. A cell the point
-applies to but lacks evidence for says its status and reason (`not run: <reason>`, `blocked: <reason>`);
+DO keep each screenshot in its point's table cell and publish each journey video as an inline player
+with playback controls, never an ordinary `[video](url)` link or a linked thumbnail. Use the attachment
+route below. Keep before/after players in their matching cells only when GitHub renders them there.
+If the table suppresses a player, keep the screenshot table and place labeled Point · Platform ·
+BEFORE / AFTER player paragraphs immediately below it, in the same point and platform order. Mark the
+matching cells `Video below: <point/platform/variant>`; a failed upload shows `blocked: <reason>`.
+TEST: every published clip plays within the comment; a click that navigates away or downloads a file
+is a failed inline-video check.
+
+A cell the point applies to but lacks evidence for says its status and reason (`not run: <reason>`, `blocked: <reason>`);
 a cell the point does not cover says `n/a: <reason>`; a new surface says `n/a: new, no before` in its
 before cells. Keep every gap in its own cell.
 
@@ -157,15 +164,18 @@ before cells. Keep every gap in its own cell.
 `<img src="<url>" width="200" alt="<point> mobile after">`. Allow horizontal scroll on narrow screens
 rather than shrinking readable phone shots.
 TEST: each point is one row; its before cell sits left of its after cell in that row; no before or
-after image or video sits outside the table; a posted row with an after but no before and no
-`new, no before` note broke the rule.
+after image sits outside the table; video paragraphs use only the labeled fallback above; a posted row
+with an after but no before and no `new, no before` note broke the rule.
 
 **Keep ONE screenshot comment per PR and edit it in place — never append a second.** Open the comment
 body with `<!-- sk:screenshot-changes -->` and start each point's row with `<!-- point:<slug> -->` in its first cell. Before posting, find the marked comment:
 `gh api repos/$REPO/issues/$PR/comments --paginate --jq '.[] | select(.body | startswith("<!-- sk:screenshot-changes -->")) | .id'`.
 None → create it. Found → fetch its current body, replace ONLY the rows for points re-captured this
 run, append rows for new points, keep every untouched row verbatim, drop a row only when its
-point left the diff, and write it back with `gh api -X PATCH repos/$REPO/issues/comments/$ID -F body=@<file>`
+point left the diff. Give any fallback video group `<!-- point-video:<slug> -->` and
+`<!-- /point-video:<slug> -->` markers; replace only the groups for re-captured points, preserving
+untouched groups and removing a group only when its point left the diff. Write it back with
+`gh api -X PATCH repos/$REPO/issues/comments/$ID -F body=@<file>`
 — never a body reconstructed from memory. For an existing comment in the older heading-per-point layout, migrate each
 point once into a row, preserving its media URLs, statuses and order. Older
 UNMARKED screenshot comments: name them in the hand-back, delete none without a yes. (e.g. renaming
@@ -173,32 +183,24 @@ one switch re-shoots that one point; only its row changes and the comment count 
 TEST: the PR has exactly one marked comment; a re-run changes its `updated_at`, not the comment count,
 and every point marker opens exactly one table row.
 
-**GitHub-only — never an external host.** In a PRIVATE repo (a work repo usually is), GitHub's Camo proxy
-can't authenticate: `raw.githubusercontent.com`, release assets and external hosts all render as a BROKEN
-image in a comment. Only two URL forms render inline in a private-repo comment, and both live on
-github.com. Post via the first that works, and FAIL LOUD (non-zero, drop to the next) — never post
-broken-image markdown:
+**GitHub-only — never an external host.** DO use a GitHub-native attachment route and verify the
+rendered comment with the intended repository viewer's access. A successful upload or reachable raw
+file does not prove inline rendering, especially in a private repository.
 
-1. **`gh pr comment <n> --attach <shot.png> … --body <md>`** if the installed `gh` supports `--attach`
-   (`gh pr comment --help | grep -q -- --attach`). Official path; it uploads to GitHub's `user-attachments`
-   CDN for you. Nothing enters the repo.
-2. **Else upload each shot to the user-attachments CDN yourself** (the same CDN `--attach` uses) with a
-   PAT/OAuth user token — NOT a GitHub App token (those 404) — and embed the returned URLs:
-   ```bash
-   TOKEN=$(gh auth token); REPO_ID=$(gh api "repos/$REPO" --jq .id); BODY="### QA screenshots"
-   for F in <shots>; do
-     URL=$(curl -sf "https://uploads.github.com/user-attachments/assets?name=$(basename "$F")&content_type=$(file -b --mime-type "$F")&repository_id=$REPO_ID" \
-       -X POST -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" --data-binary "@$F" | jq -r '.href // .url') \
-       || { echo "CDN UPLOAD FAILED for $F"; exit 1; }
-     BODY="$BODY"$'\n\n'"**$(basename "$F")**"$'\n'"![$(basename "$F")]($URL)"
-   done
-   gh pr comment "$PR" --repo "$REPO" --body "$BODY"
-   ```
-   The loop only UPLOADS: collect each returned URL, then place it in its point's table cell instead of
-   appending a flat list.
-   This keeps NOTHING in the repo — survives merge/squash/branch-delete, needs no pruning. Its one risk:
-   the endpoint is undocumented, so `curl -sf` fails on any non-2xx and drops to (3).
-3. **Else (CDN refused) the git-only detached-ref fallback** (ptrandev's `ui-walkthrough` method — still
+1. **Feature-detect `gh pr comment --attach`** with `gh pr comment --help`. Use `--body-file` and
+   `--attach` when supported. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
+   the CLI replaces that reference with the uploaded URL. A reference within a sentence renders
+   as a link. Follow [GitHub's attachment instructions](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video),
+   then apply the table/player layout above and verify the final rendered result. Reuse the marked
+   comment; do not let an attachment command create a second screenshot comment.
+2. **Else use GitHub's browser attachment control** in the authenticated test browser. Upload the
+   image or video to the intended repository's comment editor and preserve its generated attachment
+   URL. Collect URLs, then update the single marked comment with its complete media layout.
+   An undocumented upload endpoint is not a proven fallback: use it only after a successful upload
+   and rendering check in this run; never assume its URL is playable. If no attachment route works,
+   retain the screenshot evidence and mark each affected video `blocked: <reason>`.
+
+3. **For images only, the git-only detached-ref fallback** (ptrandev's `ui-walkthrough` method — still
    github.com, but the blobs live in the repo). Hash each PNG into a blob with a SCRATCH index (never touch
    the working tree), assemble a tree, `commit-tree` an ORPHAN commit, and
    `git push origin <commit>:refs/screenshot-changes/pr-<n>-<sha>` (FLAT, hyphenated — a nested ref name
@@ -210,19 +212,26 @@ broken-image markdown:
    images and prune closed PRs' refs later (`git ls-remote origin 'refs/screenshot-changes/*'` →
    `git push origin --delete <ref>`).
 
-**Empirically the installed `gh` has lacked `--attach`, so option 2 (the CDN) is the proven path — go
-to it as soon as the `--attach` probe comes back empty, rather than re-deriving it. Its returned URLs
-resolve to `private-user-images.githubusercontent.com`, which is NOT camo-proxied, so the VERIFY grep
-below reads 0.**
+DO use MP4/H.264 for published clips by default, retaining the original recording; use another
+supported format only after playback passes in the target browser. Check current
+[GitHub file limits and codec guidance](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/attaching-files)
+before uploading. TEST: each clip is within the applicable limit and passes the playback check below.
 
-**VERIFY before reporting done** — read the posted comment's rendered HTML and confirm the images are there
-and NOT camo-broken:
-```bash
-gh api -H "Accept: application/vnd.github.full+json" "repos/$REPO/issues/comments/<id>" --jq '.body_html' > /tmp/c.html
-grep -c 'camo.githubusercontent' /tmp/c.html   # expect 0; nonzero = renders broken
-grep -o '<table' /tmp/c.html | wc -l           # expect 1 table with one row per posted point
-```
-TEST: the PR comment shows every posted screenshot inline, and nothing was hosted outside github.com.
+DO treat the detached-ref route as image storage only. A raw video blob or release download is not
+an inline player; do not publish one as a substitute for a verified GitHub video attachment.
+
+**VERIFY before reporting done** — fetch the saved comment with
+`gh api -H "Accept: application/vnd.github.full+json" "repos/$REPO/issues/comments/<id>"` into a
+mode-0600 evidence file and inspect `body_html` locally. Report counts and playback outcomes only;
+private media URLs can carry short-lived credentials, so never print the HTML or signed URLs.
+Confirm one screenshot table, correct point/platform/before-after mapping, and a rendered
+video player for every published clip; an anchor alone fails. Then open the posted comment in the
+authorized test browser. Check every screenshot loads, and play every video using its visible controls:
+confirm duration > 0, playback time advances, and the expected first and last states appear without
+navigation or media errors. Save the comment URL and playback results with the evidence report.
+TEST: all screenshots remain visible and every expected video is playable inline, or its cell reports
+`blocked: <reason>` and the hand-back names the missing evidence; HTTP 200, local ffprobe success and
+the absence of Camo URLs alone do not pass publication.
 
 ## chrome-devtools tips (save time)
 
