@@ -154,6 +154,13 @@ SCENARIOS: list[dict] = [
     {"phrase": "check that these stacked PRs merge together onto master", "expect": "ship-check-merge-readiness"},
     {"phrase": "are these open PRs ready to ship to prod as-is", "expect": "ship-check-merge-readiness"},
     #
+    # ship-merge-batch — landing several already-approved PRs together: one CI run, one deploy.
+    # Discriminator: MERGING to the default branch now, not assembling (ship-check-merge-readiness) or
+    # superseding PRs with a new branch (work-consolidate-supersede-branches-prs).
+    {"phrase": "merge these all at once", "expect": "ship-merge-batch"},
+    {"phrase": "bundle the PRs and deploy once", "expect": "ship-merge-batch"},
+    {"phrase": "stop merging each PR one by one", "expect": "ship-merge-batch"},
+    #
     # ship-full-detailed-workflow — the ORCHESTRATOR that runs the whole ship sweep on a finished PR
     # (the SHIP counterpart to work-full-detailed-workflow). Distinct from the single-purpose ship-*
     # skills it composes: the discriminating language is the WHOLE sweep — "all the pr skills", "the

@@ -600,6 +600,8 @@ CONTRACTS: dict[str, dict] = {
             "(git cherry shows no + / merge-tree changes nothing) for a cherry-picked branch, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
+            "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
+            "each PR head unchanged and merges with a merge commit, so originals show merged.",
             "After an authorized push or ready-flip, read the PR's merge state and confirm within a minute a CI run for the head sha is in progress; no run is a failure to investigate, and a run queued behind a superseded one is cancelled. Run the repo's ordering checks before pushing a base merge.",
             "After merging the base: reinstall dependencies, re-download test browsers, compare applied migrations with the files by name and number, and read git status for tool-rewritten files before the next commit.",
             "Require timestamped current provider identity and version/channel eligibility before release packaging; unknown eligibility stops archives/uploads, not independent local work. Reuse applicable fresh provider evidence without requiring duplicate access.",
@@ -901,6 +903,23 @@ CONTRACTS: dict[str, dict] = {
             "Runs a landing gate before reconciling: the journey, the matrix, the screenshots, resolved "
             "threads and the Deploy-TLDR are confirmed present on the FETCHED PR, not just produced "
             "in-session.",
+        ],
+    },
+    "skills/sk/skills/ship-merge-batch/SKILL.md": {
+        "mission": "Several approved PRs reach production after one CI run and one deploy instead of N "
+                   "serial update-and-deploy rounds, and no PR merges without Simon naming it.",
+        "purpose": "Batches named, green PRs through the merge queue or one merge-commit batch PR, "
+                   "watches the single deploy, and reports each original PR's state.",
+        "criteria": [
+            "Merges only PRs Simon named in chat, each with a recorded yes; the one gh pr merge carries "
+            "CLAUDE_ALLOW_PR_MERGE=1 only after that.",
+            "Batches only non-draft PRs whose statusCheckRollup is green on the head sha that goes into "
+            "the batch; a red PR leaves the batch.",
+            "Reads repo settings and never changes them; a settings change goes to Simon as a decision.",
+            "Checks numbered files across the set, the base and other open PRs, and renumbers on the "
+            "original PR branch.",
+            "Points to references/git-pr-deploy.md for the method; does not restate it.",
+            "Reports exactly one deploy run and each original PR's merged state.",
         ],
     },
     "skills/sk/skills/ship-check-merge-readiness/SKILL.md": {
