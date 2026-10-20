@@ -61,7 +61,7 @@ skill commits + pushes those changes safely.
 **A branch from a worktree:** inspect the full `origin/main..<branch>` diff, its evidence and owner.
 For a validated repair within standing scope, fetch and merge current `origin/main` into that branch,
 resolve conflicts only within the owned change and re-run affected checks on the final state. Commit
-with `-F` if needed, secret-scan, then `git push -u origin <branch>` and `git push origin <branch>:main`.
+with `-F` if needed, secret-scan, then `git push origin <branch>:main`.
 A non-fast-forward rejection means another session landed: fetch, reconcile and validate again;
 never force-push. Verify `git rev-list --left-right --count origin/main...<branch>` returns `0 0`.
 
@@ -71,7 +71,8 @@ commits. On a conflict, preserve all work and record the exact activation blocke
 rules and verify the changed files are present in the live checkout before claiming active.
 
 DO remove the owned temporary worktree and its merged local branch after the commit is on
-`origin/main` and activation is verified. Check both Git registration and disk absence. Keep only
+`origin/main` and activation is verified. If this task published its temporary branch, delete that
+owned remote ref after verifying its tip is on main. Check Git registration and disk absence. Keep only
 intentional report artifacts; never delete another session's workspace or unmerged unique work.
 A pending branch is resumed against evidence and ownership, not blindly landed because it exists.
 TEST: a completed sync has a remote commit, verified live files and no owned temporary worktree;
