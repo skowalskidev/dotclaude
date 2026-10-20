@@ -20,6 +20,9 @@ per step is the ceiling.
 - a progress count in the header ("Step 4 of 12", "Part 2 of 3") so they never wonder how much is left;
 - under ~40 words — more means the step is too big;
 - what you are watching or waiting for, so they know your side is covered.
+- the surface they act in, named by what they can see: a browser tab by title and host, a window by
+  its app name, a terminal by its directory. A browser walk follows `browser-debugging.md` § The test
+  browser (one walk tab, closed when done).
 
 Never re-print an earlier or later step.
 

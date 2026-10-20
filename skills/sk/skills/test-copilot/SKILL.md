@@ -180,8 +180,10 @@ TEST: no step with a side effect runs until his first request is in the log.
 
 **DO run a web walk in a browser you control, by default.** Attach the chrome-devtools MCP to the
 project's test browser (Chrome for Testing), reusing one already running on the project's profile
-(launch and attach per `browser-debugging.md` § The test browser). Open 1 NEW tab for the walk, or an isolated context for a fresh-visitor walk,
-and load the start URL there yourself. Simon drives in that tab.
+(launch and attach per `browser-debugging.md` § The test browser). Keep to ONE walk surface per `browser-debugging.md` § The test browser: 1 walk tab
+(an isolated context only for a fresh-visitor or second-account need), the previous step's tab closed
+before a new one opens, every step naming the tab by title and host, a phone viewport that fits the window.
+Load the start URL there yourself. Simon drives in that tab.
 **DON'T close or navigate a tab you did not open.** Another session may own it.
 **DO capture every web step yourself.** When he says done or "next", `take_screenshot` that tab with a
 `filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step
@@ -275,6 +277,9 @@ comes back clean; one round of fixes is not the end.
   every test gate OFF and clear any allowlist**, remove scratch data, kill every process you
   started (forwarders, listeners and phone shares included) and verify by checking the port and by
   fetching each share hostname (not by trusting the kill), sweep orphaned workers.
+  **Close every tab, window and isolated context you opened, and the Chrome for Testing you launched
+  unless Simon is still using it** (`browser-debugging.md` § The test browser).
+  TEST: `list_pages` shows only the tabs you found.
   Leaving a time-collapse flag on in a shared environment is a live incident waiting to happen.
 - **Commit** one logical commit per fix, per the standing commit rule.
 - **Report a results matrix**: step, result, evidence, severity — plus what was fixed, what

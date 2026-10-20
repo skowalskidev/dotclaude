@@ -520,6 +520,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; a state he is to click is seeded there, 1 window per viewport.",
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
+            "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
         ],
     },
     "references/code-best-practices.md": {
@@ -661,6 +662,7 @@ CONTRACTS: dict[str, dict] = {
             "The plan lives in a file; chat gets one action per message, never the whole plan.",
             "Every step carries a progress count and signals the hand-off as the first action of a "
             "blocking response.",
+            "Every step names the surface the human acts in (a browser tab by title and host).",
             "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
         ],
     },
@@ -854,6 +856,7 @@ CONTRACTS: dict[str, dict] = {
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
             "Runs a web walk in a test-browser (Chrome for Testing) tab Claude opened and screenshots each step itself; never "
             "asks Simon to paste one or touches another session's tab. Launch method lives in browser-debugging.md.",
+            "Keeps one walk surface and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
             "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",
         ],
