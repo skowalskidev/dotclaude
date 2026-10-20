@@ -419,6 +419,11 @@ check) and a surface-contrast check when the body reads flat. DEFAULT: 0 overflo
 rhythm between blocks. TEST: the measure call runs in the capture script, and its result is in the
 hand-back evidence, not a visual guess.
 
+DO run `python3 ~/.claude/bin/design-board.py check <board.html> <dir>` on the built board before
+opening it for Simon, and loop fix then re-check until it exits 0 (`references/screenshot-review.md`
+§ Hand-off check owns the rule). TEST: the hand-back carries its pass table, with a flattened-state row that
+shows ink in every phone frame.
+
 DO give every fact one home on a screen and every screen three surfaces: the section background,
 the cards on it, and one tinted panel around the decision with the only saturated accent. A chip
 reuses an established mark; never a new figurative line drawing at 16 px. DON'T add a summary card

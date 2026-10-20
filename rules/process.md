@@ -169,17 +169,18 @@ session. It does NOT cover everything: a backgrounded forked skill (`context: fo
 edits outside the session's checkpoints, and nothing Bash writes is checkpointed at all. For those,
 the restore point is git — commit the good state, or branch, before starting.
 
-### Self-verify a UI change in the browser before handing back — the default
-**DO open the local preview / dev server in Chrome for Testing (`browser-debugging.md`; never Simon's own Chrome) and screenshot every web frontend surface you changed, then scan
-each for gross visual breakage — overlap, overflow, cutoff, unreadable contrast, colliding
-wrapped elements, broken layout — and FIX it before handing back.** Do this on any web UI
-edit without asking, after the batch's review fixes converge. Native iOS runtime/UI checks and
-screenshots follow the explicit opt-in above; boot no simulator for this rule.
-WHY: a chart that flex-wrapped and overlapped the section below shipped
-because nobody looked — a screenshot catches that class in seconds.
-Static checks (grep, layout math, rendered output) need no browser.
-TEST: a web UI diff handed back with no screenshot of each changed surface, or carrying a visible
-overlap/overflow/cutoff a screenshot would have surfaced, or any window not marked "Chrome for Testing", broke the rule.
+### Self-verify every visual deliverable before handing back — the default
+**DO open the exact artifact a human will open (web UI in Chrome for Testing, `browser-debugging.md`;
+or the built mockup, board, dashboard, report, image, PR media) and check every
+state he can switch to,** at most 24 variant x viewport x toggle rows: not blank (ink above 0.05%), key
+strings present, key elements fully visible (cut by no overflow-hidden or scroll ancestor), one
+screenshot per distinct view type viewed. On any failure fix and re-run the WHOLE check until every row
+passes; hand off with the pass table and screenshots path. iOS runtime checks keep their opt-in.
+Tool: `references/screenshot-review.md` § Hand-off check.
+**DON'T count another file's render, one state, a DOM string or non-white pixels as the check** (a board opened
+blank, then a compare view cropped every phone).
+TEST: a visual artifact handed over with no pass table covering every switchable state of the file
+actually opened, or with a visible overlap/overflow/cutoff, broke the rule.
 
 **Seed the backend, hand me the frontend.** When a change adds new UI, seed only the backend
 prerequisites the UI can't create, then walk me through entering the data through the new screens

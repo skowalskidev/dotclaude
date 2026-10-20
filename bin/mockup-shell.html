@@ -537,6 +537,20 @@ function renderFocusStage(stage){
   liveIframes.focus = { iframe: iframe, variantId: state.activeVariant, persona: state.persona };
   trackMountedIframe(iframe, state.activeVariant, state.persona);
 }
+// Fit one Compare frame by BOTH axes (min of the width and height ratios, never upscaled past 1), so a
+// tall capture (a phone) is shown whole instead of cropped to its top. The host is sized to the scaled
+// frame PLUS its 2px border; the column title, the column gap (6px) and the row padding (2 x 16px) come
+// out of the stage height. Never crop: when even that is too small the row scrolls (overflow:auto).
+function fitCompareFrame(stage, col, host, iframe, naturalW, naturalH){
+  var title = col.querySelector('h5');
+  var availW = col.clientWidth - 2;
+  var availH = stage.clientHeight - 32 - (title ? title.offsetHeight : 0) - 6 - 2;
+  var scale = Math.min(availW / naturalW, availH / naturalH, 1);
+  if (!isFinite(scale) || scale <= 0) scale = 1;
+  iframe.style.transform = 'scale(' + scale + ')';
+  host.style.width = (Math.ceil(naturalW * scale) + 2) + 'px';
+  host.style.height = (Math.ceil(naturalH * scale) + 2) + 'px';
+}
 function renderCompareStage(stage){
   var row = document.createElement('div');
   row.className = 'mock-compare-row';
@@ -550,8 +564,7 @@ function renderCompareStage(stage){
     row.appendChild(col);
     var frameHost = col.querySelector('.mock-compare-frame');
     var iframe = buildIframeForCapture(id, state.persona, function(){
-      var scale = frameHost.clientWidth / p.w;
-      iframe.style.transform = 'scale(' + scale + ')';
+      fitCompareFrame(stage, col, frameHost, iframe, p.w, p.h);
     });
     frameHost.appendChild(iframe);
     trackMountedIframe(iframe, id, state.persona);
@@ -912,6 +925,16 @@ document.getElementById('mock-stage').addEventListener('mousedown', onStageClick
 // with the outer window untouched, e.g. a rail collapse), so both call the same function rather
 // than duplicating the lookup + fitFrame call.
 function refitFocusStage(){
+  if (state.view === 'compare') {
+    var stageEl = document.getElementById('mock-stage');
+    mount.iframes.forEach(function(m){
+      var host = m.iframe.parentElement;
+      if (!m.iframe.isConnected || !host || !host.classList.contains('mock-compare-frame')) return;
+      var q = personaOf(m.persona);
+      fitCompareFrame(stageEl, host.parentElement, host, m.iframe, q.w, q.h);
+    });
+    return;
+  }
   var entry = liveIframes.focus;
   if (state.view !== 'focus' || !entry || !entry.iframe.isConnected) return;
   var stage = document.getElementById('mock-stage');

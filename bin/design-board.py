@@ -8,6 +8,7 @@ Usage:
     design-board.py build <spec.json> <out.html>
     design-board.py extract <board.html> <spec.json>
     design-board.py example > spec.json
+    design-board.py check <board.html> <outdir>     # exit 0 only when every board state passes
 
 Spec (schemaVersion 1):
     {
@@ -28,12 +29,18 @@ Every frame carries `data-frame` and `data-measure` hooks. In a browser, `window
 [{id, overflow, wrapped}] where `overflow` is how far the deepest element sits past the phone bottom
 and `wrapped` lists elements marked `data-oneline` that broke onto a second line. No third-party
 dependencies; Python 3.9+ (Pillow optional, for image frames).
+
+`check` runs bin/visual-check.py on the built file: fit, 100% zoom and flattened states at 1440x900, a
+title per shown frame in the page text, and, in the flattened state, every phone frame and frame title
+fully visible (not cut by an ancestor) with ink in each phone.
+It prints the pass table and writes the screenshots to <outdir>; hand the table over with the board.
 """
 import base64
 import html as html_mod
 import io
 import json
 import pathlib
+import subprocess
 import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -147,6 +154,20 @@ EXAMPLE = {
 }
 
 
+def check(board: pathlib.Path, outdir: pathlib.Path) -> int:
+    spec = extract(board.read_text())
+    args = [sys.executable, str(HERE / "visual-check.py"), str(board), "--out", str(outdir),
+            "--viewport", "1440x900",
+            "--state", "zoom100=document.getElementById('one').click()",
+            "--state", "flat=window.__flatten()",
+            "--region", ".screen[data-frame]", "--visible", ".ftitle", "--regions-in", "flat"]
+    shown = [f for s in spec.get("sections", []) for f in s.get("frames", []) if not f.get("hidden")]
+    for text in [spec.get("title", ""), *[f.get("title", "") for f in shown]]:
+        if text:
+            args += ["--expect", text]
+    return subprocess.run(args).returncode
+
+
 def main(argv: list) -> int:
     if len(argv) >= 1 and argv[0] == "example":
         print(json.dumps(EXAMPLE, indent=2))
@@ -160,6 +181,8 @@ def main(argv: list) -> int:
     if len(argv) == 3 and argv[0] == "extract":
         pathlib.Path(argv[2]).write_text(json.dumps(extract(pathlib.Path(argv[1]).read_text()), indent=2))
         return 0
+    if len(argv) == 3 and argv[0] == "check":
+        return check(pathlib.Path(argv[1]).resolve(), pathlib.Path(argv[2]))
     print(__doc__)
     return 2
 

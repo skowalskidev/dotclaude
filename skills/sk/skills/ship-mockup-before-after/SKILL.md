@@ -484,6 +484,11 @@ JS-running render showed). The built-in browser pane cannot open `file://`, and 
 a static snapshot there. TEST: every variant/persona/state PNG was viewed before handing back, and the
 command exited 0.
 
+**DO finish with `python3 ~/.claude/bin/visual-check.py <mockup.html> --out <dir>` on the built file itself,
+with one `--state` per switch (variant, persona, view), one `--region` or `--visible` per key element and one `--expect` per key string, looping fix then
+re-run until it exits 0; hand over the pass table** (`references/screenshot-review.md` § Hand-off check).
+TEST: the mockup opened by Simon is the file the table covers.
+
 **DO fix the CLASS and fold it forward.** When a divergence traces to how this skill works — a
 measurement it skips, a token it never reads, a state it forgets — propose the durable fix to this skill
 through `/sk:claude-config-update` so the next mockup is exact from the first render. That is the

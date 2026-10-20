@@ -229,6 +229,7 @@ CONTRACTS: dict[str, dict] = {
             "Record one walkthrough video per changed journey by default (web Playwright recordVideo or Chrome for Testing screencast; simulator simctl recordVideo only under native opt-in), verify it plays with ffprobe duration and one real-screen frame, post it with the screenshots, and skip only a no-UI change with the skip stated.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
             "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
+            "Hand-off check: run bin/visual-check.py on the exact artifact Simon opens, one row per viewport x state (cap 24, default state first); blank means ink below 0.05%, clipped means cut by an ancestor; view one PNG per distinct view type; loop fix then full re-run until exit 0.",
             "Add at most two caveat sentences beside clips showing injected errors or test-only end states. Verify environment and network evidence before claiming not production or no live actions; retain unknown failures and avoid production bug-free claims.",
         ],
     },
@@ -249,7 +250,8 @@ CONTRACTS: dict[str, dict] = {
             "Render entirely from the spec: title, lead, sections, frames with label, title, hypothesis, note, pick, hidden, night, and either inner html or an image; no project strings in bin/design-board.html.",
             "Expose window.__measure() returning per-frame overflow past the phone bottom and the data-oneline cells that wrapped, and window.__flatten() returning each frame's page box for a full-page capture.",
             "Round-trip: extract returns the spec that built the board, minus the embedded font bytes; the output opens from file:// with no external request.",
-            "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip.",
+            "check <board.html> <outdir> runs bin/visual-check.py over fit, 100% and flattened states at 1440x900, expects the title and every shown frame title, and fails a blank or cut phone frame in the flattened state.",
+            "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip, check passes the example and fails a blank and a cut frame (skipped without Node Playwright).",
         ],
     },
     "bin/mockup-build.py": {
@@ -260,7 +262,19 @@ CONTRACTS: dict[str, dict] = {
             "Fill the viewport with the active variant on open, fitting by the smaller of the width and height ratios, re-fitting whenever the stage resizes (host iframe, rail collapse) and never clipping (stage scrolls as the fallback); keep every control in one collapsible right rail whose Variants list shows exactly one Before (role: before), then the current after-variants, with superseded rounds (superseded: true or a legacy 'Before — superseded' label) under a collapsed Earlier rounds disclosure that arrow keys skip; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
             "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
             "Tear down the outgoing mount on every variant, persona, version, view, state-walk or presentation switch and open the target at its default state (a state walk mounts a fresh document at that state) with exactly one iframe and exactly one highlighted active state row; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
+            "Fit every Compare frame by both axes (min of width and height ratios, never upscaled past 1) into a host sized to the scaled frame plus its border, re-fit on stage resize, so a phone-sized capture is never cropped; bin/mockup-shell.test.py asserts the iframe sits inside its host and the host inside the stage.",
             "Route validated version, variant, persona and state fragments on load and history navigation; What’s new selects the declared variant/state target with a fallback and flashes that state’s selector, while reduced motion leaves a static marker.",
+        ],
+    },
+    "bin/visual-check.py": {
+        "mission": "Simon never opens a visual artifact that renders blank, because the exact file he opens was checked in every state he can switch to.",
+        "purpose": "Opens one artifact headlessly per viewport x state, screenshots it full page, and prints a pass table.",
+        "criteria": [
+            "Load the same file:// path or URL fresh for every row, wait for it to settle, then run the state's JavaScript and settle again, so a state set during load is not overwritten by load-time code.",
+            "Fail a row on a page or region with ink share (pixels differing from the most common colour) below --min-ink (default 0.05%), on a missing --expect string, a page error or a failed request.",
+            "Fail a --region or --visible element that is not fully visible: zero size, hidden, outside the document, cut by an overflow hidden, clip, auto or scroll ancestor, or hiding its own content; a DOM string or non-white pixel alone never passes.",
+            "Print the pass table, write it to <out>/pass-table.md beside one full-page PNG per row, and exit 0 clean, 1 on any failure, 2 on bad arguments, more than 24 rows or a missing browser runtime.",
+            "Python 3.9+, standard library only; run the browser through Node Playwright resolved as bin/mockup-shots.py resolves it.",
         ],
     },
     "bin/mockup-shots.py": {
@@ -401,6 +415,7 @@ CONTRACTS: dict[str, dict] = {
             "A mid-run message is QUEUED, never an interrupt, and Simon never has to label it.",
             "New UI is seeded up to, never through: he types the new inputs himself.",
             "Keep web UI verification as the existing default; require explicit opt-in for iPhone/iOS simulator runtime tests, UI tests and native screenshots, never inferred from all-tests or full-matrix requests.",
+            "Before handing over ANY visual artifact (UI, mockup or board, dashboard, report, stitched image, PR media), open the exact artifact in its entry state, check every switchable state for blank and clipped content, view the screenshots, loop fix then re-check until clean, and hand over the pass table.",
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; the rule lives in references/browser-debugging.md and is pointed at, not restated.",
             "The checklist and the decisions behind it survive a RESTART in a durable store — a "
             "ticket or .context/, never /tmp or memory.",
@@ -1400,6 +1415,7 @@ CONTRACTS: dict[str, dict] = {
                    "screenshot plus the real components' measured styles for a new surface or the AFTER "
                    "overlay, walkable as a storyboard — one per ticket or plan part.",
         "criteria": [
+            "Finishes with bin/visual-check.py on the built mockup file, one --state per switch, and hands over the pass table per references/screenshot-review.md.",
             "Ships a self-contained shareable Claude artifact for a change with a real screen, never "
             "a dev route to view it and never HTML rebuilt by eye. Fidelity comes from real pixels; "
             "both alternatives were rejected 2026-08-10.",

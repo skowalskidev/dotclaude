@@ -188,6 +188,35 @@ for capture statuses and review statuses separately, disclose sampled coverage a
 name any reviewer decision. Publication requires explicit authorization for destination and content.
 TEST: Simon can review the intended UI journey from the report without driving the app himself.
 
+## Hand-off check: every state of the artifact you hand over
+
+DO run `python3 ~/.claude/bin/visual-check.py <artifact.html|URL> --out <dir>` on the exact file or URL
+Simon will open, before any hand-off of a visual artifact (design board, mockup, dashboard, report,
+HTML artifact, stitched image wrapped in an HTML page). Pass one `--state NAME=JS` per state he can
+switch to, one `--viewport WxH` per size he will use (default 1440x900), one `--region CSS` per element
+that must show content (a phone frame, a chart, a tile), one `--visible CSS` per element that must only be
+whole (a title, a button), and one `--expect TEXT` per key string. The tool loads the file fresh per row,
+screenshots the full page, and exits 1 on any blank page or region, any region or visible element that is
+not fully visible, missing string, page error or failed request. A stitched image or PR image has no page: wrap it in a one-line HTML
+page and check that, then view it.
+DEFAULT: cap the table at 24 rows (viewports x states) and list every row; the default state is always row one.
+NUMBER: blank means ink share below 0.05%, where ink is the share of pixels differing from the area's
+most common colour; regions are inset 12% so rounded corners cannot pass for content. Not fully visible
+means zero size, hidden, outside the document, cut by an ancestor with overflow hidden, clip, auto or
+scroll (the fix for a Compare view that cropped every phone at half height while its strings were in the DOM),
+or an element whose own overflow hides its content. Put the key elements of every view in `--region` or `--visible`.
+DON'T accept "the string is in the DOM" or "the pixels are not white" as a pass; each proves one thing only.
+DO view the PNG of every distinct view type (default, each variant layout, each compare or detail view),
+at least the default state. The tool proves content exists and is whole, not that it is right.
+DO, on any failing row, fix the artifact and re-run the whole command, never only the failed row, and loop
+until every row passes (the fix for a board that opened blank after one separate render passed).
+DO hand over the printed pass table (also at `<dir>/pass-table.md`) and the `<dir>` path with the artifact.
+DON'T verify a sibling file, a `setContent` copy or one state in place of the artifact he opens.
+`design-board.py check <board.html> <dir>` is the preset for design boards;
+`bin/mockup-shots.py` stays the per-state capture for mockup shells and does not replace this check.
+TEST: every artifact hand-off carries a pass table whose rows cover every switchable state of the file
+actually opened, and re-running the command on that file exits 0.
+
 ## Research basis
 
 DO verify installed capabilities rather than pinning instructions to a release. Sources checked

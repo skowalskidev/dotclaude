@@ -29,6 +29,10 @@ file://-openable HTML, drives it with Playwright, and asserts:
      rail active-row track every keyboard step too.
   7. A capture that reaches out and appends a node directly to the shell's
      own <body> (escaping its iframe) gets removed by the shell's guard.
+  9. Compare view fits every frame by BOTH axes into its host (a phone-sized
+     capture is never cropped to its top half): the iframe's bottom and right
+     edges sit inside the host, the host sits inside the stage's visible area,
+     and a later stage resize re-fits the same hosts without a reload.
   8. Reproduces the bug Simon hit embedding a built mockup in a wide-but-short
      host frame (a modal iframe ~1900x1010, stage ~1600x940 next to the rail):
      the focus iframe fits within the stage on both axes (never clipped, top-
@@ -576,6 +580,53 @@ def main():
             )
 
             fit_page.close()
+
+            # --- 9. Compare view: a phone-sized frame is fitted by both axes, never cropped ---
+            def compare_fit_signal(pg):
+                return pg.evaluate(
+                    """() => {
+                        const stage = document.getElementById('mock-stage').getBoundingClientRect();
+                        return Array.from(document.querySelectorAll('.mock-compare-frame')).map(h => {
+                            const hr = h.getBoundingClientRect(), f = h.querySelector('iframe').getBoundingClientRect();
+                            return { hostBottom: hr.bottom, hostRight: hr.right, iframeBottom: f.bottom, iframeRight: f.right,
+                                     hostH: hr.height, stageBottom: stage.bottom, marker: h.querySelector('iframe').getAttribute('data-test-marker') };
+                        });
+                    }"""
+                )
+
+            def compare_fits(sigs):
+                return bool(sigs) and all(
+                    g["iframeBottom"] <= g["hostBottom"] + 0.5 and g["iframeRight"] <= g["hostRight"] + 0.5
+                    and g["hostBottom"] <= g["stageBottom"] + 0.5
+                    for g in sigs
+                )
+
+            cmp_page = browser.new_page(viewport={"width": 1200, "height": 800})
+            cmp_page.goto(out_html.as_uri())
+            cmp_page.wait_for_timeout(300)
+            cmp_page.click('[data-pick-persona="mobile"]')
+            cmp_page.wait_for_timeout(200)
+            cmp_page.click("#mock-view-compare")
+            cmp_page.wait_for_timeout(400)
+            cmp_sigs = compare_fit_signal(cmp_page)
+            check(
+                "Compare shows a phone-sized frame whole: iframe inside its host, host inside the stage",
+                compare_fits(cmp_sigs),
+                json.dumps(cmp_sigs),
+            )
+            cmp_page.evaluate(
+                "() => document.querySelectorAll('.mock-compare-frame iframe').forEach(f => f.setAttribute('data-test-marker', 'c1'))"
+            )
+            cmp_page.set_viewport_size({"width": 1200, "height": 520})
+            cmp_page.wait_for_timeout(500)
+            cmp_small = compare_fit_signal(cmp_page)
+            check(
+                "a stage resize re-fits the same Compare frames (no remount) and none is cropped",
+                compare_fits(cmp_small) and all(g["marker"] == "c1" for g in cmp_small)
+                and cmp_small[0]["hostH"] < cmp_sigs[0]["hostH"],
+                json.dumps({"before": cmp_sigs, "after": cmp_small}),
+            )
+            cmp_page.close()
 
             browser.close()
 
