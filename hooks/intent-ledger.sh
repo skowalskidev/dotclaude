@@ -247,7 +247,8 @@ after the newest recorded input."
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
 every added requirement, preserve unfinished items and the return point, then refresh the dashboard. \
 Keep one deferred after-run analysis for the task batch per references/session-performance.md; run it \
-after the requested work without waiting for peers. An answer or status question does not cancel \
+after the requested work without waiting for peers. Apply rules/self-healing-config.md automatically \
+for evidenced repairs and their sync/cleanup; no manual skill invocation is required. An answer or status question does not cancel \
 older work. Recording an ask does not grant approval." \
     '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
   exit 0
@@ -340,7 +341,7 @@ stop)
 finishing: re-read $LEDGER and the living gauntlet plan, account for every request and remaining \
 item, continue ready authorized work, and append the current outcomes with
   ~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>
-Link the task's after-run performance report or its explicit evidence gap before reconciling. \
+Apply rules/self-healing-config.md and link the task's after-run report, repair outcome or explicit evidence gap before reconciling. \
 Record evidence for completed work and the next action for every blocker or pause. An unapproved \
 proposal remains recorded, not permission to implement. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'

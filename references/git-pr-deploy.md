@@ -55,6 +55,9 @@ cannot:
 
 ## Git, PRs, integration
 
+DO apply `rules/self-healing-config.md` for the explicit standing authorization covering Simon's own
+config repairs. The project-repository restrictions below do not cancel that scoped authorization.
+
 - **I own PR and remote operations — never do or raise them unprompted (the trigger is in
   `rules/process.md`).** After the local commit, STOP. Do NOT push, open a PR, flip a PR ready/draft,
   request or add reviewers, add/remove labels, edit a PR body, comment on a PR, or merge — UNLESS I ask
@@ -117,7 +120,7 @@ TEST: the hand-back names the install, the browser download, the applied-migrati
 
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 
-**DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
+Outside the own-config exception above, **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
 specific irreversible merge. `hooks/git-commit-guard.py` hard-blocks `gh pr merge` and default-branch
 pushes; clear it with `CLAUDE_ALLOW_PR_MERGE=1` (or `CLAUDE_ALLOW_MAIN_COMMIT=1` for a push) only once

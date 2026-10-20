@@ -212,6 +212,8 @@ SCENARIOS: list[dict] = [
     # Any config CHANGE routes here, not just a correction — this is the pair that was missing when
     # "create a new skill" got hand-built instead of run through the skill.
     {"phrase": "create a new skill", "expect": "claude-config-update"},
+    {"phrase": "keep the config improving itself", "expect": "claude-config-update"},
+    {"phrase": "audit each session automatically", "expect": "claude-config-update"},
     {"phrase": "change my config", "expect": "claude-config-update"},
     {"phrase": "ignore project instructions", "expect": "claude-config-update"},
     {"phrase": "make the gauntlet dashboard open the mockup in a new tab", "expect": "claude-config-update"},

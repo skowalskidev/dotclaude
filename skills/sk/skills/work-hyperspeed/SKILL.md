@@ -329,9 +329,8 @@ fixed file's cause, analyse every run, heal only what RECURS — is shared and d
 `references/parallelization.md` § "Self-improving a parallel run". Reuse it. Three hyperspeed-specifics:
 
 - **Harvest the workers' friction + timings and self-diagnose the bottleneck after EVERY round**, then
-  improve in two tiers — auto-bake fixes into the next round's blocks, and propose the recurring one ROUTED
-  to its owner (the project's committed `CLAUDE.md`, its `CLAUDE.local.md`, or this config) via the
-  ask-first gate — all per `references/parallelization.md` § "Self-improving a parallel run". The build
+  route next-round changes and durable repairs through
+  `references/parallelization.md` § "Self-improving a parallel run". The build
   wall is the bottleneck the timings usually expose; its fix is the cache-reuse in Step 3 item 5, and a
   recurring gap (the project's committed `CLAUDE.md` missing its cache recipe) is a durable proposal.
 - **Write the round's log to `.context/hyperspeed/<run-id>/reconcile.json`** (durable per

@@ -13,7 +13,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `config-repo.md` — `~/.claude` is a git repo (this config repo); keep it in sync via `/sk:claude-config-sync`.
   - `connectors.md` — connector/credential system: discover the provisioned path first (manifest + browser-debugging), the auth-gate protocol (ask first with numbered steps, then wait), work/personal boundary, prod read-only + gated writes, and the per-project manifest convention (`~/.claude/connectors/<project>.json`).
   - `spend-approval.md` — never run a billable/metered operation (paid model render, credit-consuming API call) without an explicit per-call yes; a diagnose/fix task is not license to spend, and no bisection/retry loop fires paid calls until one works.
-  - `self-healing-config.md` — analyze each task at hand-back; route evidence-backed shared fixes through existing authorization (event-driven, never a cron).
+  - `self-healing-config.md` — audit every task automatically; repair, validate, merge, sync and clean up own-config fixes under standing authorization (event-driven, never a cron).
   - `living-plan.md` — every session keeps one gauntlet record; capture each new ask, retain unfinished work through tangents, and reconcile all requests before finishing: keep exactly one active plan and regenerate its dashboard after every transition so it tracks EVERY open workstream (tickets, PRs, previews, decisions); a stale snapshot or a second active plan is a stop-and-reconcile, at any check-in not just hand-back.
 
 - **Deep, task-only how-tos** → `~/.claude/references/*.md` (on-demand, zero context cost until read):

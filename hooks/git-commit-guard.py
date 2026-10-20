@@ -32,6 +32,7 @@ switched off.
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 
@@ -138,15 +139,49 @@ def current_branch(cwd: str) -> str:
 
 
 def is_config_repo(cwd: str) -> bool:
-    """The ~/.claude config repo commits to main by design (via /sk:claude-config-sync), so the
-    default-branch protection does not apply there."""
-    top = _git(cwd, "rev-parse", "--show-toplevel")
-    if not top:
+    """Recognize the canonical config and its worktrees by shared Git storage, not directory name."""
+    canonical = os.path.expanduser("~/.claude")
+    common = _git(cwd, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    config_common = _git(canonical, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    return bool(common and config_common and
+                os.path.realpath(common) == os.path.realpath(config_common))
+
+
+
+def config_command(command: str, cwd: str) -> bool:
+    """Grant the exception only when a simple Git command resolves to the config storage.
+
+    Unknown shell expansion, compound commands and Git environment selectors keep the guard.
+    This prevents `git -C <other-repo>` inheriting the caller's config exemption.
+    """
+    if any(os.environ.get(key) for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR")):
         return False
     try:
-        return os.path.realpath(top) == os.path.realpath(os.path.expanduser("~/.claude"))
-    except Exception:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lexer.whitespace_split = True
+        words = list(lexer)
+    except ValueError:
         return False
+    if any(any(ch in word for ch in "$`\n") or word in (";", "&&", "||", "|", "&", "(", ")")
+           for word in words):
+        return False
+    if not words or os.path.basename(words.pop(0)) != "git":
+        return False
+    target = cwd
+    while words:
+        word = words.pop(0)
+        if word == "-C":
+            if not words:
+                return False
+            path = os.path.expanduser(words.pop(0))
+            target = os.path.abspath(os.path.join(target, path))
+        elif word.startswith("-C"):
+            target = os.path.abspath(os.path.join(target, os.path.expanduser(word[2:])))
+        elif word.startswith("-"):
+            return False
+        else:
+            return is_config_repo(target)
+    return False
 
 
 def deny(reason: str) -> int:
@@ -210,7 +245,7 @@ def main() -> int:
         allow_main = os.environ.get("CLAUDE_ALLOW_MAIN_COMMIT") == "1" or bool(
             re.search(r"\bCLAUDE_ALLOW_MAIN_COMMIT=1\b", masked)
         )
-        if not allow_main and not is_config_repo(cwd):
+        if not allow_main and not config_command(command, cwd):
             branch = current_branch(cwd)
             target = re.search(r"(?:^|\s|:)(main|master)\b", seg)
             if branch in DEFAULT_BRANCHES or (is_push and target):

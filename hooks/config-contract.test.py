@@ -70,6 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("automatic-config-repair-lifecycle", "Every task session receives scoped repair authority; startup reports unfinished work without committing, merging or discarding it."),
     ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
     ("session-performance-and-capacity",
      "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
@@ -1366,6 +1367,72 @@ def check_commits_conventional_subject_enforced() -> None:
                   f"commit-msg {'rejected' if want_ok else 'accepted'} {subject!r}. "
                   + ("A false rejection pushes you to --no-verify, which also skips the secret "
                      "gate." if want_ok else "This is the shape the hook exists to stop."))
+
+
+def check_automatic_config_repair_lifecycle() -> None:
+    """A clean start still queues repair; reporting never mutates owned or foreign work."""
+    hook = ROOT / 'hooks/config-status.sh'
+    with tempfile.TemporaryDirectory() as tmp:
+        home = Path(tmp)
+        repo = home / '.claude'
+        repo.mkdir()
+        env = {**os.environ, 'HOME': str(home)}
+        def git(*args):
+            result = subprocess.run(['git', '-C', str(repo), *args], env=env,
+                                    text=True, capture_output=True, timeout=10)
+            assert result.returncode == 0, result.stderr
+            return result.stdout.strip()
+        def context():
+            result = subprocess.run(['bash', str(hook)], env=env, capture_output=True,
+                                    text=True, timeout=10)
+            check(result.returncode == 0, 'SessionStart repair hook failed: ' + result.stderr)
+            output = result.stdout.strip()
+            if output.startswith('{'):
+                return json.loads(output)['hookSpecificOutput']['additionalContext']
+            return output
+        check(context() == '', 'A missing config repository produced a repair directive')
+        git('init', '-q', '-b', 'main')
+        git('config', 'user.name', 'Fixture')
+        git('config', 'user.email', 'fixture@example.invalid')
+        (repo / 'note.txt').write_text('base\n')
+        git('add', 'note.txt')
+        git('commit', '-q', '-F', '/dev/null', '--allow-empty-message')
+        git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+        (repo / '.git/.last-config-fetch').touch()
+        clean = context()
+        check('rules/self-healing-config.md' in clean and 'manual skill invocation' in clean,
+              'Clean sessions do not receive the automatic repair lifecycle')
+        check('OUT OF SYNC' not in clean, 'Clean config incorrectly reported dirty')
+        git('checkout', '-q', '-b', 'config-update/fixture')
+        (repo / 'note.txt').write_text('repair\n')
+        git('add', 'note.txt')
+        git('commit', '-q', '-F', '/dev/null', '--allow-empty-message')
+        git('checkout', '-q', 'main')
+        (repo / 'note.txt').write_text('unrelated WIP\n')
+        sentinel = repo / '.config-edit-authorized'
+        sentinel.touch()
+        before = git('status', '--porcelain'), git('show-ref'), (repo / 'note.txt').read_text()
+        pending = context()
+        check('config-update/fixture' in pending and 'owner' in pending,
+              'Pending repair lacks ownership reconciliation')
+        check('OUT OF SYNC' in pending, 'Dirty config not reported')
+        check(sentinel.exists(), 'SessionStart cleared live edit authorization')
+        check(before == (git('status', '--porcelain'), git('show-ref'), (repo / 'note.txt').read_text()),
+              'SessionStart mutated work or refs instead of reporting')
+        old = time.time() - 300
+        os.utime(sentinel, (old, old))
+        context()
+        check(not sentinel.exists(), 'Stale edit authorization survived SessionStart')
+    policy = (ROOT / 'rules/self-healing-config.md').read_text()
+    check('Standing authorization' in policy and 'Do not ask again' in policy,
+          'Repair policy lost scoped standing authorization')
+    for relative in ('rules/config-repo.md', 'references/parallelization.md',
+                     'skills/sk/skills/claude-config-update/SKILL.md',
+                     'skills/sk/skills/claude-config-sync/SKILL.md'):
+        content = (ROOT / relative).read_text().lower()
+        for stale in ('never auto-applies', 'auto-analyse, never auto-optimize',
+                      'offer to commit + push', 'still preview and confirm as normal'):
+            check(stale not in content, relative + ' restored obsolete repair gate: ' + stale)
 
 
 def check_node24_shell_runtime():
