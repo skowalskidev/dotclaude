@@ -293,13 +293,13 @@ SCENARIOS: list[dict] = [
     {"phrase": "message someone when work is done", "expect": "setup-connectors"},
     {"phrase": "send a Slack completion message", "expect": "setup-connectors"},
 
-    # --- Interactive before/after decision artifact --------------------------------
-    {"phrase": "make it selectable so I can pick and comment", "expect": "work-ask-reply-in-full-before-after-artifact"},
-    {"phrase": "give me an interactive before and after artifact", "expect": "work-ask-reply-in-full-before-after-artifact"},
+    # --- Read-only before/after design viewer --------------------------------
+    {"phrase": "show me the design options", "expect": "work-ask-reply-in-full-before-after-artifact"},
+    {"phrase": "give me a before and after design viewer", "expect": "work-ask-reply-in-full-before-after-artifact"},
 
     # --- Terse, decision-only reply mode -------------------------------------------
     # A response-format toggle: bare-metal answers, only what needs his decision or attention, until
-    # told otherwise. Distinct from the before/after artifact above (that BUILDS a selectable artifact
+    # told otherwise. Distinct from the before/after artifact above (that BUILDS a read-only design viewer
     # to explain a confusing reply; this just makes the prose terse).
     {"phrase": "reply in tldr from now on", "expect": "work-ask-reply-tldr"},
     {"phrase": "just the answer, no paragraphs", "expect": "work-ask-reply-tldr"},

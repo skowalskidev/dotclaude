@@ -90,7 +90,7 @@ CRITERIA: list[tuple[str, str]] = [
      "The shared dashboard initializes one task record, rejects false completion and lost updates, "
      "exports portable evidence, and stops only its receipt-verified viewer."),
     ("mockup-shell-preserves-reviewed-deep-links",
-     "The mockup shell routes direct links to validated versions, variants, personas and states; What’s new selects the declared target and flashes its exact element."),
+     "The mockup shell validates version, variant, persona and state routes; optional highlights use the selected state and start off."),
     # --- Structure: the shape config-repo.md promises ---------------------------------
     ("structure-claude-md-is-an-index",
      "CLAUDE.md stays a thin index. It loads in full on every session in every project, so length "
@@ -1348,14 +1348,23 @@ def check_mockup_shell_preserves_reviewed_deep_links() -> None:
     shell = ROOT / "bin" / "mockup-shell.html"
     check(shell.is_file(), "Missing mockup shell runtime")
     source = shell.read_text()
-    required = (
-        "readShellRoute", "stateExists", "applyShellRoute", "new URLSearchParams(location.hash.replace",
-        "function goToWhatsNew()", "version.whatsNewVariantId", "version.whatsNewStateId",
-        "stateExists(targetVariant, version.whatsNewStateId)", "currentFlashSelector()",
-        "currentState && currentState.flashSelector", "def.flashSelector",
-    )
-    check(all(token in source for token in required),
-          "Mockup shell deep-link/What’s-new contract is incomplete")
+    required = ("readShellRoute", "stateExists", "applyShellRoute", "new URLSearchParams(location.hash.replace",
+                "currentFlashSelector", "currentState && currentState.flashSelector", "def.flashSelector",
+                "presentation-highlight", "dashboard-mockup-route")
+    check(all(token in source for token in required), "Mockup route/highlight contract is incomplete")
+    check(all(token not in source for token in ("function deepDiff", "function renderDiff", 'id="history-diff"')),
+          "Design history exposes implementation field-diff controls")
+    shared = (ROOT / "bin" / "presentation-shell.html").read_text()
+    check("connect-src 'none'" in shared and "setCollapsed" in shared and "setTheme" in shared,
+          "Shared frame lost offline policy, sidebar or theme behavior")
+    check(all(token not in shared for token in ('id="copy-spec"', 'id="save-html"', '<textarea')),
+          "Shared design viewer exposes implementation or export controls")
+    decision = (ROOT / "bin" / "decision-artifact.html").read_text()
+    check(all(token not in decision for token in ("<input", "<textarea", "generate-response", "copy-response", "data-count", "data-select-all")),
+          "Read-only design cards restored response, choice or feedback controls")
+    for adapter in ("mockup-build.py", "design-board.py", "decision-artifact.py"):
+        check("compose(" in (ROOT / "bin" / adapter).read_text(), f"{adapter} bypasses the shared frame")
+
 
 
 # The coverage ratchet: a criterion with no check, or a check with no criterion, is a bug.

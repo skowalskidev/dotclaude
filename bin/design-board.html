@@ -1,49 +1,19 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title><!--TITLE--></title>
-<style>
-/*FONT_FACE*/
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:#eef1f5;font-family:BoardFont,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1f1e1d;-webkit-font-smoothing:antialiased}
-#viewport{position:fixed;inset:0;cursor:grab;overflow:hidden}#viewport.drag{cursor:grabbing}
-#canvas{position:absolute;left:0;top:0;transform-origin:0 0;width:max-content;padding:72px}
-.title{margin:0 0 28px;max-width:1800px}.title h1{font-size:34px;font-weight:700;letter-spacing:-.02em}.title p{color:#6b6a68;font-size:15px;margin-top:6px}
-.board{background:#fff;border:1px solid #dfe3e8;border-radius:18px;padding:36px 40px 40px;margin-bottom:40px;width:max-content;max-width:1824px}
-.board h2{font-size:26px;font-weight:700;letter-spacing:-.015em}.slead{color:#6b6a68;font-size:15px;margin:6px 0 26px;max-width:1700px}
-.row{display:flex;gap:56px;row-gap:44px;align-items:flex-start;flex-wrap:wrap}
-.frame{width:/*PHONE_W*/px}.flabel{font-size:12px;font-weight:700;letter-spacing:.06em;color:#6b6a68}.ftitle{font-size:16px;font-weight:700;margin:4px 0 2px}.fhyp{font-size:13px;color:#6b6a68;min-height:36px;margin-bottom:14px;line-height:1.35}.fnote{font-size:11px;color:#8a8a94;margin-top:12px}
-.pick{display:inline-block;margin-left:8px;background:#008236;color:#fff;border-radius:999px;padding:2px 9px;font-size:11px;font-weight:600;letter-spacing:0;vertical-align:1px}
-.frame.picked .screen{box-shadow:0 0 0 3px #008236,0 12px 40px rgba(12,10,9,.14)}
-.screen{position:relative;width:/*PHONE_W*/px;height:/*PHONE_H*/px;background:#fff;border-radius:44px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.08),0 12px 40px rgba(12,10,9,.14);display:flex;flex-direction:column}
-.screen.night{background:#0c0a09;color:#fff}
-.screen.image img{width:100%;height:100%;object-fit:cover;display:block}
-#bar{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:flex;gap:4px;background:#fff;border:1px solid #dfe3e8;border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:10;font-size:13px}
-#bar button{border:0;background:transparent;font:inherit;padding:6px 10px;border-radius:8px;cursor:pointer;color:#1f1e1d}#bar button:hover{background:#f3f4f6}#bar .pct{min-width:52px;text-align:center;padding:6px 4px;color:#6b6a68}
-#hint{position:fixed;left:22px;bottom:22px;font-size:12px;color:#6b6a68;z-index:10}
-/*PROJECT_CSS*/
-</style></head><body>
-<div id="viewport"><div id="canvas">
-<div class="title"><h1><!--TITLE--></h1><p><!--LEAD--></p></div>
-<!--SECTIONS-->
-</div></div>
-<div id="bar"><button id="zout">−</button><span class="pct" id="pct">100%</span><button id="zin">+</button><button id="fit">Fit</button><button id="one">100%</button></div>
-<div id="hint">Drag to pan · ⌘/ctrl + scroll or pinch to zoom · 0 = fit · 1 = 100%</div>
-<!--SPEC-->
-<script>
-const vp=document.getElementById('viewport'),cv=document.getElementById('canvas');
-let s=1,tx=0,ty=0,drag=null;
-function apply(){cv.style.transform=`translate(${tx}px,${ty}px) scale(${s})`;document.getElementById('pct').textContent=Math.round(s*100)+'%'}
-function fit(){const w=cv.scrollWidth,h=cv.scrollHeight;s=Math.min((innerWidth-40)/w,(innerHeight-80)/h,1.2);tx=(innerWidth-w*s)/2;ty=20;apply()}
+/* Board adapter: capture CSS and fonts are confined to each screen document. */
+#mock-stage.board-stage{padding:0;overflow:hidden;cursor:grab}#mock-stage.board-stage.drag{cursor:grabbing}#canvas{position:absolute;left:0;top:0;transform-origin:0 0;width:max-content;padding:40px}.board{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:36px 40px 40px;margin-bottom:40px;width:max-content;max-width:1824px}.board h2{font-size:22px;line-height:28px;font-weight:700;letter-spacing:-.015em}.slead{color:var(--ink-2);font-size:14px;margin:6px 0 26px;max-width:1700px}.row{display:flex;gap:56px;row-gap:44px;align-items:flex-start;flex-wrap:wrap}.board-frame{width:/*PHONE_W*/px}.flabel{font-size:12px;font-weight:600;letter-spacing:.06em;color:var(--ink-2)}.ftitle{font-size:16px;font-weight:600;margin:4px 0 2px}.fhyp{font-size:13px;color:var(--ink-2);min-height:36px;margin-bottom:14px;line-height:1.4}.fnote{font-size:11px;color:var(--ink-2);margin-top:12px}.pick{display:inline-block;margin-left:8px;background:var(--ok);color:var(--surface);border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}.screen{position:relative;width:/*PHONE_W*/px;height:/*PHONE_H*/px;background:#fff;border-radius:44px;overflow:hidden;box-shadow:var(--shadow-frame);color-scheme:light}.screen iframe{display:block;width:100%;height:100%;border:0;background:#fff;color-scheme:light}.board-frame.picked .screen{outline:3px solid var(--ok);outline-offset:2px}.zoom-controls{display:flex;gap:4px;flex-wrap:wrap;align-items:center}.zoom-controls .pct{font-size:12px;min-width:40px}.board-export-title{display:none}.board-flat .board-export-title{display:block;font-size:22px;line-height:28px;font-weight:700;margin:0 0 24px}.board-flat #presentation-app{display:block;height:auto;overflow:visible}.board-flat #mock-stage{position:static;overflow:visible}.board-flat #canvas{position:static;transform:none!important}.board-flat #mock-rail,.board-flat #open-controls{display:none!important}
+<!--ADAPTER_SCRIPT-->
+(()=>{
+const vp=Frame.stage,cv=document.getElementById('canvas');vp.classList.add('board-stage');
+let s=1,tx=0,ty=0,drag=null,flat=false;
+Frame.rail.innerHTML='<section class="control-section"><h2>Sections</h2>'+SPEC.sections.map((section,i)=>'<button class="row" data-section="'+i+'">'+Frame.escape(section.title)+' · '+section.frames.filter(f=>!f.hidden).length+'</button>').join('')+'</section><section class="control-section"><h2>Zoom</h2><div class="zoom-controls"><button id="zout" aria-label="Zoom out">−</button><span class="pct" id="pct">100%</span><button id="zin" aria-label="Zoom in">+</button><button id="fit">Fit</button><button id="one">100%</button></div></section>';
+function apply(){if(flat)return;cv.style.transform=`translate(${tx}px,${ty}px) scale(${s})`;document.getElementById('pct').textContent=Math.round(s*100)+'%'}
+function fit(){if(flat)return;const w=cv.scrollWidth,h=cv.scrollHeight;s=Math.min((vp.clientWidth-40)/w,(vp.clientHeight-40)/h,1);tx=(vp.clientWidth-w*s)/2;ty=20;apply()}
 function zoomAt(f,x,y){const ns=Math.min(3,Math.max(.1,s*f));tx=x-(x-tx)*ns/s;ty=y-(y-ty)*ns/s;s=ns;apply()}
-vp.addEventListener('wheel',e=>{e.preventDefault();if(e.ctrlKey||e.metaKey){zoomAt(Math.exp(-e.deltaY*0.01),e.clientX,e.clientY)}else{tx-=e.deltaX;ty-=e.deltaY;apply()}},{passive:false});
-vp.addEventListener('pointerdown',e=>{if(e.target.closest('#bar'))return;drag={x:e.clientX,y:e.clientY,tx,ty};vp.classList.add('drag');vp.setPointerCapture(e.pointerId)});
-vp.addEventListener('pointermove',e=>{if(!drag)return;tx=drag.tx+e.clientX-drag.x;ty=drag.ty+e.clientY-drag.y;apply()});
-vp.addEventListener('pointerup',()=>{drag=null;vp.classList.remove('drag')});
-document.getElementById('zin').onclick=()=>zoomAt(1.25,innerWidth/2,innerHeight/2);
-document.getElementById('zout').onclick=()=>zoomAt(.8,innerWidth/2,innerHeight/2);
-document.getElementById('fit').onclick=fit;document.getElementById('one').onclick=()=>{s=1;tx=40;ty=20;apply()};
-addEventListener('keydown',e=>{if(e.key==='0')fit();if(e.key==='1'){s=1;apply()}});
-document.fonts.ready.then(fit);setTimeout(fit,300);
-// Measurement hook for the capture loop: overflow past the phone bottom, and one-line cells that wrapped.
-window.__measure=function(){const out=[];document.querySelectorAll('.screen[data-frame]').forEach(sc=>{const r=sc.getBoundingClientRect();let deepest=r.top;sc.querySelectorAll('*').forEach(el=>{const b=el.getBoundingClientRect();if(b.height>0)deepest=Math.max(deepest,b.bottom)});const wrapped=[...sc.querySelectorAll('[data-oneline]')].filter(el=>{const lh=parseFloat(getComputedStyle(el).lineHeight)||18;return el.getBoundingClientRect().height/s>lh*1.5}).map(el=>el.textContent.trim().slice(0,40));out.push({id:sc.dataset.frame,overflow:Math.max(0,Math.round((deepest-r.bottom)/s)),wrapped})});return out};
-// Flatten for a full-page capture: window.__flatten() then screenshot fullPage.
-window.__flatten=function(){vp.style.position='static';vp.style.overflow='visible';document.documentElement.style.overflow='visible';document.body.style.overflow='visible';document.body.style.height='auto';document.documentElement.style.height='auto';cv.style.position='static';cv.style.transform='none';s=1;document.getElementById('bar').style.display='none';document.getElementById('hint').style.display='none';return [...document.querySelectorAll('.screen[data-frame]')].map(el=>{const r=el.getBoundingClientRect();return {id:el.dataset.frame,x:Math.round(r.left+scrollX),y:Math.round(r.top+scrollY),w:Math.round(r.width),h:Math.round(r.height)}})};
-</script></body></html>
+vp.addEventListener('wheel',e=>{if(flat)return;e.preventDefault();const r=vp.getBoundingClientRect();if(e.ctrlKey||e.metaKey)zoomAt(Math.exp(-e.deltaY*.01),e.clientX-r.left,e.clientY-r.top);else{tx-=e.deltaX;ty-=e.deltaY;apply()}},{passive:false});
+vp.addEventListener('pointerdown',e=>{if(flat||e.target.closest('button,input,textarea'))return;drag={x:e.clientX,y:e.clientY,tx,ty};vp.classList.add('drag');vp.setPointerCapture(e.pointerId)});vp.addEventListener('pointermove',e=>{if(!drag)return;tx=drag.tx+e.clientX-drag.x;ty=drag.ty+e.clientY-drag.y;apply()});for(const event of ['pointerup','pointercancel'])vp.addEventListener(event,()=>{drag=null;vp.classList.remove('drag')});
+document.getElementById('zin').onclick=()=>zoomAt(1.25,vp.clientWidth/2,vp.clientHeight/2);document.getElementById('zout').onclick=()=>zoomAt(.8,vp.clientWidth/2,vp.clientHeight/2);document.getElementById('fit').onclick=fit;document.getElementById('one').onclick=()=>{s=1;tx=40;ty=20;apply()};Frame.rail.querySelectorAll('[data-section]').forEach(b=>b.onclick=()=>{const section=cv.querySelectorAll('.board')[Number(b.dataset.section)];tx=20-section.offsetLeft*s;ty=20-section.offsetTop*s;apply()});
+Frame.configure({resize:fit,key(e){if(e.key==='0')fit();if(e.key==='1')document.getElementById('one').click();if(e.key==='=')document.getElementById('zin').click();if(e.key==='-')document.getElementById('zout').click()}});
+// Public measurement hooks retain capture-loop semantics with isolated screen documents.
+window.__measure=function(){return [...document.querySelectorAll('.screen[data-frame]')].map(sc=>{const doc=sc.querySelector('iframe').contentDocument;let deepest=0;const cut=[];for(const el of doc.querySelectorAll('body *')){const r=el.getBoundingClientRect();if(r.height>0)deepest=Math.max(deepest,r.bottom);const style=doc.defaultView.getComputedStyle(el);if(['hidden','clip'].includes(style.overflowY)&&el.scrollHeight>el.clientHeight+1)cut.push(el.tagName)}const wrapped=[...doc.querySelectorAll('[data-oneline]')].filter(el=>el.getBoundingClientRect().height>(parseFloat(doc.defaultView.getComputedStyle(el).lineHeight)||18)*1.5).map(el=>el.textContent.trim().slice(0,40));return {id:sc.dataset.frame,overflow:Math.max(0,Math.round(deepest-sc.clientHeight)),wrapped,cut}})};
+window.__flatten=function(){flat=true;s=1;document.documentElement.classList.add('board-flat');document.documentElement.style.height='auto';document.body.style.height='auto';document.documentElement.style.overflow='visible';document.body.style.overflow='visible';return [...document.querySelectorAll('.screen[data-frame]')].map(el=>{const r=el.getBoundingClientRect();return {id:el.dataset.frame,x:Math.round(r.left+scrollX),y:Math.round(r.top+scrollY),w:Math.round(r.width),h:Math.round(r.height)}})};
+document.fonts.ready.then(fit);for(const iframe of cv.querySelectorAll('iframe'))iframe.addEventListener('load',fit);fit();
+})();

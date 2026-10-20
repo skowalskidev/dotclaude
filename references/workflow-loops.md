@@ -195,19 +195,27 @@ TEST: an earlier revision's judge verdict cannot mark the changed section done.
 
 DO retain existing mockup data islands and all their versions, variants, comments, pins and picks.
 Use a `kind=html` asset to inline the surface's canonical self-contained mockup into its target panel.
-Let that embedded document own its specialist editing controls; the shared shell owns task navigation.
-Keep its grid, focus/filmstrip, persona and variant selectors, version HUD, 3-up comparison, field diff,
-picks, pins, verdicts and hand-back controls. Render captures at their recorded desktop viewport and
-scale them to fit; Open mockup exposes the full interactive surface. Never force a desktop capture
-into a narrow mobile layout.
+Let that embedded document own its design-viewing controls; the dashboard owns task navigation.
+Use its Before/After preview, current-only two-pane comparison, exact device sizes and separate visual History.
+Keep JSON field differences and response/approval tools outside the design viewer.
+Preserve prior picks, pins, comments and metadata in `#spec` for extraction. Render captures at their
+recorded viewport and fit both axes; Open mockup exposes the standalone artifact.
 New task overviews use this shell, not a second bespoke gallery. Reuse an existing canonical entry
-path when connecting an ongoing surface. TEST: opening an old version still shows its original picks.
+path when connecting an ongoing surface. TEST: extracting an old version still returns its original picks.
 
 DO build every preview/mockup asset through a standard shell, never a hand-rolled self-contained
 HTML: the decision form, one surface before/after, through
 `python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>` (inlines the `#spec` into
-`~/.claude/bin/mockup-shell.html`); the exploration form, many variants side by side, through
-`python3 ~/.claude/bin/design-board.py build <spec.json> <out.html>` (§ Shareable design board). The shell owns
+`~/.claude/bin/mockup-shell.html` adapter); the exploration form, many variants side by side, through
+`python3 ~/.claude/bin/design-board.py build <spec.json> <out.html>` (§ Shareable design board); explicit
+read-only design/options cards through `python3 ~/.claude/bin/decision-artifact.py build <spec.json> <out.html>`.
+All three adapters mechanically compose `bin/presentation-shell.html` through `bin/presentation_build.py`.
+That frame owns structural markup, shell-only typography, System/Light/Dark theme, sidebar behavior,
+offline policy and viewing controls. The builders retain full-spec CLI extraction; the visible artifacts
+contain no response forms, choice/include inputs, comments or spec/export controls. Decisions belong in
+chat. The adapters retain their existing spec formats and isolate product
+content. No artifact hand-rolls frame markup, and the task dashboard remains its own navigation surface.
+The shell owns
 fit-to-viewport scaling, so a mockup built through it is uniform and full-width; a hand-rolled fixed-
 width iframe renders clipped, with a dead side gutter, and every surface looks different. When the build
 is fanned out to a subagent, the orchestrator's brief passes the shell path and says "author a
@@ -265,8 +273,8 @@ TEST: a generated target without explicit approval of its current revision canno
 
 DO keep later design changes in a new target revision with pending approval. Previous approval stays
 in the surface's version history; ask for approval only when the target changes, not on each build fix.
-Use the existing mockup feedback/pick loop for design approval. A dashboard comment is proposed feedback;
-only the user's explicit approval (in chat or an exported approve verdict the agent reads) freezes it.
+Discuss the design and receive approval in chat. The artifact only displays the designs;
+only the user's explicit approval in chat freezes the target revision.
 
 ## Build from a supplied design source: 1:1 on the first build
 

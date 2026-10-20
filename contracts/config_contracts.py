@@ -249,21 +249,42 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Render entirely from the spec: title, lead, sections, frames with label, title, hypothesis, note, pick, hidden, night, and either inner html or an image; no project strings in bin/design-board.html.",
             "Expose window.__measure() returning per-frame overflow past the phone bottom and the data-oneline cells that wrapped, and window.__flatten() returning each frame's page box for a full-page capture.",
-            "Round-trip: extract returns the spec that built the board, minus the embedded font bytes; the output opens from file:// with no external request.",
+            "Round-trip: extract returns the spec that built the board, with local font/image assets embedded and original references retained as metadata; the output opens from file:// with no external request.",
             "check <board.html> <outdir> runs bin/visual-check.py over fit, 100% and flattened states at 1440x900, expects the title and every shown frame title, and fails a blank or cut phone frame in the flattened state.",
             "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip, check passes the example and fails a blank and a cut frame (skipped without Node Playwright).",
         ],
     },
-    "bin/mockup-build.py": {
-        "mission": "Simon opens any mockup and sees the design itself first, in one familiar shell that never shifts between rounds.",
-        "purpose": "Builds every /sk:ship-mockup-before-after deliverable by inlining a spec.json into the generic bin/mockup-shell.html, and extracts the spec back out.",
+    "bin/presentation_build.py": {
+        "mission": "Simon sees one quiet, familiar frame around every presentation artifact.",
+        "purpose": "Composes adapters into presentation-shell.html, the owner of structural markup, typography, theme and viewing controls.",
         "criteria": [
-            "Load bin/mockup-shell.html, which renders entirely from the embedded #spec JSON and carries no project-specific strings.",
-            "Fill the viewport with the active variant on open, fitting by the smaller of the width and height ratios, re-fitting whenever the stage resizes (host iframe, rail collapse) and never clipping (stage scrolls as the fallback); keep every control in one collapsible right rail whose Variants list shows exactly one Before (role: before), then the current after-variants, with superseded rounds (superseded: true or a legacy 'Before — superseded' label) under a collapsed Earlier rounds disclosure that arrow keys skip; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
-            "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
-            "Tear down the outgoing mount on every variant, persona, version, view, state-walk or presentation switch and open the target at its default state (a state walk mounts a fresh document at that state) with exactly one iframe and exactly one highlighted active state row; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
-            "Fit every Compare frame by both axes (min of width and height ratios, never upscaled past 1) into a host sized to the scaled frame plus its border, re-fit on stage resize, so a phone-sized capture is never cropped; bin/mockup-shell.test.py asserts the iframe sits inside its host and the host inside the stage.",
-            "Route validated version, variant, persona and state fragments on load and history navigation; What’s new selects the declared variant/state target with a fallback and flashes that state’s selector, while reduced motion leaves a static marker.",
+            "Mockup, board and decision builders mechanically compose the frame; adapters never duplicate its markup or behavior.",
+            "Keep shell tokens independent of product tokens, isolate captured pixels, and support System/Light/Dark without remounting content.",
+            "Collapse and reopen controls immediately without remounting; expose a labelled keyboard-accessible button; narrow sidebars never overflow horizontally.",
+            "Keep one full #spec data island and offline CSP. Expose only viewing controls; no response, feedback, choice/include forms, copy/spec or export UI. Builders retain lossless CLI extraction.",
+            "Substitute template slots in one pass and escape embedded script terminators; preserve full metadata and deterministic output.",
+        ],
+    },
+    "bin/decision-artifact.py": {
+        "mission": "Simon sees design options clearly and discusses his decision in chat.",
+        "purpose": "Builds and extracts read-only design/options cards in the shared presentation frame.",
+        "criteria": [
+            "Render headings, explanations, real before/after previews, verdicts and section navigation; keep all decisions and feedback in chat.",
+            "Require no control schema for new specs. Preserve legacy control/runtime/comments metadata unchanged and inert for deterministic CLI extraction/rebuild.",
+            "Expose no response generation, copy/submit, comment fields, radio/checkbox choices, select-all, kept/dropped counts or export controls on desktop or phone.",
+        ],
+    },
+    "bin/mockup-build.py": {
+        "mission": "Simon sees the current design first and compares it with its actual baseline.",
+        "purpose": "Composes mockup-shell.html into the shared presentation frame, retaining the existing complete spec.",
+        "criteria": [
+            "Build and --extract roundtrip byte-identically, preserve source metadata and resolve @@ASSET:id@@ captures offline.",
+            "Show Before/After with Single or Side by side; Compare is exactly current Before and the selected current After. History labels older design rounds; implementation field-diff UI is absent while metadata stays intact.",
+            "Highlights default off; toggling off removes all shell highlights immediately without timers, dimming or capture remounts.",
+            "Validate recorded device dimensions; deduplicate only equal dimensions and all identical capture content, preserving meaningful web/native contexts and missing-capture states.",
+            "Tear down content switches and state walks, notify outgoing captures with mockup:cleanup, reset incompatible state and preserve a valid state across device switches. Remove body-level escaped overlays.",
+            "Fit captures by both axes without upscaling; stage and browser resize refit existing frames; sidebar, theme and highlight changes never remount.",
+            "Validate portable version/variant/persona/state routes and dashboard message routes; stale values fall back safely. Earlier versions never become current merely through navigation.",
         ],
     },
     "bin/visual-check.py": {
@@ -1472,13 +1493,8 @@ CONTRACTS: dict[str, dict] = {
             "Cites the validated plan part behind every visible difference and refutes in comments "
             "anything that changed after validation. Unsourced difference is invented scope, and "
             "this is the cheapest moment to catch it.",
-            "Offers a variant gallery whose picks and per-variant keep/change comments use the "
-            "response contract from /sk:work-ask-reply-in-full-before-after-artifact, held in the "
-            "shell rail's Feedback section so it never covers the mockup.",
-            "Builds every mockup file through bin/mockup-build.py and bin/mockup-shell.html (mockup "
-            "fills the viewport on open, one collapsible rail, presentation mode, hint bar, no grid "
-            "landing page or intro modal); the file stays at or under 12 MB with 0 external requests "
-            "and round-trips through --extract byte-identically.",
+            "Uses decision-artifact.py for read-only design/options cards; selections and comments belong in chat, while embedded metadata retains prior feedback unchanged.",
+            "Builds every mockup through mockup-build.py and the shared presentation frame: current Before/After comparison, separate History, optional highlights, exact dimensions, full-spec roundtrip, no bespoke chrome or external requests.",
             "Ships as a self-contained HTML FILE for a collaborative/versioned/multi-screenshot "
             "round-trip, or a Claude artifact URL only when small and un-gated — the artifact's size "
             "ceiling, blocked localStorage and Team-can't-publish-publicly limits pick the medium.",
@@ -1486,24 +1502,17 @@ CONTRACTS: dict[str, dict] = {
             "mockup inlined as srcdoc, never iframed from sibling paths — so a recipient sees rendered "
             "tiles, not blank ones with the server off.",
             "Keeps all state in an embedded <script id=spec type=application/json> data island and "
-            "renders the UI from it; nothing user-visible exists outside #spec, so a rebuild is "
+            "renders product content from it while shared frame controls remain template-owned, so a rebuild is "
             "re-render-from-data (loss-free), not re-describe.",
             "Compresses screenshots (WebP, downscaled, capped) so the document fits the output cap — "
-            "never a full-res PNG base64 — and never uses localStorage/sessionStorage (blocked in the "
-            "artifact sandbox); state is in-memory + #spec.",
-            "Uses left section navigation for the overview; retains grid, focus, filmstrip, version HUD and specialist comparison controls inside the embedded surface at its captured viewport.",
-            "Compares 3-up side-by-side and diffs two versions at the FIELD level (green added / "
-            "yellow modified / red removed) from #spec — what even raster tools cannot do on their "
-            "own content.",
-            "Lets a reviewer pin comments to element ids (survive reflow), resolve them, and set an "
-            "Approve/Request-changes verdict; flashes a change ONCE then holds a static marker, "
-            "respecting prefers-reduced-motion.",
-            "The copy-paste hand-off block IS the complete build spec: the verbatim #spec in an XML "
-            "frame (task/spec/build/invariants/selfcheck) that forbids elisions and re-embeds #spec "
-            "verbatim, so another Claude rebuilds with nothing dropped.",
+            "never a full-res PNG base64 — and retains existing metadata in #spec; only frame preferences use best-effort localStorage, with an in-memory fallback.",
+            "Keeps task navigation in the dashboard and artifact controls in the shared presentation frame; captured product pixels retain their own viewport and styling.",
+            "Compares only current Before and selected current After; History opens earlier designs alone; field-diff metadata remains hidden and available through CLI extraction.",
+            "Highlights default off and remove immediately; existing comments, pins and verdicts remain intact in the data island without a generic Feedback panel.",
+            "Keep feedback and approval in chat; agents use CLI extract/build to update the complete spec without response, handoff or implementation controls in the viewer.",
             "Keeps every version inside #spec as attributed history (v1 author, v2 recipient), "
-            "switchable from the HUD; a recipient's Claude edits the file or regenerates from the "
-            "block into a new attributed version, and never flattens an old one.",
+            "reachable through History; a recipient's Claude rebuilds the extracted spec into a new "
+            "attributed version, and never flattens an old one.",
             "One mockup FILE per surface, forever: a new idea, a section redesign, or another "
             "version of X lands in that one file as a switchable variant/version across its axes (a "
             "persona/data axis and a per-section design-variant axis swapped in context via nested "
@@ -1681,19 +1690,13 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md": {
-        "mission": "Simon acts on a reply he did not understand: he reads it, picks from it, comments, and hands his exact choices back with no ambiguity.",
-        "purpose": "Answer a confusing or multi-option reply as an interactive before/after decision artifact Simon selects and comments on.",
+        "mission": "Simon understands the designs and makes his decision in chat.",
+        "purpose": "Explain confusing replies and design options through a read-only before/after viewer.",
         "criteria": [
-            "Builds an artifact (visual craft applied directly, no separate design skill) with explainer + before/after + verdict cards grouped into sections, not chat prose.",
-            "Every card and every section is selectable and carries a comment field.",
-            "A card about anything a user sees carries real screenshots of each state at desktop and "
-            "mobile (390 wide), labelled with state and width, a not-built state captured from the app "
-            "and labelled Preview; other cards say so.",
-            "Renders a pick-one choice as RADIO buttons (one pre-selected) and an apply/include edit as "
-            "a CHECKBOX defaulting to CHECKED (opt-out); the two controls never look the same.",
-            "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",
-            "Holds every input (radios and textareas) in in-memory JS state — never localStorage/sessionStorage, blocked in the artifact sandbox — and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
-            "A submit-to-chat button appears only when the runtime is known to support a post-back (a claude.ai artifact; a Claude Code terminal HTML file has none); the copy-paste block always stands alone.",
+            "Build through decision-artifact.py and the shared frame, with explanations, before/after previews and verdict cards in sections.",
+            "Show real desktop/mobile captures for user-visible changes, label not-built captures Preview and identify cards with no visible surface.",
+            "Keep decisions, comments and answers in chat; no response, choice/include, feedback or export controls in any viewer.",
+            "Retain complete source and legacy runtime metadata inertly for CLI extraction and deterministic rebuilding; new specs need no control schema.",
         ],
     },
     "skills/sk/skills/work-ask-reply-tldr/SKILL.md": {

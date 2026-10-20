@@ -1,642 +1,192 @@
 #!/usr/bin/env python3
-"""Regression test: a variant switch is a full teardown in mockup-shell.html.
+"""Behavioral contracts for the shared frame and mockup/decision adapters.
 
-Reproduces the bug Simon hit — open an overlay (a modal, a bottom sheet, a
-kebab menu, a popover) in one variant, switch to another, and the overlay
-used to survive because the shell only cleared #mock-stage's innerHTML and
-never removed listeners/timers it had accumulated, and never remounted
-presentation mode or handled a capture escaping its own iframe.
-
-This builds mockup-synthetic-spec.json (which has a `modal` state on `alpha` and a
-`bottom_sheet` state on `beta`) through mockup-build.py into a throwaway
-file://-openable HTML, drives it with Playwright, and asserts:
-  1. Opening alpha's modal, then switching to beta, leaves 0 overlay traces
-     from alpha and beta mounts at its own DEFAULT state (not `bottom_sheet`).
-  2. Opening beta's bottom sheet, then switching back to alpha, leaves 0
-     overlay traces from beta and alpha mounts at its own DEFAULT state.
-  3. Exactly one <iframe> ever lives in #mock-stage at a time in focus view
-     (never two stacked from a torn-down + newly-mounted variant).
-  4. The same clean teardown holds across entering AND exiting presentation
-     mode with an overlay open.
-  5. Walking states within ONE variant (a rail click, e.g. modal -> base) is
-     ALSO a full teardown+remount, not a live postMessage into the mounted
-     iframe — so a state's own overlay/bookkeeping can never leak into the
-     next state. Exactly one "Walk the states" row carries `is-active` at a
-     time, before and after every step.
-  6. Arrow keys are one continuous walk: ←/→ step STATES (carrying into the
-     next/previous variant at a variant's last/first state), ↑/↓ walk VARIANTS
-     and stop at the ends; each step a clean teardown+remount, and the HUD +
-     rail active-row track every keyboard step too.
-  7. A capture that reaches out and appends a node directly to the shell's
-     own <body> (escaping its iframe) gets removed by the shell's guard.
-  9. Compare view fits every frame by BOTH axes into its host (a phone-sized
-     capture is never cropped to its top half): the iframe's bottom and right
-     edges sit inside the host, the host sits inside the stage's visible area,
-     and a later stage resize re-fits the same hosts without a reload.
-  8. Reproduces the bug Simon hit embedding a built mockup in a wide-but-short
-     host frame (a modal iframe ~1900x1010, stage ~1600x940 next to the rail):
-     the focus iframe fits within the stage on both axes (never clipped, top-
-     aligned rather than centred), a later resize of the STAGE alone (no page
-     reload) re-fits the same mounted iframe via the ResizeObserver, resizing
-     back to a standalone-sized viewport reproduces the same fit a fresh load
-     would, and the mobile persona keeps its centred layout throughout.
-
-Usage:
-    python3 ~/.claude/bin/mockup-shell.test.py
-
-Exits 0 and prints "ALL PASSED" on success; exits 1 and prints the first
-failing assertion otherwise. No third-party dependency beyond `playwright`
-(pip install playwright; a Chromium build already cached under
-~/Library/Caches/ms-playwright is reused automatically if the version matches).
+Run after the edit batch converges and resource capacity is admitted. Requires
+Python Playwright/Chromium. No network or service credentials are used.
 """
+import copy
+import importlib.util
 import json
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-SHELL_DIR = Path(__file__).resolve().parent
-SPEC_PATH = SHELL_DIR / "mockup-synthetic-spec.json"
-BUILD_SCRIPT = SHELL_DIR / "mockup-build.py"
-
-FAILURES = []
+HERE = Path(__file__).resolve().parent
 
 
-def check(label, condition, detail=""):
-    status = "PASS" if condition else "FAIL"
-    print(f"[{status}] {label}" + (f" — {detail}" if detail and not condition else ""))
-    if not condition:
-        FAILURES.append(label)
-
-
-def overlay_signal(page):
-    """Count live iframes in the stage, and 'is-open' overlay nodes inside the
-    currently-focused iframe's own document."""
-    return page.evaluate(
-        """() => {
-            const iframes = document.querySelectorAll('#mock-stage iframe');
-            let openOverlays = 0;
-            let stateLabel = null;
-            const f = document.querySelector('#mock-stage iframe');
-            if (f) {
-                try {
-                    const doc = f.contentDocument;
-                    openOverlays = doc.querySelectorAll('.is-open').length;
-                    const lbl = doc.getElementById('state-label');
-                    stateLabel = lbl ? lbl.textContent : null;
-                } catch (e) { /* cross-origin, shouldn't happen for srcdoc */ }
-            }
-            return { iframeCount: iframes.length, openOverlays, stateLabel };
-        }"""
-    )
-
-
-def stage_fit_signal(page):
-    """Geometry + alignment + overflow-fallback state for the mounted focus iframe, plus a
-    marker attribute so a caller can tell whether a later resize remounted a NEW iframe
-    (a reload) or re-fit the SAME one (the ResizeObserver/resize-listener path)."""
-    return page.evaluate(
-        """() => {
-            const stage = document.getElementById('mock-stage');
-            const iframe = document.querySelector('#mock-stage iframe');
-            if (!iframe) return null;
-            const stageRect = stage.getBoundingClientRect();
-            const iframeRect = iframe.getBoundingClientRect();
-            const m = iframe.style.transform.match(/scale\\(([-0-9.eE]+)\\)/);
-            return {
-                stageW: stage.clientWidth, stageH: stage.clientHeight,
-                stageBottom: stageRect.bottom, iframeTop: iframeRect.top, iframeBottom: iframeRect.bottom,
-                scale: m ? parseFloat(m[1]) : null,
-                isCentered: stage.classList.contains('is-centered'),
-                overflow: getComputedStyle(stage).overflow,
-                marker: iframe.getAttribute('data-test-marker')
-            };
-        }"""
-    )
-
-
-def source_contract_checks():
-    """Keep the portable deep-link and exact What’s-new target contract durable."""
-    source = (SHELL_DIR / "mockup-shell.html").read_text()
-    check("shell URL route validates version, variant, persona and state",
-          all(token in source for token in ("readShellRoute", "stateExists", "applyShellRoute",
-                                             "new URLSearchParams(location.hash")))
-    check("What’s new uses the declared variant and state target",
-          "function goToWhatsNew()" in source
-          and "version.whatsNewVariantId" in source
-          and "version.whatsNewStateId" in source
-          and "stateExists(targetVariant, version.whatsNewStateId)" in source)
-    check("flash follows the selected state with variant fallback",
-          "currentFlashSelector()" in source
-          and "currentState && currentState.flashSelector" in source
-          and "def.flashSelector" in source)
+def load(name, path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def main():
-    source_contract_checks()
+    from playwright.sync_api import sync_playwright
+    from presentation_build import extract
+    fixture = json.loads((HERE / 'mockup-synthetic-spec.json').read_text())
+    fixture['designTokens']['fontFamily'] = '"system-ui"'
+    fixture['variants']['legacy']=copy.deepcopy(fixture['variants']['gamma'])
+    fixture['variants']['legacy']['label']='Before — superseded: An older proposal'
+    fixture['manifest']['variantIds'].append('legacy')
+    fixture['versions'][0]['variantIds'].append('legacy')
+    fixture['versions'][0]['variantLabelOverrides']['legacy']='Friendly earlier label'
+
+    fixture['variants']['beta']['flashSelector'] = '#state-label, h1'
+    for persona, capture in fixture['variants']['beta']['captures'].items():
+        fixture['variants']['beta']['captures'][persona]=capture.replace('State: base', 'State: undeclared-initial')
+    phone = next(p for p in fixture['personas'] if p['id'] == 'mobile')
+    phone['label']=f'Mobile {phone["w"]}×{phone["h"]}'
+    fixture['personas'].append({**phone, 'id': 'duplicate', 'label': 'Duplicate'})
+    fixture['personas'].append({**phone, 'id': 'native', 'label': 'Native'})
+    for variant in fixture['variants'].values():
+        variant['captures']['duplicate'] = variant['captures']['mobile']
+        variant['captures']['native'] = variant['captures']['mobile'].replace('</body>', '<p>Native content</p></body>')
     with tempfile.TemporaryDirectory() as tmp:
-        out_html = Path(tmp) / "shell-switch-test.html"
-        subprocess.run(
-            [sys.executable, str(BUILD_SCRIPT), str(SPEC_PATH), str(out_html)],
-            check=True,
-        )
+        path = Path(tmp)
+        source, built = path / 'spec.json', path / 'mockup.html'
+        source.write_text(json.dumps(fixture))
+        subprocess.run([sys.executable, str(HERE / 'mockup-build.py'), str(source), str(built)], check=True)
+        assert extract(built.read_text()) == fixture, 'exact spec roundtrip'
+        again = path / 'again.html'
+        back = path / 'back.json'; back.write_text(json.dumps(extract(built.read_text())))
+        subprocess.run([sys.executable, str(HERE / 'mockup-build.py'), str(back), str(again)], check=True)
+        assert built.read_bytes() == again.read_bytes(), 'deterministic roundtrip'
+        decision = load('decision', HERE / 'decision-artifact.py')
+        decision_spec=copy.deepcopy(decision.EXAMPLE)
+        decision_spec['sections'][0]['cards'][0]['control']={'type':'radio','group':'scope','default':True}
+        decision_spec['runtime']={'comments':{'small':'Preserve this prior note'},'included':{'docs':False}}
+        decision_path = path / 'decision.html'; decision_path.write_text(decision.build(decision_spec))
+        assert extract(decision_path.read_text())==decision_spec, 'legacy decision metadata roundtrips unchanged'
+        assert decision.build(extract(decision_path.read_text()))==decision_path.read_text(), 'decision rebuild is deterministic'
+        decision.build(decision.EXAMPLE)  # New read-only specs need no control schema.
 
-        try:
-            from playwright.sync_api import sync_playwright
-        except ImportError:
-            print("Python 'playwright' package not installed. Run:")
-            print("  python3 -m venv /tmp/pw-venv && /tmp/pw-venv/bin/pip install playwright==1.58.0")
-            print("  /tmp/pw-venv/bin/python " + str(Path(__file__).resolve()))
-            return 1
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            page = browser.new_page(viewport={'width': 1440, 'height': 900})
+            errors=[]; page.on('pageerror', lambda error: errors.append(str(error)))
+            page.goto(built.as_uri()); page.wait_for_timeout(150)
+            def active():
+                return page.locator('#mock-stage iframe').first
+            def state_label():
+                return active().content_frame.locator('#state-label').inner_text()
+            def fits():
+                return page.evaluate('''() => {const s=document.getElementById('mock-stage').getBoundingClientRect();return [...document.querySelectorAll('.mock-frame-wrap')].every(h=>{const r=h.getBoundingClientRect(),f=h.querySelector('iframe').getBoundingClientRect();return f.left>=s.left-.5&&f.top>=s.top-.5&&f.right<=s.right+.5&&f.bottom<=s.bottom+.5&&f.right<=r.right+.5&&f.bottom<=r.bottom+.5})}''')
+            assert 'system-ui' in page.locator('body').evaluate('(el)=>getComputedStyle(el).fontFamily')
+            assert page.locator('[data-pick-persona="duplicate"]').count()==0
+            assert page.locator('[data-pick-persona="native"]').count()==1
+            assert page.locator('[data-pick-persona="mobile"]').inner_text().count(f'{phone["w"]}×{phone["h"]}')==1
+            assert page.locator('#history-diff').count()==0, 'no implementation field-diff UI'
+            assert page.locator('[data-history-variant="legacy"]').count()==1, 'friendly override retains superseded base status'
+            assert page.locator('[data-pick-variant="legacy"]').count()==0, 'legacy round is absent from current variants'
 
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": 1200, "height": 800})
-            dialogs = []
-            page.on("dialog", lambda d: (dialogs.append(d.message), d.dismiss()))
-            page.goto(out_html.as_uri())
-            page.wait_for_timeout(300)
+            assert page.locator('#mock-highlight').get_attribute('aria-checked')=='false'
+            page.click('#show-before'); page.click('[data-goto-state="modal"]');page.wait_for_timeout(100)
+            assert 'modal' in state_label()
+            page.click('#show-after');page.wait_for_timeout(100)
+            assert state_label()=='State: base', 'overlay teardown on variant switch'
+            assert page.locator('#mock-stage iframe').count()==1
+            page.click('[data-goto-state="bottom_sheet"]');page.wait_for_timeout(100)
+            page.click('[data-pick-persona="mobile"]');page.wait_for_timeout(100)
+            assert 'bottom_sheet' in state_label(), 'device retains valid state'
+            assert active().evaluate('(el)=>el.clientWidth')==phone['w']
+            page.click('[data-goto-state="base"]');page.wait_for_timeout(100)
+            assert active().content_frame.locator('.is-open').count()==0, 'state teardown'
+            page.click('#mock-highlight');page.click('#mock-highlight');page.wait_for_timeout(1300)
+            assert active().content_frame.locator('html').get_attribute('class') in ('',None), 'highlight stays off after prior timer interval'
+            assert active().content_frame.locator('h1').evaluate('(el)=>getComputedStyle(el).outlineStyle')=='none', 'comma selector does not escape highlight class'
+            page.click('#mock-highlight');page.click('[data-goto-state="bottom_sheet"]');page.click('#mock-highlight');page.wait_for_timeout(150)
+            assert active().content_frame.locator('html.presentation-highlight').count()==0, 'load reads latest highlight state'
+            page.evaluate("document.querySelector('#mock-stage iframe').dataset.marker='kept'")
+            page.select_option('#frame-theme','dark');page.click('#mock-rail-toggle-btn');page.click('#open-controls')
+            assert active().get_attribute('data-marker')=='kept', 'theme and sidebar never remount'
+            assert active().evaluate('(el)=>getComputedStyle(el).colorScheme')=='light'
+            assert fits()
+            page.click('#mock-view-compare');page.wait_for_timeout(120)
+            assert page.locator('.mock-pane').evaluate_all('(els)=>els.map(e=>e.dataset.variant)')==['alpha','beta']
+            assert fits(), 'two current panes fit both axes'
+            page.evaluate("document.querySelectorAll('#mock-stage iframe').forEach(f=>f.dataset.marker='compare')")
+            page.set_viewport_size({'width':1024,'height':520});page.wait_for_timeout(100)
+            assert fits() and active().get_attribute('data-marker')=='compare', 'resize refits without reload'
+            page.click('#mock-history summary');page.click('[data-history-variant="gamma"]');page.wait_for_timeout(100)
+            assert page.locator('#mock-stage iframe').count()==1 and page.locator('.history-banner').count()==1
+            assert page.locator('#mock-view-compare').is_disabled()
+            page.goto(built.as_uri()+'#v=v1&variant=legacy&persona=mobile&view=compare');page.wait_for_timeout(100)
+            assert page.locator('.mock-pane').count()==1 and page.locator('.history-banner').count()==1, 'friendly legacy label cannot enter current Compare'
+            assert page.locator('[data-pick-variant="legacy"]').count()==0
 
-            # --- 1. Open alpha's modal, switch to beta ---
-            page.click('[data-pick-variant="alpha"]')
-            page.wait_for_timeout(150)
-            page.click('[data-goto-state="modal"]')
-            page.wait_for_timeout(150)
-            sig = overlay_signal(page)
-            check(
-                "alpha's modal is open before switching",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 1,
-                json.dumps(sig),
-            )
+            page.click('#back-current');page.wait_for_timeout(100)
+            assert page.locator('.history-banner').count()==0
+            page.evaluate("document.body.appendChild(Object.assign(document.createElement('div'),{id:'escaped-overlay'}))")
+            page.wait_for_timeout(30);assert page.locator('#escaped-overlay').count()==0
+            page.goto(built.as_uri()+'#v=missing&variant=missing&persona=missing&state=missing');page.wait_for_timeout(100)
+            assert 'variant=alpha' in page.url and 'state=base' in page.url and 'missing' not in page.url, 'stale route validated and declared default state selected'
+            page.goto(built.as_uri()+'#v=v1&variant=beta&persona=mobile&state=bottom_sheet');page.wait_for_timeout(150)
+            assert 'bottom_sheet' in state_label(), 'reviewed route restored'
+            page.set_viewport_size({'width':390,'height':844});page.wait_for_timeout(100)
+            if page.locator('#open-controls').is_visible():page.click('#open-controls')
+            assert page.locator('#mock-rail').evaluate('(el)=>el.scrollWidth<=el.clientWidth'), 'narrow sidebar no overflow'
+            page.click('#mock-rail-toggle-btn');assert fits(), 'phone fits on mobile'
+            # Earlier versions remain viewable; field-diff metadata stays hidden.
+            multi=copy.deepcopy(fixture)
+            multi['variants']['delta']=copy.deepcopy(multi['variants']['beta'])
+            multi['variants']['delta']['label']='Another current proposal'
+            multi['versions'].append({**copy.deepcopy(multi['versions'][0]),'id':'v2','diffData':{'changed':True}})
+            multi['versions'][-1]['variantIds'].append('delta')
+            source.write_text(json.dumps(multi));subprocess.run([sys.executable,str(HERE/'mockup-build.py'),str(source),str(again)],check=True)
+            page.set_viewport_size({'width':1440,'height':900});page.goto(again.as_uri())
+            if page.locator('#open-controls').is_visible(): page.click('#open-controls')
+            page.click('#mock-history summary')
+            assert page.locator('#history-diff,#mock-diff-from,#mock-diff-to').count()==0, 'history only views designs'
+            assert extract(again.read_text())['versions'][-1]['diffData']=={'changed':True}, 'field metadata retained for CLI extraction'
+            page.click('[data-history-version="v1"]');page.wait_for_timeout(100)
+            assert page.locator('.history-banner').count()==1 and page.locator('#mock-stage iframe').count()==1
+            page.goto(again.as_uri()+'#v=v2&variant=delta&persona=mobile&view=compare');page.wait_for_timeout(100)
+            assert page.locator('.mock-pane').evaluate_all('(els)=>els.map(e=>e.dataset.variant)')==['alpha','delta'], 'deep link selects current After for Compare'
+            page.goto(again.as_uri()+'#v=v2&variant=beta&persona=mobile');page.wait_for_timeout(100)
+            page.keyboard.press('ArrowDown');page.click('#mock-view-compare');page.wait_for_timeout(100)
+            assert page.locator('.mock-pane').evaluate_all('(els)=>els.map(e=>e.dataset.variant)')==['alpha','delta'], 'arrow navigation selects current After for Compare'
+            page.goto(again.as_uri()+'#v=v1&variant=alpha&persona=mobile');page.wait_for_timeout(100)
+            page.keyboard.press('ArrowDown');page.wait_for_timeout(100)
+            assert page.locator('.history-banner').count()==1, 'old version stays labelled after arrow navigation'
+            active().content_frame.locator('body').evaluate("el=>parent.postMessage({type:'mockup:navigate-variant',variantId:'alpha'},'*')")
+            page.wait_for_timeout(100)
+            assert page.locator('.history-banner').count()==1, 'old capture navigation stays labelled history'
+            no_baseline=copy.deepcopy(fixture)
+            no_baseline['variants']={'beta':no_baseline['variants']['beta']}
+            no_baseline['manifest']['variantIds']=['beta'];no_baseline['manifest']['defaultVariant']='beta'
+            no_baseline['versions']=[{'id':'v1','variantIds':['beta'],'defaultVariant':'beta'}]
+            source.write_text(json.dumps(no_baseline));single=path/'no-baseline.html'
+            subprocess.run([sys.executable,str(HERE/'mockup-build.py'),str(source),str(single)],check=True)
+            page.goto(single.as_uri());page.wait_for_timeout(100);page.keyboard.press('b')
+            assert page.locator('.mock-pane').get_attribute('data-variant')=='beta', 'B is safe with no baseline'
 
-            page.click('[data-pick-variant="beta"]')
-            page.wait_for_timeout(200)
-            sig = overlay_signal(page)
-            check(
-                "switching alpha(modal)->beta leaves exactly 1 iframe",
-                sig["iframeCount"] == 1,
-                json.dumps(sig),
-            )
-            check(
-                "beta mounts at its own DEFAULT state (no overlay open, not bottom_sheet)",
-                sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
-                json.dumps(sig),
-            )
+            # Every artifact is a viewer; old interaction metadata remains inert in #spec.
+            for artifact in (built,decision_path):
+                page.goto(artifact.as_uri());page.wait_for_timeout(100)
+                assert page.locator('textarea,input[type="radio"],input[type="checkbox"]').count()==0
+                assert page.locator('#copy-spec,#save-html,#copy-response,#generate-response,[data-select-all],[data-count]').count()==0
+            assert page.locator('.decision-card').count()==3
+            assert 'Small update' in page.locator('.decision-doc').inner_text()
+            assert 'Preserve this prior note' not in page.locator('body').inner_text()
+            if page.locator('#open-controls').is_visible():page.click('#open-controls')
+            page.evaluate("document.querySelector('.decision-card').dataset.marker='same-card'")
+            page.select_option('#frame-theme','light');page.click('#mock-rail-toggle-btn');page.click('#open-controls')
+            assert page.locator('.decision-card').first.get_attribute('data-marker')=='same-card'
+            page.set_viewport_size({'width':390,'height':844});page.reload();page.wait_for_timeout(100)
+            assert page.locator('#presentation-app').evaluate("el=>el.classList.contains('is-collapsed')")
+            assert page.locator('.decision-card').first.is_visible()
+            assert page.locator('textarea,input').count()==0, 'phone design viewer has no response or choice inputs'
+            assert json.loads(page.locator('#spec').text_content())==decision_spec, 'viewing never mutates retained metadata'
+            page.click('#open-controls');page.click('[data-jump="direction"]')
+            assert page.locator('#presentation-app').evaluate("el=>el.classList.contains('is-collapsed')"), 'section navigation closes the phone sheet'
 
-            # --- 2. Open beta's bottom sheet, switch back to alpha ---
-            page.click('[data-goto-state="bottom_sheet"]')
-            page.wait_for_timeout(150)
-            sig = overlay_signal(page)
-            check(
-                "beta's bottom sheet is open before switching back",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 1,
-                json.dumps(sig),
-            )
-
-            page.click('[data-pick-variant="alpha"]')
-            page.wait_for_timeout(200)
-            sig = overlay_signal(page)
-            check(
-                "switching beta(sheet)->alpha leaves exactly 1 iframe",
-                sig["iframeCount"] == 1,
-                json.dumps(sig),
-            )
-            check(
-                "alpha mounts back at its own DEFAULT state (modal closed, not re-opened)",
-                sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
-                json.dumps(sig),
-            )
-
-            # --- 3. Same teardown through presentation mode entry/exit ---
-            page.click('[data-goto-state="modal"]')
-            page.wait_for_timeout(150)
-            sig_before = overlay_signal(page)
-            check(
-                "alpha's modal is open before entering presentation",
-                sig_before["openOverlays"] == 1,
-                json.dumps(sig_before),
-            )
-
-            page.click("#mock-present-btn")  # -> enterPresentation()
-            page.wait_for_timeout(200)
-            sig_presenting = overlay_signal(page)
-            check(
-                "entering presentation tears down the open modal (clean default mount)",
-                sig_presenting["iframeCount"] == 1 and sig_presenting["openOverlays"] == 0,
-                json.dumps(sig_presenting),
-            )
-
-            page.keyboard.press("Escape")  # -> exitPresentation()
-            page.wait_for_timeout(200)
-            sig_after = overlay_signal(page)
-            check(
-                "exiting presentation stays clean (still exactly 1 iframe, no overlay)",
-                sig_after["iframeCount"] == 1 and sig_after["openOverlays"] == 0,
-                json.dumps(sig_after),
-            )
-
-            # --- 5. Walking states within ONE variant is a full teardown+remount, not a
-            #        live postMessage: modal -> base leaves 0 overlay traces, 1 iframe. ---
-            page.click('[data-pick-variant="alpha"]')
-            page.wait_for_timeout(150)
-            active_rows = page.evaluate(
-                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
-                ".map(b => b.getAttribute('data-goto-state'))"
-            )
-            check(
-                "alpha's default walk-state row (base) is the sole is-active row on load",
-                active_rows == ["base"],
-                json.dumps(active_rows),
-            )
-
-            page.click('[data-goto-state="modal"]')
-            page.wait_for_timeout(150)
-            sig = overlay_signal(page)
-            active_rows = page.evaluate(
-                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
-                ".map(b => b.getAttribute('data-goto-state'))"
-            )
-            check(
-                "walking to alpha's modal state opens exactly one overlay in a single iframe",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 1,
-                json.dumps(sig),
-            )
-            check(
-                "the modal walk-state row becomes the sole is-active row",
-                active_rows == ["modal"],
-                json.dumps(active_rows),
-            )
-
-            page.click('[data-goto-state="base"]')
-            page.wait_for_timeout(150)
-            sig = overlay_signal(page)
-            active_rows = page.evaluate(
-                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
-                ".map(b => b.getAttribute('data-goto-state'))"
-            )
-            check(
-                "walking a state back to base is a full remount: 0 overlay traces, 1 iframe",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
-                json.dumps(sig),
-            )
-            check(
-                "the base walk-state row is once again the sole is-active row",
-                active_rows == ["base"],
-                json.dumps(active_rows),
-            )
-
-            # --- 6. Presentation-mode arrow keys step through STATES (not sibling
-            #        variants), each step a clean teardown+remount. ---
-            page.click("#mock-present-btn")  # -> enterPresentation(), resets to alpha's base
-            page.wait_for_timeout(200)
-            sig = overlay_signal(page)
-            check(
-                "entering presentation from alpha resets to its base state, cleanly mounted",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base",
-                json.dumps(sig),
-            )
-
-            page.keyboard.press("ArrowRight")  # base -> loading
-            page.wait_for_timeout(150)
-            sig = overlay_signal(page)
-            check(
-                "ArrowRight while presenting steps to the next STATE (loading), one clean iframe",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: loading",
-                json.dumps(sig),
-            )
-
-            page.keyboard.press("ArrowRight")  # loading -> modal
-            page.wait_for_timeout(150)
-            sig = overlay_signal(page)
-            hud_text = page.evaluate("() => document.getElementById('mock-hud').textContent")
-            active_rows = page.evaluate(
-                "() => Array.from(document.querySelectorAll('.mock-walk-btn.is-active'))"
-                ".map(b => b.getAttribute('data-goto-state'))"
-            )
-            check(
-                "ArrowRight again reaches the modal state cleanly (fresh mount, exactly 1 overlay)",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 1 and sig["stateLabel"] == "State: modal",
-                json.dumps(sig),
-            )
-            check(
-                "the HUD reflects the active state while presenting",
-                "Modal open" in hud_text,
-                hud_text,
-            )
-            check(
-                "the rail's active row tracks a keyboard state step too (queryable even though hidden)",
-                active_rows == ["modal"],
-                json.dumps(active_rows),
-            )
-
-            page.keyboard.press("ArrowRight")  # modal is alpha's LAST state -> carries into beta's first state
-            page.wait_for_timeout(150)
-            sig = overlay_signal(page)
-            crossed_variant = page.evaluate("() => document.querySelector('.mock-variant-item.active').getAttribute('data-pick-variant')")
-            check(
-                "ArrowRight past a variant's last state carries into the next variant's first state (endless walk); the earlier modal does not survive",
-                sig["iframeCount"] == 1 and sig["openOverlays"] == 0 and sig["stateLabel"] == "State: base" and crossed_variant == "beta",
-                json.dumps(sig) + " variant=" + str(crossed_variant),
-            )
-
-            page.keyboard.press("Escape")  # -> exitPresentation()
-            page.wait_for_timeout(150)
-
-            # --- 7. The shell's own guard removes a node a capture appends to its <body> ---
-            page.evaluate(
-                """() => {
-                    const stray = document.createElement('div');
-                    stray.id = 'stray-escaped-overlay';
-                    stray.textContent = 'I escaped my iframe';
-                    document.body.appendChild(stray);
-                }"""
-            )
-            page.wait_for_timeout(150)
-            stray_gone = page.evaluate("() => !document.getElementById('stray-escaped-overlay')")
-            check(
-                "a node appended directly to the shell body is removed by the MutationObserver guard",
-                stray_gone,
-            )
-
-            # --- 9. Round grouping: exactly one Before row, superseded rows collapsed into
-            #        "Earlier rounds" until opened, arrow-key stepping skips them, and a
-            #        legacy "Before — superseded: ..." label loses its prefix on display.
-            #        synthetic-spec.json: alpha carries role:"before", gamma is marked
-            #        superseded via a v1 variantLabelOverrides entry using the legacy prefix.
-            page.click('[data-pick-variant="alpha"]')
-            page.wait_for_timeout(150)
-
-            before_badges = page.eval_on_selector_all(
-                ".mock-badge-before",
-                "els => els.map(e => e.closest('.mock-variant-item').getAttribute('data-pick-variant'))",
-            )
-            check(
-                "exactly one Before row, on alpha (spec's role:\"before\" variant)",
-                before_badges == ["alpha"],
-                json.dumps(before_badges),
-            )
-
-            gamma_visible_before_open = page.eval_on_selector(
-                '[data-pick-variant="gamma"]', "e => e.offsetParent !== null"
-            )
-            check(
-                "gamma (superseded) is hidden in the rail before the disclosure opens",
-                gamma_visible_before_open is False,
-            )
-
-            summary_text = page.eval_on_selector(".mock-earlier-rounds summary", "e => e.textContent")
-            check(
-                "the collapsed disclosure names the superseded count",
-                summary_text == "Earlier rounds (1)",
-                summary_text,
-            )
-
-            # ↑/↓ walk VARIANTS and STOP at the ends (no wrap); gamma stays excluded while collapsed.
-            page.click('[data-pick-variant="alpha"]')
-            page.wait_for_timeout(120)
-            var_order = []
-            for _ in range(3):
-                var_order.append(
-                    page.eval_on_selector(".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')")
-                )
-                page.keyboard.press("ArrowDown")
-                page.wait_for_timeout(120)
-            check(
-                "↑/↓ walk variants and stop at the last (no wrap), never gamma while collapsed",
-                var_order == ["alpha", "beta", "beta"],
-                json.dumps(var_order),
-            )
-            # ←/→ walk STATES, and the last state carries into the next variant's first (endless walk).
-            page.click('[data-pick-variant="alpha"]')
-            page.wait_for_timeout(120)
-            walk = []
-            for _ in range(4):
-                v = page.eval_on_selector(".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')")
-                s = page.eval_on_selector(".mock-walk-btn.is-active", "e => e.getAttribute('data-goto-state')")
-                walk.append([v, s])
-                page.keyboard.press("ArrowRight")
-                page.wait_for_timeout(150)
-            check(
-                "←/→ walk states, and a variant's last state carries into the next variant's first",
-                walk == [["alpha", "base"], ["alpha", "loading"], ["alpha", "modal"], ["beta", "base"]],
-                json.dumps(walk),
-            )
-
-            page.click(".mock-earlier-rounds summary")
-            page.wait_for_timeout(150)
-            gamma_visible_after_open = page.eval_on_selector(
-                '[data-pick-variant="gamma"]', "e => e.offsetParent !== null"
-            )
-            check(
-                "opening the disclosure reveals gamma",
-                gamma_visible_after_open is True,
-            )
-
-            gamma_label = page.eval_on_selector('[data-pick-variant="gamma"] .lbl', "e => e.textContent.trim()")
-            check(
-                "gamma's legacy 'Before — superseded: ...' override displays with the prefix stripped",
-                gamma_label == "Gamma — earlier round two",
-                gamma_label,
-            )
-
-            page.click('[data-pick-variant="gamma"]')
-            page.wait_for_timeout(150)
-            active_after_pick = page.eval_on_selector(".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')")
-            check(
-                "a superseded variant is still selectable from the open disclosure",
-                active_after_pick == "gamma",
-                active_after_pick,
-            )
-
-            page.keyboard.press("ArrowUp")
-            page.wait_for_timeout(150)
-            active_after_step_away = page.eval_on_selector(
-                ".mock-variant-item.active", "e => e.getAttribute('data-pick-variant')"
-            )
-            check(
-                "↑/↓ from an already-selected superseded variant walks to its neighbour in the cyclable order (beta)",
-                active_after_step_away == "beta",
-                active_after_step_away,
-            )
-
-            compare_order = page.evaluate(
-                """() => {
-                    document.getElementById('mock-view-compare').click();
-                    return Array.from(document.querySelectorAll('[data-compare-toggle]'))
-                        .map(e => e.getAttribute('data-compare-toggle'));
-                }"""
-            )
-            check(
-                "the Compare picker lists current variants first, superseded (gamma) last under the same list",
-                compare_order == ["alpha", "beta", "gamma"],
-                json.dumps(compare_order),
-            )
-            page.click("#mock-view-focus")
-            page.wait_for_timeout(150)
-
-            page.goto(out_html.as_uri())  # fresh open (no persisted #hash) -> manifest default
-            page.wait_for_timeout(300)
-            default_after_reload = page.evaluate(
-                "() => document.querySelector('.mock-variant-item.active').getAttribute('data-pick-variant')"
-            )
-            check(
-                "the default variant on open is the manifest default (alpha), never a superseded one",
-                default_after_reload == "alpha",
-                default_after_reload,
-            )
-
-            # --- 8. Fit never clips a wide-short host frame; refits the mounted iframe on a
-            #        stage-only resize (no reload); resizing back matches a fresh load. ---
-            DESKTOP_W, DESKTOP_H = 1440, 900  # the desktop persona's natural size (synthetic-spec.json)
-
-            def expected_fit_scale(stage_w, stage_h):
-                return min(stage_w / DESKTOP_W, stage_h / DESKTOP_H, 1)
-
-            fit_page = browser.new_page(viewport={"width": 1900, "height": 1010})
-            fit_page.goto(out_html.as_uri())
-            fit_page.wait_for_timeout(300)
-            fit_page.evaluate(
-                "() => document.querySelector('#mock-stage iframe').setAttribute('data-test-marker', 'm1')"
-            )
-            sig_a = stage_fit_signal(fit_page)
-            check(
-                "wide-short host (1900x1010, stage ~1600x940): focus iframe never overruns the stage bottom",
-                sig_a is not None and sig_a["iframeBottom"] <= sig_a["stageBottom"] + 0.5,
-                json.dumps(sig_a),
-            )
-            check(
-                "the fitted frame's full natural height is visible without scrolling (min(w,h) fit, not width-only)",
-                abs(sig_a["scale"] - expected_fit_scale(sig_a["stageW"], sig_a["stageH"])) < 0.01
-                and DESKTOP_H * sig_a["scale"] <= sig_a["stageH"] + 0.5,
-                json.dumps(sig_a),
-            )
-            check(
-                "the desktop persona top-aligns (not vertically centred) so overflow always trails at the bottom",
-                sig_a["isCentered"] is False,
-                json.dumps(sig_a),
-            )
-            check(
-                "#mock-stage keeps overflow:auto as the never-clip fallback even when fit already fits",
-                sig_a["overflow"] == "auto",
-                json.dumps(sig_a),
-            )
-
-            fit_page.set_viewport_size({"width": 1200, "height": 700})
-            fit_page.wait_for_timeout(400)
-            sig_b = stage_fit_signal(fit_page)
-            check(
-                "shrinking the STAGE alone (no navigation) re-fits via the ResizeObserver, without a reload",
-                sig_b is not None and sig_b["marker"] == "m1" and sig_b["scale"] != sig_a["scale"],
-                json.dumps({"before": sig_a, "after": sig_b}),
-            )
-            check(
-                "the re-fit scale after shrinking matches min(w,h) for the new stage size",
-                abs(sig_b["scale"] - expected_fit_scale(sig_b["stageW"], sig_b["stageH"])) < 0.01
-                and sig_b["iframeBottom"] <= sig_b["stageBottom"] + 0.5,
-                json.dumps(sig_b),
-            )
-
-            fit_page.set_viewport_size({"width": 1440, "height": 900})
-            fit_page.wait_for_timeout(400)
-            sig_c = stage_fit_signal(fit_page)
-            check(
-                "resizing back to a standalone-sized viewport still re-fits the SAME iframe (no reload)",
-                sig_c is not None and sig_c["marker"] == "m1",
-                json.dumps(sig_c),
-            )
-            check(
-                "…and reproduces exactly the fit a fresh load at that size would compute (regression guard)",
-                abs(sig_c["scale"] - expected_fit_scale(sig_c["stageW"], sig_c["stageH"])) < 0.01
-                and sig_c["iframeBottom"] <= sig_c["stageBottom"] + 0.5,
-                json.dumps(sig_c),
-            )
-
-            # Collapsing the rail changes #mock-stage's own box (width grows) WITHOUT any
-            # window resize at all — the one case a plain window 'resize' listener structurally
-            # cannot catch, and the reason the ResizeObserver is on the stage element itself.
-            sig_before_collapse = stage_fit_signal(fit_page)
-            fit_page.click("#mock-rail-toggle-btn")
-            fit_page.wait_for_timeout(300)
-            sig_collapsed = stage_fit_signal(fit_page)
-            check(
-                "collapsing the rail (no window resize) still re-fits, via the ResizeObserver alone",
-                sig_collapsed is not None
-                and sig_collapsed["marker"] == "m1"
-                and sig_collapsed["stageW"] > sig_before_collapse["stageW"]
-                and sig_collapsed["scale"] != sig_before_collapse["scale"]
-                and abs(sig_collapsed["scale"] - expected_fit_scale(sig_collapsed["stageW"], sig_collapsed["stageH"])) < 0.01,
-                json.dumps({"before": sig_before_collapse, "after": sig_collapsed}),
-            )
-            fit_page.click("#mock-rail-toggle-btn")  # restore, tidy for the persona switch below
-            fit_page.wait_for_timeout(200)
-
-            fit_page.click('[data-pick-persona="mobile"]')
-            fit_page.wait_for_timeout(200)
-            sig_mobile = stage_fit_signal(fit_page)
-            check(
-                "the mobile persona keeps its centred layout (unaffected by the desktop top-align change)",
-                sig_mobile is not None and sig_mobile["isCentered"] is True,
-                json.dumps(sig_mobile),
-            )
-
-            fit_page.close()
-
-            # --- 9. Compare view: a phone-sized frame is fitted by both axes, never cropped ---
-            def compare_fit_signal(pg):
-                return pg.evaluate(
-                    """() => {
-                        const stage = document.getElementById('mock-stage').getBoundingClientRect();
-                        return Array.from(document.querySelectorAll('.mock-compare-frame')).map(h => {
-                            const hr = h.getBoundingClientRect(), f = h.querySelector('iframe').getBoundingClientRect();
-                            return { hostBottom: hr.bottom, hostRight: hr.right, iframeBottom: f.bottom, iframeRight: f.right,
-                                     hostH: hr.height, stageBottom: stage.bottom, marker: h.querySelector('iframe').getAttribute('data-test-marker') };
-                        });
-                    }"""
-                )
-
-            def compare_fits(sigs):
-                return bool(sigs) and all(
-                    g["iframeBottom"] <= g["hostBottom"] + 0.5 and g["iframeRight"] <= g["hostRight"] + 0.5
-                    and g["hostBottom"] <= g["stageBottom"] + 0.5
-                    for g in sigs
-                )
-
-            cmp_page = browser.new_page(viewport={"width": 1200, "height": 800})
-            cmp_page.goto(out_html.as_uri())
-            cmp_page.wait_for_timeout(300)
-            cmp_page.click('[data-pick-persona="mobile"]')
-            cmp_page.wait_for_timeout(200)
-            cmp_page.click("#mock-view-compare")
-            cmp_page.wait_for_timeout(400)
-            cmp_sigs = compare_fit_signal(cmp_page)
-            check(
-                "Compare shows a phone-sized frame whole: iframe inside its host, host inside the stage",
-                compare_fits(cmp_sigs),
-                json.dumps(cmp_sigs),
-            )
-            cmp_page.evaluate(
-                "() => document.querySelectorAll('.mock-compare-frame iframe').forEach(f => f.setAttribute('data-test-marker', 'c1'))"
-            )
-            cmp_page.set_viewport_size({"width": 1200, "height": 520})
-            cmp_page.wait_for_timeout(500)
-            cmp_small = compare_fit_signal(cmp_page)
-            check(
-                "a stage resize re-fits the same Compare frames (no remount) and none is cropped",
-                compare_fits(cmp_small) and all(g["marker"] == "c1" for g in cmp_small)
-                and cmp_small[0]["hostH"] < cmp_sigs[0]["hostH"],
-                json.dumps({"before": cmp_sigs, "after": cmp_small}),
-            )
-            cmp_page.close()
-
+            assert not errors, errors
             browser.close()
-
-    print()
-    if FAILURES:
-        print(f"{len(FAILURES)} FAILED: " + "; ".join(FAILURES))
-        return 1
-    print("ALL PASSED")
+    print('ALL PASSED: shared frame, routes, teardown, highlights, fit, history, read-only viewers, metadata roundtrips')
     return 0
 
 
-if __name__ == "__main__":
+if __name__=='__main__':
     raise SystemExit(main())
