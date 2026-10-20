@@ -37,7 +37,9 @@ SLOTS = (LEASE_SLOT, SECOND_SLOT, THIRD_SLOT)
 assert len(SLOTS) == HEAVY_SLOTS
 MIN_IDLE_PERCENT = 20  # admission defers while current CPU idle is below this (top, second sample)
 LOAD_PER_CORE = 1.5  # admission defers above this many 1-minute load units per logical core
-MAX_COMPRESSED_GIB = 6  # admission defers while the memory compressor holds more than this
+DEFER_PRESSURE_LEVEL = 2  # admission defers at this kern.memorystatus_vm_pressure_level or worse (1 normal, 2 warning, 4 critical)
+MAX_COMPRESSED_SHARE = 0.4  # fallback only, when the sysctl is unavailable: defer above this share of RAM held by the compressor
+PRESSURE_NAMES = {1: "normal", 2: "warning", 4: "critical"}
 MAX_BOOTED_SIMULATORS = 1  # the one simulator ceiling: claimed, leased or booted, all sessions
 HOT_CPU_PERCENT = 200  # watchdog: ps %cpu at or above this...
 HOT_MIN_SECONDS = 120  # ...on a process at least this old (younger is boot or startup)
@@ -337,7 +339,7 @@ def simulator_pressure():
     try:
         if PRESSURE_FIXTURE is not None:
             fixture = json.loads(PRESSURE_FIXTURE.read_text())
-            if not isinstance(fixture, dict) or not {"load", "cores"} <= set(fixture) <= {"load", "cores", "compressed_gib", "idle"}:
+            if not isinstance(fixture, dict) or not {"load", "cores"} <= set(fixture) <= {"load", "cores", "memory_level", "idle"}:
                 raise ValueError("invalid pressure fixture")
             load, cores = fixture["load"], fixture["cores"]
         else:
@@ -350,23 +352,39 @@ def simulator_pressure():
         raise GateError("host load probe failed; defer simulator work") from exc
 
 
-def compressed_gib():
-    """GiB held by the memory compressor (vm_stat "Pages occupied by compressor")."""
+def compressed_share():
+    """Fraction of physical RAM the memory compressor occupies (vm_stat over hw.memsize). Fallback signal only."""
+    result = subprocess.run(["/usr/bin/vm_stat"], capture_output=True, text=True, timeout=3, check=False)
+    if result.returncode:
+        raise ValueError("vm_stat failed")
+    page = re.search(r"page size of (\d+) bytes", result.stdout)
+    pages = re.search(r"Pages occupied by compressor:\s+(\d+)", result.stdout)
+    total = subprocess.run(["/usr/sbin/sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=3, check=False)
+    if not page or not pages or total.returncode or int(total.stdout) <= 0:
+        raise ValueError("vm_stat output changed")
+    return int(pages.group(1)) * int(page.group(1)) / int(total.stdout)
+
+
+def memory_pressure_level():
+    """(level, source): the OS's own pressure level, 1 normal, 2 warning, 4 critical.
+
+    Source is "sysctl" (kern.memorystatus_vm_pressure_level) or "compressed-share" (fallback when the
+    sysctl is unavailable: warning when the compressor holds more than MAX_COMPRESSED_SHARE of RAM).
+    """
     try:
         if PRESSURE_FIXTURE is not None:
-            value = json.loads(PRESSURE_FIXTURE.read_text()).get("compressed_gib", 0)
-        else:
-            result = subprocess.run(["/usr/bin/vm_stat"], capture_output=True, text=True, timeout=3, check=False)
-            if result.returncode:
-                raise ValueError("vm_stat failed")
-            page = re.search(r"page size of (\d+) bytes", result.stdout)
-            pages = re.search(r"Pages occupied by compressor:\s+(\d+)", result.stdout)
-            if not page or not pages:
-                raise ValueError("vm_stat output changed")
-            value = int(pages.group(1)) * int(page.group(1)) / 2 ** 30
-        if type(value) not in (int, float) or not math.isfinite(value) or value < 0:
-            raise ValueError("invalid compressed memory")
-        return value
+            value = json.loads(PRESSURE_FIXTURE.read_text()).get("memory_level", 1)
+            if value not in PRESSURE_NAMES:
+                raise ValueError("invalid pressure level")
+            return value, "sysctl"
+        try:
+            result = subprocess.run(["/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+                                    capture_output=True, text=True, timeout=3, check=False)
+            if not result.returncode and int(result.stdout) in PRESSURE_NAMES:
+                return int(result.stdout), "sysctl"
+        except (OSError, subprocess.TimeoutExpired, ValueError):
+            pass
+        return (DEFER_PRESSURE_LEVEL if compressed_share() > MAX_COMPRESSED_SHARE else 1), "compressed-share"
     except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError) as exc:
         raise GateError("memory probe failed; defer heavy work") from exc
 
@@ -391,19 +409,20 @@ def cpu_idle_percent():
 
 
 def host_reading():
-    """(verdict line, defer reason or None) from current CPU idle, 1-minute load and compressed memory."""
+    """(verdict line, defer reason or None) from current CPU idle, 1-minute load and OS memory pressure."""
     idle = cpu_idle_percent()
     load, cores = simulator_pressure()
-    held = compressed_gib()
+    level, source = memory_pressure_level()
     reasons = []
     if idle < MIN_IDLE_PERCENT:
         reasons.append("CPU idle %.0f%% is below %d%%" % (idle, MIN_IDLE_PERCENT))
     if load > LOAD_PER_CORE * cores:
         reasons.append("1-minute load %.1f exceeds %s x %s logical cores" % (load, LOAD_PER_CORE, cores))
-    if held > MAX_COMPRESSED_GIB:
-        reasons.append("memory compressor holds %.1f GiB, above %d GiB" % (held, MAX_COMPRESSED_GIB))
-    line = "%s idle=%.0f%% (min %d) load=%.1f (max %.1f on %d cores) compressed=%.1fGiB (max %d)" % (
-        "DEFER" if reasons else "GO", idle, MIN_IDLE_PERCENT, load, LOAD_PER_CORE * cores, cores, held, MAX_COMPRESSED_GIB)
+    if level >= DEFER_PRESSURE_LEVEL:
+        reasons.append("memory pressure is %s (level %d, via %s), at or above warning" % (PRESSURE_NAMES[level], level, source))
+    line = "%s idle=%.0f%% (min %d) load=%.1f (max %.1f on %d cores) memory-pressure=%s (level %d, defer at %d)" % (
+        "DEFER" if reasons else "GO", idle, MIN_IDLE_PERCENT, load, LOAD_PER_CORE * cores, cores,
+        PRESSURE_NAMES[level], level, DEFER_PRESSURE_LEVEL)
     return line, "; ".join(reasons) or None
 
 
@@ -1321,7 +1340,7 @@ def main(argv=None):
     parser.add_argument("--root", help="capacity state directory (tests or deliberate override)")
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("status")
-    sub.add_parser("cpu", help="one read-only line: GO or DEFER from CPU idle, load and compressed memory; exit 75 on DEFER")
+    sub.add_parser("cpu", help="one read-only line: GO or DEFER from CPU idle, load and OS memory pressure; exit 75 on DEFER")
     sub.add_parser("watchdog", help="read-only runaway report: hot processes, unleased simulators, extra test browsers, idle stacks")
     stack_parser = sub.add_parser("stack-acquire", help="lease a local Docker dev stack before starting it")
     stack_parser.add_argument("--owner", required=True)

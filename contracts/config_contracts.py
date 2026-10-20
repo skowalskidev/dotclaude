@@ -45,7 +45,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Non-blocking machine-wide admission for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
         "criteria": [
             "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
-            "Defer every acquire, run, claim-sim and stack-acquire with exit 75 naming the reading when CPU idle is below 20%, load exceeds 1.5 x logical cores or compressed memory exceeds 6 GiB; cpu prints one GO or DEFER line.",
+            "Defer every acquire, run, claim-sim and stack-acquire with exit 75 naming the reading when CPU idle is below 20%, load exceeds 1.5 x logical cores or kern.memorystatus_vm_pressure_level reads 2 (warning) or 4 (critical), with a compressed-share-above-40%-of-RAM fallback only when the sysctl is unavailable and never a fixed compressed-GiB threshold; cpu prints one GO or DEFER line with the pressure level.",
             "Count at most MAX_BOOTED_SIMULATORS (1) device machine-wide: claimed, leased or not Shutdown, unleased devices included; a second claim-sim or simulator run exits 75 naming the holder, the same owner included.",
             "Admit the priority owner (prioritize: default 60, maximum 180 minutes) first, in the first slot to free; it passes no cap and no CPU, load or memory guard. Stop, signal or shorten no running job; defer other new requests with exit 75.",
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",

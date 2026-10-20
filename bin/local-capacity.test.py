@@ -26,7 +26,7 @@ SIM2 = "11111111-2222-3333-4444-555555555555"
 
 def competing(root, queue, event, owner):
     with mock.patch.object(gate, "observe_booted", return_value=[]), \
-         mock.patch.object(gate, "compressed_gib", return_value=0), \
+         mock.patch.object(gate, "memory_pressure_level", return_value=(1, "sysctl")), \
          mock.patch.object(gate, "cpu_idle_percent", return_value=90):
         event.wait()
         for _ in range(200):
@@ -60,7 +60,7 @@ class GateTests(unittest.TestCase):
         self.pressure = mock.patch.object(gate, "simulator_pressure", return_value=(0, 8))
         self.pressure.start()
         self.addCleanup(self.pressure.stop)
-        self.memory = mock.patch.object(gate, "compressed_gib", return_value=0)
+        self.memory = mock.patch.object(gate, "memory_pressure_level", return_value=(1, "sysctl"))
         self.memory.start()
         self.addCleanup(self.memory.stop)
         self.idle = mock.patch.object(gate, "cpu_idle_percent", return_value=90)
@@ -235,23 +235,62 @@ class GateTests(unittest.TestCase):
         gate.release_sim(self.root, SIM, "alpha")
         gate.claim_sim(self.root, SIM2, "beta")
 
-    def test_memory_guard_defers_heavy_work(self):
-        with mock.patch.object(gate, "compressed_gib", return_value=gate.MAX_COMPRESSED_GIB + 1):
-            with self.assertRaises(gate.Busy) as refused:
-                gate.acquire(self.root, "build", os.getpid(), None)
-        self.assertIn("memory compressor holds 7.0 GiB, above 6 GiB", str(refused.exception))
-        self.assertIsNone(gate.read_state(self.root))
+    def test_memory_guard_defers_on_warning_and_critical(self):
+        for level, name in ((2, "warning"), (4, "critical")):
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")):
+                with self.assertRaises(gate.Busy) as refused:
+                    gate.acquire(self.root, "build", os.getpid(), None)
+            self.assertIn("memory pressure is %s (level %d, via sysctl)" % (name, level), str(refused.exception))
+            self.assertIsNone(gate.read_state(self.root))
 
-    def test_compressed_memory_is_read_from_vm_stat(self):
+    def sysctl_run(self, level, vm_stat=None, memsize="25769803776\n"):
+        """Fake subprocess.run: the pressure sysctl answers `level` (None = unavailable); vm_stat and hw.memsize feed the fallback."""
+        real = subprocess.run
+
+        def run(cmd, **kwargs):
+            if cmd[0] not in ("/usr/sbin/sysctl", "/usr/bin/vm_stat"):
+                return real(cmd, **kwargs)  # ps, simctl and the rest stay real
+            if cmd[-1] == "kern.memorystatus_vm_pressure_level":
+                if level is None:
+                    return mock.Mock(returncode=1, stdout="")
+                return mock.Mock(returncode=0, stdout="%s\n" % level)
+            if cmd[-1] == "hw.memsize":
+                return mock.Mock(returncode=0, stdout=memsize)
+            return mock.Mock(returncode=0, stdout=vm_stat or "")
+        return mock.patch.object(gate.subprocess, "run", side_effect=run)
+
+    def test_pressure_level_is_read_from_the_os_sysctl(self):
         self.memory.stop()
         try:
-            output = ("Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
-                      "Pages occupied by compressor:           491520.\n")
-            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=output)):
-                self.assertAlmostEqual(gate.compressed_gib(), 7.5)
-            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="changed")):
+            for level in (1, 2, 4):
+                with self.sysctl_run(level):
+                    self.assertEqual(gate.memory_pressure_level(), (level, "sysctl"))
+        finally:
+            self.memory.start()
+
+    def test_eight_gib_compressed_with_normal_pressure_is_go(self):
+        self.memory.stop()
+        try:
+            vm_stat = ("Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
+                       "Pages occupied by compressor:           524288.\n")  # 8 GiB of 24 GiB RAM
+            with self.sysctl_run(1, vm_stat):
+                token = gate.acquire(self.root, "build", os.getpid(), None)
+                self.assertTrue(gate.host_reading()[0].startswith("GO "))
+            gate.release(self.root, token)
+        finally:
+            self.memory.start()
+
+    def test_unavailable_sysctl_falls_back_to_the_compressed_share_of_ram(self):
+        self.memory.stop()
+        try:
+            page = "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages occupied by compressor:           %d.\n"
+            with self.sysctl_run(None, page % 524288):  # 8 GiB of 24 GiB = 33%
+                self.assertEqual(gate.memory_pressure_level(), (1, "compressed-share"))
+            with self.sysctl_run(None, page % 655360):  # 10 GiB of 24 GiB = 42%
+                self.assertEqual(gate.memory_pressure_level(), (2, "compressed-share"))
+            with self.sysctl_run(None, "changed"):
                 with self.assertRaises(gate.GateError):
-                    gate.compressed_gib()
+                    gate.memory_pressure_level()
         finally:
             self.memory.start()
 
@@ -570,7 +609,7 @@ sys.exit(result.returncode)
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
-                "m=mock.patch.object(g,'compressed_gib',return_value=0); m.start(); "
+                "m=mock.patch.object(g,'memory_pressure_level',return_value=(1,'sysctl')); m.start(); "
                 "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
                 "g.acquire(Path(sys.argv[2]),'crashed',os.getpid(),None,child_pending=True); "
                 "r,w=os.pipe(); "
@@ -593,7 +632,7 @@ sys.exit(result.returncode)
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
-                "m=mock.patch.object(g,'compressed_gib',return_value=0); m.start(); "
+                "m=mock.patch.object(g,'memory_pressure_level',return_value=(1,'sysctl')); m.start(); "
                 "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
                 "sys.exit(g.run_command(Path(sys.argv[2]),'runner',None,"
                 "[sys.executable,'-c','import time; time.sleep(30)']))")
@@ -630,7 +669,7 @@ class PriorityTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
-        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("compressed_gib", 0), ("cpu_idle_percent", 90)):
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -670,7 +709,7 @@ class PriorityTests(unittest.TestCase):
 
     def test_priority_owner_keeps_the_load_and_memory_guards(self):
         gate.prioritize(self.root, "vip", 30, False)
-        for probe, value in (("simulator_pressure", (52.5, 8)), ("compressed_gib", 9), ("cpu_idle_percent", 5)):
+        for probe, value in (("simulator_pressure", (52.5, 8)), ("memory_pressure_level", (4, "sysctl")), ("cpu_idle_percent", 5)):
             with mock.patch.object(gate, probe, return_value=value):
                 for simulator in (None, SIM):
                     with self.assertRaises(gate.Busy):
@@ -746,7 +785,7 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(go.returncode, 0, go.stderr)
         self.assertEqual(len(go.stdout.splitlines()), 1)
         self.assertTrue(go.stdout.startswith("GO idle=100%"), go.stdout)
-        (self.root / "pressure.json").write_text(json.dumps({"load": 1, "cores": 8, "idle": 8.5, "compressed_gib": 7}))
+        (self.root / "pressure.json").write_text(json.dumps({"load": 1, "cores": 8, "idle": 8.5, "memory_level": 2}))
         env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
                    LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
         defer = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "cpu"],
@@ -754,7 +793,8 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(defer.returncode, gate.BUSY)
         self.assertTrue(defer.stdout.startswith("DEFER idle=8%"), defer.stdout)
         self.assertIn("CPU idle 8% is below 20%", defer.stdout)
-        self.assertIn("memory compressor holds 7.0 GiB", defer.stdout)
+        self.assertIn("memory pressure is warning (level 2, via sysctl)", defer.stdout)
+        self.assertIn("memory-pressure=warning (level 2, defer at 2)", defer.stdout)
 
     def test_status_prints_every_slot_free_and_held(self):
         free = self.cli("status").stdout.splitlines()
@@ -842,7 +882,7 @@ class WatchdogTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
         gate.secure_root(self.root)
-        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("compressed_gib", 0), ("cpu_idle_percent", 90)):
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -916,7 +956,7 @@ class StackTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
         self.host = {"stacks": [], "vm_gib": 7.75, "sessions": [], "activity": {}}
-        for name, value in (("simulator_pressure", (0, 8)), ("compressed_gib", 0), ("cpu_idle_percent", 90)):
+        for name, value in (("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -966,7 +1006,7 @@ class StackTests(unittest.TestCase):
         with self.assertRaises(gate.Busy):
             gate.stack_acquire(self.root, "vip", "/w/c")
         self.running()
-        with mock.patch.object(gate, "compressed_gib", return_value=8):
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
             with self.assertRaises(gate.Busy):
                 gate.stack_acquire(self.root, "vip", "/w/c")
 

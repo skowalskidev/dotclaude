@@ -234,15 +234,19 @@ DO defer a heavy step on exit 75 and record the holder and resume action in the 
 at the next task boundary, without a tight retry loop. Every admission (`acquire`, `run`, `claim-sim`,
 `stack-acquire`) also defers while current CPU idle is below 20% (`MIN_IDLE_PERCENT`, the second
 `top -l 2 -n 0 -s 1` sample), the 1-minute load exceeds 1.5 x logical cores (`LOAD_PER_CORE`), or the
-memory compressor holds more than 6 GiB (`MAX_COMPRESSED_GIB`, from `vm_stat`); the exit-75 reason
-carries the reading. WHY: load is a lagging one-minute average that reads low while the CPU is pegged
-and high long after. Simulator admission additionally defers when any device is Booted, Booting or
+OS reports memory pressure at warning or worse (`kern.memorystatus_vm_pressure_level` >= 2 via `sysctl -n`;
+1 normal, 2 warning, 4 critical, the `NOTE_MEMORYSTATUS_PRESSURE_*` values in XNU `event_private.h`);
+the exit-75 reason carries the reading. Only if that sysctl is unavailable, the fallback defers when the
+compressor holds more than 40% of RAM (`MAX_COMPRESSED_SHARE`). DON'T gate on a fixed compressed-GiB
+figure: macOS compresses opportunistically, so 8 GiB compressed on a 24 GB machine reads level 1 and
+starved agents for hours. WHY: load is a lagging one-minute average that reads low while the CPU is
+pegged and high long after. Simulator admission additionally defers when any device is Booted, Booting or
 Shutting Down outside the lease. A failed capacity probe is unknown, never permission to proceed. TEST:
 a rejected command has not started and the small work remains runnable.
 
 DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
 before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle %, load
-and compressed GiB, and exits 75 on `DEFER`. On `DEFER`, run the work serially or wait for the next task
+and the memory-pressure level, and exits 75 on `DEFER`. On `DEFER`, run the work serially or wait for the next task
 boundary. TEST: no heavy command or parallel dispatch starts while the line reads `DEFER`.
 
 DO run `prioritize` only when Simon's own chat message names the task or session that goes first.
