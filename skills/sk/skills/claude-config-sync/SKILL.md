@@ -7,21 +7,12 @@ allowed-tools:
 
 # Sync Simon's Claude config repo
 
-## Current state of the repo
+## Resolve the checkout
 
-Gathered before this skill was handed to you, so step 1 is already done. Read it, do not re-run it.
-
-```!
-git -C ~/.claude status -sb
-echo "--- staged/unstaged summary ---"
-git -C ~/.claude diff --stat HEAD
-echo "--- last 3 commits ---"
-git -C ~/.claude log -3 --format='%h %s'
-```
-
-The full diff is deliberately **not** injected here: it can be thousands of lines and most syncs do
-not need it in full. Read it with `git -C ~/.claude diff` when the summary above shows anything you
-cannot already account for, and always before step 2's secret check.
+DO resolve `sync_root` to the owned config-update worktree for this task, or `~/.claude` when the
+owned change is already there. Verify its common Git directory matches `~/.claude` and inspect its
+origin before staging. Read status, the full diff and recent commits from that same checkout.
+Never stage the live checkout while the task's changes are in a worktree.
 
 `~/.claude` is a git repo and Simon's **single source of truth** for his Claude setup, mirrored to a
 **public** GitHub repo. An uncommitted change there = out of sync. This
@@ -36,8 +27,9 @@ skill commits + pushes those changes safely.
 - **The remote is PUBLIC: a push publishes.** Besides secrets, STOP on any real account, org name,
   project name or email in the diff. Those belong in the untracked overlay (`identity.local.json`,
   `connectors/*.json`, `work/`), and tracked text stays generic ("your work org").
-- **Human authority:** propose the commit; confirm with Simon before pushing (unless he already said
-  "commit and push"). Never force-push. Never rewrite published history.
+- **Authority:** apply `rules/self-healing-config.md`. Its standing scope authorizes validated own-config
+  repairs through commit, merge, push, activation and cleanup; do not request those approvals again.
+  Never force-push, rewrite published history or use this authorization for another repository.
 - **Scope:** only Simon's own config (CLAUDE.md, hooks/, settings.json, contracts/, skills/sk,
   references/ (shared on-demand catalogs), rules/ (if present), dotfiles/, README/AGENTS, .githooks/).
   Never add third-party skills or runtime data — the allowlist `.gitignore` handles this; don't fight it.
@@ -46,32 +38,45 @@ skill commits + pushes those changes safely.
   not a change to commit.
 
 ## Steps
-1. **See what changed:** already injected above. Summarize it for Simon. Pull the full
-   `git -C ~/.claude diff` only for the files you need to inspect properly.
+1. **See what changed:** inspect `git -C "$sync_root" status -sb` and the full owned diff.
+   Account for every changed file and exclude unrelated WIP.
 2. **Eyeball for secrets** in the diff (see the rules above). This step reads the REAL diff, not the
    summary — `--stat` shows names and line counts, never content, so it cannot clear a file of
    secrets. If clean, continue; if not, stop and ask.
-3. **Stage:** `git -C ~/.claude add -A` (or stage selectively if only some changes should go).
+3. **Stage only the reviewed owned paths:** `git -C "$sync_root" add -- <paths>`.
+   Review the staged diff and run the secret scanner before committing.
 4. **Commit with the message in a FILE, never `-m`:** write it with the Write tool, then
-   `git -C ~/.claude commit -F <file>`. The shell interprets `-m` and heredocs (a backtick runs, a
+   `git -C "$sync_root" commit -F <file>`. The shell interprets `-m` and heredocs (a backtick runs, a
    `$VAR` expands) and it fails SILENTLY, which is why `~/.claude/references/git-pr-deploy.md` makes
    `-F` absolute at any length. That catalog also owns the subject and body shape — read it there
    rather than composing a message from scratch. Two hooks gate the result: `.githooks/commit-msg`
    rejects a non-conforming subject, and the pre-commit hook runs `gitleaks` (or the grep fallback)
    and **blocks on any secret**. If either blocks, surface the reason to Simon and fix it; never
    bypass with `--no-verify`, which skips the secret gate too.
-5. **Push:** `git -C ~/.claude push`.
-6. **Confirm in sync:** `git -C ~/.claude status -sb` shows a clean tree and `## main...origin/main`
-   with nothing ahead.
+5. **Land:** follow the worktree flow below for a config-update branch. For an already integrated
+   live change, push its verified destination without changing another branch by assumption.
+6. **Confirm in sync:** verify the landed branch and `origin/main` have zero commits on either side,
+   then activate and clean up as below. Preserve the live checkout's branch name and unrelated WIP.
 
-**A branch from a worktree** (the route `/sk:claude-config-update` takes when another session shares
-the live checkout): run steps 2 to 4 in that worktree over `origin/main..<branch>`, then
-`git push -u origin <branch>`. Merge it into `main` and push `main` only when Simon said to (his yes
-at `/sk:claude-config-update`'s gate is that word for the branch it showed): fetch,
-merge `origin/main` into the branch, re-run the contract suite there, then
-`git push origin <branch>:main`. Confirm with `git rev-list --left-right --count origin/main...<branch>`
-reading `0 0`, and remove the worktree once the push is confirmed. TEST: the live checkout's branch and
-its uncommitted files are exactly as they were before the sync.
+**A branch from a worktree:** inspect the full `origin/main..<branch>` diff, its evidence and owner.
+For a validated repair within standing scope, fetch and merge current `origin/main` into that branch,
+resolve conflicts only within the owned change and re-run affected checks on the final state. Commit
+with `-F` if needed, secret-scan, then `git push origin <branch>:main`.
+A non-fast-forward rejection means another session landed: fetch, reconcile and validate again;
+never force-push. Verify `git rev-list --left-right --count origin/main...<branch>` returns `0 0`.
+
+DO activate in `~/.claude` only with a clean tracked tree and no merge/rebase in progress. Preserve its
+branch: fast-forward to `origin/main` when possible; otherwise merge it without discarding unrelated
+commits. On a conflict, preserve all work and record the exact activation blocker. Re-read current
+rules and verify the changed files are present in the live checkout before claiming active.
+
+DO remove the owned temporary worktree and its merged local branch after the commit is on
+`origin/main` and activation is verified. If this task published its temporary branch, delete that
+owned remote ref after verifying its tip is on main. Check Git registration and disk absence. Keep only
+intentional report artifacts; never delete another session's workspace or unmerged unique work.
+A pending branch is resumed against evidence and ownership, not blindly landed because it exists.
+TEST: a completed sync has a remote commit, verified live files and no owned temporary worktree;
+a blocked sync names its exact blocker without another generic commit/merge question.
 
 ## Notes
 - Manual one-shot equivalent: `bash ~/.claude/dotfiles/sync-config.sh` (stages, secret-scans, commits with

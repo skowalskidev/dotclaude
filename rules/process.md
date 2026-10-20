@@ -128,6 +128,9 @@ before the completion commit; an intermediate checkpoint commit does not trigger
 If on the default branch (`main`), create a branch first. Use conventional commit messages in the imperative mood. Never commit or
 disturb my uncommitted WIP in the main checkout when working in a worktree.
 
+DO apply `rules/self-healing-config.md` to Simon's own config repairs; that explicit standing authority
+includes their merge, push and cleanup. The following default still governs project work.
+
 **Commit only — I own PR and remote operations; never do or raise them unprompted.** After the local
 commit, STOP: no push, PR open/flip/draft/merge, reviewer or label change, PR edit/comment, or
 unprompted PR next-step talk — unless I ask, or a `sk:ship-*` skill whose flow does PR ops is running.

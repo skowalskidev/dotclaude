@@ -82,7 +82,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `bin/node-runtime.zsh` | Node 24 selection for login, interactive and non-interactive zsh shells; tested with `python3 bin/node-runtime.test.py` |
 | `dotfiles/zsh-work-codex.zsh` | The live `~/.zsh-work-codex.zsh` (symlinked here), subscription `CODEX_HOME` and `codex`/`claude` launcher functions |
 | `dotfiles/gitignore_global` | The live `~/.gitignore_global` (symlinked here), git's `core.excludesFile` — personal/secret patterns plus `.context/`, so the agent scratch dir is ignored in every repo without touching any committed `.gitignore` |
-| `hooks/config-status.sh` | SessionStart hook — flags uncommitted config so Claude offers to sync, and names every `config-update/*` branch not yet on `main` |
+| `hooks/config-status.sh` | SessionStart hook — loads the automatic audit/repair policy, reports out-of-sync config and pending branches for ownership-aware resumption |
 | `hooks/worktree-freshness.sh` | SessionStart hook — warns once when this worktree's branch is 10+ commits behind main, so stale-base work is caught before it starts rather than at merge. Detects and reports only |
 | `hooks/orphan-worker-sweep.sh` | SessionStart hook — reports (never kills) orphaned framework dev-tool AND agent-spawned worker processes machine-wide (`chrome-devtools-mcp`, `wrangler`/`workerd`, headless `codex exec`), all with a PID 1 parent. Detection delegates to `bin/kill-orphan-workers.sh --list` |
 | `bin/kill-orphan-workers.sh` | Clears the orphans `hooks/orphan-worker-sweep.sh` reports — a BURNING framework worker (next/jest/vite, 20%+ CPU + 5min old, cwd in a git checkout) OR an idle-or-burning agent-spawned orphan (`chrome-devtools-mcp`, `wrangler dev`/`workerd`, headless `codex exec`), all gated on PID 1 so a live session's server is never touched. Kills the whole process family (not just the parent, which only reparents its children), re-scans for survivors, escalates to `-9`, verifies. `--dry-run` / `--list` / no-arg |
@@ -119,6 +119,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `skills/sk/skills/work-superspeed/` | The `/sk:work-superspeed` skill — cut a task into 3-5 exclusively-owned slices, dispatch them as parallel sessions, reconcile warm in the orchestrator, then analyse the run. Measured 2026-08-06: beat in-session subagents in all 4 configs and all 14 reps, by a fixed ~33s |
 | `skills/sk/skills/claude-config-self-optimize-analysis-after-run/` | The `/sk:claude-config-self-optimize-analysis-after-run` skill — reads one run's logs and proposes the specific partition and instrumentation changes for the next run; proposes, never applies |
 | `skills/sk/skills/ship-mockup-before-after/` | `/sk:ship-mockup-before-after` — real product captures, versioned design targets and feedback inside the shared dashboard; approved target becomes implementation evidence reference |
+| `skills/sk/skills/ship-merge-batch/` | `/sk:ship-merge-batch`; method in `references/git-pr-deploy.md` § Merging several PRs at once |
 | `skills/sk/skills/ship-preview-eyeball-with-prod-data/` | `/sk:ship-preview-eyeball-with-prod-data`; shared procedure in `references/testing-strategy.md` |
 | `skills/sk/skills/work-preview-on-phone/` | The `/sk:work-preview-on-phone` skill — puts a running dev server on your phone over Tailscale Serve (tailnet-private, never Funnel), binds the server to loopback first so the LAN cannot reach it, clears the silent cross-origin allowlist trap, and mints a dev-only API credential rather than widening production's. Any repo |
 | `skills/sk/skills/work-isolate-environment/` | The `/sk:work-isolate-environment` skill — wires a project so this session's dev stack runs on its own lane of ports (`bin/port-slot.sh` allocates, this decides the per-project knobs). Any repo, personal or work, containerised or host-run |
@@ -283,7 +284,7 @@ Native adapter details and verified upstream references live in `references/agen
    git -C ~/.claude config core.hooksPath .githooks    # secret gate + conventional-commit gate
    ```
    The SessionStart sync-reminder hook is already wired in `settings.json` (no separate install). There is
-   **no background daemon** — syncing is on-demand via the `/sk:claude-config-sync` skill.
+   **no background daemon** — syncing runs at task completion or on demand via the `/sk:claude-config-sync` skill.
 5. **Install the third-party skill packs** (intentionally NOT tracked here — they're other people's
    repos, ~1.6 GB, and reinstallable):
    ```bash
@@ -347,8 +348,11 @@ background daemon** (deliberately, to avoid idle CPU):
   exactly one place. The one file that used to live outside (`~/.zsh-work-codex.zsh`) is a **symlink**
   into `dotfiles/`. So `git -C ~/.claude status` is the whole litmus test — anything uncommitted or
   unpushed = out of sync.
-- **Reminder at session start:** the `hooks/config-status.sh` SessionStart hook runs one local
-  `git status` and reports uncommitted, unpushed AND unpulled changes, so Claude offers to sync. It
+- **Automatic audit and repair:** the `hooks/config-status.sh` SessionStart hook loads the standing
+  self-healing policy, even with a clean tree. Every task queues a bounded audit; the active session
+  fixes evidence-backed config issues, validates, merges, syncs and cleans up without repeat approval.
+  Existing intake and finish hooks retain that work; no manual entry-skill call is required.
+  The startup hook reports uncommitted, unpushed and unpulled changes for ownership-aware resumption. It
   also kicks off a detached `git fetch` at most once every 4 hours, purely to keep `@{upstream}`
   fresh across machines. That fetch never blocks session start and is not a background process.
 - **The sync itself:** the **`/sk:claude-config-sync`** skill (reviews the diff, secret-scans, writes a

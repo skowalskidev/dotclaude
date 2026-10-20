@@ -55,6 +55,9 @@ cannot:
 
 ## Git, PRs, integration
 
+DO apply `rules/self-healing-config.md` for the explicit standing authorization covering Simon's own
+config repairs. The project-repository restrictions below do not cancel that scoped authorization.
+
 - **I own PR and remote operations — never do or raise them unprompted (the trigger is in
   `rules/process.md`).** After the local commit, STOP. Do NOT push, open a PR, flip a PR ready/draft,
   request or add reviewers, add/remove labels, edit a PR body, comment on a PR, or merge — UNLESS I ask
@@ -117,7 +120,7 @@ TEST: the hand-back names the install, the browser download, the applied-migrati
 
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 
-**DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
+Outside the own-config exception above, **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
 specific irreversible merge. `hooks/git-commit-guard.py` hard-blocks `gh pr merge` and default-branch
 pushes; clear it with `CLAUDE_ALLOW_PR_MERGE=1` (or `CLAUDE_ALLOW_MAIN_COMMIT=1` for a push) only once
@@ -170,6 +173,68 @@ branch, and put its deletion to the user in the same hand-back. Squash fits a sh
 branch and breaks a branch that keeps going (GitHub and GitLab both document this), so commit nothing
 more to a squashed branch. TEST: after a squash merge the hand-back names the leftover branch and its
 gate result.
+
+## Merging several PRs at once — one batch, one CI run, one deploy
+
+Owned here; `/sk:ship-merge-batch` drives it. Applies when 2+ approved PRs wait on a default branch
+that requires branches to be up to date (ruleset `strict_required_status_checks_policy: true`): each
+merge puts every other PR behind, so N PRs cost N rounds of update + full CI + deploy.
+
+**DO get Simon's own yes naming EACH PR in the set before batching it.** "Merge these all" names the
+direction; the PR numbers he lists are the set. The merge guard above still applies to the one
+`gh pr merge`.
+**DON'T batch a PR whose `statusCheckRollup` is not all SUCCESS/SKIPPED on its current head, or a
+draft.** GitHub marks a PR merged indirectly "even if branch protection rules on that pull request
+were not satisfied" ([About pull request merges § Indirect merges](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/incorporating-changes-from-a-pull-request/about-pull-request-merges)),
+so the per-PR green check is the only protection left. TEST: every batched PR has a recorded yes and
+a green rollup on the head sha that went into the batch.
+
+**DO pick the mechanism in this order, reading the repo's settings, never changing them:**
+1. **Merge queue**, when `gh api graphql -f query='{repository(owner:"O",name:"R"){mergeQueue(branch:"main"){id}}}'`
+   returns non-null: `gh pr merge <n>` adds each PR to the queue and GitHub merges the group in one
+   operation ([Managing a merge queue](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/configuring-pull-request-merges/managing-a-merge-queue)).
+   It is available "in any public repository owned by an organization, or in private repositories
+   owned by organizations using GitHub Enterprise Cloud" (same page), and every required check must
+   also run `on: merge_group`, or the queue waits forever on that check.
+2. **Batch PR** otherwise. It needs no settings change.
+
+**DO build a batch PR this way:**
+1. Check numbered files first: list every new migration or numbered manifest entry across the set.
+   Numbers must be unique and above the base's newest, and no open PR outside the set may hold one.
+   Renumber on the ORIGINAL PR's branch, push, and wait for it to go green again.
+2. `git switch -c batch/<yyyy-mm-dd>-<slug> origin/<default>`, then for each PR in dependency order
+   (stack bases first): `git fetch origin pull/<n>/head`, check the sha equals `headRefOid`, and
+   `git merge --no-ff <sha>`. Resolve a conflict inside that merge commit only (two appended
+   manifest lines: keep both).
+3. Run the repo's local ordering and migration checks, push the batch branch, and open the batch PR
+   with `/sk:ship-pr`: a title carrying every ticket id the repo's title check needs, "Batches #A,
+   #B, #C" in the body, and one Deploy TLDR merging each PR's steps in order.
+4. Wait for ONE green CI run on the batch head, then merge it with `--merge`. When the ruleset's
+   `allowed_merge_methods` lacks `merge`, squash, then close each original with a comment linking
+   the batch PR.
+5. Watch the one deploy run for the merge sha and run each PR's post-deploy smoke
+   (§ Shipping is not done until the deploy is verified).
+6. Read `gh pr view <n> --json state,mergedAt` for each original PR and the ticket status per
+   `references/ticket-lifecycle.md`.
+
+**DON'T rebase, squash or amend a PR head on the batch branch, and DON'T squash-merge the batch PR.**
+A merge commit keeps every PR head reachable from the base, which is what marks each original PR
+merged (same Indirect merges section) and keeps `git revert -m 1 <that PR's merge commit>` able to
+undo one PR alone. A squash leaves the originals open and loses that revert.
+**DON'T fix a red PR inside the batch.** Drop it, rebuild the batch from the default branch without
+it, and hand it back on its own branch.
+
+**DO put a settings change to Simon as a decision, with both halves stated, never apply it:**
+- **Loose required checks** (untick "Require branches to be up to date before merging",
+  [Available rules for rulesets](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets)):
+  each PR merges without re-running CI, and back-to-back deploys coalesce because a newer pending run
+  in a concurrency group cancels the older pending one ([Control the concurrency of workflows and jobs](https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/control-the-concurrency-of-workflows-and-jobs)).
+  It needs the default-branch push run to re-validate the combined tree before deploying, and the
+  migration-order check to run on push too, since a PR-time check sees only its own base.
+- **Merge queue**: a plan that includes it, plus `merge_group` triggers on every required check.
+
+TEST: one batch yields exactly one default-branch push, one deploy run, and every original PR in
+state MERGED, or a named reason for each that is not.
 
 ## Deleting a merged branch safely — the gate is the seatbelt, not `-d`
 

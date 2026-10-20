@@ -86,6 +86,9 @@ A tangent WILL arise — a bug surfaces, a todo-fix is discovered, Simon asks fo
 
 ## Step 6 — finish and hand back
 
+- Apply `rules/self-healing-config.md` automatically, including when this entry skill was not invoked.
+  Reconcile the audit's fix, no-change or blocker outcome before the final response.
+
 - Drive to a VERIFIED finish: `/sk:ship-report-and-ensure-correct-user-system-journey` closes substantive
   work (the build spine already calls it), and commit-when-done applies (`rules/process.md`).
 - **Leave the work refactored, centralised and DRY/SRP before the bar reads 100%.** A value, behaviour or

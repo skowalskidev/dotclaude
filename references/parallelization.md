@@ -164,20 +164,13 @@ use this loop; it is defined ONCE here and neither restates it.
 Recording the causes as one number gets two of them the wrong prescription — measured across two
 consecutive runs whose identical rework counts came from opposite causes.
 
-**Analyse every run, then heal only what RECURS.** AUTO-run
-`/sk:claude-config-self-optimize-analysis-after-run <run-dir>` BACKGROUNDED as the orchestrator's FINAL
-action once the round's learnings are in (after assembly + cleanup), unprompted — never wait to be asked,
-so the loop closes on every run, not only when Simon remembers. It is an event, not a cron, so it stays
-inside `rules/self-healing-config.md`'s no-periodic-scan line, and it emits the run's `runs` row to the
-dotclaude store with `parts`/`rounds`/`rework` POPULATED from `reconcile.json` (TEST: the emitted row
-carries no null partition field — 2 prior runs logged all-null and taught the optimizer nothing). It reads what the run left and
-proposes durable fixes, including to the skill itself. But **auto-analyse, never auto-optimize:** the
-run analyses itself, it does not change the config on its own — an edit still goes through the
-self-healing propose-and-confirm gate, and most runs propose NOTHING. Weigh every candidate against the
-fixed ~33s fan-out toll: splitting a fast slice finer, freezing one more contract, or adding a log field
-for a one-off spends more than it saves and DEGRADES the next run. Only a finding that RECURS across
-runs (check the prior run's log) is durable enough to become a rule; a single run's symptom is a
-re-partition note, not a config change. Silence is the default.
+**DO analyse every run before hand-back.** Apply `references/session-performance.md` and
+`rules/self-healing-config.md`; the active session owns any resulting repair. Use
+`/sk:claude-config-self-optimize-analysis-after-run <run-dir>` after assembly and cleanup.
+Populate `parts`/`rounds`/`rework` from `reconcile.json`. TEST: the emitted row has no null partition
+field. Weigh optimization candidates against measured dispatch overhead and prior runs; a one-off
+slow round is insufficient evidence for a new rule. A demonstrated config defect needs no invented
+recurrence. Record no finding when the evidence supports none.
 
 **Harvest each worker's friction + timings, self-diagnose the bottleneck after EVERY run, and route the
 fix to its right home.** Beyond the `reconcile.json` causes, read every worker's `<name>.friction.md` and
@@ -188,16 +181,14 @@ that RECUR. Then improve in two tiers:
   into the NEXT round's worker blocks — bake the correct instruction in, or when permitted point workers at
   project docs (and `~/.claude`) to read BEFORE they start — so round N+1 is
   not tripped by what tripped round N.
-- **Across runs, ROUTED to the home that OWNS the fact (ASK-FIRST, per `rules/self-healing-config.md`):**
+- **Across runs, route each fix to the home that owns the fact:**
   a friction or bottleneck that RECURS is durable enough to fix at source, and it goes to the ONE home
   that owns that fact so it stays DRY and reproducible — a PROJECT setup/build fact (how THIS repo builds,
   warms, what is heavy) to the project's COMMITTED `CLAUDE.md` when project guidance is allowed; a
   machine-local fact to that project's `CLAUDE.local.md` when allowed; a GENERIC-methodology fact (the pattern itself)
-  to this reference. Each lands through `/sk:claude-config-update`'s gate; a run never edits any of them
-  silently. The system handles ANY future setup step without changing the methodology — when allowed, the worker reads
-  the project's own setup section verbatim (whatever steps it lists), the friction surfaces when that
-  section is wrong or stale, and the fix is routed to whichever home — dotclaude or the project's own docs
-  — keeps it correct. This is the same auto-analyse-never-auto-optimize rule, now fed by worker friction.
+  to this reference. Apply the automatic repair policy above to own-config fixes through
+  `/sk:claude-config-update`. Project edits retain their project policy and authorization.
+  TEST: every durable fix has an owner, evidence and a reported outcome.
 
 ## The hand-run session handoff — START, paste-block, poll (shared)
 

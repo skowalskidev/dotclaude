@@ -154,6 +154,13 @@ SCENARIOS: list[dict] = [
     {"phrase": "check that these stacked PRs merge together onto master", "expect": "ship-check-merge-readiness"},
     {"phrase": "are these open PRs ready to ship to prod as-is", "expect": "ship-check-merge-readiness"},
     #
+    # ship-merge-batch — landing several already-approved PRs together: one CI run, one deploy.
+    # Discriminator: MERGING to the default branch now, not assembling (ship-check-merge-readiness) or
+    # superseding PRs with a new branch (work-consolidate-supersede-branches-prs).
+    {"phrase": "merge these all at once", "expect": "ship-merge-batch"},
+    {"phrase": "bundle the PRs and deploy once", "expect": "ship-merge-batch"},
+    {"phrase": "stop merging each PR one by one", "expect": "ship-merge-batch"},
+    #
     # ship-full-detailed-workflow — the ORCHESTRATOR that runs the whole ship sweep on a finished PR
     # (the SHIP counterpart to work-full-detailed-workflow). Distinct from the single-purpose ship-*
     # skills it composes: the discriminating language is the WHOLE sweep — "all the pr skills", "the
@@ -212,6 +219,8 @@ SCENARIOS: list[dict] = [
     # Any config CHANGE routes here, not just a correction — this is the pair that was missing when
     # "create a new skill" got hand-built instead of run through the skill.
     {"phrase": "create a new skill", "expect": "claude-config-update"},
+    {"phrase": "keep the config improving itself", "expect": "claude-config-update"},
+    {"phrase": "audit each session automatically", "expect": "claude-config-update"},
     {"phrase": "change my config", "expect": "claude-config-update"},
     {"phrase": "ignore project instructions", "expect": "claude-config-update"},
     {"phrase": "make the gauntlet dashboard open the mockup in a new tab", "expect": "claude-config-update"},
