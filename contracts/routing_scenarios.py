@@ -340,16 +340,16 @@ HOOK_ROUTING: list[dict] = [
     # so there is no browser-launch gate.
     {"event": "PreToolUse", "tool": "mcp__chrome-devtools__navigate_page",
      "expect": ["work-resource-guard.sh"]},
-    {"event": "PreToolUse", "tool": "Agent", "expect": ["task-intake.sh"]},
-    {"event": "PreToolUse", "tool": "Workflow", "expect": ["task-intake.sh"]},
+    {"event": "PreToolUse", "tool": "Agent", "expect": []},
+    {"event": "PreToolUse", "tool": "Workflow", "expect": []},
     {"event": "PreToolUse", "tool": "Read", "expect": []},
-    # The config edit-guard and the worktree-path guard fire on the edit tools, never on Bash or Read.
-    {"event": "PreToolUse", "tool": "Edit", "expect": ["config-edit-guard.py", "worktree-path-guard.py"]},
-    {"event": "PreToolUse", "tool": "Write", "expect": ["config-edit-guard.py", "worktree-path-guard.py"]},
-    {"event": "PostToolUse", "tool": "AskUserQuestion", "expect": ["task-intake.sh"]},
-    # The variant that broke it. Conductor sessions only ever expose this form.
+    # The worktree-path guard still protects edits across checkouts.
+    {"event": "PreToolUse", "tool": "Edit", "expect": ["worktree-path-guard.py"]},
+    {"event": "PreToolUse", "tool": "Write", "expect": ["worktree-path-guard.py"]},
+    {"event": "PostToolUse", "tool": "AskUserQuestion", "expect": []},
+    # No host-specific question callback is needed for authorization.
     {"event": "PostToolUse", "tool": "mcp__conductor__AskUserQuestion",
-     "expect": ["task-intake.sh"]},
+     "expect": []},
     {"event": "PostToolUse", "tool": "Edit", "expect": []},
     {"event": "SessionEnd", "tool": None, "expect": ["retro-trigger-log.sh", "config-metrics-log.sh"]},
     # Matcher-less like SessionStart, so every UserPromptSubmit hook fires on every prompt.

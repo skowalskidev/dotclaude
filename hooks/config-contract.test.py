@@ -125,29 +125,14 @@ CRITERIA: list[tuple[str, str]] = [
      "The compatibility frontend uses the shared capacity leases, defers conflicts with exit 75, "
      "and a native project hears the protocol while an idle web project stays silent."),
 
-    # --- The task-intake gate: what you asked for on 2026-08-03 ---------------------
-    ("intake-arms-on-a-task-opening",
-     "A prompt that opens substantive work initializes one plan-backed dashboard, arms the gate and "
-     "injects the intake protocol, so Claude proposes the skills and task before starting."),
-    ("intake-blocks-runaway-fanout",
-     "While the gate is armed, Agent / Task / Workflow are DENIED. Sub-processes keep running after "
-     "a question is asked, so the stop has to be mechanical, not a polite instruction."),
-    ("intake-answering-disarms",
-     "An AskUserQuestion result disarms the gate, and nothing else does. That is what makes the "
-     "block correspond to a real answer from you rather than to Claude deciding it has asked."),
-    ("intake-respects-standing-authorization",
-     "A prompt that hands the session over unattended ('I'll be asleep', 'don't ask me') does NOT "
-     "arm the gate. Stopping to ask is the one thing you asked not to happen in that case."),
-    ("intake-stays-quiet-on-follow-ups",
-     "Short replies and continuations ('yes', 'option 2', 'go ahead') do not re-arm. A gate that "
-     "fires every turn is a gate you learn to ignore."),
-    ("intake-stays-quiet-mid-run",
-     "A message that lands while an approved task is still running does not re-arm the gate, so "
-     "Agent / Task / Workflow stay unblocked. A finished plan, no plan, a stale approval or "
-     "unreadable plan state arms it as before."),
-    ("intake-has-an-off-switch",
-     "CLAUDE_INTAKE_GATE=off disables arming AND blocking. A gate with no escape hatch deadlocks "
-     "the first headless run it meets."),
+    # --- Advisory task intake -----------------------------------------------------
+    ("intake-initializes-task-record", "Substantive prompts initialize or reuse one ordinary plan and canonical dashboard."),
+    ("intake-never-blocks-tools", "Intake cannot deny Agent, Task or Workflow, including with stale former markers."),
+    ("intake-needs-no-answer-tool", "Intake requires no native or connector AskUserQuestion callback and settings wire only UserPromptSubmit."),
+    ("intake-respects-standing-authorization", "Existing authorization proceeds without another generic approval interview."),
+    ("intake-stays-quiet-on-follow-ups", "Short acknowledgements and background notifications stay quiet."),
+    ("intake-reuses-mid-run-plan", "New requests preserve the active plan and do not depend on approval stamps."),
+    ("intake-has-an-off-switch", "CLAUDE_INTAKE_GATE=off skips duplicate plan initialization for delegated headless work."),
 
     # --- Hooks in general -------------------------------------------------------------
     ("hooks-all-wired-and-executable",
@@ -513,163 +498,74 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
                   f"Ledger changed or was deleted by a note naming it as the source ({spelling}).")
 
 
-def check_intake_arms_on_a_task_opening() -> None:
-    clear_markers()
+def check_intake_initializes_task_record() -> None:
     out = intake("submit", {"session_id": "contract-a", "prompt": "refactor the billing module"})
-    check("TASK INTAKE GATE" in out,
-          "A task-opening prompt did not arm the intake gate or inject the protocol.")
-    check("Session record ready." in out and "DASHBOARD_PATH=" in out and "PLAN_PATH=" in out,
-          "Task intake armed without mechanically initializing its plan-backed dashboard.")
+    check("TASK ROUTING" in out and "Session record ready." in out and "DASHBOARD_PATH=" in out,
+          "Task intake did not initialize its plan-backed dashboard and routing advisory.")
     context = INTAKE_WORK_DIR / ".context"
-    check(len(list(context.glob("*-plan.md"))) == 1 and
-          len(list(context.glob("*-dashboard.html"))) == 1,
-          "Task intake did not create exactly one plan and one canonical dashboard.")
+    check(len(list(context.glob("*-plan.md"))) == 1 and len(list(context.glob("*-dashboard.html"))) == 1,
+          "Intake did not create exactly one plan and canonical dashboard.")
     plan = next(context.glob("*-plan.md"))
-    state_match = re.search(r"^```dashboard-state\n(.*?)\n```", plan.read_text(), re.M | re.S)
-    state = json.loads(state_match.group(1)) if state_match else {}
-    check((state.get("engine"), state.get("gauntlet"), state.get("optionsConfirmedAt")) ==
-          ("current", False, None),
-          "Automatic intake did not use ordinary non-Gauntlet defaults.")
-    check((INTAKE_TEST_DIR / "contract-a.armed").exists(),
-          "The intake gate injected its protocol but wrote no marker, so nothing is actually blocked.")
-    for index, prompt in enumerate((
-        "Can you make the footer blue?",
-        "Could you review the dashboard?",
-        "I need you to investigate this failure",
-        "Please help explain why this route is slow",
-    )):
-        sid = f"contract-polite-{index}"
-        polite = intake("submit", {"session_id": sid, "prompt": prompt})
-        check("Session record ready." in polite,
-              f"Conversational task opening bypassed dashboard intake: {prompt!r}")
-        check(len(list(context.glob("*-plan.md"))) == 1 and
-              len(list(context.glob("*-dashboard.html"))) == 1,
-              f"Repeated conversational intake created a second task record: {prompt!r}")
-    question_root = INTAKE_TEST_DIR / "question-workspace"
-    question_root.mkdir()
-    (question_root / ".git").mkdir()
-    question = intake("submit", {
-        "session_id": "contract-question",
-        "prompt": "Why is the footer rendering in the wrong color?",
-        "cwd": str(question_root),
-    })
-    check(question.strip() == "",
-          "A non-imperative question armed the approval gate instead of staying conversational.")
-    check(len(list((question_root / ".context").glob("*-plan.md"))) == 1 and
-          len(list((question_root / ".context").glob("*-dashboard.html"))) == 1,
-          "A non-imperative task question received no session dashboard.")
-    clear_markers()
+    match = re.search(r"^```dashboard-state\n(.*?)\n```", plan.read_text(), re.M | re.S)
+    state = json.loads(match.group(1)) if match else {}
+    check((state.get("engine"), state.get("gauntlet"), state.get("optionsConfirmedAt")) == ("current", False, None),
+          "Ordinary intake changed the execution defaults.")
+    for prompt in ("Can you make the footer blue?", "Could you review the dashboard?", "Why is this route slow?"):
+        intake("submit", {"session_id": "contract-a", "prompt": prompt})
+        check(len(list(context.glob("*-plan.md"))) == 1, "Repeated intake opened a second plan.")
 
 
-def check_intake_blocks_runaway_fanout() -> None:
-    clear_markers()
-    intake("submit", {"session_id": "contract-b", "prompt": "build a new dashboard page"})
-    for tool in ("Agent", "Task", "Workflow"):
-        out = intake("guard", {"session_id": "contract-b", "tool_name": tool})
-        check('"deny"' in out or "deny" in out.lower(),
-              f"{tool} was NOT denied while the intake gate was armed. Sub-processes outlive the "
-              f"question, so this block is the only thing that actually stops a runaway fan-out.")
-    out = intake("guard", {"session_id": "contract-b", "tool_name": "Read"})
-    check(out.strip() == "",
-          "The intake gate blocked Read. It must only gate the fan-out tools, never ordinary work.")
-    clear_markers()
+def check_intake_never_blocks_tools() -> None:
+    for suffix in ("armed", "approved", "armed.denials"):
+        (INTAKE_TEST_DIR / ("contract-stale." + suffix)).write_text("3")
+    for tool in ("Agent", "Task", "Workflow", "Read"):
+        check(intake("guard", {"session_id": "contract-stale", "tool_name": tool}).strip() == "",
+              "Intake still blocks " + tool)
+    out = intake("submit", {"session_id": "contract-stale", "prompt": "continue fixing the panel"})
+    check('permissionDecision' not in out and 'TASK INTAKE GATE' not in out,
+          "Stale runtime markers restored an approval gate.")
 
 
-def check_intake_answering_disarms() -> None:
-    clear_markers()
-    intake("submit", {"session_id": "contract-c", "prompt": "migrate the database schema"})
-    check((INTAKE_TEST_DIR / "contract-c.armed").exists(), "gate did not arm for the disarm test")
-    intake("answered", {"session_id": "contract-c", "tool_name": "AskUserQuestion"})
-    check(not (INTAKE_TEST_DIR / "contract-c.armed").exists(),
-          "AskUserQuestion did not disarm the intake gate, so Claude stays blocked after the user answers.")
-    out = intake("guard", {"session_id": "contract-c", "tool_name": "Agent"})
-    check(out.strip() == "", "Agent is still denied after the gate was disarmed.")
-    clear_markers()
+def check_intake_needs_no_answer_tool() -> None:
+    for event, groups in json.loads(read("settings.json")).get("hooks", {}).items():
+        for group in groups:
+            for hook in group.get("hooks", []):
+                command = hook.get("command", "")
+                check("config-edit-guard.py" not in command, "Removed config sentinel guard is still wired.")
+                if "task-intake.sh" in command:
+                    check(event == "UserPromptSubmit" and command.endswith(" submit"),
+                          "Intake still requires a tool or answer callback.")
+    out = intake("submit", {"session_id": "contract-no-question", "prompt": "build the panel"})
+    check("No generic confirmation" in out, "A host without AskUserQuestion cannot proceed.")
 
 
 def check_intake_respects_standing_authorization() -> None:
-    clear_markers()
-    for prompt in (
-        "Clean up the whole codebase. I will be sleeping so answer all of your questions by "
-        "browsing online and make the best decision yourself, there should be no loose ends left.",
-        "Refactor the auth layer and centralize the duplicated validation. Do not ask me anything, "
-        "just make the calls yourself and get it finished tonight please.",
-        "Please implement the new pricing page and proceed without asking me to confirm any of the "
-        "intermediate steps along the way, I trust your judgement on all of it.",
-    ):
-        out = intake("submit", {"session_id": "contract-d", "prompt": prompt})
-        check(out.strip() == "",
-              f"The intake gate armed despite standing authorization to run unattended. Stopping to "
-              f"ask is the one thing that prompt rules out. Prompt: {prompt[:70]}...")
-    context = INTAKE_WORK_DIR / ".context"
-    check(len(list(context.glob("*-plan.md"))) == 1 and
-          len(list(context.glob("*-dashboard.html"))) == 1,
-          "Unattended task intake suppressed the session dashboard along with the question gate.")
-    clear_markers()
+    out = intake("submit", {"session_id": "contract-standing", "prompt": "Fix the panel while I sleep. Do not ask me again."})
+    check("Use existing explicit or standing authorization" in out and 'permissionDecision' not in out,
+          "Intake lost standing authorization.")
+    check(len(list((INTAKE_WORK_DIR / ".context").glob("*-plan.md"))) == 1,
+          "Unattended intake lost the session record.")
 
 
 def check_intake_stays_quiet_on_follow_ups() -> None:
-    clear_markers()
-    for prompt in ("yes", "go ahead", "option 2", "continue", "lgtm", "2", "sounds good",
-                   "ship it", "thanks", "no", "ok", "approved"):
-        out = intake("submit", {"session_id": "contract-e", "prompt": prompt})
-        check(out.strip() == "",
-              f"The intake gate re-armed on the follow-up {prompt!r}. It must fire on a task "
-              f"opening, not on every turn, or it becomes noise you learn to ignore.")
-    clear_markers()
+    for prompt in ("yes", "go ahead", "option 2", "continue", "lgtm", "2", "sounds good", "ship it", "thanks", "no", "ok", "approved",
+                   "<task-notification>build finished</task-notification>", "System notification - not user input: done"):
+        check(intake("submit", {"session_id": "contract-quiet", "prompt": prompt}).strip() == "",
+              "Intake adds noise to acknowledgement/background event: " + prompt)
 
 
-def _set_plan_phase(root: Path, phase: str) -> None:
-    for plan in (root / ".context").glob("*-plan.md"):
-        text = plan.read_text()
-        m = re.search(r"^```dashboard-state\n(.*?)\n```", text, re.M | re.S)
-        state = json.loads(m.group(1))
-        state["phase"] = phase
-        if phase == "complete":
-            for section in state["sections"]:
-                section["status"] = "done"
-                for c in section["criteria"]:
-                    c["passed"], c["evidence"] = True, "verified"
-        plan.write_text(text[:m.start(1)] + json.dumps(state, indent=2) + text[m.end(1):])
-
-
-def check_intake_stays_quiet_mid_run() -> None:
-    clear_markers()
+def check_intake_reuses_mid_run_plan() -> None:
     root = INTAKE_TEST_DIR / "midrun-workspace"
-    (root / ".git").mkdir(parents=True)
-    sid = {"session_id": "contract-g", "cwd": str(root)}
+    (root / ".git").mkdir(parents=True, exist_ok=True)
+    sid = {"session_id": "contract-midrun", "cwd": str(root)}
     intake("submit", {**sid, "prompt": "investigate the flaky login test"})
-    intake("answered", {**sid, "tool_name": "mcp__conductor__AskUserQuestion"})
-    follow_up = {**sid, "prompt": "check the footer color too"}
-    out = intake("submit", follow_up)
-    check("TASK INTAKE GATE" not in out,
-          "A message mid-run re-armed the intake gate. rules/process.md queues it; the gate may not "
-          "demand a second go/no-go while the approved task is still running.")
-    check(intake("guard", {**sid, "tool_name": "Agent"}).strip() == "",
-          "Agent was denied mid-run, after the user approved the task.")
-    stamp = INTAKE_TEST_DIR / "contract-g.approved"
-    nearly_stale = time.time() - 470 * 60
-    os.utime(stamp, (nearly_stale, nearly_stale))
-    intake("submit", follow_up)
-    check(time.time() - stamp.stat().st_mtime < 120,
-          "A message mid-run did not refresh the approval. APPROVAL_TTL_MIN then measures how long "
-          "the task has run, and a long session re-arms the gate in the middle of its work.")
-    check("TASK INTAKE GATE" in intake("submit", {"session_id": "contract-h", "cwd": str(root),
-                                                   "prompt": "check the footer color too"}),
-          "Another session's first prompt in the same workspace skipped the gate.")
-    _set_plan_phase(root, "complete")
-    check("TASK INTAKE GATE" in intake("submit", follow_up),
-          "A new task after the plan completed did not arm the gate.")
-    intake("answered", {**sid, "tool_name": "AskUserQuestion"})
-    for plan in (root / ".context").glob("*-plan.md"):
-        plan.write_text("not a plan")
-    check("TASK INTAKE GATE" in intake("submit", follow_up),
-          "Unreadable plan state did not fail safe to arming.")
-    intake("answered", {**sid, "tool_name": "AskUserQuestion"})
-    os.utime(INTAKE_TEST_DIR / "contract-g.approved", (1_600_000_000, 1_600_000_000))
-    check("TASK INTAKE GATE" in intake("submit", follow_up),
-          "An approval older than APPROVAL_TTL_MIN still suppressed the gate.")
-    clear_markers()
+    plan = next((root / ".context").glob("*-plan.md"))
+    original = plan.read_text()
+    plan.write_text(original + "\nRetain the unfinished original request.\n")
+    intake("submit", {**sid, "prompt": "check the footer color too"})
+    check(len(list((root / ".context").glob("*-plan.md"))) == 1 and
+          "Retain the unfinished original request." in plan.read_text(), "Mid-run intake replaced the active work.")
+    check(not (INTAKE_TEST_DIR / "contract-midrun.approved").exists(), "Intake still creates approval state.")
 
 
 def check_session_keeps_one_root_in_nested_worktrees() -> None:
@@ -793,18 +689,11 @@ def check_native_slot_serializes_native_work_across_sessions() -> None:
 
 
 def check_intake_has_an_off_switch() -> None:
-    clear_markers()
-    out = intake("submit", {"session_id": "contract-f", "prompt": "refactor everything now"},
+    root = INTAKE_TEST_DIR / "headless-workspace"
+    root.mkdir(exist_ok=True)
+    out = intake("submit", {"session_id": "contract-off", "cwd": str(root), "prompt": "refactor everything now"},
                  env={"CLAUDE_INTAKE_GATE": "off"})
-    check(out.strip() == "", "CLAUDE_INTAKE_GATE=off did not stop the intake gate arming.")
-    (INTAKE_TEST_DIR).mkdir(exist_ok=True)
-    (INTAKE_TEST_DIR / "contract-f.armed").touch()
-    out = intake("guard", {"session_id": "contract-f", "tool_name": "Agent"},
-                 env={"CLAUDE_INTAKE_GATE": "off"})
-    check(out.strip() == "",
-          "CLAUDE_INTAKE_GATE=off did not stop the intake gate BLOCKING. An off-switch that only "
-          "half works still deadlocks a headless run.")
-    clear_markers()
+    check(out.strip() == "" and not (root / ".context").exists(), "Headless opt-out still initializes a duplicate plan.")
 
 
 def check_hooks_all_wired_and_executable() -> None:
@@ -1409,20 +1298,13 @@ def check_automatic_config_repair_lifecycle() -> None:
         git('commit', '-q', '-F', '/dev/null', '--allow-empty-message')
         git('checkout', '-q', 'main')
         (repo / 'note.txt').write_text('unrelated WIP\n')
-        sentinel = repo / '.config-edit-authorized'
-        sentinel.touch()
         before = git('status', '--porcelain'), git('show-ref'), (repo / 'note.txt').read_text()
         pending = context()
         check('config-update/fixture' in pending and 'owner' in pending,
               'Pending repair lacks ownership reconciliation')
         check('OUT OF SYNC' in pending, 'Dirty config not reported')
-        check(sentinel.exists(), 'SessionStart cleared live edit authorization')
         check(before == (git('status', '--porcelain'), git('show-ref'), (repo / 'note.txt').read_text()),
               'SessionStart mutated work or refs instead of reporting')
-        old = time.time() - 300
-        os.utime(sentinel, (old, old))
-        context()
-        check(not sentinel.exists(), 'Stale edit authorization survived SessionStart')
     policy = (ROOT / 'rules/self-healing-config.md').read_text()
     check('Standing authorization' in policy and 'Do not ask again' in policy,
           'Repair policy lost scoped standing authorization')

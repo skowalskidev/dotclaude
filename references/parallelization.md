@@ -61,6 +61,9 @@ It never selects the retired API home, including for review workers. Default out
 answer; JSON output normalizes native events for the dispatcher.
 `--events-file` preserves JSONL. Native permissions and sandboxing still apply; Claude-only permission
 flags are not forwarded. Headless intake/ledger prompts are disabled, not security/trust checks.
+DO have design workers return their design in output or save non-config artifacts in the ordinary
+workspace. Native hosts protect config paths even for scratch files; a rejected Edit/Write is never
+retried through Bash or another tool. Keep the native approval boundary intact and report the rejection.
 Workers are flat leaves: no nested delegation. `AGENT_SETUP` carries the model setup and
 `AGENT_MODEL_PROVIDER` carries the provider to child launches. Native `CODEX_THREAD_ID` /
 `CODEX_SESSION_ID` and `CLAUDECODE=1` identify a running host; the Codex launcher also stamps its
@@ -224,8 +227,8 @@ STATUS_DIR="$(git rev-parse --show-toplevel)/.context/<harness>/<run-id>/status"
 Each spun-off session gets ONE block, pasteable into a COLD session with zero other context. It carries,
 in order: a first-line title `Session <n> (<name>):`; the front-door invoke
 `/sk:meta-dotclaude-copilot-start-here-for-any-task` so the slice runs the right harness autonomously and
-asks nothing — STATE in the block that the task-intake gate is pre-satisfied (this spec IS the ratified
-plan) so the session does NOT call `AskUserQuestion`, which blocks a headless worker forever; the git
+uses the recorded authorization — STATE the approved scope in the block and return unresolved
+consequential choices to the orchestrator instead of starting a generic confirmation interview; the git
 branch-off-START ritual below; when permitted, reproduce the repo's fresh-worktree setup ritual
 VERBATIM from its `CLAUDE.md`/`CLAUDE.local.md` (EVERY step, not just install) — a version manager repoints
 `node`, NOT the `yarn`/`npm` binary, so ASSERT the package manager runs under the pinned runtime (`yarn

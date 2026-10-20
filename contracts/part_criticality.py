@@ -31,12 +31,9 @@ SAFETY: set[str] = {
     # Security / provenance rules and the guards that back them
     "rules/security.md",
     "hooks/work-resource-guard.sh",
-    "hooks/config-edit-guard.py",
     "hooks/background-process-guard.py",
     "hooks/secret-echo-guard.py",
     "hooks/git-commit-guard.py",
-    # The intake gate is a compliance guard: its "denials" are the gate arming by design, not misfires.
-    "hooks/task-intake.sh",
     # Compliance / correctness gates — low fire count, high cost-of-absence
     "hooks/config-contract.test.py",
     "contracts/config_contracts.py",

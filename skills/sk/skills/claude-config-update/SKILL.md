@@ -15,13 +15,10 @@ config's executable/wiring layers (a hook, a `bin` script, a connector manifest,
 home, resolve authorization, then validate and land it. This skill is also the mechanism the `self-healing-config`
 rule uses to fold a resolved config fix back in.
 
-**This is the ONLY sanctioned path for editing `~/.claude`.** `hooks/config-edit-guard.py` hard-blocks
-an Edit/Write to a tracked config file (`rules/`, `references/`, `skills/`, `work/`, `hooks/`, `bin/`,
-`connectors/`, `contracts/`, `dotfiles/`, and the top-level config files) unless this flow has set its
-authorization sentinel. So a config change never happens ad-hoc: it runs through the gate below, which
-is what caught the lessons a hand-edit skips (a missing contract entry, a missing routing scenario, an
-unverified figure). When Simon asks for ANY change to `~/.claude` — including "create a new skill" —
-this flow is how it gets done, without being asked to use it.
+DO route config changes through this workflow to keep placement, contracts, validation and sync
+coherent. Use the native Skill tool or read this canonical file on hosts without it. Existing explicit
+or standing authorization is sufficient; no marker or tool-call receipt is required. Native approvals,
+secret scanning, credential boundaries and worktree protections stay in force.
 
 DO resolve authorization through `rules/self-healing-config.md`. Its standing scope covers routine
 repairs; only an excluded decision needs a new question. Never narrow a skill to one incident.
@@ -291,17 +288,9 @@ change reaches sync in the same run instead of waiting for a generic approval qu
 
 ## Step 6 · Apply the edit
 
-- **A tracked target is edited on its `config-update/<slug>` branch (Step 5), where the guard does not
-  watch, so it needs no sentinel.** Keep edits within the recorded scope.
-- **For an UNTRACKED target (`work/sk-work`, which exists in the live checkout alone), authorize the
-  edit first, after resolving standing or explicit authorization.** `hooks/config-edit-guard.py` blocks every
-  Edit/Write under the live config roots until the sentinel exists. Set it right before editing:
-  ```bash
-  touch ~/.claude/.config-edit-authorized
-  ```
-  This is what separates a sanctioned change (authorization recorded) from an ad-hoc one. Never set it before
-  authorization is recorded, and never leave it set — Step 7 removes it. It is not needed for a project `CLAUDE.md` /
-  `CLAUDE.local.md` target (those live outside `~/.claude` and the guard ignores them).
+- **Edit tracked targets in the isolated `config-update/<slug>` worktree** from Step 5. Keep edits
+  within the recorded scope. Untracked `work/sk-work` targets remain in their live local location;
+  apply the same authorization and review procedure without a sentinel.
 - Edit the target file in place (the SKILL.md or the resolved CLAUDE.md): extend the right section or add a
   tightly-scoped new one. Prefer extending an existing section (DRY) over adding a near-duplicate heading.
 - Keep the file coherent — additions read as if they were always there, same formatting and altitude.
@@ -362,11 +351,6 @@ first fix.
 
 ## Step 7 · Land, activate and clean up
 
-- **Clear the authorization sentinel — always, even if the edit failed partway.** The guard must return
-  to blocking the moment this flow ends, or the hard block is defeated for the rest of the session:
-  ```bash
-  rm -f ~/.claude/.config-edit-authorized
-  ```
 - **Reconcile before reporting.** Step 3 decomposes a multi-topic paste into one learning per standing
   rule, and that is the drop-prone step: fold in three of four and the run still reads as a clean
   success. So check every extracted learning, every `.context/config-lessons.md` entry, and every

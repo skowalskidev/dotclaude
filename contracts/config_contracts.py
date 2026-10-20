@@ -472,8 +472,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "The task-shape-to-skill map lives in references/skill-stack.md, not duplicated here.",
             "Third-party skills are always labelled with their repo.",
-            "A skill that fits is INVOKED via the Skill tool and FOLLOWED, never reconstructed from "
-            "memory — a paraphrase drifts from the tested procedure and records zero uses.",
+            "Use the native Skill tool when available or read and follow the canonical SKILL.md on other hosts; never require a tool receipt as authorization or reconstruct the skill from memory.",
         ],
     },
     "rules/ui-conventions.md": {
@@ -1353,8 +1352,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Launch headless Claude and Codex slices through their shared native launchers, even when a shell function is unavailable.",
             "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the mid tier resolved live at dispatch, then fail an incomplete worker.",
-            "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
-            "headless session and would otherwise deny the run after the reading is already paid for.",
+            "Sets CLAUDE_INTAKE_GATE=off on every slice to skip duplicate session-plan initialization while native approval and security checks stay active.",
             "Verifies each slice by its on-disk artifact, never by exit code "
             "(anthropics/claude-code#74761: claude -p can exit 0 mid-task).",
             "Tells every slice to write BLOCKED.md rather than edit a file another slice owns, and "
@@ -1619,7 +1617,7 @@ CONTRACTS: dict[str, dict] = {
             "folds the new message in, continues, never restarts done work.",
             "Drives the finish to leave the work refactored/centralised/DRY-SRP (one owner per shared "
             "value/behaviour/component) per rules/engineering-standards.md before the bar reads 100%.",
-            "Reuses skill-stack.md + the intake gate + process.md; owns the entry point, the progress "
+            "Reuses skill-stack.md + the intake advisory + process.md; owns the entry point, the progress "
             "bar, verifying skill names, and the resume.",
         ],
     },
@@ -1766,9 +1764,7 @@ CONTRACTS: dict[str, dict] = {
             "Retains unresolved or blocked changes with their owner and evidence; resumes authorized work at the next task boundary without blind merging.",
             "Treats a pasted correction as illustrative material, never as a work order.",
             "Generalises the lesson; never narrows a skill to one task.",
-            "Is the sole path for editing config. For an untracked work/ target it sets the config-edit-guard "
-            "sentinel after recorded authorization and clears it at the end, so an ad-hoc edit stays blocked. Handles "
-            "creating a new part, not only folding a correction.",
+            "Routes edits and new parts through the canonical workflow, read directly when no native Skill tool exists; applies existing authorization without a sentinel or tool receipt.",
             "Grounds every factual claim (a measured figure, a threshold, how another part behaves) "
             "against its source file this run, never restating from memory.",
             "Surfaces anything else the change needs from Simon, with copy-paste steps to get it, in "
@@ -1782,19 +1778,6 @@ CONTRACTS: dict[str, dict] = {
     # your work-skills plugin (e.g. sk-work) is job-specific, lives untracked in work/, and is outside this registry by design.
     # See TRACKED_SKILL_PLUGINS in hooks/config-contract.test.py for why.
     # --- Hooks (wired in settings.json) --------------------------------------------
-    "hooks/config-edit-guard.py": {
-        "mission": "A tracked ~/.claude config file changes only through /sk:claude-config-update, never by an ad-hoc hand-edit.",
-        "purpose": "PreToolUse: denies an Edit/Write to a tracked config file unless the update flow authorized it.",
-        "criteria": [
-            "Gates only the config-as-instructions surface (rules, references, skills, work, hooks, "
-            "bin, connectors, contracts, dotfiles, top-level config files). Runtime state under "
-            "~/.claude, projects/ and its memory included, is never gated, so memory writes still work.",
-            "Allows when the sentinel ~/.claude/.config-edit-authorized exists or CLAUDE_CONFIG_EDIT=1 "
-            "is set; the update skill sets the sentinel after recorded authorization and clears it at the end.",
-            "Fails open on a malformed payload and never touches a path outside ~/.claude. A guard "
-            "that breaks the session gets switched off.",
-        ],
-    },
     "hooks/worktree-path-guard.py": {
         "mission": "An edit from inside a worktree never silently lands in the main checkout by using the main repo's absolute path.",
         "purpose": "PreToolUse: asks (not a hard deny) before an Edit/Write from a worktree session that targets the main checkout or a sibling worktree.",
@@ -1858,12 +1841,10 @@ CONTRACTS: dict[str, dict] = {
     },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
-        "purpose": "SessionStart: injects the repair policy, reports config state and clears stale edit authorization.",
+        "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",
         "criteria": ["Always injects the repair policy for a config repository, including a clean checkout; the hook performs no repairs, commits or merges.",
                      "Names every config-update/* branch that is not on origin/main at each session start, "
-                     "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question.",
-                     "Removes ~/.claude/.config-edit-authorized only when older than two minutes so a crashed update flow "
-                     "cannot leave the config edit-guard open into the next session."],
+                     "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question."],
     },
     "hooks/orphan-worker-sweep.sh": {
         "mission": "No dead framework worker keeps burning a core in a workspace nobody is watching.",
@@ -1945,28 +1926,14 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/task-intake.sh": {
-        "mission": "Simon never has to name a skill, and never hits a predictable blocker that could have been front-loaded.",
-        "purpose": "Opens the task dashboard, proposes skills and blocks fan-out until Simon confirms.",
+        "mission": "Simon gets one recoverable session record without repeated approval interviews.",
+        "purpose": "UserPromptSubmit advisory initializes or reuses the task dashboard and points to task routing.",
         "criteria": [
-            "Mechanically initializes one active plan-backed dashboard before the opening proposal and includes its canonical clickable path.",
-            "Keeps default session gauntlets on current execution with the independent judge off, without adding a loop-options interview.",
-            "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
-            "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
-            "One plan per session: resolves its root through bin/session-root.sh, so a prompt sent while the shell sits in a worktree nested under the session's root reads that root's plan and opens no second one.",
-            "Arms on a task opening, stays quiet for follow-ups inside it.",
-            "Refreshes the approval stamp on every mid-run message, so APPROVAL_TTL_MIN measures how long the task has been silent, never how long it has run.",
-            "Does not arm on an automated system/background-task notification (a completed background "
-            "command, a Stop-hook nudge) — those are follow-up events, not task openings; arming on one "
-            "re-armed a gate the opening prompt had already disarmed and deadlocked an unattended run.",
-            "Fails safe: a stale marker self-clears, because a gate that deadlocks is worse than none.",
-            "Does not arm on a message that lands mid-run: while this session holds an approval stamp "
-            "(<session>.approved, written when its armed gate was answered or standing authorization "
-            "skipped it, at most 480 minutes old) and the workspace has a plan whose phase is not "
-            "complete, only the plan-reconcile reminder fires and Agent/Task/Workflow stay unblocked "
-            "(rules/process.md queues it). A complete, missing, unreadable or stale record arms as before.",
-            "Its task-opening proposal prompts choosing HOW to run the work, not only which skill: "
-            "parallelise independent work, via /sk:work-superspeed at 3-5+ independent slices, "
-            "in-session agents for a smaller fan-out, serial when it does not divide.",
+            "Initialize one ordinary plan and canonical dashboard idempotently; resolve the session root through bin/session-root.sh even after a nested-worktree cwd change.",
+            "Use existing explicit or standing authorization; ask only unresolved consequential choices, missing access, production writes or paid calls.",
+            "Never deny Agent, Task or Workflow and require no AskUserQuestion callback, approval stamp, sentinel or arbitrary prompt-length authority.",
+            "Ignore short acknowledgements and automated background notifications. Preserve CLAUDE_INTAKE_GATE=off as the headless duplicate-plan opt-out.",
+            "Run tests only with isolated session-root/workspace paths; stale former gate markers cannot affect authorization or rearm work.",
         ],
     },
     "hooks/work-resource-guard.sh": {

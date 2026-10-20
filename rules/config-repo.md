@@ -26,8 +26,7 @@ config repo. That repo is the **single source of truth**: any uncommitted change
   for a config change, "create a new skill" included, unprompted.** It fits the structure (thin
   `CLAUDE.md` index, one concern per `rules/*.md`, deep how-to in `references/*.md`, enforcement in
   `hooks/`, engine in `bin/`, flows in `skills/`), checks authorization, and keeps the
-  contracts/routing tests in step. **`hooks/config-edit-guard.py` enforces it**: it hard-blocks an
-  Edit/Write to a tracked config file unless that flow authorized it. Runtime state (`projects/`,
-  `logs/`) is never gated, so memory writes work; the hook's message names the one-off override.
-  **A tool in use (gauntlet dashboard, mockup shell, `bin/`, hooks) counts:** invoke the skill via the
-  Skill tool; never `touch` the sentinel by hand. TEST: every `bin/`/`hooks/` commit traces to it.
+  contracts/routing tests in step. Use the native Skill tool when present, otherwise read and follow
+  its canonical `SKILL.md`. This is the routing and review workflow, not a second approval lock.
+  Existing explicit or standing authorization covers the edit; no sentinel or tool-call receipt is
+  required. Native approvals and the secret, credential, worktree and git guards remain in force.

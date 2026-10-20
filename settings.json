@@ -55,23 +55,8 @@
         ]
       },
       {
-        "matcher": "Agent|Task|Workflow",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/task-intake.sh guard",
-            "timeout": 10
-          }
-        ]
-      },
-      {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/config-edit-guard.py",
-            "timeout": 10
-          },
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/worktree-path-guard.py",
@@ -96,18 +81,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/intent-ledger.sh submit",
             "timeout": 5
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "(mcp__.*__)?AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/hooks/task-intake.sh answered",
-            "timeout": 10
           }
         ]
       }

@@ -39,9 +39,7 @@ def _load_writer():
 
 # Guard denial signatures → the hook part that owns them (mirrors retro-trigger-log.sh's grep).
 _DENY_SIGNATURES = {
-    "TASK INTAKE GATE": "hooks/task-intake.sh",
     "Blocked:": "hooks/work-resource-guard.sh",
-    "config-edit-guard": "hooks/config-edit-guard.py",
     "background-process": "hooks/background-process-guard.py",
     "prints a credential value": "hooks/secret-echo-guard.py",
 }

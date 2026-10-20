@@ -24,7 +24,9 @@ Setup details live in `references/parallelization.md`.
 ## Session dashboard and Gauntlet
 
 Every task-bearing workspace gets one dashboard derived from its living `.context/<slug>-plan.md`.
-Task intake mechanically initializes it; [sk] `/sk:meta-dotclaude-copilot-start-here-for-any-task`
+Task intake initializes it without an approval gate. Existing authorization carries the work forward;
+only unresolved consequential choices or access need a question.
+[sk] `/sk:meta-dotclaude-copilot-start-here-for-any-task`
 does the same on hosts without that hook. Initialization is locked and idempotent, so simultaneous or
 repeated intake leaves one active plan and dashboard. The agent replaces the intake skeleton before work,
 then refreshes the same file as sources, decisions, artifacts, progress and next actions change.

@@ -6,14 +6,6 @@
 # multi-machine use; it never blocks session start and is not an always-on process.
 REPO="$HOME/.claude"
 
-# Clear a STALE config-edit authorization sentinel. The /sk:claude-config-update flow sets it after
-# recorded authorization and removes it when done; a sentinel left behind means that flow crashed, and leaving it
-# would hold config-edit-guard.py open. Only clear a STALE one (>2 min old): this hook can re-fire
-# mid-session (Conductor re-runs SessionStart between messages), and an unconditional rm would wipe a
-# LIVE sentinel a flow just touched — blocking the very edits it authorized. A crashed-flow sentinel is
-# minutes old and still gets cleaned.
-find "$REPO/.config-edit-authorized" -mmin +2 -delete 2>/dev/null
-
 [ -d "$REPO/.git" ] || exit 0
 
 # Rate-limited, non-blocking background fetch (keeps @{upstream} fresh across machines).

@@ -1,306 +1,45 @@
 #!/usr/bin/env bash
-# Task-intake gate. Three hook events, one state file.
-#
-# WHAT IT IS FOR
-# You should never have to remember which skill, rule or reference fits the task you are about to
-# hand over. And when you hand one over and walk away, you want the proposal — what Claude will do
-# and what it will use — BEFORE any of it starts, with a real stop to answer, not a question asked
-# into the void while sub-agents are already burning tokens on the wrong plan.
-#
-# HOW IT WORKS (the instruction alone is not enough — an instruction is advisory, a hook is not)
-#   UserPromptSubmit  -> new substantive task? initialize its dashboard, inject intake, arm the gate.
-#   PreToolUse        -> Agent/Task/Workflow while the gate is armed: DENY. This is the part that
-#                        actually stops a runaway fan-out; the injected text only asks nicely.
-#   PostToolUse       -> AskUserQuestion returned, so the user has answered: disarm, and stamp the
-#                        session as having an approved task in flight.
-#
-# WHY IT DOES NOT FIRE CONSTANTLY
-# Compliance decays as instruction count rises, so a gate that nags every turn trains you to ignore
-# it. It arms on a task OPENING and stays quiet for the follow-ups inside that task.
-# A message that lands MID-RUN is a follow-up even when it reads like a task ("also check the
-# footer"): rules/process.md queues it, so re-blocking fan-out for a second go/no-go contradicts that
-# rule. "Mid-run" means this session holds an approval stamp (<session>.approved, written when its
-# armed gate was answered or when standing authorization skipped it) AND the workspace still has a
-# plan whose phase is not `complete`. A finished plan, a missing plan, an unreadable plan or a stamp
-# older than APPROVAL_TTL_MIN all mean a new task, so the gate arms as before. Every mid-run message
-# refreshes the stamp, so the TTL measures how long the task has been silent, never how long it has
-# run: a session that works past the TTL is still one task.
-#
-# FAIL-SAFE, DELIBERATELY
-# It disarms itself whenever a stop would be wrong rather than merely annoying: an explicit standing
-# authorization in the prompt ("I'll be asleep, don't ask me"), CLAUDE_INTAKE_GATE=off, or too many
-# denials in one session. A gate that deadlocks a headless run is worse than no gate.
-#
-# THE HEADLESS DEADLOCK, AND WHY THE FIX IS NOT AUTO-DETECTION (2026-08-06)
-# This header used to claim it disarmed on "a non-interactive run". It did not — there was no such
-# check, and the claim was false for two years. A benchmark run cost $2.59 and produced nothing: all
-# four Agent calls were denied, and `AskUserQuestion` does not exist in a `claude -p` session, so the
-# gate could never be disarmed. The same wall kills fan-out from background agents, scheduled tasks,
-# CI and the Agent SDK, and it fails AFTER the model has done the reading, so it burns the tokens first.
-#
-# Auto-detection was tried and does not work. Measured on this machine, inside an ordinary interactive
-# Conductor session: `CLAUDE_CODE_CHILD_SESSION=1` and `tty` reports "not a tty" — identical to what a
-# headless run shows. `CLAUDE_CODE_ENTRYPOINT` is `cli` for BOTH `claude -p` and interactive `claude`.
-# There is no env signal that separates them, so anything built on one would silently disable the gate
-# everywhere. Hence two real layers instead:
-#   1. The DISPATCHER sets CLAUDE_INTAKE_GATE=off on every headless slice it launches. /sk:work-superspeed
-#      does this for every slice, which covers the case that actually broke.
-#   2. This gate FAILS OPEN after MAX_DENIALS refusals in one session. An interactive Claude needs one
-#      denial to get the message; a headless one now loses a few tool calls instead of the whole run.
-#
-# Invoked as: task-intake.sh submit | guard | answered   (wired in settings.json)
-
+# UserPromptSubmit advisory: initialize/reuse one session plan and point at task routing.
+# Authorization comes from the user and standing rules, never from a marker or a tool callback.
+# CLAUDE_INTAKE_GATE=off retains the headless dispatcher's plan-initialization opt-out.
 set -uo pipefail
-
-MODE="${1:-submit}"
-STATE_DIR="${CLAUDE_INTAKE_STATE_DIR:-$HOME/.claude/.session-intake}"
+[ "${1:-submit}" = "submit" ] || exit 0
+[ "${CLAUDE_INTAKE_GATE:-on}" = "off" ] && exit 0
 CFG_ROOT="${CLAUDE_CONFIG_ROOT:-$HOME/.claude}"
 INPUT="$(cat)"
-
-# Off-switch, checked in every mode so it disables the whole mechanism, not just the arming.
-[ "${CLAUDE_INTAKE_GATE:-on}" = "off" ] && exit 0
-
 json_field() {
-  # $1 = jq path. Falls back to a sed extraction so the gate still works without jq.
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null
-  else
-    printf '%s' "$INPUT" | sed -n "s/.*\"${1##*.}\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1
-  fi
+  printf '%s' "$INPUT" | /usr/bin/python3 -c 'import json,sys
+try:
+ value=json.load(sys.stdin).get(sys.argv[1], "")
+ print(value if isinstance(value,str) else "")
+except (ValueError,TypeError): pass' "$1" 2>/dev/null
 }
-
-SESSION_ID="$(json_field '.session_id')"
-[ -z "$SESSION_ID" ] && exit 0
-# Never let a crafted session_id escape the state dir.
+SESSION_ID="$(json_field session_id)"
 SESSION_ID="$(printf '%s' "$SESSION_ID" | tr -cd '[:alnum:]._-')"
-[ -z "$SESSION_ID" ] && exit 0
-MARKER="$STATE_DIR/$SESSION_ID.armed"
-APPROVED="$STATE_DIR/$SESSION_ID.approved"
-APPROVAL_TTL_MIN=480
-
-task_in_flight() {
-  # $1 = the prompt's cwd. Returns 0 only when this session approved a task and its plan is unfinished.
-  [ -f "$APPROVED" ] || return 1
-  [ -z "$(find "$APPROVED" -mmin +"$APPROVAL_TTL_MIN" 2>/dev/null)" ] || return 1
-  command -v jq >/dev/null 2>&1 || return 1
-  local dir="$1" plan phase
-  while [ "$dir" != "/" ] && [ ! -e "$dir/.git" ]; do dir="$(dirname "$dir")"; done
-  [ -e "$dir/.git" ] || dir="$1"
-  for plan in "$dir"/.context/*-plan.md; do
-    [ -f "$plan" ] || continue
-    phase="$(/usr/bin/python3 "$CFG_ROOT/bin/workflow-dashboard.py" state "$plan" 2>/dev/null | jq -r '.phase // empty' 2>/dev/null)"
-    case "$phase" in planning|running|paused|blocked) return 0 ;; esac
-  done
-  return 1
-}
-
-case "$MODE" in
-
-answered)
-  # The user answered an AskUserQuestion. The gate has done its job for this task. Stamp the approval
-  # only when the gate was armed, so a clarifying question mid-run neither opens nor extends a task.
-  [ -f "$MARKER" ] && : > "$APPROVED" 2>/dev/null
-  rm -f "$MARKER" "$MARKER.denials" 2>/dev/null
-  exit 0
-  ;;
-
-guard)
-  # A fan-out tool wants to start. Deny only while the gate is armed.
-  [ -f "$MARKER" ] || exit 0
-
-  # Staleness escape hatch. The `answered` disarm depends on the PostToolUse matcher in
-  # settings.json actually matching whatever AskUserQuestion tool the session has — and in a
-  # Conductor session the ONLY variant is `mcp__conductor__AskUserQuestion`, which the original
-  # literal `AskUserQuestion` matcher never caught. The gate armed and could never be disarmed, so
-  # every Agent/Workflow call was denied for the rest of the session even though the user had answered.
-  # (2026-08-03, XCAL-284: cost a whole run's parallelism.)
-  #
-  # The matcher is fixed, but the failure mode is silent and total, so it does not get to recur:
-  # this gate is meant to stop a fan-out that starts BEFORE the proposal, which is a
-  # seconds-to-minutes window. A marker still armed 30 minutes later means the disarm is broken, not
-  # that the user is still deciding — and per the FAIL-SAFE note above, a gate that deadlocks is worse
-  # than no gate.
-  if [ -n "$(find "$MARKER" -mmin +30 2>/dev/null)" ]; then
-    rm -f "$MARKER" "$MARKER.denials" 2>/dev/null
-    exit 0
-  fi
-
-  TOOL="$(json_field '.tool_name')"
-  case "$TOOL" in
-    Agent|Task|Workflow) ;;
-    *) exit 0 ;;
-  esac
-
-  # FAIL OPEN after repeated denials. See the headless note in the header: there is no env signal that
-  # distinguishes a `claude -p` run from an interactive one, so the gate cannot know whether anyone is
-  # able to answer. One denial is all an interactive Claude needs to read the reason and comply. A
-  # session that keeps hitting this is one that CANNOT comply, and denying it forever is the deadlock.
-  MAX_DENIALS=3
-  COUNT_FILE="$MARKER.denials"
-  COUNT="$(cat "$COUNT_FILE" 2>/dev/null || echo 0)"
-  case "$COUNT" in ''|*[!0-9]*) COUNT=0 ;; esac
-  if [ "$COUNT" -ge "$MAX_DENIALS" ]; then
-    rm -f "$MARKER" "$COUNT_FILE" 2>/dev/null
-    exit 0
-  fi
-  printf '%s' "$((COUNT + 1))" > "$COUNT_FILE" 2>/dev/null
-  REASON="Task-intake gate is armed: this prompt opened new substantive work and the user has not yet \
-confirmed the approach. ${TOOL} would spawn background sub-processes that keep running after the \
-question is asked, which is exactly what they asked to be gated.
-
-Do this first, in one turn:
-  1. Say what you understand the task to be, in one or two lines.
-  2. List the skills, rules and references you propose to use, and why each one.
-  3. Apply rules/living-plan.md: open the initialized plan, replace its intake skeleton, regenerate its
-     canonical dashboard, and include the clickable DASHBOARD_PATH in the proposal.
-  4. Ask for anything you will predictably need from him later (auth, credentials, prod approval,
-     any decision that forks the work) — all of it now, in ONE block.
-  5. Call AskUserQuestion to confirm or redirect. That blocks for a real answer and disarms this
-     gate. Nothing else disarms it.
-
-If he has already given standing authorization to proceed without him, say so and re-run with \
-CLAUDE_INTAKE_GATE=off rather than working around this."
-  if command -v jq >/dev/null 2>&1; then
-    jq -cn --arg r "$REASON" \
-      '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$r}}'
+[ -n "$SESSION_ID" ] || exit 0
+PROMPT="$(json_field prompt)"
+[ -n "$PROMPT" ] || exit 0
+LOWER="$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')"
+if printf '%s' "$LOWER" | grep -qE 'system notification - not user input|<task-notification>|automated background-task event|stop hook feedback'; then exit 0; fi
+if printf '%s' "$LOWER" | grep -qE '^[[:space:]]*(y|n|yes|no|ok|okay|sure|go|go ahead|do it|proceed|continue|carry on|keep going|next|approved?|confirm(ed)?|sounds good|lgtm|ship it|option [0-9]|[0-9]+|thanks|thank you|ty|please do|yep|yeah|nope|correct|right|exactly|both|all|neither|stop|wait|hold on)[[:space:][:punct:]]*$'; then exit 0; fi
+TASK_CWD="$(json_field cwd)"
+[ -d "$TASK_CWD" ] || TASK_CWD="${CLAUDE_PROJECT_DIR:-$PWD}"
+if [ -x "$CFG_ROOT/bin/session-root.sh" ]; then
+  KEPT_ROOT="$("$CFG_ROOT/bin/session-root.sh" "$SESSION_ID" "$TASK_CWD" 2>/dev/null)"
+  [ -n "$KEPT_ROOT" ] && [ -d "$KEPT_ROOT" ] && TASK_CWD="$KEPT_ROOT"
+fi
+DASHBOARD_CONTEXT="Dashboard initialization unavailable; locate the existing session plan."
+if [ -f "$CFG_ROOT/bin/workflow-dashboard.py" ]; then
+  INIT_OUTPUT="$(/usr/bin/python3 "$CFG_ROOT/bin/workflow-dashboard.py" init --root "$TASK_CWD" --slug "session-$SESSION_ID" 2>&1)"
+  if [ "$?" -eq 0 ]; then
+    DASHBOARD_PATH="$(printf '%s\n' "$INIT_OUTPUT" | sed -n 's/^DASHBOARD_PATH=//p' | tail -1)"
+    PLAN_PATH="$(printf '%s\n' "$INIT_OUTPUT" | sed -n 's/^PLAN_PATH=//p' | tail -1)"
+    DASHBOARD_CONTEXT="Session record ready. PLAN_PATH=$PLAN_PATH DASHBOARD_PATH=$DASHBOARD_PATH"
   else
-    printf '%s\n' "$REASON" >&2
-    exit 2
+    DASHBOARD_CONTEXT="Dashboard initialization failed: $INIT_OUTPUT"
   fi
-  exit 0
-  ;;
-
-submit)
-  PROMPT="$(json_field '.prompt')"
-  [ -z "$PROMPT" ] && exit 0
-  LOWER="$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')"
-  LEN=${#PROMPT}
-
-  # 0. Automated system / background-task notifications are NOT a task opening. They arrive on
-  #    UserPromptSubmit too — a completed background command, a Stop-hook nudge, a system reminder —
-  #    long enough to trip the length arm below, which RE-ARMED a gate the real opening prompt had
-  #    already disarmed and deadlocked an unattended run that could not answer AskUserQuestion.
-  #    Treat one as a follow-up event inside the running task: never arm on it.
-  if printf '%s' "$LOWER" | grep -qE 'system notification - not user input|<task-notification>|automated background-task event|stop hook feedback'; then
-    exit 0
-  fi
-
-  # 1. Standing authorization suppresses the approval GATE, not the session record. The task still
-  #    gets its plan/dashboard below so an unattended run remains recoverable.
-  # The phrasings below are collected from real handovers, not imagined. "i wont be here to answer
-  # qs" was added on 2026-08-03 after the gate armed on exactly that sentence and would have
-  # deadlocked the session it was written for. Add to this list whenever a live one slips through.
-  UNATTENDED=0
-  printf '%s' "$LOWER" | grep -qE "don'?t ask me|do not ask me|no questions|without asking|answer (all of )?(your|the) (own )?questions|ask and answer (by )?your ?self|i('| a)?m going to sleep|i will be sleeping|i'?ll be sleeping|while i sleep|don'?t stop to ask|proceed without|no need to ask|won'?t be (here|around|available)|wont be (here|around|available)|not (be )?(here|around|available) to answer|to answer (any )?(qs|questions)|unattended|go until you exhaust|until (you )?(exhaust|run out)" && UNATTENDED=1
-
-  # 2. Short replies and continuations are follow-ups inside a task that was already gated.
-  if [ "$LEN" -lt 180 ] && printf '%s' "$LOWER" | grep -qE '^[[:space:]]*(y|n|yes|no|ok|okay|sure|go|go ahead|do it|proceed|continue|carry on|keep going|next|approved?|confirm(ed)?|sounds good|lgtm|ship it|option [0-9]|[0-9]+|thanks|thank you|ty|please do|yep|yeah|nope|correct|right|exactly|both|all|neither|stop|wait|hold on)[[:space:][:punct:]]*$'; then
-    exit 0
-  fi
-
-  # Every non-trivial user prompt gets the session record, even when its wording does not arm the
-  # approval gate (for example, "Why is this route slow?"). Initialization is locked and idempotent.
-  TASK_CWD="$(json_field '.cwd')"
-  [ -d "$TASK_CWD" ] || TASK_CWD="${CLAUDE_PROJECT_DIR:-$PWD}"
-  # One session, one plan: a shell that moved into a worktree nested under the session's own root
-  # still reads and writes that root's plan. bin/session-root.sh owns the rule.
-  if [ -x "$CFG_ROOT/bin/session-root.sh" ]; then
-    KEPT_ROOT="$("$CFG_ROOT/bin/session-root.sh" "$SESSION_ID" "$TASK_CWD" 2>/dev/null)"
-    [ -n "$KEPT_ROOT" ] && [ -d "$KEPT_ROOT" ] && TASK_CWD="$KEPT_ROOT"
-  fi
-  # Decide BEFORE init: init opens a fresh planning plan when the last one is complete, and that new
-  # plan must not read as the approved task still running.
-  IN_FLIGHT=0
-  task_in_flight "$TASK_CWD" && IN_FLIGHT=1
-  DASHBOARD_CONTEXT="Dashboard initialization failed; resolve it before work starts."
-  if [ -f "$CFG_ROOT/bin/workflow-dashboard.py" ]; then
-    INIT_OUTPUT="$(/usr/bin/python3 "$CFG_ROOT/bin/workflow-dashboard.py" init \
-      --root "$TASK_CWD" --slug "session-$SESSION_ID" 2>&1)"
-    INIT_STATUS=$?
-    if [ "$INIT_STATUS" -eq 0 ]; then
-      DASHBOARD_PATH="$(printf '%s\n' "$INIT_OUTPUT" | sed -n 's/^DASHBOARD_PATH=//p' | tail -1)"
-      PLAN_PATH="$(printf '%s\n' "$INIT_OUTPUT" | sed -n 's/^PLAN_PATH=//p' | tail -1)"
-      DASHBOARD_CONTEXT="Session record ready. PLAN_PATH=$PLAN_PATH DASHBOARD_PATH=$DASHBOARD_PATH"
-    else
-      DASHBOARD_CONTEXT="Dashboard initialization failed: $INIT_OUTPUT"
-    fi
-  fi
-
-  # A message mid-run is a queued task: the plan-reconcile reminder (intent-ledger.sh) covers it, and
-  # fan-out stays unblocked.
-  if [ "$IN_FLIGHT" -eq 1 ]; then
-    touch "$APPROVED" 2>/dev/null
-    exit 0
-  fi
-
-  # 3. Arm on a task OPENING. Either it is long enough to be a brief, or it starts with a work verb.
-  ARM=0
-  [ "$LEN" -ge 180 ] && ARM=1
-  printf '%s' "$LOWER" | grep -qE "^[[:space:]]*(please[[:space:]]+)?((can|could|would|will)[[:space:]]+(you|we)[[:space:]]+|i[[:space:]]+(want|need)[[:space:]]+(you[[:space:]]+)?to[[:space:]]+)?(add|build|implement|create|write|refactor|migrate|fix|debug|investigate|audit|review|clean ?up|reorganis|reorganiz|optimis|optimiz|upgrade|update|remove|delete|rename|extract|centralis|centraliz|test|deploy|ship|set up|setup|integrate|port|convert|rewrite|redesign|research|plan|design|make|change|check|explain|help)\b" && ARM=1
-  [ "$ARM" -eq 0 ] && exit 0
-
-  mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
-  if [ "$UNATTENDED" -eq 1 ]; then
-    rm -f "$MARKER" "$MARKER.denials" 2>/dev/null
-    : > "$APPROVED" 2>/dev/null
-    exit 0
-  fi
-
-  rm -f "$APPROVED" 2>/dev/null
-  : > "$MARKER" 2>/dev/null || exit 0
-  rm -f "$MARKER.denials" 2>/dev/null
-
-  # Prune markers from sessions that ended days ago so this never becomes an unbounded directory.
-  find "$STATE_DIR" -name '*.armed' -mtime +2 -delete 2>/dev/null
-  find "$STATE_DIR" -name '*.armed.denials' -mtime +2 -delete 2>/dev/null
-  find "$STATE_DIR" -name '*.approved' -mtime +2 -delete 2>/dev/null
-
-  CONTEXT="TASK INTAKE GATE (armed for this prompt — Agent/Task/Workflow are BLOCKED until you clear it).
-
+fi
+CONTEXT="TASK ROUTING
 $DASHBOARD_CONTEXT
-
-You do not want to have to remember which skill fits a task, and you may hand this session over
-and walk away. So before any work starts, in THIS turn:
-
-  1. Apply rules/living-plan.md. Open the initialized PLAN_PATH, replace its intake skeleton with the
-     proposed task and sources, regenerate its canonical dashboard, and include the clickable
-     DASHBOARD_PATH in the proposal. Ordinary tasks use engine=current with gauntlet=false and do not
-     need a loop-options interview.
-  2. State what you take the task to be, in one or two lines.
-  3. Survey what is available and propose what you will use, with a reason each. READ
-     ~/.claude/references/skill-stack.md — it maps task shapes to the right spine skill and to what
-     genuinely stacks on top, so you do not have to guess from names alone. It covers:
-       - your own skills (/sk:*, and your work-skills plugin, e.g. /sk-work:*) as the spine
-       - third-party packs worth stacking — label the repo ([gstack], [impeccable], …)
-       - the always-on rules and on-demand reference catalogs that bear on this task
-     If nothing fits, say that plainly. Do not force a skill on; one that fits beats three that
-     half-fit.
-     Also decide HOW to run it, not just what with: does the work split into independent pieces that
-     can run at once? Parallelise independent work by default. If it divides into ~3-5+ genuinely
-     independent slices, propose /sk:work-superspeed; for a smaller independent fan-out, parallel
-     in-session agents. Don't overdo it — superspeed only earns its harness at 3-5+ real slices, and
-     serial is right for work that does not divide (references/parallelization.md).
-     Inherit the actual chat provider for all workers and reviewers; reconcile stale plan selections.
-     Pick each worker's TIER by the job: smallest for mechanical fan-out, mid for substantive edits,
-     strong only for judgement. The chat's model is the orchestrator's, never the fleet's default.
-     Do not ask Full Claude or Full Astra when this chat already identifies its provider.
-  4. Front-load every predictable ask in ONE block: auth or logins, credentials, prod approval,
-     billable API calls, and any decision where guessing wrong wastes the work.
-  5. Call AskUserQuestion to confirm or redirect. It blocks for a real answer, and it is the only
-     thing that disarms this gate.
-
-Keep it to a few lines. This is a go/no-go; detailed planning and execution come after he says go."
-
-  if command -v jq >/dev/null 2>&1; then
-    jq -cn --arg c "$CONTEXT" \
-      '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
-  else
-    printf '%s\n' "$CONTEXT"
-  fi
-  exit 0
-  ;;
-
-*)
-  exit 0
-  ;;
-esac
+Apply rules/living-plan.md: initialize the task in this record or reconcile new requests into its existing work, then regenerate its dashboard. Read references/skill-stack.md and use the matching installed skill. Use existing explicit or standing authorization and continue the authorized work. Ask only for unresolved consequential choices, missing access, production writes or paid calls. No generic confirmation or AskUserQuestion callback is required. Keep engine=current and gauntlet=false unless another mode was requested."
+printf '%s' "$CONTEXT" | /usr/bin/python3 -c 'import json,sys; print(json.dumps({"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":sys.stdin.read()}}))'

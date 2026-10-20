@@ -40,8 +40,8 @@
 #     ]
 #   }
 #
-# Every slice runs with CLAUDE_INTAKE_GATE=off, because the intake gate cannot be satisfied by a
-# headless session and would otherwise deny the run after the reading is already paid for.
+# Every slice runs with CLAUDE_INTAKE_GATE=off to skip duplicate plan initialization;
+# the orchestrator owns the session plan. Native approval and security checks remain active.
 # It also runs with CLAUDE_INTENT_LEDGER=off: slices share the orchestrator's directory, so N of them
 # would race on one ledger, and a dispatched machine-written prompt does not belong in a record whose
 # whole value is that it is your words verbatim.
