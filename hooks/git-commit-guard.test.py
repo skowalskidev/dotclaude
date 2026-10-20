@@ -106,6 +106,8 @@ def main() -> int:
             ("unrelated main push", dirs["main"], f"{PUSH} origin main", True),
             ("unrelated feature push to main", dirs["feature"], f"{PUSH} origin HEAD:main", True),
             ("config command targeting other repo", worktree, f"git -C {dirs['main']} push origin main", True),
+            ("foreign bare push uses target branch", worktree, f"git -C {dirs['main']} push", True),
+            ("foreign commit uses target branch", worktree, f"git -C {dirs['main']} commit -F msg.txt", True),
             ("explicit config worktree target", dirs["feature"], f"git -C {worktree} push origin HEAD:main", False),
             ("config inline message still denied", worktree, f"{COMMIT} -m fix", True),
             ("config PR merge still denied", worktree, "gh pr merge 12", True),

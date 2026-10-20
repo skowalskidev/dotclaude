@@ -148,40 +148,40 @@ def is_config_repo(cwd: str) -> bool:
 
 
 
-def config_command(command: str, cwd: str) -> bool:
-    """Grant the exception only when a simple Git command resolves to the config storage.
+def command_cwd(command: str, cwd: str) -> str:
+    """Resolve the repository targeted by a simple Git command.
 
     Unknown shell expansion, compound commands and Git environment selectors keep the guard.
     This prevents `git -C <other-repo>` inheriting the caller's config exemption.
     """
     if any(os.environ.get(key) for key in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR")):
-        return False
+        return ""
     try:
         lexer = shlex.shlex(command, posix=True, punctuation_chars=True)
         lexer.whitespace_split = True
         words = list(lexer)
     except ValueError:
-        return False
+        return ""
     if any(any(ch in word for ch in "$`\n") or word in (";", "&&", "||", "|", "&", "(", ")")
            for word in words):
-        return False
+        return ""
     if not words or os.path.basename(words.pop(0)) != "git":
-        return False
+        return ""
     target = cwd
     while words:
         word = words.pop(0)
         if word == "-C":
             if not words:
-                return False
+                return ""
             path = os.path.expanduser(words.pop(0))
             target = os.path.abspath(os.path.join(target, path))
         elif word.startswith("-C"):
             target = os.path.abspath(os.path.join(target, os.path.expanduser(word[2:])))
         elif word.startswith("-"):
-            return False
+            return ""
         else:
-            return is_config_repo(target)
-    return False
+            return target
+    return ""
 
 
 def deny(reason: str) -> int:
@@ -209,6 +209,7 @@ def main() -> int:
     cwd = payload.get("cwd") or os.getcwd()
 
     masked = mask(command)
+    target_cwd = command_cwd(command, cwd)
     for seg in segments(command):
         words = command_words(seg)
         sub = git_subcommand(words)
@@ -245,8 +246,8 @@ def main() -> int:
         allow_main = os.environ.get("CLAUDE_ALLOW_MAIN_COMMIT") == "1" or bool(
             re.search(r"\bCLAUDE_ALLOW_MAIN_COMMIT=1\b", masked)
         )
-        if not allow_main and not config_command(command, cwd):
-            branch = current_branch(cwd)
+        if not allow_main and not (target_cwd and is_config_repo(target_cwd)):
+            branch = current_branch(target_cwd or cwd)
             target = re.search(r"(?:^|\s|:)(main|master)\b", seg)
             if branch in DEFAULT_BRANCHES or (is_push and target):
                 verb = "push to" if is_push else "commit on"
