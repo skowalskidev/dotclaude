@@ -236,6 +236,32 @@ it, and hand it back on its own branch.
 TEST: one batch yields exactly one default-branch push, one deploy run, and every original PR in
 state MERGED, or a named reason for each that is not.
 
+## Config repository completion
+
+DO apply `rules/config-repo.md` to Simon's own config repository only. This is standing authority
+to finish reviewed, validated config work and retire its merged branches without another cleanup
+question. Other repositories keep their existing remote-operation and confirmation rules.
+
+DO inventory all local heads, origin heads and worktrees at session start and before hand-back.
+Finish ready authorized work and remove its merged refs in the same task, including branch-only
+leftovers. Review and validate pending dependency PRs before merging ready patch updates and
+removing their branches. Do not merge merely to empty the branch list.
+
+DO retain another session's active work, unique unreviewed changes, protected recovery and concrete
+blockers with an owner, evidence and next action in the plan. Resume ready owned work at the next
+task boundary. Never delete work to manufacture a main-only result or weaken required checks.
+No daemon or blind automatic merge.
+
+DO retire a finished task-owned config branch even when its workspace stays open: verify a clean
+tree and the entire tip's containment in `origin/main`, detach at the unchanged commit, then delete
+only the merged ref. Preserve all workspace files and Conductor's lifecycle. Create a fresh branch
+from current `origin/main` before further edits; never detach another session's active checkout.
+
+TEST: after fetching origin, `git for-each-ref refs/heads` and `git ls-remote --heads origin` show
+only main or individually evidenced active/protected/blocked exceptions; live main has clean status
+and `git rev-list --left-right --count main...origin/main` prints `0 0`. Verify every retired ref's
+absence separately from any worktree removal.
+
 ## Deleting a merged branch safely — the gate is the seatbelt, not `-d`
 
 `git branch -d` decides "merged?" against the CURRENT HEAD (or the branch's upstream), NOT against the
@@ -244,7 +270,8 @@ already merged to `origin/master`, and the refusal reads exactly like a real "un
 252-commit-behind worktree refused six branches whose tips WERE `origin/master`; the branches were
 genuine merged leftovers and `-d` could not clear them.
 
-**First, confirm with the user — always.** Removing a branch or worktree is destructive and not cleanly
+**First, resolve authority.** Own-config closure uses the standing authority above. For other
+deletion requests, confirm with the user. Removing a branch or worktree is destructive and not cleanly
 reversible, so present the exact list you propose to remove and get an explicit yes; never delete
 unprompted. The gate below proves a deletion is SAFE; the user still decides WHETHER to make it, and may
 veto any item. The cleanup flows that use this rule carry it as their confirm step —

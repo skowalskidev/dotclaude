@@ -56,7 +56,8 @@ skill commits + pushes those changes safely.
 5. **Land:** follow the worktree flow below for a config-update branch. For an already integrated
    live change, push its verified destination without changing another branch by assumption.
 6. **Confirm in sync:** verify the landed branch and `origin/main` have zero commits on either side,
-   then activate and clean up as below. Preserve the live checkout's branch name and unrelated WIP.
+   then activate and clean up as below. Apply `rules/config-repo.md` § Return to main after completed
+   work and record the final local/origin head inventory. Preserve unrelated WIP.
 
 **A branch from a worktree:** inspect the full `origin/main..<branch>` diff, its evidence and owner.
 For a validated repair within standing scope, fetch and merge current `origin/main` into that branch,

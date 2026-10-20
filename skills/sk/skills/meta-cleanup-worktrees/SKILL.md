@@ -38,6 +38,9 @@ there is no local workspace CLI/API. Never mutate its database or bypass its arc
 Preserve main clones and shared application state; never recursively delete `~/conductor` or infer
 permission to delete an archive from its archived status. Distinguish these operations:
 
+- **Config ref-only closure:** apply `rules/config-repo.md` § Return to main after completed work.
+  Its task-owned merged-ref retirement preserves the current workspace; it neither archives a
+  Conductor workspace nor reclaims its storage. All other current-workspace exclusions remain.
 - **Workspace/branch lifecycle:** follow Steps 1–6 and the full merged/clean gate; app-managed
   workspace archiving remains user-controlled through Conductor.
 - **Disk/cache pruning:** first measure the WHOLE requested root with `du -sk`, then each top-level

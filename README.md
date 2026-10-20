@@ -347,8 +347,8 @@ background daemon** (deliberately, to avoid idle CPU):
 
 - **One source of truth locally:** `~/.claude` *is* the git working tree, so every config file lives in
   exactly one place. The one file that used to live outside (`~/.zsh-work-codex.zsh`) is a **symlink**
-  into `dotfiles/`. So `git -C ~/.claude status` is the whole litmus test — anything uncommitted or
-  unpushed = out of sync.
+  into `dotfiles/`. `git -C ~/.claude status` checks working-tree sync; branch completion follows
+  `rules/config-repo.md`.
 - **Automatic audit and repair:** the `hooks/config-status.sh` SessionStart hook loads the standing
   self-healing policy, even with a clean tree. Every task queues a bounded audit; the active session
   fixes evidence-backed config issues, validates, merges, syncs and cleans up without repeat approval.
@@ -358,6 +358,10 @@ background daemon** (deliberately, to avoid idle CPU):
   fresh across machines. That fetch never blocks session start and is not a background process.
 - **The sync itself:** the **`/sk:claude-config-sync`** skill (reviews the diff, secret-scans, writes a
   conventional commit, pushes) — or the one-shot script `bash ~/.claude/dotfiles/sync-config.sh`.
+- **Completed branches:** keep **Settings → General → Pull Requests → Automatically delete head
+  branches** enabled in this config's GitHub repository (`delete_branch_on_merge=true`). Each config
+  task also removes its finished local branches and verifies the remaining refs. Active or blocked
+  work retains an owner and next action.
 - **Two secret gates, both blocking:** the allowlist `.gitignore` + a **`gitleaks`** pre-commit hook
   (`.githooks/pre-commit` → `dotfiles/secret-scan.sh`, with a credential-format grep fallback when
   gitleaks isn't installed). Install gitleaks via `brew bundle --file dotfiles/Brewfile`.

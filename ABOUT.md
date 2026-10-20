@@ -57,6 +57,9 @@ evidence and review receipts without a background watcher. Every active session 
 problems in its own config workflow, validates them, syncs them and cleans up the temporary branch.
 This standing authorization avoids repeat commit questions; unresolved access, conflicts and decisions
 outside that scope remain visible in the plan. No manual audit skill invocation is needed.
+Completed config work returns to clean, synced main with no finished branches left locally or on
+GitHub. Active work and blocked changes stay visible with their owner and next action. An open
+workspace can keep its files at a detached commit after its merged branch is removed.
 
 Heavy local builds and simulator work use machine-wide capacity leases, three at once, one per
 session. Editing and lightweight checks can continue while all are held. The runner attempts

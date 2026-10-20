@@ -2,9 +2,8 @@
 
 ## My ~/.claude config is a git repo — keep it in sync (source of truth)
 
-My whole Claude setup lives in `~/.claude`, which is a git repo mirrored to your **public** GitHub
-config repo. That repo is the **single source of truth**: any uncommitted change in
-`~/.claude` means it's out of sync, and `git -C ~/.claude status` is the litmus test.
+This config lives in `~/.claude`, a git repo mirrored to your **public** GitHub repo.
+Keep this single source of truth synced; verify both working-tree state and branch completion.
 
 - **DO finish tracked config changes through `/sk:claude-config-sync`** under the standing authority
   in `rules/self-healing-config.md`. Do not leave a verified repair waiting for a commit question.
@@ -30,3 +29,10 @@ config repo. That repo is the **single source of truth**: any uncommitted change
   its canonical `SKILL.md`. This is the routing and review workflow, not a second approval lock.
   Existing explicit or standing authorization covers the edit; no sentinel or tool-call receipt is
   required. Native approvals and the secret, credential, worktree and git guards remain in force.
+
+## Return to main after completed work
+
+DO finish config work with clean, synced main and zero finished local/origin branches.
+Keep GitHub's `delete_branch_on_merge` enabled. Apply `references/git-pr-deploy.md` § Config
+repository completion at session start and hand-back.
+TEST: only main or evidenced active/protected/blocked refs remain.

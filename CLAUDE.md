@@ -10,7 +10,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `engineering-standards.md` — latest-stable versions, mainstream tool choice, single-source-of-truth (DRY/SRP), harden-without-breaking, legacy policy, lock-in-one-variant (no shipped A/B toggle), soft-archive-not-delete.
   - `ui-conventions.md` — button order, and minimalist interfaces: default to a label, cut the number of text blocks. Always-on with a scope line at the top, because `paths:` frontmatter is silently ignored at user level and this file consequently never loaded; see the comment in it before re-scoping.
   - `skills-workflow.md` — the skill-listing repo-prefix rule, how my `sk`/`sk-work` skills are organised, when to use my own vs other repos' skills.
-  - `config-repo.md` — `~/.claude` is a git repo (this config repo); keep it in sync via `/sk:claude-config-sync`.
+  - `config-repo.md` — keep `~/.claude` clean and synced via `/sk:claude-config-sync`; return to main with no finished branch leftovers.
   - `connectors.md` — connector/credential system: discover the provisioned path first (manifest + browser-debugging), the auth-gate protocol (ask first with numbered steps, then wait), work/personal boundary, prod read-only + gated writes, and the per-project manifest convention (`~/.claude/connectors/<project>.json`).
   - `spend-approval.md` — never run a billable/metered operation (paid model render, credit-consuming API call) without an explicit per-call yes; a diagnose/fix task is not license to spend, and no bisection/retry loop fires paid calls until one works.
   - `self-healing-config.md` — audit every task automatically; repair, validate, merge, sync and clean up own-config fixes under standing authorization (event-driven, never a cron).

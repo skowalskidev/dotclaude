@@ -385,6 +385,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "A structural change updates README inventory in the same commit.",
             "Never commit a secret; sync goes through /sk:claude-config-sync which secret-scans.",
+            "At rest, live main is clean and synced, with zero finished local or origin branches; inventory at session start and hand-back, retaining evidenced active, unique, recovery or blocked work.",
+            "Keep GitHub delete_branch_on_merge enabled for this config repo; branch deletion follows a reviewed merge.",
+            "Routes config completion mechanics to references/git-pr-deploy.md, including safe merged-ref retirement while preserving an open workspace.",
         ],
     },
     "rules/connectors.md": {
@@ -635,10 +638,11 @@ CONTRACTS: dict[str, dict] = {
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
             "A commit is chained after its checks with &&, never ;, so a failing check stops it.",
-            "Owns the safe merged-branch-deletion rule: confirm with the user first (never delete "
-            "unprompted), gate on origin/<default> ancestry OR gh-MERGED-plus-pushed OR the content proof "
+            "Owns the safe merged-branch-deletion rule: apply own-config standing authority or confirm "
+            "other deletion requests; gate on origin/<default> ancestry OR gh-MERGED-plus-pushed OR the content proof "
             "(git cherry shows no + / merge-tree changes nothing) for a cherry-picked branch, then git branch -D "
             "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
+            "Owns config completion: inventory refs, validate dependency updates, preserve active/protected/blocked work, and retire a clean task-owned merged ref at unchanged detached HEAD while preserving workspace files and native lifecycle.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
@@ -1658,6 +1662,7 @@ CONTRACTS: dict[str, dict] = {
             "Uses non-forced git worktree remove for ordinary registered worktrees; requires proven abandoned status, full safety gates and exact-path extra confirmation before manually removing filesystem residue.",
             "Canonicalizes paths without following outside symlinks; removes only confirmed owned aliases after their target decision. Preserves main clones/shared state and, by default, unique archived materials/history; explicit archive deletion follows its separate scope.",
             "Limits branch/worktree cleanup to this repo unless cross-repository scope is explicit; never deletes ~/conductor wholesale or enumerates remote-only branches for a purge.",
+            "Routes config-only merged-ref retirement to rules/config-repo.md; preserving a current workspace is distinct from archiving it or reclaiming storage.",
             "Surfaces remote counterparts as a separate opt-in confirmation, limited to merged branches authored by Simon and corresponding to local branches being removed.",
             "Verifies exact workspace trees, node_modules, build caches, dashboards, owned aliases and removed refs are absent; measures after-sizes and names pending/blocked paths. Ref deletion or an archive request alone never counts as reclaimed storage.",
             "Measures the whole explicitly requested disk-cleanup root and every category before and after, including archives, workspaces and repos across projects; reports removed paths, retained reasons and actual reclaimed size. Branch counts alone never satisfy disk cleanup.",
@@ -1760,6 +1765,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Reads the real diff for secrets; a --stat summary never clears a file.",
             "Lands owned validated repairs under standing or explicit authorization; activates a clean compatible live checkout and removes only verified merged worktrees and branches.",
+            "Applies the main-only completion rule from rules/config-repo.md and records final local and origin head inventories.",
             "Stops on a real account, org name, project name or email in the diff, because the remote is public.",
             "Never bypasses the pre-commit gate with --no-verify.",
             "Commits with -F from a written file, never -m. references/git-pr-deploy.md owns that "
