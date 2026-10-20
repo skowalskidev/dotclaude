@@ -53,7 +53,7 @@ When listing/recommending a skill, prefix with its repo (`[gstack]`, `[impeccabl
 ### The map lives in ONE place — `~/.claude/references/skill-stack.md`
 Which skill fits which task shape, and which third-party skill genuinely stacks on top of it, is in
 `references/skill-stack.md` — including the adoption bar each pack had to clear. Read it at task
-start; the task-intake gate (`hooks/task-intake.sh`) points you there on every new task. Don't
+start; the task-intake advisory (`hooks/task-intake.sh`) points you there on every new task. Don't
 duplicate that mapping into individual skills — one home, so it can't drift.
 
 ### Use one of my own skills when it fits — check first, don't wait to be asked
@@ -64,9 +64,9 @@ a task, check whether one of these skills fits the scenario; if one clearly appl
 proactively — without me typing the command — and say which one and why. If none fits, don't force it:
 using them is optional, driven by the task at hand.
 
-**When one fits — Simon named it, or its trigger fired — INVOKE it via the Skill tool and FOLLOW its
-steps; never reconstruct it from memory** (a paraphrase drifts from the tested procedure, and the
-metrics recorder logs only a Skill tool-call as a use).
+DO use the matching skill when Simon names it or its trigger applies. Invoke the native Skill tool
+when available; on a host without it, read the canonical `SKILL.md` and follow it. Do not reconstruct
+it from memory or require a tool receipt as authorization. State which skill is being used and why.
 
 ### Other repos' skills (manual — suggest, don't auto-run)
 Which third-party skill stacks on which task shape (the design chain, `/investigate` before fixes,

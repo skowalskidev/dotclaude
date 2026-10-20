@@ -1,6 +1,6 @@
 ---
 name: meta-dotclaude-copilot-start-here-for-any-task
-description: The single skill to call for ANY task with this dotclaude config, so Simon never has to remember which skill fits. It finds or creates the session's one plan-backed dashboard, returns its link on request, routes the task to the right skills via references/skill-stack.md (verifying each is installed), presents the plan, and drives the whole job to a verified finish — keeping an always-visible progress bar (overall + nested sub-progress), applying each skill at its stage, and gracefully RESUMING the main thread after a tangent (a mid-task fix, a discovered todo). Callable at any stage; it re-reads the tracker and continues where the plan left off. Reuses references/skill-stack.md (the map), the task-intake gate, and rules/process.md (a tangent is a queued task; track every task to completion); it owns the single entry point, the progress bar, verifying skill names, and the resume. Use for "start here", "what should I use for this", "run this the right way", "just handle this", "which skills for this task", "copilot this whole thing", "show me this session's dashboard", "give me the dashboard link", or /sk:meta-dotclaude-copilot-start-here-for-any-task.
+description: The single skill to call for ANY task with this dotclaude config, so Simon never has to remember which skill fits. It finds or creates the session's one plan-backed dashboard, returns its link on request, routes the task to the right skills via references/skill-stack.md (verifying each is installed), presents the plan, and drives the whole job to a verified finish — keeping an always-visible progress bar (overall + nested sub-progress), applying each skill at its stage, and gracefully RESUMING the main thread after a tangent (a mid-task fix, a discovered todo). Callable at any stage; it re-reads the tracker and continues where the plan left off. Reuses references/skill-stack.md (the map), the task-intake advisory, and rules/process.md (a tangent is a queued task; track every task to completion); it owns the single entry point, the progress bar, verifying skill names, and the resume. Use for "start here", "what should I use for this", "run this the right way", "just handle this", "which skills for this task", "copilot this whole thing", "show me this session's dashboard", "give me the dashboard link", or /sk:meta-dotclaude-copilot-start-here-for-any-task.
 argument-hint: "[the task, or the stage you're resuming]"
 ---
 
@@ -49,11 +49,12 @@ applied through to a verified finish — resuming the main thread after any tang
 - Decide HOW too (`references/parallelization.md`): serial, a small in-session fan-out, or
   `/sk:work-superspeed` / `/sk:work-hyperspeed` when it splits into 3-5+ genuinely independent slices.
 
-## Step 2 — present the PLAN, get the go
+## Step 2 — record the plan and continue
 
 - Open with the user-journey TLDR, then the ordered skill-plan (which skill at which stage), then the
-  questions in one block (`references/planning-and-tracking.md`). Get sign-off for big or risky work.
-  With no ticket, the prompt IS the plan.
+  questions in one block (`references/planning-and-tracking.md`) only for unresolved consequential
+  choices or access. Continue within explicit or standing authorization; do not repeat a generic
+  confirmation. With no ticket, the prompt defines the authorized scope.
 - Write the plan + progress to a DURABLE tracker — the harness Task list AND `.context/`
   (`rules/process.md`) — so a restart or a hand-off resumes it, not memory.
 

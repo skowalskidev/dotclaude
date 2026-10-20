@@ -1,6 +1,6 @@
 ---
 name: ship-mockup-before-after
-description: Show a planned visible change as a before/after mockup before building it — a real screenshot as BEFORE, a measured HTML/CSS overlay as AFTER, one per plan part — shipped as a self-contained HTML file or artifact that reviewers comment on and hand back as a build spec. After approval, implements and proves each difference on the real screen. Use for "mock this up", "show me before and after", "what will this look like", "I want to see it before you build it", "implement the mockup", "the screen doesn't match the mockup", "mock up many design variants from different angles, Figma-like", "give me more design variants to choose from", or any plan with a visible change.
+description: Show a planned visible change as a before/after mockup before building it — a real screenshot as BEFORE, a measured HTML/CSS overlay as AFTER, one per plan part — shipped as a self-contained read-only design viewer; reviewers discuss choices and changes in chat. After approval, implements and proves each difference on the real screen. Use for "mock this up", "show me before and after", "what will this look like", "I want to see it before you build it", "implement the mockup", "the screen doesn't match the mockup", "mock up many design variants from different angles, Figma-like", "give me more design variants to choose from", or any plan with a visible change.
 argument-hint: "[optional: ticket id, plan path, or which part to mock]"
 ---
 
@@ -78,18 +78,11 @@ him find a new filename is the violation.
 
 ## Variants while EXPLORING; a DECISION collapses to a default
 
-**DO turn every design option you would otherwise ASK about into a VARIANT in the mockup — the user picks
-from the mockup's own variant switcher + pick/comment UI, never from a chat question.** Whenever you can
-see two or more ways to do a design thing (a shape, a layout, a scroll model, a colour, a placement),
-build ALL of them as variants and ship them together in the one mockup. A design suggestion is a variant,
-not a question.
-**DON'T ask a design-decision question in chat — no AskUserQuestion "A or B?", "which layout?", "which
-colour?".** Showing beats asking; that is the whole point of a mockup. Only forks a mockup CANNOT answer
-stay chat questions (build-now-vs-mock-first, which repo, a credential, prod approval).
-DEFAULT: N design options → N variants in the mockup; zero design-choice questions in chat.
-TEST: every option you considered is a variant in the mockup and no chat message asks the user to choose
-between design alternatives (the fix for asking a sidebar A/B and a scroll model in chat instead of
-rendering them as variants).
+DO render the design alternatives as variants so Simon can see each option before deciding. Use the
+variant switcher only to view designs. Explain the alternatives and receive choices, comments and
+approval in chat; do not put voting, pick/comment or response controls in the artifact.
+DEFAULT: N design options → N viewable variants; the decision stays in chat.
+TEST: each design alternative has a visible preview, and no artifact input collects the user's answer.
 
 **DO offer multiple variants to choose from ONLY while an open question is still open.** The moment Simon
 picks one — or when the change was a decided edit from the start, never an exploration — make the chosen
@@ -166,43 +159,37 @@ through `bin/design-board.py` as `references/workflow-loops.md` § Shareable des
 shell below is the decision form for one surface. TEST: a variants ask produces one board file with
 `data-frame` tags, not a rail of switchable variants.
 
-## One shell for every mockup: build it through `bin/mockup-build.py`, never hand-roll the chrome
+## One shared presentation frame
 
-**DO build every mockup file by inlining its `#spec` into `~/.claude/bin/mockup-shell.html` with
-`python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>` (`--extract <mockup.html> <spec.json>` to
-edit an existing one), so every mockup opens and behaves the same way.** The shell owns the chrome: the
-active variant fills the viewport on open (desktop persona scaled to fit, mobile centred at 390 px), ONE
-right rail (300 px, collapsible to a 40 px icon strip) holding Variants (←/→ keys), Persona, Version
-stepper, Walk the states, Compare + Diff, Feedback (picks, comments, pins, verdict) and Hand-off, a
-full-screen presentation mode (`p`; arrow keys step variants and states; corner HUD), a one-line
-dismissible hint bar, and the What's-new flash. The `#spec` supplies content only: variants, captures,
-states, tokens, assets, versions, feedback; its `shell` block sets `hintText` and `railCollapsed`, nothing
-else.
-**DON'T write per-mockup chrome (a grid landing page, an intro modal, a floating panel, a bespoke variant
-switcher) and DON'T fork the shell into the mockup file.** Bespoke chrome shifts every round and hides the
-mockup (the fix for a grid landing page that made Simon scroll around to find the actual mockup,
-2026-09-08).
-**DO mark exactly ONE variant `role: "before"` and every earlier round `superseded: true`; never label a
-variant "Before — superseded".** The rail then reads Before, then the distinct after-variants of this round,
-then a collapsed "Earlier rounds (N)" (the fix for a rail of eight "Before" rows Simon could not tell apart,
-2026-09-08). TEST: the rail shows one Before row; superseded rows are hidden until the disclosure opens.
-**DO keep the built file at or under 12 MB (the dashboard's asset ceiling) and at 0 external requests:**
-store each `data:` URI once in `#spec.assets` and reference it from captures as `@@ASSET:id@@`, and drop
-font families the captures never apply.
-**DO treat every switch (variant, persona, version, view, state walk, presentation on/off) as a full
-teardown that opens the target at its DEFAULT state; a state walk mounts a fresh document at that state
-and the rail highlights exactly one active state row.** The shell's `teardownStage()` retires the outgoing mount (posts
-`mockup:cleanup` to its iframes, clears shell timers, empties the stage) before the next one mounts;
-a capture that holds its own timer, interval or observer releases it on `mockup:cleanup`, and keeps
-every overlay (modal, sheet, popover, menu) INSIDE its own iframe document. After ANY edit to
-`bin/mockup-shell.html`, run `python3 ~/.claude/bin/mockup-shell.test.py` (Playwright) and ship only on
-`ALL PASSED` (the fix for a modal that stayed open on top of the next variant, 2026-09-08).
-TEST: `mockup-build.py --extract` on the shipped file yields a spec that rebuilds it byte-identically; at
-1440×900 the mockup is fully visible on open with no scroll, and inside a wide-short host iframe (1900×1010)
-the whole capture is still visible (fit uses both axes and re-fits on resize); `p` enters presentation mode; a synthetic
-two-variant spec renders in the same shell; the file is ≤12 MB with 0 external requests; with an overlay
-open, switching variant or toggling presentation shows exactly one iframe at the new target's default
-state (`bin/mockup-shell.test.py` passes).
+DO build mockups with `python3 ~/.claude/bin/mockup-build.py <spec.json> <out.html>` and extract with
+`--extract <mockup.html> <spec.json>`. The mockup adapter composes `bin/presentation-shell.html` through
+`bin/presentation_build.py`; design boards and decision artifacts use the same frame. Do not hand-roll
+chrome or copy the template into a project. `references/workflow-loops.md` owns the builder catalog.
+
+DO keep the frame quiet: one compact, collapsible controls sidebar, Before/After, Single/Side by side,
+exact device dimensions, state navigation, optional highlights, History and System/Light/Dark theme.
+Shell typography and colors belong to the frame; product `designTokens` remain untouched metadata.
+The artifact is a design viewer only; answers and decisions belong in chat.
+Theme and sidebar changes never remount or recolor the captured product. Highlights default off and
+remove immediately without dimming, timers or remounting. No topbar, hint, Present, generic Feedback,
+Sources, What's new or Handoff panel.
+
+DO mark exactly one baseline `role: "before"` and earlier rounds `superseded: true`. Side by side shows
+only current Before and the selected current After. History opens earlier rounds alone with an explicit
+label; implementation field-diff tools stay out of the viewer. Keep every prior version, selection,
+comment, source and token in `#spec`, including fields the frame does not display.
+
+DO declare the capture's exact `personas[].w` and `h`; never invent a missing desktop capture. Collapse
+device choices only when both dimensions and every capture are identical. Keep same-size web/native
+choices with distinct content. Changing device preserves a valid selected state; changing variant
+resets safely. Content switches tear down outgoing iframes with `mockup:cleanup`; state navigation
+mounts a fresh document and sends `mockup:goto-state` once. Keep overlays inside that document.
+
+DO keep the built file at or under 12 MB and at zero external requests. Store repeated data URIs in
+`#spec.assets` and refer to them with `@@ASSET:id@@`. CLI extraction retains the complete spec. At final batch
+verification run `python3 ~/.claude/bin/mockup-shell.test.py` and `python3 ~/.claude/bin/design-board.test.py`.
+TEST: roundtrip rebuilds byte-identically; both axes fit on resize, narrow controls never overflow,
+sidebar/theme/highlight changes keep the capture mounted, and no superseded third pane enters Compare.
 
 ## Capture the BEFORE from the real app
 
@@ -320,58 +307,27 @@ asset paths and source references after each capture, proposal, implementation a
 TEST: the plan view and mockup view use the identical dashboard shell.
 
 DO retain the surface's full data island, versions, variants, persona axes and pinned feedback in
-one self-contained asset. Inline it in the target panel; let that surface's editing controls keep
-working there. Keep the shared shell quiet and neutral, and the captured product pixels unchanged.
+one self-contained asset. Inline it in the target panel; retain only the surface's viewing controls. Keep the shared shell quiet and neutral, and the captured product pixels unchanged.
 When connecting an existing review, rebuild its canonical entry point in place and preserve its
 complete data island inside the embedded asset before replacing any chrome.
-TEST: every previous version, selection and comment is reachable after connecting the dashboard.
+TEST: every previous version, selection and comment survives extraction after connecting the dashboard.
 
 DO put the approved proposal in Target and a real implementation capture in Current. Before approval,
 Current displays verified progress or Not started. A proposal never counts as implementation evidence.
-DO keep detailed version comparisons and the review round-trip below inside the surface asset; the
-shared shell owns section navigation, progress, presentation and offline export.
+DO keep historical design viewing inside the surface asset and feedback/approval in chat. The shared
+artifact frame owns viewing controls; the task dashboard separately owns navigation and progress.
 
-## Compare — side by side, and diff what changed between versions
+## Compare and decide
 
-**DO give a 3-up SIDE-BY-SIDE compare mode (cap 3-4 variants)** so he judges options head to head without
-holding them in memory, plus an onion-skin opacity slider (or a before/after wipe) for two close variants
-where a small positional shift matters.
+DO compare exactly the current baseline and selected current After, in that order. Keep prior rounds
+in History. Keep field-diff metadata in the spec for CLI extraction, without an implementation diff UI. The optional “Show what
+changed” switch uses the declared state/variant selector or `[data-change]`, defaults off and restores
+the untouched product immediately when disabled.
 
-**DO DIFF two versions at the FIELD level — green added, yellow modified, red removed** — derived from
-`#spec`, since the state is structured data. This is the single highest-value comparison feature and the
-reason the data island is worth it: it shows exactly what a recipient changed between v1 and v2, which
-even design tools built on rasters cannot do on their own content.
-TEST: switching to "compare v1 → v2" marks every added/modified/removed field, and the marks come from
-`#spec`, not from eyeballing two screenshots.
-
-## Point at what's new
-
-**DO gently highlight the CHANGED region of each variant, so a small new section is not missed.** When a
-variant first opens, flash the changed area ONCE — a brief 150-300ms outline or glow — then HOLD a static
-marker (a persistent outline on the changed region, the rest dimmed). Give a "What's new" control that
-re-flashes on demand, and respect `prefers-reduced-motion` (fall back to the static marker, no motion).
-**DON'T pulse it forever or animate the whole screen.** A looping animation dilutes attention and gets
-annoying on repeat; one flash then a static marker is what defeats change-blindness without distraction.
-TEST: opening a variant flashes only the region the plan changed, once, then a static outline stays; the
-"What's new" button re-flashes it, and reduced-motion shows the static marker with no flash.
-
-## Let him — and a recipient — choose, comment, and decide
-
-**DO make the variants selectable (one or more), each with a comment box for what to keep and what to
-change, using the response contract from `/sk:work-ask-reply-in-full-before-after-artifact`** — so he
-hands back exactly what he selected and commented without typing a variant name.
-**DON'T make him read a variant's name and type it back.** The picks and comments ARE the decision.
-
-**DO let him PIN a comment to a specific region** — anchor it to the element's id in `#spec`, not to raw
-x/y, so the pin survives a reflow — with a resolve/done state, and an explicit **Approve** or **Request
-changes** verdict per variant. Pins, resolve and an approve/request-changes verdict are the feedback
-reviewers actually rely on.
-
-**DO keep the picks/comments/pins/verdict panel in the shell rail's Feedback section, collapsed by
-default, so it never covers the mockup.**
-**DON'T float it over the screen he is judging.**
-TEST: he selects variants, comments and pins keep-or-change on each, sets a verdict, opens the panel and
-copies, and the block names every pick, rejection, pinned comment and verdict.
+DO use `bin/decision-artifact.py` to display design/options cards with headings, explanations, previews
+and verdicts, following `/sk:work-ask-reply-in-full-before-after-artifact`. Keep choices, comments and
+answers in chat. All shared artifacts are viewers: no response generation, inputs, selection forms,
+feedback counts or spec/export buttons. Preserve existing metadata inertly in `#spec` for CLI extraction.
 
 ## Share it, and run the LOSS-FREE review round-trip
 
@@ -379,55 +335,20 @@ The document goes to someone who is NOT Simon — a stakeholder, a teammate — 
 picks and change requests. Send the FILE (their Claude edits it directly, loss-free), or the artifact
 URL when it is small and un-gated.
 
-**DO make the document GUIDE a first-time recipient.** The shell's one-line dismissible hint bar (never a
-modal) says: browse the variants in the rail, select the ones you like, pin comments for changes, and set a
-verdict. The guidance is part of the document; the recipient needs no briefing from Simon.
+DO let the Before/After labels, visible dimensions and viewing controls explain the preview. The
+builder's CLI extraction preserves the complete data island. Discuss feedback in chat; an agent edits
+and rebuilds the spec from the agreed change. Keep implementation and export controls out of the viewer.
 
-**DO make the copy-paste hand-off block BE the complete build spec — the verbatim `#spec` in an XML
-instruction frame**, so nothing degrades on the round-trip:
+DO use CLI extract/build for the loss-free round-trip. Read the recipient's comments and decisions in
+chat, update the relevant spec fields as a new attributed version, and rebuild through the shared
+builder. Preserve all previous versions and metadata; do not add response or handoff UI to the viewer.
 
-```text
-<task>
-Rebuild a versioned UI mockup from the spec below. The <spec> JSON is the SINGLE SOURCE OF TRUTH.
-Render it exactly. Do NOT paraphrase, summarise, invent, reorder, or drop any field.
-Produce ONE self-contained HTML file. No external calls; inline or pin every dependency.
-</task>
-<spec> …the FULL #spec JSON, verbatim: manifest, designTokens, versions[] with before/after, selections,
-comments, verdicts… </spec>
-<build>
-1. Embed <spec> unchanged as <script type="application/json" id="spec">.
-2. render(spec): build the grid, focus view, filmstrip, HUD, compare/diff and comment UI PURELY from #spec.
-3. Nothing user-visible may exist outside #spec; style only from designTokens.
-</build>
-<invariants>
-- Output the ENTIRE file. No placeholders, no "// unchanged", no elisions.
-- Every string in #spec must appear in the rendered output.
-- versions rendered == manifest.versionCount; all manifest.variantIds present.
-- When handing back, RE-EMBED the updated #spec verbatim — never a prose description.
-</invariants>
-<selfcheck>
-Before returning: parse #spec from your own output, assert the three invariants, report each PASS/FAIL.
-</selfcheck>
-```
-
-**DO instruct the recipient's Claude, inside that block, to:**
-1. Apply the picks + comments as a NEW version — EDIT the file's `#spec` directly if they have the file,
-   or REGENERATE from the block above if they only have the copied text. Change only the relevant `#spec`
-   fields and re-render; reserve a full rebuild for when the render layer changes.
-2. Increment the VERSION HISTORY in `#spec`, attributed: v1 is the author, v2 is this recipient, and so
-   on — each version records who made it, when, and what changed.
-3. Tell the recipient to LOOK at the updated mockup and confirm it reflects their asks.
-4. Tell the recipient to PASS IT BACK to the original author (the updated file, or the fresh block).
-
-**DO keep EVERY version inside `#spec` — the mockup carries its own history.** The HUD version selector
-switches between versions, each attributed to its author, and the field-level diff (above) shows what
-each version changed. The author receives ONE document and steps back through v1 (what they proposed),
+**DO keep EVERY version inside `#spec` — the mockup carries its own history.** History opens earlier versions, each attributed to its author, and the agent can inspect retained metadata outside the viewer. The author receives ONE document and steps back through v1 (what they proposed),
 v2 (what the recipient chose and asked for), and onward — variants and all — never a pile of files.
 **DON'T flatten an old version away when a new one is made.** The trail — who changed what, and why — is
 exactly what the author needs to resolve it.
-TEST: the returned document opens on the latest version, the HUD lists every version with its author,
-switching to an earlier version shows that author's variants + picks + comments intact, and the diff
-marks what changed between any two.
+TEST: the returned document opens on the latest version, History lists earlier versions with their authors,
+extracting an earlier version returns that author's variants, picks and comments intact, and all metadata survives CLI extraction.
 
 ## Version every iteration — grouped, latest-active, and QUIET
 
@@ -441,8 +362,7 @@ progression.
 
 **The newest version is always active; older versions are for looking back only** — open on the latest
 version's variants. **Keep the version control COMPACT and quiet — it is NOT a primary interface
-element:** the shell rail's small version stepper, visually quieter than the variant list, that never
-obscures the design and is reached only on demand. TEST: the version control is the rail's small stepper,
+element:** the sidebar's closed History disclosure, reached only on demand. TEST: the version control stays in History,
 the newest version is active on open, and switching to an older version shows that version's grouped
 variants intact.
 

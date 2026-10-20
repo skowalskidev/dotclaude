@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Build / extract a self-contained mockup HTML file from the generic mockup-shell.
+"""Build / extract an offline mockup using the shared presentation frame.
 
-The shell (mockup-shell.html, in this same directory) renders entirely from a
-single JSON "spec" embedded in a `<script type="application/json" id="spec">`
-tag. This tool inlines a spec into the shell to produce a shareable, offline
-`file://`-openable HTML document, and can pull the spec back out of a built
-document for editing.
+The mockup-shell.html adapter renders captured product content from the complete
+#spec JSON. presentation-shell.html owns shared controls, typography and theme.
+Extraction preserves every field, including metadata hidden from the frame.
 
 Usage:
     mockup-build.py <spec.json> <out.html>
@@ -15,27 +13,35 @@ No third-party dependencies; Python 3.9+.
 """
 import json
 import sys
+from presentation_build import compose, extract as extract_spec
 from pathlib import Path
 
 SHELL_PATH = Path(__file__).resolve().parent / "mockup-shell.html"
-PLACEHOLDER = "__MOCKUP_SPEC__"
-SPEC_TAG_OPEN = '<script id="spec" type="application/json">'
-SPEC_TAG_CLOSE = "</script>"
 
-
-def _json_for_embed(spec: dict) -> str:
-    # Compact, and escape sequences that would otherwise break out of the
-    # surrounding <script> tag or get mangled by an HTML parser.
-    text = json.dumps(spec, ensure_ascii=False, separators=(",", ":"))
-    return text.replace("</", "<\\/")
+def validate(spec: dict) -> None:
+    personas = spec.get("personas", [])
+    defaults = {"desktop": (1440, 900), "mobile": (390, 844)}
+    if not personas:
+        unknown = {key for variant in spec.get("variants", {}).values()
+                   for key in variant.get("captures", {})} - defaults.keys()
+        if unknown:
+            raise ValueError("Declare exact personas w/h for capture IDs: " + ", ".join(sorted(unknown)))
+    ids = set()
+    for persona in personas:
+        if not persona.get("id") or persona["id"] in ids:
+            raise ValueError("Each persona needs a unique id")
+        ids.add(persona["id"])
+        for dimension in ("w", "h"):
+            value = persona.get(dimension)
+            if not isinstance(value, (int, float)) or isinstance(value, bool) or value <= 0:
+                raise ValueError("Persona " + persona["id"] + " needs a positive " + dimension)
 
 
 def build(spec_path: str, out_path: str) -> None:
     spec = json.loads(Path(spec_path).read_text(encoding="utf-8"))
+    validate(spec)
     shell = SHELL_PATH.read_text(encoding="utf-8")
-    if PLACEHOLDER not in shell:
-        raise SystemExit(f"shell is missing the {PLACEHOLDER} placeholder: {SHELL_PATH}")
-    out = shell.replace(PLACEHOLDER, _json_for_embed(spec))
+    out = compose("mockup", spec, shell, title=spec.get("manifest", {}).get("title", "Mockup"))
     Path(out_path).write_text(out, encoding="utf-8")
     size = Path(out_path).stat().st_size
     print(f"wrote {out_path} ({size / 1024 / 1024:.2f} MB)")
@@ -43,15 +49,7 @@ def build(spec_path: str, out_path: str) -> None:
 
 def extract(mockup_path: str, spec_out_path: str) -> None:
     html = Path(mockup_path).read_text(encoding="utf-8")
-    start = html.find(SPEC_TAG_OPEN)
-    if start == -1:
-        raise SystemExit(f"no #spec script tag found in {mockup_path}")
-    start += len(SPEC_TAG_OPEN)
-    end = html.find(SPEC_TAG_CLOSE, start)
-    if end == -1:
-        raise SystemExit(f"unterminated #spec script tag in {mockup_path}")
-    raw = html[start:end]
-    spec = json.loads(raw)
+    spec = extract_spec(html)
     Path(spec_out_path).write_text(json.dumps(spec, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"wrote {spec_out_path}")
 

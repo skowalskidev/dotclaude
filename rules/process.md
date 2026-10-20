@@ -73,10 +73,11 @@ always away. What it forbids is stalling mid-run on a foreseeable blocker that c
 at the start. The up-front asks still go in ONE block at the end of that first response, per
 questions-at-the-END (`communication.md`).
 
-### Plan and get sign-off for big work
-For large or multi-file changes, **plan first and get my approval before executing** — use plan mode,
-present the approach, and confirm scope/decisions (AskUserQuestion). Don't start a big refactor or
-migration on assumptions.
+### Plan within the authorized scope
+DO record the approach before large or multi-file work, then continue within explicit or standing
+scope. Ask only when an unresolved consequential choice, missing access, paid call or production write
+needs Simon's decision. Reuse a recorded answer; a plan or tool call does not need a second generic
+confirmation. TEST: authorized work proceeds without a mandatory approval interview.
 
 ### Track every task to completion — don't drop items
 DO apply `rules/living-plan.md` to every request, including a single task and later additions.

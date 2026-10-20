@@ -29,6 +29,7 @@ def main() -> int:
             "measure hook": "window.__measure=" in page,
             "flatten hook": "window.__flatten=" in page,
             "pan/zoom": "zoomAt" in page,
+            "viewer-only controls": all(token not in page for token in ('id="copy-spec"', 'id="save-html"', 'id="generate-response"', '<textarea')),
             "self-contained": "http://" not in page and "https://" not in page,
         }
         run("extract", str(out), str(back))
@@ -39,7 +40,7 @@ def main() -> int:
         blank_spec.write_text(json.dumps(blank))
         run("build", str(blank_spec), str(blank_out))
         cut = json.loads(spec.read_text())
-        cut["css"] = ".row{height:300px;overflow:hidden}"
+        cut["sections"][0]["frames"][0]["html"] = '<div style="height:300px;overflow:hidden"><div style="height:600px">Clipped content</div></div>'
         cut_spec, cut_out = pathlib.Path(tmp, "cut.json"), pathlib.Path(tmp, "cut.html")
         cut_spec.write_text(json.dumps(cut))
         run("build", str(cut_spec), str(cut_out))

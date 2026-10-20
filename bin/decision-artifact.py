@@ -1,0 +1,46 @@
+#!/usr/bin/env python3
+"""Build/extract a read-only design/options viewer using the shared presentation frame.
+
+Usage: decision-artifact.py build <spec.json> <out.html>
+       decision-artifact.py extract <out.html> <spec.json>
+       decision-artifact.py example
+
+sections[].cards[]: id, title, explainer, verdict, before, after.
+before/after map viewport labels to data-URI images or {text: ...}.
+Legacy control/runtime metadata is retained unchanged and never rendered as inputs.
+"""
+import json
+import sys
+from pathlib import Path
+from presentation_build import compose, extract
+
+HERE = Path(__file__).resolve().parent
+EXAMPLE = {"title": "Choose the next step", "sections": [{"id": "direction", "title": "Direction", "cards": [
+    {"id": "small", "title": "Small update", "explainer": "Adjust the existing flow.", "verdict": "Recommended for the next release."},
+    {"id": "large", "title": "Full redesign", "explainer": "Replace the existing flow."},
+    {"id": "docs", "title": "Update the guide", "explainer": "Describe the selected flow.", "before": {"text": "Existing instructions"}, "after": {"text": "Updated instructions"}}
+]}]}
+
+
+def build(spec):
+    seen = set()
+    for section in spec.get("sections", []):
+        for item in [section, *section.get("cards", [])]:
+            if not item.get("id") or item["id"] in seen:
+                raise ValueError("Every section and card needs a unique id")
+            seen.add(item["id"])
+    return compose("decision", spec, (HERE / "decision-artifact.html").read_text(), title=spec.get("title", "Decision"))
+
+
+def main(argv):
+    if argv == ["example"]:
+        print(json.dumps(EXAMPLE, indent=2)); return 0
+    if len(argv) == 3 and argv[0] in ("build", "extract"):
+        source = Path(argv[1]).read_text()
+        result = build(json.loads(source)) if argv[0] == "build" else json.dumps(extract(source), indent=2, ensure_ascii=False)
+        Path(argv[2]).write_text(result); return 0
+    print(__doc__); return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

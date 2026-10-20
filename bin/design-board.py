@@ -18,7 +18,7 @@ Spec (schemaVersion 1):
       "css": "...",                                                   # optional, project screen CSS
       "sections": [
         {"title": "...", "lead": "...", "frames": [
-          {"id": "1", "label": "POINTSGPT · 01", "title": "...", "hypothesis": "...", "note": "...",
+          {"id": "1", "label": "EXAMPLE · 01", "title": "...", "hypothesis": "...", "note": "...",
            "pick": true, "hidden": false, "night": false,
            "html": "<inner html of the phone>"  |  "image": "/abs/path/capture.png"}
         ]}
@@ -36,12 +36,14 @@ fully visible (not cut by an ancestor) with ink in each phone.
 It prints the pass table and writes the screenshots to <outdir>; hand the table over with the board.
 """
 import base64
+import copy
 import html as html_mod
 import io
 import json
 import pathlib
 import subprocess
 import sys
+from presentation_build import compose, extract as extract_spec
 
 HERE = pathlib.Path(__file__).resolve().parent
 TEMPLATE = HERE / "design-board.html"
@@ -68,58 +70,51 @@ def image_uri(path: str, width: int) -> str:
     return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def frame_html(frame: dict, phone: dict) -> str:
+def frame_html(frame: dict, phone: dict, capture_css: str) -> str:
     if frame.get("hidden"):
         return ""
     esc = html_mod.escape
     badge = '<span class="pick">Picked</span>' if frame.get("pick") else ""
     night = " night" if frame.get("night") else ""
-    if "image" in frame:
-        body = f'<div class="screen image{night}" data-frame="{esc(frame["id"])}"><img src="{image_uri(frame["image"], phone["w"] * 2)}" alt=""></div>'
-    else:
-        body = f'<div class="screen{night}" data-frame="{esc(frame["id"])}">{frame.get("html", "")}</div>'
-    return (
-        f'<div class="frame{" picked" if frame.get("pick") else ""}">'
-        f'<p class="flabel">{esc(frame.get("label", ""))} {badge}</p>'
-        f'<p class="ftitle">{esc(frame.get("title", ""))}</p>'
-        f'<p class="fhyp">{esc(frame.get("hypothesis", ""))}</p>'
-        f"{body}"
-        f'<p class="fnote">{esc(frame.get("note", ""))}</p></div>'
-    )
+    body = (f'<img src="{image_uri(frame["image"], phone["w"] * 2)}" alt="">'
+            if "image" in frame else frame.get("html", ""))
+    capture = ('<!doctype html><html><head><style>*{box-sizing:border-box;margin:0;padding:0}'
+               'html,body{width:100%;height:100%;font-family:BoardFont,system-ui,sans-serif;color:#17191e;background:white}body{display:flex;flex-direction:column}'
+               'body.night{background:#0c0a09;color:white}body>img{width:100%;height:100%;object-fit:cover;display:block}'
+               + capture_css + '</style></head><body class="screen' + night + '">' + body + '</body></html>')
+    return (f'<div class="board-frame{" picked" if frame.get("pick") else ""}">'
+            f'<p class="flabel">{esc(frame.get("label", ""))} {badge}</p>'
+            f'<p class="ftitle">{esc(frame.get("title", ""))}</p>'
+            f'<p class="fhyp">{esc(frame.get("hypothesis", ""))}</p>'
+            f'<div class="screen" data-frame="{esc(frame["id"])}"><iframe title="{esc(frame.get("title", frame["id"]))}" srcdoc="{esc(capture, quote=True)}"></iframe></div>'
+            f'<p class="fnote">{esc(frame.get("note", ""))}</p></div>')
 
 
 def build(spec: dict) -> str:
+    spec = copy.deepcopy(spec)
     phone = {"w": 393, "h": 852, **spec.get("phone", {})}
+    if spec.get("font") and not spec["font"].startswith("data:"):
+        spec.setdefault("sourceAssets", {})["font"] = spec["font"]
+        spec["font"] = data_uri(spec["font"], "font/woff2")
+    for section in spec.get("sections", []):
+        for frame in section.get("frames", []):
+            if frame.get("image") and not frame["image"].startswith("data:"):
+                spec.setdefault("sourceAssets", {}).setdefault("images", {})[frame["id"]] = frame["image"]
+                frame["image"] = image_uri(frame["image"], phone["w"] * 2)
     esc = html_mod.escape
-    sections = "".join(
-        f'<section class="board"><h2>{esc(s.get("title", ""))}</h2><p class="slead">{esc(s.get("lead", ""))}</p>'
-        f'<div class="row">{"".join(frame_html(f, phone) for f in s.get("frames", []))}</div></section>'
-        for s in spec.get("sections", [])
-    )
     font = spec.get("font")
-    font_face = (
-        f"@font-face{{font-family:'BoardFont';src:url({data_uri(font, 'font/woff2')}) format('woff2');font-weight:100 900}}"
-        if font
-        else ""
+    font_face = (f"@font-face{{font-family:'BoardFont';src:url({data_uri(font, 'font/woff2')}) format('woff2');font-weight:100 900}}" if font else "")
+    sections = "".join(
+        f'<section class="board"><h2>{esc(section.get("title", ""))}</h2><p class="slead">{esc(section.get("lead", ""))}</p>'
+        f'<div class="row">{"".join(frame_html(f, phone, font_face + spec.get("css", "")) for f in section.get("frames", []))}</div></section>'
+        for section in spec.get("sections", [])
     )
-    page = TEMPLATE.read_text()
-    page = page.replace("/*FONT_FACE*/", font_face)
-    page = page.replace("/*PHONE_W*/", str(phone["w"])).replace("/*PHONE_H*/", str(phone["h"]))
-    page = page.replace("/*PROJECT_CSS*/", spec.get("css", ""))
-    page = page.replace("<!--TITLE-->", esc(spec.get("title", "Design board")))
-    page = page.replace("<!--LEAD-->", esc(spec.get("lead", "")))
-    page = page.replace("<!--SECTIONS-->", sections)
-    stored = {k: v for k, v in spec.items() if k != "font"}
-    page = page.replace(
-        "<!--SPEC-->", SPEC_TAG + json.dumps(stored).replace("</", "<\\/") + "</script>"
-    )
-    return page
+    adapter = TEMPLATE.read_text().replace("/*PHONE_W*/", str(phone["w"])).replace("/*PHONE_H*/", str(phone["h"]))
+    return compose("board", spec, adapter, content='<div id="canvas"><h1 class="board-export-title">' + esc(spec.get("title", "Design board")) + '</h1>' + sections + '</div>', title=spec.get("title", "Design board"))
 
 
 def extract(page: str) -> dict:
-    start = page.index(SPEC_TAG) + len(SPEC_TAG)
-    end = page.index("</script>", start)
-    return json.loads(page[start:end].replace("<\\/", "</"))
+    return extract_spec(page)
 
 
 EXAMPLE = {
@@ -159,7 +154,7 @@ def check(board: pathlib.Path, outdir: pathlib.Path) -> int:
     args = [sys.executable, str(HERE / "visual-check.py"), str(board), "--out", str(outdir),
             "--viewport", "1440x900",
             "--state", "zoom100=document.getElementById('one').click()",
-            "--state", "flat=window.__flatten()",
+            "--state", "flat=window.__flatten();if(window.__measure().some(f=>f.overflow>0||f.cut.length))throw Error('capture cut by overflow')",
             "--region", ".screen[data-frame]", "--visible", ".ftitle", "--regions-in", "flat"]
     shown = [f for s in spec.get("sections", []) for f in s.get("frames", []) if not f.get("hidden")]
     for text in [spec.get("title", ""), *[f.get("title", "") for f in shown]]:

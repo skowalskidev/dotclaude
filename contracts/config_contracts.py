@@ -249,21 +249,42 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Render entirely from the spec: title, lead, sections, frames with label, title, hypothesis, note, pick, hidden, night, and either inner html or an image; no project strings in bin/design-board.html.",
             "Expose window.__measure() returning per-frame overflow past the phone bottom and the data-oneline cells that wrapped, and window.__flatten() returning each frame's page box for a full-page capture.",
-            "Round-trip: extract returns the spec that built the board, minus the embedded font bytes; the output opens from file:// with no external request.",
+            "Round-trip: extract returns the spec that built the board, with local font/image assets embedded and original references retained as metadata; the output opens from file:// with no external request.",
             "check <board.html> <outdir> runs bin/visual-check.py over fit, 100% and flattened states at 1440x900, expects the title and every shown frame title, and fails a blank or cut phone frame in the flattened state.",
             "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip, check passes the example and fails a blank and a cut frame (skipped without Node Playwright).",
         ],
     },
-    "bin/mockup-build.py": {
-        "mission": "Simon opens any mockup and sees the design itself first, in one familiar shell that never shifts between rounds.",
-        "purpose": "Builds every /sk:ship-mockup-before-after deliverable by inlining a spec.json into the generic bin/mockup-shell.html, and extracts the spec back out.",
+    "bin/presentation_build.py": {
+        "mission": "Simon sees one quiet, familiar frame around every presentation artifact.",
+        "purpose": "Composes adapters into presentation-shell.html, the owner of structural markup, typography, theme and viewing controls.",
         "criteria": [
-            "Load bin/mockup-shell.html, which renders entirely from the embedded #spec JSON and carries no project-specific strings.",
-            "Fill the viewport with the active variant on open, fitting by the smaller of the width and height ratios, re-fitting whenever the stage resizes (host iframe, rail collapse) and never clipping (stage scrolls as the fallback); keep every control in one collapsible right rail whose Variants list shows exactly one Before (role: before), then the current after-variants, with superseded rounds (superseded: true or a legacy 'Before — superseded' label) under a collapsed Earlier rounds disclosure that arrow keys skip; enter presentation mode on the p key; open from file:// with 0 external requests and resolve @@ASSET:id@@ tokens from #spec.assets.",
-            "Build <spec.json> <out.html> and --extract <mockup.html> <spec.json> round-trip byte-identically; Python 3.9+, no dependencies.",
-            "Tear down the outgoing mount on every variant, persona, version, view, state-walk or presentation switch and open the target at its default state (a state walk mounts a fresh document at that state) with exactly one iframe and exactly one highlighted active state row; remove any node a capture appends to the shell body; bin/mockup-shell.test.py proves it against bin/mockup-synthetic-spec.json.",
-            "Fit every Compare frame by both axes (min of width and height ratios, never upscaled past 1) into a host sized to the scaled frame plus its border, re-fit on stage resize, so a phone-sized capture is never cropped; bin/mockup-shell.test.py asserts the iframe sits inside its host and the host inside the stage.",
-            "Route validated version, variant, persona and state fragments on load and history navigation; What’s new selects the declared variant/state target with a fallback and flashes that state’s selector, while reduced motion leaves a static marker.",
+            "Mockup, board and decision builders mechanically compose the frame; adapters never duplicate its markup or behavior.",
+            "Keep shell tokens independent of product tokens, isolate captured pixels, and support System/Light/Dark without remounting content.",
+            "Collapse and reopen controls immediately without remounting; expose a labelled keyboard-accessible button; narrow sidebars never overflow horizontally.",
+            "Keep one full #spec data island and offline CSP. Expose only viewing controls; no response, feedback, choice/include forms, copy/spec or export UI. Builders retain lossless CLI extraction.",
+            "Substitute template slots in one pass and escape embedded script terminators; preserve full metadata and deterministic output.",
+        ],
+    },
+    "bin/decision-artifact.py": {
+        "mission": "Simon sees design options clearly and discusses his decision in chat.",
+        "purpose": "Builds and extracts read-only design/options cards in the shared presentation frame.",
+        "criteria": [
+            "Render headings, explanations, real before/after previews, verdicts and section navigation; keep all decisions and feedback in chat.",
+            "Require no control schema for new specs. Preserve legacy control/runtime/comments metadata unchanged and inert for deterministic CLI extraction/rebuild.",
+            "Expose no response generation, copy/submit, comment fields, radio/checkbox choices, select-all, kept/dropped counts or export controls on desktop or phone.",
+        ],
+    },
+    "bin/mockup-build.py": {
+        "mission": "Simon sees the current design first and compares it with its actual baseline.",
+        "purpose": "Composes mockup-shell.html into the shared presentation frame, retaining the existing complete spec.",
+        "criteria": [
+            "Build and --extract roundtrip byte-identically, preserve source metadata and resolve @@ASSET:id@@ captures offline.",
+            "Show Before/After with Single or Side by side; Compare is exactly current Before and the selected current After. History labels older design rounds; implementation field-diff UI is absent while metadata stays intact.",
+            "Highlights default off; toggling off removes all shell highlights immediately without timers, dimming or capture remounts.",
+            "Validate recorded device dimensions; deduplicate only equal dimensions and all identical capture content, preserving meaningful web/native contexts and missing-capture states.",
+            "Tear down content switches and state walks, notify outgoing captures with mockup:cleanup, reset incompatible state and preserve a valid state across device switches. Remove body-level escaped overlays.",
+            "Fit captures by both axes without upscaling; stage and browser resize refit existing frames; sidebar, theme and highlight changes never remount.",
+            "Validate portable version/variant/persona/state routes and dashboard message routes; stale values fall back safely. Earlier versions never become current merely through navigation.",
         ],
     },
     "bin/visual-check.py": {
@@ -472,8 +493,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "The task-shape-to-skill map lives in references/skill-stack.md, not duplicated here.",
             "Third-party skills are always labelled with their repo.",
-            "A skill that fits is INVOKED via the Skill tool and FOLLOWED, never reconstructed from "
-            "memory — a paraphrase drifts from the tested procedure and records zero uses.",
+            "Use the native Skill tool when available or read and follow the canonical SKILL.md on other hosts; never require a tool receipt as authorization or reconstruct the skill from memory.",
         ],
     },
     "rules/ui-conventions.md": {
@@ -1353,8 +1373,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Launch headless Claude and Codex slices through their shared native launchers, even when a shell function is unavailable.",
             "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the mid tier resolved live at dispatch, then fail an incomplete worker.",
-            "Sets CLAUDE_INTAKE_GATE=off on every slice. The intake gate cannot be satisfied by a "
-            "headless session and would otherwise deny the run after the reading is already paid for.",
+            "Sets CLAUDE_INTAKE_GATE=off on every slice to skip duplicate session-plan initialization while native approval and security checks stay active.",
             "Verifies each slice by its on-disk artifact, never by exit code "
             "(anthropics/claude-code#74761: claude -p can exit 0 mid-task).",
             "Tells every slice to write BLOCKED.md rather than edit a file another slice owns, and "
@@ -1474,13 +1493,8 @@ CONTRACTS: dict[str, dict] = {
             "Cites the validated plan part behind every visible difference and refutes in comments "
             "anything that changed after validation. Unsourced difference is invented scope, and "
             "this is the cheapest moment to catch it.",
-            "Offers a variant gallery whose picks and per-variant keep/change comments use the "
-            "response contract from /sk:work-ask-reply-in-full-before-after-artifact, held in the "
-            "shell rail's Feedback section so it never covers the mockup.",
-            "Builds every mockup file through bin/mockup-build.py and bin/mockup-shell.html (mockup "
-            "fills the viewport on open, one collapsible rail, presentation mode, hint bar, no grid "
-            "landing page or intro modal); the file stays at or under 12 MB with 0 external requests "
-            "and round-trips through --extract byte-identically.",
+            "Uses decision-artifact.py for read-only design/options cards; selections and comments belong in chat, while embedded metadata retains prior feedback unchanged.",
+            "Builds every mockup through mockup-build.py and the shared presentation frame: current Before/After comparison, separate History, optional highlights, exact dimensions, full-spec roundtrip, no bespoke chrome or external requests.",
             "Ships as a self-contained HTML FILE for a collaborative/versioned/multi-screenshot "
             "round-trip, or a Claude artifact URL only when small and un-gated — the artifact's size "
             "ceiling, blocked localStorage and Team-can't-publish-publicly limits pick the medium.",
@@ -1488,24 +1502,17 @@ CONTRACTS: dict[str, dict] = {
             "mockup inlined as srcdoc, never iframed from sibling paths — so a recipient sees rendered "
             "tiles, not blank ones with the server off.",
             "Keeps all state in an embedded <script id=spec type=application/json> data island and "
-            "renders the UI from it; nothing user-visible exists outside #spec, so a rebuild is "
+            "renders product content from it while shared frame controls remain template-owned, so a rebuild is "
             "re-render-from-data (loss-free), not re-describe.",
             "Compresses screenshots (WebP, downscaled, capped) so the document fits the output cap — "
-            "never a full-res PNG base64 — and never uses localStorage/sessionStorage (blocked in the "
-            "artifact sandbox); state is in-memory + #spec.",
-            "Uses left section navigation for the overview; retains grid, focus, filmstrip, version HUD and specialist comparison controls inside the embedded surface at its captured viewport.",
-            "Compares 3-up side-by-side and diffs two versions at the FIELD level (green added / "
-            "yellow modified / red removed) from #spec — what even raster tools cannot do on their "
-            "own content.",
-            "Lets a reviewer pin comments to element ids (survive reflow), resolve them, and set an "
-            "Approve/Request-changes verdict; flashes a change ONCE then holds a static marker, "
-            "respecting prefers-reduced-motion.",
-            "The copy-paste hand-off block IS the complete build spec: the verbatim #spec in an XML "
-            "frame (task/spec/build/invariants/selfcheck) that forbids elisions and re-embeds #spec "
-            "verbatim, so another Claude rebuilds with nothing dropped.",
+            "never a full-res PNG base64 — and retains existing metadata in #spec; only frame preferences use best-effort localStorage, with an in-memory fallback.",
+            "Keeps task navigation in the dashboard and artifact controls in the shared presentation frame; captured product pixels retain their own viewport and styling.",
+            "Compares only current Before and selected current After; History opens earlier designs alone; field-diff metadata remains hidden and available through CLI extraction.",
+            "Highlights default off and remove immediately; existing comments, pins and verdicts remain intact in the data island without a generic Feedback panel.",
+            "Keep feedback and approval in chat; agents use CLI extract/build to update the complete spec without response, handoff or implementation controls in the viewer.",
             "Keeps every version inside #spec as attributed history (v1 author, v2 recipient), "
-            "switchable from the HUD; a recipient's Claude edits the file or regenerates from the "
-            "block into a new attributed version, and never flattens an old one.",
+            "reachable through History; a recipient's Claude rebuilds the extracted spec into a new "
+            "attributed version, and never flattens an old one.",
             "One mockup FILE per surface, forever: a new idea, a section redesign, or another "
             "version of X lands in that one file as a switchable variant/version across its axes (a "
             "persona/data axis and a per-section design-variant axis swapped in context via nested "
@@ -1619,7 +1626,7 @@ CONTRACTS: dict[str, dict] = {
             "folds the new message in, continues, never restarts done work.",
             "Drives the finish to leave the work refactored/centralised/DRY-SRP (one owner per shared "
             "value/behaviour/component) per rules/engineering-standards.md before the bar reads 100%.",
-            "Reuses skill-stack.md + the intake gate + process.md; owns the entry point, the progress "
+            "Reuses skill-stack.md + the intake advisory + process.md; owns the entry point, the progress "
             "bar, verifying skill names, and the resume.",
         ],
     },
@@ -1683,19 +1690,13 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md": {
-        "mission": "Simon acts on a reply he did not understand: he reads it, picks from it, comments, and hands his exact choices back with no ambiguity.",
-        "purpose": "Answer a confusing or multi-option reply as an interactive before/after decision artifact Simon selects and comments on.",
+        "mission": "Simon understands the designs and makes his decision in chat.",
+        "purpose": "Explain confusing replies and design options through a read-only before/after viewer.",
         "criteria": [
-            "Builds an artifact (visual craft applied directly, no separate design skill) with explainer + before/after + verdict cards grouped into sections, not chat prose.",
-            "Every card and every section is selectable and carries a comment field.",
-            "A card about anything a user sees carries real screenshots of each state at desktop and "
-            "mobile (390 wide), labelled with state and width, a not-built state captured from the app "
-            "and labelled Preview; other cards say so.",
-            "Renders a pick-one choice as RADIO buttons (one pre-selected) and an apply/include edit as "
-            "a CHECKBOX defaulting to CHECKED (opt-out); the two controls never look the same.",
-            "Emits a self-contained copy-paste block carrying every selection, rejection, and comment — including comments on unselected cards and no-pick answers — with section context; Generate never requires a selection.",
-            "Holds every input (radios and textareas) in in-memory JS state — never localStorage/sessionStorage, blocked in the artifact sandbox — and always renders the block into a selectable readonly box, so a failed or silent copy never loses the human's input.",
-            "A submit-to-chat button appears only when the runtime is known to support a post-back (a claude.ai artifact; a Claude Code terminal HTML file has none); the copy-paste block always stands alone.",
+            "Build through decision-artifact.py and the shared frame, with explanations, before/after previews and verdict cards in sections.",
+            "Show real desktop/mobile captures for user-visible changes, label not-built captures Preview and identify cards with no visible surface.",
+            "Keep decisions, comments and answers in chat; no response, choice/include, feedback or export controls in any viewer.",
+            "Retain complete source and legacy runtime metadata inertly for CLI extraction and deterministic rebuilding; new specs need no control schema.",
         ],
     },
     "skills/sk/skills/work-ask-reply-tldr/SKILL.md": {
@@ -1766,9 +1767,7 @@ CONTRACTS: dict[str, dict] = {
             "Retains unresolved or blocked changes with their owner and evidence; resumes authorized work at the next task boundary without blind merging.",
             "Treats a pasted correction as illustrative material, never as a work order.",
             "Generalises the lesson; never narrows a skill to one task.",
-            "Is the sole path for editing config. For an untracked work/ target it sets the config-edit-guard "
-            "sentinel after recorded authorization and clears it at the end, so an ad-hoc edit stays blocked. Handles "
-            "creating a new part, not only folding a correction.",
+            "Routes edits and new parts through the canonical workflow, read directly when no native Skill tool exists; applies existing authorization without a sentinel or tool receipt.",
             "Grounds every factual claim (a measured figure, a threshold, how another part behaves) "
             "against its source file this run, never restating from memory.",
             "Surfaces anything else the change needs from Simon, with copy-paste steps to get it, in "
@@ -1782,19 +1781,6 @@ CONTRACTS: dict[str, dict] = {
     # your work-skills plugin (e.g. sk-work) is job-specific, lives untracked in work/, and is outside this registry by design.
     # See TRACKED_SKILL_PLUGINS in hooks/config-contract.test.py for why.
     # --- Hooks (wired in settings.json) --------------------------------------------
-    "hooks/config-edit-guard.py": {
-        "mission": "A tracked ~/.claude config file changes only through /sk:claude-config-update, never by an ad-hoc hand-edit.",
-        "purpose": "PreToolUse: denies an Edit/Write to a tracked config file unless the update flow authorized it.",
-        "criteria": [
-            "Gates only the config-as-instructions surface (rules, references, skills, work, hooks, "
-            "bin, connectors, contracts, dotfiles, top-level config files). Runtime state under "
-            "~/.claude, projects/ and its memory included, is never gated, so memory writes still work.",
-            "Allows when the sentinel ~/.claude/.config-edit-authorized exists or CLAUDE_CONFIG_EDIT=1 "
-            "is set; the update skill sets the sentinel after recorded authorization and clears it at the end.",
-            "Fails open on a malformed payload and never touches a path outside ~/.claude. A guard "
-            "that breaks the session gets switched off.",
-        ],
-    },
     "hooks/worktree-path-guard.py": {
         "mission": "An edit from inside a worktree never silently lands in the main checkout by using the main repo's absolute path.",
         "purpose": "PreToolUse: asks (not a hard deny) before an Edit/Write from a worktree session that targets the main checkout or a sibling worktree.",
@@ -1858,12 +1844,10 @@ CONTRACTS: dict[str, dict] = {
     },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
-        "purpose": "SessionStart: injects the repair policy, reports config state and clears stale edit authorization.",
+        "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",
         "criteria": ["Always injects the repair policy for a config repository, including a clean checkout; the hook performs no repairs, commits or merges.",
                      "Names every config-update/* branch that is not on origin/main at each session start, "
-                     "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question.",
-                     "Removes ~/.claude/.config-edit-authorized only when older than two minutes so a crashed update flow "
-                     "cannot leave the config edit-guard open into the next session."],
+                     "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question."],
     },
     "hooks/orphan-worker-sweep.sh": {
         "mission": "No dead framework worker keeps burning a core in a workspace nobody is watching.",
@@ -1945,28 +1929,14 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/task-intake.sh": {
-        "mission": "Simon never has to name a skill, and never hits a predictable blocker that could have been front-loaded.",
-        "purpose": "Opens the task dashboard, proposes skills and blocks fan-out until Simon confirms.",
+        "mission": "Simon gets one recoverable session record without repeated approval interviews.",
+        "purpose": "UserPromptSubmit advisory initializes or reuses the task dashboard and points to task routing.",
         "criteria": [
-            "Mechanically initializes one active plan-backed dashboard before the opening proposal and includes its canonical clickable path.",
-            "Keeps default session gauntlets on current execution with the independent judge off, without adding a loop-options interview.",
-            "Initializes the same dashboard for unattended task openings while suppressing only their question gate.",
-            "Honor CLAUDE_INTAKE_STATE_DIR in tests so the contract suite never clears live session markers.",
-            "One plan per session: resolves its root through bin/session-root.sh, so a prompt sent while the shell sits in a worktree nested under the session's root reads that root's plan and opens no second one.",
-            "Arms on a task opening, stays quiet for follow-ups inside it.",
-            "Refreshes the approval stamp on every mid-run message, so APPROVAL_TTL_MIN measures how long the task has been silent, never how long it has run.",
-            "Does not arm on an automated system/background-task notification (a completed background "
-            "command, a Stop-hook nudge) — those are follow-up events, not task openings; arming on one "
-            "re-armed a gate the opening prompt had already disarmed and deadlocked an unattended run.",
-            "Fails safe: a stale marker self-clears, because a gate that deadlocks is worse than none.",
-            "Does not arm on a message that lands mid-run: while this session holds an approval stamp "
-            "(<session>.approved, written when its armed gate was answered or standing authorization "
-            "skipped it, at most 480 minutes old) and the workspace has a plan whose phase is not "
-            "complete, only the plan-reconcile reminder fires and Agent/Task/Workflow stay unblocked "
-            "(rules/process.md queues it). A complete, missing, unreadable or stale record arms as before.",
-            "Its task-opening proposal prompts choosing HOW to run the work, not only which skill: "
-            "parallelise independent work, via /sk:work-superspeed at 3-5+ independent slices, "
-            "in-session agents for a smaller fan-out, serial when it does not divide.",
+            "Initialize one ordinary plan and canonical dashboard idempotently; resolve the session root through bin/session-root.sh even after a nested-worktree cwd change.",
+            "Use existing explicit or standing authorization; ask only unresolved consequential choices, missing access, production writes or paid calls.",
+            "Never deny Agent, Task or Workflow and require no AskUserQuestion callback, approval stamp, sentinel or arbitrary prompt-length authority.",
+            "Ignore short acknowledgements and automated background notifications. Preserve CLAUDE_INTAKE_GATE=off as the headless duplicate-plan opt-out.",
+            "Run tests only with isolated session-root/workspace paths; stale former gate markers cannot affect authorization or rearm work.",
         ],
     },
     "hooks/work-resource-guard.sh": {

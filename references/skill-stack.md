@@ -1,7 +1,8 @@
 # Skill stack — which skill for which task, and what stacks on top
 
-The catalog the task-intake gate surveys. Read it when a task starts, propose from it, then stop and
-let Simon confirm. He should never have to remember a skill exists.
+The catalog the task-intake advisory points to. Read it when a task starts, choose the matching
+workflow and continue within existing authorization. Ask only for unresolved consequential choices
+or access. Simon should never have to remember a skill exists.
 
 **One home, on purpose.** This mapping lives HERE and nowhere else. Copying "and also run
 `[gstack] /investigate`" into eleven SKILL.md files would be eleven places to update when a pack
@@ -51,7 +52,7 @@ config suite; this is the reading of it.
 
 | Task shape | Spine (Simon's) | Stacks on top | Why the stack earns its place |
 |---|---|---|---|
-| ANY task — you don't know or don't want to pick which skill | `/sk:meta-dotclaude-copilot-start-here-for-any-task` | (routes to everything below) | The single front door: reads the task, routes it to the right skills via THIS table, verifies they're installed, presents the plan, and drives it to a verified finish with an always-on progress bar (overall + nested sub-progress), resuming the main thread after any tangent. Reuses the intake gate + `rules/process.md`; owns the entry point, the progress bar, and the resume. Call it whenever you'd otherwise have to remember which skill fits. |
+| ANY task — you don't know or don't want to pick which skill | `/sk:meta-dotclaude-copilot-start-here-for-any-task` | (routes to everything below) | The single front door: reads the task, routes it to the right skills via THIS table, verifies they're installed, presents the plan, and drives it to a verified finish with an always-on progress bar (overall + nested sub-progress), resuming the main thread after any tangent. Reuses the intake advisory + `rules/process.md`; owns the entry point, the progress bar, and the resume. Call it whenever you'd otherwise have to remember which skill fits. |
 | A ticket or idea, before deciding to build it | `/sk:work-does-this-make-sense-to-build` | `[gstack] /office-hours` only for a brand-new product idea | Different questions. The spine checks an existing proposal against evidence and can refute parts of it; `/office-hours` is a YC-style Socratic pass on demand for a product that does not exist yet. Do not run both on a ticket. |
 | Gauntlet loop, retain every request through tangents, independent judge or live progress dashboard | `/sk:work-gauntlet-loop` | `/sk:work-handoff-prepare-and-pickup` when a session runs low | Read `references/workflow-loops.md`. |
 | Hand a running gauntlet/session to another agent (quota wall), or pick one up from a pasted dashboard link | `/sk:work-handoff-prepare-and-pickup` | — | Same-machine, chainable A→B→C. PREPARE stamps a resume manifest and returns the copy-paste dashboard link; PICK UP resolves a pasted link/dashboard.html/plan.md back to its plan and resumes the recorded engine with no second options interview. The mechanic is SSOT in `references/workflow-loops.md` § Handoff and resume; `/sk:work-gauntlet-loop` auto-detects a handoff on `--resume`. |

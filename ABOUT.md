@@ -24,7 +24,9 @@ Setup details live in `references/parallelization.md`.
 ## Session dashboard and Gauntlet
 
 Every task-bearing workspace gets one dashboard derived from its living `.context/<slug>-plan.md`.
-Task intake mechanically initializes it; [sk] `/sk:meta-dotclaude-copilot-start-here-for-any-task`
+Task intake initializes it without an approval gate. Existing authorization carries the work forward;
+only unresolved consequential choices or access need a question.
+[sk] `/sk:meta-dotclaude-copilot-start-here-for-any-task`
 does the same on hosts without that hook. Initialization is locked and idempotent, so simultaneous or
 repeated intake leaves one active plan and dashboard. The agent replaces the intake skeleton before work,
 then refreshes the same file as sources, decisions, artifacts, progress and next actions change.
@@ -83,7 +85,11 @@ Changing an approved target requires a new approval; ordinary implementation fix
 
 The dashboard has section buttons and overall completion on the left, with Before, named Target and
 Current evidence on the right. Session record pools sources, decisions, notes, history, artifacts and
-remaining actions. Embedded mockups retain their versions and feedback. Downloaded HTML opens offline
+remaining actions. Mockups, design boards and decision cards share one quiet presentation frame.
+Before/After previews compare only the current pair; earlier rounds live in History. Theme changes
+affect controls only. These artifacts are design viewers: decisions and feedback belong in chat, with
+no response forms or export controls in the viewer. Embedded specs retain all versions and prior
+metadata for CLI extraction. Downloaded HTML opens offline
 for sharing; the live app at the printed URL self-refreshes over SSE as the plan changes. The template
 stays the same across tasks and modes.
 
