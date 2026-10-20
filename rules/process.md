@@ -218,14 +218,13 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
   `references/dev-server-hygiene.md`.
 - **Remove scratch scripts/files** a session created (evals, one-off helpers, temp data) once
   used; keep intentional artifacts and branch build caches (`references/dev-server-hygiene.md`).
-- **Tear down every isolated workspace you create — teardown is part of "done", not a follow-up.**
-  A git worktree, throwaway clone, sandbox dir or container is created WITH an owner for removing it:
-  the moment the work lands or is abandoned, remove the workspace AND delete its now-merged branch in
-  the same step. Each carries a full dependency tree and nothing ever prompts you about them.
-  Corollary: **never leave the only copy of anything inside a disposable workspace** — commit it,
-  move it out, or accept that it dies with the directory (e.g. an uncommitted spike). The one
-  exception is `.context/intent-ledger.md`, which is meant to die there once what it holds has been
-  promoted out: `references/planning-and-tracking.md`.
+- **DO close every branch and workspace created or adopted by this task before hand-back.** Record
+  their owner and disposition in the existing plan, including branch-only refs after workspace removal.
+  Retire landed or explicitly superseded work through `/sk:meta-cleanup-worktrees`; this is not a
+  repo-wide purge. Retain current/main/default, active work, protected recovery or a concrete blocker
+  with its owner, evidence and next action. Preserve unique work and durable outcomes first:
+  `references/planning-and-tracking.md`. TEST: zero owned refs or paths lack a verified removal or
+  retained reason; an abandoned or superseded label alone never proves safe deletion.
 - **Verify cleanup against the underlying storage, not the tool's own listing.** A registry stops
   listing what it has forgotten, so an orphan is invisible to the command you'd check with; reconcile
   disk against what the tool claims and treat present-but-unlisted as residue. Cases:
