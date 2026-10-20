@@ -64,6 +64,10 @@ resolve conflicts only within the owned change and re-run affected checks on the
 with `-F` if needed, secret-scan, then `git push origin <branch>:main`.
 A non-fast-forward rejection means another session landed: fetch, reconcile and validate again;
 never force-push. Verify `git rev-list --left-right --count origin/main...<branch>` returns `0 0`.
+DO run that check as its own command and remove the worktree and branches only after it prints `0 0`.
+DON'T pipe the push through `tail`/`head` or chain cleanup behind it with `&&`: the pipe masks a rejected
+push (the fix for a non-fast-forward push whose worktree and remote branch were deleted anyway and had
+to be recovered from a dangling merge). TEST: no cleanup command runs in the same shell line as the push.
 
 DO activate in `~/.claude` only with a clean tracked tree and no merge/rebase in progress. Preserve its
 branch: fast-forward to `origin/main` when possible; otherwise merge it without discarding unrelated
