@@ -60,7 +60,20 @@ using the subscription-only policy in `references/agent-hosts.md` and project co
 It never selects the retired API home, including for review workers. Default output is the final
 answer; JSON output normalizes native events for the dispatcher.
 `--events-file` preserves JSONL. Native permissions and sandboxing still apply; Claude-only permission
-flags are not forwarded. Headless intake/ledger prompts are disabled, not security/trust checks.
+flags are not forwarded.
+
+DO launch every headless worker through `codex-launch.py -p` (or `codex -p`), `claude-launch.py -p`
+or the superspeed dispatcher; each sets `AGENT_DELEGATED_WORKER=1`. A bare `claude -p` or
+`codex exec` gets no marker, so prefix it with `AGENT_DELEGATED_WORKER=1`. The marker makes
+`hooks/task-intake.sh` skip plan initialization and send only a boundary notice, silences
+`hooks/intent-ledger.sh`, and names the role in the Codex startup context. The worker then follows
+the exception in `rules/living-plan.md`: it creates, edits, updates and reconciles no plan,
+dashboard-state block or intent ledger, and returns its result for the supervisor to record.
+Security and trust checks still run. `CLAUDE_INTAKE_GATE=off` and `CLAUDE_INTENT_LEDGER=off`
+remain manual kill switches, not the worker marker.
+TEST: a marked worker's intake output carries no `PLAN_PATH` and its workspace gains no `.context`
+record. (the fix for a GPT copy worker that added a `running` section to its supervisor's plan,
+which `workflow-dashboard.py` then refused to validate.)
 DO have design workers return their design in output or save non-config artifacts in the ordinary
 workspace. Native hosts protect config paths even for scratch files; a rejected Edit/Write is never
 retried through Bash or another tool. Keep the native approval boundary intact and report the rejection.

@@ -69,7 +69,7 @@ def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-open
                    '-c', 'agents.enabled=false', 'exec', '--model', model,
                    '--sandbox', sandbox, '--json', '--output-last-message', str(final_message), '-']
         environment = dict(os.environ, AGENT_SETUP=setup, AGENT_MODEL_PROVIDER='openai',
-                           CLAUDE_INTAKE_GATE='off', CLAUDE_INTENT_LEDGER='off')
+                           AGENT_DELEGATED_WORKER='1')
         log_context = events_file.open('w') if events_file else nullcontext()
         with log_context as event_log, subprocess.Popen(
                 command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,

@@ -143,11 +143,24 @@ def executable():
     raise ValueError('Claude executable not found; install Claude or set AGENT_CLAUDE_BIN')
 
 
+def print_mode(args):
+    """A -p/--print run is a headless worker; streaming sessions (Conductor) never pass it."""
+    for arg in args:
+        if arg == '--':
+            return False
+        if arg in ('-p', '--print') or arg.startswith('--print='):
+            return True
+    return False
+
+
 def launch():
     try:
         cwd = launch_cwd()
         _, manifest, _ = project(cwd)
         args = sys.argv[1:]
+        if print_mode(args):
+            # Shared hooks read this to leave the supervisor's plan and ledger alone.
+            os.environ['AGENT_DELEGATED_WORKER'] = '1'
         binary = executable()
         if manifest.get('ignoreProjectInstructions', False):
             settings, args = merged_settings(args, cwd, exclusion_patterns(cwd))

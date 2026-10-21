@@ -185,6 +185,21 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(run.call_args.args[1], ['--version'])
         self.assertIn('claudeMdExcludes', run.call_args.args[2])
 
+    def test_print_runs_are_marked_as_delegated_workers_and_streaming_sessions_are_not(self):
+        binary = self.base / 'claude'
+        binary.write_text('fixture')
+        binary.chmod(0o700)
+        for argv, marked in ((['-p', 'brief'], True), (['--print', 'brief'], True),
+                             (['--output-format', 'stream-json', '--input-format', 'stream-json'], False),
+                             (['--', '-p'], False)):
+            os.environ.pop('AGENT_DELEGATED_WORKER', None)
+            with patch.object(launcher, 'project', return_value=(None, {}, 'personal')), \
+                 patch.object(launcher, 'executable', return_value=str(binary)), \
+                 patch.object(launcher.os, 'chdir'), patch.object(launcher.os, 'execve') as execute, \
+                 patch.object(launcher.sys, 'argv', ['claude-launch.py', *argv]):
+                launcher.launch()
+            self.assertEqual(execute.call_args.args[2].get('AGENT_DELEGATED_WORKER') == '1', marked, argv)
+
     def test_binary_selection_prefers_stable_conductor_and_skips_self(self):
         directory = self.base / 'conductor'
         for version in ('2.1.1', '2.2.0-alpha.1', '2.1.2'):

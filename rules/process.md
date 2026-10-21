@@ -132,7 +132,7 @@ PRs handed back unreviewed; the harness then found a dropped consent event and a
 **When a task is complete and verified, commit it — you do NOT need to ask first.** This is standing
 authorization overriding the default ask-first behavior. Use the batch's final verification evidence
 before the completion commit; an intermediate checkpoint commit does not trigger extra checks.
-If on the default branch (`main`), create a branch first. Use conventional commit messages in the imperative mood. Never commit or
+If on the default branch (`main`), create a branch first. Never commit or
 disturb my uncommitted WIP in the main checkout when working in a worktree.
 
 DO apply `rules/self-healing-config.md` to Simon's own config repairs; that explicit standing authority

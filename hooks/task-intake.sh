@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # UserPromptSubmit advisory: initialize/reuse one session plan and point at task routing.
 # Authorization comes from the user and standing rules, never from a marker or a tool callback.
-# CLAUDE_INTAKE_GATE=off retains the headless dispatcher's plan-initialization opt-out.
+# CLAUDE_INTAKE_GATE=off is the manual kill switch. AGENT_DELEGATED_WORKER=1 (set by the -p/exec
+# launchers) marks a headless worker: it never initializes or touches the supervisor's plan, and gets
+# a one-line boundary notice instead, because the always-on living-plan rule still loads for it.
 set -uo pipefail
 [ "${1:-submit}" = "submit" ] || exit 0
 [ "${CLAUDE_INTAKE_GATE:-on}" = "off" ] && exit 0
+if [ "${AGENT_DELEGATED_WORKER:-}" = "1" ]; then
+  printf '%s' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"DELEGATED WORKER (AGENT_DELEGATED_WORKER=1): your supervisor owns the session plan, dashboard and intent ledger. Do not create, edit, update or reconcile any of them; return your result in your final message."}}'
+  exit 0
+fi
 CFG_ROOT="${CLAUDE_CONFIG_ROOT:-$HOME/.claude}"
 INPUT="$(cat)"
 json_field() {

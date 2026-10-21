@@ -239,8 +239,8 @@ Five rules it enforces, each with a reason:
 - **Slices never touch the intent ledger.** They run in the orchestrator's directory, so
   `.context/intent-ledger.md` is one shared file: N appends race, and a dispatched machine-written
   prompt landing in a log whose whole value is that it is Simon's words verbatim is a forgery the
-  reconciliation would later judge against. The dispatcher sets `CLAUDE_INTENT_LEDGER=off` beside
-  `CLAUDE_INTAKE_GATE=off`. The slice prompt stays the only channel, and a slice handed the whole ask
+  reconciliation would later judge against. The dispatcher marks every slice
+  `AGENT_DELEGATED_WORKER=1`, which silences the ledger and skips plan intake. The slice prompt stays the only channel, and a slice handed the whole ask
   instead of its slice is the indivisible-task failure at the top of this file.
 
 ## Step 3 — reconcile, in this session, warm

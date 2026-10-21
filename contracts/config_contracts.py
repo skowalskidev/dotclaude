@@ -121,6 +121,7 @@ CONTRACTS: dict[str, dict] = {
             "Default implementation to the native Codex config model; allow Astra only for read-only review, preserve native permissions and launcher routing, and pass prompts without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",
+            "Mark every worker AGENT_DELEGATED_WORKER=1 so shared hooks leave the supervisor's plan and ledger alone.",
         ],
     },
     "bin/codex-launch.py": {
@@ -138,6 +139,7 @@ CONTRACTS: dict[str, dict] = {
             "With the flag false, launch native Claude with unchanged arguments; with true, exclude project instruction files through native claudeMdExcludes.",
             "Preserve caller settings and personal ~/.claude files; reject invalid policy before launching Claude.",
             "Keep temporary merged settings private and clean them after normal exit; forward signals to the child.",
+            "Mark a -p/--print run AGENT_DELEGATED_WORKER=1; never mark a streaming (Conductor) session.",
         ],
     },
     "references/agent-hosts.md": {
@@ -1392,7 +1394,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Launch headless Claude and Codex slices through their shared native launchers, even when a shell function is unavailable.",
             "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the mid tier resolved live at dispatch, then fail an incomplete worker.",
-            "Sets CLAUDE_INTAKE_GATE=off on every slice to skip duplicate session-plan initialization while native approval and security checks stay active.",
+            "Sets AGENT_DELEGATED_WORKER=1 on every slice so intake skips session-plan initialization and the intent ledger stays silent, while native approval and security checks stay active.",
             "Verifies each slice by its on-disk artifact, never by exit code "
             "(anthropics/claude-code#74761: claude -p can exit 0 mid-task).",
             "Tells every slice to write BLOCKED.md rather than edit a file another slice owns, and "
@@ -1933,6 +1935,7 @@ CONTRACTS: dict[str, dict] = {
             "safe only because of that ordering; without it the model creates the ledger by hand.",
             "Keep full prompts and remind the agent to reconcile each into the gauntlet plan; preserve requirements beyond 6000 characters.",
             "Combine simultaneous submit notices into one valid hook JSON document for native host parsing.",
+            "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "
@@ -1959,7 +1962,7 @@ CONTRACTS: dict[str, dict] = {
             "Initialize one ordinary plan and canonical dashboard idempotently; resolve the session root through bin/session-root.sh even after a nested-worktree cwd change.",
             "Use existing explicit or standing authorization; ask only unresolved consequential choices, missing access, production writes or paid calls.",
             "Never deny Agent, Task or Workflow and require no AskUserQuestion callback, approval stamp, sentinel or arbitrary prompt-length authority.",
-            "Ignore short acknowledgements and automated background notifications. Preserve CLAUDE_INTAKE_GATE=off as the headless duplicate-plan opt-out.",
+            "Ignore short acknowledgements and automated background notifications. Preserve CLAUDE_INTAKE_GATE=off as the manual kill switch; give a delegated worker (AGENT_DELEGATED_WORKER=1) only a boundary notice, never a plan or routing instruction.",
             "Run tests only with isolated session-root/workspace paths; stale former gate markers cannot affect authorization or rearm work.",
         ],
     },

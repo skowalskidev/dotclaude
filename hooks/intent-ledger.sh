@@ -40,10 +40,13 @@ LOCK_TRIES=20   # x 50ms = a 1s ceiling, because this sits on the user-prompt pa
 # a divergent copy of a secret regex is exactly the drift one-owner-per-concern exists to stop.
 CRED_RE='(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{36}|gho_[A-Za-z0-9]{36}|sk-ant-[A-Za-z0-9-]{20,}|AIza[0-9A-Za-z_-]{35}|xox[baprs]-[A-Za-z0-9-]{10,})'
 
-# Off-switch, checked before anything else so it disables the whole mechanism. /sk:work-superspeed's
-# dispatcher sets this on every slice: a machine-written slice prompt landing in a log whose value is
-# that it is your words verbatim would be a forgery the reconciliation later judges against.
+# Off-switches, checked before anything else so they disable the whole mechanism. CLAUDE_INTENT_LEDGER=off
+# is the manual kill switch. AGENT_DELEGATED_WORKER=1 is set by the -p/exec launchers and the superspeed
+# dispatcher on every headless worker: a machine-written worker prompt landing in a log whose value is
+# that it is your words verbatim would be a forgery the reconciliation later judges against, and the
+# supervisor owns this ledger.
 [ "${CLAUDE_INTENT_LEDGER:-on}" = "off" ] && exit 0
+[ "${AGENT_DELEGATED_WORKER:-}" = "1" ] && exit 0
 
 # No sed fallback here, unlike task-intake.sh. sed cannot decode \n escapes, so it would write a
 # corrupted record while claiming to be verbatim, which is worse than writing nothing.

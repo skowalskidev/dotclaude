@@ -353,6 +353,9 @@ def context(cwd):
              'rules/connectors.md governs every other model API.',
              'Connector manifest: ' + (str(path) if path else 'none matched')]
     lines.append(policy_context(cwd))
+    if os.environ.get('AGENT_DELEGATED_WORKER') == '1':
+        lines.append('Session role: delegated worker (AGENT_DELEGATED_WORKER=1). The supervisor owns the session '
+                     'plan, dashboard and intent ledger; do not create, edit or reconcile them. Return results.')
     if manifest.get('sharedFrom'):
         lines.append('Shared connector manifests: ' + ', '.join(manifest['sharedFrom']))
     for connector in manifest.get('connectors', []):

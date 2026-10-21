@@ -134,6 +134,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("intake-stays-quiet-on-follow-ups", "Short acknowledgements and background notifications stay quiet."),
     ("intake-reuses-mid-run-plan", "New requests preserve the active plan and do not depend on approval stamps."),
     ("intake-has-an-off-switch", "CLAUDE_INTAKE_GATE=off skips duplicate plan initialization for delegated headless work."),
+    ("delegated-worker-leaves-supervisor-record-alone",
+     "A headless worker marked AGENT_DELEGATED_WORKER=1 gets no plan, dashboard or ledger instruction from "
+     "intake or the intent ledger, creates no record, and is told to return its result instead."),
 
     # --- Hooks in general -------------------------------------------------------------
     ("hooks-all-wired-and-executable",
@@ -695,6 +698,37 @@ def check_intake_has_an_off_switch() -> None:
     out = intake("submit", {"session_id": "contract-off", "cwd": str(root), "prompt": "refactor everything now"},
                  env={"CLAUDE_INTAKE_GATE": "off"})
     check(out.strip() == "" and not (root / ".context").exists(), "Headless opt-out still initializes a duplicate plan.")
+
+
+def check_delegated_worker_leaves_supervisor_record_alone() -> None:
+    root = INTAKE_TEST_DIR / "delegated-worker-workspace"
+    root.mkdir(exist_ok=True)
+    worker = {"AGENT_DELEGATED_WORKER": "1"}
+    out = intake("submit", {"session_id": "contract-worker", "cwd": str(root),
+                            "prompt": "Write copy.json with the three headline variants"}, env=worker)
+    check(not (root / ".context").exists(), "A delegated worker's intake created a plan in the supervisor's workspace.")
+    check(not any(s in out for s in ("PLAN_PATH", "DASHBOARD_PATH", "TASK ROUTING", "Apply rules/living-plan.md")),
+          "Intake gave a delegated worker plan or dashboard instructions: " + out[:300])
+    check("DELEGATED WORKER" in out and "return your result" in out,
+          "Intake did not tell a delegated worker to leave the record alone and return its result.")
+    living = (ROOT / "rules" / "living-plan.md").read_text()
+    check("AGENT_DELEGATED_WORKER=1" in living, "rules/living-plan.md has no delegated-worker exception.")
+    with tempfile.TemporaryDirectory(prefix="worker-ledger-test-") as tmp:
+        home, repo = Path(tmp) / "home", Path(tmp) / "repo"
+        home.mkdir()
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+        env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT), "CLAUDE_INTENT_LEDGER": "on",
+               "CLAUDE_PROJECT_DIR": str(repo), **worker}
+        outputs = []
+        for mode, payload in (("submit", {"prompt": "Write copy.json with three variants"}), ("stop", {})):
+            payload = {"cwd": str(repo), "session_id": "worker-ledger", **payload}
+            result = subprocess.run(["bash", str(ROOT / "hooks" / "intent-ledger.sh"), mode],
+                                    input=json.dumps(payload), text=True, capture_output=True, cwd=repo, env=env)
+            outputs.append(result.stdout + result.stderr)
+            check(result.returncode == 0, "Ledger hook failed for a delegated worker: " + result.stderr)
+        check(not any(o.strip() for o in outputs), "The intent ledger spoke to a delegated worker: " + " | ".join(outputs)[:300])
+        check(not (repo / ".context").exists(), "The intent ledger wrote a record for a delegated worker.")
 
 
 def check_hooks_all_wired_and_executable() -> None:

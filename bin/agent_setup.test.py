@@ -530,8 +530,7 @@ with open(os.environ['FIXTURE_CALLS'], 'a') as output:
                             'setup': os.environ.get('AGENT_SETUP'), 'pid': os.getpid(),
                             'home': os.environ.get('CODEX_HOME'),
                             'api_env_present': bool(os.environ.get('CODEX_API_KEY') or os.environ.get('OPENAI_API_KEY')),
-                            'intake': os.environ.get('CLAUDE_INTAKE_GATE'),
-                            'ledger': os.environ.get('CLAUDE_INTENT_LEDGER')}) + '\\n')
+                            'worker': os.environ.get('AGENT_DELEGATED_WORKER')}) + '\\n')
 if os.environ.get('FIXTURE_SLEEP'):
     time.sleep(60)
 match = re.search(r'When done, write (.+?)/DONE.md', prompt)
@@ -567,8 +566,7 @@ else:
         self.assertEqual(call['prompt'], prompt)
         self.assertIn('gpt-5.6-sol', call['args'])
         self.assertIn('agents.enabled=false', call['args'])
-        self.assertEqual(call['intake'], 'off')
-        self.assertEqual(call['ledger'], 'off')
+        self.assertEqual(call['worker'], '1')
         self.assertIn('workspace-write', call['args'])
         self.assertNotIn('--dangerously-bypass-hook-trust', call['args'])
         self.assertNotIn('--ignore-user-config', call['args'])
@@ -750,6 +748,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         calls = [json.loads(line) for line in self.calls.read_text().splitlines()]
         self.assertEqual([call['kind'] for call in calls], ['claude', 'claude'])
+        self.assertTrue(all(call['worker'] == '1' for call in calls))
         self.assertEqual(json.loads((output / 'spec.json').read_text())['model'], 'sonnet')
 
     def test_full_astra_launches_sol_workers_and_records_mode(self):

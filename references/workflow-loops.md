@@ -544,7 +544,8 @@ DO keep the live gauntlet minimal and self-refreshing. DEFAULT: dark theme, colo
 behind a record drawer rather than inline, and an SSE refresh under 2 seconds after a plan change.
 TEST: a screenshot of the live view shows no colored label text and no visible refresh delay past 2s.
 
-DO have one supervisor write the state through `update`; workers return results. The helper locks
+DO have one supervisor write the state through `update`; workers return results (headless worker
+marker: `references/parallelization.md`). The helper locks
 and checks `--expect-revision`, increments the revision, stamps the time and atomically replaces the
 JSON block, then regenerates the derived HTML with a separate atomic file replacement. On conflict, re-read and merge the actual changes. Never retry a stale payload
 with a newer revision number. Update after dispatch, completion, test, judgement, failure or user

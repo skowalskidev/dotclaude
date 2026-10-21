@@ -611,6 +611,11 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn('Canonical rule v2', output['hookSpecificOutput']['additionalContext'])
 
+    def test_session_context_names_a_delegated_worker_only_when_marked(self):
+        self.assertNotIn('delegated worker', runtime.context(self.cwd))
+        with patch.dict(os.environ, {'AGENT_DELEGATED_WORKER': '1'}):
+            self.assertIn('Session role: delegated worker', runtime.context(self.cwd))
+
     def test_install_is_idempotent_and_keeps_auth_files(self):
         home = self.home / '.codex'
         home.mkdir()

@@ -40,11 +40,11 @@
 #     ]
 #   }
 #
-# Every slice runs with CLAUDE_INTAKE_GATE=off to skip duplicate plan initialization;
-# the orchestrator owns the session plan. Native approval and security checks remain active.
-# It also runs with CLAUDE_INTENT_LEDGER=off: slices share the orchestrator's directory, so N of them
-# would race on one ledger, and a dispatched machine-written prompt does not belong in a record whose
-# whole value is that it is your words verbatim.
+# Every slice runs with AGENT_DELEGATED_WORKER=1: the intake hook skips plan initialization and the
+# intent ledger records nothing, because the orchestrator owns the session plan. Slices share the
+# orchestrator's directory, so N of them would race on one ledger, and a dispatched machine-written
+# prompt does not belong in a record whose whole value is that it is your words verbatim. Native
+# approval and security checks remain active.
 
 set -uo pipefail
 
@@ -459,17 +459,17 @@ RULES
     S0=$(date +%s)
     # Backgrounded then waited on so the launcher PID can be recorded for the sampler.
     if [ "$SLICE_PROVIDER" = openai ]; then
-      AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off \
+      AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_DELEGATED_WORKER=1 \
         "$SCRIPT_DIR/codex-launch.py" -p "$PROMPT" --model "$SLICE_MODEL" --cd "$REPO" --output-format json \
         --events-file "$SD/events.jsonl" > "$SD/result.json" 2> "$SD/stderr.txt" &
     elif [ "$MODEL_ROUTE" = design ]; then
       CONDUCTOR_WORKSPACE_PATH="$REPO" AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_ALLOW_CROSS_PROVIDER=1 \
-        CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
+        AGENT_DELEGATED_WORKER=1 env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN \
         -u ANTHROPIC_BASE_URL -u CLAUDE_CODE_USE_BEDROCK -u CLAUDE_CODE_USE_VERTEX -u CLAUDE_CODE_USE_FOUNDRY "$SCRIPT_DIR/claude-launch.py" -p "$PROMPT" \
         --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     else
-      CONDUCTOR_WORKSPACE_PATH="$REPO" AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" CLAUDE_INTAKE_GATE=off CLAUDE_INTENT_LEDGER=off "$SCRIPT_DIR/claude-launch.py" -p "$PROMPT" \
+      CONDUCTOR_WORKSPACE_PATH="$REPO" AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_DELEGATED_WORKER=1 "$SCRIPT_DIR/claude-launch.py" -p "$PROMPT" \
         --model "$SLICE_MODEL" --output-format json --permission-mode acceptEdits \
         > "$SD/result.json" 2> "$SD/stderr.txt" &
     fi
