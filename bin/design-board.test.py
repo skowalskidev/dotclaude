@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """design-board.py self-test: the example spec builds, round-trips, carries the measurement hooks, and
-`check` passes the example while failing a board whose phone frame renders blank or sits cut by an overflow-hidden ancestor (skipped without Node Playwright)."""
+stores each embedded payload once with a byte-identical extract -> build, `check` passes the example while failing a board whose phone frame renders blank or sits cut by an overflow-hidden ancestor (skipped without Node Playwright)."""
+import base64
+import importlib.util
 import json
 import pathlib
 import subprocess
@@ -9,6 +11,14 @@ import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 TOOL = HERE / "design-board.py"
+
+
+def load_tool():
+    spec = importlib.util.spec_from_file_location("design_board", TOOL)
+    module = importlib.util.module_from_spec(spec)
+    sys.path.insert(0, str(HERE))
+    spec.loader.exec_module(module)
+    return module
 
 
 def run(*args: str) -> str:
@@ -34,6 +44,21 @@ def main() -> int:
         }
         run("extract", str(out), str(back))
         checks["round-trip"] = json.loads(back.read_text()) == json.loads(spec.read_text())
+        # Each image is stored once (in #spec), and extract -> build reproduces the board byte for byte.
+        images = []
+        multi = json.loads(spec.read_text())
+        multi["font"] = "data:font/woff2;base64," + base64.b64encode(b"board-font-bytes").decode()
+        for n in range(3):
+            payload = base64.b64encode(f"image-{n}-bytes".encode() * 7).decode()
+            images.append(payload)
+            multi["sections"][0]["frames"].append({"id": f"img{n}", "title": f"Image {n}", "image": "data:image/png;base64," + payload})
+        multi["sections"][0]["frames"].append({"id": "img-shared", "title": "Shared", "image": "data:image/png;base64," + images[0]})
+        built = load_tool().build(multi)
+        checks["each image embedded once"] = all(built.count(p) == 1 for p in images)
+        checks["shared image frames all shown"] = built.count('data-frame="img') == 4
+        checks["font embedded once"] = built.count(multi["font"].split(",", 1)[1]) == 1
+        checks["capture html embedded once"] = built.count("kept on this seat") == 1
+        checks["build(extract(build)) byte-identical"] = load_tool().build(load_tool().extract(built)) == built
         blank = json.loads(spec.read_text())
         blank["sections"][0]["frames"][1]["html"] = ""
         blank_spec, blank_out = pathlib.Path(tmp, "blank.json"), pathlib.Path(tmp, "blank.html")

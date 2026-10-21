@@ -25,6 +25,12 @@ Spec (schemaVersion 1):
       ]
     }
 
+Every embedded payload (image, font, capture html) is stored ONCE, in the #spec data island; the board
+fills each frame's screen document from it on load. `build` moves each image into `spec.assets` under a
+content hash and points the frame at it as `@@ASSET:<id>@@`, so frames sharing a capture share one
+copy. That keeps a board small enough to share as a claude.ai artifact, and keeps `extract` -> `build`
+byte-identical.
+
 Every frame carries `data-frame` and `data-measure` hooks. In a browser, `window.__measure()` returns
 [{id, overflow, wrapped}] where `overflow` is how far the deepest element sits past the phone bottom
 and `wrapped` lists elements marked `data-oneline` that broke onto a second line. No third-party
@@ -37,13 +43,14 @@ It prints the pass table and writes the screenshots to <outdir>; hand the table 
 """
 import base64
 import copy
+import hashlib
 import html as html_mod
 import io
 import json
 import pathlib
 import subprocess
 import sys
-from presentation_build import compose, extract as extract_spec
+from presentation_build import ASSET_RE, ASSET_TOKEN, compose, extract as extract_spec
 
 HERE = pathlib.Path(__file__).resolve().parent
 TEMPLATE = HERE / "design-board.html"
@@ -70,23 +77,18 @@ def image_uri(path: str, width: int) -> str:
     return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def frame_html(frame: dict, phone: dict, capture_css: str) -> str:
+def frame_html(frame: dict) -> str:
+    """Frame card only. The capture document is filled from #spec at runtime, so each image, font and
+    capture html is stored once in the built file (the spec), never again inside an iframe srcdoc."""
     if frame.get("hidden"):
         return ""
     esc = html_mod.escape
     badge = '<span class="pick">Picked</span>' if frame.get("pick") else ""
-    night = " night" if frame.get("night") else ""
-    body = (f'<img src="{image_uri(frame["image"], phone["w"] * 2)}" alt="">'
-            if "image" in frame else frame.get("html", ""))
-    capture = ('<!doctype html><html><head><style>*{box-sizing:border-box;margin:0;padding:0}'
-               'html,body{width:100%;height:100%;font-family:BoardFont,system-ui,sans-serif;color:#17191e;background:white}body{display:flex;flex-direction:column}'
-               'body.night{background:#0c0a09;color:white}body>img{width:100%;height:100%;object-fit:cover;display:block}'
-               + capture_css + '</style></head><body class="screen' + night + '">' + body + '</body></html>')
     return (f'<div class="board-frame{" picked" if frame.get("pick") else ""}">'
             f'<p class="flabel">{esc(frame.get("label", ""))} {badge}</p>'
             f'<p class="ftitle">{esc(frame.get("title", ""))}</p>'
             f'<p class="fhyp">{esc(frame.get("hypothesis", ""))}</p>'
-            f'<div class="screen" data-frame="{esc(frame["id"])}"><iframe title="{esc(frame.get("title", frame["id"]))}" srcdoc="{esc(capture, quote=True)}"></iframe></div>'
+            f'<div class="screen" data-frame="{esc(frame["id"])}"><iframe title="{esc(frame.get("title", frame["id"]))}"></iframe></div>'
             f'<p class="fnote">{esc(frame.get("note", ""))}</p></div>')
 
 
@@ -98,18 +100,23 @@ def build(spec: dict) -> str:
         spec["font"] = data_uri(spec["font"], "font/woff2")
     for section in spec.get("sections", []):
         for frame in section.get("frames", []):
-            if frame.get("image") and not frame["image"].startswith("data:"):
-                spec.setdefault("sourceAssets", {}).setdefault("images", {})[frame["id"]] = frame["image"]
-                frame["image"] = image_uri(frame["image"], phone["w"] * 2)
+            image = frame.get("image")
+            if not image or ASSET_RE.fullmatch(image):
+                continue
+            if not image.startswith("data:"):
+                spec.setdefault("sourceAssets", {}).setdefault("images", {})[frame["id"]] = image
+                image = image_uri(image, phone["w"] * 2)
+            # Content-addressed, so frames sharing one capture share one stored copy.
+            key = "img_" + hashlib.sha256(image.encode()).hexdigest()[:16]
+            spec.setdefault("assets", {})[key] = image
+            frame["image"] = f"@@ASSET:{key}@@"
     esc = html_mod.escape
-    font = spec.get("font")
-    font_face = (f"@font-face{{font-family:'BoardFont';src:url({data_uri(font, 'font/woff2')}) format('woff2');font-weight:100 900}}" if font else "")
     sections = "".join(
         f'<section class="board"><h2>{esc(section.get("title", ""))}</h2><p class="slead">{esc(section.get("lead", ""))}</p>'
-        f'<div class="row">{"".join(frame_html(f, phone, font_face + spec.get("css", "")) for f in section.get("frames", []))}</div></section>'
+        f'<div class="row">{"".join(frame_html(f) for f in section.get("frames", []))}</div></section>'
         for section in spec.get("sections", [])
     )
-    adapter = TEMPLATE.read_text().replace("/*PHONE_W*/", str(phone["w"])).replace("/*PHONE_H*/", str(phone["h"]))
+    adapter = TEMPLATE.read_text().replace("/*PHONE_W*/", str(phone["w"])).replace("/*PHONE_H*/", str(phone["h"])).replace("/*ASSET_TOKEN*/", ASSET_TOKEN)
     return compose("board", spec, adapter, content='<div id="canvas"><h1 class="board-export-title">' + esc(spec.get("title", "Design board")) + '</h1>' + sections + '</div>', title=spec.get("title", "Design board"))
 
 
