@@ -195,7 +195,11 @@ Simon will open, before any hand-off of a visual artifact (design board, mockup,
 HTML artifact, stitched image wrapped in an HTML page). Pass one `--state NAME=JS` per state he can
 switch to, one `--viewport WxH` per size he will use (default 1440x900), one `--region CSS` per element
 that must show content (a phone frame, a chart, a tile), one `--visible CSS` per element that must only be
-whole (a title, a button), and one `--expect TEXT` per key string. The tool loads the file fresh per row,
+whole (a title, a button), and one `--expect TEXT` per key string. Add one `--wait-for CSS` per element a
+page that renders its data after load shows once ready (waits for visible after load and after each state's JS,
+`--wait-timeout MS` default 30000; a timeout fails the row), and one `--route GLOB=FILE` to serve a local page a
+fixture for its API route (content type from the extension, other requests pass through; a missing file exits 2).
+DON'T hand-write a separate Playwright script for either. The tool loads the file fresh per row,
 screenshots the full page, and exits 1 on any blank page or region, any region or visible element that is
 not fully visible, missing string, page error or failed request. A stitched image or PR image has no page: wrap it in a one-line HTML
 page and check that, then view it.

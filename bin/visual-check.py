@@ -18,6 +18,11 @@ Usage:
         [--regions-in NAME]...     only check regions in these states (default: every state)
         [--expect TEXT]...         strings the page text must contain
         [--min-ink 0.0005]         minimum ink share, 0.05% by default
+        [--wait-for CSS]...        wait until every matching selector is attached and visible, after load and
+                                   after each state's JS; use for a page that renders its data after load
+        [--wait-timeout 30000]     --wait-for timeout in ms; a timeout fails that row ("wait-for timed out: CSS")
+        [--route GLOB=FILE]...     serve FILE (path relative to the cwd) for every request whose URL matches GLOB,
+                                   before navigation; use to give a local page a fixture for its API route
 
 Output: DIR/<viewport>-<state>.png per row, DIR/pass-table.md, the same table on stdout.
 Exit code: 0 every row passes, 1 any row fails, 2 usage or browser-runtime error.
@@ -27,6 +32,7 @@ MOCKUP_SHOTS_NODE_MODULES, NODE_PATH, the global npm root, ./node_modules or ~/.
 """
 import argparse
 import json
+import mimetypes
 import subprocess
 import sys
 import tempfile
@@ -105,10 +111,22 @@ for (const vp of job.viewports) for (const st of job.states) {
   const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => row.problems.push("page error: " + e.message));
   page.on("requestfailed", (r) => row.problems.push("request failed: " + r.url().slice(0, 80)));
+  let waitFailed = false;
+  const waitAll = async () => {
+    for (const sel of job.waitFor) {
+      try { await page.waitForSelector(sel, { state: "visible", timeout: job.waitTimeout }); }
+      catch { waitFailed = true; row.problems.push(`wait-for timed out: ${sel}`); }
+    }
+  };
   try {
+    for (const rt of job.routes) {
+      const body = readFileSync(rt.file);
+      await page.route(rt.glob, (route) => route.fulfill({ status: 200, contentType: rt.contentType, headers: { "access-control-allow-origin": "*" }, body }));
+    }
     await page.goto(job.url, { waitUntil: "load" });
+    await waitAll();
     await page.waitForTimeout(job.settleMs);
-    if (st.js) { await page.evaluate(st.js); await page.waitForTimeout(job.settleMs); }
+    if (st.js) { await page.evaluate(st.js); await waitAll(); await page.waitForTimeout(job.settleMs); }
     const file = join(job.outdir, `${vp}-${st.name}.png`);
     const png = await page.screenshot({ path: file, fullPage: true });
     row.file = file;
@@ -118,7 +136,7 @@ for (const vp of job.viewports) for (const st of job.states) {
     for (const f of page.frames()) { try { text += "\n" + await f.evaluate(() => document.body ? document.body.innerText : ""); } catch {} }
     row.expectMissing = job.expect.filter((s) => !text.includes(s));
     if (row.expectMissing.length) row.problems.push("missing text: " + row.expectMissing.join(" | "));
-    if (!job.regionsIn || job.regionsIn.includes(st.name)) {
+    if (!waitFailed && (!job.regionsIn || job.regionsIn.includes(st.name))) {
       for (const sel of job.visible) {
         const els = await page.locator(sel).all();
         if (!els.length) { row.problems.push(`element not found: ${sel}`); continue; }
@@ -186,6 +204,9 @@ def main(argv: list) -> int:
     ap.add_argument("--regions-in", action="append", default=None)
     ap.add_argument("--expect", action="append", default=[])
     ap.add_argument("--min-ink", type=float, default=0.0005)
+    ap.add_argument("--wait-for", action="append", default=[])
+    ap.add_argument("--wait-timeout", type=int, default=30000)
+    ap.add_argument("--route", action="append", default=[])
     a = ap.parse_args(argv)
     states = [{"name": "default", "js": ""}]
     for s in a.state:
@@ -194,6 +215,18 @@ def main(argv: list) -> int:
             print(f"bad --state {s!r}: use NAME=JS, NAME not 'default'", file=sys.stderr)
             return 2
         states.append({"name": name, "js": js})
+    routes = []
+    for r in a.route:
+        glob, sep, file = r.rpartition("=")
+        if not sep or not glob or not file:
+            print(f"bad --route {r!r}: use GLOB=FILE", file=sys.stderr)
+            return 2
+        path = Path(file).resolve()
+        if not path.is_file():
+            print(f"bad --route {r!r}: fixture file not found: {path}", file=sys.stderr)
+            return 2
+        ctype = "application/json" if path.suffix == ".json" else (mimetypes.guess_type(path.name)[0] or "application/octet-stream")
+        routes.append({"glob": glob, "file": str(path), "contentType": ctype})
     out = Path(a.out).resolve()
     if len(a.viewport or [1]) * len(states) > MAX_ROWS:
         print(f"{len(a.viewport or [1]) * len(states)} rows exceeds the cap of {MAX_ROWS}; split the check", file=sys.stderr)
@@ -209,6 +242,9 @@ def main(argv: list) -> int:
         "expect": a.expect,
         "minInk": a.min_ink,
         "settleMs": SETTLE_MS,
+        "waitFor": a.wait_for,
+        "waitTimeout": a.wait_timeout,
+        "routes": routes,
     }
     with tempfile.TemporaryDirectory() as tmp:
         job_path, run_path = Path(tmp) / "job.json", Path(tmp) / "run.mjs"

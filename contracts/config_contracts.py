@@ -297,7 +297,10 @@ CONTRACTS: dict[str, dict] = {
             "Fail a row on a page or region with ink share (pixels differing from the most common colour) below --min-ink (default 0.05%), on a missing --expect string, a page error or a failed request.",
             "Fail a --region or --visible element that is not fully visible: zero size, hidden, outside the document, cut by an overflow hidden, clip, auto or scroll ancestor, or hiding its own content; a DOM string or non-white pixel alone never passes.",
             "Print the pass table, write it to <out>/pass-table.md beside one full-page PNG per row, and exit 0 clean, 1 on any failure, 2 on bad arguments, more than 24 rows or a missing browser runtime.",
+            "Wait for every --wait-for selector to be attached and visible after load and again after each state's JavaScript, within --wait-timeout (default 30000 ms); a selector that never appears fails that row with 'wait-for timed out: <css>' and skips its region checks, without crashing the run.",
+            "Serve every --route GLOB=FILE fixture before navigation, content type from the extension (.json is application/json), unmatched requests pass through; exit 2 before any browser starts when the file is missing or the value is not GLOB=FILE.",
             "Python 3.9+, standard library only; run the browser through Node Playwright resolved as bin/mockup-shots.py resolves it.",
+            "Keep bin/visual-check.test.py passing: --route with a missing file exits 2, --wait-for and --wait-timeout parse, and (with Node Playwright) a client-rendered page fails without them and passes with --route and --wait-for.",
         ],
     },
     "bin/mockup-shots.py": {
