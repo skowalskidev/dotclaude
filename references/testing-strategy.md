@@ -135,6 +135,14 @@ outside callbacks the app can catch, then fail on that accumulator at the test b
 allowed call ledger and zero unintended effects after each phase. TEST: a swallowed assertion or an
 unexpected request still fails the test even when the worker reports a handled error.
 
+**DO run every new or changed third-party request shape once against the live provider, read-only,
+before merge, and make its fake answer per request.** A new field set, level, breakdown or parameter
+combination is a claim about the provider that a fake returning full rows for any request cannot test.
+Run the exact request through the provisioned read path, record the answer, then make the fake return
+only the fields asked and reproduce any quirk observed. TEST: the old code fails the updated fake, and
+each new request shape cites one dated live answer. (the fix for a daily ads read whose provider returned
+"0" spend whenever click counts shared a multi-day request, shipped green and caught only in production.)
+
 **DO advance and drain work with explicit limits.** Record maximum ticks/iterations and a wall-time
 ceiling before running; process a complete source scan and all due work at each required checkpoint.
 Stop only after proving no unexplained due work remains, with delayed retries/holds accounted for, or
