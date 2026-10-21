@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""visual-check.py self-test: --route with a missing file exits 2, --wait-for and --wait-timeout parse, and a client-rendered
-page that fetches its data after load fails without them and passes with --route and --wait-for (browser part skipped without Node Playwright)."""
+"""visual-check.py self-test: --route with a missing file exits 2, --wait-for and --wait-timeout parse, a client-rendered
+page that fetches its data after load fails without them and passes with --route and --wait-for, and a tall page whose later
+region screenshots scroll earlier regions above the viewport still passes (browser part skipped without Node Playwright)."""
 import functools
 import http.server
 import pathlib
@@ -15,6 +16,11 @@ PAGE = """<!doctype html><meta charset=utf-8><title>t</title><p>Loading</p>
 <script>fetch('/data.json').then(r => r.json()).then(d => setTimeout(() => {
   document.body.insertAdjacentHTML('beforeend', '<div id=done style="width:300px;height:120px;background:repeating-linear-gradient(90deg,#c33 0 20px,#36c 20px 40px);color:#fff">' + d.label + '</div>');
 }, 1500));</script>"""
+# Every region sits inside the document; screenshotting the lower cards scrolls the header and early cards above the viewport.
+TALL = """<!doctype html><meta charset=utf-8><title>tall</title><style>body{margin:0}
+.head,.card{height:260px;margin:20px;background:repeating-linear-gradient(90deg,#c33 0 20px,#36c 20px 40px)}
+.grid{display:flex;flex-wrap:wrap}.card{width:240px}</style>
+<div class=head></div><div class=grid>""" + "<div class=card></div>" * 12 + "</div>"
 
 
 def run(*args: str, cwd: str) -> subprocess.CompletedProcess:
@@ -59,6 +65,9 @@ def main() -> int:
                 checks["fails with --route alone (data renders after load)"] = late.returncode == 1
                 miss = run(url, "--out", str(root / "o6"), "--wait-for", "#never", "--wait-timeout", "500", cwd=tmp)
                 checks["wait-for timeout fails the row, no crash"] = miss.returncode == 1 and "wait-for timed out: #never" in miss.stdout
+                (root / "tall.html").write_text(TALL)
+                tall = run(str(root / "tall.html"), "--out", str(root / "o7"), "--viewport", "600x400", "--region", ".card", "--region", ".head", "--visible", ".card", cwd=tmp)
+                checks["regions scrolled above the viewport still count as inside the document"] = tall.returncode == 0 and "outside the document" not in tall.stdout
         finally:
             server.shutdown()
     bad = [k for k, ok in checks.items() if not ok]

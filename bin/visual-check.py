@@ -83,14 +83,16 @@ async function ink(png, inset) {
   }, [png.toString("base64"), inset]);
 }
 // Why an element is not fully visible, or "" when it is: size, hiding, document bounds, clipping ancestors, own clipped content.
+// getBoundingClientRect is viewport-relative: compare it to document bounds only after adding the window scroll offset,
+// so the verdict does not depend on where an earlier element screenshot left the page scrolled.
 const clipped = (el) => {
   const clip = (v) => ["hidden", "clip", "auto", "scroll"].includes(v);
   const name = (n) => n.tagName.toLowerCase() + (n.id ? "#" + n.id : "") + (typeof n.className === "string" && n.className.trim() ? "." + n.className.trim().split(/\s+/)[0] : "");
   const r = el.getBoundingClientRect(), cs = getComputedStyle(el), out = [];
   if (r.width < 2 || r.height < 2) out.push("zero size");
   if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) out.push("hidden");
-  const d = document.documentElement;
-  if (r.left < -1 || r.top < -1 || r.right > d.scrollWidth + 1 || r.bottom > d.scrollHeight + 1) out.push("outside the document");
+  const d = document.documentElement, sx = window.scrollX, sy = window.scrollY;
+  if (r.left + sx < -1 || r.top + sy < -1 || r.right + sx > d.scrollWidth + 1 || r.bottom + sy > d.scrollHeight + 1) out.push("outside the document");
   for (let a = el.parentElement; a; a = a.parentElement) {
     const s = getComputedStyle(a);
     if (!clip(s.overflowX) && !clip(s.overflowY)) continue;
@@ -146,6 +148,9 @@ for (const vp of job.viewports) for (const st of job.states) {
           if (why) { row.clipped++; row.problems.push(`${sel}[${i}] not fully visible: ${why}`); }
         }
       }
+      // Measure every region before any region screenshot: a screenshot scrolls its element (and any scroll ancestor)
+      // into view, which would otherwise judge later regions in a scroll state the viewer never opened.
+      const shots = [];
       for (const sel of job.regions) {
         const els = await page.locator(sel).all();
         if (!els.length) { row.problems.push(`region not found: ${sel}`); continue; }
@@ -153,12 +158,15 @@ for (const vp of job.viewports) for (const st of job.states) {
           row.regions++;
           const why = await els[i].evaluate(clipped);
           if (why) { row.clipped++; row.problems.push(`region ${sel}[${i}] not fully visible: ${why}`); }
-          let share = 0;
-          try { share = await ink(await els[i].screenshot({ timeout: 5000 }), 0.12); }
-          catch (e) { row.problems.push(`region ${sel}[${i}] not capturable: ${String(e.message).split("\n")[0]}`); continue; }
-          row.minRegionInk = row.minRegionInk === null ? share : Math.min(row.minRegionInk, share);
-          if (share < job.minInk) row.problems.push(`region ${sel}[${i}] blank (ink ${(share * 100).toFixed(3)}%)`);
+          shots.push([sel, i, els[i]]);
         }
+      }
+      for (const [sel, i, el] of shots) {
+        let share = 0;
+        try { share = await ink(await el.screenshot({ timeout: 5000 }), 0.12); }
+        catch (e) { row.problems.push(`region ${sel}[${i}] not capturable: ${String(e.message).split("\n")[0]}`); continue; }
+        row.minRegionInk = row.minRegionInk === null ? share : Math.min(row.minRegionInk, share);
+        if (share < job.minInk) row.problems.push(`region ${sel}[${i}] blank (ink ${(share * 100).toFixed(3)}%)`);
       }
     }
   } catch (e) { row.problems.push("load failed: " + String(e.message).split("\n")[0]); }
