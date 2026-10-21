@@ -35,7 +35,13 @@ The recipe, on Apple's own stack (simctl and XCUITest; install nothing):
 | Install and launch | `xcrun simctl install "$UDID" "$APP"`, then `SIMCTL_CHILD_<VAR>=… xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` |
 | Drive | ONE `xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination id="$UDID" -only-testing:<UITests>/<Walk>/test<Screen> -collect-test-diagnostics never -parallel-testing-enabled NO` per walk, settings passed as `TEST_RUNNER_<VAR>` |
 | Capture | `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; video per Walkthrough recording below |
-| Shut down | `xcrun simctl shutdown "$UDID"` once, when the task's last simulator step ends, then `release-sim` |
+| Shut down | `xcrun simctl shutdown "$UDID"` at the end of every simulator step batch and at hand-back, then `release-sim`; keep it booted only when the very next step needs it |
+
+DO shut down your own booted simulator and `release-sim` at the end of each simulator step batch, unless
+the very next step needs it. DON'T leave one booted with no lease or while the session waits on anything
+else: it blocks every other session's heavy work (lease rules: `references/dev-server-hygiene.md` §
+Machine-wide capacity). TEST: between batches, `status` lists no simulator for this owner unless a named
+next step uses it.
 
 DO pass `-collect-test-diagnostics never` to every `xcodebuild test` and `test-without-building`.
 WHY: the default is `on-failure` (`xcodebuild -help`, Xcode 27.1), and a failed session then collects a
