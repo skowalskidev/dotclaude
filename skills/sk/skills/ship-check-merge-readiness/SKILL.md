@@ -195,7 +195,8 @@ the verdict already answered it.
   (Simon runs `/sk:ship-full-detailed-workflow` across many branches), each OWNS ONLY ITS OWN branch —
   never edit, rebase, commit to, or push a sibling branch. A fix that belongs to another PR is a
   ticket + a comment + a BLOCKING TLDR line on THAT PR, never a commit on its branch. That is what
-  lets N runs coexist without clobbering each other.
+  lets N runs coexist without clobbering each other. Before rebasing or force-pushing its own branch,
+  apply `references/git-pr-deploy.md` § Force-pushing a shared PR branch.
 - **A ship-check run itself triggers self-healing** (`rules/self-healing-config.md`): fold any new
   pitfall this run surfaced back into this skill via `/sk:claude-config-update` before handing back.
 - **Read the other side's real code**, not the types on this side, before asserting a contract

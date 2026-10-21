@@ -652,6 +652,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
             "After an authorized push or ready-flip, read the PR's merge state and confirm within a minute a CI run for the head sha is in progress; no run is a failure to investigate, and a run queued behind a superseded one is cancelled. Run the repo's ordering checks before pushing a base merge.",
+            "Owns the shared-branch force-push rule: check for a competing sweep before a ship or rebase sweep, pin --force-with-lease to the SHA this session last fetched or pushed (never one read from the remote in the push step), and stop when git log <pinned>..origin/<branch> lists a commit this session did not write.",
             "After merging the base: reinstall dependencies, re-download test browsers, compare applied migrations with the files by name and number, and read git status for tool-rewritten files before the next commit.",
             "Require timestamped current provider identity and version/channel eligibility before release packaging; unknown eligibility stops archives/uploads, not independent local work. Reuse applicable fresh provider evidence without requiring duplicate access.",
             "A build number named in a ticket is an example: read the highest uploaded identifier (the store's API, else ask the user once) before the archive starts and build the next.",

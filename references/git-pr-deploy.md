@@ -88,6 +88,29 @@ in the same directory; when another open PR already adds it, take the next free 
 number from the default branch alone (the fix for two open PRs both adding migration 197). TEST: no
 two open PRs add the same numbered file.
 
+## Force-pushing a shared PR branch
+
+Applies to every rewrite push (`--force-with-lease`, `--force`) on a branch another session, workspace
+or reviewer can push to.
+
+**DO check for a competing sweep before a ship or rebase sweep starts on a PR.** Run `git worktree list`
+and `git branch -a --list '*<ticket-or-branch-slug>*'`, and read the PR's newest commits and comments.
+When another live worktree or session already sweeps that PR, hand off to it instead of competing.
+
+**DO pin the lease to the SHA this session last fetched or pushed for that branch:**
+`git push --force-with-lease=<branch>:<pinned-sha>`. Record `<pinned-sha>` at that fetch or push.
+**DON'T read the lease value from `git ls-remote` or a fetch in the push step.** A freshly read remote
+SHA always matches, so the lease protects nothing (the fix for a rebase push that overwrote another
+session's three newer commits on the same PR branch).
+
+**DO run `git fetch origin <branch>` and `git log --format='%h %an %s' <pinned-sha>..origin/<branch>`
+immediately before the force push.** Zero lines: push. One or more commits this session did not write:
+STOP. Another session or a reviewer owns them; rebase onto them or hand off, never overwrite. This
+fetch is the check, never a new pin.
+
+TEST: a force push whose lease value came from `ls-remote` or fetch output in the same step, or one that
+drops a commit authored by another session, broke the rule.
+
 ## After a push, and after merging the base in
 
 Applies once a push is authorized (Simon asked, or a `sk:ship-*` flow that pushes is running).
