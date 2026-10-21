@@ -265,6 +265,7 @@ CONTRACTS: dict[str, dict] = {
             "Collapse and reopen controls immediately without remounting; expose a labelled keyboard-accessible button; narrow sidebars never overflow horizontally.",
             "Keep one full #spec data island and offline CSP. The shared shell exposes only viewing controls; proposal feedback lives solely in the decision adapter. Builders retain lossless CLI extraction.",
             "Substitute template slots in one pass and escape embedded script terminators; preserve full metadata and deterministic output.",
+            "Own the one Python asset-token pattern (ASSET_TOKEN, ids [A-Za-z0-9_]+) and its resolver; bin/mockup-shell.html declares the identical ASSET_TOKEN literal, and bin/mockup-shell.test.py fails on any mismatch or any other bin/ file declaring its own copy.",
         ],
     },
     "bin/decision-artifact.py": {
@@ -307,7 +308,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon never receives a mockup whose clipped menu or covered button only a JavaScript-running render would have shown.",
         "purpose": "Screenshots a built mockup headlessly: the shell once, then every variant, persona and state capture with its JavaScript running.",
         "criteria": [
-            "Read the #spec JSON from the built mockup the way bin/mockup-build.py --extract does; replace every @@ASSET:id@@ token from spec.assets before loading a capture.",
+            "Read the #spec JSON through presentation_build.extract and fill every @@ASSET:id@@ token through presentation_build.resolve_assets, so each capture renders exactly as the viewer shows it; report every id spec.assets lacks as an asset error and exit 1.",
             "Write exactly one PNG per variant x persona x state, named <variant>-<persona>-<state>.png at the persona's w x h, plus shell.png; --filter SUBSTR keeps only matching capture names.",
             "Post mockup:goto-state for the state and wait 1500 ms for entrance animations before each screenshot.",
             "Print every page error with its capture name and exit 1 when any occurred; exit 2 when the browser runtime or the arguments are unusable.",

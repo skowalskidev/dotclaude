@@ -7,6 +7,7 @@ Python Playwright/Chromium. No network or service credentials are used.
 import copy
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -22,7 +23,43 @@ def load(name, path):
     return module
 
 
+def check_asset_token_contract():
+    """One asset-token pattern per language, and they are identical."""
+    import presentation_build
+    shell = (HERE / 'mockup-shell.html').read_text()
+    js = re.findall(r'const ASSET_TOKEN=/(.+?)/g;', shell)
+    assert js == [presentation_build.ASSET_TOKEN], ('viewer and Python asset tokens differ', js, presentation_build.ASSET_TOKEN)
+    owners = {'mockup-shell.html', 'presentation_build.py', 'mockup-shell.test.py'}
+    copies = [f.name for f in HERE.iterdir() if f.suffix in ('.py', '.html', '.js', '.mjs')
+              and f.name not in owners and '@@ASSET:(' in f.read_text(errors='ignore')]
+    assert not copies, ('asset token re-declared outside its owners', copies)
+
+
+def check_asset_resolution(page, path):
+    """A non-hex asset id renders its content in the viewer AND in mockup-shots, never the token text."""
+    shots = load('mockup_shots', HERE / 'mockup-shots.py')
+    spec = json.loads((HERE / 'mockup-synthetic-spec.json').read_text())
+    spec['assets'] = {'cap_mobile_head': '<h2 id="asset-probe">Asset body</h2>'}
+    capture = spec['variants']['alpha']['captures']['desktop']
+    spec['variants']['alpha']['captures']['desktop'] = capture.replace('<body>', '<body>@@ASSET:cap_mobile_head@@@@ASSET:absent_id@@', 1)
+    assert '@@ASSET:cap_mobile_head@@' in spec['variants']['alpha']['captures']['desktop'], 'fixture carries the token'
+    source, built = path / 'asset-spec.json', path / 'asset-mockup.html'
+    source.write_text(json.dumps(spec))
+    subprocess.run([sys.executable, str(HERE / 'mockup-build.py'), str(source), str(built)], check=True, capture_output=True)
+    page.goto(built.as_uri() + '#variant=alpha&persona=desktop'); page.wait_for_timeout(150)
+    viewer = page.locator('#mock-stage iframe').first.content_frame.locator('body').inner_text()
+    assert 'Asset body' in viewer and '@@ASSET' not in viewer, ('viewer left an asset token', viewer[:200])
+    job = shots.build_job(shots.extract_spec(built), built, path / 'shots', 'alpha-desktop-base')
+    html = job['captures'][0]['html']
+    page.set_content(html, wait_until='domcontentloaded')
+    shot = page.locator('body').inner_text()
+    assert 'Asset body' in shot and '@@ASSET' not in shot, ('mockup-shots left an asset token', shot[:200])
+    assert shot == viewer, 'mockup-shots renders the capture exactly as the viewer does'
+    assert job['assetErrors'] == ['alpha-desktop-base: missing asset absent_id'], job['assetErrors']
+
+
 def main():
+    check_asset_token_contract()
     from playwright.sync_api import sync_playwright
     from presentation_build import extract
     fixture = json.loads((HERE / 'mockup-synthetic-spec.json').read_text())
@@ -251,9 +288,10 @@ def main():
             assert page.locator('#generate-copy').bounding_box()==before_button, 'action remains available while cards scroll'
             assert json.loads(page.locator('#spec').text_content())==proposal, 'feedback never mutates metadata'
 
+            check_asset_resolution(page, path)
             assert not errors, errors
             browser.close()
-    print('ALL PASSED: shared frame, routes, teardown, highlights, fit, history, read-only viewers, metadata roundtrips')
+    print('ALL PASSED: shared frame, routes, teardown, highlights, fit, history, read-only viewers, metadata roundtrips, asset tokens')
     return 0
 
 

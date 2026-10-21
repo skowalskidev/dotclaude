@@ -10,23 +10,21 @@ Usage:
     mockup-shots.py <mockup.html> <outdir> [--filter SUBSTR]
 
 Output: <outdir>/shell.png and <outdir>/<variant>-<persona>-<state>.png at the persona's w x h.
-Exit code: 0 clean, 1 when any page error occurred, 2 on a usage or setup error.
+Exit code: 0 clean, 1 when any page error occurred or a capture names an asset id spec.assets
+lacks, 2 on a usage or setup error.
 
 Python 3.9+, standard library only. Playwright for Python is not assumed: the browser work
 runs in Node Playwright (resolved from NODE_PATH, the global npm root, ./node_modules,
 ~/.claude/node_modules, or MOCKUP_SHOTS_NODE_MODULES), with the spec extracted here.
 """
 import json
-import os
-import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-SPEC_TAG_OPEN = '<script id="spec" type="application/json">'
-SPEC_TAG_CLOSE = "</script>"
-ASSET_RE = re.compile(r"@@ASSET:([a-f0-9]+)@@")
+from presentation_build import extract, missing_assets, resolve_assets
+
 SETTLE_MS = 1500
 
 NODE_RUNNER = r"""
@@ -72,36 +70,31 @@ process.exit(errors.length ? 1 : 0);
 
 
 def extract_spec(mockup_path: Path) -> dict:
-    html = mockup_path.read_text(encoding="utf-8")
-    start = html.find(SPEC_TAG_OPEN)
-    if start == -1:
-        raise SystemExit(f"no #spec script tag found in {mockup_path}")
-    start += len(SPEC_TAG_OPEN)
-    end = html.find(SPEC_TAG_CLOSE, start)
-    if end == -1:
-        raise SystemExit(f"unterminated #spec script tag in {mockup_path}")
-    return json.loads(html[start:end])
+    try:
+        return extract(mockup_path.read_text(encoding="utf-8"))
+    except ValueError as error:
+        raise SystemExit(f"{error} in {mockup_path}")
 
 
 def build_job(spec: dict, mockup: Path, outdir: Path, needle: str) -> dict:
-    assets = spec.get("assets", {})
-
-    def fill(h: str) -> str:
-        return ASSET_RE.sub(lambda m: assets.get(m.group(1), m.group(0)), h)
-
-    captures = []
+    """Fill captures with the viewer's own asset resolution; a missing asset is an error, not a blank PNG."""
+    assets = spec.get("assets") or {}
+    captures, asset_errors = [], []
     for vid, v in spec["variants"].items():
         for p in spec["personas"]:
             html = v["captures"].get(p["id"])
             if html is None:
                 continue
-            filled = fill(html)
+            filled = resolve_assets(html, assets)
+            missing = missing_assets(html, assets)
             for s in v["states"]:
                 name = f"{vid}-{p['id']}-{s['id']}"
                 if needle and needle not in name:
                     continue
+                asset_errors += [f"{name}: missing asset {key}" for key in missing]
                 captures.append({"name": name, "w": p["w"], "h": p["h"], "html": filled, "stateId": s["id"]})
-    return {"mockup": str(mockup), "outdir": str(outdir), "settleMs": SETTLE_MS, "captures": captures}
+    return {"mockup": str(mockup), "outdir": str(outdir), "settleMs": SETTLE_MS, "captures": captures,
+            "assetErrors": asset_errors}
 
 
 def main(argv):
@@ -139,8 +132,10 @@ def main(argv):
         return 2
     for e in result["errors"]:
         print("page error:", e)
-    print(f"{result['count']} PNGs in {outdir} ({len(result['errors'])} page errors)")
-    return 1 if result["errors"] else 0
+    for e in job["assetErrors"]:
+        print("asset error:", e)
+    print(f"{result['count']} PNGs in {outdir} ({len(result['errors'])} page errors, {len(job['assetErrors'])} asset errors)")
+    return 1 if result["errors"] or job["assetErrors"] else 0
 
 
 if __name__ == "__main__":

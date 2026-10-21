@@ -186,7 +186,8 @@ resets safely. Content switches tear down outgoing iframes with `mockup:cleanup`
 mounts a fresh document and sends `mockup:goto-state` once. Keep overlays inside that document.
 
 DO keep the built file at or under 12 MB and at zero external requests. Store repeated data URIs in
-`#spec.assets` and refer to them with `@@ASSET:id@@`. CLI extraction retains the complete spec. At final batch
+`#spec.assets` and refer to them with `@@ASSET:id@@` (id: letters, digits, `_`; viewer and
+`bin/mockup-shots.py` share one resolver, and a missing id fails the shots run). CLI extraction retains the complete spec. At final batch
 verification run `python3 ~/.claude/bin/mockup-shell.test.py` and `python3 ~/.claude/bin/design-board.test.py`.
 TEST: roundtrip rebuilds byte-identically; both axes fit on resize, narrow controls never overflow,
 sidebar/theme/highlight changes keep the capture mounted, and no superseded third pane enters Compare.

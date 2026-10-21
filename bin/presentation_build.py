@@ -6,6 +6,20 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 SPEC_TAG_OPEN = '<script id="spec" type="application/json">'
+# Capture asset token, the one Python definition. bin/mockup-shell.html declares the same
+# literal as ASSET_TOKEN for the viewer; bin/mockup-shell.test.py asserts the two are identical.
+ASSET_TOKEN = r"@@ASSET:([A-Za-z0-9_]+)@@"
+ASSET_RE = re.compile(ASSET_TOKEN)
+
+
+def resolve_assets(capture: str, assets: dict) -> str:
+    """Fill asset tokens exactly as the viewer does: an unknown or empty id renders as ''."""
+    return ASSET_RE.sub(lambda match: assets.get(match[1]) or "", capture)
+
+
+def missing_assets(capture: str, assets: dict) -> list:
+    """Asset ids a capture references that spec.assets does not supply."""
+    return sorted({key for key in ASSET_RE.findall(capture) if not assets.get(key)})
 
 
 def embed(spec: dict) -> str:
