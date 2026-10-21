@@ -3,8 +3,8 @@
 
 At most HEAVY_SLOTS owners hold a heavy lease at once, one lease per owner, and at most
 MAX_BOOTED_SIMULATORS simulator is claimed, leased or booted machine-wide. A priority owner named
-by `prioritize` is admitted ahead of every other new heavy request; it passes no cap and no
-load or memory guard, and nothing already running is stopped. Local Docker dev stacks take a
+by `prioritize` is admitted ahead of every other new heavy request; it passes no cap, but the CPU,
+load and memory guard still apply to it, and nothing already running is stopped. Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
 simulators, idle simulator claims and extra test browsers; `reclaim-sim` shuts down and unclaims an
 unleased simulator only when its claim owner has no live session. This does not impose an OS CPU or
@@ -37,7 +37,13 @@ THIRD_SLOT = "lease-3.json"
 SLOTS = (LEASE_SLOT, SECOND_SLOT, THIRD_SLOT)
 assert len(SLOTS) == HEAVY_SLOTS
 MIN_IDLE_PERCENT = 20  # admission defers while current CPU idle is below this (top, second sample)
-LOAD_PER_CORE = 1.5  # admission defers above this many 1-minute load units per logical core
+LOAD_PER_CORE = 1.5  # high load is above this many 1-minute load units per logical core
+# High load defers only while CPU idle is also below this. macOS counts threads blocked in
+# uninterruptible I/O, Spotlight and mobileassetd bursts and zombies in the load average, so it
+# read 118 to 208 on 8 cores at 51 to 66% idle and refused every heavy step for hours. Idle is the
+# direct saturation measure; 35 sits 15 points above MIN_IDLE_PERCENT, so load catches a
+# machine heading for saturation, and is under the 51% idle seen with no saturation at all.
+LOAD_CONFIRM_IDLE_PERCENT = 35
 DEFER_PRESSURE_LEVEL = 2  # admission defers at this kern.memorystatus_vm_pressure_level or worse (1 normal, 2 warning, 4 critical)
 MAX_COMPRESSED_SHARE = 0.4  # fallback only, when the sysctl is unavailable: defer above this share of RAM held by the compressor
 PRESSURE_NAMES = {1: "normal", 2: "warning", 4: "critical"}
@@ -410,20 +416,21 @@ def cpu_idle_percent():
 
 
 def host_reading():
-    """(verdict line, defer reason or None) from current CPU idle, 1-minute load and OS memory pressure."""
+    """(verdict line, defer reason or None) from current CPU idle, 1-minute load confirmed by idle, and OS memory pressure."""
     idle = cpu_idle_percent()
     load, cores = simulator_pressure()
     level, source = memory_pressure_level()
     reasons = []
     if idle < MIN_IDLE_PERCENT:
         reasons.append("CPU idle %.0f%% is below %d%%" % (idle, MIN_IDLE_PERCENT))
-    if load > LOAD_PER_CORE * cores:
-        reasons.append("1-minute load %.1f exceeds %s x %s logical cores" % (load, LOAD_PER_CORE, cores))
+    if load > LOAD_PER_CORE * cores and idle < LOAD_CONFIRM_IDLE_PERCENT:
+        reasons.append("1-minute load %.1f exceeds %s x %s logical cores with CPU idle %.0f%% below %d%%" % (
+            load, LOAD_PER_CORE, cores, idle, LOAD_CONFIRM_IDLE_PERCENT))
     if level >= DEFER_PRESSURE_LEVEL:
         reasons.append("memory pressure is %s (level %d, via %s), at or above warning" % (PRESSURE_NAMES[level], level, source))
-    line = "%s idle=%.0f%% (min %d) load=%.1f (max %.1f on %d cores) memory-pressure=%s (level %d, defer at %d)" % (
+    line = "%s idle=%.0f%% (min %d) load=%.1f (max %.1f on %d cores, counts below %d%% idle) memory-pressure=%s (level %d, defer at %d)" % (
         "DEFER" if reasons else "GO", idle, MIN_IDLE_PERCENT, load, LOAD_PER_CORE * cores, cores,
-        PRESSURE_NAMES[level], level, DEFER_PRESSURE_LEVEL)
+        LOAD_CONFIRM_IDLE_PERCENT, PRESSURE_NAMES[level], level, DEFER_PRESSURE_LEVEL)
     return line, "; ".join(reasons) or None
 
 
@@ -1406,7 +1413,7 @@ def main(argv=None):
     parser.add_argument("--root", help="capacity state directory (tests or deliberate override)")
     sub = parser.add_subparsers(dest="action", required=True)
     sub.add_parser("status")
-    sub.add_parser("cpu", help="one read-only line: GO or DEFER from CPU idle, load and OS memory pressure; exit 75 on DEFER")
+    sub.add_parser("cpu", help="one read-only line: GO or DEFER from CPU idle, load (when idle confirms it) and OS memory pressure; exit 75 on DEFER")
     sub.add_parser("watchdog", help="read-only runaway report: hot processes, unleased simulators, extra test browsers, idle stacks")
     stack_parser = sub.add_parser("stack-acquire", help="lease a local Docker dev stack before starting it")
     stack_parser.add_argument("--owner", required=True)

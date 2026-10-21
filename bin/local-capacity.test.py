@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Offline tests for the cooperative capacity lease."""
 
+import contextlib
 import importlib.util
 import fcntl
 import json
@@ -139,7 +140,8 @@ class GateTests(unittest.TestCase):
         self.assertIsNone(gate.read_state(self.root))
 
     def test_load_preflight_blocks_every_heavy_command(self):
-        with mock.patch.object(gate, "simulator_pressure", return_value=(17, 8)):
+        with mock.patch.object(gate, "simulator_pressure", return_value=(17, 8)), \
+             mock.patch.object(gate, "cpu_idle_percent", return_value=30):
             with self.assertRaises(gate.Busy):
                 gate.acquire(self.root, "build", os.getpid(), None)
         self.assertIsNone(gate.read_state(self.root))
@@ -175,10 +177,11 @@ class GateTests(unittest.TestCase):
 
     def test_load_guard_defers_the_second_admission_too(self):
         gate.acquire(self.root, "alpha", os.getpid(), None)
-        with mock.patch.object(gate, "simulator_pressure", return_value=(17, 8)):
+        with mock.patch.object(gate, "simulator_pressure", return_value=(17, 8)), \
+             mock.patch.object(gate, "cpu_idle_percent", return_value=30):
             with self.assertRaises(gate.Busy) as refused:
                 gate.acquire(self.root, "beta", os.getpid(), None)
-        self.assertIn("exceeds 1.5 x 8 logical cores", str(refused.exception))
+        self.assertIn("exceeds 1.5 x 8 logical cores with CPU idle 30% below 35%", str(refused.exception))
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
     def test_a_lease_already_in_the_second_file_still_counts_with_no_migration(self):
@@ -323,11 +326,32 @@ class GateTests(unittest.TestCase):
 
     def test_load_guard_is_one_and_a_half_per_core(self):
         self.assertEqual(gate.LOAD_PER_CORE, 1.5)
-        with mock.patch.object(gate, "simulator_pressure", return_value=(12, 8)):
-            gate.release(self.root, gate.acquire(self.root, "at-limit", os.getpid(), None))
-        with mock.patch.object(gate, "simulator_pressure", return_value=(12.5, 8)):
-            with self.assertRaises(gate.Busy):
-                gate.acquire(self.root, "over", os.getpid(), None)
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=30):
+            with mock.patch.object(gate, "simulator_pressure", return_value=(12, 8)):
+                gate.release(self.root, gate.acquire(self.root, "at-limit", os.getpid(), None))
+            with mock.patch.object(gate, "simulator_pressure", return_value=(12.5, 8)):
+                with self.assertRaises(gate.Busy):
+                    gate.acquire(self.root, "over", os.getpid(), None)
+
+    def test_high_load_with_idle_cpu_is_go_and_with_a_busy_cpu_is_defer(self):
+        """Load 200 on 8 cores at 57% idle and normal memory is I/O-wait load, not saturation: GO."""
+        self.assertEqual(gate.LOAD_CONFIRM_IDLE_PERCENT, 35)
+        with mock.patch.object(gate, "simulator_pressure", return_value=(200, 8)):
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=57):
+                line, reason = gate.host_reading()
+                self.assertIsNone(reason)
+                self.assertTrue(line.startswith("GO idle=57%"), line)
+                gate.release(self.root, gate.acquire(self.root, "io-wait", os.getpid(), None))
+            for idle in (10, 30):  # 10 trips the idle floor; 30 only the confirmed load reason
+                with mock.patch.object(gate, "cpu_idle_percent", return_value=idle):
+                    line, reason = gate.host_reading()
+                    self.assertTrue(line.startswith("DEFER"), line)
+                    self.assertIn("1-minute load 200.0 exceeds" if idle == 30 else "CPU idle 10% is below 20%", reason)
+                    with self.assertRaises(gate.Busy):
+                        gate.acquire(self.root, "saturated", os.getpid(), None)
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=35):
+                self.assertIsNone(gate.host_reading()[1])  # the confirming threshold is strict
+        self.assertIsNone(gate.read_state(self.root))
 
     def test_explicit_migration_preserves_old_live_receipt(self):
         token = gate.acquire(self.root, "mine", os.getpid(), None)
@@ -710,14 +734,24 @@ class PriorityTests(unittest.TestCase):
         gate.release(self.root, token)
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
-    def test_priority_owner_keeps_the_load_and_memory_guards(self):
+    def test_priority_owner_keeps_the_saturation_guards_but_load_alone_does_not_block_it(self):
         gate.prioritize(self.root, "vip", 30, False)
-        for probe, value in (("simulator_pressure", (52.5, 8)), ("memory_pressure_level", (4, "sysctl")), ("cpu_idle_percent", 5)):
-            with mock.patch.object(gate, probe, return_value=value):
+        saturated = (
+            (("simulator_pressure", (52.5, 8)), ("cpu_idle_percent", 30)),  # load confirmed by a busy CPU
+            (("memory_pressure_level", (4, "sysctl")),),
+            (("cpu_idle_percent", 5),),
+        )
+        for probes in saturated:
+            with contextlib.ExitStack() as stack:
+                for probe, value in probes:
+                    stack.enter_context(mock.patch.object(gate, probe, return_value=value))
                 for simulator in (None, SIM):
                     with self.assertRaises(gate.Busy):
                         gate.acquire(self.root, "vip", os.getpid(), simulator)
         self.assertIsNone(gate.read_state(self.root))
+        with mock.patch.object(gate, "simulator_pressure", return_value=(200, 8)), \
+             mock.patch.object(gate, "cpu_idle_percent", return_value=57):
+            gate.release(self.root, gate.acquire(self.root, "vip", os.getpid(), None))
 
     def test_prioritize_does_not_bypass_the_simulator_cap(self):
         gate.acquire(self.root, "harbor", os.getpid(), SIM)
@@ -788,6 +822,13 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(go.returncode, 0, go.stderr)
         self.assertEqual(len(go.stdout.splitlines()), 1)
         self.assertTrue(go.stdout.startswith("GO idle=100%"), go.stdout)
+        (self.root / "pressure.json").write_text(json.dumps({"load": 200, "cores": 8, "idle": 57, "memory_level": 1}))
+        env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
+                   LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
+        io_wait = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "cpu"],
+                                 env=env, capture_output=True, text=True, timeout=20)
+        self.assertEqual(io_wait.returncode, 0, io_wait.stdout)
+        self.assertTrue(io_wait.stdout.startswith("GO idle=57% (min 20) load=200.0"), io_wait.stdout)
         (self.root / "pressure.json").write_text(json.dumps({"load": 1, "cores": 8, "idle": 8.5, "memory_level": 2}))
         env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
                    LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
