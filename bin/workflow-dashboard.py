@@ -90,74 +90,97 @@ def validate(s):
     require(isinstance(sections, list) and len(sections) > 0, 'At least one section required')
     ids = set()
     for section in sections:
-        require(isinstance(section.get('id'), str) and section['id'] not in ids, 'Duplicate/missing section id')
+        require(isinstance(section, dict) and isinstance(section.get('id'), str) and section['id'] not in ids,
+                'Duplicate/missing section id')
         ids.add(section['id'])
-        require(isinstance(section.get('title'), str), 'Missing section title')
-        if section.get('previewUrl') is not None:
-            require(valid_preview_url(section['previewUrl']),
-                    'previewUrl must be an absolute HTTP(S) URL without credentials or whitespace')
-        require_one_of(section.get('status'), STATES, 'Unknown section status')
-        require(type(section.get('artifactRevision')) is int and section['artifactRevision'] > 0, 'Invalid artifact revision')
-        checks = section.get('criteria')
-        require(isinstance(checks, list) and checks, 'Each section needs criteria')
-        check_ids = set()
-        for c in checks:
-            require(isinstance(c.get('id'), str) and c['id'] not in check_ids, 'Duplicate/missing criterion id')
-            check_ids.add(c['id'])
-            require(isinstance(c.get('text'), str) and c['text'].strip(), 'Missing criterion text')
-            require(type(c.get('passed')) is bool, 'passed must be boolean')
-            require(not c['passed'] or (isinstance(c.get('evidence'), str) and c['evidence'].strip()), 'Passed criterion needs evidence')
-        analysis = section['id'] == 'after-run-analysis'
-        if analysis:
-            require([c['id'] for c in checks] == ['after-run-analysis-1'] and
-                    checks[0]['text'] == after_run_section()['criteria'][0]['text'] and
-                    not any(section.get(key) for key in ('before', 'target', 'current', 'previewUrl')),
-                    'After-run analysis is reserved for the supervisor report lifecycle')
-        judge = section.get('judge', {})
-        require_one_of(judge.get('verdict', 'pending'), ('pending', 'pass', 'fail', 'blocked'), 'Invalid judge verdict')
-        if judge.get('verdict') == 'pass':
-            require(judge.get('agentId') and judge.get('builderId') and judge['agentId'] != judge['builderId'], 'Judge must be independent')
-            require(judge.get('artifactRevision') == section['artifactRevision'], 'Judge evidence is stale')
-            require(judge.get('evidence') and judge.get('reference'), 'Judge pass needs evidence and named reference')
-            target = section.get('target') or {}
-            if target.get('origin') == 'generated':
-                approval = target.get('approval') or {}
-                require(approval.get('by') == 'user' and approval.get('evidence') and
-                        type(target.get('targetRevision')) is int and
-                        approval.get('targetRevision') == target['targetRevision'],
-                        'Generated target needs explicit approval of its current revision')
-        if section['status'] == 'done':
-            require(all(c['passed'] for c in checks), 'Done requires every criterion')
-            require(analysis or not s['gauntlet'] or judge.get('verdict') == 'pass', 'Done requires judge pass')
-        if section['status'] == 'blocked':
-            require(section.get('next'), 'Blocked needs next action')
-        for key in ('before', 'target', 'current'):
-            asset = section.get(key)
-            if asset:
-                require_one_of(asset.get('kind'), ('text', 'image', 'html'), 'Unknown asset kind')
-                require(asset.get('label'), 'Asset needs a name')
-                if asset['kind'] != 'text':
-                    require(asset.get('path') and asset.get('source'), 'Captured asset needs path and provenance')
-        if section['status'] == 'review':
-            require((section.get('target') or {}).get('kind') in ('html', 'image'),
-                    'A review section needs its proposal embedded as the target asset (kind html or image)')
-        links = section.get('links')
-        if links is not None:
-            require(isinstance(links, list), 'Link needs a label and a path')
-            for link in links:
-                require(isinstance(link, dict) and isinstance(link.get('label'), str) and link['label'].strip() and
-                        isinstance(link.get('path'), str) and link['path'].strip(),
-                        'Link needs a label and a path')
+        try:
+            validate_section(s, section)
+        except (ValueError, KeyError, TypeError) as exc:
+            # Name the section so a hand-edited block is fixed in one step, not by bisecting the JSON.
+            raise ValueError(f"Section {section['id']!r}: {exc}") from None
     if s['phase'] == 'complete':
         require(all(x['status'] == 'done' for x in sections), 'Complete requires every section done')
     return s
 
 
-def read_plan(path):
+def validate_section(s, section):
+    require(isinstance(section.get('title'), str), 'Missing section title')
+    if section.get('previewUrl') is not None:
+        require(valid_preview_url(section['previewUrl']),
+                'previewUrl must be an absolute HTTP(S) URL without credentials or whitespace')
+    require_one_of(section.get('status'), STATES, 'Unknown section status')
+    require(type(section.get('artifactRevision')) is int and section['artifactRevision'] > 0, 'Invalid artifact revision')
+    checks = section.get('criteria')
+    require(isinstance(checks, list) and checks, 'Each section needs criteria')
+    check_ids = set()
+    for c in checks:
+        require(isinstance(c.get('id'), str) and c['id'] not in check_ids, 'Duplicate/missing criterion id')
+        check_ids.add(c['id'])
+        require(isinstance(c.get('text'), str) and c['text'].strip(), 'Missing criterion text')
+        require(type(c.get('passed')) is bool, 'passed must be boolean')
+        require(not c['passed'] or (isinstance(c.get('evidence'), str) and c['evidence'].strip()), 'Passed criterion needs evidence')
+    analysis = section['id'] == 'after-run-analysis'
+    if analysis:
+        require([c['id'] for c in checks] == ['after-run-analysis-1'] and
+                checks[0]['text'] == after_run_section()['criteria'][0]['text'] and
+                not any(section.get(key) for key in ('before', 'target', 'current', 'previewUrl')),
+                'After-run analysis is reserved for the supervisor report lifecycle')
+    judge = section.get('judge', {})
+    require_one_of(judge.get('verdict', 'pending'), ('pending', 'pass', 'fail', 'blocked'), 'Invalid judge verdict')
+    if judge.get('verdict') == 'pass':
+        require(judge.get('agentId') and judge.get('builderId') and judge['agentId'] != judge['builderId'], 'Judge must be independent')
+        require(judge.get('artifactRevision') == section['artifactRevision'], 'Judge evidence is stale')
+        require(judge.get('evidence') and judge.get('reference'), 'Judge pass needs evidence and named reference')
+        target = section.get('target') or {}
+        if target.get('origin') == 'generated':
+            approval = target.get('approval') or {}
+            require(approval.get('by') == 'user' and approval.get('evidence') and
+                    type(target.get('targetRevision')) is int and
+                    approval.get('targetRevision') == target['targetRevision'],
+                    'Generated target needs explicit approval of its current revision')
+    if section['status'] == 'done':
+        require(all(c['passed'] for c in checks), 'Done requires every criterion')
+        require(analysis or not s['gauntlet'] or judge.get('verdict') == 'pass', 'Done requires judge pass')
+    if section['status'] == 'blocked':
+        require(section.get('next'), 'Blocked needs next action')
+    for key in ('before', 'target', 'current'):
+        asset = section.get(key)
+        if asset:
+            require_one_of(asset.get('kind'), ('text', 'image', 'html'), 'Unknown asset kind')
+            require(asset.get('label'), 'Asset needs a name')
+            if asset['kind'] != 'text':
+                require(asset.get('path') and asset.get('source'), 'Captured asset needs path and provenance')
+    if section['status'] == 'review':
+        require((section.get('target') or {}).get('kind') in ('html', 'image'),
+                'A review section needs its proposal embedded as the target asset (kind html or image)')
+    links = section.get('links')
+    if links is not None:
+        require(isinstance(links, list), 'Link needs a label and a path')
+        for link in links:
+            require(isinstance(link, dict) and isinstance(link.get('label'), str) and link['label'].strip() and
+                    isinstance(link.get('path'), str) and link['path'].strip(),
+                    'Link needs a label and a path')
+
+
+REPAIR_HINT = ('repair it with `workflow-dashboard.py update <plan> --input <corrected-state.json> '
+               '--expect-revision <on-disk revision>`; update validates the new state, not the broken one')
+
+
+def read_raw_plan(path):
     content = Path(path).read_text()
     matches = list(BLOCK.finditer(content))
     require(len(matches) == 1, 'Plan needs exactly one dashboard-state fenced block')
-    return content, matches[0], validate(json.loads(matches[0].group(1)))
+    raw = json.loads(matches[0].group(1))
+    require(isinstance(raw, dict), 'dashboard-state must be a JSON object')
+    return content, matches[0], raw
+
+
+def read_plan(path):
+    content, match, raw = read_raw_plan(path)
+    try:
+        return content, match, validate(raw)
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError(f'{exc}. On-disk plan is invalid; {REPAIR_HINT}') from None
 
 
 def atomic_write(path, content):
@@ -368,22 +391,31 @@ def update(path, replacement, expected):
     path = Path(path).resolve()
     with path.with_suffix(path.suffix + '.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        content, match, old = read_plan(path)
+        # Read the on-disk block WITHOUT validating it: a hand edit that left an invalid value (e.g. a
+        # run phase written as a section status) must stay repairable here. The NEW state is validated
+        # in full below, so a repair can never write an invalid block.
+        content, match, old = read_raw_plan(path)
+        require(type(old.get('revision')) is int and old['revision'] >= 1,
+                'On-disk plan has no valid revision; restore its revision number, then retry')
         require(old['revision'] == expected, 'Revision conflict; re-read plan before updating')
+        require(isinstance(replacement, dict), 'dashboard-state must be a JSON object')
         new = copy.deepcopy(replacement)
         new.pop('record', None)
         new['revision'] = old['revision'] + 1
         new['updatedAt'] = now()
-        if any(section['id'] == 'after-run-analysis' for section in old['sections']):
-            require(any(section.get('id') == 'after-run-analysis' for section in new.get('sections', [])),
+        old_sections = [x for x in old.get('sections') or [] if isinstance(x, dict) and 'id' in x]
+        if any(section['id'] == 'after-run-analysis' for section in old_sections):
+            require(any(isinstance(section, dict) and section.get('id') == 'after-run-analysis'
+                        for section in new.get('sections') or []),
                     'Retain after-run-analysis when replacing task intake')
         # Artifact changes invalidate a passing judge even if an agent forgets to reset it.
-        previous = {x['id']: x for x in old['sections']}
-        for section in new['sections']:
-            prior = previous.get(section['id'])
-            if prior and section['artifactRevision'] != prior['artifactRevision']:
+        previous = {x['id']: x for x in old_sections}
+        sections = new.get('sections') if isinstance(new.get('sections'), list) else []
+        for section in (x for x in sections if isinstance(x, dict)):
+            prior = previous.get(section.get('id'))
+            if prior and section.get('artifactRevision') != prior.get('artifactRevision'):
                 section['judge'] = {'verdict': 'pending'}
-                if section['status'] == 'done':
+                if section.get('status') == 'done':
                     section['status'] = 'review'
         validate(new)
         # Validate and render every referenced file BEFORE advancing the canonical state.

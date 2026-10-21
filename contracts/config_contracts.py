@@ -328,6 +328,7 @@ CONTRACTS: dict[str, dict] = {
             "Stop unregisters the plan from the apps/gauntlet app and kills it only when no registered plan remains and its process command matches; never kill an app another plan still uses.",
             "Load bin/workflow-dashboard.html only for the offline export; start or attach to apps/gauntlet for live serving; use one plan across execution modes.",
             "Reject unconfirmed running state, incomplete criteria, stale or self-approved judgements and conflicting revisions.",
+            "Name the offending section id in every section validation error; let update repair an invalid on-disk block by validating only the new state.",
             "Validate assets before advancing the plan and inline them for offline export.",
             "Expose a section's safe HTTP(S) previewUrl in its Current header in live and saved HTML, independent of capture availability; open a new tab without changing screenshot zoom or target links.",
             "Open an html asset in a modal whose iframe is bounded to the modal's visible area (no transform scaling), so the embedded shell fits itself and nothing is clipped, and open its canonical dashboard route in a new tab when live, or the same embedded html as a view-only blob when offline, from the modal header and the panel caption; bin/workflow-dashboard.test.py proves both.",

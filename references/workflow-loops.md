@@ -550,6 +550,9 @@ JSON block, then regenerates the derived HTML with a separate atomic file replac
 with a newer revision number. Update after dispatch, completion, test, judgement, failure or user
 steering, and at least once per minute during active work. Export once more before handoff.
 Stop only the recorded viewer PID when the user closes the live review or requests cleanup.
+A hand edit that leaves an invalid on-disk block (an unknown section status, say) is repaired with
+`update --input <corrected state> --expect-revision <on-disk revision>`: it validates only the new
+state, and every validation error names the offending section id.
 
 DO remove dashboard runtime with its worktree. Before teardown, verify the runtime receipt's plan path
 belongs to that worktree and its PID command names that same plan; stop only that viewer, re-run the idle

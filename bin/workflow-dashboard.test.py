@@ -394,6 +394,36 @@ class DashboardTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Revision conflict'): d.update(p, new, 1)
             self.assertEqual(d.read_plan(p)[2]['revision'], 2)
 
+    def test_update_repairs_a_hand_edited_invalid_section_status(self):
+        # A delegated worker once wrote a run phase ("running") as a section status; validate,
+        # init and update all failed and the supervisor had to patch the JSON by hand.
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'task-plan.md'
+            broken = fixture()
+            broken['sections'].append({'id': 'copy-v2', 'title': 'Copy', 'status': 'running',
+                                       'artifactRevision': 1,
+                                       'criteria': [{'id': 'c1', 'text': 'Copy', 'passed': False}]})
+            p.write_text('NARRATIVE\n```dashboard-state\n' + json.dumps(broken) + '\n```\n')
+            cli = subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), 'validate', str(p)],
+                                 capture_output=True, text=True)
+            self.assertNotEqual(cli.returncode, 0)
+            self.assertIn("Section 'copy-v2': Unknown section status 'running'", cli.stderr)
+            self.assertIn('update <plan> --input', cli.stderr)
+            invalid = copy.deepcopy(broken)
+            with self.assertRaisesRegex(ValueError, "Section 'copy-v2': Unknown section status"):
+                d.update(p, invalid, 1)
+            fixed = copy.deepcopy(broken)
+            fixed['sections'][1]['status'] = 'doing'
+            state_file = Path(tmp) / 'fixed.json'
+            state_file.write_text(json.dumps(fixed))
+            repaired = subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), 'update', str(p),
+                                       '--input', str(state_file), '--expect-revision', '1'],
+                                      capture_output=True, text=True)
+            self.assertEqual(repaired.returncode, 0, repaired.stderr)
+            state = d.read_plan(p)[2]
+            self.assertEqual((state['revision'], state['sections'][1]['status']), (2, 'doing'))
+            self.assertTrue(p.read_text().startswith('NARRATIVE\n'))
+
     def test_modes_preserve_plan_identity_and_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'task-plan.md'; s = passed()
