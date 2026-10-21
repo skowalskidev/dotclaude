@@ -6,7 +6,8 @@ MAX_BOOTED_SIMULATORS simulator is claimed, leased or booted machine-wide. A pri
 by `prioritize` is admitted ahead of every other new heavy request; it passes no cap and no
 load or memory guard, and nothing already running is stopped. Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
-simulators, idle simulator claims and extra test browsers. This does not impose an OS CPU or
+simulators, idle simulator claims and extra test browsers; `reclaim-sim` shuts down and unclaims an
+unleased simulator only when its claim owner has no live session. This does not impose an OS CPU or
 memory limit: every participating session must acquire before a heavy command, simulator boot
 or stack start.
 """
@@ -523,6 +524,59 @@ def release_sim(root, udid, owner):
         write_claims(root, claims)
 
 
+RECLAIM_COMMAND = "python3 ~/.claude/bin/local-capacity.py reclaim-sim --udid %s"
+
+
+def owner_session_live(owner):
+    """True when a live Claude session works in a directory named for the owner label.
+
+    Claim owners are worktree basenames (native-slot.sh session()), and port-registry.sh `sessions` is the one
+    detector of live sessions, so a path component equal to the label counts as live. A label that matches
+    nothing is the only thing read as ended; a probe failure raises and is never read as ended."""
+    return any(owner in Path(cwd).parts for cwd in live_session_cwds())
+
+
+def reclaim_hint(root, states, udid):
+    """The exact reclaim command when the simulator's claim owner has ended and no lease holds it, else ''."""
+    try:
+        owner = read_claims(root).get(udid)
+        if owner is None or udid in legacy_claims() or any(lease and lease["simulator"] == udid for lease in states):
+            return ""
+        if owner_session_live(owner):
+            return ""
+    except GateError:
+        return ""
+    return "claim owner %s has no live session; reclaim it: %s" % (owner, RECLAIM_COMMAND % udid)
+
+
+def reclaim_sim(root, udid):
+    """Shut down and unclaim a simulator whose claim owner has no live session and which holds no lease."""
+    if not UDID.fullmatch(udid):
+        raise GateError("reclaim-sim needs a UUID simulator ID")
+    udid = udid.upper()
+    with locked(root):
+        if udid in legacy_claims():
+            raise GateError("simulator %s has an unverified legacy claim; inspect and migrate it" % udid)
+        owner = read_claims(root).get(udid)
+        if owner is None:
+            raise GateError("simulator %s has no claim, so no ended owner can be proven; inspect it" % udid)
+        for slot in SLOTS:
+            lease = read_state(root, slot=slot)
+            if lease and lease["simulator"] == udid:
+                raise GateError("simulator %s holds a lease (%s); reclaim only acts on an unleased simulator" %
+                                (udid, holder_text(lease)))
+        if owner_session_live(owner):
+            raise GateError("simulator %s is claimed by %s, which has a live session; only that owner runs "
+                            "xcrun simctl shutdown %s then release-sim" % (udid, owner, udid))
+        if probe_devices().get(udid) is not None:
+            shutdown_owned(udid)
+        claims = read_claims(root)
+        claims.pop(udid, None)
+        write_claims(root, claims)
+        telemetry(root, event="reclaim-sim", udid=udid, owner=owner, result=0)
+        return "simulator %s shut down and claim by %s dropped; the simulator is not deleted" % (udid, owner)
+
+
 def simulators_in_use(root, states, booted):
     """Map every simulator that counts against MAX_BOOTED_SIMULATORS to a holder description."""
     owners = {}
@@ -542,9 +596,11 @@ def simulators_in_use(root, states, booted):
 def enforce_simulator_cap(root, states, booted, target):
     others = {udid: text for udid, text in simulators_in_use(root, states, booted).items() if udid != target}
     if len(others) >= MAX_BOOTED_SIMULATORS:
+        hints = [hint for hint in (reclaim_hint(root, states, udid) for udid in sorted(others)) if hint]
         raise Busy("simulator deferred: %d of %d machine-wide simulator(s) already in use: %s; stage ONE simulator "
-                   "and switch its backend between runs, or wait until that holder shuts down and runs release-sim"
-                   % (len(others), MAX_BOOTED_SIMULATORS, "; ".join(sorted(others.values()))))
+                   "and switch its backend between runs, or wait until that holder shuts down and runs release-sim%s"
+                   % (len(others), MAX_BOOTED_SIMULATORS, "; ".join(sorted(others.values())),
+                      "".join("; " + hint for hint in hints)))
 
 
 def parse_elapsed(value):
@@ -634,19 +690,27 @@ def watchdog_lines(root):
         udid = sims.get(pid)
         if udid:
             owner = leased.get(udid) or claims.get(udid) or "nobody"
-            line += (" simulator=%s owner=%s; that owner runs xcrun simctl shutdown %s then release-sim; "
-                     "another session never stops it" % (udid, owner, udid))
+            hint = "" if udid in leased else reclaim_hint(root, states, udid)
+            if hint:
+                line += " simulator=%s owner=%s; %s" % (udid, owner, hint)
+            else:
+                line += (" simulator=%s owner=%s; that owner runs xcrun simctl shutdown %s then release-sim; "
+                         "another session never stops it" % (udid, owner, udid))
         else:
             line += "; if your session started it, stop it"
         lines.append(line)
     for udid in sorted(set(sims.values())):
         if udid not in leased:
-            lines.append("watchdog: simulator %s is booted with no lease (claim owner=%s); that owner runs "
-                         "xcrun simctl shutdown %s then release-sim" % (udid, claims.get(udid, "nobody"), udid))
+            hint = reclaim_hint(root, states, udid)
+            lines.append("watchdog: simulator %s is booted with no lease (claim owner=%s); %s" % (
+                udid, claims.get(udid, "nobody"),
+                hint or "that owner runs xcrun simctl shutdown %s then release-sim" % udid))
     for udid, owner in sorted(claims.items()):
         if udid not in leased and udid not in sims.values():
-            lines.append("watchdog: simulator claim %s owner=%s is idle and holds the simulator cap; release it: "
-                         "local-capacity.py release-sim --udid %s --owner %s" % (udid, owner, udid, owner))
+            hint = reclaim_hint(root, states, udid)
+            lines.append("watchdog: simulator claim %s owner=%s is idle and holds the simulator cap; %s" % (
+                udid, owner,
+                hint or "release it: local-capacity.py release-sim --udid %s --owner %s" % (udid, owner)))
     browsers = sorted(pid for pid, _, _, _, command in rows if TEST_BROWSER in command and "Helper" not in command)
     if len(browsers) > MAX_TEST_BROWSERS:
         lines.append("watchdog: %d Chrome for Testing instances (pids %s), above %d; each session closes the one it "
@@ -1001,7 +1065,9 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
                 raise Busy("simulator %s is claimed by %s" % (target, claims[target]))
         booted = [udid for udid in observed if udid not in other_sims]
         if booted:
-            raise Busy("heavy slot unavailable: booted simulators %s; inspect their owner and shut them down before acquiring" % ",".join(booted))
+            hints = ["%s: %s" % (udid, hint) for udid, hint in ((udid, reclaim_hint(root, held, udid)) for udid in booted) if hint]
+            raise Busy("heavy slot unavailable: booted simulators %s; inspect their owner and shut them down before acquiring%s"
+                       % (",".join(booted), "".join("; " + hint for hint in hints)))
         lease = {"owner": owner, "pid": pid, "pid_start": start,
                  "simulator": simulator.upper() if simulator else None,
                  "token": secrets.token_hex(32), "created": time.time(),
@@ -1371,6 +1437,8 @@ def main(argv=None):
     unclaim_parser = sub.add_parser("release-sim")
     unclaim_parser.add_argument("--udid", required=True)
     unclaim_parser.add_argument("--owner", required=True)
+    reclaim_parser = sub.add_parser("reclaim-sim", help="shut down and unclaim an unleased simulator whose claim owner has no live session")
+    reclaim_parser.add_argument("--udid", required=True)
     sub.add_parser("migrate")
     priority_parser = sub.add_parser("prioritize")
     priority_parser.add_argument("--owner")
@@ -1459,6 +1527,8 @@ def main(argv=None):
         elif args.action == "claim-sim":
             claim_sim(root, args.udid, args.owner)
             print("simulator claimed")
+        elif args.action == "reclaim-sim":
+            print(reclaim_sim(root, args.udid))
         elif args.action == "migrate":
             print(migrate(root))
         elif args.action == "prioritize":

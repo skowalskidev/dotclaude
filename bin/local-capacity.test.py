@@ -66,6 +66,9 @@ class GateTests(unittest.TestCase):
         self.idle = mock.patch.object(gate, "cpu_idle_percent", return_value=90)
         self.idle.start()
         self.addCleanup(self.idle.stop)
+        sessions = mock.patch.object(gate, "live_session_cwds", return_value=["/w/alpha", "/w/beta"])
+        sessions.start()
+        self.addCleanup(sessions.stop)
 
     def test_competing_processes_get_exactly_the_ceiling(self):
         ctx = multiprocessing.get_context("fork")
@@ -717,12 +720,12 @@ class PriorityTests(unittest.TestCase):
         self.assertIsNone(gate.read_state(self.root))
 
     def test_prioritize_does_not_bypass_the_simulator_cap(self):
-        gate.acquire(self.root, "holder", os.getpid(), SIM)
+        gate.acquire(self.root, "harbor", os.getpid(), SIM)
         gate.prioritize(self.root, "vip", 30, False)
         with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
             with self.assertRaises(gate.Busy) as refused:
                 gate.acquire(self.root, "vip", os.getpid(), SIM2)
-        self.assertIn("holder=holder", str(refused.exception))
+        self.assertIn("holder=harbor", str(refused.exception))
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
     def test_other_owner_is_deferred_with_the_priority_message_even_when_free(self):
@@ -819,7 +822,7 @@ class PriorityTests(unittest.TestCase):
         self.assertNotIn("priority", self.cli("status").stdout)
 
     def test_priority_owner_cannot_take_the_holders_simulator(self):
-        gate.acquire(self.root, "holder", os.getpid(), SIM)
+        gate.acquire(self.root, "harbor", os.getpid(), SIM)
         gate.prioritize(self.root, "vip", 30, False)
         with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
             with self.assertRaises(gate.Busy):
@@ -882,7 +885,8 @@ class WatchdogTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
         gate.secure_root(self.root)
-        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")),
+                            ("cpu_idle_percent", 90), ("live_session_cwds", ["/w/alpha", "/w/beta"])):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -948,6 +952,172 @@ class WatchdogTests(unittest.TestCase):
         self.assertEqual(gate.parse_elapsed("01:05"), 65)
         self.assertEqual(gate.parse_elapsed("02:00:01"), 7201)
         self.assertEqual(gate.parse_elapsed("3-00:00:00"), 3 * 86400)
+
+
+class ReclaimTests(unittest.TestCase):
+    """reclaim-sim acts only on an unleased simulator whose claim owner has no live session."""
+
+    RECLAIM = "reclaim-sim --udid %s"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve() / "capacity"
+        gate.secure_root(self.root)
+        self.sessions = ["/w/alpha/apps/ios"]
+        self.devices = {SIM: "Booted"}
+        for name, value in (("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
+            patch = mock.patch.object(gate, name, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
+        patch = mock.patch.object(gate, "live_session_cwds", side_effect=lambda: list(self.sessions))
+        patch.start()
+        self.addCleanup(patch.stop)
+        patch = mock.patch.object(gate, "probe_devices", side_effect=lambda: dict(self.devices))
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.real_run = subprocess.run
+        self.xcrun = mock.patch.object(gate.subprocess, "run", side_effect=self.fake_xcrun)
+        self.calls = self.xcrun.start()
+        self.addCleanup(self.xcrun.stop)
+        self.claim(SIM, "harbor")
+
+    def fake_xcrun(self, command, **kwargs):
+        if command[0] != "/usr/bin/xcrun":
+            return self.real_run(command, **kwargs)  # only xcrun is stubbed; no real simulator is touched
+        self.assertEqual(command[:3], ["/usr/bin/xcrun", "simctl", "shutdown"], command)
+        self.devices[command[3]] = "Shutdown"
+        return mock.Mock(returncode=0)
+
+    def assert_no_xcrun(self):
+        self.assertEqual([call for call in self.calls.call_args_list if call.args[0][0] == "/usr/bin/xcrun"], [])
+
+    def claim(self, udid, owner):
+        gate.write_claims(self.root, dict(gate.read_claims(self.root), **{udid: owner}))
+
+    def test_refuses_while_the_claim_owner_has_a_live_session(self):
+        self.sessions = ["/w/harbor/apps/ios"]
+        with self.assertRaises(gate.GateError) as refused:
+            gate.reclaim_sim(self.root, SIM)
+        self.assertIn("claimed by harbor, which has a live session", str(refused.exception))
+        self.assertEqual(gate.read_claims(self.root), {SIM: "harbor"})
+        self.assert_no_xcrun()
+
+    def test_refuses_while_a_lease_holds_the_simulator(self):
+        token = None
+        with mock.patch.object(gate, "observe_booted", return_value=[]):
+            token = gate.acquire(self.root, "harbor", os.getpid(), SIM)
+        with self.assertRaises(gate.GateError) as refused:
+            gate.reclaim_sim(self.root, SIM)
+        self.assertIn("holds a lease", str(refused.exception))
+        self.assertIn("holder=harbor", str(refused.exception))
+        self.assertEqual(gate.read_claims(self.root), {SIM: "harbor"})
+        self.assertEqual(gate.read_state(self.root)["token"], token)
+        self.assert_no_xcrun()
+
+    def test_refuses_an_unclaimed_or_legacy_claimed_simulator(self):
+        with self.assertRaises(gate.GateError) as refused:
+            gate.reclaim_sim(self.root, SIM2)
+        self.assertIn("has no claim", str(refused.exception))
+        with mock.patch.object(gate, "legacy_claims", return_value={SIM: "old"}):
+            with self.assertRaises(gate.GateError) as refused:
+                gate.reclaim_sim(self.root, SIM)
+        self.assertIn("legacy claim", str(refused.exception))
+        self.assert_no_xcrun()
+
+    def test_a_failed_session_probe_is_never_read_as_an_ended_owner(self):
+        with mock.patch.object(gate, "live_session_cwds", side_effect=gate.GateError("live-session probe failed")):
+            with self.assertRaises(gate.GateError):
+                gate.reclaim_sim(self.root, SIM)
+            self.assertEqual(gate.reclaim_hint(self.root, [None] * gate.HEAVY_SLOTS, SIM), "")
+        self.assertEqual(gate.read_claims(self.root), {SIM: "harbor"})
+        self.assert_no_xcrun()
+
+    def test_succeeds_for_an_ended_owner_without_a_lease_and_never_deletes(self):
+        message = gate.reclaim_sim(self.root, SIM.lower())
+        self.assertEqual([call.args[0] for call in self.calls.call_args_list if call.args[0][0] == "/usr/bin/xcrun"],
+                         [["/usr/bin/xcrun", "simctl", "shutdown", SIM]])
+        self.assertEqual(self.devices, {SIM: "Shutdown"})  # shut down, still present: never deleted or erased
+        self.assertEqual(gate.read_claims(self.root), {})
+        self.assertIn("claim by harbor dropped", message)
+        record = json.loads((self.root / "telemetry.jsonl").read_text().splitlines()[-1])
+        self.assertEqual((record["event"], record["udid"], record["owner"]), ("reclaim-sim", SIM, "harbor"))
+
+    def test_an_ended_owner_with_an_already_shut_down_simulator_only_drops_the_claim(self):
+        self.devices = {SIM: "Shutdown"}
+        gate.reclaim_sim(self.root, SIM)
+        self.assert_no_xcrun()
+        self.assertEqual(gate.read_claims(self.root), {})
+
+    def test_a_shutdown_that_does_not_confirm_keeps_the_claim(self):
+        self.calls.side_effect = lambda command, **kw: (mock.Mock(returncode=1) if command[0] == "/usr/bin/xcrun"
+                                                        else self.real_run(command, **kw))
+        with self.assertRaises(gate.GateError):
+            gate.reclaim_sim(self.root, SIM)
+        self.assertEqual(gate.read_claims(self.root), {SIM: "harbor"})
+
+    def test_run_refusal_and_watchdog_print_the_command_only_for_an_ended_owner(self):
+        command = self.RECLAIM % SIM
+        ps = ps_text((900, 1, "1.0", "10:00", LAUNCHD % SIM))
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy) as ended:
+                gate.acquire(self.root, "beta", os.getpid(), None)
+            self.assertIn("booted simulators %s" % SIM, str(ended.exception))
+            self.assertIn("claim owner harbor has no live session; reclaim it: python3 ~/.claude/bin/local-capacity.py " + command,
+                          str(ended.exception))
+            with self.assertRaises(gate.Busy) as capped:
+                gate.claim_sim(self.root, SIM2, "beta")
+            self.assertIn(command, str(capped.exception))
+            with mock.patch.object(gate, "host_fixture", side_effect=lambda key, default: ps if key == "ps" else default):
+                lines = gate.watchdog_lines(self.root)
+        self.assertTrue(any("booted with no lease (claim owner=harbor); claim owner harbor has no live session; reclaim it:" in line
+                            and command in line for line in lines), lines)
+        self.sessions = ["/w/harbor"]
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy) as live:
+                gate.acquire(self.root, "beta", os.getpid(), None)
+            with mock.patch.object(gate, "host_fixture", side_effect=lambda key, default: ps if key == "ps" else default):
+                lines = gate.watchdog_lines(self.root)
+        self.assertNotIn("reclaim-sim", str(live.exception))
+        self.assertTrue(any("that owner runs xcrun simctl shutdown %s then release-sim" % SIM in line for line in lines), lines)
+        self.assertFalse(any("reclaim-sim" in line for line in lines), lines)
+
+    def test_hot_process_and_idle_claim_lines_print_the_command_for_an_ended_owner_only(self):
+        command = self.RECLAIM % SIM
+        hot = ps_text((500, 1, "3.7", "05:00", LAUNCHD % SIM), (501, 500, "312.0", "04:58", RUNTIME))
+        idle = ps_text()
+        with mock.patch.object(gate, "host_fixture", side_effect=lambda key, default: hot if key == "ps" else default):
+            lines = gate.watchdog_lines(self.root)
+        self.assertTrue(any("HOT pid=501" in line and command in line for line in lines), lines)
+        with mock.patch.object(gate, "host_fixture", side_effect=lambda key, default: idle if key == "ps" else default):
+            lines = gate.watchdog_lines(self.root)
+        self.assertTrue(any("simulator claim %s owner=harbor is idle" % SIM in line and command in line for line in lines), lines)
+        self.sessions = ["/w/harbor"]
+        with mock.patch.object(gate, "host_fixture", side_effect=lambda key, default: idle if key == "ps" else default):
+            lines = gate.watchdog_lines(self.root)
+        self.assertTrue(any("release it: local-capacity.py release-sim" in line for line in lines), lines)
+        self.assertFalse(any("reclaim-sim" in line for line in lines), lines)
+
+    def test_cli_refuses_a_live_owner_and_reclaims_an_ended_one(self):
+        runner = PriorityTests("cli")
+        runner.tmp, runner.root = self.tmp, self.root
+        shutdown = {"devices": {"iOS": [{"udid": SIM, "state": "Shutdown"}]}}
+
+        def cli(host):
+            (self.root / "booted.json").write_text(json.dumps(shutdown))
+            return runner.cli("reclaim-sim", "--udid", SIM, host=host)
+        self.xcrun.stop()
+        try:
+            refused = cli({"sessions": ["/w/harbor"]})
+            self.assertEqual(refused.returncode, 1, refused.stderr)
+            self.assertIn("live session", refused.stderr)
+            self.assertEqual(gate.read_claims(self.root), {SIM: "harbor"})
+            done = cli({"sessions": []})
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertIn("claim by harbor dropped", done.stdout)
+            self.assertEqual(gate.read_claims(self.root), {})
+        finally:
+            self.xcrun.start()
 
 
 class StackTests(unittest.TestCase):

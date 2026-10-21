@@ -53,6 +53,8 @@ CONTRACTS: dict[str, dict] = {
             "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
             "Watchdog and status flag, read-only, processes at or above 200% ps CPU aged 120 seconds or more, unleased booted simulators, idle claims and extra Chrome for Testing instances, naming each simulator's owner; they stop nothing.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
+            "reclaim-sim shuts down and unclaims a simulator only when its claim owner has no live session and no lease holds it; it exits 1 naming a live owner and never deletes the device.",
+            "Print the reclaim command on run, claim-sim and watchdog output only for an ended claim owner; a failed session probe is never read as ended.",
             "Bound boot to 60 seconds, bootstatus and install to 120 seconds each, and the foreground run to 60 minutes by default; a failed boot starts no later stage.",
             "Attempt bounded shutdown of only the recorded simulator after command groups stop on success, failure or timeout; retain the lease if any device is not Shutdown.",
             "Release only the matching token after recorded child processes and simulator state are clear; signal only the runner's own process group.",
@@ -595,7 +597,7 @@ CONTRACTS: dict[str, dict] = {
             "Track and stop every started process; retain explicitly requested previews only through their bounded owned lifecycle. Verify identity before trusting logs.",
             "Route iOS simulator execution to references/ios-simulator.md without duplicating its preflight, preview evidence or recovery procedure.",
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
-            "Own the machine-wide capacity protocol: three heavy leases, one simulator, the stack cap and idle-stack teardown, the CPU/load/memory guards, the watchdog, the Simon-granted priority record that passes no cap, explicit runner limits and no automatic orphan takeover.",
+            "Own the machine-wide capacity protocol: three heavy leases, one simulator, the stack cap and idle-stack teardown, the CPU/load/memory guards, the watchdog, the Simon-granted priority record that passes no cap, explicit runner limits, no automatic orphan takeover, and reclaim-sim only for an ended simulator owner.",
             "Web runners start at two workers, Playwright included (--workers=2, since its default is half the logical cores); a scripted Playwright run closes each context after its batch.",
             "Every worker of a task uses the one owner string the priority record names; every native run names its simulator; a run is stopped through its supervisor, and a 75 is diagnosed with status before any retry.",
             "A restart stops the launcher's process group, confirms zero listeners, and confirms the new listener started after the stop.",
@@ -1875,7 +1877,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "SessionStart: reconciles the shared port registry and names who holds which port, "
                    "the heavy lease and each simulator claim.",
         "criteria": [
-            "Reports only. Never kills a process and never releases another session's claim.",
+            "Reports only. Never kills a process and never releases another session's claim; its note allows a shutdown only through a printed reclaim-sim command for an ended owner.",
             "Silent when no port, heavy lease or simulator claim is active and the workspace holds no native project.",
             "Prints fail-fast exit-75 capacity instructions in a native project and names an active lease in any project; the helper bounds its simulator probe.",
             "Surfaces every watchdog and idle-stack line from capacity status in any project; clear watchdog, zero-simulator and dev-stack count lines stay silent.",
@@ -2050,7 +2052,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon's existing native callers share the same heavy-work leases as every other local project without losing their familiar commands.",
         "purpose": "Thin compatibility frontend for bin/local-capacity.py.",
         "criteria": [
-            "Delegate run, list, claim-sim, release-sim and jobs to bin/local-capacity.py; never create a second lock or simulator ledger.",
+            "Delegate run, list, claim-sim, release-sim, reclaim-sim and jobs to bin/local-capacity.py; never create a second lock or simulator ledger.",
             "Return exit 75 before the wrapped command starts when the shared leases, legacy bridge or load gate refuses admission.",
             "Keep a dead or interrupted holder visible for explicit inspection; never auto-reap another session's claim.",
             "Expand every array that can be empty as ${ARR[@]+\"${ARR[@]}\"}; macOS /bin/bash 3.2 treats a bare empty \"${ARR[@]}\" as unbound under set -u.",
@@ -2064,6 +2066,7 @@ CONTRACTS: dict[str, dict] = {
             "Asserts a second caller is deferred with exit 75 while a live holder runs and starts no command.",
             "Asserts an orphaned holder blocks admission until explicit inspection and release.",
             "Asserts another session's simulator cannot be claimed or released, and a second simulator is refused with exit 75 while one is claimed; boots no simulator.",
+            "Asserts reclaim-sim exits 1 for a live claim owner and succeeds for an ended one, and status prints the reclaim command only for the ended owner.",
             "Runs the frontend under /bin/bash with LOCAL_CAPACITY_ROOT unset and a temporary HOME, so an empty-array regression fails here.",
         ],
     },

@@ -204,7 +204,6 @@ for every file operation** — Read/Edit/Write/Bash. Exploration agents often re
 absolute paths; using those silently edits the wrong checkout. Never write to the main checkout, and
 **never revert, commit, or disturb my uncommitted WIP** that lives in the main repo. New npm deps may
 need a plain `npm install` in the worktree to populate `node_modules`.
-→ Tearing the worktree down when the work lands is under **Clean up after yourself**, below.
 
 ### Clean up after yourself — no residual processes or scratch artifacts
 Don't leave anything persistent on my machine that I didn't ask for. When a task is done:
@@ -215,6 +214,7 @@ Don't leave anything persistent on my machine that I didn't ask for. When a task
   and `bin/local-capacity.py run`. Port conflict → next lane; exit 75 → defer heavy work and keep
   reading/editing. Release the lane when done, the lease after owned simulator shutdown. Run
   `prioritize` only when Simon's own message names the task to go first; clear it after.
+  Never kill another session's build or simulator while its owner is live; only a printed `reclaim-sim` frees an ended owner's.
   Protocol: `references/dev-server-hygiene.md`.
 - **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev`/`jest`/
   `vite` reparented to PID 1 pins a core nobody watches; `bin/kill-orphan-workers.sh` clears a BURNING

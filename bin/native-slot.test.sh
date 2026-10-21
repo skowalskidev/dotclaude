@@ -42,6 +42,19 @@ check 'status names the simulator cap' yes "$("$NS" list | grep -q "simulators i
 CLAUDE_NATIVE_SESSION=alpha "$NS" release-sim "$SIM" >/dev/null
 check 'owner releases shut-down simulator' 0 "$?"
 
+CLAUDE_NATIVE_SESSION=alpha "$NS" claim-sim "$SIM" >/dev/null
+printf '{"sessions":["/w/alpha/apps/ios"]}\n' > "$LOCAL_CAPACITY_HOST_JSON"
+"$NS" reclaim-sim "$SIM" >/dev/null 2>&1
+check 'reclaim-sim refuses while the claim owner has a live session' 1 "$?"
+check 'refused reclaim keeps the claim' yes "$("$NS" list | grep -q "simulator claim: $SIM owner=alpha" && echo yes || echo no)"
+check 'status prints no reclaim command for a live owner' no "$("$NS" list | grep -q 'reclaim-sim' && echo yes || echo no)"
+printf '{"sessions":[]}\n' > "$LOCAL_CAPACITY_HOST_JSON"
+check 'status prints the reclaim command for an ended owner' yes "$("$NS" list | grep -q "reclaim it: python3 ~/.claude/bin/local-capacity.py reclaim-sim --udid $SIM" && echo yes || echo no)"
+"$NS" reclaim-sim "$SIM" >/dev/null 2>&1
+check 'reclaim-sim drops the claim of an ended owner' 0 "$?"
+check 'reclaimed claim is gone' no "$("$NS" list | grep -q "simulator claim: $SIM" && echo yes || echo no)"
+printf '{}\n' > "$LOCAL_CAPACITY_HOST_JSON"
+
 mkdir -p "$NATIVE_SLOT_DIR/slot.d"
 CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'blocked build' -- true >/dev/null 2>&1
 check 'legacy slot blocks admission without reaping' 75 "$?"

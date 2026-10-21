@@ -72,8 +72,9 @@ Before ANY native build, native test run or simulator boot:
 ~/.claude/bin/native-slot.sh run --for \"<what>\" [--udid <id>] -- <command>
 Exit 75 means the heavy step was deferred and the command did not start. Register each simulator
 you create or boot with \`native-slot.sh claim-sim <udid>\`; keep the same lease through shutdown.
-Never kill another session's build or shut down its simulator.
-A \`watchdog:\` or \`idle stack\` line names its owner and the exact stop command; act on your own only.
+Never kill another session's build or shut down its simulator while its owner has a live session.
+A \`watchdog:\` or \`idle stack\` line names its owner and the exact stop command; act on your own only,
+except a printed \`reclaim-sim\` command, which marks an ended owner.
 Protocol: ~/.claude/references/dev-server-hygiene.md § Machine-wide capacity"
 }
 

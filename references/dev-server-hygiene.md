@@ -372,6 +372,19 @@ inside a simulator names its UDID and owner. The owner stops its own process or 
 the line prints; DON'T stop another session's simulator or process from a watchdog line. TEST: a session
 handing back with a `watchdog:` line naming its own owner broke the rule.
 
+DO reclaim a simulator whose claim owner has ended with the command the line prints, and only then:
+`python3 ~/.claude/bin/local-capacity.py reclaim-sim --udid <udid>` (also `native-slot.sh reclaim-sim <udid>`).
+The engine prints it on the `watchdog:` lines, the `run`/`claim-sim` simulator refusals and `status` only
+when the claim owner has no live session (no live Claude session in a directory named for the owner label,
+from `port-registry.sh sessions`) and no lease holds the device. It shuts the device down, drops the claim and
+logs the action in `telemetry.jsonl`; it never deletes the device. It exits 1 naming the owner when that owner
+is live, a lease holds the device, no claim exists, the claim is a legacy one or the session probe fails.
+DON'T shut down a live owner's simulator, run `xcrun simctl shutdown` by hand on another owner's device, or
+reclaim without the printed command. WHY: a booted simulator with no lease blocks every heavy slot, and an
+ended owner can never run its own release-sim (the fix for a claim left by an ended session that deferred
+builds machine-wide for 1.5 hours). TEST: `reclaim-sim` exits 1 for a live owner or a leased device and exits 0
+for an ended owner with no lease; the printed command never appears for a live owner.
+
 DO take a stack lease before starting any local Docker dev stack (`supabase start`, `docker compose up`)
 and release it after stopping the stack:
 

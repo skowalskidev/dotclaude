@@ -56,6 +56,11 @@ case "${1:-}" in
     [ "$#" -eq 1 ] || die 'release-sim needs a UUID'
     engine release-sim --udid "$1" --owner "$(session)"
     ;;
+  reclaim-sim)
+    shift
+    [ "$#" -eq 1 ] || die 'reclaim-sim needs a UUID'
+    engine reclaim-sim --udid "$1"
+    ;;
   jobs)
     cores="$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
     jobs=$(( cores / 2 )); [ "$jobs" -ge 1 ] || jobs=1
@@ -63,5 +68,5 @@ case "${1:-}" in
     printf '%s\n' "$jobs"
     ;;
   whoami) printf 'session: %s\nworkspace: %s\n' "$(session)" "$(workspace)" ;;
-  *) die 'usage: native-slot.sh run|list|claim-sim|release-sim|jobs|whoami' ;;
+  *) die 'usage: native-slot.sh run|list|claim-sim|release-sim|reclaim-sim|jobs|whoami' ;;
 esac
