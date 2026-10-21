@@ -1356,6 +1356,7 @@ def check_branch_cleanup_closes_owned_inventory() -> None:
     """Guard the instruction boundary; these checks do not delete any real refs."""
     process = (ROOT / 'rules/process.md').read_text()
     cleanup = (ROOT / 'skills/sk/skills/meta-cleanup-worktrees/SKILL.md').read_text()
+    git_rules = (ROOT / 'references/git-pr-deploy.md').read_text()
     check('created or adopted by this task' in process and 'not a' in process
           and 'repo-wide purge' in process and 'zero owned refs or paths' in process,
           'Task closure lost owned-scope or disposition accounting')
@@ -1382,6 +1383,38 @@ def check_branch_cleanup_closes_owned_inventory() -> None:
           'Conductor-managed workspace', 'OWN opt-in question',
           'repo-wide remote purge')),
           'Closure weakened protected refs, live work, Conductor or remote-write safeguards')
+    check(all(text in ' '.join(process.split()) for text in ('local-ref, remote-ref and workspace dispositions',
+          'Remote deletion alone never completes cleanup', 'task-owned ref-only closure')),
+          'Task hand-back still permits remote-only success or blanket current-ref retention')
+    check(all(text in cleanup for text in ('in any repository', 'separate disposition',
+          'including already absent', 'remote auto-deletion never proves a local ref disappeared',
+          'sole exception for the current local branch', "never another session's attached ref")),
+          'Cleanup lost cross-repository ref closure or distinct local/remote/workspace outcomes')
+    closure = git_rules.split('### Task-owned ref-only closure', 1)[-1].split('\n## ', 1)[0]
+    check(all(text in closure for text in ('authorized cleanup', 'recorded ownership',
+          'no other active session', 'clean tracked/index state', "entire tip's merge proof",
+          'git switch --detach <recorded-head>', 'verify HEAD is unchanged',
+          'ignored/untracked data', 'Git worktree', 'registration', 'Conductor app metadata/lifecycle',
+          'If the ref moved or ownership changed', 'fresh branch from current')),
+          'Ref-only closure lost its ownership, merge, unchanged-HEAD or preservation gate')
+    check(all(text in git_rules for text in ('`baseRefName`, `headRefOid`', '`mergeCommit`',
+          'merge commit reachable from current', 'git merge-base --is-ancestor <tip> <merged-pr-head>',
+          'older local tip contained in it', 'upstream equality never substitutes for merge proof',
+          'remote counterpart\'s actual tip', 'Recheck tip and ownership immediately')),
+          'Merged-PR proof no longer binds the candidate tip to the integrated head and base')
+    check('git merge-tree --write-tree origin/<default> <tip>' in git_rules
+          and '`git cherry` is diagnostic only' in git_rules,
+          'Content proof can discard unique merge-conflict resolution changes')
+    check(all(text in git_rules for text in ('git ls-remote --heads origin refs/heads/<branch>',
+          '--force-with-lease=refs/heads/<branch>:<proven-tip>',
+          'never renew the lease without that review')),
+          'Remote deletion no longer rejects a counterpart that moved after proof')
+    hyperspeed = (ROOT / 'skills/sk/skills/work-hyperspeed/SKILL.md').read_text()
+    check('reuse recorded authorization' in hyperspeed and 'ask only for uncovered actions' in hyperspeed
+          and 'expected-tip deletion condition' in hyperspeed,
+          'A cleanup caller restored repeated approval or unconditional remote deletion')
+    check('gh-MERGED-plus-pushed' not in git_rules and 'pushed check' not in cleanup,
+          'Cleanup restored the unsafe or missing-upstream-dependent merge shortcut')
 
 
 def check_node24_shell_runtime():

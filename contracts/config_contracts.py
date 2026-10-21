@@ -454,7 +454,7 @@ CONTRACTS: dict[str, dict] = {
             "The checklist and the decisions behind it survive a RESTART in a durable store — a "
             "ticket or .context/, never /tmp or memory.",
             "Project documentation reads and updates pass through references/project-instructions.md first.",
-            "Before hand-back, account for every branch and workspace created or adopted by the task; remove verified disposable work or retain exact protected, active, recovery or blocked reasons and next actions without a global purge.",
+            "Before hand-back, record separate local-ref, remote-ref and workspace dispositions for task-owned work, including branch-only leftovers; remote deletion alone never completes cleanup. Preserve unique work, foreign sessions and exact retained reasons without a global purge.",
         ],
     },
     "rules/security.md": {
@@ -647,11 +647,10 @@ CONTRACTS: dict[str, dict] = {
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
             "A commit is chained after its checks with &&, never ;, so a failing check stops it.",
-            "Owns the safe merged-branch-deletion rule: apply own-config standing authority or confirm "
-            "other deletion requests; gate on origin/<default> ancestry OR gh-MERGED-plus-pushed OR the content proof "
-            "(git cherry shows no + / merge-tree changes nothing) for a cherry-picked branch, then git branch -D "
-            "(-d is HEAD-relative, unreliable from a stale worktree); the two cleanup skills point here.",
-            "Owns config completion: inventory refs, validate dependency updates, preserve active/protected/blocked work, and retire a clean task-owned merged ref at unchanged detached HEAD while preserving workspace files and native lifecycle.",
+            "Reuse recorded cleanup authority; prove the exact tip through refreshed default ancestry, merged-PR-head containment with reachable merge commit, or full content proof before branch -D. Recheck tip and ownership; being fully pushed never substitutes for merge proof.",
+            "Owns config completion: inventory refs, validate dependency updates, preserve active/protected/blocked work and compose the shared task-owned ref-only closure.",
+            "Allow authorized task-owned current ref retirement in any repository at unchanged detached HEAD with entire-tip proof; preserve workspace files, registration, app lifecycle and foreign sessions. Create a fresh branch before further edits.",
+            "Refresh each actual remote counterpart tip, prove its disposition and bind authorized deletion to that SHA; retain moved refs rather than renewing a lease without renewed ownership and merge proof.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
@@ -1206,8 +1205,7 @@ CONTRACTS: dict[str, dict] = {
             "remote after proving it merged into the assembly branch, points to /sk:meta-cleanup-worktrees "
             "as the leak backstop, and tells Simon to archive the sessions by their branch name (what the "
             "Conductor session shorthand shows), since it cannot touch the Claude UI.",
-            "Confirms with Simon before deleting any branch or worktree — presents the exact list (part "
-            "branches, START branch, part worktrees) and waits for his explicit yes; never deletes unprompted.",
+            "Presents exact part/START branches and worktrees, reuses recorded cleanup authority and asks only for uncovered actions. Remote deletion requires explicit authority, actual-tip proof and the shared expected-tip condition.",
             "Parts write status + output location to a shared file in this run's own "
             ".context/hyperspeed/<run-id>/status/ (DRY, per-session, so concurrent runs from different "
             "sessions never clash); the orchestrator POLLS it via a backgrounded wait-loop that shows a "
@@ -1660,9 +1658,9 @@ CONTRACTS: dict[str, dict] = {
             "Lists canonical dashboards, verified viewer PIDs, repository, branch/HEAD, exact paths, aliases, sizes and actions before confirmation.",
             "Exempts only a viewer whose receipt, plan, output, PID command and worktree match; mismatches and other active sessions block cleanup.",
             "Stops confirmed owned viewers, rechecks idleness and verifies their PIDs and dashboard paths remain absent after removal.",
-            "Require ancestry or merged-PR/pushed proof by default; retire an unmerged superseded draft only within recorded authority, with fresh full-diff review, zero needed unexplained changes and verified recovery. Closed status alone never qualifies.",
+            "Use the shared exact-tip merge gate for ordinary retirement; retire an unmerged superseded draft only within recorded authority, with fresh full-diff review, zero needed unexplained changes and verified recovery. Closed status alone never qualifies.",
             "Inventory unresolved unique local heads with tip, owner, reason and next action; when needed merges are explicitly authorized, inspect and verify the changes before landing, never blindly merge obsolete or unknown work.",
-            "Exclude current, main, default, detached, dirty, active and explicitly kept candidates; preserve backup/recovery history through a verified private bundle migration before removing a redundant ref within authorized cleanup scope. Preserve local-only commits and recheck disposition, recovery and identity before destruction.",
+            "Preserve current/main workspaces, detached, dirty, foreign-active and explicitly kept candidates. Permit only the shared task-owned current-ref exception; preserve unique and recovery history, requiring verified private bundle migration for redundant recovery refs. Recheck disposition, recovery and identity before destruction.",
             "Enumerates all registered worktrees, branch-only candidates and filesystem directories under ~/conductor/workspaces and configured alternate roots, even after metadata and branch refs vanish; never relies only on listed worktrees’ common parent.",
             "Joins directories to canonical Git common-directory/origin and branch/HEAD or saved inventory evidence; city names, project basenames and matching branch names alone never prove ownership. Retains unknown mappings with reasons.",
             "Captures canonical mappings and du -sk sizes before deleting refs or metadata; preserves evidence outside deletion targets and blocks changed identities.",
@@ -1672,8 +1670,9 @@ CONTRACTS: dict[str, dict] = {
             "Uses non-forced git worktree remove for ordinary registered worktrees; requires proven abandoned status, full safety gates and exact-path extra confirmation before manually removing filesystem residue.",
             "Canonicalizes paths without following outside symlinks; removes only confirmed owned aliases after their target decision. Preserves main clones/shared state and, by default, unique archived materials/history; explicit archive deletion follows its separate scope.",
             "Limits branch/worktree cleanup to this repo unless cross-repository scope is explicit; never deletes ~/conductor wholesale or enumerates remote-only branches for a purge.",
-            "Routes config-only merged-ref retirement to rules/config-repo.md; preserving a current workspace is distinct from archiving it or reclaiming storage.",
-            "Surfaces remote counterparts as a separate opt-in confirmation, limited to merged branches authored by Simon and corresponding to local branches being removed.",
+            "Routes task-owned ref-only closure in any repository to references/git-pr-deploy.md; preserving a current workspace is distinct from archiving it or reclaiming storage.",
+            "Reconcile separate local-ref, remote-counterpart and workspace outcomes within task or requested repository scope, including branch-only leftovers and absent remotes; remote auto-deletion alone never proves local cleanup complete.",
+            "Surfaces remote counterparts separately, reuses explicit remote-deletion authority or asks before writing, and proves each actual remote tip merged. Limits deletion to owned counterparts of local branches being removed.",
             "Verifies exact workspace trees, node_modules, build caches, dashboards, owned aliases and removed refs are absent; measures after-sizes and names pending/blocked paths. Ref deletion or an archive request alone never counts as reclaimed storage.",
             "Measures the whole explicitly requested disk-cleanup root and every category before and after, including archives, workspaces and repos across projects; reports removed paths, retained reasons and actual reclaimed size. Branch counts alone never satisfy disk cleanup.",
             "For ordinary disk cleanup, prunes verified inactive generated archive contents while preserving unique source, materials, designs, attachments and chat/app metadata. Never treats archive status, ignored status or a cache basename alone as proof of disposability.",

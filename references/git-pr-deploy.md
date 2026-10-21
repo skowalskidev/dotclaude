@@ -275,10 +275,7 @@ blockers with an owner, evidence and next action in the plan. Resume ready owned
 task boundary. Never delete work to manufacture a main-only result or weaken required checks.
 No daemon or blind automatic merge.
 
-DO retire a finished task-owned config branch even when its workspace stays open: verify a clean
-tree and the entire tip's containment in `origin/main`, detach at the unchanged commit, then delete
-only the merged ref. Preserve all workspace files and Conductor's lifecycle. Create a fresh branch
-from current `origin/main` before further edits; never detach another session's active checkout.
+DO apply the task-owned ref-only closure below when a finished config workspace stays open.
 
 TEST: after fetching origin, `git for-each-ref refs/heads` and `git ls-remote --heads origin` show
 only main or individually evidenced active/protected/blocked exceptions; live main has clean status
@@ -293,35 +290,70 @@ already merged to `origin/master`, and the refusal reads exactly like a real "un
 252-commit-behind worktree refused six branches whose tips WERE `origin/master`; the branches were
 genuine merged leftovers and `-d` could not clear them.
 
-**First, resolve authority.** Own-config closure uses the standing authority above. For other
-deletion requests, confirm with the user. Removing a branch or worktree is destructive and not cleanly
-reversible, so present the exact list you propose to remove and get an explicit yes; never delete
-unprompted. The gate below proves a deletion is SAFE; the user still decides WHETHER to make it, and may
-veto any item. The cleanup flows that use this rule carry it as their confirm step —
+**First, resolve authority.** Own-config closure uses the standing authority above. Reuse explicit
+task/repository cleanup authorization for the reviewed candidates it covers; ask only for an action
+outside that scope. Record the exact refs, ownership and proof before removing them. A cleanup
+request never authorizes merging, another session's checkout or an unrequested shared-remote purge.
+The user may veto any item. The cleanup flows carry the authorization check —
 `/sk:meta-cleanup-worktrees` (Step 4) and `/sk:work-hyperspeed` (Step 6).
 
 Then prove the merge yourself, and force:
 
-1. **Gate on the default branch, not HEAD.** `git merge-base --is-ancestor <branch> origin/<default>`
-   (exit 0 = every commit on the branch is already in the default branch), OR — for a squash/rebase
-   merge, which is not an ancestor — `gh pr view <branch> --json state -q .state` is `MERGED`, OR — for
-   a branch with no PR whose commits were cherry-picked or re-applied — the content proof: `git cherry
-   origin/<default> <branch>` prints no `+` line (git matches each commit by its diff, so a clean
-   cherry-pick reads `-`), or, when a pick was edited or conflict-resolved,
-   `git merge-tree --write-tree origin/<default> <branch>` exits 0 and prints `origin/<default>`'s own
-   tree id (merging would change nothing). Resolve `<default>` with
+1. **Gate on the refreshed default branch, not HEAD.** Record the exact candidate tip, repository and
+   `origin/<default>` SHA. `git merge-base --is-ancestor <tip> origin/<default>` passing proves ancestry.
+   For a squash/rebase merge, read the matching PR's `state`, `baseRefName`, `headRefOid` and
+   `mergeCommit` by its recorded number. Require `MERGED`, the intended repository/default base,
+   the merge commit reachable from current `origin/<default>`, and
+   `git merge-base --is-ancestor <tip> <merged-pr-head>` passing. This accepts the exact merged head
+   or an older local tip contained in it; a branch name or `MERGED` status alone proves neither.
+   If those commit objects cannot be resolved, retain the ref with that evidence gap.
+   For commits cherry-picked or re-applied, require full content proof:
+   `git merge-tree --write-tree origin/<default> <tip>` exits 0 and prints `origin/<default>`'s own
+   tree id (merging would change nothing). `git cherry` is diagnostic only: it skips merge commits
+   and cannot prove unique conflict-resolution content disposable. Resolve `<default>` with
    `git symbolic-ref --short refs/remotes/origin/HEAD`.
-2. **If the gate passed only via gh `MERGED` (not ancestry), also prove nothing local-only.** A squash
-   or rebase merge puts a REWRITTEN commit into the default branch, so the branch's own tip is not
-   contained in it — and if that tip carries commits added AFTER the merge, `gh MERGED` is still true
-   while those commits live nowhere else. So when ancestry failed, additionally require the tip fully
-   pushed: `git rev-list --count <upstream>..<branch>` is `0` (or `origin/<default>..<branch>` if there
-   is no upstream). If commits remain, do NOT `-D` — they are unmerged work the PR state hid.
-3. **Only once a gate above holds, delete with `git branch -D <branch>`.** The gate is the seatbelt, so
+2. **Prove the entire current tip, including post-merge work.** A deleted upstream does not invalidate
+   verified merged-PR-head containment. Conversely, a fully pushed tip can contain post-merge commits:
+   upstream equality never substitutes for merge proof. Retain a tip outside the proven merged head
+   unless the ancestry or full content gate independently passes. Apply the gate separately to a
+   remote counterpart's actual tip before any authorized remote deletion.
+3. **Recheck tip and ownership immediately before removal.** Changed tips or another session's claim
+   invalidate the recorded decision; refresh the proof. Only once a gate holds, delete with
+   `git branch -D <branch>`. The gate is the seatbelt, so
    `-D` here is safe and correct, and it is the only form that works from a stale worktree. `-d` is not
    a safety upgrade over this; it is an unreliable HEAD-relative check that produces false negatives.
-4. **Never `-D` a branch no gate passed.** Without the ancestry, gh-`MERGED`-plus-pushed, or content proof, `-D`
+4. **Never `-D` a branch no gate passed.** Without the ancestry, merged-PR-head containment, or content proof, `-D`
    really can drop unmerged commits — the proof is what makes it safe, not the flag.
+
+DO read each authorized remote counterpart with `git ls-remote --heads origin refs/heads/<branch>`
+and prove that actual tip; a default-only fetch leaves other cached refs stale. Fetch missing objects,
+then require the remote still names the proven tip. Bind deletion to that SHA with
+`git push --force-with-lease=refs/heads/<branch>:<proven-tip> origin :refs/heads/<branch>`.
+This expected-tip condition guards deletion; it never authorizes rewriting remote history. If the
+remote moved, retain it and refresh ownership/merge proof; never renew the lease without that review.
+TEST: a remote advanced after proof is retained, even when its old cached tip passed the merge gate.
+
+### Task-owned ref-only closure
+
+DO use this path in any repository when authorized cleanup covers this task's finished current local
+branch but its workspace must stay open. Require recorded ownership, no other active session on that
+checkout, a clean tracked/index state and the entire tip's merge proof above. Keep main/default,
+backup/recovery refs and the explicit keep-list excluded. Another session's attached branch remains
+retained even when its PR merged; never detach it on that evidence alone.
+
+DO record the branch, exact HEAD and status before changing refs. Recheck them, run
+`git switch --detach <recorded-head>` in the owned checkout, verify HEAD is unchanged, then delete
+only the proven merged local ref. Preserve all workspace files, ignored/untracked data, Git worktree
+registration and Conductor app metadata/lifecycle. Verify the ref is absent and HEAD, status and
+workspace paths remain unchanged. If the ref moved or ownership changed, stop before deleting it.
+WHY: app-only archiving does not require retaining an independently disposable local Git ref.
+
+DO create a fresh branch from current `origin/<default>` before further edits; never develop on the
+detached closure commit. Report local ref, remote counterpart and workspace as separate outcomes,
+including absent remotes and pending app archives. Never infer local deletion from remote auto-delete
+or claim workspace storage reclaimed by deleting a ref.
+TEST: a merged current task branch can disappear while its workspace stays intact; another session's
+branch and any post-merge unique work remain protected, and every scoped ref has a disposition.
 
 ## Deployment tracking
 

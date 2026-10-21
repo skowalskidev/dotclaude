@@ -227,12 +227,11 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   used; keep intentional artifacts, branch build caches and the shared warmed `agent` simulator, which is
   shut down and released, never deleted (`references/dev-server-hygiene.md`, `references/ios-simulator.md`).
 - **DO close every branch and workspace created or adopted by this task before hand-back.** Record
-  their owner and disposition in the existing plan, including branch-only refs after workspace removal.
-  Retire landed or explicitly superseded work through `/sk:meta-cleanup-worktrees`; this is not a
-  repo-wide purge. Retain current/main/default, active work, protected recovery or a concrete blocker
-  with its owner, evidence and next action. Preserve unique work and durable outcomes first:
-  `references/planning-and-tracking.md`. TEST: zero owned refs or paths lack a verified removal or
-  retained reason; an abandoned or superseded label alone never proves safe deletion.
+  separate local-ref, remote-ref and workspace dispositions, branch-only refs included. Remote deletion
+  alone never completes cleanup. Use `/sk:meta-cleanup-worktrees` and its task-owned ref-only closure;
+  this is not a repo-wide purge. Preserve unique work and durable outcomes:
+  `references/planning-and-tracking.md`. TEST: zero owned refs or paths lack verified removal or a
+  protected/active/recovery/blocked reason, owner and next action.
 - **Verify cleanup against the underlying storage, not the tool's own listing.** A registry stops
   listing what it has forgotten, so an orphan is invisible to the command you'd check with; reconcile
   disk against what the tool claims and treat present-but-unlisted as residue. Cases:

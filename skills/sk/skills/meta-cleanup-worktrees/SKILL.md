@@ -1,6 +1,6 @@
 ---
 name: meta-cleanup-worktrees
-description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo — remove only the ones that are provably finished (merged or retired within authorized scope with verified recovery, clean, idle, and never the current or main checkout) and tell you which Conductor/Claude sessions you can archive. For explicit disk-space cleanup, measures the whole requested root including archives and prunes verified inactive generated caches without deleting source or branches, even in unmerged workspaces. It lists and CONFIRMS before it deletes anything, stops only a dashboard viewer whose runtime receipt proves it belongs to that worktree, never force-deletes, and BLOCKS whole-worktree removal with another live session, uncommitted changes, unpreserved local-only commits, or an open PR; unmerged drafts require reviewed retirement within authorized scope. It also OFFERS (opt-in) to delete the merged remote counterparts of the branches it removes — your OWN branches only, by tip author. Reuses bin/port-registry.sh + bin/kill-orphan-workers.sh for live-session detection and points to rules/process.md + references/dev-server-hygiene.md for the teardown rules. Use for "delete Conductor archives", "free disk space in Conductor", "clean up archived Conductor caches", "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
+description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo. Remove only proven finished, clean, idle workspaces; preserve current/main checkouts. Retire a finished task-owned current local ref separately while preserving its workspace. Reuse existing cleanup authorization, list exact candidates and confirm only uncovered actions. For disk cleanup, measure the whole requested root and prune verified inactive generated caches without deleting source or branches. Block removal with another live session, uncommitted changes or unpreserved unique work; unmerged drafts require authorized reviewed retirement and recovery. Offer merged remote counterparts separately within remote-write authority, limited to owned branches. Use for "delete Conductor archives", "free disk space in Conductor", "clean up archived Conductor caches", "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
 argument-hint: "[optional repo path; defaults to the current repo]"
 ---
 
@@ -10,7 +10,7 @@ Sweep the worktrees and branches for THIS repo that are provably finished, clean
 Remove ordinary worktrees and request Conductor archives through the app. Verify the matching folders
 are gone before calling whole-workspace cleanup complete. For disk-space requests, use cache pruning
 below as a separate operation. NEVER remove source or branches still being worked on.
-Conservative by construction: it LISTS and CONFIRMS before deleting, and never force-deletes.
+DO list exact candidates before deleting, reuse recorded authorization and confirm only uncovered actions.
 
 ## Reuse, don't reimplement
 
@@ -38,9 +38,9 @@ there is no local workspace CLI/API. Never mutate its database or bypass its arc
 Preserve main clones and shared application state; never recursively delete `~/conductor` or infer
 permission to delete an archive from its archived status. Distinguish these operations:
 
-- **Config ref-only closure:** apply `rules/config-repo.md` § Return to main after completed work.
-  Its task-owned merged-ref retirement preserves the current workspace; it neither archives a
-  Conductor workspace nor reclaims its storage. All other current-workspace exclusions remain.
+- **Task-owned ref-only closure:** apply `references/git-pr-deploy.md` § Task-owned ref-only closure
+  in any repository. This narrow current-branch exception preserves the current workspace;
+  whole-workspace exclusions and Conductor's app archive flow remain in force.
 - **Workspace/branch lifecycle:** follow Steps 1–6 and the full merged/clean gate; app-managed
   workspace archiving remains user-controlled through Conductor.
 - **Disk/cache pruning:** first measure the WHOLE requested root with `du -sk`, then each top-level
@@ -138,9 +138,8 @@ comm -23 <(git for-each-ref --format='%(refname:short)' refs/heads | sort) \
 
 Join EVERY branch-only candidate to the filesystem inventory before calling its workspace gone.
 A matching residual directory remains a workspace cleanup item even if Git reports no worktree.
-Each that PASSES the merge gate (Step 3 #1) is a 🌱 branch-only candidate. It STILL has a local-only
-question when the gate passed ONLY via gh `MERGED` (a squash/rebase tip can carry post-merge commits that
-are in no default branch) — apply `references/git-pr-deploy.md` §'s pushed check before `-D`.
+Each that PASSES the merge gate (Step 3 #1) is a 🌱 branch-only candidate. A missing upstream does
+not block independently proven merged work; PR status alone never proves the current tip merged.
 DO list every candidate that fails the gate as retained with its tip, unique-commit count, owner or unknown ownership, reason and next action. Never hide unmerged branches from the
 inventory or infer that they are disposable from age or naming.
 
@@ -179,18 +178,16 @@ as Step 4's separate extra-confirmed step.
 
 ## Step 3 — the SAFE gate (ALL must hold, or BLOCK with a printed reason)
 
-For whole-worktree or branch removal, EVERY check must pass; cache-only pruning uses the Scope cache gate:
+For whole-worktree or ordinary branch removal, EVERY check must pass. Scope's task-owned ref-only
+closure and cache-only pruning use their separate gates:
 
-1. **Disposition:** default to merged proof: `git rev-list --count origin/<default>..<branch>` is `0` (ancestor-merged) **OR**
-   `gh pr view <branch> --json state -q .state` is `MERGED`. The OR is load-bearing: a squash- or
-   rebase-merged branch is NOT an ancestor of master, so `rev-list` wrongly calls it unmerged; the gh
-   `MERGED` state is the truth for those. Unmerged exceptions are Step 2's authorized,
+1. **Disposition:** apply the shared catalog's § Deleting a merged branch safely to the exact tip:
+   ancestry, verified merged-PR-head containment or full content proof. Unmerged exceptions are Step 2's authorized,
    reviewed superseded draft or verified recovery migration; record that proof separately from merge
    evidence. Never describe it as merged.
 2. **Clean:** `git -C <wt> status --porcelain` is empty.
-3. **Nothing local-only:** if the branch has an upstream, `git -C <wt> rev-list --count @{upstream}..HEAD`
-   is `0`; if it has NO upstream (never pushed), fall back to
-   `git -C <wt> rev-list --count origin/<default>..HEAD` is `0`. For an authorized superseded draft or recovery migration,
+3. **Nothing unpreserved:** require the disposition proof to cover the entire current tip, including
+   any post-merge commits; being pushed alone does not prove they merged. For an authorized superseded draft or recovery migration,
    require its verified recovery to cover every local-only commit instead; an unpushed commit must
    never disappear with the ref.
 4. **Idle:** no process except a verified dashboard viewer is cwd'd in the worktree —
@@ -199,7 +196,9 @@ For whole-worktree or branch removal, EVERY check must pass; cache-only pruning 
    a live `claude`/`node` session or unverified viewer → BLOCK. An idle `zsh` sitting in it → removable
    but WARN (removing it orphans that shell's cwd). Cross-check with `bin/port-registry.sh reap`.
 5. **Protected paths/refs:** exclude current, main, default, detached HEAD, backup/recovery refs and
-   the explicit keep-list. Step 2 permits only a verified migration of a redundant recovery ref within
+   the explicit keep-list from whole-workspace removal. Scope's task-owned ref-only closure is the
+   sole exception for the current local branch, never another session's attached ref.
+   Step 2 permits only a verified migration of a redundant recovery ref within
    authorized cleanup scope; it never overrides the keep-list.
 6. **Owned and disposable:** require Step 2's repository/branch identity proof and no unique user
    data in EVERY workspace proposed for removal, including ordinary Git worktrees and app archives.
@@ -213,12 +212,11 @@ For whole-worktree or branch removal, EVERY check must pass; cache-only pruning 
 
 A PR that is CLOSED-but-not-merged is NOT merged. Retain it unless the separate authorized supersession
 proof passes; its closed status alone never authorizes removal. A merged branch with NO worktree is a 🌱
-branch-only candidate (Step 2 enumerates these): the merge gate applies, plus — if it passed only via
-gh `MERGED`, not ancestry — the pushed check from `references/git-pr-deploy.md` §, since there is no
-worktree to read local-only commits from. Delete its ref only after the inventory and gate; do not
+branch-only candidate (Step 2 enumerates these): apply the same entire-tip proof without needing a
+worktree or surviving upstream. Delete its ref only after the inventory and gate; do not
 claim disk cleanup while a matching directory remains.
 
-## Step 4 — present and CONFIRM (never delete unprompted)
+## Step 4 — present and resolve authorization
 
 Show a table, grouped: ✅ removable · ⏳ app archive required · ⛔ blocked (with the exact reason) ·
 🌱 branch-only. Include repository, branch/HEAD, exact path, aliases, before-size and planned action. Then use
@@ -232,14 +230,14 @@ with the worktree and stopping those exact viewers; it never covers a mismatched
 **Honor an explicit keep-list.** When Simon names branches or worktrees to keep, HARD-EXCLUDE them from
 every removable group before presenting — above the gate, even for ones the gate would already block.
 
-**Offer the merged remote counterparts as their OWN opt-in question — do NOT stay silent.** For every
-✅/🌱 local orphan being removed whose `origin/<branch>` is ALSO ancestor-merged into `origin/<default>`
-(`git rev-list --count origin/<default>..origin/<branch>` is `0`), list those remotes and ASK whether to
-delete them too. It is a separate shared-remote write, so it defaults to no — but SURFACE it in the same
-gate, never omit it and make Simon ask.
+**Offer the merged remote counterparts as their OWN opt-in question when not already authorized.**
+For every ✅/🌱 local orphan being removed, record whether its remote counterpart exists. Apply Step 3's
+merge proof to that remote tip independently, then list eligible owned remotes. Reuse an existing
+explicit remote-deletion instruction; otherwise ASK before this separate shared-remote write.
+Default uncovered remote deletion to no, but surface its disposition in the same inventory.
 
 **Only the user's OWN remote branches.** A shared remote holds teammates' branches, so before offering a
-remote confirm its tip author is Simon's: `git log -1 --format='%ae %an' origin/<branch>` matches his git
+remote confirm its live proven tip author is Simon's: `git log -1 --format='%ae %an' <proven-tip>` matches his git
 author (the `skowalskidev` GitHub identity / a `simon@` email). NEVER offer or delete a remote branch
 someone else authored, even when it is the counterpart of a local orphan Simon is removing.
 
@@ -280,12 +278,11 @@ For each confirmed branch, including a branch-only orphan or a branch left after
 - Delete the branch with `git branch -D <branch>`, but ONLY after Step 3 #1's disposition gate passed. Do NOT
   reach for `git branch -d` as the "safe" form here: its merged test is against the CURRENT HEAD, so a
   stale worktree (HEAD behind the default branch) makes it REFUSE a branch genuinely merged to
-  `origin/<default>` — a false negative that leaves the leftover uncleaned. The Step 3 gate (ancestor of
-  `origin/<default>` OR gh `MERGED`) is the real seatbelt; `references/git-pr-deploy.md` § "Deleting a
-  merged branch safely" owns this rule. For an authorized superseded draft or recovery migration, use its separately recorded
+  `origin/<default>`. Step 3's entire-tip proof is the seatbelt. For an authorized superseded draft or recovery migration, use its separately recorded
   retirement and recovery proof, never a fabricated merge result. Never `-D` without the gate.
-- Remote branch, only if extra-confirmed AND its tip author is Simon's (Step 4's `%ae %an` check):
-  `git push origin --delete <branch> …` (batch them in one push). Never a branch someone else authored.
+- Remote branch, only within explicit remote-deletion authority AND its tip author is Simon's (Step 4's `%ae %an` check):
+  use the shared catalog's live-tip proof and expected-tip deletion condition. Never delete from a
+  stale remote-tracking ref or touch a branch someone else authored.
 
 The normal worktree removal deletes its `.context` directory, including the plan, canonical dashboard,
 mockups, evidence and runtime receipt. Never preserve a second dashboard archive during cleanup; promote
@@ -299,11 +296,14 @@ refs with `git show-ref --verify --quiet refs/heads/<branch>` returning nonzero.
 
 ## Step 6 — report verified disk cleanup and pending archives
 
-DO reconcile the before/after inventory of local refs and worktrees with every planned action. For
-repo cleanup include all local heads; for task closure include only refs created or adopted by that
-task. Record each retained current/main/default, active, recovery or blocked item with its reason and
-next action. Verify removed refs independently of worktree paths, including branch-only leftovers.
-TEST: zero inventory rows lack a disposition; a clean working tree is not proof of branch cleanup.
+DO reconcile the before/after inventory of local refs, their remote counterparts and worktrees with
+every planned action. For repo cleanup include all local heads; for task closure include only refs
+created or adopted by that task. Record a separate disposition for each local ref, remote counterpart
+(including already absent) and workspace, plus each retained main/default, active, recovery or blocked
+item's reason and next action. Verify local absence directly, including branch-only leftovers;
+remote auto-deletion never proves a local ref disappeared. Keep pending app archives separate.
+TEST: zero inventory rows lack a disposition; neither clean status nor remote deletion alone proves
+cleanup complete.
 
 Repeat `du -sk` for the requested root, every measured category and surviving candidate paths;
 record removed paths as zero with an explicit absence check. Report actual before/after KiB for root
@@ -320,16 +320,16 @@ reclamation candidates or their blocking reasons.
 
 ## The gotchas this skill must never trip
 
-Squash/rebase merge (OR-in gh `MERGED`) · no-upstream branch (fall back to `origin/<default>`) · the
-current worktree and main checkout (hard-excluded) · merged-but-running (block on a live session) ·
+Squash/rebase merge (verify merged PR head and reachable merge commit) · no-upstream branch (use
+entire-tip proof) · current/main workspace preserved (task-owned ref-only closure is separate) ·
+merged-but-running (block on another live session) ·
 merged-but-idle-shell (warn) · dirty tree (never `--force`) · detached HEAD (skip branch logic) · PR
 closed-not-merged (never merge proof) · **branch-only orphan whose worktree is already archived (Step 2 enumerates
 all heads-with-no-worktree, including unresolved unique work)** · **`git branch -d` is
 HEAD-relative, so a stale worktree makes it refuse a genuinely-merged branch (gate on `origin/<default>`
 ancestry, then `-D`)** · **local `master` enumerated when the main checkout sits on a feature branch
-(filter `$DEF` out of the branch-only `comm`, never rely on it being checked out)** · **gh-`MERGED` alone
-does not prove containment — a squash/rebase tip carrying post-merge commits needs the pushed check
-before `-D`** · **a remote part branch is the owning run's job (hyperspeed Step 6, by recorded name) —
+(filter `$DEF` out of the branch-only `comm`, never rely on it being checked out)** · **gh-`MERGED` or
+being fully pushed alone never proves post-merge commits disposable** · **a remote part branch is the owning run's job (hyperspeed Step 6, by recorded name) —
 meta-cleanup deletes only the remote COUNTERPART of a local orphan it removes, extra-confirmed, never a
 repo-wide remote purge (a shared remote is hundreds of others' branches)** · **keep-list Simon names is
 hard-excluded ABOVE the gate** · **the merged-remote-counterpart offer is SURFACED in the gate, never

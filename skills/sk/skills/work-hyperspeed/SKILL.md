@@ -239,20 +239,18 @@ the branches and worktrees still lying around. The run is DONE only when this re
 run leaves BRANCHES, WORKTREES and PROCESSES across N sessions, and all three are torn down here every
 round, per `rules/process.md` § "Clean up after yourself" and `references/dev-server-hygiene.md`.
 
-- **Confirm before deleting — present the list, wait for a yes.** Before removing ANYTHING, show Simon
-  the exact set you propose to delete — every reported part branch, the run's START branch, and each part
-  worktree — and get his explicit yes; never delete unprompted, even though the gate proves each is merged
-  (`references/git-pr-deploy.md` § "Deleting a merged branch safely"). This is one paced handoff
-  (`references/human-pacing.md`): show the list, WAIT, then delete only the batch he approved. He can veto
-  any item — keep it and move on. (Remote-branch deletion is part of what he approves; it is a shared-remote
-  write.)
+- **DO present the exact cleanup list and reuse recorded authorization.** Account for every reported
+  part branch, the run's START branch and each part worktree. Apply the shared deletion gate below;
+  ask only for uncovered actions, including remote deletion without explicit remote-write authority.
+  Keep every vetoed item and report its disposition.
 - **Branches — delete each part branch BY ITS REPORTED NAME, local and remote.** Read the `branch` field
   from every `$STATUS_DIR/*.json` (Step 5 already has them). Do NOT glob `hs/<run>/*`: the parts run in
   Conductor workspaces, which NAME the branch themselves (`skowalskidev/<workspace>`, not `hs/...`), so a
   name pattern matches nothing and the branches pile up unseen — and a shell glob cannot expand branch
   names anyway. For each reported branch, prove it merged into the assembly branch
   (`git merge-base --is-ancestor <part-branch> <assembly-branch>`), then `git branch -D <part-branch>`
-  and, if it was pushed, `git push origin --delete <part-branch>`. Use `-D` after that gate, never `-d`
+  and, if its remote deletion is authorized, prove the actual remote tip is also in the assembly and
+  use the shared gate's expected-tip deletion condition. Use `-D` after that gate, never `-d`
   (its merge check is HEAD-relative and refuses a genuinely-merged branch in a stale worktree) — the rule
   is `references/git-pr-deploy.md` § "Deleting a merged branch safely". The orchestrator owns this. **Also
   delete the run's own START branch** when Step 1 created a fresh `hs/<run-id>` (NOT a pre-existing feature
