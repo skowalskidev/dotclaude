@@ -78,10 +78,9 @@ The wall is the provenance rule above, plus never echoing a value out.
 
 **Rule: if there is any ambiguity about which project, account, workspace, or credential set to use — stop and ask Simon to confirm before proceeding. Never guess from context alone.**
 
-**When you're blocked by missing access or auth to any tool, MCP, or service (the Firebase MCP
-included), don't give up or route around it — prompt me with the exact steps to log in / authorize
-it, then continue once I've done it.** The Firebase MCP is available; use it (scoped to the right
-project per the rule above) and ask me to auth whenever it, or anything else, reports no access.
+DO apply `rules/connectors.md` for capability discovery and the auth gate before asking Simon to log
+in. Preserve credential boundaries and confirmed policy denials across every path.
+TEST: a missing tool or signed-out browser alone never triggers a service-wide auth claim.
 
 ## Firebase / cloud accounts — two accounts, never mix them
 I have two accounts: **your personal email** (personal — a personal project) and **your work email** (work — your work org). Never cross them.

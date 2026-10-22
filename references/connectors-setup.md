@@ -104,6 +104,28 @@ Each `kind` implements the same five behaviors:
 To add a NEW kind: add its case to the `provision`/`readiness` switch in `bin/connectors-provision.sh`
 and (if it exposes tools) to the guard. The manifest, skill, and auth-gate need no change.
 
+## Capability diagnosis
+
+DO search the active host's tool and app/plugin catalog by name AND description. A catalog entry,
+manifest or enabled flag proves neither installation nor exposed tools. Use native status to resolve
+that distinction; missing tools alone prove neither an auth failure nor an outage.
+
+DO reuse matching live capability evidence; otherwise run one bounded read-only check per authorized
+candidate path. Check tool schemas and CLI version/help for the requested action. When a feature is
+missing, check current official docs/releases before calling it unsupported (e.g. an older CLI can
+read a private resource but lack its attachment command). Reads never prove upload/write support.
+
+DO classify the failure before selecting a remedy:
+- Verified expired/absent OAuth on the required path: request that host's login flow, not another
+  host's `/mcp` command.
+- Down/unreachable local service: start it within existing authority; this is not an auth problem.
+- Tools absent from this session: check native status and authorized alternatives; request a restart
+  only when the required path demonstrably needs it.
+- Missing action in the schema or installed CLI: check official version support; login adds no command.
+- Policy denial or read-only connector: preserve the existing write gate across every path.
+TEST: each blocker names its host/profile, exact action, checked paths and evidence; an unverified
+tool listing or blank browser never becomes a service-wide auth diagnosis.
+
 ## Official account connectors and completion messages
 
 DO start with the official connector offered by the active host. For Slack, use Claude's

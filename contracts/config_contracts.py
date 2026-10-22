@@ -405,10 +405,13 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "rules/connectors.md": {
-        "mission": "Simon is asked for auth ONCE, up front, with copy-pasteable steps — never mid-run, never after work is wasted.",
+        "mission": "Simon gets work through existing authorized service access and is asked once only for a verified human-only step.",
         "purpose": "Auth-gate protocol and the work/personal boundary for external services.",
         "criteria": [
-            "Ask FIRST with numbered steps, then wait. No grinding around a missing credential.",
+            "Check current host tools/plugins, native status, selected manifests and authorized fallback paths before an auth question; declared or installed never proves exposed or authenticated.",
+            "Verify the requested action, including CLI version/help and current official support for a missing feature; a successful read never proves upload or write capability.",
+            "Scope failures to host, profile and action; a signed-out test browser or missing tool never proves service-wide auth failure.",
+            "Use an authorized capable path within credential and write boundaries; ask once with verified host-specific steps only for the remaining human-only action, then wait on dependent work.",
             "Prod is read-only by default; a write is enabled per-request and torn down after.",
             "Per-project detail stays in connectors/*.json, never hard-coded here.",
             "A model API is reached only through pal, with a key from the repo's own boundary and the per-call yes; shell model-API calls stay denied and the subscription stays the default.",
@@ -475,6 +478,7 @@ CONTRACTS: dict[str, dict] = {
             "an artifact, a commit or a PR; using a secret (a path passed to a tool, a key loaded "
             "into a program) stays allowed — the value becoming visible is the line.",
             "A blocked action is always surfaced, never silently dropped.",
+            "Delegate access diagnosis and auth-question ordering to rules/connectors.md without a competing immediate-login rule; preserve policy denials and credential boundaries.",
         ],
     },
     "rules/self-healing-config.md": {
@@ -555,6 +559,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "A new project's connectors work first try, from one manifest, with no credential in a repo.",
         "purpose": "The connector engine's how-to and the manifest schema.",
         "criteria": [
+            "Diagnose exact-action capability through host catalog and native status, bounded authorized checks, tool schemas and CLI version support; distinguish authentication, unavailable tools, unreachable services, missing features and policy denials.",
             "Schema here matches what bin/connectors-provision.sh actually reads.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
             "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules.",
@@ -1160,6 +1165,7 @@ CONTRACTS: dict[str, dict] = {
             "Capture verified before/after walkthrough videos per changed journey by default, per references/screenshot-review.md. State a no-UI skip or `new, no before` when applicable; keep screenshots in before/after rows and apply the playable-video fallback when needed.",
             "Publish videos as verified inline players, never ordinary links or thumbnails; retain screenshot rows and use labeled point/platform/before-after player paragraphs in the same comment when table cells suppress playback. Preserve untouched video groups during updates.",
             "Verify rendered players and browser playback for every published clip: duration, advancing time, expected first and last states, no navigation or media errors. Record failed uploads or playback as blocked evidence; a reachable file never passes.",
+            "Allow labeled API-rendered comment verification using unchanged returned body_html and the same authorized remote media, with identical browser checks; keep full-page UI unverified and reject reconstructed players, local-media substitution or exposed signed URLs.",
             "Carry the shared recording caveat beside each applicable clip in local hand-backs and PR comments, including fallback players, while keeping attachment URLs in their own paragraphs.",
             "Owns the capture + PR-post that /sk:test-eyeball reuses; neither restates the other.",
         ],

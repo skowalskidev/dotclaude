@@ -19,36 +19,34 @@ read the manifest unless told, so it improvises (the fix for a boot+screenshot a
 "emulator-first" when the `firebase` MCP + the repo's e2e sign-in bridge were provisioned). TEST: before
 any such step, here or in a subagent prompt, the manifest + reference were read and the path traces to them.
 
-**DO check the FALLBACK before reporting a project capability unavailable — an MCP failing to connect is
-not a missing capability.** ToolSearch finding none of a stdio MCP's tools means the SERVER didn't load,
-not that the service is down. Read the fallback from the manifest and, after applying
-`references/project-instructions.md`, allowed project docs; then drive the same endpoint another way — an SDK + credential, a CLI, or a library
-(e.g. firebase MCP down → `firebase-admin` + the work ADC; chrome-devtools MCP down → Playwright over
-CDP on the debug port). TEST: no capability is called unavailable until those sources were read and the
-fallback tried.
+**DO complete these three capability checks before asking for auth or reporting access unavailable:**
+1. Discover current host tools and connected apps/plugins, native MCP status and installed/enabled state.
+2. Read project and shared manifests, host credential home and fallbacks; verify the intended identity
+   and environment through existing evidence or one bounded read-only check per candidate path.
+3. Verify the exact requested action with tool schemas or CLI version/help and current official
+   support. Use an authorized capable path within the same credential and write boundaries.
+Apply the catalog's Capability diagnosis section. A fallback never authorizes bypassing a policy
+denial, installing a connector or moving credentials.
 
-## The auth-gate protocol (ask me FIRST, then wait)
+DO scope results to host, profile and action. A signed-out test browser does not invalidate a working
+CLI or connector. Keep installed, exposed, authenticated and action-capable separate.
+TEST: an auth question names the missing action and checked paths; zero authorized capable paths
+remain unchecked.
 
-When a task needs an action ONLY I can do — authenticate, start a service, install a tool, restart the
-session/app, or use a capability the connector withholds (e.g. a prod/Firestore write) — do NOT grind
-around it or bury it at the end. Instead:
+## The auth-gate protocol (after capability checks, ask once and wait)
 
-1. **Detect early** — at session start (the precheck hook flags already-expired connectors) and at the
-   first point of need. A missing/blocked connector is surfaced as obviously as any hard blocker.
-2. **Stop and ask FIRST**, before starting the task and before any workaround.
-3. **Give numbered, copy-pasteable, right-sized steps** — no lecture. Use the exact `auth.steps` from
-   this project's manifest; never invent them. e.g. "1. Run `stripe login --project-name=work-prod`
-   2. Confirm 'configured for your work org'  3. Reply done."
-4. **Wait, leaving open what he needs.** No degrading, guessing, or grinding. Only genuinely UNRELATED parallel work may continue.
+DO enter this gate only after the checks above establish an action ONLY Simon can do: authentication,
+consent, a required install/restart or a gated write. Surface the exact missing action at first need:
+
+1. **Detect early** at session start and first need. Treat precheck warnings as evidence about their
+   recorded host/path, then complete capability checks before labeling the task blocked.
+2. **Ask once for the human-only step**, with the checked paths and exact remaining blocker. Stop
+   dependent work; keep independent authorized work moving. Never work around a confirmed policy denial.
+3. **Give numbered, copy-pasteable steps** from the manifest's `auth.steps`, adapted through the host
+   reference. For an unlisted account connector, verify the active host's official instructions.
+   Never invent login steps or ask to reconnect working access.
+4. **Wait, leaving open what he needs.** No credential copying, guessing, or repeated auth prompts.
 5. **Resume the blocked task first** once I reply "done" / "restarted" / an explicit write-confirmation.
-
-Distinguish the failure so the fix is right:
-- **Needs authentication** (expired/absent OAuth) → I run `/mcp` and re-authenticate. Only I can — a
-  hook/agent can't refresh it.
-- **Down / unreachable** (a local server is off) → start the service; this is NOT an auth problem.
-- **Not loaded yet** (a just-provisioned MCP server loads next session) → tell me up front to restart,
-  then reply "restarted".
-- **Blocked by design** (a prod write via a read-only connector) → see prod safety below.
 
 ## Work / personal boundary
 
