@@ -169,21 +169,42 @@ TEST: each point is one row; its before cell sits left of its after cell in that
 after image sits outside the table; video paragraphs use only the labeled fallback above; a posted row
 with an after but no before and no `new, no before` note broke the rule.
 
-**Keep ONE screenshot comment per PR and edit it in place — never append a second.** Open the comment
-body with `<!-- sk:screenshot-changes -->` and start each point's row with `<!-- point:<slug> -->` in its first cell. Before posting, find the marked comment:
-`gh api repos/$REPO/issues/$PR/comments --paginate --jq '.[] | select(.body | startswith("<!-- sk:screenshot-changes -->")) | .id'`.
-None → create it. Found → fetch its current body, replace ONLY the rows for points re-captured this
-run, append rows for new points, keep every untouched row verbatim, drop a row only when its
-point left the diff. Give any fallback video group `<!-- point-video:<slug> -->` and
-`<!-- /point-video:<slug> -->` markers; replace only the groups for re-captured points, preserving
-untouched groups and removing a group only when its point left the diff. Write it back with
-`gh api -X PATCH repos/$REPO/issues/comments/$ID -F body=@<file>`
-— never a body reconstructed from memory. For an existing comment in the older heading-per-point layout, migrate each
-point once into a row, preserving its media URLs, statuses and order. Older
-UNMARKED screenshot comments: name them in the hand-back, delete none without a yes. (e.g. renaming
-one switch re-shoots that one point; only its row changes and the comment count stays the same.)
-TEST: the PR has exactly one marked comment; a re-run changes its `updated_at`, not the comment count,
-and every point marker opens exactly one table row.
+**DO publish one fresh consolidated evidence comment on every refresh, then remove the obsolete
+workflow-owned evidence after verification.** Use the existing posting authorization; do not ask again
+to replace and clean up this workflow's evidence. Keep the complete current screenshot table and video
+groups together, so the latest comment shows the current diff (e.g. a renamed switch refreshes one row
+while the replacement retains the other current points).
+
+1. **Inventory and assemble.** Fetch every page of `repos/$REPO/issues/$PR/comments` and confirm the
+   authenticated author. Read saved bodies, never reconstruct them from memory. Select only comments
+   by that author with `<!-- sk:screenshot-changes -->`, or unmarked legacy comments whose screenshot
+   layout, media and recorded publication history establish the same workflow ownership. Preserve other
+   authors, review discussions, mixed-purpose comments and uncertain matches. Record candidate IDs and
+   bodies locally before cleanup. Carry forward every still-current untouched row, video group, caveat
+   and gap; replace re-captured points and drop only points that left the diff. Migrate older layouts
+   into the single table without losing current evidence.
+2. **Create or resume this refresh.** Start the body with `<!-- sk:screenshot-changes -->`, followed by
+   `<!-- evidence-refresh:<id> -->`; save that unique refresh ID and final body locally before posting.
+   Start each row with `<!-- point:<slug> -->`; bracket fallback video groups with
+   `<!-- point-video:<slug> -->` and `<!-- /point-video:<slug> -->`. Before every create or retry, list
+   comments again for this author's refresh ID. Resume its replacement when found, including after a
+   timeout or interrupted attachment upload; create only when absent. A later refresh gets a new ID.
+   Use `--body-file` or `-F body=@<file>`; patch only this refresh's replacement while finishing uploads
+   or correcting its saved layout. Never use `--edit-last` against an unrelated or obsolete comment.
+3. **Verify before deleting.** Apply the rendered-media and browser-playback checks below to the saved
+   replacement. Retain the prior evidence on any incomplete check, report the verification gap and
+   resume the same refresh. A successful create response alone never authorizes cleanup.
+4. **Retire and reconcile.** After the replacement passes, update workflow-owned PR-body, plan and
+   report links to its URL. Re-fetch each obsolete candidate and confirm its author and body still
+   match the inventory before `gh api -X DELETE repos/$REPO/issues/comments/$ID`; preserve and report
+   concurrent edits. Include clearly owned unmarked legacy evidence in cleanup, without another
+   permission question. Re-list every page and verify exactly one current workflow-owned evidence
+   comment remains, all intended obsolete IDs are absent, and retained unrelated comments are intact.
+   On interrupted cleanup, locate the verified replacement and delete only the remaining candidates.
+
+TEST: a completed refresh has a new comment ID, one complete current evidence comment and zero obsolete
+workflow-owned evidence comments. A retry reuses its recorded refresh ID; failed verification deletes
+nothing; unrelated or other-author comments survive. Record the replacement URL and cleanup result.
 
 **GitHub-only — never an external host.** DO use a GitHub-native attachment route and verify the
 rendered comment with the intended repository viewer's access. A successful upload or reachable raw
@@ -193,11 +214,13 @@ file does not prove inline rendering, especially in a private repository.
    `--attach` when supported. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
    the CLI replaces that reference with the uploaded URL. A reference within a sentence renders
    as a link. Follow [GitHub's attachment instructions](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video),
-   then apply the table/player layout above and verify the final rendered result. Reuse the marked
-   comment; do not let an attachment command create a second screenshot comment.
+   then apply the table/player layout above and verify the final rendered result. Let the attachment
+   command create this refresh's replacement, or target its recorded ID to finish it. Reconcile that
+   ID before retrying so uploads do not create duplicate replacements.
 2. **Else use GitHub's browser attachment control** in the authenticated test browser. Upload the
    image or video to the intended repository's comment editor and preserve its generated attachment
-   URL. Collect URLs, then update the single marked comment with its complete media layout.
+   URL. Collect URLs, then publish this refresh's replacement with its complete media layout, or finish
+   the replacement already recorded for this refresh.
    An undocumented upload endpoint is not a proven fallback: use it only after a successful upload
    and rendering check in this run; never assume its URL is playable. If no attachment route works,
    retain the screenshot evidence and mark each affected video `blocked: <reason>`.
