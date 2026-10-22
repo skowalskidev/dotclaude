@@ -82,6 +82,10 @@ class Busy(GateError):
     pass
 
 
+class ProbeFailed(Busy):
+    """A host probe could not read the machine, so the answer is defer (exit 75), never a hard failure."""
+
+
 def root_path(value):
     if value is None:
         return Path.home().resolve() / ".claude/state/local-capacity"
@@ -356,7 +360,7 @@ def simulator_pressure():
             raise ValueError("missing load or core count")
         return load, cores
     except (OSError, ValueError) as exc:
-        raise GateError("host load probe failed; defer simulator work") from exc
+        raise ProbeFailed("host load probe failed; defer simulator work") from exc
 
 
 def compressed_share():
@@ -393,7 +397,7 @@ def memory_pressure_level():
             pass
         return (DEFER_PRESSURE_LEVEL if compressed_share() > MAX_COMPRESSED_SHARE else 1), "compressed-share"
     except (OSError, subprocess.TimeoutExpired, ValueError, AttributeError) as exc:
-        raise GateError("memory probe failed; defer heavy work") from exc
+        raise ProbeFailed("memory probe failed; defer heavy work") from exc
 
 
 def cpu_idle_percent():
@@ -412,7 +416,7 @@ def cpu_idle_percent():
             raise ValueError("invalid idle percent")
         return value
     except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-        raise GateError("CPU probe failed; defer heavy work") from exc
+        raise ProbeFailed("CPU probe failed; defer heavy work") from exc
 
 
 def host_reading():

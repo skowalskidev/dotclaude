@@ -840,6 +840,25 @@ class PriorityTests(unittest.TestCase):
         self.assertIn("memory pressure is warning (level 2, via sysctl)", defer.stdout)
         self.assertIn("memory-pressure=warning (level 2, defer at 2)", defer.stdout)
 
+    def test_a_failed_host_probe_defers_with_exit_75_not_a_hard_failure(self):
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        (self.root / "booted.json").write_text('{"devices":{}}')
+        env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
+                   LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
+        broken = (({"load": 0, "cores": 8, "idle": "unreadable"}, "CPU probe failed; defer heavy work"),
+                  ({"load": 0, "idle": 90}, "host load probe failed; defer simulator work"),
+                  ({"load": 0, "cores": 8, "idle": 90, "memory_level": 3}, "memory probe failed; defer heavy work"))
+        for fixture, message in broken:
+            (self.root / "pressure.json").write_text(json.dumps(fixture))
+            for args in (("run", "--owner", "prober", "--", sys.executable, "-c", "pass"), ("cpu",),
+                         ("claim-sim", "--udid", SIM, "--owner", "prober")):
+                result = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
+                                        env=env, capture_output=True, text=True, timeout=20)
+                self.assertEqual(result.returncode, gate.BUSY, (args, result.stderr))
+                self.assertIn(message, result.stderr)
+        self.assertIsNone(gate.read_state(self.root))
+        self.assertEqual(gate.read_claims(self.root), {})
+
     def test_status_prints_every_slot_free_and_held(self):
         free = self.cli("status").stdout.splitlines()
         self.assertEqual(free[:3], ["heavy slot %d of 3: free" % number for number in (1, 2, 3)])

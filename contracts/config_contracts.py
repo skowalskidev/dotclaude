@@ -46,6 +46,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
             "Defer every acquire, run, claim-sim and stack-acquire with exit 75 naming the reading when CPU idle is below 20%, load exceeds 1.5 x logical cores while CPU idle is also below 35% (load alone, as in 200 at 57% idle, is GO) or kern.memorystatus_vm_pressure_level reads 2 (warning) or 4 (critical), with a compressed-share-above-40%-of-RAM fallback only when the sysctl is unavailable and never a fixed compressed-GiB threshold; cpu prints one GO or DEFER line with the pressure level.",
+            "A failed CPU, load or memory probe defers with exit 75 like every other deferral; exit 1 means a fault to inspect, never defer.",
             "Count at most MAX_BOOTED_SIMULATORS (1) device machine-wide: claimed, leased or not Shutdown, unleased devices included; a second claim-sim or simulator run exits 75 naming the holder, the same owner included.",
             "Admit the priority owner (prioritize: default 60, maximum 180 minutes) first, in the first slot to free; it passes no cap but keeps the CPU, load and memory guards, so only real saturation defers it. Stop, signal or shorten no running job; defer other new requests with exit 75.",
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",

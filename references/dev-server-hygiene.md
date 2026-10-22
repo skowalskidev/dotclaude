@@ -257,7 +257,8 @@ but keeps every guard, so real saturation still defers it and high load at idle 
 a lagging one-minute average that reads low while the CPU is pegged and high long after, so idle is the
 saturation measure and load only adds a signal while idle confirms it. TEST: load 200 at 57% idle with
 normal memory prints `GO`; load 200 at 10% idle prints `DEFER`. Simulator admission additionally defers when any device is Booted, Booting or
-Shutting Down outside the lease. A failed capacity probe is unknown, never permission to proceed. TEST:
+Shutting Down outside the lease. A failed CPU, load or memory probe is unknown, never permission to
+proceed, and exits 75 like every other deferral. TEST:
 a rejected command has not started and the small work remains runnable.
 
 DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
