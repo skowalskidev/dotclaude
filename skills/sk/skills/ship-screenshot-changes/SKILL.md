@@ -209,6 +209,7 @@ nothing; unrelated or other-author comments survive. Record the replacement URL 
 **GitHub-only — never an external host.** DO use a GitHub-native attachment route and verify the
 rendered comment with the intended repository viewer's access. A successful upload or reachable raw
 file does not prove inline rendering, especially in a private repository.
+Apply `rules/connectors.md` before an auth question or an unsupported-capability claim.
 
 1. **Feature-detect `gh pr comment --attach`** with `gh pr comment --help`. Use `--body-file` and
    `--attach` when supported. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
@@ -250,10 +251,17 @@ an inline player; do not publish one as a substitute for a verified GitHub video
 mode-0600 evidence file and inspect `body_html` locally. Report counts and playback outcomes only;
 private media URLs can carry short-lived credentials, so never print the HTML or signed URLs.
 Confirm one screenshot table, correct point/platform/before-after mapping, and a rendered
-video player for every published clip; an anchor alone fails. Then open the posted comment in the
-authorized test browser. Check every screenshot loads, and play every video using its visible controls:
+video player for every published clip; an anchor alone fails. Open the posted comment in the
+authorized test browser. When that browser lacks access but the authenticated connector/API can read
+the saved comment and its media, render its exact returned `body_html` unchanged in an isolated browser
+with the same remote media. Keep authentication headers/tokens outside page markup and private signed URLs out of
+logs/reports. Do not reconstruct the comment, insert players or substitute local media.
+Label this route `API-rendered comment verification; full-page UI unchecked`; it proves the comment's
+media, not the signed-in site's surrounding UI. If unchanged markup cannot load its players, retain
+the verification gap. Both routes require the same checks before reporting success or retiring prior
+evidence. Check every screenshot loads, and play every video using its visible controls:
 confirm duration > 0, playback time advances, and the expected first and last states appear without
-navigation or media errors. Save the comment URL and playback results with the evidence report.
+navigation or media errors. Save the comment URL, verification route and playback results with the evidence report.
 TEST: all screenshots remain visible and every expected video is playable inline, or its cell reports
 `blocked: <reason>` and the hand-back names the missing evidence; HTTP 200, local ffprobe success and
 the absence of Camo URLs alone do not pass publication.

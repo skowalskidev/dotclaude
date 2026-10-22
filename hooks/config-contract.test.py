@@ -70,6 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("connector-capability-before-auth", "Connector discovery and exact-action checks precede human-only auth gates; media verification can reuse authenticated API access without weakening browser playback proof."),
     ("automatic-config-repair-lifecycle", "Every task session receives scoped repair authority; startup reports unfinished work without committing, merging or discarding it."),
     ("branch-cleanup-closes-owned-inventory", "Task closure accounts for owned refs; requested repo cleanup surfaces unique branches and preserves recovery, activity and remote-write safeguards."),
     ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
@@ -1350,6 +1351,36 @@ def check_automatic_config_repair_lifecycle() -> None:
         for stale in ('never auto-applies', 'auto-analyse, never auto-optimize',
                       'offer to commit + push', 'still preview and confirm as normal'):
             check(stale not in content, relative + ' restored obsolete repair gate: ' + stale)
+
+
+def check_connector_capability_before_auth() -> None:
+    """Catch conflicting auth shortcuts and weakened evidence routes in the owning instructions."""
+    connectors = (ROOT / 'rules/connectors.md').read_text()
+    discovery, gate = connectors.split('## The auth-gate protocol', 1)
+    for required in ('tools and connected apps/plugins', 'native MCP status',
+                     'project and shared manifests', 'read-only check',
+                     'exact requested action', 'CLI version/help', 'current official',
+                     'signed-out test browser', 'credential and write'):
+        check(required in discovery, 'Capability preflight lost: ' + required)
+    catalog = (ROOT / 'references/connectors-setup.md').read_text()
+    check('## Capability diagnosis' in catalog and 'name AND description' in catalog
+          and 'official docs/releases' in catalog and 'Reads never prove upload/write support' in catalog,
+          'Connector catalog lost exact-action diagnosis')
+    check('only after the checks above' in gate and 'Stop\n   dependent work' in gate,
+          'Auth gate must follow capability checks and stop dependent work')
+    security = (ROOT / 'rules/security.md').read_text()
+    check('apply `rules/connectors.md` for capability discovery' in security,
+          'Security must delegate auth ordering to the connector owner')
+    check('ask me to auth whenever' not in security and 'before any workaround' not in gate,
+          'Immediate-auth shortcut conflicts with capability discovery')
+    media = (ROOT / 'skills/sk/skills/ship-screenshot-changes/SKILL.md').read_text()
+    for required in ('Apply `rules/connectors.md`', '`body_html` unchanged', 'same remote media',
+                     'Do not reconstruct the comment, insert players or substitute local media',
+                     'API-rendered comment verification; full-page UI unchecked',
+                     'Both routes require the same checks', 'duration > 0',
+                     'playback time advances', 'expected first and last states',
+                     'private signed URLs out of', 'HTTP 200'):
+        check(required in media, 'Media verification lost: ' + required)
 
 
 def check_branch_cleanup_closes_owned_inventory() -> None:
