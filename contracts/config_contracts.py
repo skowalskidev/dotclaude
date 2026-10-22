@@ -412,12 +412,13 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "rules/spend-approval.md": {
-        "mission": "No paid balance is ever drawn down without Simon's explicit per-call yes.",
-        "purpose": "Billable/metered spend (paid renders, credit API calls) requires per-call approval.",
+        "mission": "No paid balance is drawn down without Simon's explicit per-call yes, and a free allowance keeps most of its calls for later verification.",
+        "purpose": "Billable/metered spend requires per-call approval; a free or trial allowance is a capped budget.",
         "criteria": [
             "Get an explicit per-call yes before every billable operation; one yes is not a batch.",
-            "A diagnose/fix/test task is never license to spend; free calls only until approved.",
+            "A diagnose/fix/test task is never license to spend; free calls within the allowance cap only until approved.",
             "No bisection or retry loop that fires paid calls until one succeeds.",
+            "A free or trial allowance spends at most 5 calls or 10% of it, whichever is smaller, without a yes; each call answers a distinct question.",
         ],
     },
     "rules/copy-quality.md": {
