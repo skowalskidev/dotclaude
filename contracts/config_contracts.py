@@ -958,13 +958,14 @@ CONTRACTS: dict[str, dict] = {
             "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
+            "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every PR in the run, in parallel and non-blocking; never substitute ad-hoc suites or queries; prod-data's Phase 1 records doesn't-apply.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each changed journey's video, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
-            "Runs a landing gate before reconciling: the journey, the matrix, the screenshots, resolved "
-            "threads and the Deploy-TLDR are confirmed present on the FETCHED PR, not just produced "
-            "in-session.",
+            "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
+            "prod-data verdict, the screenshots, resolved threads and the Deploy-TLDR are confirmed on "
+            "EVERY FETCHED PR, not just produced in-session.",
         ],
     },
     "skills/sk/skills/ship-merge-batch/SKILL.md": {

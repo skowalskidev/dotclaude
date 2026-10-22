@@ -123,8 +123,8 @@ runs. A summary proves you can describe it. Neither proves point four of a five-
 TEST: every ask in the ledger has a verdict against it. A missing verdict is a missing feature.
 
 **DO run `/sk:ship-full-detailed-workflow` on every open PR the work opened or pushed to, before
-hand-back, with its `/sk:ship-verify-with-prod-data` leg when the diff changes stored data or what is
-sent from it.** Ship-report proves the journeys; the harness reviews the pushed PR and lands its gate.
+hand-back.** Ship-report proves the journeys; the harness reviews and verifies the pushed PR and lands
+its gate.
 TEST: a hand-back naming an open PR from this run cites that PR's landing-gate result. (the fix for two
 PRs handed back unreviewed; the harness then found a dropped consent event and a no-op column revoke.)
 
