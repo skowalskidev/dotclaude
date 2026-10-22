@@ -173,11 +173,17 @@ do not claim or shut down that unrelated device automatically.
 DO distinguish three proofs for requested UI/preview/capture: process launch, simulator framebuffer
 and desktop GUI. Skip GUI and capture for headless runtime tests unless separately requested. Install success
 and a process PID prove neither screen readiness nor a usable preview. Inspect the simulator capture
-for the requested screen, then verify that the selected GUI displays that UDID for an interactive
-preview. Capture the desktop/window through an already authorized mechanism when available. Missing
-macOS screenshot/accessibility permission is an evidence gap; report it without automatically changing
-permissions or declaring the app broken. TEST: a preview receipt states exactly which of these proofs
-was obtained, and does not call unseen desktop contents verified.
+for the requested screen; it proves the device rendered, not that the window Simon looks at shows it.
+DO count an interactive preview ready only after capturing the GUI window itself with macOS
+`screencapture` (`-l <windowid>`, or `-R` on the window's bounds) and viewing that image for the device
+screen, not a placeholder such as "Connecting display...". Wait at most 60 seconds after boot readiness;
+past that, report the preview NOT visible with the simctl captures instead, and never write "window
+open on <screen>". A delegated worker returns the window capture path; the orchestrator views it before
+relaying "it's up" (the fix for a delegated run that reported the window on the target screen while it
+showed "Connecting display..."). Missing macOS screen-recording/accessibility permission is an evidence
+gap; report it without automatically changing permissions or declaring the app broken. TEST: a preview
+receipt states exactly which of these proofs was obtained, and every interactive-preview "ready" cites a
+window capture path that shows the device screen.
 
 ## Local backend safety
 
