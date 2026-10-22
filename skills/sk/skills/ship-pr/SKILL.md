@@ -13,9 +13,15 @@ with a deployment TLDR, before any template sections.
 
 - Heading: `## 🚀 Deploy TLDR`, as the very first content of the PR body.
 - Human-readable numbered steps in the imperative mood.
-- **Only what to DO.** Never what not to do — no warnings, no prohibitions, no rollback
-  caveats in this block. If a hazard genuinely must be recorded, it goes in Dev Notes,
-  not the TLDR.
+- **Only what to DO.** Never what not to do — no warnings or prohibitions in this block. If a
+  hazard genuinely must be recorded, it goes in Dev Notes, not the TLDR.
+- **DO give every step that changes production four parts:** its order number, a `Check:` line
+  (the precondition and its expected result, e.g. "the provider shows the registration approved"),
+  a `Smoke:` line (the post-step check and its expected result), and a `Rollback:` line (the command
+  or setting that restores the prior state). Rollback is an action to run, not a caveat. A step with
+  no safe rollback says so on its `Rollback:` line. The content comes from
+  `~/.claude/references/git-pr-deploy.md` § Deploy safety. TEST: every merge, deploy, migration
+  and traffic-moving step carries all four parts.
 - Cover, in this order, only the items the diff actually needs:
   1. Cross-repo merges/deploys and their order, linking companion PRs
      (e.g. "Merge and deploy your-work-org/some-service#NN first").

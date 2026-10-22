@@ -648,8 +648,8 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "references/git-pr-deploy.md": {
-        "mission": "A commit is navigable a year later and a deploy is verified working, not assumed working.",
-        "purpose": "Commit shape, PR hygiene, live release preflight, and verifying a deploy actually worked.",
+        "mission": "A commit is navigable a year later, a set of PRs merges and deploys in either order with no outage, and a deploy is verified working, not assumed working.",
+        "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
@@ -659,6 +659,9 @@ CONTRACTS: dict[str, dict] = {
             "Allow authorized task-owned current ref retirement in any repository at unchanged detached HEAD with entire-tip proof; preserve workspace files, registration, app lifecycle and foreign sessions. Create a fresh branch before further edits.",
             "Refresh each actual remote counterpart tip, prove its disposition and bind authorized deletion to that SHA; retain moved refs rather than renewing a lease without renewed ownership and merge proof.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
+            "Owns deploy safety: a local merge train of the default branch plus every dependent or overlapping open PR in merge order, affected suites run once, conflicts fixed on the owning branch, never only on the train.",
+            "Each migration records its number above every open PR's, the pipeline's real apply order, compatibility with live and new code under either deploy order, and its backfill reach counted read-only on production.",
+            "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
             "After an authorized push or ready-flip, read the PR's merge state and confirm within a minute a CI run for the head sha is in progress; no run is a failure to investigate, and a run queued behind a superseded one is cancelled. Run the repo's ordering checks before pushing a base merge.",
@@ -963,9 +966,10 @@ CONTRACTS: dict[str, dict] = {
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each changed journey's video, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
+            "Run references/git-pr-deploy.md § Deploy safety on every PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
             "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
-            "prod-data verdict, the screenshots, resolved threads and the Deploy-TLDR are confirmed on "
-            "EVERY FETCHED PR, not just produced in-session.",
+            "prod-data verdict, the deploy-safety results, the screenshots, resolved threads and the "
+            "Deploy-TLDR are confirmed on EVERY FETCHED PR, not just produced in-session.",
         ],
     },
     "skills/sk/skills/ship-merge-batch/SKILL.md": {
@@ -1305,6 +1309,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "PR bodies that open with a deploy TLDR.",
         "criteria": [
             "The Deploy TLDR comes first, before any template section.",
+            "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
             "A User journey and a System journey section follow it, read from "
             "references/tldr-report-formats.md, so a reviewer can judge both the feature and the "
             "mechanism without reading the diff. Same blocks as end-report, so a PR and the report "

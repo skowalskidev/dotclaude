@@ -51,6 +51,13 @@ tickets; a fix that belongs to another PR is handed to that owner via
    (the fix for a run that substituted ad-hoc suites and one-off read-only queries for both skills
    across three PRs; run properly, the matrix found four real gaps and the data check found a
    per-person cross-repo reconciliation.)
+   **DO run `references/git-pr-deploy.md` § Deploy safety on EVERY PR in the run, unprompted, as a
+   parallel background agent on that same fan-out.** It never blocks; stage 8's Deploy TLDR and the
+   landing gate wait on it. A merge-train conflict, red suite or unsafe migration is a finding fixed
+   before hand-back.
+   **DON'T treat each PR's green CI as proof the set merges and deploys safely.** TEST: every PR in
+   the run shows the merge-train result, migration verdict and cutover table at the landing gate
+   without Simon asking.
 7. **`/sk:ship-screenshot-changes`** — capture changed web surfaces and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
    journey videos onto the open PR (GitHub-native); plan the post from the start of the sweep.
@@ -76,10 +83,14 @@ verified the user + system journey, then handed back with it never posted to the
   cases that did not run.
 - Prod data (stage 6), on every PR: the per-account reconciliation result, or the prod-data skill's
   doesn't-apply verdict with its named reason.
+- Deploy safety (stage 6), on every PR: the merge-train result (PR order, default-branch sha, suites,
+  pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
+  per part.
 - Screenshots (stage 7): every surface eligible under stage 7 has its image and journey video on the PR; record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
 - Threads (stage 5): 0 unresolved review threads.
-- Deploy-TLDR (stage 8): the PR body opens with it.
+- Deploy-TLDR (stage 8): the PR body opens with it, each production step carrying its check, smoke
+  and rollback.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
 empty or suspiciously short → STOP.
 

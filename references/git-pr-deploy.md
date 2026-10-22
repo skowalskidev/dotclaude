@@ -359,6 +359,77 @@ branch and any post-merge unique work remain protected, and every scoped ref has
 
 - Keep a running list of everything that must be applied at deploy time — prod configs, indexes, rules, functions, env vars — so nothing is missed when shipping.
 
+## Deploy safety — merge train, migration order, live-traffic cutover
+
+Owned here; `/sk:ship-full-detailed-workflow` runs it on every PR before hand-back. Proves that
+merging and deploying the set, in the intended order, causes no regression and no outage. Each PR's
+green CI proves only that PR against its own base.
+
+**DO run three checks per PR and post each result on the PR**, recording a named doesn't-apply
+reason for a part the diff does not touch (no migration, no traffic move).
+
+### 1. Merge train
+
+**DO build a local `train/<slug>` branch from current `origin/<default>` and merge, in the intended
+merge order, every open or draft PR this work depends on or that touches the same files, tables,
+functions or provider resources.** Use the batch-branch merge loop in § Merging several PRs at once
+(fetch each head, check its sha, `git merge --no-ff`). Run the repo's ordering and migration checks,
+then the affected suites for the union of the PRs' diffs, ONCE.
+**DON'T resolve a conflict only on the train branch.** A conflict means the set does not compose in
+that order: fix it on the owning PR's branch (cross-owner gaps follow `/sk:ship-check-merge-readiness`),
+then rebuild the train. Never push the train; delete it at hand-back.
+TEST: the PR records the train's PR list and order, the default-branch sha, the suites run and their
+result; a conflict or red suite is fixed before hand-back, never reported as a caveat.
+
+### 2. Migration safety
+
+**DO record four facts per migration:**
+1. **Number.** Above every migration on the default branch and every open PR's
+   (§ Git, PRs, integration, the open-PR numbering check), timestamps included.
+2. **Real apply order.** Read the deploy workflow and scripts, not a README, and state with file:line
+   whether migrations apply before, after or independently of the code deploy.
+3. **Compatibility both ways.** Each schema or database-function change works with the code live today
+   AND the new code, so either deploy order causes no outage: expand first, backfill, switch readers,
+   contract in a later release (`rules/engineering-standards.md` § Legacy support policy). A drop,
+   rename, new NOT NULL without a default, tightened constraint or policy, or changed function
+   signature that live code reads splits into releases; the contract step is a later-release ticket.
+4. **Backfill reach.** Count, read-only against production through the provisioned path
+   (`rules/connectors.md`), the rows each backfill or data migration changes, by class, and record the
+   query and the counts.
+
+**DO prove compatibility mechanically when the repo has a local database:** apply the train's
+migrations in order to a fresh local stack, then run the DEFAULT branch's affected database suites on
+that schema (old code, new schema). Run the new code on the old schema too when the pipeline can ship
+code first.
+TEST: every migration has a number, apply-order, compatibility and reach verdict; a migration that
+breaks the live code under either order has been split before hand-back.
+
+### 3. Live-traffic cutover
+
+Applies to any change that moves live traffic: a messaging sender, number or provider SID, a webhook
+URL, DNS, a feature flag, a payment or email route.
+
+**DO map what carries live traffic today from the provider's read-only API before writing a step**:
+one row per resource with its live value, the query and a timestamp. Read it through the provisioned
+path (`rules/connectors.md`).
+**DO gate every traffic move on its prerequisite confirmed live from that API** (a registration
+approved, a domain verified, a sender active), and make the code deploy itself move nothing: the
+current live path stays the default until a separate step switches it.
+**DO move one step at a time; each step names its rollback** as the command or setting that restores
+the recorded live value.
+**DON'T write a cutover from a ticket, a plan or memory of the provider state, and DON'T run a
+cutover step as part of this check.** Provider writes are production writes: they wait for Simon's
+per-write yes (`rules/connectors.md` § Prod / live safety) and any billable step for
+`rules/spend-approval.md`.
+TEST: every traffic-moving step cites a live-state row and a confirmed prerequisite, and has a
+rollback; merging and deploying with no cutover step run leaves every live-state row unchanged.
+
+**DO write the result into the Deploy TLDR** with the per-step shape `/sk:ship-pr` owns: order,
+precondition check, post-step smoke with its expected result, rollback.
+(the fix for a consent change shipped across several PRs and two repos while live messaging traffic
+sat on an older approved sender; the safe order, the per-step rollback and the merge-train run were
+only written after the user asked.)
+
 ## Release preflight before building or uploading
 
 **DO read the provider's current publication state before the first release-only build, archive,
