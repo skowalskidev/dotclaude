@@ -1149,8 +1149,10 @@ CONTRACTS: dict[str, dict] = {
             "body text reference) and GitHub-native — gh --attach or the user-attachments CDN upload, "
             "git-only detached-ref for images only, never an external host; fails loud and verifies the "
             "images render (not camo-broken).",
-            "Keeps ONE marker-tagged screenshot comment per PR and edits it in place, replacing only "
-            "re-captured point rows, each opened by its point marker; preserve untouched rows and migrate the older heading-per-point layout without losing evidence.",
+            "Publish one fresh consolidated marker-tagged evidence comment per refresh; preserve current untouched rows, videos, caveats and gaps, replace re-captured points, and migrate older layouts without losing current evidence.",
+            "Record a unique refresh ID before publication; reconcile saved comments before every create or retry and resume an existing replacement. Patch only that refresh's replacement while completing uploads; never use an unrelated or obsolete comment as upload scratch.",
+            "Verify replacement rendering and playback before deleting obsolete workflow-owned evidence, including clearly owned unmarked legacy comments, under existing authorization. Preserve other authors, unrelated discussion, uncertain ownership and concurrent edits; failed verification deletes nothing.",
+            "Update workflow-owned evidence links and re-list all comments after cleanup: exactly one current evidence comment remains, intended obsolete IDs are absent and unrelated comments survive. Interrupted cleanup resumes from the verified replacement.",
             "Post ONE table with one row per point: a point-label first cell, then BEFORE left of AFTER per platform or size in the same row (Desktop before | Desktop after | Mobile before | Mobile after | iOS pairs), 200px-wide mobile/iOS images and a status in every gap cell; never stack befores and afters apart.",
             "Capture verified before/after walkthrough videos per changed journey by default, per references/screenshot-review.md. State a no-UI skip or `new, no before` when applicable; keep screenshots in before/after rows and apply the playable-video fallback when needed.",
             "Publish videos as verified inline players, never ordinary links or thumbnails; retain screenshot rows and use labeled point/platform/before-after player paragraphs in the same comment when table cells suppress playback. Preserve untouched video groups during updates.",
