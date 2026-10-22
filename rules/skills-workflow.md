@@ -46,8 +46,6 @@ Installed under `~/.claude/skills/`, discoverable in the runtime skill list (a h
 - **[impeccable]** (pbakaus/impeccable) — design finishing slash-commands; recommended chain before a page goes live: `/audit` → `/normalize` → `/polish`.
 - **[agency-agents]** (msitarzewski/agency-agents) — design/marketing/product agent `.md` files, pasted into chat as context (NOT slash commands).
 
-When listing/recommending a skill, prefix with its repo (`[gstack]`, `[impeccable]`, `[agency-agents]`, `sk`/`sk-work`) and say how to invoke it; the recommended chains live under "Other repos' skills" in Workflow Rules.
-
 ## Workflow Rules
 
 ### The map lives in ONE place — `~/.claude/references/skill-stack.md`
