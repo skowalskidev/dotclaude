@@ -1,6 +1,6 @@
 ---
 name: meta-report-standup-weekly
-description: Write the short spoken standup report Simon reads aloud at the monday morning meeting. Gathers the window mechanically from git commits, GitHub PRs and Linear tickets, collapses them into outcomes, and emits punchy Last week / Today / Next bullets. Use for "standup report", "write my standup", "monday morning standup", "what did I do last week", or the weekly summary of work done.
+description: Write the short spoken weekly standup report Simon reads aloud. Gathers the full weekly window mechanically from git commits, GitHub PRs and Linear tickets, collapses them into outcomes, and emits punchy This week or Last week / Today / Next bullets. Use for "standup report", "write my standup", "monday morning standup", "what did I do last week", or the weekly summary of work done.
 argument-hint: [optional window, e.g. "since Friday" or "2026-08-03..2026-08-10"]
 ---
 
@@ -19,10 +19,15 @@ Two failure modes this skill exists to prevent, in order of how often they happe
 
 Take today's date from the session context. Never shell out for it.
 
-- **Default:** previous Monday 00:00 through now. That is the Monday-standup window.
-- If he names one ("since Friday", a date range), use his.
-- If today is not a Monday, the default becomes "since the previous working day" and you say which
-  you assumed in one line before the report.
+- **DO default to a weekly window in the session's timezone:** on Monday, use the previous
+  Monday 00:00 through now; Tuesday through Sunday, use this week's Monday 00:00 through now.
+- **DO honor an explicit window** ("since Friday", "last week", a date range) instead. "Last week"
+  means the previous calendar week, Monday 00:00 to this Monday 00:00, excluding the end boundary.
+- **DO state the exact date range in one line before the report.** Keep the same start and end
+  across git, GitHub and Linear; retrieve every page needed to cover it.
+- **DON'T shorten a weekly report to the previous working day.** For example, a Thursday default
+  includes Monday through Thursday, not just Wednesday and Thursday.
+  TEST: Monday covers the preceding week; every other day starts this Monday; an explicit range wins.
 
 ## 2. Gather from three sources, in parallel, never from him
 
@@ -70,10 +75,11 @@ This step is the whole value of the skill.
 
 ## 4. Write it in this shape, always
 
-Three headings, in this order. No preamble, no closing summary.
+Three headings, in this order. Only the date-range line precedes them; no closing summary.
 
-**Last week** — outcomes only, and honestly tagged. Say "shipped" or "merged" only when the PR has
-a non-null `mergedAt`. Draft work belongs under Today or Next, never in last week's shipped list.
+**This week** (use **Last week** for the Monday default or an explicit previous week, and the date
+range for other windows) — outcomes only, and honestly tagged. Say "shipped" or "merged" only when
+the PR has a non-null `mergedAt` inside the reporting window. Draft work belongs under Today or Next.
 
 **Today** — the ticket you are on, then the two or three concrete things already done this morning.
 

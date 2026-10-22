@@ -1706,9 +1706,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/meta-report-standup-weekly/SKILL.md": {
         "mission": "Simon walks into standup with a 45-second script he did not have to write or remember.",
-        "purpose": "Builds the spoken Last week / Today / Next standup bullets from the record of a "
-                   "window rather than from Simon's memory.",
+        "purpose": "Builds spoken weekly outcomes / Today / Next standup bullets from the record "
+                   "rather than from Simon's memory.",
         "criteria": [
+            "Default to the previous Monday through now on Mondays, and this Monday through now on Tuesday through Sunday, in the session timezone. Explicit windows override; never substitute the previous working day.",
+            "State the exact date range, apply it to all three sources with complete pagination, and label outcomes This week, Last week or the explicit range to match. Count merged work only inside that window.",
             "NEVER asks Simon what he did. git log, gh pr list and Linear list_issues hold it, so a "
             "question about the week's work is the one failure that makes the skill pointless.",
             "Runs git log with --all. Simon's branches live across several Conductor worktrees that "
