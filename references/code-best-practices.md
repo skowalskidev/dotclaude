@@ -22,6 +22,40 @@ became a mangled refspec. TEST: no `$NAME:` without braces in a command.
 line exits 127 and the chain after it never runs. Write the command out, or use a function. TEST: no `$VAR` in
 command position.
 
+#### Agent-written shell fails fast and loud
+
+`rules/process.md` § Agent-written shell points here. Applies to every script, compound command, trap
+and background loop an agent writes.
+
+**DO open every multi-step script with `set -euo pipefail`; in a one-line compound command, chain each
+dependent step with `&&`.** Use `git -C <dir>` instead of `cd <dir>` for git.
+**DON'T put `;` after a `cd` or after any step a later step depends on.** When the `cd` fails, the steps
+after `;` run in whatever directory the shell was already in (the fix for a `git merge --ff-only` that
+ran in another checkout and moved its local main after `cd <missing-dir> && …; git merge …`).
+TEST: zero `;` after a `cd`, a lookup or a build in the command.
+
+**DO let a lookup, `cd`, cleanup or release step fail loudly.** Silence one (`>/dev/null 2>&1 || true`)
+only when its failure is harmless, and say why in an inline comment.
+**DON'T silence a release, unclaim or teardown inside a trap.** A swallowed failure leaves the claim
+held for another session to chase (the fix for a trap whose silenced simulator `release-sim` failed
+and kept the claim). Print the error and exit non-zero.
+TEST: every `|| true` or `>/dev/null 2>&1` on a lookup, `cd`, cleanup or release step carries an
+inline reason.
+
+**DO check every value a loop depends on (a run id, a PR head sha, a path) non-empty before the loop
+starts:** `[ -n "$RUN" ] || { echo "no run for $SHA" >&2; exit 1; }`. An empty or unknown value aborts
+with what was looked up; it never reaches the poll.
+TEST: no loop body uses a lookup result that was not checked non-empty first.
+
+**DO give every background wait or poll an exit condition, a timeout, and a non-zero exit printing the
+last state it saw on timeout or on any state it does not recognise.** The completion notification then
+carries the problem. Read the first interim output within 2 minutes of launch and at every check-in.
+**DON'T leave a background wait unread until it finishes.** (the fix for a CI wait that spun 30
+minutes on usage errors from an empty run id.) The CI wait script lives in `references/git-pr-deploy.md`
+§ After a push.
+TEST: every background wait states its condition and timeout, and its first output was read within 2
+minutes of launch.
+
 ### Naming — the reader must not have to open the implementation
 
 Applies to anything someone else reads to decide what a thing does: variables, functions, files,

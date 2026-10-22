@@ -125,6 +125,36 @@ id for its sha, or the named reason there is none (the fix for CI that never sta
 the PR conflicted with main, and for required checks left at "waiting for status" for ten minutes behind
 a superseded run).
 
+**DO resolve the run id a CI wait polls from the head sha's check runs**, which works for any branch
+and event, then wait under `references/code-best-practices.md` § Agent-written shell:
+
+```sh
+set -euo pipefail
+SHA=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
+# add select(.name == "<job>") to pick one workflow's run
+RUN=$(gh api "repos/$O/$R/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[]
+  | select(.app.slug == "github-actions") | (.details_url // "")
+  | capture("/runs/(?<id>[0-9]+)").id] | unique | first // empty')
+[ -n "$RUN" ] || { echo "no Actions run for $SHA" >&2; exit 1; }
+deadline=$(( $(date +%s) + 1800 ))
+while :; do
+  st=$(gh run view "$RUN" --json status,conclusion -q '.status + "/" + .conclusion')
+  case "$st" in
+    completed/success) break ;;
+    completed/*) echo "run $RUN ended $st" >&2; exit 1 ;;
+    queued/*|in_progress/*|waiting/*|pending/*|requested/*) ;;
+    *) echo "run $RUN in unexpected state '$st'" >&2; exit 1 ;;
+  esac
+  [ "$(date +%s)" -lt "$deadline" ] || { echo "timeout after 30 min: run $RUN is $st" >&2; exit 1; }
+  sleep 30
+done
+```
+
+**DON'T resolve it with `gh run list --branch` or `--workflow`.** A branch, event or workflow-name
+mismatch returns nothing, and every later `gh run view` fails on the empty id.
+TEST: a CI wait's run id traces to the head sha, and the wait exits non-zero on an empty id, a failed
+run, an unknown state or its timeout.
+
 **DO run the repo's own ordering and migration checks before pushing a merge of the base** (the CI gate
 list from `references/testing-strategy.md` § Defects first; e.g. a rule that a new migration is numbered
 above every migration on the base). TEST: the first CI run after a base merge fails on no gate that has
@@ -232,9 +262,9 @@ a green rollup on the head sha that went into the batch.
 3. Run the repo's local ordering and migration checks, push the batch branch, and open the batch PR
    with `/sk:ship-pr`: a title carrying every ticket id the repo's title check needs, "Batches #A,
    #B, #C" in the body, and one Deploy TLDR merging each PR's steps in order.
-4. Wait for ONE green CI run on the batch head, then merge it with `--merge`. When the ruleset's
-   `allowed_merge_methods` lacks `merge`, squash, then close each original with a comment linking
-   the batch PR.
+4. Wait for ONE green CI run on the batch head (the wait in § After a push), then merge it with
+   `--merge`. When the ruleset's `allowed_merge_methods` lacks `merge`, squash, then close each
+   original with a comment linking the batch PR.
 5. Watch the one deploy run for the merge sha and run each PR's post-deploy smoke
    (§ Shipping is not done until the deploy is verified).
 6. Read `gh pr view <n> --json state,mergedAt` for each original PR and the ticket status per
