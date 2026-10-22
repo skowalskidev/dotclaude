@@ -1723,7 +1723,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Explain confusing replies and proposals through compact before/after cards.",
         "criteria": [
             "Build through decision-artifact.py and the shared frame; show a 2–5 word title and one tradeoff of at most 25 words, with details collapsed.",
-            "Show real desktop/mobile captures for user-visible changes, label not-built captures Preview and omit empty previews.",
+            "Every card whose option changes or keeps a visible surface carries real desktop and 390px images in before and after; a not-built AFTER is a labelled Preview from app code or a screenshot overlay.",
             "Infer feedback: true for proposals requesting choices or comments; one corner Generate & copy action copies current inputs for chat, with a truthful fallback. Keep pure mockup and board viewers read-only.",
             "Retain complete source and legacy runtime metadata inertly for CLI extraction and deterministic rebuilding; new specs need no control schema.",
         ],

@@ -29,11 +29,15 @@ Delete repeated What it does, Contrast and Verdict paragraphs rather than shorte
 TEST: each collapsed card has at most one prose block alongside its title and labelled previews;
 that block states a consequence that changes the choice.
 
-DO use real screenshots for a user-visible change, captured per `/sk:ship-screenshot-changes`.
-Capture each state at desktop and mobile (390 wide), label a not-built state Preview, and show its
-actual application rendering rather than a drawn stand-in. Map width labels to image data URIs in
-`before` and `after`; `{text: "..."}` holds a concrete code/config snippet. Omit previews for a pure
-logic or data rule without a visible surface. Never fabricate a missing capture.
+DO attach real screenshots, captured per `/sk:ship-screenshot-changes` at desktop and 390 wide, to
+every card whose option changes or keeps something a person sees. BEFORE is the current rendering
+captured now. AFTER is the built rendering; for a not-built option it is a Preview rendered from the
+real app code or an HTML/CSS overlay on the real screenshot per `/sk:ship-mockup-before-after`,
+labelled Preview. Map width labels to image data URIs in `before` and `after`; `{text: "..."}` holds
+a concrete code/config snippet. Omit previews only for a pure logic or data rule without a visible
+surface. Never fabricate a missing capture or draw a stand-in.
+TEST: every card whose option changes or keeps a visible surface carries a desktop and a 390px image
+in before and after; a card with only text for a visible surface fails.
 
 ## Collect a response
 
