@@ -17,7 +17,8 @@ Spec (schemaVersion 1):
       "phone": {"w": 393, "h": 852},                                   # optional, iPhone default
       "css": "...",                                                   # optional, project screen CSS
       "sections": [
-        {"title": "...", "lead": "...", "frames": [
+        {"title": "...", "lead": "...", "flow": false,   # flow: true keeps every frame on one unwrapped row
+         "frames": [
           {"id": "1", "label": "EXAMPLE · 01", "title": "...", "hypothesis": "...", "note": "...",
            "pick": true, "hidden": false, "night": false,
            "html": "<inner html of the phone>"  |  "image": "/abs/path/capture.png"}
@@ -112,7 +113,7 @@ def build(spec: dict) -> str:
             frame["image"] = f"@@ASSET:{key}@@"
     esc = html_mod.escape
     sections = "".join(
-        f'<section class="board"><h2>{esc(section.get("title", ""))}</h2><p class="slead">{esc(section.get("lead", ""))}</p>'
+        f'<section class="board{" flow" if section.get("flow") else ""}"><h2>{esc(section.get("title", ""))}</h2><p class="slead">{esc(section.get("lead", ""))}</p>'
         f'<div class="row">{"".join(frame_html(f) for f in section.get("frames", []))}</div></section>'
         for section in spec.get("sections", [])
     )

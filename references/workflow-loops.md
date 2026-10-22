@@ -411,6 +411,12 @@ paywalls rejected as toddler-level next to a Claude Design export)
 TEST: the deliverable opens from `file://`, every frame is `data-frame`-tagged, and a grep of the
 build spec finds the project's font file and colour tokens, not invented hex.
 
+DO lay out a multi-step flow drawn in several design variants as one section per variant: its
+screens in step order on one unwrapped row (`"flow": true`), each variant's row stacked under the
+last. DON'T group by step with the variants side by side, because the reviewer then switches design
+on every frame and cannot follow one flow. (the fix for a 3-direction by 7-screen quiz board grouped by step)
+TEST: in a flow board every section holds one variant, frames run in step order, and no row wraps.
+
 DO generate hero art through the subscription image path in `references/agent-hosts.md` § Image
 generation, one scene per frame with the product's mascot or brand object as the reference image,
 portrait, no text in the image, a calm lower third for UI. DON'T use a paid API or stock photos the

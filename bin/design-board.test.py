@@ -93,6 +93,10 @@ def main() -> int:
         checks["shared image frames all shown"] = built.count('data-frame="img') == 4
         checks["font embedded once"] = built.count(multi["font"].split(",", 1)[1]) == 1
         checks["capture html embedded once"] = built.count("kept on this seat") == 1
+        flow = json.loads(spec.read_text())
+        flow["sections"][0]["flow"] = True
+        flow_page = load_tool().build(flow)
+        checks["flow section keeps one row"] = '<section class="board flow">' in flow_page and ".board.flow .row{flex-wrap:nowrap}" in flow_page
         checks["build(extract(build)) byte-identical"] = load_tool().build(load_tool().extract(built)) == built
         blank = json.loads(spec.read_text())
         blank["sections"][0]["frames"][1]["html"] = ""
