@@ -623,6 +623,7 @@ CONTRACTS: dict[str, dict] = {
             "Web runners start at two workers, Playwright included (--workers=2, since its default is half the logical cores); a scripted Playwright run closes each context after its batch.",
             "Every worker of a task uses the one owner string the priority record names; every native run names its simulator; a run is stopped through its supervisor, and a 75 is diagnosed with status before any retry.",
             "A restart stops the launcher's process group, confirms zero listeners, and confirms the new listener started after the stop.",
+            "A wait on a background job uses its PID, a done-file or the harness completion notification; never pgrep -f for a pattern the waiting command contains.",
             "After every start or restart, one end-to-end request through each external dependency and a read of its log for a refused credential precede any hand-over; the identity handshake alone is not enough.",
             "A billable dependency is proved with a free authenticated call unless Simon gave that call its yes; a 401 or 403 is a key-source fault fixed before hand-over, never a reason to blank the key.",
             "Port preflight checks BOTH the shared registry and the machine. Owns the cross-session "

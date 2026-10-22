@@ -493,6 +493,20 @@ own. Not restated here.
 teardown and signal discipline. They moved out of the always-on rule, which was at 69,993 bytes of a
 70,000 ceiling and could not afford to carry them.
 
+### Waiting on a background job
+
+**DO wait on a handle the job owns:** `wait $pid` in the same shell that launched it, a `kill -0 $pid`
+poll on the PID recorded at launch, a done-file the job writes as its last step
+(`cmd; echo $? > "$dir/done"`), or the harness's own completion notification for a `run_in_background`
+task.
+**DON'T poll `pgrep -f <pattern>` for a pattern the waiting command itself contains.** `pgrep -f`
+matches whole command lines, so `until ! pgrep -f "ios-run.sh" >/dev/null; do sleep 5; done` finds its
+own shell and never ends; the same bare pattern also matches other worktrees' jobs. (the fix for three
+self-matching wait loops: the rebuild queued behind one never started, and two ran until the 30-minute
+background limit killed them.)
+TEST: every wait names a PID, a done-file path or a harness notification; none searches process
+command lines for a string in its own argv.
+
 ### Where a tool's own listing lies to you
 
 `rules/process.md` carries the rule (reconcile against the storage, not the listing). The cases it used
