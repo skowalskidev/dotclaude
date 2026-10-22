@@ -344,6 +344,7 @@ CONTRACTS: dict[str, dict] = {
             "Reject a review section whose target is not an html or image asset, and refuse export while a mockups/ or previews/ html file under the plan directory is unreferenced by any section asset; bin/workflow-dashboard.test.py proves both.",
             "Render bin/workflow-dashboard.html dark by default with a persisted light toggle that leaves embedded assets unthemed, and show a review section's html target full-width above Before and Current.",
             "Give every embedded asset (html, image, text) an Open in new tab link, accept per-section links to files that are not embedded, and list any file under the plan directory that no section references as unlinked, in the offline export and the live app.",
+            "Prune hidden directories, node_modules and __pycache__ before artifact traversal at every depth; retain ordinary nested evidence and reject unreferenced preview HTML. Prove zero descent into excluded trees with a traversal sentinel in bin/workflow-dashboard.test.py.",
             "Order the section list review, doing, blocked, todo, done with plan order inside each state and the original plan number on each row, without reordering the plan's own sections array.",
         ],
     },

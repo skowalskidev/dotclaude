@@ -441,19 +441,29 @@ def referenced_paths(base, sections):
     return referenced
 
 
+def artifact_files(base, *, skip_attachments=False):
+    """Walk artifact trees without entering dependencies, hidden trees or symlink dirs."""
+    base = Path(base)
+    boundary = base.resolve()
+    for root, dirs, files in os.walk(base, followlinks=False):
+        root = Path(root)
+        dirs[:] = sorted(name for name in dirs
+                         if not name.startswith('.')
+                         and name not in ('node_modules', '__pycache__')
+                         and not (skip_attachments and root == base and name == 'attachments')
+                         and not (root / name).is_symlink())
+        for name in sorted(files):
+            file = root / name
+            if not name.startswith('.') and file.is_file() and file.resolve().is_relative_to(boundary):
+                yield file
+
+
 def compute_unlinked(base, sections):
     """Files under the plan directory no section reaches, for the 'nothing gets lost' list."""
     referenced = referenced_paths(base, sections)
     candidates = []
-    for file in base.rglob('*'):
-        if not file.is_file():
-            continue
+    for file in artifact_files(base, skip_attachments=True):
         rel = file.relative_to(base)
-        parts = rel.parts
-        if any(part.startswith('.') for part in parts):
-            continue
-        if parts[0] in ('attachments', 'node_modules'):
-            continue
         name = file.name
         if name.endswith('-plan.md') or name.endswith('-dashboard.html'):
             continue
@@ -551,9 +561,9 @@ def export_dashboard(plan, output=None):
     referenced = referenced_paths(base, state['sections'])
     for sub in ('mockups', 'previews'):
         subdir = base / sub
-        if not subdir.is_dir():
+        if not subdir.is_dir() or subdir.is_symlink():
             continue
-        for file in sorted(subdir.rglob('*.html')):
+        for file in sorted(file for file in artifact_files(subdir) if file.suffix == '.html'):
             require(file.resolve() in referenced,
                     'Unreferenced mockup/preview: ' + str(file.relative_to(base)) +
                     ' — embed it as a section asset (kind html) before exporting')

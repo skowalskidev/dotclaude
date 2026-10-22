@@ -905,6 +905,54 @@ class DashboardTests(unittest.TestCase):
             self.assertTrue(entry['href'].startswith('file://'))
             self.assertEqual(entry['bytes'], (base / 'orphan.txt').stat().st_size)
 
+    def test_artifact_scans_prune_before_descent_and_retain_nested_evidence(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            retained = {'walk/site/report.txt', 'walk/site/build/evidence.txt',
+                        'walk/site/dist/result.txt', 'walk/attachments/note.txt'}
+            excluded = {'node_modules', 'walk/site/node_modules', 'walk/site/__pycache__',
+                        '.private', 'walk/site/.next', 'attachments',
+                        'mockups/app/node_modules', 'previews/app/.cache'}
+            for relative in retained:
+                path = base / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('durable evidence')
+            for relative in excluded:
+                path = base / relative
+                path.mkdir(parents=True, exist_ok=True)
+                (path / 'generated.html').write_text('<p>Generated</p>')
+            plan = base / 'task-plan.md'
+            plan.write_text('```dashboard-state\n' + json.dumps(fixture()) + '\n```\n')
+            original_scandir = os.scandir
+
+            def guarded_scandir(path):
+                self.assertNotIn(Path(path).resolve().relative_to(base.resolve()).as_posix(), excluded,
+                                 'Excluded directories must never be entered')
+                return original_scandir(path)
+
+            with unittest.mock.patch.object(d.os, 'scandir', side_effect=guarded_scandir):
+                public = d.public_spec(plan)
+                self.assertEqual({entry['path'] for entry in public['unlinked']}, retained)
+                self.assertTrue(d.export_dashboard(plan).is_file())
+                # A real nested preview still blocks export, even alongside generated HTML.
+                (base / 'previews/app/proposal.html').write_text('<p>Review me</p>')
+                with self.assertRaisesRegex(ValueError, 'Unreferenced mockup/preview: previews/app/proposal.html'):
+                    d.export_dashboard(plan)
+
+    def test_artifact_scans_do_not_follow_symlinks_outside_the_plan(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            base = root / 'context'
+            base.mkdir()
+            outside = root / 'outside'
+            outside.mkdir()
+            (outside / 'private.txt').write_text('not task evidence')
+            (base / 'linked-tree').symlink_to(outside, target_is_directory=True)
+            (base / 'linked-file.txt').symlink_to(outside / 'private.txt')
+            entries, truncated = d.compute_unlinked(base, [])
+            self.assertEqual(entries, [])
+            self.assertFalse(truncated)
+
     def test_task_record_artifacts_include_links_with_link_role(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
