@@ -255,8 +255,9 @@ CONTRACTS: dict[str, dict] = {
             "Expose window.__measure() returning per-frame overflow past the phone bottom and the data-oneline cells that wrapped, and window.__flatten() returning each frame's page box for a full-page capture.",
             "Round-trip: extract returns the spec that built the board, with local font/image assets embedded and original references retained as metadata; the output opens from file:// with no external request.",
             "Store every embedded payload once: images in spec.assets under a content hash referenced as @@ASSET:<id>@@, the font and capture html only in #spec, with the board filling each frame's screen document at runtime; build(extract(build(spec))) is byte-identical, so a board stays small enough to share as a claude.ai artifact.",
+            "Put the per-frame reset inside a first-declared cascade layer (@layer board-reset), so project CSS outranks it whether layered (Tailwind v4 utilities) or not; an unlayered reset wipes every layered padding and margin.",
             "check <board.html> <outdir> runs bin/visual-check.py over fit, 100% and flattened states at 1440x900, expects the title and every shown frame title, and fails a blank or cut phone frame in the flattened state.",
-            "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip, each image, the font and capture html embedded once, a byte-identical rebuild, check passes the example and fails a blank and a cut frame (skipped without Node Playwright).",
+            "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip, each image, the font and capture html embedded once, a byte-identical rebuild, the reset is layered, check passes the example and fails a blank and a cut frame (skipped without Node Playwright).",
         ],
     },
     "bin/presentation_build.py": {

@@ -41,6 +41,8 @@ def main() -> int:
             "pan/zoom": "zoomAt" in page,
             "viewer-only controls": all(token not in page for token in ('id="copy-spec"', 'id="save-html"', 'id="generate-response"', '<textarea')),
             "self-contained": "http://" not in page and "https://" not in page,
+            # The frame reset sits in a first-declared layer, so project CSS in layers (Tailwind v4) still wins.
+            "reset is layered": "@layer board-reset{*{box-sizing:border-box;margin:0;padding:0}}" in page and "<style>*{" not in page,
         }
         run("extract", str(out), str(back))
         checks["round-trip"] = json.loads(back.read_text()) == json.loads(spec.read_text())
