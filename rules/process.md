@@ -48,6 +48,11 @@ package's code and issues, check version compatibility) over piling on workaroun
 one-line fix beats three layers of hacks. No tool access? Say so and ask me to paste the docs/issue —
 don't silently grind.
 
+### Agent-written shell fails fast and loud
+DO open multi-step shell with `set -euo pipefail`, abort on an empty loop input, and end every
+background wait non-zero on timeout; read its first output within 2 minutes. Detail:
+`references/code-best-practices.md` § Agent-written shell. TEST: no `;` after `cd`, no silenced release.
+
 ### Fix the CLASS of failure, not the one instance I reported
 When I report something wrong with produced output (a bad render, a wrong answer, a broken page), my
 example is evidence of a general failure mode, not the scope of the fix. **Don't patch the instance.**

@@ -323,7 +323,7 @@ shutdown trap; the runner checks shutdown again before release:
 python3 ~/.claude/bin/local-capacity.py claim-sim --udid "$UDID" --owner "$SESSION_ID"
 python3 ~/.claude/bin/local-capacity.py run --owner "$SESSION_ID" --simulator "$UDID" -- sh -eu -c '
   udid=$1; app=$2
-  cleanup() { python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 60 -- xcrun simctl shutdown "$udid" || true; }
+  cleanup() { python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 60 -- xcrun simctl shutdown "$udid" || true; }  # harmless: the runner re-checks Shutdown before release
   trap cleanup EXIT
   python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 60 -- xcrun simctl boot "$udid"
   python3 ~/.claude/bin/local-capacity.py stage --timeout-seconds 120 -- xcrun simctl bootstatus "$udid"

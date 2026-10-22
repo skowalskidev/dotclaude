@@ -455,6 +455,7 @@ CONTRACTS: dict[str, dict] = {
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
+            "Keeps an always-on line that agent-written shell fails fast and loud, pointing to references/code-best-practices.md for the detail.",
             "A mid-run message is QUEUED, never an interrupt, and Simon never has to label it.",
             "New UI is seeded up to, never through: he types the new inputs himself.",
             "Keep web UI verification as the existing default; require explicit opt-in for iPhone/iOS simulator runtime tests, UI tests and native screenshots, never inferred from all-tests or full-matrix requests.",
@@ -553,6 +554,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns the single-source-of-truth guidance the other catalogs point at.",
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
+            "Owns agent-written shell discipline: set -euo pipefail or && chains, never ; after cd, no silenced lookup, cleanup or release without an inline reason, loop inputs checked non-empty, background waits bounded and read early.",
         ],
     },
     "references/connectors-setup.md": {
@@ -669,6 +671,7 @@ CONTRACTS: dict[str, dict] = {
             "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
+            "A CI wait resolves its run id from the head sha's check runs, never by branch or workflow listing, and exits non-zero on an empty id, failed run, unknown state or timeout.",
             "After an authorized push or ready-flip, read the PR's merge state and confirm within a minute a CI run for the head sha is in progress; no run is a failure to investigate, and a run queued behind a superseded one is cancelled. Run the repo's ordering checks before pushing a base merge.",
             "Owns the shared-branch force-push rule: check for a competing sweep before a ship or rebase sweep, pin --force-with-lease to the SHA this session last fetched or pushed (never one read from the remote in the push step), and stop when git log <pinned>..origin/<branch> lists a commit this session did not write.",
             "After merging the base: reinstall dependencies, re-download test browsers, compare applied migrations with the files by name and number, and read git status for tool-rewritten files before the next commit.",
