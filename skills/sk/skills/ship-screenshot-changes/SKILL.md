@@ -211,7 +211,7 @@ rendered comment with the intended repository viewer's access. A successful uplo
 file does not prove inline rendering, especially in a private repository.
 Apply `rules/connectors.md` before an auth question or an unsupported-capability claim.
 
-1. **Feature-detect `gh pr comment --attach`** with `gh pr comment --help`. Use `--body-file` and
+1. **Feature-detect `gh pr comment --attach` (gh 2.99+)** with `gh pr comment --help`. Use `--body-file` and
    `--attach` when supported. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
    the CLI replaces that reference with the uploaded URL. A reference within a sentence renders
    as a link. Follow [GitHub's attachment instructions](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video),
