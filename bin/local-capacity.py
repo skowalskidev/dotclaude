@@ -3,8 +3,9 @@
 
 At most HEAVY_SLOTS owners hold a heavy lease at once, one lease per owner, and at most
 MAX_BOOTED_SIMULATORS simulator is claimed, leased or booted machine-wide. A priority owner named
-by `prioritize` is admitted ahead of every other new heavy request; it passes no cap, but the CPU,
-load and memory guard still apply to it, and nothing already running is stopped. Local Docker dev stacks take a
+by `prioritize` reserves one slot while absent; other owners use spare slots. All admission guards
+still apply. Explicitly pause-safe foreground runs yield their own group under primary contention.
+Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
 simulators, idle simulator claims and extra test browsers; `reclaim-sim` shuts down and unclaims an
 unleased simulator only when its claim owner has no live session. This does not impose an OS CPU or
@@ -24,7 +25,7 @@ import stat
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 
 
@@ -57,6 +58,10 @@ STACK_IDLE_MIN = 60  # a stack with no live session and no change for this long 
 STACK_START_GRACE_MIN = 15  # a stack lease counts this long before its containers appear
 PRIORITY_DEFAULT_MIN = 60
 PRIORITY_MAX_MIN = 180
+RETRY_SECONDS = 10
+WAIT_SECONDS = 300
+RECOVERY_SAMPLES = 2
+PAUSE_MAX_SECONDS = 300
 OWNER = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}\Z")
 UDID = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\Z")
 TOKEN = re.compile(r"[0-9a-f]{64}\Z")
@@ -1029,7 +1034,8 @@ def holder_text(lease):
     return "holder=%s pid=%s %s%s%s" % (lease["owner"], lease["pid"], condition, sim, command)
 
 
-def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False):
+def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False,
+            compute_only=False):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if pid <= 0:
@@ -1040,12 +1046,10 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         raise GateError("legacy lock bridge is active; use foreground run so its lock remains held")
     admission_guard("heavy work")  # sampled before the lock: top takes about 2 seconds
     with locked(root):
-        if (legacy_slot_dir() / "slot.d").exists():
+        if not compute_only and (legacy_slot_dir() / "slot.d").exists():
             raise Busy("legacy native slot exists; inspect its holder before migration")
         priority = read_priority(root)
         is_priority = bool(priority and priority["owner"] == owner)
-        if priority and not is_priority:
-            raise Busy("heavy work deferred: priority owner is %s; retry after it finishes" % priority_text(priority))
         states = [read_state(root, slot=name) for name in SLOTS]
         held = [lease for lease in states if lease]
         mine = next((lease for lease in held if lease["owner"] == owner), None)
@@ -1053,10 +1057,19 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
             raise Busy("heavy slot busy: %s; one owner holds at most one lease" % holder_text(mine))
         if second_slot_only and not states[0]:
             raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
-        free = [name for name, lease in zip(SLOTS, states) if not lease and not (second_slot_only and name == LEASE_SLOT)]
+        legacy_lanes = len(bridge_paths(root)) + int((legacy_slot_dir() / "slot.d").exists())
+        if compute_only and legacy_lanes > 1:
+            raise Busy("compute sharing deferred: multiple legacy lanes have ambiguous occupancy; reconcile their owners")
+        reserve_native = compute_only and legacy_lanes == 1
+        free = [name for name, lease in zip(SLOTS, states)
+                if not lease and not ((second_slot_only or reserve_native) and name == LEASE_SLOT)]
         if not free:
-            raise Busy("all %d heavy slots busy: %s; keep editing or inspect and release an exact token" %
-                       (HEAVY_SLOTS, "; ".join(holder_text(lease) for lease in held)))
+            raise Busy("%s: %s; keep editing or inspect and release an exact token" %
+                       ("compute slots busy (one native lane reserved)" if reserve_native else
+                        "all %d heavy slots busy" % HEAVY_SLOTS, "; ".join(holder_text(lease) for lease in held)))
+        if (priority and not is_priority and not any(item["owner"] == priority["owner"] for item in held)
+                and len(free) <= 1):
+            raise Busy("last heavy slot reserved: priority owner is %s" % priority_text(priority))
         slot = free[0]
         start = pid_start(pid)
         if not start:
@@ -1217,6 +1230,10 @@ def stage_command(root, seconds, command):
         raise GateError("stage needs positive --timeout-seconds and a foreground command")
     if os.environ.get("LOCAL_CAPACITY_RUN_ROOT") != str(root):
         raise GateError("stage must run inside local-capacity run")
+    if os.environ.get("LOCAL_CAPACITY_PAUSE_SAFE") == "1":
+        raise GateError("pause-safe runs cannot launch separate stage groups; use separate run commands")
+    if os.environ.get("LOCAL_CAPACITY_RESOURCE") == "compute":
+        raise GateError("compute runs cannot launch native stages; use separate compute run commands")
     try:
         legacy_fds = tuple(int(item) for item in os.environ.get("LOCAL_CAPACITY_LEGACY_FDS", "").split(",") if item)
         for fd in legacy_fds:
@@ -1282,7 +1299,107 @@ def stage_command(root, seconds, command):
             signal.signal(sig, handler)
 
 
-def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, second_slot_only=False):
+class CooperativeRun:
+    """Only the supervisor may signal its unreaped child and recorded private process group."""
+
+    def __init__(self, root, owner, token, child, start):
+        self.root, self.owner, self.token = root, owner, token
+        self.child, self.start = child, start
+        self.paused = False
+        self.paused_at = None
+        self.healthy = 0
+        self.next_check = time.monotonic() + RETRY_SECONDS
+
+    def group_running(self):
+        """An unreaped leader pins its PGID, but a zombie alone cannot receive a signal on Darwin."""
+        try:
+            result = subprocess.run(["/bin/ps", "-axo", "pgid=,stat="], capture_output=True,
+                                    text=True, timeout=3, check=False)
+            if result.returncode:
+                raise ValueError("process group probe failed")
+            rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
+            return any(int(group) == self.child.pid and not state.startswith("Z") for group, state in rows)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            raise GateError("owned process group state is unknown; retain its lease") from exc
+
+    def child_identity(self):
+        """ps retains parent/group/start metadata for an unreaped zombie on macOS Python 3.9 too."""
+        try:
+            result = subprocess.run(["/bin/ps", "-p", str(self.child.pid), "-o", "pid=,ppid=,pgid=,lstart=,stat="],
+                                    capture_output=True, text=True, timeout=3, check=False)
+            fields = result.stdout.split()
+            if result.returncode or len(fields) != 9:
+                raise ValueError("child identity unavailable")
+            return (int(fields[0]), int(fields[1]), int(fields[2]), fields[3:8], fields[8])
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            raise GateError("cooperative child identity is unknown; retain its lease") from exc
+
+    def signal(self, sig):
+        if self.child.returncode is not None:
+            return False
+        with locked(self.root):
+            _, lease = find_lease(self.root, lambda item: secrets.compare_digest(item["token"], self.token))
+            receipt = {"pid": self.child.pid, "pgid": self.child.pid, "pid_start": self.start}
+            if (not lease or lease["pid"] != os.getpid() or lease["pid_start"] != pid_start(os.getpid())
+                    or lease["child"] != receipt or lease["stages"] or lease["simulator"]):
+                raise GateError("cooperative command identity changed; retain its lease for inspection")
+            # Never poll/wait here: the original unreaped child reserves its PID after leader
+            # exit. PPID/start/group metadata proves that anchor before continuing descendants.
+            pid, parent, group, start, state = self.child_identity()
+            if (pid != self.child.pid or parent != os.getpid() or group != self.child.pid
+                    or start != self.start.split()):
+                raise GateError("cooperative child PID/parent/start/group changed; retain its lease")
+            try:
+                os.killpg(self.child.pid, sig)
+            except ProcessLookupError:
+                return False
+            except PermissionError:
+                # Darwin returns EPERM for a vanished group whose stopped leader died on TERM.
+                if state.startswith("Z") and not self.group_running():
+                    return False
+                raise
+        return True
+
+    def tick(self):
+        now = time.monotonic()
+        if now < self.next_check:
+            return
+        self.next_check = now + RETRY_SECONDS
+        if self.paused and now - self.paused_at >= PAUSE_MAX_SECONDS:
+            raise Busy("cooperative pause exceeded %s seconds; defer remaining work" % PAUSE_MAX_SECONDS)
+        try:
+            with locked(self.root):
+                priority = read_priority(self.root)
+            # Without a primary, full CPU utilization is useful work, not contention.
+            reason = host_reading()[1] if priority and priority["owner"] != self.owner else None
+        except Busy as exc:
+            reason = str(exc)  # failed probes never permit a resume
+        if reason:
+            self.healthy = 0
+            if not self.paused and self.signal(signal.SIGSTOP):
+                self.paused, self.paused_at = True, now
+                print("capacity paused owned command: %s; lease and memory remain held" % reason, file=sys.stderr)
+        elif self.paused:
+            self.healthy += 1
+            if self.healthy >= RECOVERY_SAMPLES and self.signal(signal.SIGCONT):
+                self.paused, self.paused_at, self.healthy = False, None, 0
+                print("capacity resumed owned command after stable recovery", file=sys.stderr)
+
+    def terminate(self):
+        # SIGTERM remains pending while stopped. Continue only this verified group so it can clean up.
+        if self.signal(signal.SIGTERM) and self.paused:
+            self.signal(signal.SIGCONT)
+            self.paused = False
+        deadline = time.monotonic() + 2
+        while self.group_running() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if self.group_running():
+            self.signal(signal.SIGKILL)
+        self.child.wait(timeout=2)
+
+
+def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, second_slot_only=False,
+                 pause_safe=False, resource="native"):
     if not command:
         raise GateError("run requires a foreground command after --")
     if command[0] == "--":
@@ -1290,11 +1407,12 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
     if not command:
         raise GateError("run requires a foreground command after --")
     token = acquire(root, owner, os.getpid(), simulator, child_pending=True, allow_bridge=True,
-                    second_slot_only=second_slot_only)
+                    second_slot_only=second_slot_only, compute_only=resource == "compute")
     metrics["token"] = token
     metrics["start"] = time.monotonic()
     metrics["wait"] = metrics["start"] - metrics["requested"]
     child = None
+    cooperative = None
     interrupted = [None]
     old_handlers = {}
 
@@ -1312,6 +1430,9 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             child_env = os.environ.copy()
             child_env["LOCAL_CAPACITY_RUN_ROOT"] = str(root)
             child_env["LOCAL_CAPACITY_LEGACY_FDS"] = ",".join(str(fd) for fd in legacy_fds)
+            child_env["LOCAL_CAPACITY_RESOURCE"] = resource
+            if pause_safe:
+                child_env["LOCAL_CAPACITY_PAUSE_SAFE"] = "1"
             child = launch_granted(command, read_fd, legacy_fds, child_env)
         except OSError:
             os.close(write_fd)
@@ -1320,9 +1441,12 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             os.close(read_fd)
         try:
             if interrupted[0] is None:
-                record_child(root, token, child.pid, pid_start(child.pid))
+                start = pid_start(child.pid)
+                record_child(root, token, child.pid, start)
+                if pause_safe:
+                    cooperative = CooperativeRun(root, owner, token, child, start)
             if interrupted[0] is not None:
-                terminate_group(child)
+                cooperative.terminate() if cooperative else terminate_group(child)
                 print("command interrupted; lease retained for inspection; token=%s" % token, file=sys.stderr)
                 return 128 + interrupted[0]
             os.write(write_fd, b"go\n")
@@ -1335,13 +1459,20 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
         deadline = metrics["start"] + max_seconds
         while True:
             if interrupted[0] is not None:
-                terminate_group(child)
+                cooperative.terminate() if cooperative else terminate_group(child)
                 break
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                terminate_group(child)
+                cooperative.terminate() if cooperative else terminate_group(child)
                 print("run exceeded %s seconds; lease retained for inspection; token=%s" % (max_seconds, token), file=sys.stderr)
                 return TIMEOUT
+            if cooperative:
+                try:
+                    cooperative.tick()
+                except Busy as exc:
+                    cooperative.terminate()
+                    print(str(exc), file=sys.stderr)
+                    return BUSY
             try:
                 code = child.wait(timeout=min(0.2, remaining))
                 break
@@ -1354,9 +1485,19 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             print("command group still running; lease retained for inspection; token=%s" % token, file=sys.stderr)
             return BUSY
         return code if code >= 0 else 128 - code
+    except GateError as exc:
+        # Identity/state failures cannot authorize another signal, including cleanup.
+        print("command supervision stopped safely: %s; token=%s" % (exc, token), file=sys.stderr)
+        return BUSY
     except OSError as exc:
         if child is not None:
-            terminate_group(child)
+            if cooperative:
+                try:
+                    cooperative.terminate()
+                except (GateError, OSError):
+                    pass  # retain ownership evidence rather than signalling an unknown process
+            else:
+                terminate_group(child)
         print("command could not start; lease retained for inspection: %s; token=%s" % (exc, token), file=sys.stderr)
         return BUSY
     finally:
@@ -1364,20 +1505,40 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             signal.signal(sig, handler)
 
 
-def run_command(root, owner, simulator, command, max_seconds=3600):
+def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=WAIT_SECONDS, pause_safe=False,
+                resource="native"):
+    if (not math.isfinite(wait_seconds) or wait_seconds < 0 or wait_seconds > 3600
+            or not math.isfinite(max_seconds) or max_seconds <= 0):
+        raise GateError("wait must be 0..3600 seconds and runtime must be positive and finite")
+    if resource not in ("native", "compute") or (resource == "compute" and simulator):
+        raise GateError("compute resource cannot use a simulator")
+    if pause_safe and (simulator or (resource != "compute" and bridge_paths(root))):
+        raise GateError("pause-safe requires an isolated command without simulator or legacy locks")
     metrics = {"requested": time.monotonic()}
+    deadline = metrics["requested"] + wait_seconds
     try:
-        with legacy_bridge(root, owner) as (legacy_fds, bridge_skipped):
-            code = _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, bridge_skipped)
-            if "token" in metrics:
-                try:
-                    if simulator:
-                        require_groups_stopped(root, metrics["token"])
-                        shutdown_owned(simulator.upper())
-                    release(root, metrics["token"])
-                except GateError as exc:
-                    print("lease retained: %s; token=%s" % (exc, metrics["token"]), file=sys.stderr)
-                    code = BUSY
+        while True:
+            try:
+                bridge = nullcontext(((), False)) if resource == "compute" else legacy_bridge(root, owner)
+                with bridge as (legacy_fds, bridge_skipped):
+                    code = _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds,
+                                        bridge_skipped, pause_safe, resource)
+                    if "token" in metrics:
+                        try:
+                            if simulator:
+                                require_groups_stopped(root, metrics["token"])
+                                shutdown_owned(simulator.upper())
+                            release(root, metrics["token"])
+                        except GateError as exc:
+                            print("lease retained: %s; token=%s" % (exc, metrics["token"]), file=sys.stderr)
+                            code = BUSY
+                break
+            except Busy as exc:
+                remaining = deadline - time.monotonic()
+                if "token" in metrics or remaining <= 0:
+                    raise
+                print("capacity waiting: %s" % exc, file=sys.stderr)
+                time.sleep(min(RETRY_SECONDS, remaining))
         try:
             telemetry(root, event="result", owner=owner, result=code,
                       wait_seconds=round(metrics.get("wait", 0), 3),
@@ -1438,6 +1599,12 @@ def main(argv=None):
     run_parser.add_argument("--owner", required=True)
     run_parser.add_argument("--simulator")
     run_parser.add_argument("--max-min", type=float, default=60)
+    run_parser.add_argument("--wait-min", type=float, default=WAIT_SECONDS / 60,
+                            help="retry admission every 10 seconds for up to this many minutes (default 5, max 60; 0 is immediate)")
+    run_parser.add_argument("--pause-safe", action="store_true",
+                            help="assert isolated CPU job tolerates SIGSTOP, retains no shared locks/services and has no wall-clock-sensitive tests")
+    run_parser.add_argument("--resource", choices=("native", "compute"), default="native",
+                            help="compute asserts no native/simulator/shared-service use; reserves a native lane and takes no legacy mutex")
     run_parser.add_argument("command", nargs=argparse.REMAINDER)
     stage_parser = sub.add_parser("stage")
     stage_parser.add_argument("--timeout-seconds", type=float, required=True)
@@ -1485,6 +1652,10 @@ def main(argv=None):
                     print("heavy slot %d of %d: %s" % (number, HEAVY_SLOTS, holder_text(lease) if lease else free_text))
                 if priority:
                     print("priority: " + priority_text(priority))
+                legacy_lanes = len(bridge_paths(root)) + int((legacy_slot_dir() / "slot.d").exists())
+                if legacy_lanes:
+                    print("compute admission: " + ("slot 1 reserved for native capacity" if legacy_lanes == 1 else
+                                                  "deferred until multiple legacy lanes are reconciled"))
                 print("booted simulators: " + (", ".join(booted) if booted else "none"))
                 for udid, owner in sorted(read_claims(root).items()):
                     print("simulator claim: %s owner=%s" % (udid, owner))
@@ -1530,7 +1701,8 @@ def main(argv=None):
         elif args.action == "run":
             if not math.isfinite(args.max_min) or args.max_min <= 0:
                 raise GateError("--max-min must be a positive number")
-            return run_command(root, args.owner, args.simulator, args.command, args.max_min * 60)
+            return run_command(root, args.owner, args.simulator, args.command, args.max_min * 60,
+                               args.wait_min * 60, args.pause_safe, args.resource)
         elif args.action == "stage":
             if not math.isfinite(args.timeout_seconds):
                 raise GateError("--timeout-seconds must be finite")

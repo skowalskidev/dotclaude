@@ -24,7 +24,7 @@ SIM=AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE
 SIM2=11111111-2222-3333-4444-555555555555
 
 check 'empty status uses the shared gate' 'heavy slot 1 of 3: free' "$("$NS" list | head -1)"
-CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'unit tests' -- sh -c 'exit 7' >/dev/null
+CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'unit tests' -- sh -c 'exit 7' >/dev/null
 check 'run passes child status' 7 "$?"
 check 'run releases completed command' 'heavy slot 1 of 3: free' "$("$NS" list | head -1)"
 
@@ -36,7 +36,7 @@ CLAUDE_NATIVE_SESSION=beta "$NS" release-sim "$SIM" >/dev/null 2>&1
 check 'another owner cannot release simulator' 1 "$?"
 CLAUDE_NATIVE_SESSION=beta "$NS" claim-sim "$SIM2" >/dev/null 2>&1
 check 'a second simulator is refused machine-wide while one is claimed' 75 "$?"
-CLAUDE_NATIVE_SESSION=beta "$NS" run --for 'second sim' --udid "$SIM2" -- true >/dev/null 2>&1
+CLAUDE_NATIVE_SESSION=beta "$NS" run --wait-min 0 --for 'second sim' --udid "$SIM2" -- true >/dev/null 2>&1
 check 'a second simulator run is refused before its command starts' 75 "$?"
 check 'status names the simulator cap' yes "$("$NS" list | grep -q "simulators in use: 1 of 1" && echo yes || echo no)"
 CLAUDE_NATIVE_SESSION=alpha "$NS" release-sim "$SIM" >/dev/null
@@ -56,7 +56,7 @@ check 'reclaimed claim is gone' no "$("$NS" list | grep -q "simulator claim: $SI
 printf '{}\n' > "$LOCAL_CAPACITY_HOST_JSON"
 
 mkdir -p "$NATIVE_SLOT_DIR/slot.d"
-CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'blocked build' -- true >/dev/null 2>&1
+CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'blocked build' -- true >/dev/null 2>&1
 check 'legacy slot blocks admission without reaping' 75 "$?"
 check 'legacy slot still exists' yes "$([ -d "$NATIVE_SLOT_DIR/slot.d" ] && echo yes || echo no)"
 rmdir "$NATIVE_SLOT_DIR/slot.d"
@@ -74,13 +74,13 @@ PY
 lockf -k "$LEGACY_LOCK" sleep 2 &
 LOCKER=$!
 sleep 0.2
-CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'bridge blocked' -- true >/dev/null 2>&1
+CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'bridge blocked' -- true >/dev/null 2>&1
 check 'old lockf holder blocks new gate' 75 "$?"
 wait "$LOCKER"
-CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'bridge released' -- true >/dev/null
+CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'bridge released' -- true >/dev/null
 check 'new gate runs after old lockf exits' 0 "$?"
-CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'no polling' --wait-min 1 -- true >/dev/null 2>&1
-check 'old waiting behavior fails with migration code' 75 "$?"
+CLAUDE_NATIVE_SESSION=alpha "$NS" run --for 'bounded waiting' --wait-min 1 -- true >/dev/null 2>&1
+check 'bounded admission waiting delegates to the engine' 0 "$?"
 
 mkdir -p "$TMP/fakebin"
 printf '#!/bin/sh\necho 12\n' > "$TMP/fakebin/sysctl"

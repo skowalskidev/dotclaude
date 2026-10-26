@@ -219,10 +219,10 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   `references/dev-server-hygiene.md` § Private process inspection. TEST: zero exposed values;
   signal only proven owned processes or candidates passing the existing orphan gate.
 - **Claim a port lane and heavy lease before binding, building or booting.** Use `bin/port-slot.sh`
-  and `bin/local-capacity.py run`. Port conflict → next lane; exit 75 → defer heavy work and keep
-  reading/editing. Release the lane when done, the lease after owned simulator shutdown. Run
-  `prioritize` only when Simon's own message names the task to go first ("don't defer" counts); clear it
-  after. No heavy step runs bare; act on a `watchdog:` line naming this session at once.
+  and `bin/local-capacity.py run`. Fill spare capacity beside the primary; wait/resume automatically
+  and yield at safe command boundaries. Exit 75 → record the retry and keep editing.
+  Run `prioritize` only when Simon names the task to go first ("don't defer" counts); clear it after.
+  Every heavy step holds a lease. Act on a `watchdog:` line naming this session at once.
   Never kill a live owner's build or simulator; only a printed `reclaim-sim` frees an ended owner's.
   Protocol: `references/dev-server-hygiene.md`.
 - **Resolve the session-start orphan report before the task.** Apply the existing guarded

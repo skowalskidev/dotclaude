@@ -762,11 +762,10 @@ class PriorityTests(unittest.TestCase):
         self.assertIn("holder=harbor", str(refused.exception))
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
-    def test_other_owner_is_deferred_with_the_priority_message_even_when_free(self):
+    def test_other_owner_runs_in_spare_capacity_with_primary_reserved(self):
         self.assertEqual(self.cli("prioritize", "--owner", "vip", "--minutes", "30").returncode, 0)
         deferred = self.cli("run", "--owner", "other", "--", sys.executable, "-c", "pass")
-        self.assertEqual(deferred.returncode, gate.BUSY)
-        self.assertIn("priority owner is vip until", deferred.stderr)
+        self.assertEqual(deferred.returncode, 0, deferred.stderr)
         self.assertIsNone(gate.read_state(self.root))
         self.assertEqual(self.cli("run", "--owner", "vip", "--", sys.executable, "-c", "pass").returncode, 0)
 
@@ -804,8 +803,7 @@ class PriorityTests(unittest.TestCase):
     def test_replace_and_clear(self):
         gate.prioritize(self.root, "first", 30, False)
         gate.prioritize(self.root, "second", 30, False)
-        with self.assertRaises(gate.Busy):
-            gate.acquire(self.root, "first", os.getpid(), None)
+        gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
         self.assertEqual(self.cli("prioritize", "--clear").returncode, 0)
         gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
 
@@ -850,7 +848,7 @@ class PriorityTests(unittest.TestCase):
                   ({"load": 0, "cores": 8, "idle": 90, "memory_level": 3}, "memory probe failed; defer heavy work"))
         for fixture, message in broken:
             (self.root / "pressure.json").write_text(json.dumps(fixture))
-            for args in (("run", "--owner", "prober", "--", sys.executable, "-c", "pass"), ("cpu",),
+            for args in (("run", "--owner", "prober", "--wait-min", "0", "--", sys.executable, "-c", "pass"), ("cpu",),
                          ("claim-sim", "--udid", SIM, "--owner", "prober")):
                 result = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
                                         env=env, capture_output=True, text=True, timeout=20)
@@ -916,14 +914,14 @@ class PriorityTests(unittest.TestCase):
             else:
                 gate.prioritize(self.root, None, 0, True)
             with self.assertRaises(gate.Busy):
-                gate.run_command(self.root, owner, None, [sys.executable, "-c", "pass"])
+                gate.run_command(self.root, owner, None, [sys.executable, "-c", "pass"], wait_seconds=0)
             self.assertIsNone(gate.read_state(self.root))
 
     def test_the_holders_own_second_run_never_passes_the_legacy_lock(self):
         self.hold_bridge()
         gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
         with self.assertRaises(gate.Busy):
-            gate.run_command(self.root, "holder", None, [sys.executable, "-c", "pass"])
+            gate.run_command(self.root, "holder", None, [sys.executable, "-c", "pass"], wait_seconds=0)
 
 
 LAUNCHD = "launchd_sim /Users/x/Library/Developer/CoreSimulator/Devices/%s/data/var/run/launchd_bootstrap.plist"
@@ -937,6 +935,244 @@ HELPER = ("/Users/x/Library/Caches/ms-playwright/chromium-1200/chrome-mac/Google
 
 def ps_text(*rows):
     return "\n".join("%d %d %s %s %s" % row for row in rows) + "\n"
+
+
+class CooperativeTests(unittest.TestCase):
+    setUp = PriorityTests.setUp
+
+    def controller(self):
+        token = gate.acquire(self.root, "secondary", os.getpid(), None, child_pending=True)
+        gate.record_child(self.root, token, 43210, "child-start")
+        parent_start = gate.pid_start(os.getpid())
+        self.child = mock.Mock(pid=43210)
+        self.child.returncode = None
+        self.child.poll.return_value = None
+        self.child.wait.return_value = 0
+        self.now = 0
+        patches = (
+            mock.patch.object(gate.time, "monotonic", side_effect=lambda: self.now),
+            mock.patch.object(gate, "pid_start", side_effect=lambda pid: parent_start if pid == os.getpid() else "child-start"),
+            mock.patch.object(gate.CooperativeRun, "child_identity",
+                              return_value=(43210, os.getpid(), 43210, ["child-start"], "T")),
+            mock.patch.object(gate.CooperativeRun, "group_running", return_value=False),
+            mock.patch.object(gate.os, "killpg"),
+        )
+        results = [patch.start() for patch in patches]
+        for patch in patches:
+            self.addCleanup(patch.stop)
+        self.signals = results[-1]
+        return gate.CooperativeRun(self.root, "secondary", token, self.child, "child-start")
+
+    def tick(self, controller):
+        self.now += gate.RETRY_SECONDS
+        controller.tick()
+
+    def test_two_secondaries_leave_one_slot_and_primary_uses_it(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        for owner in ("one", "two"):
+            gate.acquire(self.root, owner, os.getpid(), None)
+        with self.assertRaisesRegex(gate.Busy, "last heavy slot reserved"):
+            gate.acquire(self.root, "three", os.getpid(), None)
+        gate.acquire(self.root, "primary", os.getpid(), None)
+        self.assertEqual(sum(bool(gate.read_state(self.root, slot=s)) for s in gate.SLOTS), gate.HEAVY_SLOTS)
+
+    def test_primary_already_holds_a_slot_so_all_spare_slots_are_available(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        for owner in ("primary", "one", "two"):
+            gate.acquire(self.root, owner, os.getpid(), None)
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "three", os.getpid(), None)
+
+    def test_pause_and_stable_resume_retain_lease_and_memory(self):
+        c = self.controller()
+        before = gate.read_state(self.root)
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "host_reading", side_effect=[("DEFER", "memory warning"), ("GO", None),
+                                                                ("DEFER", "CPU busy"), ("GO", None), ("GO", None)]):
+            for _ in range(4):
+                self.tick(c)
+                self.assertTrue(c.paused)
+            self.tick(c)
+        self.assertFalse(c.paused)
+        self.assertEqual(gate.read_state(self.root), before)
+        self.assertEqual(self.signals.call_args_list, [mock.call(43210, signal.SIGSTOP), mock.call(43210, signal.SIGCONT)])
+
+    def test_no_primary_does_not_pause_a_busy_cpu(self):
+        c = self.controller()
+        with mock.patch.object(gate, "host_reading", side_effect=AssertionError("unneeded probe")):
+            self.tick(c)
+        self.signals.assert_not_called()
+
+    def test_failed_probe_pauses_and_never_counts_as_recovery(self):
+        c = self.controller()
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "host_reading", side_effect=gate.ProbeFailed("unknown")):
+            self.tick(c)
+            self.tick(c)
+        self.assertTrue(c.paused)
+        self.assertEqual(c.healthy, 0)
+        self.signals.assert_called_once_with(43210, signal.SIGSTOP)
+
+    def test_pause_deadline_bounds_memory_retention(self):
+        c = self.controller()
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "host_reading", return_value=("DEFER", "memory warning")):
+            self.tick(c)
+            self.now += gate.PAUSE_MAX_SECONDS
+            with self.assertRaisesRegex(gate.Busy, "pause exceeded"):
+                c.tick()
+        self.assertIsNotNone(gate.read_state(self.root))
+
+    def test_cleanup_of_paused_child_continues_pending_term(self):
+        c = self.controller()
+        c.paused = True
+        c.terminate()
+        self.assertEqual(self.signals.call_args_list, [mock.call(43210, signal.SIGTERM), mock.call(43210, signal.SIGCONT)])
+
+    def test_each_signal_rechecks_identity_including_cleanup(self):
+        c = self.controller()
+        for sig in (signal.SIGSTOP, signal.SIGCONT, signal.SIGTERM, signal.SIGKILL):
+            with mock.patch.object(gate, "pid_start", return_value="reused"):
+                with self.assertRaises(gate.GateError):
+                    c.signal(sig)
+        with mock.patch.object(c, "child_identity", return_value=(43210, os.getpid(), 999, ["child-start"], "T")):
+            with self.assertRaises(gate.GateError):
+                c.signal(signal.SIGSTOP)
+        self.signals.assert_not_called()
+
+    def test_reaped_leader_cannot_authorize_a_signal(self):
+        c = self.controller()
+        with mock.patch.object(c, "child_identity", side_effect=gate.GateError("identity unavailable")):
+            with self.assertRaisesRegex(gate.GateError, "identity unavailable"):
+                c.signal(signal.SIGCONT)
+        self.signals.assert_not_called()
+
+    def test_unreaped_exited_leader_keeps_descendant_group_identity(self):
+        c = self.controller()
+        with mock.patch.object(c, "child_identity", return_value=(43210, os.getpid(), 43210, ["child-start"], "Z")):
+            self.assertTrue(c.signal(signal.SIGCONT))
+        self.child.poll.assert_not_called()
+        self.signals.assert_called_once_with(43210, signal.SIGCONT)
+
+    def test_foreign_receipt_or_stage_cannot_be_paused(self):
+        c = self.controller()
+        lease = gate.read_state(self.root)
+        lease["stages"] = [{"pid": 999, "pgid": 999, "pid_start": "other"}]
+        gate.write_state(self.root, lease)
+        with self.assertRaises(gate.GateError):
+            c.signal(signal.SIGSTOP)
+        self.signals.assert_not_called()
+
+    def test_default_admission_retries_then_runs_without_manual_resume(self):
+        now = [0]
+        with mock.patch.object(gate.time, "monotonic", side_effect=lambda: now[0]), \
+             mock.patch.object(gate.time, "sleep", side_effect=lambda n: now.__setitem__(0, now[0] + n)) as sleep, \
+             mock.patch.object(gate, "_run_command", side_effect=[gate.Busy("full"), gate.ProbeFailed("unknown"), 0]) as run:
+            self.assertEqual(gate.run_command(self.root, "secondary", None, ["unused"]), 0)
+        self.assertEqual(run.call_count, 3)
+        self.assertEqual(sleep.call_args_list, [mock.call(10), mock.call(10)])
+
+    def test_admission_wait_is_bounded_and_never_restarts_a_started_job(self):
+        now = [0]
+        with mock.patch.object(gate.time, "monotonic", side_effect=lambda: now[0]), \
+             mock.patch.object(gate.time, "sleep", side_effect=lambda n: now.__setitem__(0, now[0] + n)), \
+             mock.patch.object(gate, "_run_command", side_effect=gate.Busy("full")) as run:
+            with self.assertRaises(gate.Busy):
+                gate.run_command(self.root, "secondary", None, ["unused"], wait_seconds=25)
+        self.assertEqual(now[0], 25)
+        self.assertEqual(run.call_count, 4)
+
+    def test_pause_safe_rejects_simulator_bridge_and_separate_stages(self):
+        with self.assertRaises(gate.GateError):
+            gate.run_command(self.root, "secondary", SIM, ["unused"], pause_safe=True)
+        with mock.patch.object(gate, "bridge_paths", return_value=["/some/lock"]):
+            with self.assertRaises(gate.GateError):
+                gate.run_command(self.root, "secondary", None, ["unused"], pause_safe=True)
+        with mock.patch.dict(os.environ, LOCAL_CAPACITY_PAUSE_SAFE="1", LOCAL_CAPACITY_RUN_ROOT=str(self.root)):
+            with self.assertRaisesRegex(gate.GateError, "separate stage groups"):
+                gate.stage_command(self.root, 5, ["unused"])
+
+    def test_real_paused_command_timeout_cleans_owned_group_and_lease(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "RETRY_SECONDS", 0.01), \
+             mock.patch.object(gate, "host_reading", side_effect=[("GO", None)] + [("DEFER", "CPU busy")] * 10), \
+             mock.patch.object(gate.os, "killpg", wraps=os.killpg) as signals:
+            result = gate.run_command(self.root, "secondary", None, [sys.executable, "-c", "import time; time.sleep(30)"],
+                                      max_seconds=0.6, pause_safe=True)
+        self.assertEqual(result, gate.TIMEOUT)
+        self.assertIsNone(gate.read_state(self.root))
+        sent = [c.args[1] for c in signals.call_args_list]
+        self.assertIn(signal.SIGSTOP, sent)
+        # macOS may deliver TERM to a stopped process immediately; otherwise CONT drains it.
+        self.assertIn(signal.SIGTERM, sent)
+
+    def test_real_paused_descendant_gets_cont_after_leader_dies(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        marker = Path(self.tmp.name) / "descendant-cleaned"
+        ready = Path(self.tmp.name) / "descendant-ready"
+        code = ("import os,signal,time\nfrom pathlib import Path\n"
+                "if os.fork() == 0:\n"
+                " def stop(sig, frame):\n"
+                "  Path(%r).touch()\n  os._exit(0)\n"
+                " signal.signal(signal.SIGTERM,stop)\n"
+                " Path(%r).write_text(str(os.getpid()))\n"
+                "time.sleep(30)\n" % (str(marker), str(ready)))
+        with mock.patch.object(gate, "RETRY_SECONDS", 0.01), \
+             mock.patch.object(gate, "host_reading", side_effect=[("GO", None)] + [("DEFER", "CPU busy")] * 10):
+            result = gate.run_command(self.root, "secondary", None, [sys.executable, "-c", code],
+                                      max_seconds=0.8, pause_safe=True)
+        self.assertEqual(result, gate.TIMEOUT)
+        self.assertTrue(ready.exists(), "descendant never started")
+        self.assertTrue(marker.exists(), "stopped descendant never handled TERM")
+        self.assertIsNone(gate.pid_start(int(ready.read_text())))
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_compute_runs_beside_unknown_legacy_holder_reserving_native_lane(self):
+        PriorityTests.hold_bridge(self)
+        with mock.patch.object(gate, "legacy_bridge", side_effect=AssertionError("compute must not touch mutex")):
+            self.assertEqual(gate.run_command(self.root, "compute", None, [sys.executable, "-c", "pass"],
+                                             resource="compute", pause_safe=True), 0)
+        for owner in ("one", "two"):
+            gate.acquire(self.root, owner, os.getpid(), None, allow_bridge=True, compute_only=True)
+        self.assertIsNone(gate.read_state(self.root))
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "three", os.getpid(), None, allow_bridge=True, compute_only=True)
+        with self.assertRaises(gate.Busy):
+            gate.run_command(self.root, "native", None, ["unused"], wait_seconds=0)
+
+    def test_registered_native_counts_once_and_compute_primary_can_enter(self):
+        PriorityTests.hold_bridge(self)
+        gate.acquire(self.root, "native", os.getpid(), None, allow_bridge=True)
+        gate.prioritize(self.root, "primary", 30, False)
+        gate.acquire(self.root, "secondary", os.getpid(), None, allow_bridge=True, compute_only=True)
+        gate.acquire(self.root, "primary", os.getpid(), None, allow_bridge=True, compute_only=True)
+        self.assertEqual(sum(bool(gate.read_state(self.root, slot=s)) for s in gate.SLOTS), 3)
+
+    def test_compute_keeps_pressure_and_simulator_guards(self):
+        PriorityTests.hold_bridge(self)
+        for probe, value in (("cpu_idle_percent", 1), ("memory_pressure_level", (2, "sysctl")),
+                             ("observe_booted", [SIM])):
+            with mock.patch.object(gate, probe, return_value=value):
+                with self.assertRaises(gate.Busy):
+                    gate.run_command(self.root, "compute", None, ["unused"], resource="compute", wait_seconds=0)
+        with self.assertRaises(gate.GateError):
+            gate.run_command(self.root, "compute", SIM, ["unused"], resource="compute")
+
+    def test_legacy_directory_reserves_a_lane_without_bridge_and_ambiguity_defers(self):
+        legacy = Path(self.tmp.name) / "legacy"
+        (legacy / "slot.d").mkdir(parents=True)
+        with mock.patch.object(gate, "legacy_slot_dir", return_value=legacy):
+            for owner in ("one", "two"):
+                gate.acquire(self.root, owner, os.getpid(), None, compute_only=True)
+            self.assertIsNone(gate.read_state(self.root))
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "three", os.getpid(), None, compute_only=True)
+            with mock.patch.object(gate, "bridge_paths", return_value=["/one"]):
+                with self.assertRaisesRegex(gate.Busy, "multiple legacy lanes"):
+                    gate.acquire(self.root, "three", os.getpid(), None, compute_only=True, allow_bridge=True)
+        with mock.patch.object(gate, "bridge_paths", return_value=["/one", "/two"]):
+            with self.assertRaisesRegex(gate.Busy, "multiple legacy lanes"):
+                gate.acquire(self.root, "three", os.getpid(), None, compute_only=True, allow_bridge=True)
 
 
 class WatchdogTests(unittest.TestCase):

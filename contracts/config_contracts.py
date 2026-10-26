@@ -42,13 +42,17 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/local-capacity.py": {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
-        "purpose": "Non-blocking machine-wide admission for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
+        "purpose": "Bounded foreground scheduling for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
         "criteria": [
             "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
             "Defer every acquire, run, claim-sim and stack-acquire with exit 75 naming the reading when CPU idle is below 20%, load exceeds 1.5 x logical cores while CPU idle is also below 35% (load alone, as in 200 at 57% idle, is GO) or kern.memorystatus_vm_pressure_level reads 2 (warning) or 4 (critical), with a compressed-share-above-40%-of-RAM fallback only when the sysctl is unavailable and never a fixed compressed-GiB threshold; cpu prints one GO or DEFER line with the pressure level.",
             "A failed CPU, load or memory probe defers with exit 75 like every other deferral; exit 1 means a fault to inspect, never defer.",
             "Count at most MAX_BOOTED_SIMULATORS (1) device machine-wide: claimed, leased or not Shutdown, unleased devices included; a second claim-sim or simulator run exits 75 naming the holder, the same owner included.",
-            "Admit the priority owner (prioritize: default 60, maximum 180 minutes) first, in the first slot to free; it passes no cap but keeps the CPU, load and memory guards, so only real saturation defers it. Stop, signal or shorten no running job; defer other new requests with exit 75.",
+            "Reserve one slot while the priority owner lacks a lease; admit secondary owners into spare slots under every existing guard. Keep priority expiry at default 60, maximum 180 minutes; never steal another owner's lease.",
+            "Retry foreground run admission every 10 seconds for 5 minutes by default, configurable to 0..60 minutes; launch once, never restart a started command, and return 75 on exhausted admission.",
+            "Pause only explicitly pause-safe owned groups during another primary's pressure; recheck token, PID/start and PGID before every signal, resume after two healthy samples, and leave busy work running without a primary.",
+            "Reserve the first slot for one legacy bridge or old slot directory in compute mode; reject ambiguous multiple lanes. Use at most two remaining slots without the mutex; reject compute simulator/stage use and retain all host guards.",
+            "Retain paused leases and memory; count paused wall time toward the command deadline and end a 5-minute pause. Continue a stopped owned group after TERM for cleanup; reject simulator, stage and legacy-bridge pause-safe runs.",
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
             "Cap Docker dev stacks at floor(VM GiB / 3), at least 1 and at most 2, counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
             "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
@@ -2091,7 +2095,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon's existing native callers share the same heavy-work leases as every other local project without losing their familiar commands.",
         "purpose": "Thin compatibility frontend for bin/local-capacity.py.",
         "criteria": [
-            "Delegate run, list, claim-sim, release-sim, reclaim-sim and jobs to bin/local-capacity.py; never create a second lock or simulator ledger.",
+            "Delegate run, list, claim-sim, release-sim, reclaim-sim and jobs to bin/local-capacity.py; forward bounded --wait-min with default 5. Never create a second lock or simulator ledger.",
             "Return exit 75 before the wrapped command starts when the shared leases, legacy bridge or load gate refuses admission.",
             "Keep a dead or interrupted holder visible for explicit inspection; never auto-reap another session's claim.",
             "Expand every array that can be empty as ${ARR[@]+\"${ARR[@]}\"}; macOS /bin/bash 3.2 treats a bare empty \"${ARR[@]}\" as unbound under set -u.",
