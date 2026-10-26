@@ -1907,7 +1907,8 @@ CONTRACTS: dict[str, dict] = {
     "hooks/orphan-worker-sweep.sh": {
         "mission": "No dead framework worker keeps burning a core in a workspace nobody is watching.",
         "purpose": "SessionStart: reports orphaned framework workers burning CPU.",
-        "criteria": ["Detects and reports. Never kills anything.", "Silent when nothing is found."],
+        "criteria": ["Detects and reports. Never kills anything.", "Silent when nothing is found.",
+                     "Distinguish eligible framework families from retained agents; never recommend signalling an agent whose task owner is not proven ended."],
     },
     "hooks/port-registry-sweep.sh": {
         "mission": "A session sees claimed ports and heavy capacity before binding or building, without a noisy idle web startup.",
@@ -2170,12 +2171,12 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/kill-orphan-workers.sh": {
         "mission": "An orphaned worker is cleared without killing a dev server someone is using.",
-        "purpose": "Clears orphaned framework and agent-spawned workers the sweep hook reported.",
+        "purpose": "Clears eligible framework families and reports uncertain agent candidates.",
         "criteria": [
             "Keep full arguments internal to candidate matching; list, dry-run, termination reports and the session hook expose only candidate metadata and category, never argument values.",
-            "Never kills a process whose parent is alive: every candidate is PPID 1, so a live session's server, MCP or launcher is spared by construction.",
+            "Exclude live-parent roots; collect and signal descendants only from eligible framework roots, never from report-only agent candidates.",
             "Burns-only for framework workers: a next/jest/vite worker is killed at 20%+ CPU and 5+ minutes old and inside a git checkout, since a live detached server leaves idle ones.",
-            "Idle-and-old for agent-spawned orphans: chrome-devtools-mcp, wrangler/workerd and headless codex exec are killed when PPID 1 and 5+ minutes old, burning or not.",
+            "Retain agent-class candidates at PPID 1 and 5+ minutes old: parent death and age do not prove task abandonment. Without an authoritative ended-task receipt, list and rescan remain report-only for agents, including adopted headless Codex workers.",
             "Kills the family then re-checks, since killing a parent reparents its children.",
         ],
     },

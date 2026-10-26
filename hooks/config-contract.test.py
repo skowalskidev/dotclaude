@@ -70,7 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
-    ("process-inspection-keeps-arguments-private", "Process guidance reveals no arguments or environment values and preserves exact ownership checks before cleanup."),
+    ("process-inspection-keeps-arguments-private", "Process guidance and orphan reports keep arguments private; cleanup retains uncertain agent workers and preserves framework gates."),
     ("connector-capability-before-auth", "Connector discovery and exact-action checks precede human-only auth gates; media verification can reuse authenticated API access without weakening browser playback proof."),
     ("automatic-config-repair-lifecycle", "Every task session receives scoped repair authority; startup reports unfinished work without committing, merging or discarding it."),
     ("branch-cleanup-closes-owned-inventory", "Task closure accounts for owned refs; requested repo cleanup surfaces unique branches and preserves recovery, activity and remote-write safeguards."),
@@ -1554,24 +1554,32 @@ def check_process_inspection_keeps_arguments_private() -> None:
         cwd = fixture / "workspace"
         (cwd / ".git").mkdir(parents=True)
         rows = fixture / "rows"
-        rows.write_text("\n".join((
+        fixture_rows = "\n".join((
             f"71001 1 25.0 10:00 node next-worker {sentinel}",
             f"71002 1 0.0 10:00 node next-worker {sentinel}",
             f"71003 999 25.0 10:00 node next-worker {sentinel}",
             f"71004 1 0.0 10:00 node chrome-devtools-mcp {sentinel}",
             f"71005 1 25.0 00:01 node next-worker {sentinel}",
-        )) + "\n")
+            f"71007 1 0.0 20:00 /Applications/Agent Host/codex exec --output-last-message report.md {sentinel}",
+            f"71008 1 90.0 20:00 /opt/codex exec next-worker {sentinel}",
+            f"71009 1 0.0 20:00 node wrangler dev {sentinel}",
+            f"71010 1 90.0 20:00 codex exec next-worker {sentinel}",
+            f"71011 1 90.0 20:00 /Applications/Agent Host/claude -p next-worker {sentinel}",
+        )) + "\n"
+        rows.write_text(fixture_rows)
         scripts = {
-            "ps": '#!/bin/bash\n[ -f "$TEST_TERMINATED" ] || /bin/cat "$TEST_PS_ROWS"\n',
+            "ps": '#!/bin/bash\nif [ -f "$TEST_TERMINATED" ]; then '
+                  'awk \'$1 != 71001\' "$TEST_PS_ROWS"; else /bin/cat "$TEST_PS_ROWS"; fi\n',
             "lsof": '#!/bin/bash\nprintf "n%s\\n" "$TEST_CWD"\n',
-            "pgrep": '#!/bin/bash\n[ "$2" = 71001 ] && echo 71006\n',
+            "pgrep": '#!/bin/bash\ncase "$2" in 71001) echo 71006;; 71007) echo 71012;; esac\n',
         }
         for name, source in scripts.items():
             executable = mockbin / name
             executable.write_text(source)
             executable.chmod(0o755)
         init = fixture / "bash-init"
-        init.write_text('kill() { if [ "$1" = -0 ]; then return 1; fi; '
+        init.write_text('kill() { if [ "$1" = -0 ]; then '
+                        'case "$2" in 71001|71006) [ ! -f "$TEST_TERMINATED" ]; return;; *) return 0;; esac; fi; '
                         'printf "%s\\n" "$*" >> "$TEST_SIGNAL_LOG"; : > "$TEST_TERMINATED"; }\n'
                         'sleep() { :; }\n')
         state = fixture / "terminated"
@@ -1585,11 +1593,14 @@ def check_process_inspection_keeps_arguments_private() -> None:
             result = run(["bash", str(killer), *([flag] if flag else [])], env=env)
             check(result.returncode == 0 and sentinel not in result.stdout + result.stderr,
                   f"Orphan {flag or 'termination'} output must hide argument values")
-            check(all(pid in result.stdout for pid in ("71001", "71004"))
+            check(all(pid in result.stdout for pid in ("71001", "71004", "71007", "71008", "71009", "71010", "71011"))
                   and all(pid not in result.stdout for pid in ("71002", "71003", "71005")),
                   "Candidate privacy must preserve parent, age and framework CPU gates")
-        check(set(signals.read_text().splitlines()) == {"-TERM 71001", "-TERM 71004", "-TERM 71006"},
-              "Termination must signal only fixture candidates and their recorded descendants")
+            if flag != "--list":
+                check(all(f"Retained pid {pid}" in result.stdout for pid in ("71004", "71007", "71008", "71009", "71010", "71011")),
+                      "Old agent candidates must be explicitly retained, including adopted and hot Codex workers")
+        check(set(signals.read_text().splitlines()) == {"-TERM 71001", "-TERM 71006"},
+              "Initial signals and rescan must preserve agent roots and their children while clearing eligible framework families")
         state.unlink(missing_ok=True)
         home_bin = fixture / ".claude/bin"
         home_bin.mkdir(parents=True)
@@ -1597,8 +1608,16 @@ def check_process_inspection_keeps_arguments_private() -> None:
         previous_signals = signals.read_text()
         result = run(["bash", str(ROOT / "hooks/orphan-worker-sweep.sh")], env=env)
         check(result.returncode == 0 and sentinel not in result.stdout + result.stderr
-              and "71001" in result.stdout and signals.read_text() == previous_signals,
-              "Session-start report must hide arguments and remain read-only")
+              and "71001" in result.stdout and "eligible framework candidate" in result.stdout
+              and "retained; owner not proven ended" in result.stdout
+              and "CLEAR THESE NOW" not in result.stdout and signals.read_text() == previous_signals,
+              "Session-start report must distinguish retained agents, hide arguments and remain read-only")
+        rows.write_text("\n".join(line for line in fixture_rows.splitlines()
+                                  if line.split()[0] in {"71004", "71007", "71008", "71009", "71010", "71011"}) + "\n")
+        result = run(["bash", str(killer)], env=env)
+        check(result.returncode == 0 and signals.read_text() == previous_signals
+              and "No eligible framework families" in result.stdout and sentinel not in result.stdout + result.stderr,
+              "Agent-only inventory must exit without any signal or escalation")
 
 
 def main() -> int:

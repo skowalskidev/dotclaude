@@ -540,14 +540,14 @@ pin a core indefinitely. The classic offender is `next-router-worker`, also `jes
 `next-render-worker-pages`. One left in another checkout burned a full core for five hours before
 anyone looked, which is why the sweep is machine-wide and not task-end-only.
 
-The same sweep clears a second class, **agent-spawned orphans**: a `chrome-devtools-mcp` (one spawned
-per browser-tool use and never reaped), a `wrangler dev` / `workerd`, or a headless `codex exec` whose
-MCP, session or launcher died. These differ in ONE way — a human does not detach and keep using them —
-so `bin/kill-orphan-workers.sh` sweeps them idle-and-old (PPID 1 + 5+ min), not only when burning; the
-framework CPU floor would miss ~18 idle chrome instances and a `codex exec` thrashing at ~0% CPU for
-90 minutes, which is the leak that crawled the machine. PPID 1 stays the guard: a live session keeps
-its MCP, wrangler and launcher alive, so a browser or server it is using is never PPID 1 and never
-touched.
+DO retain **agent-class candidates** (`chrome-devtools-mcp`, `wrangler`/`workerd`, `codex exec`, `claude -p`)
+when their task ownership is unresolved. `bin/kill-orphan-workers.sh` reports them at PPID 1 + 5+ min
+but never admits those roots to its signal or rescan sets. A handed-off worker can still produce
+results for a successor after its launcher exits; parent death, CPU use and log age prove no end state.
+Use the owning task's launch identity and lifecycle records before its owner stops a proven ended run.
+The generic sweep has no authoritative ended-task receipt, so uncertainty remains report-only.
+TEST: an adopted old PPID-1 headless worker stays alive; framework CPU/age/git-cwd gates still apply,
+and reports distinguish retained agents from eligible framework families without exposing arguments.
 
 - **Capture the whole family BEFORE signalling anything.** A child's ppid changes the instant its
   parent dies, so a tree collected afterwards is already wrong.
@@ -559,9 +559,8 @@ touched.
 - **Re-check against the observable that matters.** For a port holder that is "is the port still
   bound", not "is that pid alive": if only the parent died, a surviving child still holds the bind and
   the pid you were watching is gone.
-- **Never kill a worker that still has a live parent dev server.** That's an active localhost someone
-  is using. `bin/kill-orphan-workers.sh` enforces it by only ever signalling a PPID==1 root or a
-  descendant reachable through one, so nothing it touches can have a live dev-server ancestor.
+- **Preserve live-parent exclusions and the framework gates.** Signal only an eligible framework
+  PPID-1 root and its captured descendants. A root's parent death alone never licenses agent cleanup.
 
 The process-group and signal-discipline sections above are what make any of this actually reach the
 grandchild holding the port.

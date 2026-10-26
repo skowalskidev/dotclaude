@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # orphan-worker-sweep.sh
-# SessionStart hook: reports orphaned framework dev-tool worker processes machine-wide (not just
-# in this session's cwd). DETECTION AND REPORTING ONLY — this hook must NEVER kill anything.
+# SessionStart hook: reports eligible framework families and retained agent candidates machine-wide.
+# DETECTION AND REPORTING ONLY — this hook must NEVER kill anything.
 # Killing is a separate, explicit command you run yourself: ~/.claude/bin/kill-orphan-workers.sh.
 # An unattended SessionStart hook that signals processes is exactly what rules/security.md forbids
 # (a machine change with no provenance gate), so the two are kept hard-separated.
@@ -31,24 +31,32 @@ run_sweep() {
   rows="$("$KILLER" --list 2>/dev/null)"
   [ -n "$rows" ] || return 0
 
-  lines="Orphaned framework worker process(es) found machine-wide (PID 1 parent, dev-tool process, cwd inside a git checkout) — each has been burning CPU with no live dev server attached:
+  eligible=0
+  lines="Worker cleanup report (arguments withheld):
 "
   # shellcheck disable=SC2034 # ppid is always 1 by the detection contract; consumed, not reported
-  while IFS="$(printf '\t')" read -r pid ppid pcpu etime cwd args; do
+  while IFS="$(printf '\t')" read -r pid ppid pcpu etime cwd category; do
     [ -n "$pid" ] || continue
-    lines="${lines}  - pid ${pid}  %cpu=${pcpu}  elapsed=${etime}  cwd=${cwd}
-    ${args}
+    if [ "$category" = "framework" ]; then
+      disposition="eligible framework candidate"
+      eligible=$((eligible + 1))
+    else
+      disposition="retained; owner not proven ended"
+    fi
+    lines="${lines}  - pid ${pid}  category=${category}  ${disposition}  %cpu=${pcpu}  elapsed=${etime}  cwd=${cwd}
 "
   done <<EOF
 $rows
 EOF
+  if [ "$eligible" -gt 0 ]; then
+    lines="${lines}
+Inspect eligible framework families with ~/.claude/bin/kill-orphan-workers.sh --dry-run before cleanup.
+"
+  fi
   lines="${lines}
-CLEAR THESE NOW, BEFORE STARTING THE TASK: run ~/.claude/bin/kill-orphan-workers.sh
-Every row above is already parentless and already burning a core, so there is nothing to triage.
-Deferring to task-end cleanup costs a core for the whole session, which is unbounded — one run
-burned 97% of a core for ten hours because this report arrived at minute zero of an all-day task.
-(--dry-run previews, --list re-checks. This hook only reports; it never kills, because an
-unattended machine change is what rules/security.md gates.)"
+Retained agents require their task owner's lifecycle check. PPID 1 and age do not prove abandonment:
+a successor session may still own the worker. Check launch identity and task/handoff records; never
+signal a retained agent from this report alone. This hook only reports and never kills."
 
   if command -v jq >/dev/null 2>&1; then
     jq -cn --arg c "$lines" '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'
