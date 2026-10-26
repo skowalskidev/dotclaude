@@ -49,8 +49,8 @@ free), release this session's port lanes (`references/dev-server-hygiene.md`: `p
 and tear down every FINISHED isolated worktree whose work is on origin.
 DON'T leave a burning or idle process holding a core over the break: a reboot kills them anyway, so
 leaving them is only ever mess, never necessary.
-TEST: `pgrep -fl 'next dev|next start|vitest|jest|next-router-worker'` lists nothing you started, and no
-agent/monitor you launched is still live.
+TEST: the recorded owned PIDs/groups are stopped and their ports are free; no agent/monitor you
+launched is still live. Apply names-only inspection and ownership checks from `rules/process.md`.
 
 ## Step 5 · Verify the guarantee, then hand back the brief
 

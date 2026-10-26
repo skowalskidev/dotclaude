@@ -360,8 +360,8 @@ the build process reparents, keeps running with no parent and keeps the lease. W
 `orphan / PID reused` with `command_group=<pgid> (running)`, list the group with `pgrep -g <pgid> -l`,
 stop its build process, and confirm `status` no longer shows `(running)` before the inspected release
 above. A mid-run message to a worker says "let it finish" or names the process to stop, never only "do
-not rerun". TEST: after a stop, `status` shows no running command group and `pgrep -fl xcodebuild` names
-only live runs.
+not rerun". TEST: after a stop, `status` shows no running command group; inspect the recorded group
+with `pgrep -g <pgid> -l` and verify its owned members stopped, preserving other live runs.
 
 DO cap native runner parallelism inside the lease: `xcodebuild -jobs 4
 -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1` on hosts with at
@@ -492,6 +492,19 @@ own. Not restated here.
 **The MECHANICS live here**, because they are deep how-to and this file already owns process-group
 teardown and signal discipline. They moved out of the always-on rule, which was at 69,993 bytes of a
 70,000 ceiling and could not afford to carry them.
+
+### Private process inspection
+
+DO inspect processes with names and metadata only. Use `pgrep -l <name>` for discovery and
+`ps -p <pid> -o pid=,ppid=,pgid=,comm=` for a known PID. Keep arguments and environment values out
+of tool output, logs and artifacts, even for owned processes (e.g. a launcher argument can hold a key).
+**DON'T print full command lines with `pgrep -fl`, `pgrep -af`, `ps aux`, or `ps` args/command fields.**
+When exact arguments are required for an existing ownership check, capture them inside a local
+checker and emit only the match verdict and safe metadata; never weaken that check to a name match.
+Before signalling, verify the launch receipt, start time, parent/group and cwd against this task;
+a name match alone proves neither ownership nor abandonment. Preserve other live sessions.
+TEST: zero argument/environment values in inspection output; every stopped PID has current
+ownership evidence or passes the existing orphan-cleanup gate.
 
 ### Waiting on a background job
 

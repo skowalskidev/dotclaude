@@ -116,9 +116,10 @@ Only remove a confirmed owned alias as a link after its target's cleanup decisio
 TEST: a directory missing from both Git listings and local heads still receives a mapped or blocked row.
 
 Also enumerate `.context/*-dashboard.runtime.json` inside each candidate. Treat a receipt as owned only
-when its `plan` and `output` resolve inside that worktree, the plan exists, and `ps -p <pid> -o command=`
-names `workflow-dashboard.py serve`; resolve the command's plan argument against the PID's cwd and require
-it to equal the receipt's plan. A missing/dead receipt is stale runtime metadata;
+when its `plan` and `output` resolve inside that worktree, the plan exists, and a local checker captures
+the PID's command internally and matches `workflow-dashboard.py serve`; resolve the command's plan
+argument against the PID's cwd and require it to equal the receipt's plan. Emit only the verdict and
+safe metadata under `rules/process.md`, never the captured arguments. A missing/dead receipt is stale runtime metadata;
 a live receipt that fails any ownership check is an unknown process and BLOCKS cleanup.
 
 **DO enumerate every BRANCH-ONLY local head, including unresolved unique work.** This is

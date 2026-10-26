@@ -215,6 +215,9 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
 - **Track every process/server/port you start, and shut them ALL down at task end.** List anything
   backgrounded — dev/preview servers, watchers, tunnels, `stripe listen`, a held
   `:3000`/`:3100` port — then kill each and VERIFY it's gone.
+- **DO inspect names/metadata only; keep arguments and environment values private.** Apply
+  `references/dev-server-hygiene.md` § Private process inspection. TEST: zero exposed values;
+  signal only proven owned processes or candidates passing the existing orphan gate.
 - **Claim a port lane and heavy lease before binding, building or booting.** Use `bin/port-slot.sh`
   and `bin/local-capacity.py run`. Port conflict → next lane; exit 75 → defer heavy work and keep
   reading/editing. Release the lane when done, the lease after owned simulator shutdown. Run
@@ -222,12 +225,9 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   after. No heavy step runs bare; act on a `watchdog:` line naming this session at once.
   Never kill a live owner's build or simulator; only a printed `reclaim-sim` frees an ended owner's.
   Protocol: `references/dev-server-hygiene.md`.
-- **Clear the session-start orphan report BEFORE the task, not at task end.** A dead `next dev`/`jest`/
-  `vite` reparented to PID 1 pins a core nobody watches; `bin/kill-orphan-workers.sh` clears a BURNING
-  framework worker (20%+ CPU, 5+ min) or an idle-and-old agent orphan (PPID 1, 5+ min), never a
-  just-started one. TEST at hand-back: `pgrep -fl
-  'next-router-worker|vitest|jest|chrome-devtools-mcp|workerd|codex'` names only yours. Mechanics:
-  `references/dev-server-hygiene.md`.
+- **Resolve the session-start orphan report before the task.** Apply the existing guarded
+  `bin/kill-orphan-workers.sh` procedure in that reference; preserve active owners.
+  TEST at hand-back: recorded owned PIDs/groups are stopped and their ports are free.
 - **Remove scratch scripts/files** a session created (evals, one-off helpers, temp data) once
   used; keep intentional artifacts, branch build caches and the shared warmed `agent` simulator, which is
   shut down and released, never deleted (`references/dev-server-hygiene.md`, `references/ios-simulator.md`).

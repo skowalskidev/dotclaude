@@ -64,7 +64,7 @@
 # Usage:
 #   kill-orphan-workers.sh            # detect + kill (the default; this is the point of the script)
 #   kill-orphan-workers.sh --dry-run  # detect + print the family that would be killed; kill nothing
-#   kill-orphan-workers.sh --list     # detect only, print raw candidate rows (used by the SessionStart hook)
+#   kill-orphan-workers.sh --list     # detect only, print safe candidate metadata (used by the SessionStart hook)
 #   kill-orphan-workers.sh --help
 # -f (noglob) is deliberate and load-bearing: this script repeatedly word-splits unquoted
 # variables built from `ps`/`pgrep` output (pids, and once a raw command line) for portability
@@ -88,7 +88,7 @@ usage() {
     "Usage: $(basename "$0") [--dry-run|--list|--help]" \
     "  (no flag)   detect orphaned framework + agent-spawned worker processes machine-wide and kill them" \
     "  --dry-run   detect and print what would be killed; kill nothing" \
-    "  --list      detect only, print raw candidate rows (pid/ppid/cpu/etime/cwd/args, tab-separated)" \
+    "  --list      detect only, print safe candidate rows (pid/ppid/cpu/etime/cwd/category, tab-separated)" \
     "  --help      show this message"
 }
 
@@ -152,7 +152,7 @@ in_git_worktree() {
 }
 
 # detect_candidates — the single source of truth for detection. Emits one tab-separated row per
-# candidate: pid, ppid, %cpu, elapsed, cwd, full command line.
+# candidate: pid, ppid, %cpu, elapsed, cwd, category. Arguments stay inside the detector.
 detect_candidates() {
   ps -Awwo pid=,ppid=,pcpu=,etime=,args= 2>/dev/null | while IFS= read -r line; do
     # shellcheck disable=SC2086 # deliberate word-splitting to peel off the four numeric fields
@@ -199,7 +199,7 @@ detect_candidates() {
       cwd="$(cwd_for_pid "$pid")"
     fi
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$ppid" "$pcpu" "$etime" "$cwd" "$args"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$ppid" "$pcpu" "$etime" "$cwd" "$category"
   done
 }
 

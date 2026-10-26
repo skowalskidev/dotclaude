@@ -154,8 +154,8 @@ this order:
    FALLBACK for the rare case the shared write failed. Throughout, it keeps the TIMESTAMPED phase log +
    FRICTION report beside its status file (`references/parallelization.md` § "The hand-run session
    handoff") so the orchestrator can diagnose the bottleneck and self-improve. TEST: after DONE,
-   `<STATUS_DIR>/<part-name>.json` reads `done`, and `pgrep` for the part's servers and its `claude -p`
-   slices returns nothing.
+   `<STATUS_DIR>/<part-name>.json` reads `done`, and the part's recorded owned server and slice
+   PIDs/groups are stopped with their ports free.
 7. **The leaf-worker boundary:** you own only your `owns` files — never edit a `forbid` file to make
    your slice pass. If the work genuinely needs one, or you get stuck, that is a `BLOCKED.md` in the
    repo root (what and why) and a stop, not an edit.
@@ -267,7 +267,8 @@ round, per `rules/process.md` § "Clean up after yourself" and `references/dev-s
 - **Processes — sweep the machine for what the run left.** Each part self-cleans its servers, port lane
   and inner `claude -p` slices at finish (Step 3, item 6); at reconciliation run
   `bin/kill-orphan-workers.sh` for any BURNING dev-server orphan a killed session left, release held
-  port lanes (`bin/port-registry.sh`), and check `pgrep -fl 'claude -p'` for stray inner slices. The
+  port lanes (`bin/port-registry.sh`), and check recorded owned slice PIDs/groups with names-only
+  inspection and ownership proof under `rules/process.md`. The
   orchestrator cannot close an interactive session, so it NAMES each idle session for Simon to archive
   BY ITS BRANCH NAME (the `branch` field from its status file) — that branch is what the Conductor session
   shorthand shows, so it is how Simon matches the archive action to the right session. Archiving is the
@@ -281,8 +282,8 @@ round, per `rules/process.md` § "Clean up after yourself" and `references/dev-s
   branches are not lost just because assembly never ran.
 - TEST: at hand-back, NONE of the reported part branches survive — for every `$STATUS_DIR/*.json`
   `branch`, `git show-ref --verify --quiet refs/heads/<branch>` fails and it is gone from
-  `origin` — `git worktree list` shows no part worktree, and `pgrep -fl 'next-router-worker|vitest|jest'`
-  lists only what the orchestrator started.
+  `origin` — `git worktree list` shows no part worktree, and the run's recorded owned PIDs/groups
+  are stopped with their ports free; other live sessions remain untouched.
 - **If work remains, loop:** the assembled branch is the new START. Commit + push it, write the next
   round's plan file, and repeat Steps 3-6 until the whole task is done. Say plainly, each round, what is
   done and what parts remain.

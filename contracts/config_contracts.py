@@ -450,6 +450,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
+            "Process inspection emits names and metadata, never arguments or environment values; exact-argument ownership checks stay internal and report verdicts. Signal only currently proven owned processes or candidates passing the existing orphan gate; preserve other live sessions.",
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
             "Keep native compile checks and relevant backend payment, auth and data tests; preserve required hooks and CI without bypassing them to impose batch timing.",
@@ -2171,6 +2172,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "An orphaned worker is cleared without killing a dev server someone is using.",
         "purpose": "Clears orphaned framework and agent-spawned workers the sweep hook reported.",
         "criteria": [
+            "Keep full arguments internal to candidate matching; list, dry-run, termination reports and the session hook expose only candidate metadata and category, never argument values.",
             "Never kills a process whose parent is alive: every candidate is PPID 1, so a live session's server, MCP or launcher is spared by construction.",
             "Burns-only for framework workers: a next/jest/vite worker is killed at 20%+ CPU and 5+ minutes old and inside a git checkout, since a live detached server leaves idle ones.",
             "Idle-and-old for agent-spawned orphans: chrome-devtools-mcp, wrangler/workerd and headless codex exec are killed when PPID 1 and 5+ minutes old, burning or not.",
