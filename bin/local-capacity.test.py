@@ -1290,7 +1290,58 @@ class ReclaimTests(unittest.TestCase):
         self.assertEqual([call for call in self.calls.call_args_list if call.args[0][0] == "/usr/bin/xcrun"], [])
 
     def claim(self, udid, owner):
-        gate.write_claims(self.root, dict(gate.read_claims(self.root), **{udid: owner}))
+        gate.write_claims(self.root, dict(gate.read_claims(self.root), **{udid: owner}),
+                          {udid: "/w/" + owner})
+
+    def test_old_label_only_claim_is_unknown_with_live_sessions_and_reclaimable_without_them(self):
+        (self.root / "claims.json").write_text(json.dumps({SIM: "harbor"}))
+        with self.assertRaisesRegex(gate.GateError, "workspace is unknown"):
+            gate.reclaim_sim(self.root, SIM)
+        self.assertEqual(gate.reclaim_hint(self.root, [None] * gate.HEAVY_SLOTS, SIM), "")
+        self.assert_no_xcrun()
+        self.assertEqual(gate.read_claims(self.root), {SIM: "harbor"})
+        self.sessions = []
+        gate.reclaim_sim(self.root, SIM)
+        self.assertEqual(gate.read_claims(self.root), {})
+
+    def test_claim_workspace_receipt_survives_other_claim_writes_and_cannot_be_rehomed(self):
+        gate.write_claims(self.root, {SIM: "harbor"})
+        self.assertEqual(gate.claim_workspace(self.root, SIM), "/w/harbor")
+        with mock.patch.object(gate, "observe_booted", return_value=[]):
+            gate.claim_sim(self.root, SIM, "harbor")
+        self.assertEqual(gate.claim_workspace(self.root, SIM), "/w/harbor")
+        gate.write_claims(self.root, {})
+        self.assertIsNone(gate.claim_workspace(self.root, SIM))
+
+    def test_new_claim_records_workspace_without_changing_owner_label_api(self):
+        gate.write_claims(self.root, {})
+        with mock.patch.object(gate, "observe_booted", return_value=[]):
+            gate.claim_sim(self.root, SIM, "custom-owner")
+        self.assertEqual(gate.read_claims(self.root), {SIM: "custom-owner"})
+        workspace = gate.claim_workspace(self.root, SIM)
+        self.assertTrue(Path(workspace).is_absolute())
+        self.sessions = [workspace]
+        with self.assertRaisesRegex(gate.GateError, "live session"):
+            gate.reclaim_sim(self.root, SIM)
+        self.assert_no_xcrun()
+
+    def test_malformed_workspace_receipts_block_reclamation(self):
+        for workspace in ("relative", "/w/../other", "/w/one\n/w/two", None):
+            with self.subTest(workspace=workspace):
+                (self.root / "claims.json").write_text(json.dumps({SIM: {"owner": "harbor", "workspace": workspace}}))
+                with self.assertRaisesRegex(gate.GateError, "claims are corrupt"):
+                    gate.reclaim_sim(self.root, SIM)
+                self.assert_no_xcrun()
+
+    def test_claim_without_git_workspace_keeps_unknown_provenance(self):
+        gate.write_claims(self.root, {})
+        with mock.patch.object(gate, "observe_booted", return_value=[]), \
+             mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=128)):
+            gate.claim_sim(self.root, SIM, "harbor")
+        self.assertIsNone(gate.claim_workspace(self.root, SIM))
+        with self.assertRaisesRegex(gate.GateError, "workspace is unknown"):
+            gate.reclaim_sim(self.root, SIM)
+        self.assert_no_xcrun()
 
     def test_refuses_while_the_claim_owner_has_a_live_session(self):
         self.sessions = ["/w/harbor/apps/ios"]
@@ -1543,6 +1594,127 @@ class SessionOwnershipTests(unittest.TestCase):
         self.assertFalse(any("label=com.supabase.cli.project=child" in command for command in commands))
         self.host["sessions"] = []
         self.assertEqual(len(gate.stack_sweep(False)), 3)
+
+    def test_parent_session_protects_nested_simulator_and_independent_owner_can_be_reclaimed(self):
+        gate.secure_root(self.root)
+        self.host["sessions"] = [str(self.checkout / "apps/api")]
+        for workspace, retained in ((self.nested, True), (self.sibling, False), (self.unrelated, False)):
+            with self.subTest(workspace=workspace):
+                gate.write_claims(self.root, {SIM: workspace.name}, {SIM: str(workspace)})
+                with mock.patch.object(gate, "probe_devices", return_value={SIM: "Booted"}), \
+                     mock.patch.object(gate, "shutdown_owned") as shutdown:
+                    if retained:
+                        with self.assertRaisesRegex(gate.GateError, "live session"):
+                            gate.reclaim_sim(self.root, SIM)
+                        shutdown.assert_not_called()
+                        self.assertEqual(gate.reclaim_hint(self.root, [None] * gate.HEAVY_SLOTS, SIM), "")
+                    else:
+                        gate.reclaim_sim(self.root, SIM)
+                        shutdown.assert_called_once_with(SIM)
+
+    def test_missing_nested_workspace_keeps_simulator_and_port_ownership_unknown(self):
+        gate.secure_root(self.root)
+        gate.write_claims(self.root, {SIM: "child"}, {SIM: str(self.nested)})
+        self.host["sessions"] = [str(self.checkout)]
+        self.git("-C", str(self.checkout), "worktree", "remove", str(self.nested))
+        with mock.patch.object(gate, "shutdown_owned") as shutdown:
+            with self.assertRaisesRegex(gate.GateError, "ownership probe failed"):
+                gate.reclaim_sim(self.root, SIM)
+            shutdown.assert_not_called()
+        env = self.fake_host()
+        retained = subprocess.run(["bash", str(gate.PORT_REGISTRY), "can-reap-workspace", str(self.nested)],
+                                  env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(retained.returncode, 2, retained.stderr)
+
+    def test_reap_requires_confirmed_absence_and_known_session_snapshot(self):
+        env = self.fake_host()
+        missing = self.base / "ended"
+        broken = self.base / "broken"
+        broken.symlink_to(self.base / "absent-target")
+        for path, expected in ((missing, 0), (self.nested, 1), (broken, 2)):
+            result = subprocess.run(["bash", str(gate.PORT_REGISTRY), "can-reap-workspace", str(path)],
+                                    env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, expected, (path, result.stderr))
+        (self.base / "fake-bin/ps").write_text("#!/bin/sh\nexit 1\n")
+        result = subprocess.run(["bash", str(gate.PORT_REGISTRY), "can-reap-workspace", str(missing)],
+                                env=env, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 2)
+
+    @unittest.skipIf(os.getuid() == 0, "root bypasses directory permissions")
+    def test_reap_retains_an_inaccessible_workspace(self):
+        env = self.fake_host()
+        self.checkout.chmod(0)
+        try:
+            result = subprocess.run(["bash", str(gate.PORT_REGISTRY), "can-reap-workspace", str(self.nested)],
+                                    env=env, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 2, result.stderr)
+        finally:
+            self.checkout.chmod(0o755)
+
+    def test_port_sweep_rechecks_every_row_and_never_signals_live_or_unknown_owners(self):
+        env = self.fake_host()
+        missing = self.base / "ended"
+        broken = self.base / "broken"
+        broken.symlink_to(self.base / "absent-target")
+        self.git("-C", str(self.checkout), "worktree", "remove", str(self.nested))
+        signals = self.base / "signals"
+        env.update({"SIGNALS": str(signals), "TMP": str(self.base), "REGISTRY_SH": str(gate.PORT_REGISTRY)})
+        (self.base / "fake-bin/lsof").write_text("""#!/bin/sh
+case "$*" in
+  *-iTCP:*)
+    case "$*" in
+      *-iTCP:39001*) [ ! -f "$SIGNALS" ] || exit 1; printf '990001\\n' ;;
+      *) printf '990002\\n' ;;
+    esac ;;
+  *) cat "$FIXTURE_CWDS" ;;
+esac
+""")
+        pgrep = self.base / "fake-bin/pgrep"
+        pgrep.write_text("#!/bin/sh\nexit 1\n")
+        pgrep.chmod(0o755)
+        registry = Path(env["PORT_REGISTRY_FILE"])
+        registry.write_text("## Held\n\n" + "".join(
+            "| %s | %s | %s | fixture | 2000-01-01T00:00:00Z | - |\n" % (port, path.name, path)
+            for port, path in ((39001, missing), (39002, self.nested), (39003, broken))) + "\n## Waiting\n")
+        # Evaluate the real sweep functions only: all signals are intercepted, and unrelated
+        # lane discovery and runtime logging cannot touch this machine's config.
+        source = SCRIPT.with_name("port-slot.sh").read_text()
+        sweep = source.split("# --- the sweep ", 1)[1].split("# --- logging ", 1)[0]
+        sweep = sweep[sweep.index("\n") + 1:]
+        program = """set -u
+TAB="$(printf '\\t')"
+QUIET=1
+say() { :; }
+kill() { printf '%s\\n' "$*" >> "$SIGNALS"; }
+sleep() { :; }
+""" + sweep + "\nsweep\n"
+        result = subprocess.run(["bash"], input=program, env=env, capture_output=True, text=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(signals.read_text().splitlines(), ["-TERM 990001"])
+        self.assertIn(str(self.nested), registry.read_text())
+        self.assertIn(str(broken), registry.read_text())
+
+    def test_port_sweep_retains_a_claim_when_owner_probe_becomes_unknown_before_signalling(self):
+        fake = self.base / "registry"
+        fake.write_text("""#!/bin/sh
+case "$1" in
+  reap) exit 5 ;;
+  list) printf '39001\\tended\\t/absent/ended\\tfixture\\t2000-01-01T00:00:00Z\\t990001\\n' ;;
+  can-reap-workspace) exit 2 ;;
+  *) exit 91 ;;
+esac
+""")
+        fake.chmod(0o755)
+        source = SCRIPT.with_name("port-slot.sh").read_text()
+        sweep = source.split("# --- the sweep ", 1)[1].split("# --- logging ", 1)[0]
+        sweep = sweep[sweep.index("\n") + 1:]
+        # A regression reaching kill_orphan_on_port is observed before any host probe or signal.
+        program = "TAB=\"$(printf '\\t')\"\nQUIET=1\nsay() { :; }\n" + sweep
+        program += '\nkill_orphan_on_port() { printf "UNSAFE\\n"; }\nsweep\n'
+        result = subprocess.run(["bash"], input=program, env={**os.environ, "REGISTRY_SH": str(fake),
+                                "TMP": str(self.base)}, capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("UNSAFE", result.stdout)
 
     def test_nested_session_does_not_protect_a_sibling_nested_worktree(self):
         other = self.checkout / ".context/wt/other"

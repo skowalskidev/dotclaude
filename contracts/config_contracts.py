@@ -60,6 +60,7 @@ CONTRACTS: dict[str, dict] = {
             "Watchdog and status flag, read-only, processes at or above 200% ps CPU aged 120 seconds or more, unleased booted simulators, idle claims and extra Chrome for Testing instances, naming each simulator's owner; they stop nothing.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
             "reclaim-sim shuts down and unclaims a simulator only when its claim owner has no live session and no lease holds it; it exits 1 naming a live owner and never deletes the device.",
+            "Record a new simulator claim's checkout without changing the owner-label API. Retain label-only claims while any session is live; use shared workspace ownership for recorded claims, including live parents of nested worktrees.",
             "Print the reclaim command on run, claim-sim and watchdog output only for an ended claim owner; a failed session probe is never read as ended.",
             "Bound boot to 60 seconds, bootstatus and install to 120 seconds each, and the foreground run to 60 minutes by default; a failed boot starts no later stage.",
             "Attempt bounded shutdown of only the recorded simulator after command groups stop on success, failure or timeout; retain the lease if any device is not Shutdown.",
@@ -2071,6 +2072,7 @@ CONTRACTS: dict[str, dict] = {
             "sessions prints the working directory of every live Claude/Codex session and writes nothing; match only executable basenames claude and codex, never process arguments or environment values.",
             "owns-workspace tests live cwds from stdin using the same predicate as reconciliation; protect physically nested linked worktrees only with a matching Git common directory, never siblings or unrelated nested repositories.",
             "Report failed process probes, missing session cwds and failed Git probes for candidate nested owners as unknown; preserve port claims and refuse stack reclamation until ownership is known.",
+            "Require confirmed workspace absence and absent session ownership before reap reports a kill candidate. Retain inaccessible paths, broken links and deleted children of live parent checkouts; can-reap-workspace repeats the same check before signalling.",
             "Exit codes stay meaningful: 3 held by another live session, 4 a listener nobody "
             "claimed. The EXIT trap must preserve them.",
             "Release surfaces who was waiting, so the hand-off between sessions reaches Simon. It "
@@ -2153,9 +2155,8 @@ CONTRACTS: dict[str, dict] = {
             "registry row, which is what stops rows accumulating across a day of sessions.",
             "Releases this workspace's previous lane before claiming a new one. A slot change that "
             "leaves two lanes claimed is the accumulation this is built to prevent.",
-            "Kills exactly one thing: a server whose WORKSPACE HAS BEEN DELETED, family-first with a "
-            "re-scan against the port rather than the pid. Every other shape, including a listener "
-            "nobody claimed, is reported and left alone — it may be a server Simon started himself.",
+            "Stop only servers with confirmed deleted workspaces and absent owners. Signal family-first, then rescan the port. Retain every live or unresolved owner and every listener nobody claimed.",
+            "Recheck every candidate through port-registry can-reap-workspace immediately before signalling; a failed directory or ownership lookup never authorizes a kill, even when another row made reap exit 5.",
             "Base ports are discovered, never hardcoded, and a cached map whose workspace field does "
             "not match this worktree is REJECTED. Conductor copies .env* into new workspaces, so an "
             "inherited map is a real event and trusting it boots a fresh workspace on another lane.",

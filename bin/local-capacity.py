@@ -472,7 +472,7 @@ def legacy_claims():
         raise GateError("legacy simulator ledger is unreadable; inspect it") from exc
 
 
-def read_claims(root):
+def read_claim_records(root):
     fd = secure_open(root / "claims.json")
     try:
         raw = os.read(fd, 16385)
@@ -486,18 +486,38 @@ def read_claims(root):
         claims = json.loads(raw)
         if not isinstance(claims, dict):
             raise ValueError("invalid claims")
-        for udid, owner in claims.items():
+        for udid, record in claims.items():
+            owner = record.get("owner") if isinstance(record, dict) else record
             if not UDID.fullmatch(udid) or not isinstance(owner, str) or not OWNER.fullmatch(owner):
                 raise ValueError("invalid claim")
+            if isinstance(record, dict):
+                workspace = record.get("workspace")
+                if (set(record) != {"owner", "workspace"} or not isinstance(workspace, str)
+                        or not Path(workspace).is_absolute() or ".." in Path(workspace).parts
+                        or any(char in workspace for char in "\n\r\t")):
+                    raise ValueError("invalid claim workspace")
         return claims
     except (ValueError, UnicodeError, TypeError) as exc:
         raise GateError("simulator claims are corrupt; inspect them") from exc
 
 
-def write_claims(root, claims):
+def read_claims(root):
+    """Keep the public owner-label mapping, including claims written before workspace receipts."""
+    return {udid: record["owner"] if isinstance(record, dict) else record
+            for udid, record in read_claim_records(root).items()}
+
+
+def write_claims(root, claims, workspaces=None):
+    previous = read_claim_records(root)
+    records = {}
+    for udid, owner in claims.items():
+        old = previous.get(udid)
+        records[udid] = old if isinstance(old, dict) and old["owner"] == owner else owner
+        if workspaces and udid in workspaces:
+            records[udid] = {"owner": owner, "workspace": workspaces[udid]}
     fd = secure_open(root / "claims.json")
     try:
-        data = (json.dumps(claims, sort_keys=True) + "\n").encode()
+        data = (json.dumps(records, sort_keys=True) + "\n").encode()
         os.lseek(fd, 0, os.SEEK_SET)
         os.write(fd, data)
         os.ftruncate(fd, len(data))
@@ -520,8 +540,22 @@ def claim_sim(root, udid, owner):
             raise Busy("simulator %s is claimed by %s" % (udid, claims[udid]))
         states = [read_state(root, slot=name) for name in SLOTS]
         enforce_simulator_cap(root, states, observe_booted(), udid)
-        claims[udid] = owner
-        write_claims(root, claims)
+        if udid not in claims:
+            # Record the invoking checkout, not a guessed path from its possibly shared label.
+            # Repeating a claim must not replace its existing (or unknown) provenance.
+            workspace = None
+            try:
+                result = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
+                                        text=True, timeout=5, check=False)
+                if result.returncode == 0:
+                    top = result.stdout.strip()
+                    if not Path(top).is_absolute():
+                        raise ValueError("invalid workspace root")
+                    workspace = Path(top).resolve(strict=True)
+            except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+                raise GateError("claim workspace probe failed; claim was not recorded") from exc
+            claims[udid] = owner
+            write_claims(root, claims, {udid: str(workspace)} if workspace is not None else None)
 
 
 def release_sim(root, udid, owner):
@@ -543,13 +577,21 @@ def release_sim(root, udid, owner):
 RECLAIM_COMMAND = "python3 ~/.claude/bin/local-capacity.py reclaim-sim --udid %s"
 
 
-def owner_session_live(owner):
-    """True when a live Claude session works in a directory named for the owner label.
+def owner_session_live(owner, workspace=None):
+    """Retain live or unresolved owners; only a known workspace or empty snapshot proves absence."""
+    cwds = live_session_cwds()
+    if any(owner in Path(cwd).parts for cwd in cwds):
+        return True
+    if not cwds:
+        return False
+    if workspace is None:
+        raise GateError("simulator claim workspace is unknown; retain it until its owner releases it")
+    return session_owns_workspace(workspace, cwds)
 
-    Claim owners are worktree basenames (native-slot.sh session()), and port-registry.sh `sessions` is the one
-    detector of live sessions, so a path component equal to the label counts as live. A label that matches
-    nothing is the only thing read as ended; a probe failure raises and is never read as ended."""
-    return any(owner in Path(cwd).parts for cwd in live_session_cwds())
+
+def claim_workspace(root, udid):
+    record = read_claim_records(root).get(udid)
+    return record.get("workspace") if isinstance(record, dict) else None
 
 
 def reclaim_hint(root, states, udid):
@@ -558,7 +600,7 @@ def reclaim_hint(root, states, udid):
         owner = read_claims(root).get(udid)
         if owner is None or udid in legacy_claims() or any(lease and lease["simulator"] == udid for lease in states):
             return ""
-        if owner_session_live(owner):
+        if owner_session_live(owner, claim_workspace(root, udid)):
             return ""
     except GateError:
         return ""
@@ -581,7 +623,7 @@ def reclaim_sim(root, udid):
             if lease and lease["simulator"] == udid:
                 raise GateError("simulator %s holds a lease (%s); reclaim only acts on an unleased simulator" %
                                 (udid, holder_text(lease)))
-        if owner_session_live(owner):
+        if owner_session_live(owner, claim_workspace(root, udid)):
             raise GateError("simulator %s is claimed by %s, which has a live session; only that owner runs "
                             "xcrun simctl shutdown %s then release-sim" % (udid, owner, udid))
         if probe_devices().get(udid) is not None:

@@ -37,6 +37,7 @@
 #   port-registry.sh whoami                             show this session's identity
 #   port-registry.sh sessions                           cwd of every live Claude/Codex session (no writes)
 #   port-registry.sh owns-workspace <workspace>          test live cwds from stdin (0 owned, 1 unowned, 2 unknown)
+#   port-registry.sh can-reap-workspace <workspace>      recheck absent workspace and owners (0 eligible, 1 retain, 2 unknown)
 #
 # Exit codes: 0 ok · 2 usage · 3 held by another live session · 4 a listener nobody claimed
 #             · 5 an orphaned lane: workspace gone but its server is still listening
@@ -165,12 +166,42 @@ agent_cwds() {
   printf '%s\n' "$cwds" | sort -u
 }
 
+# Distinguish a deleted path from a failed lookup. Broken links, non-directory ancestors and
+# permission failures are unknown, never deletion evidence. This also validates path components.
+workspace_missing() {
+  /usr/bin/python3 - "$1" <<'PY'
+import stat, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+if not path.is_absolute() or ".." in path.parts or any(c in str(path) for c in "\n\r\t"):
+    sys.exit(2)
+current = Path(path.anchor)
+through_link = False
+for part in path.parts[1:]:
+    current /= part
+    try:
+        info = current.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            through_link = True
+            info = current.stat()  # A broken link is unknown, not a deleted workspace.
+        if not stat.S_ISDIR(info.st_mode):
+            sys.exit(2)
+    except FileNotFoundError:
+        sys.exit(2 if through_link or current.is_symlink() else 0)
+    except OSError:
+        sys.exit(2)
+sys.exit(1)
+PY
+}
+
 # session_live_at WORKSPACE CWD_FILE — shared ownership check for ports and stack reclamation.
 # A parent checkout also owns its physically nested linked worktrees, as in session-root.sh.
 # Require the same Git common directory; ancestors, siblings and unrelated repositories do not qualify.
 session_live_at() (
   ws="$1"; f="$2"
   case "$ws" in /*) ;; *) return 2 ;; esac
+  workspace_missing "$ws"; missing=$?
+  [ "$missing" -ne 2 ] || return 2
   if [ -d "$ws" ]; then
     ws="$(cd -P "$ws" 2>/dev/null && pwd -P)" || return 2
   fi
@@ -181,7 +212,6 @@ session_live_at() (
       cwd="$(cd -P "$cwd" 2>/dev/null && pwd -P)" || return 2
     fi
     case "$cwd/" in "$ws/"*) return 0 ;; esac
-    [ -f "$ws/.git" ] || [ -L "$ws/.git" ] || continue
     # Find a repository boundary without confusing Git's "not a repo" with a failed probe.
     # Only an existing checkout physically containing this linked worktree is a candidate.
     boundary="$cwd"
@@ -190,6 +220,9 @@ session_live_at() (
     done
     [ "$boundary" != / ] || continue
     case "$ws/" in "$boundary/"*) ;; *) continue ;; esac
+    # A deleted child no longer has Git metadata to disprove its live parent's ownership.
+    [ "$missing" -ne 0 ] || return 2
+    [ -f "$ws/.git" ] || [ -L "$ws/.git" ] || continue
     top="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || return 2
     top="$(cd -P "$top" 2>/dev/null && pwd -P)" || return 2
     case "$ws/" in "$top/"*) ;; *) continue ;; esac
@@ -203,6 +236,22 @@ session_live_at() (
     [ "$parent_git" = "$child_git" ] && return 0
   done < "$f"
   return 1
+)
+
+# Same predicate for registry reporting and the port-slot caller's last check before signalling.
+workspace_reapable() {
+  local result
+  workspace_missing "$1"; result=$?
+  [ "$result" -eq 0 ] || return "$result"
+  session_live_at "$1" "$2"; result=$?
+  case "$result" in 1) return 0 ;; 0) return 1 ;; *) return 2 ;; esac
+}
+
+cmd_can_reap_workspace() (
+  f="$(mktemp "${TMPDIR:-/tmp}/port-owner.XXXXXX")" || return 2
+  trap 'rm -f "$f"' EXIT
+  agent_cwds > "$f" || return 2
+  workspace_reapable "$1" "$f"
 )
 
 is_port() { case "$1" in ''|*[!0-9]*) return 1 ;; *) [ "$1" -ge 1 ] && [ "$1" -le 65535 ] ;; esac; }
@@ -395,11 +444,10 @@ cmd_reap() {
   acquire_lock || return 1
   h="$(scratch held)"; wq="$(scratch wait)"
 
-  # reconcile_into already honours the live-session rule and already drops a deleted workspace's rows,
-  # because a workspace that no longer exists cannot have a live session in it. So reap does not
-  # re-derive any of that. What it adds is the ONE case reconcile cannot resolve: a row whose workspace
-  # is gone but whose server is still listening. reconcile keeps that row (correctly — the port really
-  # is bound), and it would therefore look healthy forever.
+  # reconcile_into honours the live-session rule. Reap adds a row whose workspace is gone but
+  # whose server is still listening. reconcile keeps that row (correctly — the port really
+  # is bound), and it would therefore look healthy forever. Confirm deletion and absent ownership
+  # separately: a live parent can still own a deleted child, and inaccessible is not deleted.
   reconcile_into "$h" "$wq"
   write_file "$h" "$wq"
 
@@ -407,6 +455,11 @@ cmd_reap() {
   while IFS="$TAB" read -r p s w d c pid; do
     [ -n "$p" ] || continue
     [ -d "$w" ] && continue
+    if [ ! -f "$cwds_f" ]; then
+      agent_cwds > "$cwds_f" 2>/dev/null || touch "$cwds_f.unknown"
+    fi
+    [ ! -f "$cwds_f.unknown" ] || continue
+    workspace_reapable "$w" "$cwds_f" || continue
     orphans="${orphans}  - port $p — workspace '$w' is gone but pid $pid still holds it (claimed by $s)
 "
     rc=5
@@ -657,6 +710,7 @@ main() {
     whoami) cmd_whoami ;;
     sessions) agent_cwds ;;
     owns-workspace) [ "$#" -eq 1 ] || return 2; session_live_at "$1" /dev/stdin ;;
+    can-reap-workspace) [ "$#" -eq 1 ] || return 2; cmd_can_reap_workspace "$1" ;;
     --help | -h | help) usage ;;
     *) usage >&2; exit 2 ;;
   esac

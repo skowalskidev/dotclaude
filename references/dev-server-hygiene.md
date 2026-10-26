@@ -96,6 +96,9 @@ A session also protects linked worktrees physically nested under its checkout wi
 directory. TEST: a sibling worktree or unrelated nested repository stays reclaimable.
 DO preserve claims and stop reclamation on an unknown probe (exit 2); a failed process/Git lookup is
 not evidence that its owner ended.
+DO recheck a port cleanup candidate with `port-registry.sh can-reap-workspace <workspace>` before
+signalling. TEST: only exit 0 permits cleanup; inaccessible paths, broken links and deleted children
+of live parent checkouts remain held.
 The session check matches only `claude` and `codex` process NAME basenames, never arguments: `pgrep -x
 claude` misses Conductor-launched sessions because `ps -o comm=` reports their full path, and `pgrep -f
 claude` matches the Claude desktop app and any shell whose argv mentions a `~/.claude` path.
@@ -433,8 +436,11 @@ handing back with such a line broke the rule.
 DO reclaim a simulator whose claim owner has ended with the command the line prints, and only then:
 `python3 ~/.claude/bin/local-capacity.py reclaim-sim --udid <udid>` (also `native-slot.sh reclaim-sim <udid>`).
 The engine prints it on the `watchdog:` lines, the `run`/`claim-sim` simulator refusals and `status` only
-when the claim owner has no live session (no live Claude session in a directory named for the owner label,
-from `port-registry.sh sessions`) and no lease holds the device. It shuts the device down, drops the claim and
+when the recorded claim workspace has no live owner and no lease holds the device. New claims record their
+checkout and use the shared workspace ownership check, including live parents of nested linked worktrees.
+DO retain older label-only claims while any session is live; an unmatched label cannot prove an ended owner.
+TEST: a live parent prevents reclaim, while a known independent workspace or an empty session snapshot permits it.
+It shuts the device down, drops the claim and
 logs the action in `telemetry.jsonl`; it never deletes the device. It exits 1 naming the owner when that owner
 is live, a lease holds the device, no claim exists, the claim is a legacy one or the session probe fails.
 DON'T shut down a live owner's simulator, run `xcrun simctl shutdown` by hand on another owner's device, or
