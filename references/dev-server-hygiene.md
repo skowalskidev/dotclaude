@@ -254,7 +254,7 @@ DO let foreground `run` retry admission automatically every 10 seconds for up to
 it never retries a started command. On exit 75, record the holder and next task-boundary retry in the
 living plan, keep independent work moving, and resume without asking Simon to say continue. Ordinary admission (`acquire`, `run`, `claim-sim`,
 `stack-acquire`) defers while current CPU idle is below 20% (`MIN_IDLE_PERCENT`, the second
-`top -l 2 -n 0 -s 1` sample), the 1-minute load exceeds 1.5 x logical cores (`LOAD_PER_CORE`) while
+`iostat -d -C -n 0 -c 2 -w 1` sample), the 1-minute load exceeds 1.5 x logical cores (`LOAD_PER_CORE`) while
 CPU idle is also below 35% (`LOAD_CONFIRM_IDLE_PERCENT`), or the OS reports memory pressure at warning or worse (`kern.memorystatus_vm_pressure_level` >= 2 via `sysctl -n`;
 1 normal, 2 warning, 4 critical, the `NOTE_MEMORYSTATUS_PRESSURE_*` values in XNU `event_private.h`);
 the exit-75 reason carries the reading. Only if that sysctl is unavailable, the fallback defers when the
@@ -270,6 +270,17 @@ normal memory prints `GO`; load 200 at 10% idle prints `DEFER`. Simulator admiss
 Shutting Down outside the lease. A failed CPU, load or memory probe is unknown, never permission to
 proceed, and exits 75 like every other deferral. TEST:
 a rejected command has not started and the small work remains runnable.
+
+DO sample CPU, load and memory once per admission attempt; evaluate ordinary and priority decisions
+from that snapshot. Use the second one-second `iostat` CPU sample, require its CPU-only header and
+two valid rows, and bound the probe to 5 seconds; discard the first uptime average. Read the classified CPU failure (timeout, process exit or malformed sample)
+before retrying; unknown still defers. TEST: pressured admission invokes each probe once.
+
+DO retry only state-lock contention during completed-run cleanup for at most 30 seconds, rechecking
+the exact token and stopped resources on every attempt. Preserve the payload result after release;
+retain the lease on expiry or ownership/resource refusal. Keep status/watchdog external probes outside
+their metadata snapshot lock; reclaim always checks current ownership again. TEST: a slow diagnostic
+cannot block admission, and a stale report cannot reclaim a replacement owner's simulator.
 
 DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
 before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle %, load
@@ -315,6 +326,9 @@ contention allowance machine-wide, even if the priority session changes.
 The runner applies this allowance automatically, checks memory and priority every 10 seconds, and
 ends its own command on critical pressure, unknown memory, expiry or priority replacement. A failed
 host probe, compressed-share fallback warning, full slots or unleased simulator still defers.
+DO retry a transient priority-state lock collision within that heartbeat and the command deadline,
+checking memory before every attempt. TEST: a brief lock collision preserves a live payload;
+critical or unknown memory during that retry ends only its owned group.
 Separate `stage` groups are rejected inside this allowance. Keep explicit runner worker limits.
 Use serial phases and resume admission automatically; do not ask Simon to close apps for ordinary
 contention. Never kill another live owner's job, steal a lease or bypass `run`.

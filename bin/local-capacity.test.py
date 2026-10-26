@@ -3,6 +3,7 @@
 
 import contextlib
 import importlib.util
+import io
 import fcntl
 import json
 import multiprocessing
@@ -12,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -301,15 +303,14 @@ class GateTests(unittest.TestCase):
         finally:
             self.memory.start()
 
-    def test_cpu_idle_is_read_from_the_second_top_sample(self):
+    def test_cpu_idle_is_read_from_the_second_iostat_sample(self):
         self.idle.stop()
         try:
-            output = ("Processes: 700 total\nCPU usage: 2.0% user, 1.0% sys, 97.0% idle \n"
-                      "Processes: 700 total\nCPU usage: 70.1% user, 19.9% sys, 10.0% idle \n")
-            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=output)) as top:
+            output = "      cpu\n us sy id\n  2  1 97\n 70 20 10\n"
+            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=output)) as probe:
                 self.assertEqual(gate.cpu_idle_percent(), 10.0)
-            self.assertEqual(top.call_args.args[0], ["/usr/bin/top", "-l", "2", "-n", "0", "-s", "1"])
-            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="CPU usage: 1% idle")):
+            self.assertEqual(probe.call_args.args[0], ["/usr/sbin/iostat", "-d", "-C", "-n", "0", "-c", "2", "-w", "1"])
+            with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="cpu\nus sy id\n2 1 97")):
                 with self.assertRaises(gate.GateError):
                     gate.cpu_idle_percent()
         finally:
@@ -324,6 +325,54 @@ class GateTests(unittest.TestCase):
                 self.assertIn("CPU idle 12% is below 20%", str(refused.exception))
         self.assertIsNone(gate.read_state(self.root))
         self.assertEqual(gate.read_claims(self.root), {})
+
+    def test_admission_samples_cpu_load_and_memory_once_even_when_deferred(self):
+        for idle, level in ((90, 1), (2, 1), (90, 4)):
+            with self.subTest(idle=idle, level=level), \
+                 mock.patch.object(gate, "cpu_idle_percent", return_value=idle) as cpu, \
+                 mock.patch.object(gate, "simulator_pressure", return_value=(0, 8)) as load, \
+                 mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")) as memory:
+                if idle == 90 and level == 1:
+                    gate.release(self.root, gate.acquire(self.root, "sample", os.getpid(), None))
+                else:
+                    with self.assertRaises(gate.Busy):
+                        gate.acquire(self.root, "sample", os.getpid(), None)
+                cpu.assert_called_once_with()
+                load.assert_called_once_with()
+                memory.assert_called_once_with()
+
+    def test_cpu_probe_failure_classifies_without_exposing_output(self):
+        self.idle.stop()
+        try:
+            cases = ((subprocess.TimeoutExpired("iostat", 5, output="private-output"), "timed out after 5 seconds"),
+                     (OSError("private-path"), "iostat unavailable"),
+                     (mock.Mock(returncode=3, stdout="private-output"), "iostat exited 3"),
+                     (mock.Mock(returncode=0, stdout="private-output"), "header or two-sample output changed"),
+                     (mock.Mock(returncode=0, stdout="cpu\nus sy id\n2 1 97\n0 0 101"), "invalid CPU sample"))
+            for result, reason in cases:
+                kwargs = {"side_effect": result} if isinstance(result, Exception) else {"return_value": result}
+                with self.subTest(reason=reason), mock.patch.object(gate.subprocess, "run", **kwargs):
+                    with self.assertRaises(gate.ProbeFailed) as failed:
+                        gate.cpu_idle_percent()
+                    self.assertIn(reason, str(failed.exception))
+                    self.assertNotIn("private-", str(failed.exception))
+        finally:
+            self.idle.start()
+
+    def test_cpu_probe_requires_two_valid_rows_and_exact_cpu_header(self):
+        self.idle.stop()
+        try:
+            outputs = ("cpu\nus sy id\n2 1 97", "cpu\nus id sy\n2 1 97\n70 20 10",
+                       "disk0 cpu\nKB/t tps MB/s us sy id\n0 0 0 2 1 97\n0 0 0 70 20 10",
+                       "cpu\nus sy id\n2 1 97\n70 nan 10", "cpu\nus sy id\n2 1 97\n70 20 50",
+                       "cpu\nus sy id\n2 1 97\n70 20 -10", "cpu\nus sy id\n2 1 97\n70 20",
+                       "cpu\nus sy id\n2 1 97\n70 20 10\n0 0 100")
+            for output in outputs:
+                with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=output)):
+                    with self.assertRaises(gate.ProbeFailed):
+                        gate.cpu_idle_percent()
+        finally:
+            self.idle.start()
 
     def test_load_guard_is_one_and_a_half_per_core(self):
         self.assertEqual(gate.LOAD_PER_CORE, 1.5)
@@ -597,6 +646,99 @@ sys.exit(result.returncode)
         shutdown.assert_called_once_with(SIM)
         self.assertIsNone(gate.read_state(self.root))
 
+    def test_completed_payload_retries_only_release_lock_without_relaunch(self):
+        original = gate.release
+        calls = []
+        marker = Path(self.tmp.name) / "runs"
+
+        def release(root, token):
+            calls.append(token)
+            if len(calls) == 1:
+                raise gate.StateLockBusy("contended")
+            return original(root, token)
+
+        with mock.patch.object(gate, "release", side_effect=release), \
+             mock.patch.object(gate.time, "sleep"):
+            code = gate.run_command(self.root, "mine", None,
+                                    [sys.executable, "-c", "open(%r, 'a').write('once\\n')" % str(marker)])
+        self.assertEqual(code, 0)
+        self.assertEqual(marker.read_text(), "once\n")
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0], calls[1])
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_cleanup_contention_has_a_deadline_and_keeps_the_receipt(self):
+        token = gate.acquire(self.root, "mine", os.getpid(), None)
+        now = [0]
+        with mock.patch.object(gate.time, "monotonic", side_effect=lambda: now[0]), \
+             mock.patch.object(gate.time, "sleep", side_effect=lambda n: now.__setitem__(0, now[0] + n)), \
+             mock.patch.object(gate, "release", side_effect=gate.StateLockBusy("contended")):
+            with self.assertRaises(gate.StateLockBusy):
+                gate.cleanup_run(self.root, token, None)
+        self.assertEqual(now[0], gate.CLEANUP_WAIT_SECONDS)
+        self.assertEqual(gate.read_state(self.root)["token"], token)
+
+    def test_cleanup_retry_revalidates_replacement_token(self):
+        token = gate.acquire(self.root, "mine", os.getpid(), None)
+        replacement = gate.read_state(self.root)
+        replacement["token"] = "f" * 64
+        original = gate.release
+        calls = []
+
+        def release(root, candidate):
+            calls.append(candidate)
+            if len(calls) == 1:
+                gate.write_state(root, replacement)
+                raise gate.StateLockBusy("contended")
+            return original(root, candidate)
+
+        with mock.patch.object(gate, "release", side_effect=release), mock.patch.object(gate.time, "sleep"):
+            with self.assertRaisesRegex(gate.GateError, "does not match"):
+                gate.cleanup_run(self.root, token, None)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(gate.read_state(self.root), replacement)
+
+    def test_cleanup_does_not_retry_resource_or_identity_refusals(self):
+        for refusal in (gate.Busy("group still alive"), gate.GateError("identity changed")):
+            with mock.patch.object(gate, "release", side_effect=refusal) as release, \
+                 mock.patch.object(gate.time, "sleep") as sleep:
+                with self.assertRaises(type(refusal)):
+                    gate.cleanup_run(self.root, "0" * 64, None)
+                release.assert_called_once()
+                sleep.assert_not_called()
+
+    def test_status_external_probes_do_not_hold_the_state_lock(self):
+        gate.acquire(self.root, "mine", os.getpid(), None)
+        checked = []
+
+        def probe(label, result):
+            def run(*args):
+                with gate.locked(self.root):
+                    checked.append(label)
+                return result
+            return run
+
+        with mock.patch.object(gate, "observe_booted", side_effect=probe("simctl", [])), \
+             mock.patch.object(gate, "holder_text", side_effect=probe("holder", "mine")), \
+             mock.patch.object(gate, "process_table", side_effect=probe("processes", [])), \
+             mock.patch.object(gate, "print_stacks", side_effect=probe("stacks", None)), \
+             contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(gate.main(["--root", str(self.root), "status"]), 0)
+        self.assertEqual(checked, ["simctl", "holder", "processes", "stacks"])
+
+    def test_stale_report_cannot_reclaim_a_replaced_live_owner(self):
+        gate.secure_root(self.root)
+        gate.write_claims(self.root, {SIM: "ended"})
+        snapshot = gate.report_snapshot(self.root)
+        gate.write_claims(self.root, {SIM: "current"})
+        with mock.patch.object(gate, "owner_session_live", side_effect=lambda owner, workspace: owner == "current"), \
+             mock.patch.object(gate, "shutdown_owned") as shutdown:
+            self.assertIn("reclaim it", gate.reclaim_hint(self.root, snapshot["states"], SIM, snapshot))
+            with self.assertRaisesRegex(gate.GateError, "current.*live session"):
+                gate.reclaim_sim(self.root, SIM)
+            shutdown.assert_not_called()
+        self.assertEqual(gate.read_claims(self.root), {SIM: "current"})
+
     def test_running_child_group_defers_simulator_shutdown(self):
         with mock.patch.object(gate, "group_alive", return_value=True), \
              mock.patch.object(gate, "shutdown_owned") as shutdown:
@@ -844,7 +986,7 @@ class PriorityTests(unittest.TestCase):
         (self.root / "booted.json").write_text('{"devices":{}}')
         env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
                    LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
-        broken = (({"load": 0, "cores": 8, "idle": "unreadable"}, "CPU probe failed; defer heavy work"),
+        broken = (({"load": 0, "cores": 8, "idle": "unreadable"}, "CPU probe failed (invalid idle percent); defer heavy work"),
                   ({"load": 0, "idle": 90}, "host load probe failed; defer simulator work"),
                   ({"load": 0, "cores": 8, "idle": 90, "memory_level": 3}, "memory probe failed; defer heavy work"))
         for fixture, message in broken:
@@ -1194,6 +1336,70 @@ class PriorityAllowanceTests(unittest.TestCase):
             self.assertTrue(marker.exists())
             marker.unlink()
             self.assertFalse(any(gate.read_state(self.root, slot=s) for s in gate.SLOTS))
+
+    def test_allowed_live_payload_survives_transient_priority_state_lock(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        marker = Path(self.tmp.name) / "completed"
+        original = gate.check_priority_allowance
+        ready = threading.Event()
+        workers = []
+        checks = []
+
+        def hold():
+            with gate.locked(self.root):
+                ready.set()
+                time.sleep(0.08)
+
+        def check(root, owner):
+            checks.append(owner)
+            if len(checks) == 1:
+                worker = threading.Thread(target=hold)
+                workers.append(worker)
+                worker.start()
+                self.assertTrue(ready.wait(1))
+            return original(root, owner)
+
+        try:
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+                 mock.patch.object(gate, "RETRY_SECONDS", 1), \
+                 mock.patch.object(gate, "CLEANUP_RETRY_SECONDS", 0.01), \
+                 mock.patch.object(gate, "check_priority_allowance", side_effect=check):
+                code = "from pathlib import Path; import time; time.sleep(0.3); Path(%r).touch()" % str(marker)
+                self.assertEqual(self.run_payload(code), 0)
+        finally:
+            for worker in workers:
+                worker.join(1)
+        self.assertGreater(len(checks), 1)
+        self.assertTrue(marker.exists())
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_memory_failure_during_lock_retry_stops_started_payload(self):
+        for failure in ((4, "sysctl"), gate.ProbeFailed("unknown memory")):
+            gate.prioritize(self.root, "primary", 30, False)
+            marker = Path(self.tmp.name) / "started"
+            checks = []
+            original = gate.check_priority_allowance
+
+            def check(root, owner):
+                checks.append(owner)
+                if len(checks) == 1:
+                    until = time.monotonic() + 2
+                    while not marker.exists() and time.monotonic() < until:
+                        time.sleep(0.01)
+                    self.assertTrue(marker.exists())
+                    raise gate.StateLockBusy("contended")
+                with mock.patch.object(gate, "memory_pressure_level", **(
+                        {"side_effect": failure} if isinstance(failure, Exception) else {"return_value": failure})):
+                    return original(root, owner)
+
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+                 mock.patch.object(gate, "check_priority_allowance", side_effect=check), \
+                 mock.patch.object(gate, "CLEANUP_RETRY_SECONDS", 0.01):
+                code = "from pathlib import Path; import time; Path(%r).touch(); time.sleep(30)" % str(marker)
+                self.assertEqual(self.run_payload(code), gate.BUSY)
+            self.assertEqual(len(checks), 2)
+            self.assertIsNone(gate.read_state(self.root))
+            marker.unlink()
 
     def test_warning_requires_supervision_and_one_machine_wide_allowance(self):
         gate.prioritize(self.root, "primary", 30, False)

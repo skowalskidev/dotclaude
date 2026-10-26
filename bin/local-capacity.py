@@ -40,7 +40,7 @@ SECOND_SLOT = "priority-lease.json"  # file name kept so leases already on disk 
 THIRD_SLOT = "lease-3.json"
 SLOTS = (LEASE_SLOT, SECOND_SLOT, THIRD_SLOT)
 assert len(SLOTS) == HEAVY_SLOTS
-MIN_IDLE_PERCENT = 20  # admission defers while current CPU idle is below this (top, second sample)
+MIN_IDLE_PERCENT = 20  # admission defers while current CPU idle is below this (iostat, second sample)
 LOAD_PER_CORE = 1.5  # high load is above this many 1-minute load units per logical core
 # High load defers only while CPU idle is also below this. macOS counts threads blocked in
 # uninterruptible I/O, Spotlight and mobileassetd bursts and zombies in the load average, so it
@@ -63,6 +63,8 @@ PRIORITY_DEFAULT_MIN = 60
 PRIORITY_MAX_MIN = 180
 RETRY_SECONDS = 10
 WAIT_SECONDS = 300
+CLEANUP_WAIT_SECONDS = 30
+CLEANUP_RETRY_SECONDS = 0.25
 RECOVERY_SAMPLES = 2
 PAUSE_MAX_SECONDS = 300
 PRIORITY_RUN_SECONDS = 300
@@ -94,6 +96,22 @@ class Busy(GateError):
 
 class ProbeFailed(Busy):
     """A host probe could not read the machine, so the answer is defer (exit 75), never a hard failure."""
+
+
+class StateLockBusy(Busy):
+    """Transient contention only; resource or ownership refusals remain distinct."""
+
+
+def retry_state_lock(operation, deadline):
+    """Bound contention retries; the operation must reacquire and revalidate on every attempt."""
+    while True:
+        try:
+            return operation()
+        except StateLockBusy:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise
+            time.sleep(min(CLEANUP_RETRY_SECONDS, remaining))
 
 
 def root_path(value):
@@ -140,7 +158,7 @@ def locked(root):
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError as exc:
-            raise Busy("capacity state is being checked by another session; retry once shortly") from exc
+            raise StateLockBusy("capacity state is being checked by another session; retry once shortly") from exc
         yield
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
@@ -488,29 +506,49 @@ def memory_pressure_level():
 
 
 def cpu_idle_percent():
-    """Current CPU idle %: the second `top -l 2 -n 0 -s 1` sample (the first covers no interval)."""
+    """Current CPU idle % from iostat's second one-second sample, never its uptime average."""
     try:
         if PRESSURE_FIXTURE is not None:
             value = json.loads(PRESSURE_FIXTURE.read_text()).get("idle", 100)
         else:
-            result = subprocess.run(["/usr/bin/top", "-l", "2", "-n", "0", "-s", "1"],
-                                    capture_output=True, text=True, timeout=10, check=False)
-            samples = re.findall(r"CPU usage:.*?([\d.]+)% idle", result.stdout)
-            if result.returncode or len(samples) < 2:
-                raise ValueError("top output changed")
-            value = float(samples[-1])
+            result = subprocess.run(["/usr/sbin/iostat", "-d", "-C", "-n", "0", "-c", "2", "-w", "1"],
+                                    capture_output=True, text=True, timeout=5, check=False)
+            if result.returncode:
+                raise ValueError("iostat exited %d" % result.returncode)
+            rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
+            if len(rows) != 4 or rows[:2] != [["cpu"], ["us", "sy", "id"]]:
+                raise ValueError("iostat CPU header or two-sample output changed")
+            for row in rows[2:]:
+                if len(row) != 3:
+                    raise ValueError("invalid CPU sample")
+                values = [float(field) for field in row]
+                if any(not math.isfinite(v) or not 0 <= v <= 100 for v in values) or not 99 <= sum(values) <= 101:
+                    raise ValueError("invalid CPU sample")
+            value = values[2]
         if type(value) not in (int, float) or not math.isfinite(value) or not 0 <= value <= 100:
             raise ValueError("invalid idle percent")
         return value
-    except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
-        raise ProbeFailed("CPU probe failed; defer heavy work") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise ProbeFailed("CPU probe failed (iostat timed out after 5 seconds); defer heavy work") from exc
+    except OSError as exc:
+        raise ProbeFailed("CPU probe failed (iostat unavailable); defer heavy work") from exc
+    except ValueError as exc:
+        # Only fixed classifications belong in diagnostics, never raw probe output.
+        detail = str(exc) if str(exc).startswith(("iostat exited ", "iostat CPU header ", "invalid idle percent")) else "invalid CPU sample"
+        raise ProbeFailed("CPU probe failed (%s); defer heavy work" % detail) from exc
 
 
-def host_reading(priority_allowance=False):
-    """(verdict line, defer reason or None) from current CPU idle, 1-minute load confirmed by idle, and OS memory pressure."""
+def sample_host():
+    """One bounded probe set per decision; do not resample when evaluating an allowance."""
     idle = cpu_idle_percent()
     load, cores = simulator_pressure()
     level, source = memory_pressure_level()
+    return idle, load, cores, level, source
+
+
+def host_reading(priority_allowance=False, sample=None):
+    """(verdict line, defer reason or None) from one CPU/load/memory sample."""
+    idle, load, cores, level, source = sample_host() if sample is None else sample
     reasons = []
     if not priority_allowance and idle < MIN_IDLE_PERCENT:
         reasons.append("CPU idle %.0f%% is below %d%%" % (idle, MIN_IDLE_PERCENT))
@@ -676,13 +714,16 @@ def claim_workspace(root, udid):
     return record.get("workspace") if isinstance(record, dict) else None
 
 
-def reclaim_hint(root, states, udid):
+def reclaim_hint(root, states, udid, snapshot=None):
     """The exact reclaim command when the simulator's claim owner has ended and no lease holds it, else ''."""
     try:
-        owner = read_claims(root).get(udid)
-        if owner is None or udid in legacy_claims() or any(lease and lease["simulator"] == udid for lease in states):
+        record = (read_claim_records(root) if snapshot is None else snapshot["claims"]).get(udid)
+        owner = record.get("owner") if isinstance(record, dict) else record
+        workspace = record.get("workspace") if isinstance(record, dict) else None
+        legacy = legacy_claims() if snapshot is None else snapshot["legacy"]
+        if owner is None or udid in legacy or any(lease and lease["simulator"] == udid for lease in states):
             return ""
-        if owner_session_live(owner, claim_workspace(root, udid)):
+        if owner_session_live(owner, workspace):
             return ""
     except GateError:
         return ""
@@ -717,12 +758,14 @@ def reclaim_sim(root, udid):
         return "simulator %s shut down and claim by %s dropped; the simulator is not deleted" % (udid, owner)
 
 
-def simulators_in_use(root, states, booted):
+def simulators_in_use(root, states, booted, snapshot=None):
     """Map every simulator that counts against MAX_BOOTED_SIMULATORS to a holder description."""
     owners = {}
-    for udid, owner in legacy_claims().items():
+    for udid, owner in (legacy_claims() if snapshot is None else snapshot["legacy"]).items():
         owners[udid] = "legacy claim by %s" % owner
-    for udid, owner in read_claims(root).items():
+    claims = read_claims(root) if snapshot is None else {
+        udid: record["owner"] if isinstance(record, dict) else record for udid, record in snapshot["claims"].items()}
+    for udid, owner in claims.items():
         owners[udid] = "claimed by %s" % owner
     for lease in states:
         if lease and lease["simulator"]:
@@ -812,10 +855,21 @@ def simulator_of(rows):
     return owned
 
 
-def watchdog_lines(root):
+def report_snapshot(root):
+    """Read metadata under a short lock; diagnostics never hold it during external probes."""
+    with locked(root):
+        return {"states": [read_state(root, slot=name) for name in SLOTS],
+                "priority": read_priority(root), "claims": read_claim_records(root),
+                "legacy": legacy_claims(), "stacks": read_stack_leases(root),
+                "legacy_slot": (legacy_slot_dir() / "slot.d").exists(),
+                "legacy_lanes": len(bridge_paths(root)) + int((legacy_slot_dir() / "slot.d").exists())}
+
+
+def watchdog_lines(root, snapshot=None):
     """Read-only runaway report. Names each owner; never stops anything."""
-    states = [read_state(root, slot=name) for name in SLOTS]
-    claims = read_claims(root)
+    snapshot = report_snapshot(root) if snapshot is None else snapshot
+    states = snapshot["states"]
+    claims = {udid: record["owner"] if isinstance(record, dict) else record for udid, record in snapshot["claims"].items()}
     leased = {lease["simulator"]: lease["owner"] for lease in states if lease and lease["simulator"]}
     try:
         rows = process_table()
@@ -830,7 +884,7 @@ def watchdog_lines(root):
         udid = sims.get(pid)
         if udid:
             owner = leased.get(udid) or claims.get(udid) or "nobody"
-            hint = "" if udid in leased else reclaim_hint(root, states, udid)
+            hint = "" if udid in leased else reclaim_hint(root, states, udid, snapshot)
             if hint:
                 line += " simulator=%s owner=%s; %s" % (udid, owner, hint)
             else:
@@ -841,13 +895,13 @@ def watchdog_lines(root):
         lines.append(line)
     for udid in sorted(set(sims.values())):
         if udid not in leased:
-            hint = reclaim_hint(root, states, udid)
+            hint = reclaim_hint(root, states, udid, snapshot)
             lines.append("watchdog: simulator %s is booted with no lease (claim owner=%s); %s" % (
                 udid, claims.get(udid, "nobody"),
                 hint or "that owner runs xcrun simctl shutdown %s then release-sim" % udid))
     for udid, owner in sorted(claims.items()):
         if udid not in leased and udid not in sims.values():
-            hint = reclaim_hint(root, states, udid)
+            hint = reclaim_hint(root, states, udid, snapshot)
             lines.append("watchdog: simulator claim %s owner=%s is idle and holds the simulator cap; %s" % (
                 udid, owner,
                 hint or "release it: local-capacity.py release-sim --udid %s --owner %s" % (udid, owner)))
@@ -1183,9 +1237,10 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         raise GateError("simulator must be a UDID")
     if bridge_paths(root) and not allow_bridge:
         raise GateError("legacy lock bridge is active; use foreground run so its lock remains held")
-    # Sample before locking: top takes about two seconds. Unknown probes fail closed.
-    _, reason = host_reading()
-    allowance_reason = host_reading(priority_allowance=True)[1] if reason else None
+    # Sample once before locking: iostat waits one interval. Unknown probes fail closed.
+    sample = sample_host()
+    _, reason = host_reading(sample=sample)
+    allowance_reason = host_reading(priority_allowance=True, sample=sample)[1] if reason else None
     with locked(root):
         if not compute_only and (legacy_slot_dir() / "slot.d").exists():
             raise Busy("legacy native slot exists; inspect its holder before migration")
@@ -1635,12 +1690,8 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             if allowance and time.monotonic() >= next_pressure_check:
                 next_pressure_check = time.monotonic() + RETRY_SECONDS
                 try:
-                    with locked(root):
-                        priority = read_priority(root)
-                    level, source = memory_pressure_level()
-                    if (not priority or priority["owner"] != owner or not priority_matches(priority, owner)
-                            or level == 4 or (level == 2 and source != "sysctl")):
-                        raise Busy("priority allowance ended: priority expired/changed or memory is critical/unknown")
+                    retry_state_lock(lambda: check_priority_allowance(root, owner),
+                                     min(deadline, next_pressure_check))
                 except GateError as exc:
                     cooperative.terminate() if cooperative else terminate_group(child)
                     print(str(exc), file=sys.stderr)
@@ -1684,6 +1735,27 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             signal.signal(sig, handler)
 
 
+def check_priority_allowance(root, owner):
+    # Check memory before a contended state read too. Unknown/critical never waits on the lock.
+    level, source = memory_pressure_level()
+    if level == 4 or (level == 2 and source != "sysctl"):
+        raise Busy("priority allowance ended: memory is critical/unknown")
+    with locked(root):
+        priority = read_priority(root)
+    if not priority or priority["owner"] != owner or not priority_matches(priority, owner):
+        raise Busy("priority allowance ended: priority expired/changed")
+
+
+def cleanup_run(root, token, simulator):
+    """Retry only lock acquisition; each attempt revalidates the exact token and resources."""
+    deadline = time.monotonic() + CLEANUP_WAIT_SECONDS
+
+    if simulator:
+        retry_state_lock(lambda: require_groups_stopped(root, token), deadline)
+        shutdown_owned(simulator.upper())
+    retry_state_lock(lambda: release(root, token), deadline)
+
+
 def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=WAIT_SECONDS, pause_safe=False,
                 resource="native"):
     if (not math.isfinite(wait_seconds) or wait_seconds < 0 or wait_seconds > 3600
@@ -1704,10 +1776,7 @@ def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=
                                         bridge_skipped, pause_safe, resource)
                     if "token" in metrics:
                         try:
-                            if simulator:
-                                require_groups_stopped(root, metrics["token"])
-                                shutdown_owned(simulator.upper())
-                            release(root, metrics["token"])
+                            cleanup_run(root, metrics["token"], simulator)
                         except GateError as exc:
                             print("lease retained: %s; token=%s" % (exc, metrics["token"]), file=sys.stderr)
                             code = BUSY
@@ -1823,41 +1892,39 @@ def main(argv=None):
                 raise GateError("host fixture must be inside the explicit test root")
             HOST_FIXTURE = candidate
         if args.action == "status":
-            with locked(root):
-                states = [read_state(root, slot=name) for name in SLOTS]
-                priority = read_priority(root)
-                booted = observe_booted()
-                owned = {lease["simulator"] for lease in states if lease and lease["simulator"]}
-                free_text = "unavailable (booted simulator without a lease)" if set(booted) - owned else "free"
-                for number, lease in enumerate(states, 1):
-                    print("heavy slot %d of %d: %s" % (number, HEAVY_SLOTS, holder_text(lease) if lease else free_text))
-                if priority:
-                    print("priority: " + priority_text(priority))
-                legacy_lanes = len(bridge_paths(root)) + int((legacy_slot_dir() / "slot.d").exists())
-                if legacy_lanes:
-                    print("compute admission: " + ("slot 1 reserved for native capacity" if legacy_lanes == 1 else
-                                                  "deferred until multiple legacy lanes are reconciled"))
-                print("booted simulators: " + (", ".join(booted) if booted else "none"))
-                for udid, owner in sorted(read_claims(root).items()):
-                    print("simulator claim: %s owner=%s" % (udid, owner))
-                for udid, owner in sorted(legacy_claims().items()):
-                    print("legacy simulator claim (inspect): %s owner=%s" % (udid, owner))
-                if (legacy_slot_dir() / "slot.d").exists():
-                    print("legacy native slot exists; inspect its holder")
-                in_use = simulators_in_use(root, states, booted)
-                print("simulators in use: %d of %d%s" % (len(in_use), MAX_BOOTED_SIMULATORS,
-                                                         (": " + "; ".join(sorted(in_use.values()))) if in_use else ""))
-                for line in watchdog_lines(root):
-                    print(line)
-                stack_leases = read_stack_leases(root)
-            print_stacks(stack_leases)
+            snapshot = report_snapshot(root)
+            states, priority = snapshot["states"], snapshot["priority"]
+            booted = observe_booted()
+            owned = {lease["simulator"] for lease in states if lease and lease["simulator"]}
+            free_text = "unavailable (booted simulator without a lease)" if set(booted) - owned else "free"
+            for number, lease in enumerate(states, 1):
+                print("heavy slot %d of %d: %s" % (number, HEAVY_SLOTS, holder_text(lease) if lease else free_text))
+            if priority:
+                print("priority: " + priority_text(priority))
+            legacy_lanes = snapshot["legacy_lanes"]
+            if legacy_lanes:
+                print("compute admission: " + ("slot 1 reserved for native capacity" if legacy_lanes == 1 else
+                                              "deferred until multiple legacy lanes are reconciled"))
+            print("booted simulators: " + (", ".join(booted) if booted else "none"))
+            for udid, record in sorted(snapshot["claims"].items()):
+                owner = record["owner"] if isinstance(record, dict) else record
+                print("simulator claim: %s owner=%s" % (udid, owner))
+            for udid, owner in sorted(snapshot["legacy"].items()):
+                print("legacy simulator claim (inspect): %s owner=%s" % (udid, owner))
+            if snapshot["legacy_slot"]:
+                print("legacy native slot exists; inspect its holder")
+            in_use = simulators_in_use(root, states, booted, snapshot)
+            print("simulators in use: %d of %d%s" % (len(in_use), MAX_BOOTED_SIMULATORS,
+                                                     (": " + "; ".join(sorted(in_use.values()))) if in_use else ""))
+            for line in watchdog_lines(root, snapshot):
+                print(line)
+            print_stacks(snapshot["stacks"])
         elif args.action == "cpu":
             line, reason = host_reading()
             print(line + ("" if reason is None else "; " + reason))
             return BUSY if reason else 0
         elif args.action == "watchdog":
-            with locked(root):
-                lines = [line for line in watchdog_lines(root) if line != "watchdog: clear"]
+            lines = [line for line in watchdog_lines(root) if line != "watchdog: clear"]
             try:
                 lines += stack_sweep(False)
             except GateError as exc:
