@@ -108,6 +108,13 @@ shared playbook. Complete all five checks before boot:
    Keep sources stable during a build. Rebuild mismatches under admission; use the runtime signing
    procedure before claiming Keychain or other platform-service coverage. An installed app can still
    be yesterday's artifact.
+   DO export each test-products build to one absent destination; do not pre-create or reuse an
+   `.xctestproducts` destination. After a successful build and final signing, bind the source
+   fingerprint to the exact produced bundle path and app/test executable SHA-256s in its receipt.
+   Use that bundle for install and test. Stop on nested or multiple candidate bundles until the
+   selected output matches that receipt; a source annotation beside old output is not binary proof
+   (the fix for a new export nested inside an older runnable bundle). TEST: the runtime receipt
+   identifies the successful build's exact output and matching executable hashes before boot.
 5. **Backend.** Name fixture, isolated copied-data or authorized live mode and every service endpoint.
    Verify the project's supported runtime, locked dependencies and startup inputs. Reserve the port
    lane and reject stale listeners. Inside the admitted run, start only owned required services and
