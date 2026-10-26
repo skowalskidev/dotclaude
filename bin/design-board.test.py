@@ -38,6 +38,23 @@ const { chromium } = require(process.env.PW_ROOT + '/playwright');
   a = await t(); await p.keyboard.press('0'); await p.waitForTimeout(100); r.keys = (await t()) !== a;
   await p.click('[data-section="0"]'); await p.waitForTimeout(100);
   r.section = await p.evaluate(() => { const s = document.querySelector('.board').getBoundingClientRect(), v = document.getElementById('mock-stage').getBoundingClientRect(); return s.left >= v.left - 1 && s.right <= v.right + 1 && s.top >= v.top - 1 && s.bottom <= v.bottom + 1; });
+  r.horizontal = await p.evaluate(() => {
+    const screen = document.querySelector('.screen[data-frame]');
+    const doc = screen.querySelector('iframe').contentDocument;
+    const width = screen.clientWidth;
+    const measure = html => { doc.body.innerHTML = html; return window.__measure()[0].overflow; };
+    const wide = '<div style="width:' + (width + 80) + 'px;height:80px">Scrollable content</div>';
+    return {
+      popover: measure('<div style="position:absolute;left:' + (width - 30) + 'px;top:100px;width:100px;height:40px">Popover</div>') === 70,
+      auto: measure('<div style="overflow-x:auto;height:100px">' + wide + '</div>') === 0,
+      scroll: measure('<div style="overflow-x:scroll;height:100px"><div>' + wide + '</div></div>') === 0,
+      oversized: measure('<div style="overflow-x:auto;width:' + (width + 20) + 'px;height:100px">' + wide + '</div>') === 20,
+      hidden: measure('<div style="overflow-x:hidden;height:100px">' + wide + '</div>') === 80,
+      fixed: measure('<div style="overflow-x:auto;height:100px"><div style="position:fixed;left:' + (width - 30) + 'px;top:100px;width:100px;height:40px">Overlay</div></div>') === 70,
+      bottom: measure('<div style="position:absolute;top:840px;height:40px">Below phone</div>') === 28,
+      invisible: measure('<div style="display:none;width:1000px">Hidden</div>') === 0,
+    };
+  });
   console.log(JSON.stringify(r)); await b.close();
 })();
 """
@@ -108,6 +125,10 @@ def main() -> int:
         cut_spec, cut_out = pathlib.Path(tmp, "cut.json"), pathlib.Path(tmp, "cut.html")
         cut_spec.write_text(json.dumps(cut))
         run("build", str(cut_spec), str(cut_out))
+        right = json.loads(spec.read_text())
+        right["sections"][0]["frames"][0]["html"] = '<div style="position:absolute;left:350px;top:100px;width:120px;height:60px">Right-clipped popover</div>'
+        right_out = pathlib.Path(tmp, "right.html")
+        right_out.write_text(load_tool().build(right))
         good = subprocess.run([sys.executable, str(TOOL), "check", str(out), str(pathlib.Path(tmp, "shots"))],
                               capture_output=True, text=True)
         if good.returncode == 2:
@@ -119,6 +140,9 @@ def main() -> int:
                                      capture_output=True, text=True)
             checks["check passes the example"] = good.returncode == 0 and good.stdout.count("| PASS") == 3
             checks["check fails a cut frame"] = cut_run.returncode == 1 and "cut by" in cut_run.stdout
+            right_run = subprocess.run([sys.executable, str(TOOL), "check", str(right_out), str(pathlib.Path(tmp, "right-shots"))],
+                                       capture_output=True, text=True)
+            checks["check fails a right-clipped popover"] = right_run.returncode == 1 and "cut by" in right_run.stdout
             checks["check writes a pass table"] = pathlib.Path(tmp, "shots", "pass-table.md").is_file()
             checks["check fails a blank frame"] = bad_run.returncode == 1 and "blank" in bad_run.stdout
             nav = navigation_probe(out, tmp)
@@ -127,6 +151,8 @@ def main() -> int:
                 checks["drag over a phone pans"] = nav["drag"]
                 checks["keys work after clicking a phone"] = nav["keys"]
                 checks["section click fits that section"] = nav["section"]
+                for case, passed in nav.get("horizontal", {"probe": False}).items():
+                    checks["overflow measurement: " + case] = passed
         bad = [k for k, ok in checks.items() if not ok]
         for k, ok in checks.items():
             print(("PASS " if ok else "FAIL ") + k)

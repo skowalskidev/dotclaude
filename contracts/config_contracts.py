@@ -253,7 +253,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Builds the exploration form of a mockup: phone frames in titled sections on a pan/zoom whiteboard from a spec.json, with measurement hooks for the capture loop; extracts the spec back.",
         "criteria": [
             "Render entirely from the spec: title, lead, sections, frames with label, title, hypothesis, note, pick, hidden, night, and either inner html or an image; no project strings in bin/design-board.html.",
-            "Expose window.__measure() returning per-frame overflow past the phone bottom and the data-oneline cells that wrapped, and window.__flatten() returning each frame's page box for a full-page capture.",
+            "Expose window.__measure() returning per-frame overflow past the phone bottom or right edge, excluding horizontal content contained by scrolling ancestors, and data-oneline cells that wrapped; expose window.__flatten() returning each frame's page box for a full-page capture.",
+            "Fail check for a right-clipped popover or an oversized horizontal scroller; pass contained auto/scroll content. Verify these cases in bin/design-board.test.py.",
             "Round-trip: extract returns the spec that built the board, with local font/image assets embedded and original references retained as metadata; the output opens from file:// with no external request.",
             "Store every embedded payload once: images in spec.assets under a content hash referenced as @@ASSET:<id>@@, the font and capture html only in #spec, with the board filling each frame's screen document at runtime; build(extract(build(spec))) is byte-identical, so a board stays small enough to share as a claude.ai artifact.",
             "A section with flow: true lays every frame on one unwrapped row with no width cap, so a multi-step flow reads left to right in step order.",

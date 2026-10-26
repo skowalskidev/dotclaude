@@ -33,8 +33,9 @@ copy. That keeps a board small enough to share as a claude.ai artifact, and keep
 byte-identical.
 
 Every frame carries `data-frame` and `data-measure` hooks. In a browser, `window.__measure()` returns
-[{id, overflow, wrapped}] where `overflow` is how far the deepest element sits past the phone bottom
-and `wrapped` lists elements marked `data-oneline` that broke onto a second line. No third-party
+[{id, overflow, wrapped, cut}] where `overflow` is the largest extent past the phone bottom or right
+edge, excluding horizontal content contained by scrolling ancestors. `wrapped` lists elements marked
+`data-oneline` that broke onto a second line; `cut` lists vertically clipping containers. No third-party
 dependencies; Python 3.9+ (Pillow optional, for image frames).
 
 `check` runs bin/visual-check.py on the built file: fit, 100% zoom and flattened states at 1440x900, a
