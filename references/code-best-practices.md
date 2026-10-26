@@ -56,6 +56,16 @@ minutes on usage errors from an empty run id.) The CI wait script lives in `refe
 TEST: every background wait states its condition and timeout, and its first output was read within 2
 minutes of launch.
 
+**DO read a poll's state from a field when the command's exit code encodes a status.** Under `set -o
+pipefail`, `gh pr checks` (8 while checks are pending), `grep -q` (1 on no match) and `diff` (1 when files
+differ) turn "still running" into "done" inside a loop or `if` condition. Poll a JSON field instead, e.g.
+`gh pr view <n> --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.status // "COMPLETED")
+!= "COMPLETED")] | length'`, or guard the command with an inline reason: `(gh pr checks <n> || true) |
+grep -q pending  # exit 8 means pending`. (the fix for a CI wait that reported done with 15 checks
+still pending.)
+TEST: no loop or `if` condition under pipefail pipes a status-coded command without a guard or a
+field read.
+
 ### Naming — the reader must not have to open the implementation
 
 Applies to anything someone else reads to decide what a thing does: variables, functions, files,
