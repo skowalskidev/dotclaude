@@ -14,14 +14,6 @@ Reference catalog for engineering-quality standards: code quality (DRY/SRP, reus
 
 ### Shell commands
 
-**Brace every variable that a colon follows: `${C}:refs/heads/x`, never `$C:refs/...`.** zsh reads
-`$VAR:x` as a history modifier and silently rewrites the argument, e.g. `git push origin $C:refs/heads/b`
-became a mangled refspec. TEST: no `$NAME:` without braces in a command.
-
-**Never keep a command in a variable (`L="lockf -k …"; $L xcodebuild`).** zsh does not word-split it, so the
-line exits 127 and the chain after it never runs. Write the command out, or use a function. TEST: no `$VAR` in
-command position.
-
 #### Agent-written shell fails fast and loud
 
 `rules/process.md` § Agent-written shell points here. Applies to every script, compound command, trap
@@ -65,6 +57,17 @@ grep -q pending  # exit 8 means pending`. (the fix for a CI wait that reported d
 still pending.)
 TEST: no loop or `if` condition under pipefail pipes a status-coded command without a guard or a
 field read.
+
+**DO brace every variable that a colon follows: `"${src}:${dst}"`, never `"$src:refs/..."`.** zsh reads an
+unbraced `$var:` plus a letter (`:r`, `:h`, `:t`, `:e`, `:a`, `:l`, `:u` and more) as a history modifier,
+even inside double quotes, and rewrites the value with no error. This hits git refspecs, `host:port`,
+`user:group` and `key:value` (the fix for `git push origin "$c:refs/..."`, which zsh expanded as
+`${c:r}efs/...` and git rejected with `src refspec <sha>efs/... does not match any`).
+TEST: no `$name:` without braces in the command.
+
+**DON'T keep a command in a variable (`L="lockf -k …"; $L xcodebuild`).** zsh does not word-split it, so
+the line exits 127 and the chain after it never runs. Write the command out, or use a function.
+TEST: no `$VAR` in command position.
 
 ### Naming — the reader must not have to open the implementation
 
