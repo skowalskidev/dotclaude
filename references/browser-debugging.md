@@ -19,8 +19,9 @@ state and calls `page.pause()` does the same.
 **DON'T set Playwright `channel: 'chrome'` or `executablePath` to Google Chrome**, and don't run a state
 he is to look at headless.
 WHY: a window marked "Chrome for Testing" is unmistakably the agent's, so he clicks only where he is meant to.
-TEST: `ps -o command= -p $(lsof -nP -iTCP:9222 -sTCP:LISTEN -t)` names `Google Chrome for Testing`,
-and no `/Applications/Google Chrome.app` process carries `--remote-debugging-port`.
+TEST: inspect the configured debug-port listener with `ps -p <listener-pid> -o comm=`; it names
+`Google Chrome for Testing`. Check any required debug-flag match inside a local checker that emits
+only a verdict, per `rules/process.md`; no everyday Chrome instance passes the ownership check.
 
 **One walk surface: a walk reuses 1 tab, and every window it opens is closed before hand-back.** Owned here; `/sk:test-copilot` and `references/human-pacing.md` point to it.
 **DO open 1 walk tab (`new_page`) for the whole walk, plus 1 isolated context per distinct account or fresh-visitor need.** Before opening another tab or context for a step, close the one you opened for the previous step (`close_page`), unless the next step needs it. Reuse a tab by `navigate_page`, never by opening a sibling.

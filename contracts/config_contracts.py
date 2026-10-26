@@ -42,19 +42,35 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/local-capacity.py": {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
-        "purpose": "Non-blocking machine-wide admission for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
+        "purpose": "Bounded foreground scheduling for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
         "criteria": [
             "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
-            "Defer every acquire, run, claim-sim and stack-acquire with exit 75 naming the reading when CPU idle is below 20%, load exceeds 1.5 x logical cores while CPU idle is also below 35% (load alone, as in 200 at 57% idle, is GO) or kern.memorystatus_vm_pressure_level reads 2 (warning) or 4 (critical), with a compressed-share-above-40%-of-RAM fallback only when the sysctl is unavailable and never a fixed compressed-GiB threshold; cpu prints one GO or DEFER line with the pressure level.",
+            "Defer ordinary admission below 20% CPU idle, above 1.5 load per core while idle is below 35%, or at memory warning; cpu reports the reading. Use compressor share above 40% only when the OS pressure signal is unavailable.",
+            "Admit one supervised priority command under CPU contention or OS memory warning for at most five minutes within the three-slot cap, without a simulator. Critical, unknown or fallback-warning memory refuses.",
+            "Check allowance memory and priority every ten seconds; stop only the owned group on critical or unknown memory, expiry or replacement. Reject separate stages; preserve lease cleanup and all simulator, stack and ownership boundaries.",
+            "Prove priority checkout ownership at admission, then bind that proof to one supervisor and its exact cwd device/inode. Heartbeats verify that identity and the live grant without repeating ownership subprocesses; allow same-scope renewal and reject changed, expired or unknown scope.",
+            "Verify an unreaped child PID, parent, start and private PGID before every teardown signal. Keep the leader unreaped until descendants stop; accept EPERM only for a proven zombie-only group. Retain evidence on unknown/live signal refusal and never repeat a failed teardown.",
+            "Keep one token-bound contention allowance machine-wide until its verified lease releases; replacement priority cannot admit another.",
+            "Bind priority to its session workspace, including nested linked worktrees; canonicalize worker labels to one lease owner. Exclude sibling and unrelated repositories. Explicit migration preserves the old owner and expiry.",
             "A failed CPU, load or memory probe defers with exit 75 like every other deferral; exit 1 means a fault to inspect, never defer.",
+            "Sample CPU/load/memory once per admission attempt and reuse the snapshot. Read CPU from the second one-second iostat sample with a five-second timeout; require its header and two valid rows. Classify failures without printing raw output.",
+            "Retry only state-lock contention for completed-run cleanup for at most 30 seconds, revalidating token and resources. Preserve payload result after release; never relaunch or retry an ownership/resource refusal.",
+            "Retry priority-state lock contention within one 10-second heartbeat and the command deadline, checking memory before each attempt. Critical or unknown memory still stops only the owned payload.",
+            "Snapshot status/watchdog metadata under a short lock; run external probes outside it. Reclaim mutations revalidate the current owner and lease, never trust a stale diagnostic snapshot.",
             "Count at most MAX_BOOTED_SIMULATORS (1) device machine-wide: claimed, leased or not Shutdown, unleased devices included; a second claim-sim or simulator run exits 75 naming the holder, the same owner included.",
-            "Admit the priority owner (prioritize: default 60, maximum 180 minutes) first, in the first slot to free; it passes no cap but keeps the CPU, load and memory guards, so only real saturation defers it. Stop, signal or shorten no running job; defer other new requests with exit 75.",
+            "Reserve one slot while the priority owner lacks a lease; admit secondary owners into spare slots under ordinary guards. Keep priority expiry at default 60, maximum 180 minutes; never steal another owner's lease.",
+            "Retry foreground run admission every 10 seconds for 5 minutes by default, configurable to 0..60 minutes; launch once, never restart a started command, and return 75 on exhausted admission.",
+            "Pause only explicitly pause-safe owned groups during another primary's pressure; recheck token, PID/start and PGID before every signal, resume after two healthy samples, and leave busy work running without a primary.",
+            "Reserve the first slot for one legacy bridge or old slot directory in compute mode; reject ambiguous multiple lanes. Use at most two remaining slots without the mutex; reject compute simulator/stage use and retain all host guards.",
+            "Retain paused leases and memory; count paused wall time toward the command deadline and end a 5-minute pause. Continue a stopped owned group after TERM for cleanup; reject simulator, stage and legacy-bridge pause-safe runs.",
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
             "Cap Docker dev stacks at floor(VM GiB / 3), at least 1 and at most 2, counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
             "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
+            "Use port-registry ownership for idle-stack decisions: live Claude/Codex sessions protect their checkout and physically nested linked worktrees of the same repository; sibling and unrelated repositories remain reclaimable.",
             "Watchdog and status flag, read-only, processes at or above 200% ps CPU aged 120 seconds or more, unleased booted simulators, idle claims and extra Chrome for Testing instances, naming each simulator's owner; they stop nothing.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
             "reclaim-sim shuts down and unclaims a simulator only when its claim owner has no live session and no lease holds it; it exits 1 naming a live owner and never deletes the device.",
+            "Record a new simulator claim's checkout without changing the owner-label API. Retain label-only claims while any session is live; use shared workspace ownership for recorded claims, including live parents of nested worktrees.",
             "Print the reclaim command on run, claim-sim and watchdog output only for an ended claim owner; a failed session probe is never read as ended.",
             "Bound boot to 60 seconds, bootstatus and install to 120 seconds each, and the foreground run to 60 minutes by default; a failed boot starts no later stage.",
             "Attempt bounded shutdown of only the recorded simulator after command groups stop on success, failure or timeout; retain the lease if any device is not Shutdown.",
@@ -304,6 +320,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Load the same file:// path or URL fresh for every row, wait for it to settle, then run the state's JavaScript and settle again, so a state set during load is not overwritten by load-time code.",
             "Fail a row on a page or region with ink share (pixels differing from the most common colour) below --min-ink (default 0.05%), on a missing --expect string, a page error or a failed request.",
+            "Measure all inset pixels through bounded canvas tiles without downsampling; preserve one global RGB mode, row-major tie-breaking and the >8 channel threshold. Tall/wide blank images still fail, and lost canvas contexts report errors instead of zero ink.",
             "Fail a --region or --visible element that is not fully visible: zero size, hidden, outside the document, cut by an overflow hidden, clip, auto or scroll ancestor, or hiding its own content; a DOM string or non-white pixel alone never passes.",
             "Judge visibility independently of scroll position: compare an element to the document in document coordinates (viewport rect plus window scroll), and measure every region before any region screenshot scrolls the page, so an element scrolled above the viewport is never reported outside the document.",
             "Print the pass table, write it to <out>/pass-table.md beside one full-page PNG per row, and exit 0 clean, 1 on any failure, 2 on bad arguments, more than 24 rows or a missing browser runtime.",
@@ -451,6 +468,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work Simon hands over finishes without him, and every ask is verified done rather than reported done.",
         "purpose": "How Simon works: orchestration, run-to-completion, commits, cleanup.",
         "criteria": [
+            "Process inspection emits names and metadata, never arguments or environment values; exact-argument ownership checks stay internal and report verdicts. Signal only currently proven owned processes or candidates passing the existing orphan gate; preserve other live sessions.",
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
             "Keep native compile checks and relevant backend payment, auth and data tests; preserve required hooks and CI without bypassing them to impose batch timing.",
@@ -622,7 +640,7 @@ CONTRACTS: dict[str, dict] = {
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
             "Own the machine-wide capacity protocol: three heavy leases, one simulator, the stack cap and idle-stack teardown, the CPU/load/memory guards, the watchdog, the Simon-granted priority record that passes no cap, explicit runner limits, no automatic orphan takeover, and reclaim-sim only for an ended simulator owner. Simon's \"prioritise\" or \"don't defer\" is served by prioritize, never a bare heavy command; every heavy step holds a lease; a watchdog line naming this session is acted on at once.",
             "Web runners start at two workers, Playwright included (--workers=2, since its default is half the logical cores); a scripted Playwright run closes each context after its batch.",
-            "Every worker of a task uses the one owner string the priority record names; every native run names its simulator; a run is stopped through its supervisor, and a 75 is diagnosed with status before any retry.",
+            "Session workers inherit priority by checkout ownership and share its canonical lease owner. Keep simulator claim/release labels consistent; name every native simulator, stop through the supervisor, and inspect status after exit 75.",
             "A restart stops the launcher's process group, confirms zero listeners, and confirms the new listener started after the stop.",
             "A wait on a background job uses its PID, a done-file or the harness completion notification; never pgrep -f for a pattern the waiting command contains.",
             "After every start or restart, one end-to-end request through each external dependency and a read of its log for a refused credential precede any hand-over; the identity handshake alone is not enough.",
@@ -646,6 +664,7 @@ CONTRACTS: dict[str, dict] = {
             "Identify macOS crash dialogs from simulator system daemons by a DiagnosticReports procPath under the simulator runtime, report them once as Apple simulator bugs distinct from the app's own crash, never churn reboots over them, treat shutdown SIGTERM_TIMEOUT reports as expected, and offer a machine-wide ReportCrash disable only as an option needing Simon's explicit yes.",
             "Never run AXe on a device with a live XCUITest run; an AXe tap uses --post-delay and a changed-screen check.",
             "Preflight effective DEVELOPER_DIR, selected Xcode, runtime, explicit UDID, matching app artifact, backend identity and requested GUI before boot; discover installed capabilities without global switches, automatic installs or unbounded searches.",
+            "Bind successful test-product builds to one absent export destination, exact bundle path and final executable hashes. Reject ambiguous nested outputs before runtime; a source annotation alone never establishes binary provenance.",
             "Discover Device Hub and legacy Simulator read-only under selected Xcode; open the GUI only inside admission after owned boot readiness. A missing GUI name never establishes that its runtime is missing.",
             "Run GUI discovery and the capacity status before any native launch, a repo script included; a script that assumes one GUI layout is fixed, not worked around in the invocation.",
             "Launch through the project's own launch script when one exists; a bare simctl launch passes every option and variable the project's configuration declares.",
@@ -1907,7 +1926,8 @@ CONTRACTS: dict[str, dict] = {
     "hooks/orphan-worker-sweep.sh": {
         "mission": "No dead framework worker keeps burning a core in a workspace nobody is watching.",
         "purpose": "SessionStart: reports orphaned framework workers burning CPU.",
-        "criteria": ["Detects and reports. Never kills anything.", "Silent when nothing is found."],
+        "criteria": ["Detects and reports. Never kills anything.", "Silent when nothing is found.",
+                     "Distinguish eligible framework families from retained agents; never recommend signalling an agent whose task owner is not proven ended."],
     },
     "hooks/port-registry-sweep.sh": {
         "mission": "A session sees claimed ports and heavy capacity before binding or building, without a noisy idle web startup.",
@@ -2062,7 +2082,10 @@ CONTRACTS: dict[str, dict] = {
             "'no listener' alone would delete a valid claim mid-boot.",
             "Never kills a process and never releases another session's claim. Conflicts are "
             "reported to Simon, who decides.",
-            "sessions prints the working directory of every live Claude session and writes nothing; it is the one live-session detector other engines call.",
+            "sessions prints the working directory of every live Claude/Codex session and writes nothing; match only executable basenames claude and codex, never process arguments or environment values.",
+            "owns-workspace tests live cwds from stdin using the same predicate as reconciliation; protect physically nested linked worktrees only with a matching Git common directory, never siblings or unrelated nested repositories.",
+            "Report failed process probes, missing session cwds and failed Git probes for candidate nested owners as unknown; preserve port claims and refuse stack reclamation until ownership is known.",
+            "Require confirmed workspace absence and absent session ownership before reap reports a kill candidate. Retain inaccessible paths, broken links and deleted children of live parent checkouts; can-reap-workspace repeats the same check before signalling.",
             "Exit codes stay meaningful: 3 held by another live session, 4 a listener nobody "
             "claimed. The EXIT trap must preserve them.",
             "Release surfaces who was waiting, so the hand-off between sessions reaches Simon. It "
@@ -2090,7 +2113,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon's existing native callers share the same heavy-work leases as every other local project without losing their familiar commands.",
         "purpose": "Thin compatibility frontend for bin/local-capacity.py.",
         "criteria": [
-            "Delegate run, list, claim-sim, release-sim, reclaim-sim and jobs to bin/local-capacity.py; never create a second lock or simulator ledger.",
+            "Delegate run, list, claim-sim, release-sim, reclaim-sim and jobs to bin/local-capacity.py; forward bounded --wait-min with default 5. Never create a second lock or simulator ledger.",
             "Return exit 75 before the wrapped command starts when the shared leases, legacy bridge or load gate refuses admission.",
             "Keep a dead or interrupted holder visible for explicit inspection; never auto-reap another session's claim.",
             "Expand every array that can be empty as ${ARR[@]+\"${ARR[@]}\"}; macOS /bin/bash 3.2 treats a bare empty \"${ARR[@]}\" as unbound under set -u.",
@@ -2145,9 +2168,8 @@ CONTRACTS: dict[str, dict] = {
             "registry row, which is what stops rows accumulating across a day of sessions.",
             "Releases this workspace's previous lane before claiming a new one. A slot change that "
             "leaves two lanes claimed is the accumulation this is built to prevent.",
-            "Kills exactly one thing: a server whose WORKSPACE HAS BEEN DELETED, family-first with a "
-            "re-scan against the port rather than the pid. Every other shape, including a listener "
-            "nobody claimed, is reported and left alone — it may be a server Simon started himself.",
+            "Stop only servers with confirmed deleted workspaces and absent owners. Signal family-first, then rescan the port. Retain every live or unresolved owner and every listener nobody claimed.",
+            "Recheck every candidate through port-registry can-reap-workspace immediately before signalling; a failed directory or ownership lookup never authorizes a kill, even when another row made reap exit 5.",
             "Base ports are discovered, never hardcoded, and a cached map whose workspace field does "
             "not match this worktree is REJECTED. Conductor copies .env* into new workspaces, so an "
             "inherited map is a real event and trusting it boots a fresh workspace on another lane.",
@@ -2170,11 +2192,12 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/kill-orphan-workers.sh": {
         "mission": "An orphaned worker is cleared without killing a dev server someone is using.",
-        "purpose": "Clears orphaned framework and agent-spawned workers the sweep hook reported.",
+        "purpose": "Clears eligible framework families and reports uncertain agent candidates.",
         "criteria": [
-            "Never kills a process whose parent is alive: every candidate is PPID 1, so a live session's server, MCP or launcher is spared by construction.",
+            "Keep full arguments internal to candidate matching; list, dry-run, termination reports and the session hook expose only candidate metadata and category, never argument values.",
+            "Exclude live-parent roots; collect and signal descendants only from eligible framework roots, never from report-only agent candidates.",
             "Burns-only for framework workers: a next/jest/vite worker is killed at 20%+ CPU and 5+ minutes old and inside a git checkout, since a live detached server leaves idle ones.",
-            "Idle-and-old for agent-spawned orphans: chrome-devtools-mcp, wrangler/workerd and headless codex exec are killed when PPID 1 and 5+ minutes old, burning or not.",
+            "Retain agent-class candidates at PPID 1 and 5+ minutes old: parent death and age do not prove task abandonment. Without an authoritative ended-task receipt, list and rescan remain report-only for agents, including adopted headless Codex workers.",
             "Kills the family then re-checks, since killing a parent reparents its children.",
         ],
     },

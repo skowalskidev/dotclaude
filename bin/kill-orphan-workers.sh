@@ -1,49 +1,42 @@
 #!/usr/bin/env bash
 # kill-orphan-workers.sh
 #
-# Detects and clears orphaned dev-tool AND agent-spawned worker processes machine-wide (not scoped to
-# this session or this workspace). Two classes, because they leak differently:
+# Detects framework and agent worker candidates machine-wide. Clears only eligible framework
+# families; agent candidates are report-only because parent death does not prove task abandonment.
 #
 #   FRAMEWORK workers — a dead `next dev` / `turbo dev` / `jest` / `vite` run leaves
 #   `next-router-worker` / `next-render-worker-pages` / `jest-worker` children that reparent to PID 1
 #   and pin a CPU core indefinitely, in a workspace nobody is looking at. Harmful only when BURNING, so
 #   swept only when hot-and-old — a live-but-detached dev server legitimately leaves idle 0% workers.
 #
-#   AGENT-SPAWNED orphans — a `chrome-devtools-mcp` (one spawned per browser-tool use and never reaped),
-#   a `wrangler dev` / `workerd`, or a headless `codex exec` left behind by an MCP, session or launcher
-#   that died. A human does not detach these and keep using them, so an orphan (PPID 1) that is OLD is
-#   dead weight whether it burns a core or sits idle — swept idle-and-old, not only when hot. The
-#   incident this encodes: one long session orphaned ~18 chrome-devtools-mcp processes and a `codex exec`
-#   that thrashed for 90 minutes at ~0% CPU, and the machine crawled.
+#   AGENT candidates — chrome-devtools-mcp, wrangler/workerd and headless Codex/Claude can outlive their
+#   launcher while a live or successor session still owns their results. PPID 1 plus age is only a
+#   reporting threshold. No shared receipt here proves their task ended, so retain them and let the
+#   task owner apply its recorded lifecycle checks. Never infer abandonment from CPU or log age.
 #
-# This is the ONLY thing in this config that kills these processes. The SessionStart hook
+# The SessionStart hook
 # `hooks/orphan-worker-sweep.sh` only ever REPORTS candidates (calls this script with --list) and
 # never signals anything — see that file's header for why.
 #
 # Detection — (a) is required for EVERY candidate; (b)/(c) then split by class:
-#   (a) PPID == 1                      — its parent died and it reparented to launchd/init. This is the
-#       load-bearing safety guard for BOTH classes: a live session keeps its dev server, its MCP, its
-#       wrangler and its launcher alive, so none of their processes is ever PPID 1. A debug browser
-#       attached to a running MCP, or a wrangler on a lane a live session claimed, is spared by this
-#       alone — never PPID 1 while its owner lives.
+#   (a) PPID == 1 — its parent died and it reparented to launchd/init. This excludes workers with a
+#       live parent, but does not prove the task ended or that a successor has not adopted it.
 #   (b) a category match:
 #       FRAMEWORK — base names node, bun, deno, python*, ruby*, or args contain -worker, vite, esbuild,
 #                   tsc, nodemon, webpack, rollup, jest, turbo. Kept only if ALSO in a git checkout (c),
 #                   burning (>= MIN_ORPHAN_CPU) and old (>= MIN_ORPHAN_SECONDS).
 #       AGENT     — args contain `chrome-devtools-mcp`; or `workerd` / `wrangler … dev`; or the base is
-#                   `codex` running the headless `exec` subcommand. Kept if old (>= MIN_ORPHAN_SECONDS);
-#                   no CPU floor and no git-cwd gate, so an idle orphan still counts.
+#                   headless `codex exec` or `claude -p`. Kept if old (>= MIN_ORPHAN_SECONDS);
+#                   no CPU floor or git-cwd gate; every such row is retained, never auto-signalled.
 #   (c) cwd resolves inside a git working tree — the FRAMEWORK false-positive guard only. Real daemons
 #       and LaunchAgents never run with a cwd inside a source checkout. It is the expensive check (one
 #       `lsof` per candidate), so it runs only on framework candidates that already passed (a)+(b).
 #
-# Honest limit: a human who deliberately `nohup wrangler dev &`-detaches a server that then reparents
-# to PID 1 looks identical to an orphan, so the agent sweep would reap it after MIN_ORPHAN_SECONDS.
-# That is the same tradeoff the framework path already makes; a server meant to stay up lives under a
-# live shell or session, never PPID 1.
+# Honest limit: agent abandonment is not decidable from this process snapshot. A genuinely abandoned
+# agent remains until its owner verifies and stops it. Framework CPU/age/cwd gates remain unchanged.
 #
 # Kill sequence (the reason this script exists instead of a bare `pkill`):
-#   1. Collect the full process family (each root candidate + ALL its descendants, recursively via
+#   1. Collect the full process family (each eligible framework root + ALL its descendants, recursively via
 #      `pgrep -P`) BEFORE signalling anything — a child's ppid changes the instant its parent dies,
 #      so the tree has to be captured while it's still intact.
 #   2. SIGTERM every pid in every family directly (not just the roots).
@@ -56,15 +49,14 @@
 #   5. SIGKILL whatever is still alive. Verify. Report what was killed and what (if anything)
 #      survived.
 #
-# Safety invariant: every pid this script ever signals is either a PPID==1 root (verified to have
+# Safety invariant: every pid this script ever signals is either an eligible framework PPID==1 root (verified to have
 # no live parent at all) or a descendant reachable ONLY through such a root's own process tree —
-# so nothing it touches can have a live dev-server ancestor. That is the "never kill a worker with
-# a live parent" guard; it holds by construction, not by an extra check.
+# Agent-class roots are never admitted to either the initial signal set or the rescan set.
 #
 # Usage:
 #   kill-orphan-workers.sh            # detect + kill (the default; this is the point of the script)
 #   kill-orphan-workers.sh --dry-run  # detect + print the family that would be killed; kill nothing
-#   kill-orphan-workers.sh --list     # detect only, print raw candidate rows (used by the SessionStart hook)
+#   kill-orphan-workers.sh --list     # detect only, print safe candidate metadata (used by the SessionStart hook)
 #   kill-orphan-workers.sh --help
 # -f (noglob) is deliberate and load-bearing: this script repeatedly word-splits unquoted
 # variables built from `ps`/`pgrep` output (pids, and once a raw command line) for portability
@@ -76,19 +68,18 @@ shopt -s nocasematch # macOS's homebrew python3 re-execs into a framework binary
 
 INTERP_RE='^(node|bun|deno|python.*|ruby.*)$'
 KEYWORD_RE='(-worker|vite|esbuild|tsc|nodemon|webpack|rollup|jest|turbo)'
-# Agent-spawned leak sources. Swept idle-and-old (PPID 1 + age), not only when burning — see the
-# AGENT class in the header. codex is handled inline (a `/codex` executable path — which may contain
-# spaces, e.g. `.../Application Support/.../codex` — plus the `exec` subcommand), so a prompt string
-# naming "codex" cannot match and the interactive `codex … app-server` is spared.
+# Agent-spawned candidates. Reported when old (PPID 1 + age), not only when burning — see the
+# AGENT class in the header. Headless Codex/Claude commands are handled inline, including executable
+# paths with spaces. These matches only retain/report; command text is never abandonment evidence.
 CHROME_MCP_RE='chrome-devtools-mcp'
 WRANGLER_RE='(^|/)workerd([[:space:]]|$)|wrangler([[:space:]]+[^[:space:]]+)*[[:space:]]+dev([[:space:]]|$)'
 
 usage() {
   printf '%s\n' \
     "Usage: $(basename "$0") [--dry-run|--list|--help]" \
-    "  (no flag)   detect orphaned framework + agent-spawned worker processes machine-wide and kill them" \
+    "  (no flag)   clear eligible framework families; retain agent candidates for their owner" \
     "  --dry-run   detect and print what would be killed; kill nothing" \
-    "  --list      detect only, print raw candidate rows (pid/ppid/cpu/etime/cwd/args, tab-separated)" \
+    "  --list      detect only, print safe candidate rows (pid/ppid/cpu/etime/cwd/category, tab-separated)" \
     "  --help      show this message"
 }
 
@@ -152,7 +143,7 @@ in_git_worktree() {
 }
 
 # detect_candidates — the single source of truth for detection. Emits one tab-separated row per
-# candidate: pid, ppid, %cpu, elapsed, cwd, full command line.
+# candidate: pid, ppid, %cpu, elapsed, cwd, category. Arguments stay inside the detector.
 detect_candidates() {
   ps -Awwo pid=,ppid=,pcpu=,etime=,args= 2>/dev/null | while IFS= read -r line; do
     # shellcheck disable=SC2086 # deliberate word-splitting to peel off the four numeric fields
@@ -174,7 +165,7 @@ detect_candidates() {
       category="agent"
     elif echo "$args" | grep -iEq -- "$WRANGLER_RE"; then
       category="agent"
-    elif echo "$args" | grep -Eq '/codex([[:space:]]|$)' && echo "$args" | grep -Eq '(^| )exec( |$)'; then
+    elif echo "$args" | grep -Eq '(^|/)(codex|claude)([[:space:]]|$)' && echo "$args" | grep -Eq '(^| )(exec|-p|--print)( |$)'; then
       category="agent"
     elif [[ "$base" =~ $INTERP_RE ]] || echo "$args" | grep -Eq -- "$KEYWORD_RE"; then
       category="framework"
@@ -191,15 +182,13 @@ detect_candidates() {
       awk -v c="$pcpu" -v m="$MIN_ORPHAN_CPU" 'BEGIN{exit !(c+0 >= m+0)}' || continue
       [ "$(etime_seconds "$etime")" -ge "$MIN_ORPHAN_SECONDS" ] || continue
     else
-      # Agent-spawned orphan: PPID==1 already proves its MCP/session/launcher died, so nobody is using
-      # it and nobody will read a headless worker's result. Age is the only gate, so a just-orphaned one
-      # mid-handoff is left alone; no CPU floor, so ~18 idle chrome instances and a `codex exec`
-      # thrashing at ~0% CPU are caught, not missed. cwd is fetched for the report only, not as a gate.
+      # Report old agent candidates without asserting task abandonment. A handed-off worker can
+      # remain useful after reparenting; this detector has no authoritative ended-task receipt.
       [ "$(etime_seconds "$etime")" -ge "$MIN_ORPHAN_SECONDS" ] || continue
       cwd="$(cwd_for_pid "$pid")"
     fi
 
-    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$ppid" "$pcpu" "$etime" "$cwd" "$args"
+    printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$pid" "$ppid" "$pcpu" "$etime" "$cwd" "$category"
   done
 }
 
@@ -241,12 +230,16 @@ do_dry_run() {
     echo "No orphaned worker processes found."
     return 0
   fi
-  echo "Would terminate the following process families (dry run — nothing was killed):"
+  echo "Framework cleanup candidates and retained agents (dry run — nothing was killed):"
   echo
   all_pids=""
-  while IFS="$(printf '\t')" read -r pid ppid pcpu etime cwd args; do
+  while IFS="$(printf '\t')" read -r pid ppid pcpu etime cwd category; do
     [ -n "$pid" ] || continue
-    printf 'root pid %s  %%cpu=%s  elapsed=%s  cwd=%s\n  %s\n' "$pid" "$pcpu" "$etime" "$cwd" "$args"
+    if [ "$category" != "framework" ]; then
+      printf 'Retained pid %s  category=%s  owner not proven ended\n' "$pid" "$category"
+      continue
+    fi
+    printf 'eligible root pid %s  %%cpu=%s  elapsed=%s  cwd=%s\n' "$pid" "$pcpu" "$etime" "$cwd"
     family="$(collect_descendants "$pid")"
     all_pids="$all_pids $family"
     printf '  family: %s\n' "$family"
@@ -266,15 +259,23 @@ do_kill() {
   fi
 
   all_pids=""
-  echo "Orphaned worker process(es) found:"
-  while IFS="$(printf '\t')" read -r pid ppid pcpu etime cwd args; do
+  echo "Framework cleanup candidates and retained agents:"
+  while IFS="$(printf '\t')" read -r pid ppid pcpu etime cwd category; do
     [ -n "$pid" ] || continue
-    printf '  pid %s  %%cpu=%s  elapsed=%s  cwd=%s\n    %s\n' "$pid" "$pcpu" "$etime" "$cwd" "$args"
+    if [ "$category" != "framework" ]; then
+      printf 'Retained pid %s  category=%s  owner not proven ended\n' "$pid" "$category"
+      continue
+    fi
+    printf '  eligible pid %s  %%cpu=%s  elapsed=%s  cwd=%s\n' "$pid" "$pcpu" "$etime" "$cwd"
     family="$(collect_descendants "$pid")"
     all_pids="$all_pids $family"
   done <<EOF
 $rows
 EOF
+  if [ -z "$all_pids" ]; then
+    echo "No eligible framework families to terminate. Retained agents need their owner's lifecycle check."
+    return 0
+  fi
   # shellcheck disable=SC2086 # all_pids is a deliberately space-separated pid list
   all_pids="$(printf '%s\n' $all_pids | sort -un | tr '\n' ' ')"
 
@@ -293,7 +294,7 @@ EOF
   for p in $all_pids; do
     pid_alive "$p" && survivors="$survivors $p"
   done
-  rescan_pids="$(detect_candidates | cut -f1)"
+  rescan_pids="$(detect_candidates | awk -F '\t' '$6 == "framework" { print $1 }')"
   for p in $rescan_pids; do
     case " $survivors " in
       *" $p "*) ;;

@@ -234,7 +234,7 @@ lane_ports() {
 # is still listening is correctly kept by the registry (the port really is bound) and would therefore
 # look healthy forever, so exit 5 hands it here.
 #
-# Killing is confined to exactly that case. Its code is gone, so nobody can be using it. Every other
+# Killing requires confirmed deletion and a fresh, unambiguous absent-owner result. Every other
 # shape — including a listener nobody claimed — is reported and left alone, because killing a server
 # you started yourself is worse than failing.
 SWEEP_REAPED=0
@@ -276,12 +276,15 @@ sweep() {
   [ "$QUIET" -eq 1 ] || printf '%s\n' "$out" | sed 's/^/  /'
 
   if [ "$rc" -eq 5 ]; then
-    # Re-derive the orphans from rows rather than by parsing the prose above.
-    orphan_ports="$($REGISTRY_SH list --tsv 2>/dev/null | awk -F"$TAB" '{ if (system("[ -d \"" $3 "\" ]") != 0) print $1 }')"
-    for p in $orphan_ports; do
+    # Recheck each row with the registry's owner and path predicate immediately before signalling.
+    # A missing/inaccessible directory alone cannot authorize stopping a live parent's server.
+    "$REGISTRY_SH" list --tsv > "$TMP/reap-rows" || return 1
+    while IFS="$TAB" read -r p owner workspace description claimed pid; do
+      [ -n "$p" ] || continue
+      "$REGISTRY_SH" can-reap-workspace "$workspace" || continue
       SWEEP_ORPHANS=$((SWEEP_ORPHANS + 1))
       kill_orphan_on_port "$p"
-    done
+    done < "$TMP/reap-rows"
     # The rows now have no listener and no existing workspace, so this drops them.
     $REGISTRY_SH reap >/dev/null 2>&1 || true
   fi

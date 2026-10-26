@@ -21,7 +21,7 @@ engine() { python3 "$ENGINE" ${ROOT[@]+"${ROOT[@]}"} "$@"; }
 case "${1:-}" in
   run)
     shift
-    what=""; udid=""; max_min=60; wait_min=0
+    what=""; udid=""; max_min=60; wait_min=5
     while [ "$#" -gt 0 ]; do
       case "$1" in
         --for) [ "$#" -ge 2 ] || die '--for needs a label'; what="$2"; shift 2 ;;
@@ -34,11 +34,10 @@ case "${1:-}" in
     done
     [ -n "$what" ] || die 'run needs --for LABEL'
     [ "$#" -gt 0 ] || die 'run needs a foreground command after --'
-    [ "$wait_min" = 0 ] || { printf 'native-slot: automatic waiting is retired; retry at a task boundary after exit 75\n' >&2; exit 75; }
     if [ -n "$udid" ]; then
-      engine run --owner "$(session)" --simulator "$udid" --max-min "$max_min" -- "$@"
+      engine run --owner "$(session)" --simulator "$udid" --max-min "$max_min" --wait-min "$wait_min" -- "$@"
     else
-      engine run --owner "$(session)" --max-min "$max_min" -- "$@"
+      engine run --owner "$(session)" --max-min "$max_min" --wait-min "$wait_min" -- "$@"
     fi
     ;;
   list|status) engine status ;;

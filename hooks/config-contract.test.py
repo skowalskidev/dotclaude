@@ -70,6 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("process-inspection-keeps-arguments-private", "Process guidance and orphan reports keep arguments private; cleanup retains uncertain agent workers and preserves framework gates."),
     ("connector-capability-before-auth", "Connector discovery and exact-action checks precede human-only auth gates; media verification can reuse authenticated API access without weakening browser playback proof."),
     ("automatic-config-repair-lifecycle", "Every task session receives scoped repair authority; startup reports unfinished work without committing, merging or discarding it."),
     ("branch-cleanup-closes-owned-inventory", "Task closure accounts for owned refs; requested repo cleanup surfaces unique branches and preserves recovery, activity and remote-write safeguards."),
@@ -1502,6 +1503,122 @@ def check_mockup_shell_preserves_reviewed_deep_links() -> None:
 
 # The coverage ratchet: a criterion with no check, or a check with no criterion, is a bug.
 # --------------------------------------------------------------------------------------
+
+def check_process_inspection_keeps_arguments_private() -> None:
+    rule = (ROOT / "rules/process.md").read_text()
+    check("Private process inspection" in rule and "keep arguments and environment values private" in rule,
+          "The always-on rule must route private inspection")
+    policy = (ROOT / "references/dev-server-hygiene.md").read_text()
+    check(all(part in policy for part in (
+        "names and metadata only", "arguments and environment values out",
+        "capture them inside a local", "never weaken that check to a name match",
+        "launch receipt, start time, parent/group and cwd", "existing orphan-cleanup gate",
+    )), "Process privacy must preserve exact ownership and orphan-cleanup gates")
+    # Reject the original leaking recipe and reversed/long-form flag variants in guidance.
+    unsafe_pgrep = re.compile(r"\bpgrep\s+(?:-[a-z]*f[a-z]*[la]|-[a-z]*[la][a-z]*f|[^`\n]*--list-full)")
+    docs = [*(ROOT / "rules").glob("*.md"), *(ROOT / "references").glob("*.md"),
+            *(ROOT / "skills/sk/skills").glob("*/SKILL.md")]
+    for path in docs:
+        guidance = "\n".join(line for line in path.read_text().splitlines()
+                             if not line.lstrip().startswith("**DON'T print full command lines"))
+        check(not unsafe_pgrep.search(guidance),
+              f"Full-argument process listing in {path.relative_to(ROOT)}")
+    cleanup = (ROOT / "skills/sk/skills/meta-cleanup-worktrees/SKILL.md").read_text()
+    check("matches `workflow-dashboard.py serve`" in cleanup
+          and "equal the receipt's plan" in cleanup and "never the captured arguments" in cleanup,
+          "Dashboard cleanup must retain argument matching without printing arguments")
+    # Exercise the documented command against our own harmless child, never another session.
+    import shlex
+    sentinel = "PROCESS_PRIVACY_TEST_SENTINEL"
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)", sentinel],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        recipe = re.search(r"`(ps -p <pid> -o [^`]+)`", policy)
+        check(recipe is not None, "Document a known-PID inspection command")
+        if recipe:
+            result = run(shlex.split(recipe.group(1).replace("<pid>", str(child.pid))))
+            check(result.returncode == 0 and str(child.pid) in result.stdout
+                  and sentinel not in result.stdout + result.stderr,
+                  "Known-PID inspection must identify the child without revealing its arguments")
+        control = run(["ps", "-p", str(child.pid), "-o", "args="])
+        check(sentinel in control.stdout, "The private fixture must carry the argument being excluded")
+    finally:
+        child.terminate()
+        child.wait(timeout=5)
+
+    # No real process enumeration or signals: exercise every reporting path on fake candidates.
+    with tempfile.TemporaryDirectory() as temp:
+        fixture = Path(temp)
+        mockbin = fixture / "mockbin"
+        mockbin.mkdir()
+        cwd = fixture / "workspace"
+        (cwd / ".git").mkdir(parents=True)
+        rows = fixture / "rows"
+        fixture_rows = "\n".join((
+            f"71001 1 25.0 10:00 node next-worker {sentinel}",
+            f"71002 1 0.0 10:00 node next-worker {sentinel}",
+            f"71003 999 25.0 10:00 node next-worker {sentinel}",
+            f"71004 1 0.0 10:00 node chrome-devtools-mcp {sentinel}",
+            f"71005 1 25.0 00:01 node next-worker {sentinel}",
+            f"71007 1 0.0 20:00 /Applications/Agent Host/codex exec --output-last-message report.md {sentinel}",
+            f"71008 1 90.0 20:00 /opt/codex exec next-worker {sentinel}",
+            f"71009 1 0.0 20:00 node wrangler dev {sentinel}",
+            f"71010 1 90.0 20:00 codex exec next-worker {sentinel}",
+            f"71011 1 90.0 20:00 /Applications/Agent Host/claude -p next-worker {sentinel}",
+        )) + "\n"
+        rows.write_text(fixture_rows)
+        scripts = {
+            "ps": '#!/bin/bash\nif [ -f "$TEST_TERMINATED" ]; then '
+                  'awk \'$1 != 71001\' "$TEST_PS_ROWS"; else /bin/cat "$TEST_PS_ROWS"; fi\n',
+            "lsof": '#!/bin/bash\nprintf "n%s\\n" "$TEST_CWD"\n',
+            "pgrep": '#!/bin/bash\ncase "$2" in 71001) echo 71006;; 71007) echo 71012;; esac\n',
+        }
+        for name, source in scripts.items():
+            executable = mockbin / name
+            executable.write_text(source)
+            executable.chmod(0o755)
+        init = fixture / "bash-init"
+        init.write_text('kill() { if [ "$1" = -0 ]; then '
+                        'case "$2" in 71001|71006) [ ! -f "$TEST_TERMINATED" ]; return;; *) return 0;; esac; fi; '
+                        'printf "%s\\n" "$*" >> "$TEST_SIGNAL_LOG"; : > "$TEST_TERMINATED"; }\n'
+                        'sleep() { :; }\n')
+        state = fixture / "terminated"
+        signals = fixture / "signals"
+        env = {**os.environ, "PATH": str(mockbin) + os.pathsep + os.environ.get("PATH", ""),
+               "BASH_ENV": str(init), "TEST_PS_ROWS": str(rows), "TEST_CWD": str(cwd),
+               "TEST_TERMINATED": str(state), "TEST_SIGNAL_LOG": str(signals), "HOME": str(fixture)}
+        killer = ROOT / "bin/kill-orphan-workers.sh"
+        for flag in ("--list", "--dry-run", ""):
+            state.unlink(missing_ok=True)
+            result = run(["bash", str(killer), *([flag] if flag else [])], env=env)
+            check(result.returncode == 0 and sentinel not in result.stdout + result.stderr,
+                  f"Orphan {flag or 'termination'} output must hide argument values")
+            check(all(pid in result.stdout for pid in ("71001", "71004", "71007", "71008", "71009", "71010", "71011"))
+                  and all(pid not in result.stdout for pid in ("71002", "71003", "71005")),
+                  "Candidate privacy must preserve parent, age and framework CPU gates")
+            if flag != "--list":
+                check(all(f"Retained pid {pid}" in result.stdout for pid in ("71004", "71007", "71008", "71009", "71010", "71011")),
+                      "Old agent candidates must be explicitly retained, including adopted and hot Codex workers")
+        check(set(signals.read_text().splitlines()) == {"-TERM 71001", "-TERM 71006"},
+              "Initial signals and rescan must preserve agent roots and their children while clearing eligible framework families")
+        state.unlink(missing_ok=True)
+        home_bin = fixture / ".claude/bin"
+        home_bin.mkdir(parents=True)
+        (home_bin / "kill-orphan-workers.sh").symlink_to(killer)
+        previous_signals = signals.read_text()
+        result = run(["bash", str(ROOT / "hooks/orphan-worker-sweep.sh")], env=env)
+        check(result.returncode == 0 and sentinel not in result.stdout + result.stderr
+              and "71001" in result.stdout and "eligible framework candidate" in result.stdout
+              and "retained; owner not proven ended" in result.stdout
+              and "CLEAR THESE NOW" not in result.stdout and signals.read_text() == previous_signals,
+              "Session-start report must distinguish retained agents, hide arguments and remain read-only")
+        rows.write_text("\n".join(line for line in fixture_rows.splitlines()
+                                  if line.split()[0] in {"71004", "71007", "71008", "71009", "71010", "71011"}) + "\n")
+        result = run(["bash", str(killer)], env=env)
+        check(result.returncode == 0 and signals.read_text() == previous_signals
+              and "No eligible framework families" in result.stdout and sentinel not in result.stdout + result.stderr,
+              "Agent-only inventory must exit without any signal or escalation")
+
 
 def main() -> int:
     module = sys.modules[__name__]

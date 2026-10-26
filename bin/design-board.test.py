@@ -28,7 +28,9 @@ def run(*args: str) -> str:
 NAV_PROBE = r"""
 const { chromium } = require(process.env.PW_ROOT + '/playwright');
 (async () => {
-  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  const b = await chromium.launch();
+  try {
+  const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
   await p.goto('file://' + process.argv[2]); await p.waitForTimeout(800);
   const t = () => p.evaluate(() => document.getElementById('canvas').style.transform);
   const f = await (await p.$('.screen[data-frame] iframe')).boundingBox();
@@ -55,7 +57,8 @@ const { chromium } = require(process.env.PW_ROOT + '/playwright');
       invisible: measure('<div style="display:none;width:1000px">Hidden</div>') === 0,
     };
   });
-  console.log(JSON.stringify(r)); await b.close();
+  console.log(JSON.stringify(r));
+  } finally { await b.close(); }
 })();
 """
 

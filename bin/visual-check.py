@@ -60,6 +60,7 @@ for (const r of roots) for (const pkg of ["playwright", "playwright-core"]) {
 if (!chromium) { console.error("SETUP: node 'playwright' not found. Set MOCKUP_SHOTS_NODE_MODULES to a node_modules dir containing it."); process.exit(2); }
 mkdirSync(job.outdir, { recursive: true });
 const browser = await chromium.launch();
+try {
 const probe = await browser.newPage();
 // Ink share of a PNG: pixels differing from the most common colour by more than 8 on any channel, after an inset.
 async function ink(png, inset) {
@@ -70,15 +71,35 @@ async function ink(png, inset) {
     const w = img.naturalWidth, h = img.naturalHeight;
     const x0 = Math.floor(w * inset), y0 = Math.floor(h * inset);
     const cw = Math.max(1, w - 2 * x0), ch = Math.max(1, h - 2 * y0);
-    const c = document.createElement("canvas"); c.width = cw; c.height = ch;
-    const g = c.getContext("2d"); g.drawImage(img, x0, y0, cw, ch, 0, 0, cw, ch);
-    const d = g.getImageData(0, 0, cw, ch).data;
+    // Full-page screenshots can exceed canvas dimension/area limits even when the PNG decodes.
+    // Read every pixel at 1:1 scale through bounded tiles; choose one mode for the entire inset.
+    const tile = 1024;
+    const c = document.createElement("canvas"); c.width = Math.min(tile, cw); c.height = Math.min(tile, ch);
+    const g = c.getContext("2d");
+    if (!g) throw new Error("ink canvas context unavailable");
     const counts = new Map();
-    for (let i = 0; i < d.length; i += 4) { const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; counts.set(k, (counts.get(k) || 0) + 1); }
-    let mode = 0, best = -1; for (const [k, n] of counts) if (n > best) { best = n; mode = k; }
+    for (let ty = 0; ty < ch; ty += tile) for (let tx = 0; tx < cw; tx += tile) {
+      const tw = Math.min(tile, cw - tx), th = Math.min(tile, ch - ty);
+      g.clearRect(0, 0, tw, th);
+      g.drawImage(img, x0 + tx, y0 + ty, tw, th, 0, 0, tw, th);
+      const d = g.getImageData(0, 0, tw, th).data;
+      if (g.isContextLost() || d.length !== tw * th * 4) throw new Error("ink canvas read failed");
+      for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
+        const i = (y * tw + x) * 4, pos = (ty + y) * cw + tx + x;
+        const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+        const entry = counts.get(k);
+        if (entry) { entry.n++; entry.first = Math.min(entry.first, pos); }
+        else counts.set(k, { n: 1, first: pos });
+      }
+    }
+    // Preserve the original row-major tie-break, independent of tile traversal order.
+    let mode = 0, best = -1, first = Infinity;
+    for (const [k, entry] of counts) if (entry.n > best || (entry.n === best && entry.first < first)) {
+      best = entry.n; first = entry.first; mode = k;
+    }
     const mr = mode >> 16, mg = (mode >> 8) & 255, mb = mode & 255;
     let diff = 0;
-    for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - mr) > 8 || Math.abs(d[i + 1] - mg) > 8 || Math.abs(d[i + 2] - mb) > 8) diff++;
+    for (const [k, entry] of counts) if (Math.abs((k >> 16) - mr) > 8 || Math.abs(((k >> 8) & 255) - mg) > 8 || Math.abs((k & 255) - mb) > 8) diff += entry.n;
     return diff / (cw * ch);
   }, [png.toString("base64"), inset]);
 }
@@ -173,8 +194,8 @@ for (const vp of job.viewports) for (const st of job.states) {
   await page.close();
   rows.push(row);
 }
-await browser.close();
 console.log(JSON.stringify({ rows }));
+} finally { await browser.close(); }
 """
 
 
