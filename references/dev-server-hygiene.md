@@ -329,6 +329,14 @@ host probe, compressed-share fallback warning, full slots or unleased simulator 
 DO retry a transient priority-state lock collision within that heartbeat and the command deadline,
 checking memory before every attempt. TEST: a brief lock collision preserves a live payload;
 critical or unknown memory during that retry ends only its owned group.
+DO prove checkout ownership once at admission and bind it to that supervisor's exact working
+directory identity. Heartbeats check the live grant and directory identity without repeating Git
+or port-registry subprocesses. Same-scope renewal remains valid; expiry, replacement or unknown
+identity ends the allowance. TEST: a later ownership-probe timeout cannot interrupt a proven run.
+DO verify the unreaped child's PID, parent, start and private process group before teardown signals.
+Keep its leader unreaped until live descendants stop. Accept a signal permission error only when
+the group is proven zombie-only; otherwise retain its lease without retrying teardown.
+TEST: reaped or foreign children receive no signal, and a live signal refusal preserves evidence.
 Separate `stage` groups are rejected inside this allowance. Keep explicit runner worker limits.
 Use serial phases and resume admission automatically; do not ask Simon to close apps for ordinary
 contention. Never kill another live owner's job, steal a lease or bypass `run`.

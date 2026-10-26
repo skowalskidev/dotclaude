@@ -746,6 +746,69 @@ sys.exit(result.returncode)
         shutdown.assert_not_called()
         self.assertIsNotNone(gate.read_state(self.root))
 
+    def test_reaped_child_never_authorizes_another_group_signal(self):
+        child = mock.Mock(pid=43210, returncode=0)
+        with mock.patch.object(gate.os, "killpg") as signal_group:
+            gate.terminate_group(child)
+        signal_group.assert_not_called()
+        child.wait.assert_not_called()
+
+    def test_ordinary_teardown_accepts_only_proven_zombie_only_eperm(self):
+        child = mock.Mock(pid=43210, returncode=None)
+        child.wait.side_effect = lambda **kwargs: setattr(child, "returncode", 0)
+        with mock.patch.object(gate, "pid_start", return_value="child-start"), \
+             mock.patch.object(gate.OwnedGroup, "child_identity", return_value=(43210, os.getpid(), 43210, ["child-start"], "Z")), \
+             mock.patch.object(gate.OwnedGroup, "group_running", return_value=False), \
+             mock.patch.object(gate.os, "killpg", side_effect=PermissionError("denied")) as signal_group:
+            gate.terminate_group(child)
+            gate.terminate_group(child)
+        signal_group.assert_called_once_with(43210, signal.SIGTERM)
+        child.wait.assert_called_once()
+
+    def test_live_group_eperm_retains_evidence_and_never_retries_signal(self):
+        child = mock.Mock(pid=43210, returncode=None)
+        with mock.patch.object(gate, "pid_start", return_value="child-start"), \
+             mock.patch.object(gate.OwnedGroup, "child_identity", return_value=(43210, os.getpid(), 43210, ["child-start"], "S")), \
+             mock.patch.object(gate.os, "killpg", side_effect=PermissionError("denied")) as signal_group:
+            for _ in range(2):
+                with self.assertRaises(gate.GateError):
+                    gate.terminate_group(child)
+        signal_group.assert_called_once_with(43210, signal.SIGTERM)
+        child.wait.assert_not_called()
+
+    def test_teardown_keeps_leader_unreaped_until_descendants_stop(self):
+        child = mock.Mock(pid=43210, returncode=None)
+        events, alive, now = [], [True], [0]
+
+        def send(pid, sig):
+            events.append(sig)
+            if sig == signal.SIGKILL:
+                alive[0] = False
+
+        def reap(**kwargs):
+            events.append("reap")
+            child.returncode = 0
+
+        child.wait.side_effect = reap
+        with mock.patch.object(gate, "pid_start", return_value="child-start"), \
+             mock.patch.object(gate.OwnedGroup, "child_identity", return_value=(43210, os.getpid(), 43210, ["child-start"], "Z")), \
+             mock.patch.object(gate.OwnedGroup, "group_running", side_effect=lambda: alive[0]), \
+             mock.patch.object(gate.time, "monotonic", side_effect=lambda: now[0]), \
+             mock.patch.object(gate.time, "sleep", side_effect=lambda n: now.__setitem__(0, now[0] + n)), \
+             mock.patch.object(gate.os, "killpg", side_effect=send):
+            gate.terminate_group(child)
+        self.assertEqual(events, [signal.SIGTERM, signal.SIGKILL, "reap"])
+
+    def test_teardown_rejects_foreign_parent_or_changed_group_before_signalling(self):
+        for parent, group in ((os.getpid() + 1, 43210), (os.getpid(), 999)):
+            child = mock.Mock(pid=43210, returncode=None)
+            with mock.patch.object(gate, "pid_start", return_value="child-start"), \
+                 mock.patch.object(gate.OwnedGroup, "child_identity", return_value=(43210, parent, group, ["child-start"], "S")), \
+                 mock.patch.object(gate.os, "killpg") as signal_group:
+                with self.assertRaises(gate.GateError):
+                    gate.terminate_group(child)
+                signal_group.assert_not_called()
+
     def test_booting_device_blocks_release(self):
         token = gate.acquire(self.root, "mine", os.getpid(), SIM)
         self.probe.stop()
@@ -1350,14 +1413,14 @@ class PriorityAllowanceTests(unittest.TestCase):
                 ready.set()
                 time.sleep(0.08)
 
-        def check(root, owner):
+        def check(root, owner, binding):
             checks.append(owner)
             if len(checks) == 1:
                 worker = threading.Thread(target=hold)
                 workers.append(worker)
                 worker.start()
                 self.assertTrue(ready.wait(1))
-            return original(root, owner)
+            return original(root, owner, binding)
 
         try:
             with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
@@ -1380,7 +1443,7 @@ class PriorityAllowanceTests(unittest.TestCase):
             checks = []
             original = gate.check_priority_allowance
 
-            def check(root, owner):
+            def check(root, owner, binding):
                 checks.append(owner)
                 if len(checks) == 1:
                     until = time.monotonic() + 2
@@ -1390,7 +1453,7 @@ class PriorityAllowanceTests(unittest.TestCase):
                     raise gate.StateLockBusy("contended")
                 with mock.patch.object(gate, "memory_pressure_level", **(
                         {"side_effect": failure} if isinstance(failure, Exception) else {"return_value": failure})):
-                    return original(root, owner)
+                    return original(root, owner, binding)
 
             with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
                  mock.patch.object(gate, "check_priority_allowance", side_effect=check), \
@@ -1400,6 +1463,24 @@ class PriorityAllowanceTests(unittest.TestCase):
             self.assertEqual(len(checks), 2)
             self.assertIsNone(gate.read_state(self.root))
             marker.unlink()
+
+    def test_allowance_uses_admission_proof_without_repeating_ownership_probe(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "RETRY_SECONDS", 0.05), \
+             mock.patch.object(gate, "priority_matches", side_effect=[True, gate.GateError("ownership timeout")]) as match:
+            self.assertEqual(self.run_payload("import time; time.sleep(0.25)"), 0)
+        match.assert_called_once()
+
+    def test_binding_allows_renewal_but_rejects_changed_or_unknown_scope(self):
+        record = {"owner": "primary", "workspace": "/workspace", "expires": time.time() + 60}
+        binding = gate.priority_binding(record)
+        self.assertTrue(gate.bound_priority_matches(dict(record, expires=time.time() + 3600), binding))
+        for replacement in (None, dict(record, owner="other"), dict(record, workspace="/other")):
+            self.assertFalse(gate.bound_priority_matches(replacement, binding))
+        with mock.patch.object(gate.Path, "cwd", side_effect=OSError("inaccessible")):
+            with self.assertRaises(gate.GateError):
+                gate.bound_priority_matches(record, binding)
 
     def test_warning_requires_supervision_and_one_machine_wide_allowance(self):
         gate.prioritize(self.root, "primary", 30, False)

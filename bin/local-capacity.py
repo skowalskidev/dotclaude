@@ -345,6 +345,22 @@ def priority_matches(record, owner):
     return session_owns_workspace(checkout_path(Path.cwd()), [record["workspace"]])
 
 
+def priority_binding(record):
+    """Only call after priority_matches succeeds; this proof belongs to one supervisor."""
+    try:
+        cwd = Path.cwd()
+        identity = cwd.stat()
+        return (record["owner"], record["workspace"], str(cwd), identity.st_dev, identity.st_ino)
+    except OSError as exc:
+        raise GateError("priority checkout identity is unknown") from exc
+
+
+def bound_priority_matches(record, binding):
+    if not record or binding is None or (record["owner"], record["workspace"]) != binding[:2]:
+        return False
+    return priority_binding(record) == binding
+
+
 def allowance_token(root):
     """One machine-wide contention allowance, tied to a retained heavy lease. Call under lock."""
     fd = secure_open(root / ALLOWANCE_SLOT)
@@ -1257,7 +1273,8 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
             raise Busy("heavy work deferred: %s; one supervised priority allowance is available within the heavy-slot cap" %
                        (allowance_reason or reason))
         if admission is not None:
-            admission.update(owner=owner, priority_allowance=allowance)
+            admission.update(owner=owner, priority_allowance=allowance,
+                             priority_binding=priority_binding(priority) if is_priority else None)
         mine = next((lease for lease in held if lease["owner"] == owner), None)
         if mine:
             raise Busy("heavy slot busy: %s; one owner holds at most one lease" % holder_text(mine))
@@ -1374,25 +1391,85 @@ def record_child(root, token, pid, start):
         write_state(root, lease, slot)
 
 
-def terminate_group(child):
-    # The child starts a new session, so its PID is its process group ID.
-    try:
-        os.killpg(child.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        child.wait(timeout=2)
-    except subprocess.TimeoutExpired:
-        pass
-    if group_alive(child.pid):
+class OwnedGroup:
+    """An unreaped child anchors signals to its original private process group."""
+
+    def __init__(self, child, start):
+        self.child, self.start, self.paused = child, start, False
+
+    def group_running(self):
+        """An unreaped leader pins its PGID, but a zombie alone cannot receive a signal on Darwin."""
         try:
-            os.killpg(child.pid, signal.SIGKILL)
+            result = subprocess.run(["/bin/ps", "-axo", "pgid=,stat="], capture_output=True,
+                                    text=True, timeout=3, check=False)
+            if result.returncode:
+                raise ValueError("process group probe failed")
+            rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
+            return any(int(group) == self.child.pid and not state.startswith("Z") for group, state in rows)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            raise GateError("owned process group state is unknown; retain its lease") from exc
+
+    def child_identity(self):
+        """ps retains parent/group/start metadata for an unreaped zombie on macOS Python 3.9 too."""
+        try:
+            result = subprocess.run(["/bin/ps", "-p", str(self.child.pid), "-o", "pid=,ppid=,pgid=,lstart=,stat="],
+                                    capture_output=True, text=True, timeout=3, check=False)
+            fields = result.stdout.split()
+            if result.returncode or len(fields) != 9:
+                raise ValueError("child identity unavailable")
+            return (int(fields[0]), int(fields[1]), int(fields[2]), fields[3:8], fields[8])
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            raise GateError("cooperative child identity is unknown; retain its lease") from exc
+
+    def signal(self, sig):
+        if self.child.returncode is not None:
+            return False
+        pid, parent, group, start, state = self.child_identity()
+        if (pid != self.child.pid or parent != os.getpid() or group != self.child.pid
+                or start != self.start.split()):
+            raise GateError("owned child PID/parent/start/group changed; retain its lease")
+        try:
+            os.killpg(self.child.pid, sig)
         except ProcessLookupError:
-            pass
+            return False
+        except PermissionError as exc:
+            if state.startswith("Z") and not self.group_running():
+                return False  # Darwin can report EPERM for a zombie-only group.
+            raise GateError("owned process group signal refused; retain its lease") from exc
+        return True
+
+    def terminate(self):
+        if self.child.returncode is not None:
+            return  # A reaped PID no longer anchors its old process group.
+        if getattr(self.child, "_capacity_teardown_started", False) is True:
+            raise GateError("owned teardown already failed; retain its lease without another signal")
+        self.child._capacity_teardown_started = True
+        if self.signal(signal.SIGTERM) and self.paused:
+            self.signal(signal.SIGCONT)
+            self.paused = False
+        for sig in (signal.SIGKILL, None):
+            deadline = time.monotonic() + 2
+            while self.group_running() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            if not self.group_running():
+                break
+            if sig is None:
+                raise GateError("owned group did not stop; retain its lease")
+            self.signal(sig)
+        # Reap only after all live descendants are gone; the leader pins PGID until here.
         try:
-            child.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            pass
+            self.child.wait(timeout=2)
+        except subprocess.TimeoutExpired as exc:
+            raise GateError("owned child did not exit; retain its lease") from exc
+
+
+def terminate_group(child):
+    if child.returncode is not None:
+        return
+    start = pid_start(child.pid)
+    if not start:
+        raise GateError("owned child identity is unknown; retain its lease")
+    OwnedGroup(child, start).terminate()
 
 
 def launch_granted(command, read_fd, legacy_fds=(), env=None):
@@ -1494,7 +1571,10 @@ def stage_command(root, seconds, command):
                 continue
     except (GateError, OSError) as exc:
         if child is not None:
-            terminate_group(child)
+            try:
+                terminate_group(child)
+            except (GateError, OSError) as cleanup_exc:
+                print("stage teardown retained for inspection: %s" % cleanup_exc, file=sys.stderr)
         print("stage failed safely: %s" % exc, file=sys.stderr)
         return BUSY
     finally:
@@ -1510,7 +1590,7 @@ def stage_command(root, seconds, command):
             signal.signal(sig, handler)
 
 
-class CooperativeRun:
+class CooperativeRun(OwnedGroup):
     """Only the supervisor may signal its unreaped child and recorded private process group."""
 
     def __init__(self, root, owner, token, child, start):
@@ -1521,30 +1601,6 @@ class CooperativeRun:
         self.healthy = 0
         self.next_check = time.monotonic() + RETRY_SECONDS
 
-    def group_running(self):
-        """An unreaped leader pins its PGID, but a zombie alone cannot receive a signal on Darwin."""
-        try:
-            result = subprocess.run(["/bin/ps", "-axo", "pgid=,stat="], capture_output=True,
-                                    text=True, timeout=3, check=False)
-            if result.returncode:
-                raise ValueError("process group probe failed")
-            rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
-            return any(int(group) == self.child.pid and not state.startswith("Z") for group, state in rows)
-        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
-            raise GateError("owned process group state is unknown; retain its lease") from exc
-
-    def child_identity(self):
-        """ps retains parent/group/start metadata for an unreaped zombie on macOS Python 3.9 too."""
-        try:
-            result = subprocess.run(["/bin/ps", "-p", str(self.child.pid), "-o", "pid=,ppid=,pgid=,lstart=,stat="],
-                                    capture_output=True, text=True, timeout=3, check=False)
-            fields = result.stdout.split()
-            if result.returncode or len(fields) != 9:
-                raise ValueError("child identity unavailable")
-            return (int(fields[0]), int(fields[1]), int(fields[2]), fields[3:8], fields[8])
-        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
-            raise GateError("cooperative child identity is unknown; retain its lease") from exc
-
     def signal(self, sig):
         if self.child.returncode is not None:
             return False
@@ -1554,22 +1610,7 @@ class CooperativeRun:
             if (not lease or lease["pid"] != os.getpid() or lease["pid_start"] != pid_start(os.getpid())
                     or lease["child"] != receipt or lease["stages"] or lease["simulator"]):
                 raise GateError("cooperative command identity changed; retain its lease for inspection")
-            # Never poll/wait here: the original unreaped child reserves its PID after leader
-            # exit. PPID/start/group metadata proves that anchor before continuing descendants.
-            pid, parent, group, start, state = self.child_identity()
-            if (pid != self.child.pid or parent != os.getpid() or group != self.child.pid
-                    or start != self.start.split()):
-                raise GateError("cooperative child PID/parent/start/group changed; retain its lease")
-            try:
-                os.killpg(self.child.pid, sig)
-            except ProcessLookupError:
-                return False
-            except PermissionError:
-                # Darwin returns EPERM for a vanished group whose stopped leader died on TERM.
-                if state.startswith("Z") and not self.group_running():
-                    return False
-                raise
-        return True
+            return super().signal(sig)
 
     def tick(self):
         now = time.monotonic()
@@ -1595,18 +1636,6 @@ class CooperativeRun:
             if self.healthy >= RECOVERY_SAMPLES and self.signal(signal.SIGCONT):
                 self.paused, self.paused_at, self.healthy = False, None, 0
                 print("capacity resumed owned command after stable recovery", file=sys.stderr)
-
-    def terminate(self):
-        # SIGTERM remains pending while stopped. Continue only this verified group so it can clean up.
-        if self.signal(signal.SIGTERM) and self.paused:
-            self.signal(signal.SIGCONT)
-            self.paused = False
-        deadline = time.monotonic() + 2
-        while self.group_running() and time.monotonic() < deadline:
-            time.sleep(0.05)
-        if self.group_running():
-            self.signal(signal.SIGKILL)
-        self.child.wait(timeout=2)
 
 
 def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, second_slot_only=False,
@@ -1690,7 +1719,7 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             if allowance and time.monotonic() >= next_pressure_check:
                 next_pressure_check = time.monotonic() + RETRY_SECONDS
                 try:
-                    retry_state_lock(lambda: check_priority_allowance(root, owner),
+                    retry_state_lock(lambda: check_priority_allowance(root, owner, admission["priority_binding"]),
                                      min(deadline, next_pressure_check))
                 except GateError as exc:
                     cooperative.terminate() if cooperative else terminate_group(child)
@@ -1721,13 +1750,10 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
         return BUSY
     except OSError as exc:
         if child is not None:
-            if cooperative:
-                try:
-                    cooperative.terminate()
-                except (GateError, OSError):
-                    pass  # retain ownership evidence rather than signalling an unknown process
-            else:
-                terminate_group(child)
+            try:
+                cooperative.terminate() if cooperative else terminate_group(child)
+            except (GateError, OSError) as cleanup_exc:
+                print("command teardown retained for inspection: %s" % cleanup_exc, file=sys.stderr)
         print("command could not start; lease retained for inspection: %s; token=%s" % (exc, token), file=sys.stderr)
         return BUSY
     finally:
@@ -1735,14 +1761,14 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             signal.signal(sig, handler)
 
 
-def check_priority_allowance(root, owner):
+def check_priority_allowance(root, owner, binding):
     # Check memory before a contended state read too. Unknown/critical never waits on the lock.
     level, source = memory_pressure_level()
     if level == 4 or (level == 2 and source != "sysctl"):
         raise Busy("priority allowance ended: memory is critical/unknown")
     with locked(root):
         priority = read_priority(root)
-    if not priority or priority["owner"] != owner or not priority_matches(priority, owner):
+    if not priority or priority["owner"] != owner or not bound_priority_matches(priority, binding):
         raise Busy("priority allowance ended: priority expired/changed")
 
 
