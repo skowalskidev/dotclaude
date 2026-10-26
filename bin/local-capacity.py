@@ -3,8 +3,10 @@
 
 At most HEAVY_SLOTS owners hold a heavy lease at once, one lease per owner, and at most
 MAX_BOOTED_SIMULATORS simulator is claimed, leased or booted machine-wide. A priority owner named
-by `prioritize` reserves one slot while absent; other owners use spare slots. All admission guards
-still apply. Explicitly pause-safe foreground runs yield their own group under primary contention.
+by `prioritize` reserves one slot while absent; other owners use spare slots. Session workers share
+that owner. One supervised command may progress through CPU contention or memory warning for five
+minutes within the heavy-slot cap; critical or unknown memory never permits this allowance.
+Explicitly pause-safe foreground runs yield their own group under primary contention.
 Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
 simulators, idle simulator claims and extra test browsers; `reclaim-sim` shuts down and unclaims an
@@ -15,6 +17,7 @@ or stack start.
 
 import argparse
 import fcntl
+import hashlib
 import json
 import math
 import os
@@ -62,6 +65,8 @@ RETRY_SECONDS = 10
 WAIT_SECONDS = 300
 RECOVERY_SAMPLES = 2
 PAUSE_MAX_SECONDS = 300
+PRIORITY_RUN_SECONDS = 300
+ALLOWANCE_SLOT = "priority-run.json"
 OWNER = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}\Z")
 UDID = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\Z")
 TOKEN = re.compile(r"[0-9a-f]{64}\Z")
@@ -223,6 +228,7 @@ def read_priority(root):
     finally:
         os.close(fd)
     if not raw:
+        write_state(root, None, "priority-session.json")
         return None
     try:
         record = json.loads(raw.decode("utf-8"))
@@ -236,19 +242,43 @@ def read_priority(root):
     if record["expires"] <= time.time():
         write_priority(root, None)
         return None
-    return record
+    return dict(record, workspace=read_priority_scope(root, record))
+
+
+def priority_grant(record):
+    data = json.dumps({key: record[key] for key in ("owner", "expires")}, sort_keys=True).encode()
+    return hashlib.sha256(data).hexdigest()
+
+
+def read_priority_scope(root, record):
+    """Bind scope to this exact grant while keeping priority.json readable by live supervisors."""
+    fd = secure_open(root / "priority-session.json")
+    try:
+        raw = os.read(fd, 4097)
+    finally:
+        os.close(fd)
+    if not raw:
+        return None
+    try:
+        scope = json.loads(raw)
+        if (len(raw) > 4096 or not isinstance(scope, dict) or set(scope) != {"grant", "workspace"}
+                or not isinstance(scope["grant"], str) or not TOKEN.fullmatch(scope["grant"])
+                or not isinstance(scope["workspace"], str) or not Path(scope["workspace"]).is_absolute()
+                or ".." in Path(scope["workspace"]).parts or any(c in scope["workspace"] for c in "\n\r\t")):
+            raise ValueError("invalid scope")
+    except (ValueError, TypeError) as exc:
+        raise GateError("priority session scope is corrupt; reissue prioritize or --clear") from exc
+    if not secrets.compare_digest(scope["grant"], priority_grant(record)):
+        write_state(root, None, "priority-session.json")
+        return None  # a different grant never inherits this session's scope
+    return scope["workspace"]
 
 
 def write_priority(root, record):
-    fd = secure_open(root / "priority.json")
-    try:
-        data = (json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n").encode() if record else b""
-        os.lseek(fd, 0, os.SEEK_SET)
-        os.write(fd, data)
-        os.ftruncate(fd, len(data))
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    scope = ({"grant": priority_grant(record), "workspace": record["workspace"]}
+             if record and record["workspace"] is not None else None)
+    write_state(root, scope, "priority-session.json")
+    write_state(root, {key: record[key] for key in ("owner", "expires")} if record else None, "priority.json")
 
 
 def priority_text(record):
@@ -256,7 +286,18 @@ def priority_text(record):
     return "%s until %s (%d min left)" % (record["owner"], until, max(1, math.ceil((record["expires"] - time.time()) / 60)))
 
 
-def prioritize(root, owner, minutes, clear):
+def checkout_path(workspace):
+    """Normalize commands launched in a checkout subdirectory to the same session scope."""
+    path = Path(workspace).resolve(strict=True)
+    try:
+        result = subprocess.run(["git", "-C", str(path), "rev-parse", "--show-toplevel"],
+                                capture_output=True, text=True, timeout=5, check=False)
+        return str(Path(result.stdout.strip()).resolve(strict=True)) if result.returncode == 0 else str(path)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise GateError("priority checkout probe failed; session scope is unknown") from exc
+
+
+def prioritize(root, owner, minutes, clear, workspace=None):
     if clear:
         if owner is not None:
             raise GateError("prioritize --clear takes no --owner")
@@ -267,14 +308,55 @@ def prioritize(root, owner, minutes, clear):
         raise GateError("prioritize needs --owner with a safe label, or --clear")
     if not math.isfinite(minutes) or minutes <= 0 or minutes > PRIORITY_MAX_MIN:
         raise GateError("--minutes must be above 0 and at most %d" % PRIORITY_MAX_MIN)
-    record = {"owner": owner, "expires": time.time() + minutes * 60}
+    if workspace is not None:
+        workspace = checkout_path(workspace)
+        if any(char in workspace for char in "\n\r\t"):
+            raise GateError("invalid priority workspace")
+    record = {"owner": owner, "expires": time.time() + minutes * 60, "workspace": workspace}
     with locked(root):
         write_priority(root, record)
     return "priority set: " + priority_text(record)
 
 
-def migrate(root):
+def priority_matches(record, owner):
+    """A session checkout also owns its nested linked worktrees, never sibling repositories."""
+    if not record:
+        return False
+    if record["workspace"] is None:
+        return record["owner"] == owner
+    return session_owns_workspace(checkout_path(Path.cwd()), [record["workspace"]])
+
+
+def allowance_token(root):
+    """One machine-wide contention allowance, tied to a retained heavy lease. Call under lock."""
+    fd = secure_open(root / ALLOWANCE_SLOT)
+    try:
+        raw = os.read(fd, 1025)
+    finally:
+        os.close(fd)
+    if not raw:
+        return None
+    try:
+        record = json.loads(raw)
+        if (len(raw) > 1024 or not isinstance(record, dict) or set(record) != {"token"}
+                or not isinstance(record["token"], str) or not TOKEN.fullmatch(record["token"])):
+            raise ValueError("invalid allowance")
+    except (ValueError, TypeError) as exc:
+        raise GateError("priority allowance receipt is corrupt; inspect before admission") from exc
+    _, lease = find_lease(root, lambda item: secrets.compare_digest(item["token"], record["token"]))
+    if not lease:
+        write_state(root, None, ALLOWANCE_SLOT)
+        return None
+    return record["token"]
+
+
+def migrate(root, priority_workspace=None):
     with locked(root):
+        if priority_workspace is not None:
+            record = read_priority(root)
+            if record is not None:
+                record["workspace"] = checkout_path(priority_workspace)
+                write_priority(root, record)
         lease = read_state(root, allow_old=True)
         if lease is None:
             return "no lease to migrate"
@@ -424,18 +506,18 @@ def cpu_idle_percent():
         raise ProbeFailed("CPU probe failed; defer heavy work") from exc
 
 
-def host_reading():
+def host_reading(priority_allowance=False):
     """(verdict line, defer reason or None) from current CPU idle, 1-minute load confirmed by idle, and OS memory pressure."""
     idle = cpu_idle_percent()
     load, cores = simulator_pressure()
     level, source = memory_pressure_level()
     reasons = []
-    if idle < MIN_IDLE_PERCENT:
+    if not priority_allowance and idle < MIN_IDLE_PERCENT:
         reasons.append("CPU idle %.0f%% is below %d%%" % (idle, MIN_IDLE_PERCENT))
-    if load > LOAD_PER_CORE * cores and idle < LOAD_CONFIRM_IDLE_PERCENT:
+    if not priority_allowance and load > LOAD_PER_CORE * cores and idle < LOAD_CONFIRM_IDLE_PERCENT:
         reasons.append("1-minute load %.1f exceeds %s x %s logical cores with CPU idle %.0f%% below %d%%" % (
             load, LOAD_PER_CORE, cores, idle, LOAD_CONFIRM_IDLE_PERCENT))
-    if level >= DEFER_PRESSURE_LEVEL:
+    if level >= DEFER_PRESSURE_LEVEL and not (priority_allowance and level == 2 and source == "sysctl"):
         reasons.append("memory pressure is %s (level %d, via %s), at or above warning" % (PRESSURE_NAMES[level], level, source))
     line = "%s idle=%.0f%% (min %d) load=%.1f (max %.1f on %d cores, counts below %d%% idle) memory-pressure=%s (level %d, defer at %d)" % (
         "DEFER" if reasons else "GO", idle, MIN_IDLE_PERCENT, load, LOAD_PER_CORE * cores, cores,
@@ -1092,7 +1174,7 @@ def holder_text(lease):
 
 
 def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False,
-            compute_only=False):
+            compute_only=False, admission=None):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if pid <= 0:
@@ -1101,14 +1183,26 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         raise GateError("simulator must be a UDID")
     if bridge_paths(root) and not allow_bridge:
         raise GateError("legacy lock bridge is active; use foreground run so its lock remains held")
-    admission_guard("heavy work")  # sampled before the lock: top takes about 2 seconds
+    # Sample before locking: top takes about two seconds. Unknown probes fail closed.
+    _, reason = host_reading()
+    allowance_reason = host_reading(priority_allowance=True)[1] if reason else None
     with locked(root):
         if not compute_only and (legacy_slot_dir() / "slot.d").exists():
             raise Busy("legacy native slot exists; inspect its holder before migration")
         priority = read_priority(root)
-        is_priority = bool(priority and priority["owner"] == owner)
+        is_priority = priority_matches(priority, owner)
+        requested_owner = owner
+        if is_priority:
+            owner = priority["owner"]
         states = [read_state(root, slot=name) for name in SLOTS]
         held = [lease for lease in states if lease]
+        allowance = bool(reason and is_priority and child_pending and not simulator and not allowance_token(root)
+                         and not allowance_reason)
+        if reason and not allowance:
+            raise Busy("heavy work deferred: %s; one supervised priority allowance is available within the heavy-slot cap" %
+                       (allowance_reason or reason))
+        if admission is not None:
+            admission.update(owner=owner, priority_allowance=allowance)
         mine = next((lease for lease in held if lease["owner"] == owner), None)
         if mine:
             raise Busy("heavy slot busy: %s; one owner holds at most one lease" % holder_text(mine))
@@ -1142,7 +1236,7 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
             legacy = legacy_claims()
             if target in legacy:
                 raise Busy("simulator %s has an unverified legacy claim by %s" % (target, legacy[target]))
-            if target in claims and claims[target] != owner:
+            if target in claims and claims[target] not in (owner, requested_owner):
                 raise Busy("simulator %s is claimed by %s" % (target, claims[target]))
         booted = [udid for udid in observed if udid not in other_sims]
         if booted:
@@ -1154,6 +1248,8 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
                  "token": secrets.token_hex(32), "created": time.time(),
                  "child": {"state": "pending"} if child_pending else None, "stages": []}
         write_state(root, lease, slot)
+        if allowance:
+            write_state(root, {"token": lease["token"]}, ALLOWANCE_SLOT)
         return lease["token"]
 
 
@@ -1184,6 +1280,7 @@ def release(root, token, orphan_inspected=False):
         if booted:
             raise Busy("booted simulators %s remain; inspect them before releasing" % ",".join(booted))
         write_state(root, None, slot)
+        allowance_token(root)  # clears only a receipt whose retained lease is now gone
 
 
 def require_groups_stopped(root, token):
@@ -1281,6 +1378,8 @@ def finish_stage(root, stage):
 
 
 def stage_command(root, seconds, command):
+    if os.environ.get("LOCAL_CAPACITY_PRIORITY_ALLOWANCE") == "1":
+        raise GateError("priority allowance rejects separate stage groups; run one bounded foreground phase")
     if command and command[0] == "--":
         command = command[1:]
     if not command or seconds <= 0:
@@ -1428,7 +1527,7 @@ class CooperativeRun:
             with locked(self.root):
                 priority = read_priority(self.root)
             # Without a primary, full CPU utilization is useful work, not contention.
-            reason = host_reading()[1] if priority and priority["owner"] != self.owner else None
+            reason = host_reading()[1] if priority and not priority_matches(priority, self.owner) else None
         except Busy as exc:
             reason = str(exc)  # failed probes never permit a resume
         if reason:
@@ -1463,8 +1562,15 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
         command = command[1:]
     if not command:
         raise GateError("run requires a foreground command after --")
+    admission = {}
     token = acquire(root, owner, os.getpid(), simulator, child_pending=True, allow_bridge=True,
-                    second_slot_only=second_slot_only, compute_only=resource == "compute")
+                    second_slot_only=second_slot_only, compute_only=resource == "compute", admission=admission)
+    owner = admission["owner"]
+    allowance = admission["priority_allowance"]
+    if allowance:
+        max_seconds = min(max_seconds, PRIORITY_RUN_SECONDS)
+        print("capacity priority allowance: one command, at most %s seconds; critical memory still stops it" %
+              PRIORITY_RUN_SECONDS, file=sys.stderr)
     metrics["token"] = token
     metrics["start"] = time.monotonic()
     metrics["wait"] = metrics["start"] - metrics["requested"]
@@ -1488,6 +1594,8 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             child_env["LOCAL_CAPACITY_RUN_ROOT"] = str(root)
             child_env["LOCAL_CAPACITY_LEGACY_FDS"] = ",".join(str(fd) for fd in legacy_fds)
             child_env["LOCAL_CAPACITY_RESOURCE"] = resource
+            if allowance:
+                child_env["LOCAL_CAPACITY_PRIORITY_ALLOWANCE"] = "1"
             if pause_safe:
                 child_env["LOCAL_CAPACITY_PAUSE_SAFE"] = "1"
             child = launch_granted(command, read_fd, legacy_fds, child_env)
@@ -1514,6 +1622,7 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
         finally:
             os.close(write_fd)
         deadline = metrics["start"] + max_seconds
+        next_pressure_check = metrics["start"]
         while True:
             if interrupted[0] is not None:
                 cooperative.terminate() if cooperative else terminate_group(child)
@@ -1523,6 +1632,19 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
                 cooperative.terminate() if cooperative else terminate_group(child)
                 print("run exceeded %s seconds; lease retained for inspection; token=%s" % (max_seconds, token), file=sys.stderr)
                 return TIMEOUT
+            if allowance and time.monotonic() >= next_pressure_check:
+                next_pressure_check = time.monotonic() + RETRY_SECONDS
+                try:
+                    with locked(root):
+                        priority = read_priority(root)
+                    level, source = memory_pressure_level()
+                    if (not priority or priority["owner"] != owner or not priority_matches(priority, owner)
+                            or level == 4 or (level == 2 and source != "sysctl")):
+                        raise Busy("priority allowance ended: priority expired/changed or memory is critical/unknown")
+                except GateError as exc:
+                    cooperative.terminate() if cooperative else terminate_group(child)
+                    print(str(exc), file=sys.stderr)
+                    return BUSY
             if cooperative:
                 try:
                     cooperative.tick()
@@ -1674,11 +1796,13 @@ def main(argv=None):
     unclaim_parser.add_argument("--owner", required=True)
     reclaim_parser = sub.add_parser("reclaim-sim", help="shut down and unclaim an unleased simulator whose claim owner has no live session")
     reclaim_parser.add_argument("--udid", required=True)
-    sub.add_parser("migrate")
+    migrate_parser = sub.add_parser("migrate")
+    migrate_parser.add_argument("--priority-workspace", help="migrate a label-only priority to its known session checkout without renewing expiry")
     priority_parser = sub.add_parser("prioritize")
     priority_parser.add_argument("--owner")
     priority_parser.add_argument("--minutes", type=float, default=PRIORITY_DEFAULT_MIN)
     priority_parser.add_argument("--clear", action="store_true")
+    priority_parser.add_argument("--workspace", help="session checkout; defaults to current directory, covering its nested linked worktrees")
     args = parser.parse_args(argv)
     root = root_path(args.root or (os.environ.get("LOCAL_CAPACITY_RUN_ROOT") if args.action == "stage" else None))
     global SIMCTL_FIXTURE, PRESSURE_FIXTURE, HOST_FIXTURE
@@ -1770,9 +1894,10 @@ def main(argv=None):
         elif args.action == "reclaim-sim":
             print(reclaim_sim(root, args.udid))
         elif args.action == "migrate":
-            print(migrate(root))
+            print(migrate(root, args.priority_workspace))
         elif args.action == "prioritize":
-            print(prioritize(root, args.owner, args.minutes, args.clear))
+            print(prioritize(root, args.owner, args.minutes, args.clear,
+                             None if args.clear else args.workspace or str(Path.cwd())))
         else:
             release_sim(root, args.udid, args.owner)
             print("simulator claim released")

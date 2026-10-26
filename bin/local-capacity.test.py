@@ -796,7 +796,7 @@ class PriorityTests(unittest.TestCase):
 
     def test_expired_record_is_ignored_and_cleaned(self):
         gate.secure_root(self.root)
-        (self.root / "priority.json").write_text(json.dumps({"owner": "vip", "expires": time.time() - 5}))
+        gate.write_priority(self.root, {"owner": "vip", "expires": time.time() - 5, "workspace": None})
         token = gate.acquire(self.root, "other", os.getpid(), None)
         self.assertEqual((self.root / "priority.json").read_text(), "")
         gate.release(self.root, token)
@@ -1174,6 +1174,157 @@ class CooperativeTests(unittest.TestCase):
         with mock.patch.object(gate, "bridge_paths", return_value=["/one", "/two"]):
             with self.assertRaisesRegex(gate.Busy, "multiple legacy lanes"):
                 gate.acquire(self.root, "three", os.getpid(), None, compute_only=True, allow_bridge=True)
+
+
+class PriorityAllowanceTests(unittest.TestCase):
+    setUp = PriorityTests.setUp
+
+    def run_payload(self, code="pass", **kwargs):
+        return gate.run_command(self.root, "primary", None, [sys.executable, "-c", code],
+                                wait_seconds=0, **kwargs)
+
+    def test_priority_progresses_under_warning_or_cpu_contention(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        for level, idle, load in ((2, 90, 0), (1, 2, 300), (2, 2, 300)):
+            marker = Path(self.tmp.name) / "completed"
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")), \
+                 mock.patch.object(gate, "cpu_idle_percent", return_value=idle), \
+                 mock.patch.object(gate, "simulator_pressure", return_value=(load, 8)):
+                self.assertEqual(self.run_payload("from pathlib import Path; Path(%r).touch()" % str(marker)), 0)
+            self.assertTrue(marker.exists())
+            marker.unlink()
+            self.assertFalse(any(gate.read_state(self.root, slot=s) for s in gate.SLOTS))
+
+    def test_warning_requires_supervision_and_one_machine_wide_allowance(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        holder = gate.acquire(self.root, "secondary", os.getpid(), None)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            self.assertEqual(self.run_payload(), 0)
+            self.assertEqual(gate.read_state(self.root)["token"], holder)
+            gate.release(self.root, holder)
+            for owner, sim, pending in (("primary", None, False), ("secondary", None, True),
+                                        ("primary", SIM, True)):
+                with self.assertRaises(gate.Busy):
+                    gate.acquire(self.root, owner, os.getpid(), sim, child_pending=pending)
+            first = gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
+            gate.prioritize(self.root, "replacement", 30, False)
+            with self.assertRaises(gate.Busy):
+                gate.acquire(self.root, "replacement", os.getpid(), None, child_pending=True)
+            self.assertEqual(gate.read_state(self.root)["token"], first)
+            self.assertEqual(gate.allowance_token(self.root), first)
+
+    def test_compute_allowance_runs_beside_native_simulator_and_releases_only_itself(self):
+        PriorityTests.hold_bridge(self)
+        native = gate.acquire(self.root, "native", os.getpid(), SIM, allow_bridge=True)
+        before = gate.read_state(self.root)
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]), \
+             mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "cpu_idle_percent", return_value=2):
+            self.assertEqual(self.run_payload(resource="compute"), 0)
+            self.assertEqual(gate.read_state(self.root), before)
+            self.assertEqual(gate.read_state(self.root)["token"], native)
+            self.assertIsNone(gate.allowance_token(self.root))
+
+    def test_warning_never_exceeds_slot_cap(self):
+        for owner in ("one", "two", "three"):
+            gate.acquire(self.root, owner, os.getpid(), None)
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            with self.assertRaisesRegex(gate.Busy, "all 3 heavy slots busy"):
+                self.run_payload()
+        self.assertIsNone(gate.allowance_token(self.root))
+
+    def test_critical_fallback_and_unknown_never_launch_payload(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        for value in ((4, "sysctl"), (2, "compressed-share")):
+            with mock.patch.object(gate, "memory_pressure_level", return_value=value), \
+                 mock.patch.object(gate, "launch_granted") as launch:
+                with self.assertRaises(gate.Busy):
+                    self.run_payload()
+                launch.assert_not_called()
+        for probe in ("memory_pressure_level", "cpu_idle_percent", "simulator_pressure"):
+            with mock.patch.object(gate, probe, side_effect=gate.ProbeFailed("unknown")), \
+                 mock.patch.object(gate, "launch_granted") as launch:
+                with self.assertRaises(gate.Busy):
+                    self.run_payload()
+                launch.assert_not_called()
+
+    def test_allowance_caps_runtime_and_releases_owned_group(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "PRIORITY_RUN_SECONDS", 0.2):
+            self.assertEqual(self.run_payload("import time; time.sleep(30)", max_seconds=60), gate.TIMEOUT)
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_critical_escalation_stops_only_the_started_owned_command(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        marker = Path(self.tmp.name) / "started"
+        readings = [(2, "sysctl")] * 3 + [(4, "sysctl")] * 10
+        with mock.patch.object(gate, "memory_pressure_level", side_effect=readings), \
+             mock.patch.object(gate, "RETRY_SECONDS", 0.05):
+            code = "from pathlib import Path; import time; Path(%r).touch(); time.sleep(30)" % str(marker)
+            self.assertEqual(self.run_payload(code), gate.BUSY)
+        self.assertTrue(marker.exists())
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_expiry_during_allowance_stops_and_cleans_record(self):
+        gate.prioritize(self.root, "primary", 0.002, False)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "RETRY_SECONDS", 0.05):
+            self.assertEqual(self.run_payload("import time; time.sleep(30)"), gate.BUSY)
+        self.assertIsNone(gate.read_priority(self.root))
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_expired_or_cleared_priority_has_no_allowance(self):
+        for clear in (False, True):
+            gate.prioritize(self.root, "primary", 30, False)
+            if clear:
+                gate.prioritize(self.root, None, 30, True)
+            else:
+                record = gate.read_priority(self.root)
+                record["expires"] = time.time() - 1
+                gate.write_priority(self.root, record)
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+                with self.assertRaises(gate.Busy):
+                    self.run_payload()
+            self.assertIsNone(gate.read_priority(self.root))
+
+    def test_allowance_rejects_separate_stage_groups_before_launch(self):
+        with mock.patch.dict(os.environ, LOCAL_CAPACITY_PRIORITY_ALLOWANCE="1"), \
+             mock.patch.object(gate, "launch_granted") as launch:
+            with self.assertRaisesRegex(gate.GateError, "separate stage groups"):
+                gate.stage_command(self.root, 10, ["unused"])
+            launch.assert_not_called()
+
+    def test_explicit_migration_preserves_priority_owner_and_expiry(self):
+        gate.secure_root(self.root)
+        old = {"owner": "primary", "expires": time.time() + 120}
+        (self.root / "priority.json").write_text(json.dumps(old))
+        self.assertIsNone(gate.read_priority(self.root)["workspace"])
+        gate.migrate(self.root, self.tmp.name)
+        self.assertEqual(gate.read_priority(self.root), dict(old, workspace=str(Path(self.tmp.name).resolve())))
+        self.assertEqual(json.loads((self.root / "priority.json").read_text()), old)
+
+    def test_old_supervisor_replacement_cannot_transfer_session_scope(self):
+        gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
+        self.assertEqual(set(json.loads((self.root / "priority.json").read_text())), {"owner", "expires"})
+        replacement = {"owner": "other", "expires": time.time() + 60}
+        (self.root / "priority.json").write_text(json.dumps(replacement))
+        self.assertIsNone(gate.read_priority(self.root)["workspace"])
+        self.assertEqual((self.root / "priority-session.json").read_text(), "")
+
+    def test_clear_and_expiry_remove_session_scope(self):
+        for clear in (False, True):
+            gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
+            if clear:
+                gate.prioritize(self.root, None, 30, True)
+            else:
+                record = gate.read_priority(self.root)
+                record["expires"] = time.time() - 1
+                gate.write_priority(self.root, record)
+            self.assertIsNone(gate.read_priority(self.root))
+            self.assertEqual((self.root / "priority-session.json").read_text(), "")
 
 
 class WatchdogTests(unittest.TestCase):
@@ -1594,6 +1745,24 @@ class SessionOwnershipTests(unittest.TestCase):
         self.assertFalse(any("label=com.supabase.cli.project=child" in command for command in commands))
         self.host["sessions"] = []
         self.assertEqual(len(gate.stack_sweep(False)), 3)
+
+    def test_priority_covers_worker_labels_and_nested_worktrees_not_siblings(self):
+        probe = mock.patch.object(gate, "observe_booted", return_value=[])
+        probe.start()
+        self.addCleanup(probe.stop)
+        gate.prioritize(self.root, "session", 30, False, str(self.checkout))
+        record = gate.read_priority(self.root)
+        for workspace in (self.checkout, self.checkout / "apps/api", self.nested):
+            with mock.patch.object(gate.Path, "cwd", return_value=workspace):
+                self.assertTrue(gate.priority_matches(record, "different-worker-label"))
+                token = gate.acquire(self.root, "different-worker-label", os.getpid(), None)
+                self.assertEqual(gate.read_state(self.root)["owner"], "session")
+                with self.assertRaisesRegex(gate.Busy, "one owner"):
+                    gate.acquire(self.root, "second-worker", os.getpid(), None)
+                gate.release(self.root, token)
+        for workspace in (self.sibling, self.unrelated):
+            with mock.patch.object(gate.Path, "cwd", return_value=workspace):
+                self.assertFalse(gate.priority_matches(record, "session"), "a copied label cannot grant session priority")
 
     def test_parent_session_protects_nested_simulator_and_independent_owner_can_be_reclaimed(self):
         gate.secure_root(self.root)
