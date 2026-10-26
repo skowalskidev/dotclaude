@@ -313,6 +313,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Load the same file:// path or URL fresh for every row, wait for it to settle, then run the state's JavaScript and settle again, so a state set during load is not overwritten by load-time code.",
             "Fail a row on a page or region with ink share (pixels differing from the most common colour) below --min-ink (default 0.05%), on a missing --expect string, a page error or a failed request.",
+            "Measure all inset pixels through bounded canvas tiles without downsampling; preserve one global RGB mode, row-major tie-breaking and the >8 channel threshold. Tall/wide blank images still fail, and lost canvas contexts report errors instead of zero ink.",
             "Fail a --region or --visible element that is not fully visible: zero size, hidden, outside the document, cut by an overflow hidden, clip, auto or scroll ancestor, or hiding its own content; a DOM string or non-white pixel alone never passes.",
             "Judge visibility independently of scroll position: compare an element to the document in document coordinates (viewport rect plus window scroll), and measure every region before any region screenshot scrolls the page, so an element scrolled above the viewport is never reported outside the document.",
             "Print the pass table, write it to <out>/pass-table.md beside one full-page PNG per row, and exit 0 clean, 1 on any failure, 2 on bad arguments, more than 24 rows or a missing browser runtime.",
