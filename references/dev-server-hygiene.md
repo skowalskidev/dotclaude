@@ -48,7 +48,7 @@ untracked: the config knows the path and the protocol, the contents are local st
   runs at session start and inside every `claim` and `check`, which is what keeps the file honest. The
   grace window is why a claim made just before boot is not immediately reaped.
 - **A live session keeps its lane even with nothing listening.** The one exception to the rule above:
-  a lane belongs to the SESSION, not to the process that happened to bind it. If a Claude session is
+  a lane belongs to the SESSION, not to the process that happened to bind it. If a Claude or Codex session is
   still working in that workspace, its server has died or not booted yet and it will boot again, so
   handing the lane to a neighbour just moves the `EADDRINUSE` one session over.
 - **A listener with no row is the interesting case** — something is bound that no session admitted to.
@@ -91,7 +91,12 @@ to edit a shared file.
 
 **The three signals a sweep needs.** "Is anything listening" cannot see two real orphan classes, so
 `reap` adds "does the workspace still exist" and "is there a live Claude session whose cwd is that
-workspace". The session check matches the process NAME's basename, never its arguments: `pgrep -x
+workspace". DO use `port-registry.sh owns-workspace <workspace>` with live cwds on stdin for ownership.
+A session also protects linked worktrees physically nested under its checkout with the same Git common
+directory. TEST: a sibling worktree or unrelated nested repository stays reclaimable.
+DO preserve claims and stop reclamation on an unknown probe (exit 2); a failed process/Git lookup is
+not evidence that its owner ended.
+The session check matches only `claude` and `codex` process NAME basenames, never arguments: `pgrep -x
 claude` misses Conductor-launched sessions because `ps -o comm=` reports their full path, and `pgrep -f
 claude` matches the Claude desktop app and any shell whose argv mentions a `~/.claude` path.
 

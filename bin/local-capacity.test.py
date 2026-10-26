@@ -8,6 +8,7 @@ import json
 import multiprocessing
 import os
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -1501,6 +1502,192 @@ class StackTests(unittest.TestCase):
         self.host["activity"] = {"/w/compose": old}
         self.assertEqual(gate.stack_sweep(True), [])
         self.calls.assert_not_called()
+
+
+class SessionOwnershipTests(unittest.TestCase):
+    """Real Git topology, fake host processes and Docker: never touch a live stack."""
+
+    def setUp(self):
+        StackTests.setUp(self)
+        self.base = Path(self.tmp.name).resolve()
+        self.checkout = self.base / "parent checkout"
+        self.nested = self.checkout / ".context/wt/child"
+        self.sibling = self.base / "sibling"
+        self.unrelated = self.checkout / ".context/wt/unrelated"
+        self.git("init", "-q", str(self.checkout))
+        message = self.base / "commit-message"
+        message.write_text("fixture\n")
+        self.git("-C", str(self.checkout), "-c", "user.name=Fixture",
+                 "-c", "user.email=fixture@example.invalid", "commit", "-q", "--allow-empty", "-F", str(message))
+        for target in (self.nested, self.sibling):
+            self.git("-C", str(self.checkout), "worktree", "add", "-q", "--detach", str(target))
+        self.git("init", "-q", str(self.unrelated))
+        (self.checkout / "apps/api").mkdir(parents=True)
+
+    running = StackTests.running
+
+    def git(self, *args):
+        return subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *args],
+                              capture_output=True, text=True, check=True, timeout=10)
+
+    def test_parent_protects_nested_stack_but_not_sibling_or_unrelated_repository(self):
+        workspaces = [str(path) for path in (self.nested, self.sibling, self.unrelated)]
+        self.running(*workspaces)
+        self.host["activity"] = dict.fromkeys(workspaces, 0)
+        self.host["sessions"] = [str(self.checkout / "apps/api")]
+        lines = gate.stack_sweep(True)
+        self.assertEqual(len(lines), 2, lines)
+        self.assertTrue(all("stopped idle stack " in line for line in lines))
+        self.assertFalse(any(str(self.nested) in line for line in lines))
+        commands = [call.args[0] for call in self.calls.call_args_list]
+        self.assertFalse(any("label=com.supabase.cli.project=child" in command for command in commands))
+        self.host["sessions"] = []
+        self.assertEqual(len(gate.stack_sweep(False)), 3)
+
+    def test_nested_session_does_not_protect_a_sibling_nested_worktree(self):
+        other = self.checkout / ".context/wt/other"
+        self.git("-C", str(self.checkout), "worktree", "add", "-q", "--detach", str(other))
+        self.assertFalse(gate.session_owns_workspace(str(other), [str(self.nested)]))
+        self.assertTrue(gate.session_owns_workspace(str(self.nested), [str(self.nested)]))
+
+    def test_acquire_keeps_live_parent_stacks_and_still_enforces_the_cap(self):
+        other = self.checkout / ".context/wt/other"
+        self.git("-C", str(self.checkout), "worktree", "add", "-q", "--detach", str(other))
+        self.running(str(self.nested), str(other))
+        self.host["sessions"] = [str(self.checkout)]
+        with self.assertRaisesRegex(gate.Busy, "2 of 2 local dev stacks in use"):
+            gate.stack_acquire(self.root, "new-task", str(self.base / "new-task"))
+        self.calls.assert_not_called()
+
+    def test_parent_directory_and_prefix_neighbor_do_not_own_nested_worktree(self):
+        neighbor = self.base / "parent checkout-extra"
+        neighbor.mkdir()
+        for cwd in (self.base, neighbor):
+            self.assertFalse(gate.session_owns_workspace(str(self.nested), [str(cwd)]))
+
+    def test_symlinked_parent_resolves_to_the_same_nested_ownership(self):
+        alias = self.base / "alias"
+        alias.symlink_to(self.checkout, target_is_directory=True)
+        self.assertTrue(gate.session_owns_workspace(str(self.nested), [str(alias / "apps/api")]))
+
+    @unittest.skipIf(os.getuid() == 0, "root bypasses directory permissions")
+    def test_unreadable_workspace_is_unknown_instead_of_unowned(self):
+        self.nested.chmod(0)
+        try:
+            with self.assertRaisesRegex(gate.GateError, "ownership probe failed"):
+                gate.session_owns_workspace(str(self.nested), [str(self.checkout)])
+        finally:
+            self.nested.chmod(0o755)
+
+    def fake_host(self):
+        binaries = self.base / "fake-bin"
+        binaries.mkdir()
+        ps = binaries / "ps"
+        ps.write_text("""#!/bin/sh
+[ "$*" = '-axo pid=,comm=' ] || exit 91
+cat <<'ROWS'
+101 /Applications/Agent Host/bin/claude
+102 claude
+103 /Applications/Agent Host/bin/codex
+104 codex
+105 /Applications/Claude.app/Claude Helper
+106 /bin/zsh
+107 codex-helper
+ROWS
+""")
+        lsof = binaries / "lsof"
+        lsof.write_text("""#!/bin/sh
+case "$*" in
+  '-a -p 101,102,103,104 -d cwd -Fn') cat "$FIXTURE_CWDS" ;;
+  *-iTCP:*) exit 0 ;;
+  *) exit 92 ;;
+esac
+""")
+        for binary in (ps, lsof):
+            binary.chmod(0o755)
+        cwds = self.base / "cwds"
+        cwds.write_text("p101\nn%s\np102\nn%s\np103\nn%s\np104\nn%s\n" % (
+            self.checkout, self.checkout, self.checkout / "apps/api", self.checkout / "apps/api"))
+        return {**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                "FIXTURE_CWDS": str(cwds), "PORT_REGISTRY_FILE": str(self.base / "ports.md")}
+
+    def test_detector_recognizes_native_hosts_without_arguments_and_reconcile_retains_child_lane(self):
+        env = self.fake_host()
+        sessions = subprocess.run(["bash", str(gate.PORT_REGISTRY), "sessions"],
+                                  env=env, capture_output=True, text=True, check=True, timeout=10)
+        self.assertEqual(set(sessions.stdout.splitlines()), {str(self.checkout), str(self.checkout / "apps/api")})
+        # Use only the Codex cwd to prove that host alone protects the nested lane.
+        (self.base / "fake-bin/ps").write_text("#!/bin/sh\nprintf '103 codex\\n'\n")
+        (self.base / "fake-bin/lsof").write_text("#!/bin/sh\ncase \"$*\" in\n"
+                                              "  *-iTCP:*) exit 0 ;;\n"
+                                              "  *) cat \"$FIXTURE_CWDS\" ;;\nesac\n")
+        Path(env["FIXTURE_CWDS"]).write_text("p103\nn%s\n" % self.checkout)
+        registry = Path(env["PORT_REGISTRY_FILE"])
+        registry.write_text("## Held\n\n" + "".join(
+            "| %s | %s | %s | fixture | 2000-01-01T00:00:00Z | - |\n" % (port, path.name, path)
+            for port, path in ((39001, self.nested), (39002, self.sibling), (39003, self.unrelated))) + "\n## Waiting\n")
+        rows = subprocess.run(["bash", str(gate.PORT_REGISTRY), "list", "--tsv"],
+                              env=env, capture_output=True, text=True, check=True, timeout=10)
+        self.assertEqual(len(rows.stdout.splitlines()), 1, rows.stdout)
+        self.assertIn(str(self.nested), rows.stdout)
+        self.assertNotIn(str(self.sibling), registry.read_text())
+
+    def test_failed_ownership_probe_prevents_reclamation(self):
+        self.running(str(self.nested))
+        self.host["sessions"] = [str(self.checkout)]
+        with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=2)):
+            with self.assertRaisesRegex(gate.GateError, "ownership probe failed"):
+                gate.stack_sweep(True)
+        self.calls.assert_not_called()
+
+    def test_failed_process_probes_and_missing_cwds_are_unknown_and_keep_claims(self):
+        env = self.fake_host()
+        ps = self.base / "fake-bin/ps"
+        lsof = self.base / "fake-bin/lsof"
+        original_ps, original_lsof = ps.read_text(), lsof.read_text()
+        cases = (("ps failure", "#!/bin/sh\nexit 1\n", original_lsof),
+                 ("lsof failure", original_ps, "#!/bin/sh\nexit 1\n"),
+                 ("empty lsof", original_ps, "#!/bin/sh\nexit 0\n"),
+                 ("missing cwd", original_ps, "#!/bin/sh\nprintf 'p101\\nn/tmp\\np102\\n'\n"))
+        for label, ps_text, lsof_text in cases:
+            with self.subTest(label=label):
+                ps.write_text(ps_text)
+                lsof.write_text(lsof_text.replace("#!/bin/sh\n", "#!/bin/sh\ncase \"$*\" in *-iTCP:*) exit 0 ;; esac\n", 1))
+                result = subprocess.run(["bash", str(gate.PORT_REGISTRY), "sessions"],
+                                        env=env, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(result.stdout, "")
+                registry = Path(env["PORT_REGISTRY_FILE"])
+                registry.write_text("## Held\n| 39001 | child | %s | fixture | 2000-01-01T00:00:00Z | - |\n" % self.nested)
+                rows = subprocess.run(["bash", str(gate.PORT_REGISTRY), "list", "--tsv"],
+                                      env=env, capture_output=True, text=True, check=True, timeout=10)
+                self.assertIn(str(self.nested), rows.stdout)
+                self.assertIn("ownership unknown", rows.stderr)
+        ps.write_text("#!/bin/sh\nprintf '101 codex-helper\\n102 /bin/zsh\\n'\n")
+        result = subprocess.run(["bash", str(gate.PORT_REGISTRY), "sessions"],
+                                env=env, capture_output=True, text=True, check=True, timeout=10)
+        self.assertEqual(result.stdout, "")  # A successful empty snapshot is genuinely unowned.
+
+    def test_failed_git_probe_for_nested_candidate_prevents_sweep_and_keeps_port(self):
+        env = self.fake_host()
+        real_git = shutil.which("git")
+        fake_git = self.base / "fake-bin/git"
+        fake_git.write_text("#!/usr/bin/env python3\nimport os, sys\n"
+                            "if '--git-common-dir' in sys.argv: sys.exit(1)\n"
+                            "os.execv(%r, [%r, *sys.argv[1:]])\n" % (real_git, real_git))
+        fake_git.chmod(0o755)
+        self.running(str(self.nested))
+        self.host["sessions"] = [str(self.checkout)]
+        with mock.patch.dict(os.environ, env):
+            with self.assertRaisesRegex(gate.GateError, "ownership probe failed"):
+                gate.stack_sweep(True)
+        self.calls.assert_not_called()
+        registry = Path(env["PORT_REGISTRY_FILE"])
+        registry.write_text("## Held\n| 39001 | child | %s | fixture | 2000-01-01T00:00:00Z | - |\n" % self.nested)
+        rows = subprocess.run(["bash", str(gate.PORT_REGISTRY), "list", "--tsv"],
+                              env=env, capture_output=True, text=True, check=True, timeout=10)
+        self.assertIn(str(self.nested), rows.stdout)
+        self.assertIn("ownership unknown", rows.stderr)
 
 
 if __name__ == "__main__":

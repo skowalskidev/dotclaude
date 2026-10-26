@@ -784,7 +784,7 @@ def max_stacks(vm_gib):
 
 
 def live_session_cwds():
-    """Working directories of live Claude sessions, from port-registry.sh (the one detector)."""
+    """Working directories of live Claude/Codex sessions, from the shared detector."""
     try:
         fixture = host_fixture("sessions", [])
         if fixture is not None:
@@ -826,6 +826,21 @@ def workspace_activity(workspace):
     return max(times, default=0)
 
 
+def session_owns_workspace(workspace, cwds):
+    """Use the port registry's ownership predicate, including nested linked worktrees."""
+    if not cwds:
+        return False
+    try:
+        result = subprocess.run(["bash", str(PORT_REGISTRY), "owns-workspace", workspace],
+                                input="".join(cwd + "\n" for cwd in cwds), capture_output=True,
+                                text=True, timeout=10, check=False)
+        if result.returncode not in (0, 1):
+            raise ValueError("ownership probe failed")
+        return result.returncode == 0
+    except (OSError, subprocess.TimeoutExpired, ValueError) as exc:
+        raise GateError("workspace ownership probe failed; idle stacks are unknown") from exc
+
+
 def idle_stacks(stacks, exclude=None):
     """Supabase stacks with no live session in their workspace and no change for STACK_IDLE_MIN."""
     cwds = live_session_cwds()
@@ -833,7 +848,7 @@ def idle_stacks(stacks, exclude=None):
     for workspace, stack in sorted(stacks.items()):
         if workspace == exclude or not stack["supabase"]:
             continue
-        if any(cwd == workspace or cwd.startswith(workspace.rstrip("/") + "/") for cwd in cwds):
+        if session_owns_workspace(workspace, cwds):
             continue
         quiet = (time.time() - workspace_activity(workspace)) / 60
         if quiet >= STACK_IDLE_MIN:

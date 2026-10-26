@@ -56,6 +56,7 @@ CONTRACTS: dict[str, dict] = {
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
             "Cap Docker dev stacks at floor(VM GiB / 3), at least 1 and at most 2, counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
             "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
+            "Use port-registry ownership for idle-stack decisions: live Claude/Codex sessions protect their checkout and physically nested linked worktrees of the same repository; sibling and unrelated repositories remain reclaimable.",
             "Watchdog and status flag, read-only, processes at or above 200% ps CPU aged 120 seconds or more, unleased booted simulators, idle claims and extra Chrome for Testing instances, naming each simulator's owner; they stop nothing.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
             "reclaim-sim shuts down and unclaims a simulator only when its claim owner has no live session and no lease holds it; it exits 1 naming a live owner and never deletes the device.",
@@ -2067,7 +2068,9 @@ CONTRACTS: dict[str, dict] = {
             "'no listener' alone would delete a valid claim mid-boot.",
             "Never kills a process and never releases another session's claim. Conflicts are "
             "reported to Simon, who decides.",
-            "sessions prints the working directory of every live Claude session and writes nothing; it is the one live-session detector other engines call.",
+            "sessions prints the working directory of every live Claude/Codex session and writes nothing; match only executable basenames claude and codex, never process arguments or environment values.",
+            "owns-workspace tests live cwds from stdin using the same predicate as reconciliation; protect physically nested linked worktrees only with a matching Git common directory, never siblings or unrelated nested repositories.",
+            "Report failed process probes, missing session cwds and failed Git probes for candidate nested owners as unknown; preserve port claims and refuse stack reclamation until ownership is known.",
             "Exit codes stay meaningful: 3 held by another live session, 4 a listener nobody "
             "claimed. The EXIT trap must preserve them.",
             "Release surfaces who was waiting, so the hand-off between sessions reaches Simon. It "
