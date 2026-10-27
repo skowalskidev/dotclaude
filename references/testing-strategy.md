@@ -169,6 +169,49 @@ Apply the relevant provider/runtime's current contract. Sources checked 2026-10-
 [stateful testing](https://hypothesis.readthedocs.io/en/latest/stateful.html).
 These inform the scenarios; they do not require those vendors or libraries.
 
+## Production compatibility gates
+
+**DO verify production compatibility when changed behavior depends on stored data or observed usage,**
+including displayed figures and runtime admission, rate limits, request validation, authorization or
+retention migrations. Name each changed decision and its inputs even when no figure is displayed.
+Declare N/A only after tracing the diff and proving it has no such dependency; a pure function or a
+green fixture suite is not an exemption. TEST: a validator rejecting a supported client's legitimate
+payload enters this check even with no UI change.
+
+**DO enumerate current legitimate cohorts from authoritative account, entitlement and activity sources.**
+Cover every affected cohort and reconcile checked, excluded and unknown counts to the source population.
+Include plans, roles, client versions, shared identities and active users depending on older or purged
+records when those dimensions affect the changed decision. Separate abuse using evidenced criteria;
+do not label rejected high usage abusive solely because it exceeds the proposed limit. Record query
+scope, pagination, capture time, event windows and coverage gaps under § Production source fidelity.
+TEST: an old record still required by a current legitimate journey remains in scope; age alone never
+proves legacy residue harmless.
+
+**DO replay actual client payloads and recent legitimate usage through the changed gates locally.**
+Use the real entry point, validation, authorization and retention behavior with isolated copies and
+stubbed external providers under § Local time-driven simulations. Reconstruct payloads from supported
+client code when captures are unavailable and label that evidence separately. Assert admitted requests,
+rejection reasons and preserved workflows for each cohort, alongside unauthorized and abusive rejection
+cases. Keep provenance and redactions private; no production credentials enter the replay runtime.
+TEST: each changed gate has a reproducible allowed and denied case, and missing client or usage evidence
+is UNKNOWN, never zero usage, N/A or a pass.
+
+**DO derive limits from measured demand and declared capacity constraints.** For each changed budget,
+record the unit, aggregation key, window, observed peak/distribution, proposed limit and numerical
+headroom with its rationale. Include retries, concurrent devices and shared IP/phone/account/global
+budgets when used; evaluate their combined effect, not each cap alone. A measured legitimate rejection
+is a finding; an intentional eligibility reduction needs an explicit product decision. Missing telemetry
+leaves capacity UNKNOWN and names the read/instrumentation needed; do not invent a safe threshold.
+TEST: a shared budget exhausted by one legitimate workflow cannot silently block another supported one.
+
+**DO report code verification, activation readiness and live proof separately.** Tie compatibility
+verdicts to the source revision, captured population/window, exercised gates and known gaps. Record
+deployment order, migrations/backfills and missing telemetry as activation dependencies. Preserve
+read-only production access, per-write authorization and per-call spend approval; replay is not a
+production write or a real-provider call authorization. State observed regressions or no regressions
+found within the verified scope, never a zero-regression guarantee. TEST: green fixtures cannot clear
+an UNKNOWN production cohort or an unexecuted activation dependency.
+
 ## Production source fidelity
 
 Read `~/.claude/rules/connectors.md` and `~/.claude/references/connectors-setup.md`; resolve the

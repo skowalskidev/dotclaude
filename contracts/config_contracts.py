@@ -188,6 +188,10 @@ CONTRACTS: dict[str, dict] = {
             "Build any supplied design source, any author or format, or a pixel-perfect ask, 1:1: render every board and state at its viewport and device scale, write a measured spec per new element, and seed the board's own data.",
             "Settle off-scale, gate-rejected and kept-component conflicts at intake; keep the board's value unless Simon agrees a nearest token; an agreed deviation names existing elements by id and never covers a new element or its gap to kept chrome.",
             "Gate each design slice before its tests: boxes within 1 px web and 2 pt native, exact text, type and line count, two-way inventory, region and frame pixel diffs, a fresh fidelity judge; PASS has zero failed, missing, extra, unmeasured rows.",
+            "Commit one reusable capture harness (seeded storage, routed network fixtures, payment and wallet SDK stand-ins, board viewports and device scale) that every worker and round reuses.",
+            "Produce any-engine frame difference panels and region lists with bin/design-diff.py, masking only recorded exception areas.",
+            "Put before | after composites in each design-built PR body and one results-table comment with the diff panels via gh --attach, verified through body_html with every image naturalWidth > 0.",
+            "Measure the production build served as production serves it; dev-server rows report unmeasured. Compare font families and image assets with the product's before the first pixel loop and record a mismatch as an exception.",
             "Loop fix, re-render, re-measure; accept a delta only as an exception for unavailable data, a gate or design-system ban, a missing asset or Simon's agreement, with evidence, named in the hand-back beside the geometry table and difference images.",
             "Give each board one dashboard section with the board image as target, the built capture as current, and the spec and measurement report as links; check shared-surface text in every app.",
             "List every reader of the feature's data at intake; each route that draws it gets a capture and measured spec or a written exemption, and the count of covered routes equals the grep's count.",
@@ -209,6 +213,7 @@ CONTRACTS: dict[str, dict] = {
             "Select the existing workflow or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor.",
             "Detect a handoff first: resume from a pasted dashboard link/html/plan via resolve, reusing the recorded engine and options without a second interview.",
             "Run the shared design-source section from intake for any supplied design or pixel-perfect ask; hold each such section at review until its report is PASS, on either engine with the judge off; restate none of the gate.",
+            "Point a design build at the parallelization worker-per-deliverable section and the design-source harness, design-diff and PR evidence; take machine priority only per dev-server-hygiene; restate none of them.",
         ],
     },
     "skills/sk/skills/work-handoff-prepare-and-pickup/SKILL.md": {
@@ -316,12 +321,23 @@ CONTRACTS: dict[str, dict] = {
             "Validate portable version/variant/persona/state routes and dashboard message routes; stale values fall back safely. Earlier versions never become current merely through navigation.",
         ],
     },
+    "bin/design-diff.py": {
+        "mission": "Simon sees exactly where a built screen differs from its design, in CSS px, without any run rewriting a diff script.",
+        "purpose": "Any-engine pixel diff of a design image against a built capture with masks, a region list and a three-panel PNG.",
+        "criteria": [
+            "Compare two PNGs with pixelmatch's YIQ colour delta (threshold 0.1 by default); count pixels present in only one image as changed and warn on a size mismatch.",
+            "Exclude every --mask X,Y,W,H (CSS px, scaled by --dpr) from both the changed and compared counts.",
+            "Print changed %, the largest changed regions in CSS px and the panel path, or JSON with --json; write design | built | overlay as one PNG.",
+            "Exit 0 on a written report, 1 over --max-changed, 2 on bad arguments or a non-PNG or unreadable image.",
+            "Python 3.9+, standard library only; keep bin/design-diff.test.py passing under /usr/bin/python3.",
+        ],
+    },
     "bin/visual-check.py": {
         "mission": "Simon never opens a visual artifact that renders blank, because the exact file he opens was checked in every state he can switch to.",
         "purpose": "Opens one artifact headlessly per viewport x state, screenshots it full page, and prints a pass table.",
         "criteria": [
             "Load the same file:// path or URL fresh for every row, wait for it to settle, then run the state's JavaScript and settle again, so a state set during load is not overwritten by load-time code.",
-            "Fail a row on a page or region with ink share (pixels differing from the most common colour) below --min-ink (default 0.05%), on a missing --expect string, a page error or a failed request.",
+            "Fail a row on a page or region with ink share (pixels differing from the most common colour) below --min-ink (default 0.05%), on a missing --expect string, a page error or a failed request; a media preload abort (net::ERR_ABORTED on a media resource) is not a failed request.",
             "Measure all inset pixels through bounded canvas tiles without downsampling; preserve one global RGB mode, row-major tie-breaking and the >8 channel threshold. Tall/wide blank images still fail, and lost canvas contexts report errors instead of zero ink.",
             "Fail a --region or --visible element that is not fully visible: zero size, hidden, outside the document, cut by an overflow hidden, clip, auto or scroll ancestor, or hiding its own content; a DOM string or non-white pixel alone never passes.",
             "Judge visibility independently of scroll position: compare an element to the document in document coordinates (viewport rect plus window scroll), and measure every region before any region screenshot scrolls the page, so an element scrolled above the viewport is never reported outside the document.",
@@ -695,7 +711,9 @@ CONTRACTS: dict[str, dict] = {
             "Shipping is not done at merge; the deploy is watched and looped on.",
             "Owns deploy safety: a local merge train of the default branch plus every dependent or overlapping open PR in merge order, affected suites run once, conflicts fixed on the owning branch, never only on the train.",
             "Each migration records its number above every open PR's, the pipeline's real apply order, compatibility with live and new code under either deploy order, and its backfill reach counted read-only on production.",
+            "Require complete paginated PR/file inventories with stable base/head SHAs and matching file counts, or complete verified Git diffs, before reserving sequential numbers; API failures, caps and moving refs never prove availability.",
             "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
+            "Before changing an external value shipped clients read, grep the clients for hard-coded checks; on a hit, a release accepting the new value, or a new key keeping the old live, ships first.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
             "A CI wait resolves its run id from the head sha's check runs, never by branch or workflow listing, and exits non-zero on an empty id, failed run, unknown state or timeout.",
@@ -749,6 +767,9 @@ CONTRACTS: dict[str, dict] = {
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
             "Never trust a subagent's self-report; verify on disk.",
+            "Give each independent deliverable its own isolated worktree worker in parallel; the orchestrator edits no product code, checks head, clean status and owned-file diff on disk, and captures the screen itself.",
+            "Send fixes as numbered file:line rounds to the same resumed worker; answer worker questions with the recommended option recorded as a decision, asking Simon only for product or data decisions.",
+            "Give each finished deliverable a fresh reviewer briefed with the diff range and risk checklist, never builder conclusions; each verified finding returns to the builder as one commit with a regression test.",
             "One planner, flat leaf workers. No middle tier.",
             "Resolve each install, build and test runtime inside its actual child directory and shell before starting the batch.",
             "Default to one heavy verification batch per session; the machine admits three leases, so record the shared resource budget, worker cap and process ownership before overlapping heavy checks.",
@@ -812,8 +833,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
+        "purpose": "Test structure, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
+            "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
+            "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",
+            "Separate code verification, activation dependencies and live proof; scope conclusions to captured populations and windows without promising zero regressions.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
@@ -996,7 +1020,8 @@ CONTRACTS: dict[str, dict] = {
             "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
-            "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every PR in the run, in parallel and non-blocking; never substitute ad-hoc suites or queries; prod-data's Phase 1 records doesn't-apply.",
+            "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every PR in the run, in parallel and non-blocking; never substitute ad-hoc suites or queries; delegate applicability to prod-data's Phase 1.",
+            "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each changed journey's video, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
@@ -1145,27 +1170,13 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/ship-verify-with-prod-data/SKILL.md": {
-        "mission": "A data-facing change is proven correct against every prod account's real data, and any regression caught, before it ships — not after a merchant sees a wrong number.",
-        "purpose": "Reads prod read-only, recomputes what a data surface would show for every account with "
-                   "recent data under the new code, confirms the figures reconcile, classifies each "
-                   "discrepancy as a code bug, a deploy/data-skew, or legacy residue, and supplies a "
-                   "user-run backfill proven first on a seedable dev account.",
+        "mission": "Simon sees production compatibility evidence and its gaps before changed figures or runtime eligibility reach legitimate users.",
+        "purpose": "Compose production compatibility checks and classify data discrepancies before shipping.",
         "criteria": [
-            "Fires only when the diff changes how a surface reads, derives, reconciles or enumerates "
-            "stored data; names the exact figure(s) whose correctness depends on real per-account "
-            "data, else declares it does not apply.",
-            "Verifies EVERY account the surface serves, taken from the surface's own enumeration "
-            "source and ranked by recent activity, not a single hand-picked account. Checking one "
-            "hides a break on the accounts or rails it does not cover.",
-            "Reads prod READ-ONLY through the provisioned path (rules/connectors.md); a prod write "
-            "needs Simon's per-write go-ahead. Recomputes each figure from the raw source docs under "
-            "the NEW code, never trusting the deployed surface's current OLD-code output.",
-            "Confirms the figures that must agree resolve to ONE source or predicate — recomputed "
-            "independently and landing on the same number — per account.",
-            "Labels each discrepancy code bug, deploy/data-skew, or LEGACY residue, dated: one only "
-            "stale/superseded records reproduce is legacy, not a regression or blocker, stated against "
-            "the recent cohort. Proposes a schema/migration ONLY after confirming the field is "
-            "genuinely absent on prod, because changing data is hard to reverse.",
+            "Apply testing-strategy.md production compatibility gates to changed figures and runtime eligibility; absence of displayed figures never excludes admission, validation, authorization or retention checks.",
+            "Enumerate authoritative accounts and legitimate cohorts, rank recent activity and state coverage gaps; one sampled account cannot prove population-wide compatibility.",
+            "Read production through the provisioned read-only path; recompute changed figures from raw source data and independently reconcile figures sharing a source or predicate.",
+            "Classify discrepancies as bug, skew, legacy or unknown with dated evidence; legacy requires proof no current legitimate journey depends on the records, not age alone.",
             "Hands Simon the backfill/recompute command plus deploy order to run on prod himself, "
             "proven first by running the identical script on a seedable dev account and re-reading "
             "until that account reconciles.",

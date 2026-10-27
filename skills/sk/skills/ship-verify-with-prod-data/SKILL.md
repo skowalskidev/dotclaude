@@ -1,16 +1,13 @@
 ---
 name: ship-verify-with-prod-data
-description: Before shipping a change to a data-facing surface — a dashboard, a report, a total, a count, a funnel, a chart, any figure whose job is to reflect stored data correctly — prove it renders correctly and will NOT regress against REAL production data, across EVERY prod account with recent data, not one. Reads prod READ-ONLY through the provisioned path, enumerates every account/tenant/entity the surface serves, recomputes what each figure would show under the new code, and confirms they cross-verify to one source. Distinguishes a real code bug from a deploy/data-skew (prod written by the old code) or legacy residue (stale records the current writer no longer produces, dated to prove it), supplies a backfill or recompute the user runs on prod, and proves that backfill first on a seedable dev account. Use for "verify against prod data", "check it works for all accounts with real data", "make sure this won't regress on production", "look at recent data from all accounts", "does this add up across accounts", or before screenshotting a data surface. Reconciling three cards to one cohort is the SSOT check; capturing the screens is /sk:ship-screenshot-changes.
+description: Verify production compatibility before shipping changes to data figures or runtime admission, rate limits, request validation, authorization and retention migrations whose eligibility depends on stored data or usage, even with no displayed figure. Read prod read-only, cover current legitimate cohorts, replay actual client payloads locally and report measured headroom and unknown telemetry. Use for "verify against prod data", "check it works for all accounts with real data", "make sure this will not regress on production", "look at recent data from all accounts", "does this add up across accounts", "check runtime limits against legitimate production usage", "verify request validation accepts actual client payloads", or "check authorization after retention migration". Scope conclusions to verified evidence; preserve production write and spend approvals.
 argument-hint: "[optional: the surface / route / account list to verify]"
 ---
 
-# Verify a data surface against real production data — for ALL accounts, before shipping
+# Verify production compatibility before shipping
 
-A green test suite proves the code runs on fixtures. It does not prove the numbers are right on the
-real data every account actually has. A money/data surface can pass every test and still read `$0`,
-double-count, or disagree with itself on a live account whose data shape the fixtures never had. This
-skill closes that gap: read prod read-only, recompute what the surface WOULD show for every account
-with recent data, and confirm it reconciles before the change ships.
+DO verify changed figures and runtime eligibility against real production evidence. Apply the shared
+procedure below; fixtures alone do not establish compatibility with current legitimate users.
 
 It composes, and does not restate:
 - **`~/.claude/rules/connectors.md`** — the read-only prod path, the auth-gate protocol, the
@@ -21,20 +18,19 @@ It composes, and does not restate:
 
 ## Phase 1 · Decide whether it applies
 
-**DO run this when the diff changes how a surface READS, derives, reconciles, or enumerates stored
-data** — a displayed total/count/rate, a funnel, a chart, a cross-surface reconciliation, or the list
-of entities a sweep/report covers.
-**DON'T run it for a pure-logic change with no data-shaped output** (a refactor, a copy tweak, a new
-pure function with unit tests). Say it doesn't apply and stop.
-TEST: name the exact figure(s) on the surface whose correctness depends on real per-account data. If
-you can't, the skill doesn't apply.
+Read `~/.claude/references/testing-strategy.md` sections **Production compatibility gates**,
+**Production source fidelity** and **Prepare derived state before capture**.
+Apply the compatibility procedure for every changed data figure or runtime eligibility decision.
+For runtime gates with no figures, use that procedure through hand-back; the figure/recompute phases
+below apply only to data surfaces. Record N/A only with the traced absence of a stored-data or usage
+dependency, never because no figure is displayed.
+TEST: admission, validation, authorization and retention changes receive an applicability verdict.
 
 ## Phase 2 · Enumerate EVERY account the surface serves — from the SSOT list
 
 **DO find the authoritative list of every account/tenant/owner/entity the surface covers, and verify
-them ALL — a regression is only provable across the whole set, and "works for one" hides "broke the
-other rail".** Get the list from the surface's own enumeration source (the same list the writer
-iterates), never a hand-picked account.
+them ALL; report unknown or excluded accounts explicitly.** Get the list from the surface's own
+enumeration source (the same list the writer iterates), never a hand-picked account.
 **DON'T verify a single account (yours) and call it correct** — the account you know is the one least
 likely to expose the shape that breaks.
 **DO rank the set by RECENT activity** (last-updated, recent recoveries/rows) and cover every account
@@ -45,8 +41,7 @@ left every account on the other rail unverified and reading `$0`.
 
 ## Phase 3 · Read prod read-only and RECOMPUTE the surface per account
 
-Read `~/.claude/references/testing-strategy.md`, sections **Production source fidelity** and
-**Prepare derived state before capture**, for the shared source-read and preview-data procedure.
+Apply the shared source-read and preview-data procedures named in Phase 1.
 Recompute each figure under the NEW code for every account selected above. When several figures must
 agree, derive each independently and verify they resolve to one source/predicate and the same value.
 Use saved export files for large reads so transcript truncation cannot change the arithmetic.
@@ -55,12 +50,12 @@ Phase 4). e.g. a hero total, a members count and a funnel's last stage all reduc
 net-recovered cohort count.
 
 **DO date-stamp every record a finding rests on, and reason from the RECENT/live cohort — not from
-whatever the query surfaced first.** An oldest-first or unordered scan returns LEGACY residue whose
-shape the current writer no longer produces; judging it reports a dead pattern as a live defect. Order
+whatever the query surfaced first.** An oldest-first or unordered scan can overrepresent historical
+shapes; inspect current dependencies before treating them as legacy residue. Order
 by recency (or bucket the population by created/updated date) and check whether the RECENT cohort
-reproduces the discrepancy before you call it one.
-TEST: every record behind a finding carries its created + updated date, and the finding is stated
-against the recent cohort. (the fix for flagging ~10 months-stale records as a live edge when every
+reproduces the discrepancy or still depends on the historical records before classifying it.
+TEST: every finding records available created/updated dates and missing-date gaps, and states its
+current cohort or dependency. (the fix for flagging ~10 months-stale records as a live edge when every
 recent record was classified correctly.)
 
 ## Phase 4 · Classify each discrepancy — code bug vs deploy/data-skew vs legacy residue
@@ -72,16 +67,12 @@ redeployed/re-run yet → not a code defect, a recompute dependency.
 **DON'T introduce an infra/DB/schema change until you've confirmed one is actually needed** — verify
 the field is genuinely absent on real docs (not just unread), and that the new writer will populate it
 on its next run, before writing a migration. Changing data is hard to reverse; changing code isn't.
-**DO add a THIRD verdict — LEGACY RESIDUE — for a discrepancy that ONLY stale/superseded records
-reproduce and NO record from the recent cohort does.** That is old data the current code no longer
-produces, not a live regression: confirm it by dating the offending records (all older than the recent
-cohort) and showing the recent cohort classifies correctly, then report it as legacy (data-hygiene
-cleanup, optional), never a ship blocker. DON'T let an anomaly on legacy records masquerade as a live
-finding, and DON'T ship-block on one. (the fix for a stale-record edge reported as a blocker before it
-was dated as legacy.)
-TEST: each discrepancy is labelled bug / skew / legacy with the evidence (the real doc + its date), a
-legacy verdict names the recent cohort that does NOT reproduce it, and a schema/migration is proposed
-only after the field's absence on prod is confirmed.
+**DO label a discrepancy LEGACY RESIDUE only after proving no current legitimate journey depends on
+those stale/superseded records.** Apply the shared compatibility procedure when retention has removed
+fields or records that a new gate requires. Age alone cannot clear a regression. Use UNKNOWN when the
+necessary activity or dependency evidence is missing; carry it as an unverified gap.
+TEST: each discrepancy is bug / skew / legacy / unknown with dated evidence; a legacy verdict proves
+no current dependency, and a migration is proposed only after confirming the missing source fields.
 
 ## Phase 5 · Supply the backfill/recompute — the USER runs it on prod
 
@@ -104,7 +95,6 @@ verified recompute for post-refresh claims and report persisted-source deploymen
 
 ## Hand back
 
-Report per account: the figures, whether they reconciled, and every discrepancy with its
-bug/skew/legacy verdict. Lead with the one line that matters — "reconciles for all N accounts" or
-"account X regresses because …" (and never call a legacy-residue anomaly a regression). Carry the
-deploy/backfill dependency into the PR's Deploy-TLDR (`/sk:ship-pr`).
+Report the checked population and window, figures or gates exercised, discrepancies and unknowns.
+Apply the shared compatibility procedure's separate code, activation and live-proof verdicts. Carry
+deploy/backfill dependencies into the PR's Deploy-TLDR (`/sk:ship-pr`).

@@ -301,9 +301,13 @@ DO finish these five steps at intake, before any layout is written or briefed:
 5. **Build the state harness first:** per board, a fixture, mock or launch argument that renders the
    app in the board's state with the board's exact sample data (same route, counts, names, dates,
    prices, images; stand-in values included), seeded or stubbed, and chrome (viewport, device scale,
-   sidebar, theme, locale, scroll), with animations stopped, fonts loaded and the clock fixed. Prove
-   the capture and measure commands run against a placeholder before the screen is written. A capture
-   with any other data is not a comparison: its rows report `unmeasured`.
+   sidebar, theme, locale, scroll), with animations stopped, fonts loaded and the clock fixed. On web,
+   seed client storage, route every network call to a fixture (`bin/visual-check.py --route`) and
+   load stand-ins for payment and wallet SDKs, so the page renders with no backend at the board's
+   viewports and device scale. Commit it as one capture script that every worker and every round
+   reuses; DON'T rewrite it per round in a scratch directory. Prove the capture and measure commands
+   run against a placeholder before the screen is written. A capture with any other data is not a
+   comparison: its rows report `unmeasured`.
 
 DO write the measured spec at `.context/design-spec/<board>-<state>.md`, one row per element the board
 adds or changes. Each row carries: a stable id the build exposes as its test identifier; the exact
@@ -316,15 +320,20 @@ a flat image is measured in pixels at its 1x scale and its rows are marked `from
 TEST: every element the board adds has a row, every row cell holds a number or a string, and each
 builder and judge brief names the spec's path.
 
-DO list three kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
+DO list four kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
 a board value that equals no token on the project's scale; a board value a project gate rejects (run
 the gate list in `references/testing-strategy.md` § Defects first on the untouched branch to learn
-which); a board element that contradicts a kept component (`design shows X, app has Y`). Default for
+which); a board element that contradicts a kept component (`design shows X, app has Y`); a font family
+or image asset the source uses that the product does not ship (compare the source's font families and
+image files with the product's design system and assets). Default for
 the first two: keep the board's value, carried the way the gate accepts (a token added for it, or the
 gate's own exception syntax). A nearest token needs Simon's answer; the row then carries the agreed
 value and its delta from the board (e.g. a 14 px board radius on the 12 px token reads `12 px, -2,
 agreed <date>`). With no answer, build the recommended pick and show the row as an open decision in
-the board's section.
+the board's section. Record the fourth as an exception before the first pixel loop, so the
+Frames check maps the areas it changes to that exception. TEST: the spec lists the source's and the
+product's font families side by side before the first capture (the fix for rounds spent on a
+whole-frame threshold a mockup's different font family made unreachable).
 
 DO write an agreed deviation as a list of existing elements by id, each with what stays and who
 agreed. It never covers an element the board adds, nor the gap between a new element and a kept one:
@@ -349,12 +358,19 @@ under a long place name only the real data produced).
 DO put in every builder's first brief the spec path, the capture and measure commands, the absolute
 path of its boards' target images, and the fidelity gate below as the acceptance test.
 DON'T brief a builder to write UI it cannot see, or leave capture to the orchestrator at the end.
+Dispatch, on-disk checks, fix rounds and the per-PR code review follow `references/parallelization.md`
+§ One isolated worker per deliverable.
 For native screens, ask for the capture opt-in in the intake question block
 (`references/testing-strategy.md` § Native simulator suites) and name it in the brief.
 
 DO run the fidelity gate per slice, before its test gate: the builder runs it until it passes, and the
-supervisor re-runs the same committed commands before accepting the hand-back. Three mechanical checks
-against the spec, in the board's state with the board's data:
+supervisor re-runs the same committed commands before accepting the hand-back. Measure the production
+build, or the artifact users get, served the way production serves it (web: the production build
+command's output behind a production-mode server). A dev-server capture is for iterating; its rows
+report `unmeasured` until re-run on the build. TEST: every report names the build command and server it
+measured (the fix for boxes within 1 px on a dev server that failed by 4 px and 16 px on the build,
+where a row wrapped). Five mechanical checks against the spec, in the board's state with the board's
+data:
 - **Boxes.** Read each row's built box (web: the element's bounding client rect; native: its
   accessibility frame in a UI test, e.g. `XCUIElement.frame`) and compare width, height, anchor offset
   and every gap. Tolerance: 1 px on web, 2 pt on native. Commit these as assertions in the project's
@@ -375,7 +391,10 @@ against the spec, in the board's state with the board's data:
 - **Frames.** Diff the whole board image against the whole built capture at the board's viewport and
   device scale, with recorded exception areas masked, and save the difference image. Same engine: over
   0.5% differing pixels fails. Any engine: every differing area in the difference image maps to a spec
-  id, fixed or excepted.
+  id, fixed or excepted. Produce the any-engine difference image and region list with
+  `python3 ~/.claude/bin/design-diff.py <board.png> <built.png> --out <panel.png> --dpr <scale>
+  [--mask X,Y,W,H ...]`, one `--mask` per recorded exception area in CSS px (e.g. text blocks when
+  the product's font family is an agreed exception).
 
 DO loop fix, re-render, re-measure until the gate passes. Accept a remaining delta only as a recorded
 exception with one of four causes: data the product cannot supply, a project gate or design-system
@@ -395,6 +414,13 @@ unmeasured rows and frames within threshold. Name every exception in the hand-ba
 "matches the design" on a whole-screen side-by-side read by eye, green tests, or a report with an
 unmeasured row; a row nobody measured is reported `unmeasured` with what it needs (an opt-in, a harness
 state).
+
+DO put the evidence on each PR: before (the board, or the current screen) | after composites in the PR
+body, and one PR comment holding the measured results table and the design-diff panels, uploaded with
+`gh pr comment --attach` per `/sk:ship-screenshot-changes`. Verify the saved body and comment through
+their `body_html`: every `<img>` loads with `naturalWidth > 0`.
+TEST: each design-built PR carries composites in its body and one results comment, and the
+verification lists zero images with `naturalWidth` 0.
 
 DO give each slice one fresh read-only fidelity judge that did not build it. This judge belongs to the
 gate, so it runs with `--judge off` too. Its brief holds the spec, target images, built captures,

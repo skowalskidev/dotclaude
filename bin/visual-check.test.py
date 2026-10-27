@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """visual-check.py self-test: --route with a missing file exits 2, --wait-for and --wait-timeout parse, a client-rendered
 page that fetches its data after load fails without them and passes with --route and --wait-for, and a tall page whose later
-region screenshots scroll earlier regions above the viewport still passes (browser part skipped without Node Playwright)."""
+region screenshots scroll earlier regions above the viewport still passes, and Chromium's media preload abort is not a
+failed request while a missing media file and an aborted non-media request still fail (browser part skipped without Node
+Playwright; the media part without ffmpeg)."""
 import functools
 import http.server
 import collections
 import json
 import pathlib
 import runpy
+import shutil
 import struct
 import subprocess
 import sys
@@ -26,6 +29,10 @@ TALL = """<!doctype html><meta charset=utf-8><title>tall</title><style>body{marg
 .head,.card{height:260px;margin:20px;background:repeating-linear-gradient(90deg,#c33 0 20px,#36c 20px 40px)}
 .grid{display:flex;flex-wrap:wrap}.card{width:240px}</style>
 <div class=head></div><div class=grid>""" + "<div class=card></div>" * 12 + "</div>"
+INK = "<div style='height:120px;background:repeating-linear-gradient(90deg,#c33 0 20px,#36c 20px 40px)'></div>"
+# A fetch cancelled mid-download fails with net::ERR_ABORTED, which must still count for a non-media request.
+ABORTED_FETCH = ("<!doctype html><title>f</title>" + INK + "<script>const c=new AbortController();"
+                 "fetch('/blob.bin',{signal:c.signal}).catch(()=>{});setTimeout(()=>c.abort(),5);</script>")
 
 
 def run(*args: str, cwd: str) -> subprocess.CompletedProcess:
@@ -92,6 +99,11 @@ def ink_checks(root):
     # A reused canvas must clear the prior tile before drawing transparent pixels.
     case('transparent tile reset', 13, [(white*13, 1024), (bytes(4)*13, 1024)], 0, .5)
     prefix = runpy.run_path(str(TOOL))['NODE_RUNNER'].split('// Why an element', 1)[0]
+    # The runner opens `try {` around its browser work before `ink`; the cut leaves exactly that block open.
+    open_blocks = prefix.count('{') - prefix.count('}')
+    if open_blocks != 1:
+        print(f'runner prefix leaves {open_blocks} open blocks, expected its one try block; update this test')
+        return {'pixel metric regressions': False}
     script = root / 'ink-tests.mjs'
     script.write_text(prefix + r'''
 const results = {};
@@ -111,6 +123,7 @@ try {
 } finally { await browser.close(); }
 console.log(JSON.stringify(results));
 process.exit(Object.values(results).every(Boolean) ? 0 : 1);
+} finally {}
 ''')
     job = root / 'ink-job.json'
     job.write_text(json.dumps(dict(outdir=str(root), cases=cases)))
@@ -166,6 +179,25 @@ def main() -> int:
                 huge.write_text('<style>body{margin:0;height:100259px;background:#777}</style>')
                 blank = run(str(huge), '--out', str(root / 'huge-blank'), '--viewport', '16x200', cwd=tmp)
                 checks['canvas-limit height without ink fails the page gate'] = blank.returncode == 1 and 'page blank' in blank.stdout
+                (site / "blob.bin").write_bytes(b"\0" * 3_000_000)
+                (site / "aborted.html").write_text(ABORTED_FETCH)
+                aborted = run(url + "aborted.html", "--out", str(root / "o-aborted"), cwd=tmp)
+                checks["an aborted non-media request still fails"] = aborted.returncode == 1 and "request failed (net::ERR_ABORTED)" in aborted.stdout
+                if shutil.which("ffmpeg"):
+                    # About 2 MB: large enough that Chromium cancels the preload and re-requests by range.
+                    subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=25",
+                                    "-t", "8", "-c:v", "libx264", "-preset", "veryfast", "-crf", "25", "-pix_fmt", "yuv420p",
+                                    "-movflags", "+faststart", str(root / "clip.mp4")], check=True)
+                    video = lambda src: f"<!doctype html><title>v</title>{INK}<video controls preload=metadata src={src} width=320 height=180></video>"
+                    (root / "clip.html").write_text(video("clip.mp4"))
+                    (root / "nofile.html").write_text(video("nope.mp4"))
+                    clip = run(str(root / "clip.html"), "--out", str(root / "o-clip"), "--visible", "video", cwd=tmp)
+                    checks["a media preload abort is not a failed request"] = clip.returncode == 0 and "request failed" not in clip.stdout
+                    nofile = run(str(root / "nofile.html"), "--out", str(root / "o-nofile"), cwd=tmp)
+                    checks["a missing media file still fails, naming the error and file"] = (
+                        nofile.returncode == 1 and "request failed (net::ERR_FILE_NOT_FOUND)" in nofile.stdout and "nope.mp4" in nofile.stdout)
+                else:
+                    print("SKIP media checks (ffmpeg unavailable)")
         finally:
             server.shutdown()
     bad = [k for k, ok in checks.items() if not ok]

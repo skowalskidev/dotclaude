@@ -44,8 +44,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    background agents on that same fan-out.** They never block: every stage that reads neither result
    proceeds, ship-report reads the matrix for its per-ticket verdicts (including each feature's
    simulation applicability and evidence), data-surface screenshots wait on the prod-data data mode,
-   and the landing gate waits on both. Prod-data's own Phase 1 rules out a diff with no data-shaped
-   output; its doesn't-apply verdict with the named reason is the recorded result.
+   and the landing gate waits on both. Delegate applicability to prod-data's own Phase 1; record
+   its compatibility verdict or doesn't-apply verdict with the traced reason.
    **DON'T substitute ad-hoc suites or one-off queries for either skill, or skip prod-data because the
    diff looks data-free.** TEST: every PR in the run shows both skills' verdicts at the landing gate.
    (the fix for a run that substituted ad-hoc suites and one-off read-only queries for both skills
@@ -83,8 +83,9 @@ verified the user + system journey, then handed back with it never posted to the
 - Matrix (stage 6), on every PR: the results table with its COVERED, GAP, NEEDS-DRIVING and SKIPPED
   counts, each feature's simulation evidence or concrete N/A reason, and explicit verdicts for required
   cases that did not run.
-- Prod data (stage 6), on every PR: the per-account reconciliation result, or the prod-data skill's
-  doesn't-apply verdict with its named reason.
+- Prod data (stage 6), on every PR: the compatibility verdict from the owning skill, including
+  checked cohorts, unknowns and activation dependencies, or its doesn't-apply verdict with the traced
+  reason. An unknown cohort or unmet activation dependency cannot become a compatibility PASS.
 - Deploy safety (stage 6), on every PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
   per part.

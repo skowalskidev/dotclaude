@@ -82,11 +82,19 @@ config repairs. The project-repository restrictions below do not cancel that sco
 - Build and run with allowed project commands; when project instructions are ignored, derive them from source, executable config and CI.
 - When finished: fix everything with no loose ends, commit, then tear down all processes and clean up the environment for other testing. Open/flip a PR only when I ask or a `sk:ship-*` skill does it (see the PR-ops rule at the top of this section).
 
-**DO check open PRs before claiming a sequential number** — a migration file number, an ADR number, a
-numbered manifest entry. Run `gh pr list --state open --limit 500 --json number,files` and look for the same number
-in the same directory; when another open PR already adds it, take the next free one. DON'T pick the
-number from the default branch alone (the fix for two open PRs both adding migration 197). TEST: no
-two open PRs add the same numbered file.
+**DO enumerate every open PR before claiming a sequential number** — a migration, ADR or numbered
+manifest entry. Page the PR list with `gh api --paginate "repos/{owner}/{repo}/pulls?state=open&per_page=100"`,
+then each PR's files with `gh api --paginate "repos/{owner}/{repo}/pulls/<n>/files?per_page=100"`.
+Read that PR's `changed_files`, `base.sha` and `head.sha` before and after; require the full file count
+and unchanged SHAs. A nested `gh pr list --json files` result alone does not prove completeness.
+
+DO use a complete `git diff --name-status <base>...<head>` of fetched, verified SHAs when the API
+cannot return every file; recheck the PR's SHAs afterwards. GitHub's [file endpoint](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files)
+caps results at 3000 files even with pagination. A failed request, changed SHA or incomplete inventory
+stops number selection until refreshed. Select above the default branch and every open PR's new
+numbered files in the same directory, then recheck before publishing the reservation.
+TEST: a reservation in a PR's 101st file is found; incomplete results never prove a number free
+(the fix for two open PRs both adding migration 197).
 
 ## Force-pushing a shared PR branch
 
@@ -437,7 +445,9 @@ breaks the live code under either order has been split before hand-back.
 ### 3. Live-traffic cutover
 
 Applies to any change that moves live traffic: a messaging sender, number or provider SID, a webhook
-URL, DNS, a feature flag, a payment or email route.
+URL, DNS, a feature flag, a payment or email route. Also applies, with or without a PR, to any change
+of a value already-shipped clients read: a store price or product id, remote config, a feature flag,
+a server-side enum.
 
 **DO map what carries live traffic today from the provider's read-only API before writing a step**:
 one row per resource with its live value, the query and a timestamp. Read it through the provisioned
@@ -453,6 +463,15 @@ per-write yes (`rules/connectors.md` § Prod / live safety) and any billable ste
 `rules/spend-approval.md`.
 TEST: every traffic-moving step cites a live-state row and a confirmed prerequisite, and has a
 rollback; merging and deploying with no cutover step run leaves every live-state row unchanged.
+
+**DO grep the client code for hard-coded checks or assumptions on an external value before changing
+it** (a price compared to a constant, a product id list, an enum switch with no default). On one or
+more hits, ship a client release that accepts the new value first, or add a new key or product only
+the new client reads and keep the old one live for old clients; change the external value after that.
+**DON'T walk a console change to its final confirm before the grep runs.** Many such changes (a store
+price) have no review step and reach every installed build on their start date.
+TEST: every external-value change step names its client grep result and the release that accepts the
+new value (the fix for a store price change that old builds would have rejected).
 
 **DO write the result into the Deploy TLDR** with the per-step shape `/sk:ship-pr` owns: order,
 precondition check, post-step smoke with its expected result, rollback.

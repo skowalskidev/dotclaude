@@ -201,7 +201,7 @@ page that renders its data after load shows once ready (waits for visible after 
 fixture for its API route (content type from the extension, other requests pass through; a missing file exits 2).
 DON'T hand-write a separate Playwright script for either. The tool loads the file fresh per row,
 screenshots the full page, and exits 1 on any blank page or region, any region or visible element that is
-not fully visible, missing string, page error or failed request. A stitched image or PR image has no page: wrap it in a one-line HTML
+not fully visible, missing string, page error or failed request (a media preload abort is not one; a missing media file is). A stitched image or PR image has no page: wrap it in a one-line HTML
 page and check that, then view it.
 DEFAULT: cap the table at 24 rows (viewports x states) and list every row; the default state is always row one.
 NUMBER: blank means ink share below 0.05%, where ink is the share of pixels differing from the area's
