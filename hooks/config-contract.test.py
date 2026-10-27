@@ -70,6 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("production-compatibility-includes-runtime-gates", "Production verification includes runtime eligibility, current legitimate cohorts and unknown evidence; age and green fixtures cannot clear compatibility gaps."),
     ("pr-feedback-covers-current-revisions", "PR feedback covers every surface and body revision; the landing gate returns late feedback to its single resolver before passing."),
     ("process-inspection-keeps-arguments-private", "Process guidance and orphan reports keep arguments private; cleanup retains uncertain agent workers and preserves framework gates."),
     ("connector-capability-before-auth", "Connector discovery and exact-action checks precede human-only auth gates; media verification can reuse authenticated API access without weakening browser playback proof."),
@@ -1294,6 +1295,60 @@ def check_commits_conventional_subject_enforced() -> None:
                   f"commit-msg {'rejected' if want_ok else 'accepted'} {subject!r}. "
                   + ("A false rejection pushes you to --no-verify, which also skips the secret "
                      "gate." if want_ok else "This is the shape the hook exists to stop."))
+
+
+def check_production_compatibility_includes_runtime_gates() -> None:
+    """Guard the applicability boundary and evidence requirements, not product thresholds."""
+    skill = (ROOT / 'skills/sk/skills/ship-verify-with-prod-data/SKILL.md').read_text()
+    reference = (ROOT / 'references/testing-strategy.md').read_text()
+    phase = skill.split('## Phase 1', 1)[1].split('## Phase 2', 1)[0]
+    procedure = ' '.join(reference.split('## Production compatibility gates', 1)[1]
+                         .split('## Production source fidelity', 1)[0].split())
+    check('**Production compatibility gates**' in phase
+          and 'runtime eligibility decision' in phase
+          and 'never because no figure is displayed' in phase,
+          'Phase 1 can exclude a runtime gate solely because it has no displayed figure')
+    check('pure-logic change with no data-shaped output' not in skill
+          and "If you can't, the skill doesn't apply" not in skill,
+          'The former figure-only applicability exclusion returned')
+    ship = (ROOT / 'skills/sk/skills/ship-full-detailed-workflow/SKILL.md').read_text()
+    check('rules out a diff with no data-shaped' not in ship
+          and "Delegate applicability to prod-data's own Phase 1" in ship
+          and 'unknown cohort or unmet activation dependency cannot become a compatibility PASS' in ship,
+          'Ship orchestration overrides applicability or turns unknown compatibility into PASS')
+    scenarios = {
+        'supported client rejected by a validator': (
+            'actual client payloads', 'real entry point', 'rejection reasons',
+            'Reconstruct payloads from supported client code'),
+        'legitimate burst mistaken for abuse': (
+            'Separate abuse using evidenced criteria', 'observed peak/distribution',
+            'numerical headroom', 'explicit product decision'),
+        'one workflow exhausts a shared budget': (
+            'retries, concurrent devices', 'shared IP/phone/account/global',
+            'combined effect', 'cannot silently block another supported one'),
+        'current user depends on a purged record': (
+            'active users depending on older or purged records',
+            'age alone never proves legacy residue harmless'),
+        'missing usage telemetry misreported as zero': (
+            'UNKNOWN, never zero usage, N/A or a pass',
+            'reconcile checked, excluded and unknown counts',
+            'names the read/instrumentation needed'),
+        'green tests mistaken for activation proof': (
+            'code verification, activation readiness and live proof separately',
+            'activation dependencies', 'never a zero-regression guarantee',
+            'green fixtures cannot clear'),
+        'replay leaks credentials or authorizes a paid write': (
+            'no production credentials enter the replay runtime',
+            'per-write authorization and per-call spend approval',
+            'Keep provenance and redactions private'),
+    }
+    for scenario, required in scenarios.items():
+        for phrase in required:
+            check(phrase in procedure, f'{scenario}: missing rule {phrase!r}')
+    classification = ' '.join(skill.split('## Phase 4', 1)[1].split('## Phase 5', 1)[0].split())
+    check('no current legitimate journey depends' in classification
+          and 'Use UNKNOWN' in classification and 'never a ship blocker' not in classification,
+          'Legacy classification can exempt a current dependency or missing evidence')
 
 
 def check_pr_feedback_covers_current_revisions() -> None:

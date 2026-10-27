@@ -812,8 +812,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
+        "purpose": "Test structure, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
+            "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
+            "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",
+            "Separate code verification, activation dependencies and live proof; scope conclusions to captured populations and windows without promising zero regressions.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
@@ -996,7 +999,8 @@ CONTRACTS: dict[str, dict] = {
             "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
-            "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every PR in the run, in parallel and non-blocking; never substitute ad-hoc suites or queries; prod-data's Phase 1 records doesn't-apply.",
+            "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every PR in the run, in parallel and non-blocking; never substitute ad-hoc suites or queries; delegate applicability to prod-data's Phase 1.",
+            "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each changed journey's video, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
@@ -1145,27 +1149,13 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/ship-verify-with-prod-data/SKILL.md": {
-        "mission": "A data-facing change is proven correct against every prod account's real data, and any regression caught, before it ships — not after a merchant sees a wrong number.",
-        "purpose": "Reads prod read-only, recomputes what a data surface would show for every account with "
-                   "recent data under the new code, confirms the figures reconcile, classifies each "
-                   "discrepancy as a code bug, a deploy/data-skew, or legacy residue, and supplies a "
-                   "user-run backfill proven first on a seedable dev account.",
+        "mission": "Simon sees production compatibility evidence and its gaps before changed figures or runtime eligibility reach legitimate users.",
+        "purpose": "Compose production compatibility checks and classify data discrepancies before shipping.",
         "criteria": [
-            "Fires only when the diff changes how a surface reads, derives, reconciles or enumerates "
-            "stored data; names the exact figure(s) whose correctness depends on real per-account "
-            "data, else declares it does not apply.",
-            "Verifies EVERY account the surface serves, taken from the surface's own enumeration "
-            "source and ranked by recent activity, not a single hand-picked account. Checking one "
-            "hides a break on the accounts or rails it does not cover.",
-            "Reads prod READ-ONLY through the provisioned path (rules/connectors.md); a prod write "
-            "needs Simon's per-write go-ahead. Recomputes each figure from the raw source docs under "
-            "the NEW code, never trusting the deployed surface's current OLD-code output.",
-            "Confirms the figures that must agree resolve to ONE source or predicate — recomputed "
-            "independently and landing on the same number — per account.",
-            "Labels each discrepancy code bug, deploy/data-skew, or LEGACY residue, dated: one only "
-            "stale/superseded records reproduce is legacy, not a regression or blocker, stated against "
-            "the recent cohort. Proposes a schema/migration ONLY after confirming the field is "
-            "genuinely absent on prod, because changing data is hard to reverse.",
+            "Apply testing-strategy.md production compatibility gates to changed figures and runtime eligibility; absence of displayed figures never excludes admission, validation, authorization or retention checks.",
+            "Enumerate authoritative accounts and legitimate cohorts, rank recent activity and state coverage gaps; one sampled account cannot prove population-wide compatibility.",
+            "Read production through the provisioned read-only path; recompute changed figures from raw source data and independently reconcile figures sharing a source or predicate.",
+            "Classify discrepancies as bug, skew, legacy or unknown with dated evidence; legacy requires proof no current legitimate journey depends on the records, not age alone.",
             "Hands Simon the backfill/recompute command plus deploy order to run on prod himself, "
             "proven first by running the identical script on a seedable dev account and re-reading "
             "until that account reconciles.",
