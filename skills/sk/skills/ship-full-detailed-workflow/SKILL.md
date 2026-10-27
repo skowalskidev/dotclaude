@@ -1,6 +1,6 @@
 ---
 name: ship-full-detailed-workflow
-description: Simon's full SHIP harness — drive a FINISHED PR or branch through the whole verify-and-ship sweep: assemble onto master, verify every ticket's acceptance criteria and the user + system journeys across the whole diff with a test per verdict, multi-model + security review, resolve every review thread, screenshot the UI, meet the Deploy-TLDR standard, then reconcile and hand back. The counterpart to /sk:work-full-detailed-workflow, which builds; this proves and lands what is already built. Apply when a PR or branch is finished and the job is to cover the whole diff, all its tickets, and ship it. Thin index — points to the owning skills.
+description: Simon's full SHIP harness — drive a FINISHED PR or branch through the whole verify-and-ship sweep: assemble onto master, verify every ticket's acceptance criteria and the user + system journeys across the whole diff with a test per verdict, multi-model + security review, handle all actionable PR feedback, screenshot the UI, meet the Deploy-TLDR standard, then reconcile and hand back. The counterpart to /sk:work-full-detailed-workflow, which builds; this proves and lands what is already built. Apply when a PR or branch is finished and the job is to cover the whole diff, all its tickets, and ship it. Thin index — points to the owning skills.
 argument-hint: "[PR number / branch / what to ship]"
 ---
 
@@ -31,7 +31,7 @@ tickets; a fix that belongs to another PR is handed to that owner via
 3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out; fix the confirmed findings.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
    dial or allowlist relaxation, or an injection surface.
-5. **`/sk:ship-resolve-pr-comments`** — drive EVERY open review thread to a verdict; never hand back a
+5. **`/sk:ship-resolve-pr-comments`** — drive EVERY actionable PR comment to a verdict across all feedback surfaces; never hand back a
    list to chase.
 6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification); re-judge criteria whose evidence or inputs those fixes changed, including dependent readers and configuration. Verify the user + system
    journeys AND every ticket's acceptance criteria against the merged diff, one committed test per
@@ -72,8 +72,10 @@ tickets; a fix that belongs to another PR is handed to that owner via
 final gate by the orchestrator under the verification policy above, native work through `bin/native-slot.sh`.
 
 **Landing gate — a stage that RAN but didn't LAND its artifact is not done.** Before stage 9 reconciles,
-fetch EVERY pushed PR in the run (`gh pr view <n> --json body,comments` plus the `reviewThreads` GraphQL query) and
-confirm each stage's OUTPUT is ON it, not just produced in-session. An artifact that lives only in chat, a
+fetch EVERY pushed PR body in the run and fresh-fetch all feedback surfaces using stage 5's
+resolver. Reconcile its reviewed comment identities and body hashes before confirming each stage's
+OUTPUT is ON the PR, not just produced in-session. Route new or edited unhandled feedback back
+through stage 5, then rerun affected verification and this gate; a fetch failure blocks PASS. An artifact that lives only in chat, a
 scratch file, or a green local run is INCOMPLETE — return to its stage and post it. TEST: every row below
 reads ✓ against the FETCHED PR, never against memory of having run the stage. (the fix for a run that
 verified the user + system journey, then handed back with it never posted to the PR body.)
@@ -88,7 +90,8 @@ verified the user + system journey, then handed back with it never posted to the
   per part.
 - Screenshots (stage 7): every surface eligible under stage 7 has its image and journey video on the PR; record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
-- Threads (stage 5): 0 unresolved review threads.
+- Feedback (stage 5): 0 unhandled current comment revisions and 0 unresolved review threads;
+  every actionable finding has a verdict and reply, with no outstanding blocking decision.
 - Deploy-TLDR (stage 8): the PR body opens with it, each production step carrying its check, smoke
   and rollback.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning

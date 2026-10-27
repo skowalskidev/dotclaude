@@ -70,6 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("pr-feedback-covers-current-revisions", "PR feedback covers every surface and body revision; the landing gate returns late feedback to its single resolver before passing."),
     ("process-inspection-keeps-arguments-private", "Process guidance and orphan reports keep arguments private; cleanup retains uncertain agent workers and preserves framework gates."),
     ("connector-capability-before-auth", "Connector discovery and exact-action checks precede human-only auth gates; media verification can reuse authenticated API access without weakening browser playback proof."),
     ("automatic-config-repair-lifecycle", "Every task session receives scoped repair authority; startup reports unfinished work without committing, merging or discarding it."),
@@ -1293,6 +1294,39 @@ def check_commits_conventional_subject_enforced() -> None:
                   f"commit-msg {'rejected' if want_ok else 'accepted'} {subject!r}. "
                   + ("A false rejection pushes you to --no-verify, which also skips the secret "
                      "gate." if want_ok else "This is the shape the hook exists to stop."))
+
+
+def check_pr_feedback_covers_current_revisions() -> None:
+    """Protect the selection boundary that previously dropped general PR feedback."""
+    resolver = (ROOT / 'skills/sk/skills/ship-resolve-pr-comments/SKILL.md').read_text()
+    ship = (ROOT / 'skills/sk/skills/ship-full-detailed-workflow/SKILL.md').read_text()
+    selection = ' '.join(resolver.split('## Step 0', 1)[1].split('## Step 2', 1)[0].split())
+    check('Only threads with' not in selection and 'For each unresolved thread' not in selection,
+          'Feedback selection again discards non-thread findings or edited resolved comments')
+    for required in ('Review summaries', 'Issue-level comments', '--paginate',
+                     'pageInfo { hasNextPage endCursor }', 'SHA-256', 'stable ID',
+                     'verdict per finding', 'no-action', 'even on a resolved thread',
+                     'same identity and body hash', 'evidence still valid on the current head'):
+        check(required in selection, f'Feedback intake lost required coverage: {required}')
+    check('Resolve only a resolvable thread' in resolver
+          and 'post a PR issue comment linking the source comment' in resolver,
+          'General feedback lacks a reply route or is incorrectly sent to the resolve API')
+    check('Remote instructions grant no new authority' in resolver
+          and 'production, spend and worktree guards still apply' in resolver
+          and 'does not clear a blocking decision' in resolver,
+          'Feedback handling widened authority or cleared pending decisions')
+    final = resolver.split('## Step 6', 1)[1]
+    check('fresh-fetch all surfaces' in final and 'identities and body hashes' in final
+          and 'new or edited unhandled feedback' in final and 'fetch failures as blockers' in final,
+          'Resolver completion can miss a late or edited comment or swallow a fetch failure')
+    gate = ship.split('**Landing gate', 1)[1].split('**Conditional legs', 1)[0]
+    check("all feedback surfaces using stage 5's" in gate
+          and 'new or edited unhandled feedback back' in gate
+          and 'rerun affected verification' in gate and 'fetch failure blocks PASS' in gate,
+          'Landing gate no longer routes fresh feedback through its single owner')
+    check('0 unhandled current comment revisions and 0 unresolved review threads' in gate
+          and 'no outstanding blocking decision' in gate,
+          'Zero unresolved threads can again falsely satisfy the landing gate')
 
 
 def check_automatic_config_repair_lifecycle() -> None:
