@@ -133,7 +133,14 @@ for (const vp of job.viewports) for (const st of job.states) {
   const [w, h] = vp.split("x").map(Number);
   const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
   page.on("pageerror", (e) => row.problems.push("page error: " + e.message));
-  page.on("requestfailed", (r) => row.problems.push("request failed: " + r.url().slice(0, 80)));
+  page.on("requestfailed", (r) => {
+    const why = r.failure()?.errorText || "unknown error";
+    // Chromium cancels a media preload and re-requests it by byte range, so an aborted media request is not a
+    // failed load. A missing media file fails with its own error (net::ERR_FILE_NOT_FOUND) and still counts.
+    if (r.resourceType() === "media" && why === "net::ERR_ABORTED") return;
+    const url = r.url();
+    row.problems.push(`request failed (${why}): ${url.length > 80 ? "…" + url.slice(-79) : url}`);
+  });
   let waitFailed = false;
   const waitAll = async () => {
     for (const sel of job.waitFor) {
