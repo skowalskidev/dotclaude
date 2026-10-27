@@ -445,7 +445,9 @@ breaks the live code under either order has been split before hand-back.
 ### 3. Live-traffic cutover
 
 Applies to any change that moves live traffic: a messaging sender, number or provider SID, a webhook
-URL, DNS, a feature flag, a payment or email route.
+URL, DNS, a feature flag, a payment or email route. Also applies, with or without a PR, to any change
+of a value already-shipped clients read: a store price or product id, remote config, a feature flag,
+a server-side enum.
 
 **DO map what carries live traffic today from the provider's read-only API before writing a step**:
 one row per resource with its live value, the query and a timestamp. Read it through the provisioned
@@ -461,6 +463,15 @@ per-write yes (`rules/connectors.md` § Prod / live safety) and any billable ste
 `rules/spend-approval.md`.
 TEST: every traffic-moving step cites a live-state row and a confirmed prerequisite, and has a
 rollback; merging and deploying with no cutover step run leaves every live-state row unchanged.
+
+**DO grep the client code for hard-coded checks or assumptions on an external value before changing
+it** (a price compared to a constant, a product id list, an enum switch with no default). On one or
+more hits, ship a client release that accepts the new value first, or add a new key or product only
+the new client reads and keep the old one live for old clients; change the external value after that.
+**DON'T walk a console change to its final confirm before the grep runs.** Many such changes (a store
+price) have no review step and reach every installed build on their start date.
+TEST: every external-value change step names its client grep result and the release that accepts the
+new value (the fix for a store price change that old builds would have rejected).
 
 **DO write the result into the Deploy TLDR** with the per-step shape `/sk:ship-pr` owns: order,
 precondition check, post-step smoke with its expected result, rollback.
