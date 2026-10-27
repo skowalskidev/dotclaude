@@ -604,6 +604,16 @@ background limit killed them.)
 TEST: every wait names a PID, a done-file path or a harness notification; none searches process
 command lines for a string in its own argv.
 
+**DO launch a chain of capacity-gated commands detached when its worst case can exceed 2 hours**,
+the harness cap for a `run_in_background` task. Worst case = steps x `--wait-min` plus runtime.
+Run `nohup <chain> > <log> 2>&1 < /dev/null & disown`, record its PID as owned, have each stage
+write its own receipt, poll the log in bounded foreground waits, and confirm the PID is gone at
+hand-back. **DON'T** run such a chain as a `run_in_background` task: the cap kills it mid-queue and
+the queued steps never start. (the fix for a five-stage gate chain, each step `--wait-min 60`,
+killed at the 2-hour cap under machine contention.)
+TEST: no `run_in_background` task wraps more than one capacity-gated step whose summed `--wait-min`
+reaches 120.
+
 ### Where a tool's own listing lies to you
 
 `rules/process.md` carries the rule (reconcile against the storage, not the listing). The cases it used
