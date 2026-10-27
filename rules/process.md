@@ -74,9 +74,7 @@ schema or rules change), and any decision that forks the implementation. Then ru
 
 Front-load what is PREDICTABLE from the task. This does not forbid interrupting me later — if something
 unexpected turns up, or a new fork appears where guessing wrong would waste the work, ask then; I am not
-always away. What it forbids is stalling mid-run on a foreseeable blocker that could have been requested
-at the start. The up-front asks still go in ONE block at the end of that first response, per
-questions-at-the-END (`communication.md`).
+always away. It forbids stalling mid-run on a blocker foreseeable at the start.
 
 ### Plan within the authorized scope
 DO record the approach before large or multi-file work, then continue within explicit or standing
@@ -194,8 +192,10 @@ passes; hand off with the pass table and screenshots path. iOS runtime checks ke
 Tool: `references/screenshot-review.md` § Hand-off check.
 **DON'T count another file's render, one state, a DOM string or non-white pixels as the check** (a board opened
 blank, then a compare view cropped every phone).
-TEST: a visual artifact handed over with no pass table covering every switchable state of the file
-actually opened, or with a visible overlap/overflow/cutoff, broke the rule.
+**DO measure a supplied-design build** (`references/workflow-loops.md` § Build from a supplied design
+source); hand off its report, never an eye comparison.
+TEST: a visual hand-off with no pass table over every switchable state of the file actually opened, a
+visible overlap/overflow/cutoff, or a design build with no PASS report broke the rule.
 
 **Seed the backend, hand me the frontend.** When a change adds new UI, seed only the backend
 prerequisites the UI can't create, then walk me through entering the data through the new screens

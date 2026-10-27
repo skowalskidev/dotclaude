@@ -280,6 +280,7 @@ SCENARIOS: list[dict] = [
     {"phrase": "I want to see it before you build it", "expect": "ship-mockup-before-after"},
     {"phrase": "implement the mockup", "expect": "ship-mockup-before-after"},
     {"phrase": "the screen doesn't match the mockup", "expect": "ship-mockup-before-after"},
+    {"phrase": "make it pixel perfect", "expect": "ship-mockup-before-after"},
 
     # --- Phone preview ---------------------------------------------------------------
     {"phrase": "preview this on my phone", "expect": "work-preview-on-phone"},

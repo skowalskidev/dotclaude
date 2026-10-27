@@ -280,32 +280,37 @@ only the user's explicit approval in chat freezes the target revision.
 
 ## Build from a supplied design source: 1:1 on the first build
 
-DO apply this whenever the task supplies a design source (a canvas, an exported board set, mockup HTML,
-images, or a mockup Simon approved). The rules act before and during the build; a comparison made only
+DO apply this whenever the task supplies a design source, from any author and in any format (a canvas,
+a Figma frame, mockup HTML, a zipped or exported board set, a board of real-component captures with
+stand-in data, images, or a mockup Simon approved), and whenever Simon asks for a pixel-perfect match.
+Building it is a measured 1:1 match. The rules act before and during the build; a comparison made only
 at hand-back finds drift after the work is spent. A prose ticket that describes the design never
-replaces reading the source, and only the measurement report below can say a screen matches.
+replaces reading the source, a board of real-component captures is a target and never proof the build
+matches, and only the measurement report below can say a screen matches.
 
 DO finish these five steps at intake, before any layout is written or briefed:
 1. **Read the source end to end:** every board, state variant, size, colour, radius, gap and string.
    Write its absolute path into the plan and into every builder brief.
-2. **Render every board in every state to its own image** at the board's viewport, one target per
-   board and state, at a versioned path. Open a board's own file when it sits in a cross-origin frame.
-   Reject a blank render (one colour, or a file under 5 KB) and re-render it.
+2. **Render every board in every state to its own image** at the board's viewport and device scale
+   (an image 2x the frame's CSS width is a 2x frame), one target per board and state, at a versioned
+   path. Open a board's own file when it sits in a cross-origin frame. Reject a blank render (one
+   colour, or a file under 5 KB) and re-render it.
 3. **Write the measured spec** (next paragraph), one file per board and state.
 4. **Settle every conflict** the spec lists, in the front-loaded question block, each with the pick
    you recommend.
 5. **Build the state harness first:** per board, a fixture, mock or launch argument that renders the
-   app in the board's state with the board's exact sample data (same route, counts, names, dates) and
-   chrome (viewport, sidebar, theme, locale, scroll), with animations stopped, fonts loaded and the
-   clock fixed. Prove the capture and measure commands run against a placeholder before the screen is
-   written.
+   app in the board's state with the board's exact sample data (same route, counts, names, dates,
+   prices, images; stand-in values included), seeded or stubbed, and chrome (viewport, device scale,
+   sidebar, theme, locale, scroll), with animations stopped, fonts loaded and the clock fixed. Prove
+   the capture and measure commands run against a placeholder before the screen is written. A capture
+   with any other data is not a comparison: its rows report `unmeasured`.
 
 DO write the measured spec at `.context/design-spec/<board>-<state>.md`, one row per element the board
 adds or changes. Each row carries: a stable id the build exposes as its test identifier; the exact
 text; width and height; the offset from a NAMED anchor (parent edge, screen edge or safe-area edge);
 the gap to the adjacent element on all four sides, kept chrome and screen edges included; font size,
-weight and line height; colours; radius; and the existing component and token each value maps to, or
-`new`. Extract every number from the source's own values (inline styles, exported node data, the
+weight, line height and rendered line count; colours; radius; and the existing component and token
+each value maps to, or `new`. Extract every number from the source's own values (inline styles, exported node data, the
 rendered board's element boxes). DON'T read a number off an image by eye when the source carries it;
 a flat image is measured in pixels at its 1x scale and its rows are marked `from image`.
 TEST: every element the board adds has a row, every row cell holds a number or a string, and each
@@ -358,23 +363,46 @@ against the spec, in the board's state with the board's data:
   that exists is not the slot the board draws.
 - **Text and type.** Each string equals the spec's exactly. Font size, weight, line height, colour and
   radius equal the spec's (web: computed style; native: the value the view code declares).
+- **Inventory.** Map every element the built region renders to a spec row or a kept element id. One
+  that maps to neither is an `extra` row and fails (an added unit word, a placeholder tile, a third
+  line); a spec row with no built element fails as `missing`.
 - **Regions.** Crop each new element together with its four neighbours from the board image and from
   the built capture at the same scale, never downscaled, and save the pair with a difference image.
-  When board and build render in the same engine, report the differing-pixel ratio (per-pixel colour
-  threshold 0.1, anti-aliased pixels excluded); a region over 1% fails until every differing area is
-  fixed, or listed in the report with its spec id and cause for the judge to accept or reject.
+  When board and build render in the same engine, report the differing-pixel ratio (pixelmatch, the
+  comparator behind Playwright's `toHaveScreenshot`: per-pixel colour threshold 0.1, anti-aliased
+  pixels excluded); a region over 1% fails until every differing area is fixed or carried by a
+  recorded exception.
+- **Frames.** Diff the whole board image against the whole built capture at the board's viewport and
+  device scale, with recorded exception areas masked, and save the difference image. Same engine: over
+  0.5% differing pixels fails. Any engine: every differing area in the difference image maps to a spec
+  id, fixed or excepted.
 
-DO hand back the measurement report at `.context/design-spec/<board>-<state>.report.md`: one line per
-spec row with spec value, built value and delta, then counts of rows, passed, failed and unmeasured.
-PASS is zero failed and zero unmeasured rows. DON'T write "matches the design" on a whole-screen
-side-by-side, green tests, or a report with an unmeasured row; a row nobody measured is reported
-`unmeasured` with what it needs (an opt-in, a harness state).
+DO loop fix, re-render, re-measure until the gate passes. Accept a remaining delta only as a recorded
+exception with one of four causes: data the product cannot supply, a project gate or design-system
+ban, an asset that does not exist, or a value Simon agreed (above). Each names its spec id, cause and
+evidence (the missing field, the gate output, the asset search). DON'T accept any other cause: "close
+enough", "kept the current look", other sample data, or a stand-in for an asset the project has.
+TEST: every non-zero delta in the report is fixed or an exception with one of the four causes and its
+evidence (the fix for a card built from a supplied mockup that shipped with an extra line per row and a
+missing column header, after an eye comparison against captures holding other data).
+
+DO hand back the measurement report at `.context/design-spec/<board>-<state>.report.md`. Its geometry
+table has one line per spec row: x, y, width, height, the four gaps, font size, weight, line height,
+line count, colour and text, each as spec value, built value and delta. Below it: the frame and region
+differing-pixel ratios with the target, capture and difference image paths, the exceptions, then counts
+of rows, passed, failed, missing, extra, unmeasured and excepted. PASS is zero failed, missing, extra and
+unmeasured rows and frames within threshold. Name every exception in the hand-back reply. DON'T write
+"matches the design" on a whole-screen side-by-side read by eye, green tests, or a report with an
+unmeasured row; a row nobody measured is reported `unmeasured` with what it needs (an opt-in, a harness
+state).
 
 DO give each slice one fresh read-only fidelity judge that did not build it. This judge belongs to the
 gate, so it runs with `--judge off` too. Its brief holds the spec, target images, built captures,
-region crops and agreed deviations, and no builder narrative. It opens every region crop at full size,
-re-runs the measure command, and returns one row per difference: spec id, board value, built value.
-A finding with no spec id or no number is sent back, never recorded.
+region crops, frame difference images and recorded exceptions, and no builder narrative. It opens
+every region crop and difference image at full size, re-runs the measure command, and returns one row
+per difference: spec id, board value, built value. A finding with no spec id or no number is sent back,
+never recorded. Any judge, section verdict or visual hand-off pass table records a design-built section
+failed while its report is not PASS.
 
 DO audit the whole screen in the same turn when anyone reports one design difference on it. Check
 every new element on that screen against its board: present, position against its nearest neighbour,
@@ -386,17 +414,18 @@ verdict, and a second report on that screen finds none the list missed (the fix 
 one screen found one screenshot at a time, then the same gaps again in the sheet its button opened).
 
 DO give the dashboard one section per board from the first build: the board image as `target`, the
-built capture as `current`, the spec and the measurement report under `links`, and four criteria
-(boxes, text and type, regions, judge) whose evidence is the report's counts. A board section reaches
-`done` only with all four passed on its current `artifactRevision`.
+built capture as `current`, the spec, the measurement report and the difference images under `links`,
+and six criteria (boxes, text and type, inventory, regions, frames, judge) whose evidence is the
+report's counts. A board section reaches `done` only with all six passed on its current
+`artifactRevision`.
 DO check text a board draws on a surface several apps share (paywall, plan table, settings) in every
 app that draws it, against one copy table per shared surface.
 
 TEST: before a slice is handed back, each of its boards has a spec, a target image, capture and
-measure commands, a report with zero failed and zero unmeasured rows, and a judge verdict. A new
-element with no spec row, a deviation naming no element id, a nearest token without Simon's answer,
-a route that reads the feature's data with no capture or exemption, or a shared string unmatched in
-one app fails the gate.
+measure commands, a PASS report with its difference images, and a judge verdict. A new element with
+no spec row, a built element with none, a delta with no recorded cause, a deviation naming no element
+id, a nearest token without Simon's answer, a route that reads the feature's data with no capture or
+exemption, or a shared string unmatched in one app fails the gate.
 
 ## Shareable design board: the default form for a visual mockup ask
 
@@ -647,6 +676,8 @@ unjudgeable`, evidence and the largest actionable gap. Require the implementatio
 unjudgeable comparisons do not pass. Disclose limited blinding when branding identifies a source.
 For an acceptance target, use binary met/not-met checks and record `comparison=acceptance` in the
 judge evidence; never call that a blind A/B win.
+DO judge a section built from a design source against its measurement report from § Build from a
+supplied design source: not-met while the report is not PASS, whatever the side-by-side looks like.
 
 DO translate a failed judgement into a concrete task delta, fix it, rerun affected checks and send
 the new revision to a new judge. The judge reads and reports only; it cannot edit source, criteria,

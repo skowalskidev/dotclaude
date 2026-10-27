@@ -216,6 +216,9 @@ DO, on any failing row, fix the artifact and re-run the whole command, never onl
 until every row passes (the fix for a board that opened blank after one separate render passed).
 DO hand over the printed pass table (also at `<dir>/pass-table.md`) and the `<dir>` path with the artifact.
 DON'T verify a sibling file, a `setContent` copy or one state in place of the artifact he opens.
+DO add, for a screen built from a supplied design source, the measurement report and difference
+images from `references/workflow-loops.md` § Build from a supplied design source to the hand-off; this
+pass table proves the page renders whole, not that it matches the design.
 `design-board.py check <board.html> <dir>` is the preset for design boards;
 `bin/mockup-shots.py` stays the per-state capture for mockup shells and does not replace this check.
 TEST: every artifact hand-off carries a pass table whose rows cover every switchable state of the file
