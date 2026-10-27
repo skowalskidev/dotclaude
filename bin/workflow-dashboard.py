@@ -442,26 +442,39 @@ def referenced_paths(base, sections):
 
 
 def artifact_files(base, *, skip_attachments=False):
-    """Walk artifact trees without entering dependencies, hidden trees or symlink dirs."""
+    """Yield relative-path order without entering hidden, dependency or symlink trees."""
     base = Path(base)
     boundary = base.resolve()
-    for root, dirs, files in os.walk(base, followlinks=False):
-        root = Path(root)
-        dirs[:] = sorted(name for name in dirs
-                         if not name.startswith('.')
-                         and name not in ('node_modules', '__pycache__')
-                         and not (skip_attachments and root == base and name == 'attachments')
-                         and not (root / name).is_symlink())
-        for name in sorted(files):
-            file = root / name
-            if not name.startswith('.') and file.is_file() and file.resolve().is_relative_to(boundary):
+
+    def walk(root):
+        try:
+            with os.scandir(root) as scan:
+                entries = []
+                for entry in scan:
+                    if entry.name.startswith('.'):
+                        continue
+                    directory = entry.is_dir(follow_symlinks=False)
+                    if directory and (entry.name in ('node_modules', '__pycache__')
+                                      or (skip_attachments and root == base and entry.name == 'attachments')):
+                        continue
+                    # Sort a directory as its path prefix, not as a bare name: a.txt precedes a/x.
+                    entries.append((entry.name + ('/' if directory else ''), entry, directory))
+        except OSError:
+            return
+        for _, entry, directory in sorted(entries, key=lambda item: item[0]):
+            file = root / entry.name
+            if directory:
+                yield from walk(file)
+            elif file.is_file() and file.resolve().is_relative_to(boundary):
                 yield file
+
+    yield from walk(base)
 
 
 def compute_unlinked(base, sections):
-    """Files under the plan directory no section reaches, for the 'nothing gets lost' list."""
+    """Keep the first capped paths, inspecting one more eligible file to prove truncation."""
     referenced = referenced_paths(base, sections)
-    candidates = []
+    entries = []
     for file in artifact_files(base, skip_attachments=True):
         rel = file.relative_to(base)
         name = file.name
@@ -477,15 +490,13 @@ def compute_unlinked(base, sections):
             continue
         if size == 0:
             continue
-        if file.resolve() in referenced:
+        resolved = file.resolve()
+        if resolved in referenced:
             continue
-        candidates.append((rel.as_posix(), file))
-    candidates.sort(key=lambda pair: pair[0])
-    truncated = len(candidates) > UNLINKED_CAP
-    candidates = candidates[:UNLINKED_CAP]
-    entries = [{'path': rel_posix, 'href': file.resolve().as_uri(), 'bytes': file.stat().st_size}
-               for rel_posix, file in candidates]
-    return entries, truncated
+        if len(entries) == UNLINKED_CAP:
+            return entries, True
+        entries.append({'path': rel.as_posix(), 'href': resolved.as_uri(), 'bytes': size})
+    return entries, False
 
 
 def public_spec(plan, state=None):

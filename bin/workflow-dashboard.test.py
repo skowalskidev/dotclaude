@@ -949,9 +949,79 @@ class DashboardTests(unittest.TestCase):
             (outside / 'private.txt').write_text('not task evidence')
             (base / 'linked-tree').symlink_to(outside, target_is_directory=True)
             (base / 'linked-file.txt').symlink_to(outside / 'private.txt')
+            (base / 'loop').symlink_to('loop')
             entries, truncated = d.compute_unlinked(base, [])
             self.assertEqual(entries, [])
             self.assertFalse(truncated)
+
+    def test_unlinked_cap_keeps_global_lexical_order_across_directory_prefixes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            names = ['a/inner.txt', 'a.txt', 'a-/inner.txt', 'a0.txt', 'a/z/result.txt',
+                     'a/z.txt', 'a!/inner.txt', 'a!/nested/result.txt']
+            for name in reversed(names):
+                file = base / name
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text(name)
+            with unittest.mock.patch.object(d, 'UNLINKED_CAP', 5):
+                entries, truncated = d.compute_unlinked(base, [])
+            self.assertEqual([item['path'] for item in entries], sorted(names)[:5])
+            self.assertTrue(truncated)
+
+    def test_unlinked_discovery_stops_before_later_trees_and_file_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            early = base / 'a'
+            early.mkdir()
+            for index in range(d.UNLINKED_CAP + 2):
+                (early / f'{index:04}.txt').write_text('evidence')
+            late = base / 'z'
+            late.mkdir()
+            (late / 'result.txt').write_text('later evidence')
+            original_scandir, original_resolve, original_stat = os.scandir, Path.resolve, Path.stat
+            untouched = early / f'{d.UNLINKED_CAP + 1:04}.txt'
+
+            def guarded_scandir(path):
+                self.assertNotEqual(Path(path), late, 'Do not enter trees after the cap is proved')
+                return original_scandir(path)
+
+            def guarded_resolve(path, *args, **kwargs):
+                self.assertNotEqual(path, untouched, 'Do not resolve later file metadata')
+                return original_resolve(path, *args, **kwargs)
+
+            def guarded_stat(path, *args, **kwargs):
+                self.assertNotEqual(path, untouched, 'Do not stat later file metadata')
+                return original_stat(path, *args, **kwargs)
+
+            with unittest.mock.patch.object(d.os, 'scandir', side_effect=guarded_scandir), \
+                    unittest.mock.patch.object(Path, 'resolve', guarded_resolve), \
+                    unittest.mock.patch.object(Path, 'stat', guarded_stat):
+                entries, truncated = d.compute_unlinked(base, [])
+            self.assertEqual([item['path'] for item in entries],
+                             [f'a/{index:04}.txt' for index in range(d.UNLINKED_CAP)])
+            self.assertTrue(truncated)
+
+    def test_unlinked_truncation_requires_an_extra_eligible_unreferenced_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            for index in range(3):
+                (base / f'{index}.txt').write_text('evidence')
+            (base / 'linked.txt').write_text('linked asset')
+            (base / 'linked-alias.txt').symlink_to(base / 'linked.txt')
+            (base / 'empty.txt').touch()
+            (base / 'later.lock').write_text('lock')
+            (base / 'later-plan.md').write_text('plan')
+            (base / 'later-dashboard.html').write_text('export')
+            (base / 'intent-ledger-later.md').write_text('ledger')
+            sections = [{'current': {'path': 'linked.txt'}}]
+            with unittest.mock.patch.object(d, 'UNLINKED_CAP', 3):
+                entries, truncated = d.compute_unlinked(base, sections)
+                self.assertEqual([item['path'] for item in entries], ['0.txt', '1.txt', '2.txt'])
+                self.assertFalse(truncated)
+                (base / 'z.txt').write_text('one more eligible file')
+                more, truncated = d.compute_unlinked(base, sections)
+            self.assertEqual(more, entries)
+            self.assertTrue(truncated)
 
     def test_task_record_artifacts_include_links_with_link_role(self):
         with tempfile.TemporaryDirectory() as tmp:
