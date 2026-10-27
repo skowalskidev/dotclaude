@@ -316,15 +316,20 @@ a flat image is measured in pixels at its 1x scale and its rows are marked `from
 TEST: every element the board adds has a row, every row cell holds a number or a string, and each
 builder and judge brief names the spec's path.
 
-DO list three kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
+DO list four kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
 a board value that equals no token on the project's scale; a board value a project gate rejects (run
 the gate list in `references/testing-strategy.md` § Defects first on the untouched branch to learn
-which); a board element that contradicts a kept component (`design shows X, app has Y`). Default for
+which); a board element that contradicts a kept component (`design shows X, app has Y`); a font family
+or image asset the source uses that the product does not ship (compare the source's font families and
+image files with the product's design system and assets). Default for
 the first two: keep the board's value, carried the way the gate accepts (a token added for it, or the
 gate's own exception syntax). A nearest token needs Simon's answer; the row then carries the agreed
 value and its delta from the board (e.g. a 14 px board radius on the 12 px token reads `12 px, -2,
 agreed <date>`). With no answer, build the recommended pick and show the row as an open decision in
-the board's section.
+the board's section. Record the fourth as an exception before the first pixel loop, so the
+Frames check maps the areas it changes to that exception. TEST: the spec lists the source's and the
+product's font families side by side before the first capture (the fix for rounds spent on a
+whole-frame threshold a mockup's different font family made unreachable).
 
 DO write an agreed deviation as a list of existing elements by id, each with what stays and who
 agreed. It never covers an element the board adds, nor the gap between a new element and a kept one:
@@ -353,8 +358,13 @@ For native screens, ask for the capture opt-in in the intake question block
 (`references/testing-strategy.md` § Native simulator suites) and name it in the brief.
 
 DO run the fidelity gate per slice, before its test gate: the builder runs it until it passes, and the
-supervisor re-runs the same committed commands before accepting the hand-back. Three mechanical checks
-against the spec, in the board's state with the board's data:
+supervisor re-runs the same committed commands before accepting the hand-back. Measure the production
+build, or the artifact users get, served the way production serves it (web: the production build
+command's output behind a production-mode server). A dev-server capture is for iterating; its rows
+report `unmeasured` until re-run on the build. TEST: every report names the build command and server it
+measured (the fix for boxes within 1 px on a dev server that failed by 4 px and 16 px on the build,
+where a row wrapped). Five mechanical checks against the spec, in the board's state with the board's
+data:
 - **Boxes.** Read each row's built box (web: the element's bounding client rect; native: its
   accessibility frame in a UI test, e.g. `XCUIElement.frame`) and compare width, height, anchor offset
   and every gap. Tolerance: 1 px on web, 2 pt on native. Commit these as assertions in the project's
