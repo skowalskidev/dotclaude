@@ -694,6 +694,7 @@ CONTRACTS: dict[str, dict] = {
             "Shipping is not done at merge; the deploy is watched and looped on.",
             "Owns deploy safety: a local merge train of the default branch plus every dependent or overlapping open PR in merge order, affected suites run once, conflicts fixed on the owning branch, never only on the train.",
             "Each migration records its number above every open PR's, the pipeline's real apply order, compatibility with live and new code under either deploy order, and its backfill reach counted read-only on production.",
+            "Require complete paginated PR/file inventories with stable base/head SHAs and matching file counts, or complete verified Git diffs, before reserving sequential numbers; API failures, caps and moving refs never prove availability.",
             "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",

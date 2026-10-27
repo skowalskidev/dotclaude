@@ -82,11 +82,19 @@ config repairs. The project-repository restrictions below do not cancel that sco
 - Build and run with allowed project commands; when project instructions are ignored, derive them from source, executable config and CI.
 - When finished: fix everything with no loose ends, commit, then tear down all processes and clean up the environment for other testing. Open/flip a PR only when I ask or a `sk:ship-*` skill does it (see the PR-ops rule at the top of this section).
 
-**DO check open PRs before claiming a sequential number** — a migration file number, an ADR number, a
-numbered manifest entry. Run `gh pr list --state open --limit 500 --json number,files` and look for the same number
-in the same directory; when another open PR already adds it, take the next free one. DON'T pick the
-number from the default branch alone (the fix for two open PRs both adding migration 197). TEST: no
-two open PRs add the same numbered file.
+**DO enumerate every open PR before claiming a sequential number** — a migration, ADR or numbered
+manifest entry. Page the PR list with `gh api --paginate "repos/{owner}/{repo}/pulls?state=open&per_page=100"`,
+then each PR's files with `gh api --paginate "repos/{owner}/{repo}/pulls/<n>/files?per_page=100"`.
+Read that PR's `changed_files`, `base.sha` and `head.sha` before and after; require the full file count
+and unchanged SHAs. A nested `gh pr list --json files` result alone does not prove completeness.
+
+DO use a complete `git diff --name-status <base>...<head>` of fetched, verified SHAs when the API
+cannot return every file; recheck the PR's SHAs afterwards. GitHub's [file endpoint](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files)
+caps results at 3000 files even with pagination. A failed request, changed SHA or incomplete inventory
+stops number selection until refreshed. Select above the default branch and every open PR's new
+numbered files in the same directory, then recheck before publishing the reservation.
+TEST: a reservation in a PR's 101st file is found; incomplete results never prove a number free
+(the fix for two open PRs both adding migration 197).
 
 ## Force-pushing a shared PR branch
 
