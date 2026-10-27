@@ -1,6 +1,6 @@
 ---
 name: work-gauntlet-loop
-description: Maintain every session's gauntlet record and continue all requested work to verified completion, including requirements added mid-conversation. Use for "gauntlet loop", "don't forget any requests", "keep going after tangents", "independent judge", or "live progress dashboard". Reuse the one living plan and its unfinished queue. Configure Ralph or independent judgement when requested; otherwise use current-session execution without an options interview. Resume a handed-off gauntlet from a pasted dashboard link with its recorded options.
+description: Maintain every session's gauntlet record and continue all requested work to verified completion, including requirements added mid-conversation. Use for "gauntlet loop", "don't forget any requests", "keep going after tangents", "independent judge", "live progress dashboard", "implement these designs", or "build this design pixel-perfect". Reuse the one living plan and its unfinished queue. Configure Ralph or independent judgement when requested; otherwise use current-session execution without an options interview. Resume a handed-off gauntlet from a pasted dashboard link with its recorded options.
 argument-hint: "[goal | --resume plan-path | --resume <dashboard link>] [--engine current|ralph] [--judge on|off] [--max-iterations N] [--references images|names|none] [--inspiration platform names]"
 ---
 
@@ -25,4 +25,9 @@ DO run that reference's § Build from a supplied design source from intake whene
 source is supplied, by anyone and in any format, or a pixel-perfect match is asked for. Hold each
 such section at `review` until its measurement report is PASS with its difference images and every
 exception named; a side-by-side read by eye never passes it, on either engine and with the judge off.
+DO run a design build's deliverables per `references/parallelization.md` § One isolated worker per
+deliverable: parallel isolated workers, on-disk checks, resumed fix rounds, recommended-option
+answers and a fresh code reviewer per PR. Take from the design-source section its committed capture
+harness, `bin/design-diff.py` panels and the PR evidence verified by `naturalWidth`. Run
+`local-capacity.py prioritize` only per `references/dev-server-hygiene.md`, and clear it after.
 TEST: both engines keep the same plan and viewer; selecting Ralph starts no second options interview.

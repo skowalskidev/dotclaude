@@ -259,7 +259,8 @@ logs/reports. Do not reconstruct the comment, insert players or substitute local
 Label this route `API-rendered comment verification; full-page UI unchecked`; it proves the comment's
 media, not the signed-in site's surrounding UI. If unchanged markup cannot load its players, retain
 the verification gap. Both routes require the same checks before reporting success or retiring prior
-evidence. Check every screenshot loads, and play every video using its visible controls:
+evidence. Check every screenshot loads (each `<img>` reports `naturalWidth > 0`), and play every video
+using its visible controls:
 confirm duration > 0, playback time advances, and the expected first and last states appear without
 navigation or media errors. Save the comment URL, verification route and playback results with the evidence report.
 TEST: all screenshots remain visible and every expected video is playable inline, or its cell reports

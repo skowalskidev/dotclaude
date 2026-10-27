@@ -301,9 +301,13 @@ DO finish these five steps at intake, before any layout is written or briefed:
 5. **Build the state harness first:** per board, a fixture, mock or launch argument that renders the
    app in the board's state with the board's exact sample data (same route, counts, names, dates,
    prices, images; stand-in values included), seeded or stubbed, and chrome (viewport, device scale,
-   sidebar, theme, locale, scroll), with animations stopped, fonts loaded and the clock fixed. Prove
-   the capture and measure commands run against a placeholder before the screen is written. A capture
-   with any other data is not a comparison: its rows report `unmeasured`.
+   sidebar, theme, locale, scroll), with animations stopped, fonts loaded and the clock fixed. On web,
+   seed client storage, route every network call to a fixture (`bin/visual-check.py --route`) and
+   load stand-ins for payment and wallet SDKs, so the page renders with no backend at the board's
+   viewports and device scale. Commit it as one capture script that every worker and every round
+   reuses; DON'T rewrite it per round in a scratch directory. Prove the capture and measure commands
+   run against a placeholder before the screen is written. A capture with any other data is not a
+   comparison: its rows report `unmeasured`.
 
 DO write the measured spec at `.context/design-spec/<board>-<state>.md`, one row per element the board
 adds or changes. Each row carries: a stable id the build exposes as its test identifier; the exact
@@ -354,6 +358,8 @@ under a long place name only the real data produced).
 DO put in every builder's first brief the spec path, the capture and measure commands, the absolute
 path of its boards' target images, and the fidelity gate below as the acceptance test.
 DON'T brief a builder to write UI it cannot see, or leave capture to the orchestrator at the end.
+Dispatch, on-disk checks, fix rounds and the per-PR code review follow `references/parallelization.md`
+§ One isolated worker per deliverable.
 For native screens, ask for the capture opt-in in the intake question block
 (`references/testing-strategy.md` § Native simulator suites) and name it in the brief.
 
@@ -385,7 +391,10 @@ data:
 - **Frames.** Diff the whole board image against the whole built capture at the board's viewport and
   device scale, with recorded exception areas masked, and save the difference image. Same engine: over
   0.5% differing pixels fails. Any engine: every differing area in the difference image maps to a spec
-  id, fixed or excepted.
+  id, fixed or excepted. Produce the any-engine difference image and region list with
+  `python3 ~/.claude/bin/design-diff.py <board.png> <built.png> --out <panel.png> --dpr <scale>
+  [--mask X,Y,W,H ...]`, one `--mask` per recorded exception area in CSS px (e.g. text blocks when
+  the product's font family is an agreed exception).
 
 DO loop fix, re-render, re-measure until the gate passes. Accept a remaining delta only as a recorded
 exception with one of four causes: data the product cannot supply, a project gate or design-system
@@ -405,6 +414,13 @@ unmeasured rows and frames within threshold. Name every exception in the hand-ba
 "matches the design" on a whole-screen side-by-side read by eye, green tests, or a report with an
 unmeasured row; a row nobody measured is reported `unmeasured` with what it needs (an opt-in, a harness
 state).
+
+DO put the evidence on each PR: before (the board, or the current screen) | after composites in the PR
+body, and one PR comment holding the measured results table and the design-diff panels, uploaded with
+`gh pr comment --attach` per `/sk:ship-screenshot-changes`. Verify the saved body and comment through
+their `body_html`: every `<img>` loads with `naturalWidth > 0`.
+TEST: each design-built PR carries composites in its body and one results comment, and the
+verification lists zero images with `naturalWidth` 0.
 
 DO give each slice one fresh read-only fidelity judge that did not build it. This judge belongs to the
 gate, so it runs with `--judge off` too. Its brief holds the spec, target images, built captures,

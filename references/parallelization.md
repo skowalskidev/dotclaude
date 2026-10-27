@@ -515,6 +515,32 @@ not experimental. What IS well-supported is the other half: spec quality and dis
 - Agents will confidently tell you a file is clean when they never touched it. After every delegated batch, inspect it yourself with `grep`/`git diff`; defer automated tests to the final gate. Treat the report as a claim to check, not evidence.
 - Ask agents to paste real command output rather than summarise it — and still check.
 
+## One isolated worker per deliverable; fix rounds go back to the same worker
+
+DO give each independent deliverable (one PR each) its own worker in its own isolated worktree,
+dispatched in parallel on the mid tier. The orchestrator edits no product code. After every hand-back
+it checks on disk: the branch head equals the reported sha, `git status` is clean, and
+`git diff <base>...<head>` touches only the owned files. Then it builds and captures the real screen
+itself with the committed harness.
+DO send fixes as one numbered round to the SAME worker, resumed with its context (Claude Code:
+`SendMessage` to its agent id). Each item cites `file:line` and states the expected result.
+DON'T start a fresh worker for a fix round: it re-reads everything and drops the decisions already made.
+DO answer a worker's open question with the recommended option, record it in the plan as a named
+decision or exception, and resume the worker. Ask Simon only for a product or data decision (e.g.
+which font family ships).
+TEST: every hand-back has a recorded head/status/diff check, every fix round names `file:line`
+items and reuses the worker id, and no worker question waits on Simon unless it is a product or data
+decision.
+
+DO give each finished deliverable one fresh code reviewer that did not build it, run per
+`/sk:ship-review`. Its brief holds the diff range and a risk checklist: data leaks, money and
+charges, migrations, re-runs and loops, accessibility, lost behaviour. It never holds the builder's
+summary or conclusions. Verify each finding against the code, then send every verified one back to
+the builder as one commit with a regression test that fails without the fix.
+TEST: each deliverable has a review whose brief carries no builder narrative, and each verified
+finding maps to one commit plus its test (in one run these reviewers found 7 and 5 real bugs after
+every test was green).
+
 ## An agent you called "read-only" is not read-only unless you took its tools away
 Calling a fan-out an "audit" does not restrict it. Agents inherit write tools, and one of them will
 use them. On 2026-08-03 an audit agent — spawned purely to REPORT on `~/.claude` — committed a

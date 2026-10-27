@@ -40,6 +40,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "finish every plan item", "expect": "work-ralph-loop"},
     {"phrase": "live progress dashboard", "expect": "work-gauntlet-loop"},
     {"phrase": "independent judge", "expect": "work-gauntlet-loop"},
+    {"phrase": "implement these designs", "expect": "work-gauntlet-loop"},
+    {"phrase": "build this design pixel-perfect", "expect": "work-gauntlet-loop"},
     {"phrase": "prepare a handoff", "expect": "work-handoff-prepare-and-pickup"},
     {"phrase": "pick up this handoff", "expect": "work-handoff-prepare-and-pickup"},
     {"phrase": "I'm running out of quota", "expect": "work-handoff-prepare-and-pickup"},

@@ -91,6 +91,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Native Codex reads current shared sources and propagates hook decisions; Claude and Codex launchers preserve the selected project's instruction boundary without copying credentials."),
     ("screenshot-report-preserves-evidence",
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
+    ("design-diff-measures-changed-regions",
+     "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
     ("dashboard-runtime-preserves-completion",
      "The shared dashboard initializes one task record, rejects false completion and lost updates, "
      "exports portable evidence, and stops only its receipt-verified viewer."),
@@ -1555,6 +1557,11 @@ def check_session_performance_and_capacity() -> None:
 def check_screenshot_report_preserves_evidence() -> None:
     result = run(["/usr/bin/python3", str(ROOT / "bin" / "screenshot-report.test.py")])
     check(result.returncode == 0, "Screenshot report regression: " + result.stdout + result.stderr)
+
+
+def check_design_diff_measures_changed_regions() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "design-diff.test.py")])
+    check(result.returncode == 0, "Design diff regression: " + result.stdout + result.stderr)
 
 
 def check_dashboard_runtime_preserves_completion() -> None:
