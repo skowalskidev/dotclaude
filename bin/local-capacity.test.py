@@ -28,6 +28,15 @@ SIM = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
 SIM2 = "11111111-2222-3333-4444-555555555555"
 
 
+def setUpModule():
+    # These offline fixtures own temporary leases, not the enclosing test runner's real lease.
+    environment = mock.patch.dict(os.environ, {
+        key: value for key, value in os.environ.items() if not key.startswith("LOCAL_CAPACITY_")
+    }, clear=True)
+    environment.start()
+    unittest.addModuleCleanup(environment.stop)
+
+
 def competing(root, queue, event, owner):
     with mock.patch.object(gate, "observe_booted", return_value=[]), \
          mock.patch.object(gate, "memory_pressure_level", return_value=(1, "sysctl")), \
@@ -1323,12 +1332,18 @@ class CooperativeTests(unittest.TestCase):
                 " signal.signal(signal.SIGTERM,stop)\n"
                 " Path(%r).write_text(str(os.getpid()))\n"
                 "time.sleep(30)\n" % (str(marker), str(ready)))
+        # Pause only after the descendant exists; a fixed poll count races interpreter startup.
+        def pressure_after_ready(**_kwargs):
+            return ("DEFER", "CPU busy") if ready.exists() else ("GO", None)
+
         with mock.patch.object(gate, "RETRY_SECONDS", 0.01), \
-             mock.patch.object(gate, "host_reading", side_effect=[("GO", None)] + [("DEFER", "CPU busy")] * 10):
+             mock.patch.object(gate, "host_reading", side_effect=pressure_after_ready), \
+             mock.patch.object(gate.os, "killpg", wraps=os.killpg) as signals:
             result = gate.run_command(self.root, "secondary", None, [sys.executable, "-c", code],
                                       max_seconds=0.8, pause_safe=True)
         self.assertEqual(result, gate.TIMEOUT)
         self.assertTrue(ready.exists(), "descendant never started")
+        self.assertIn(signal.SIGSTOP, [call.args[1] for call in signals.call_args_list])
         self.assertTrue(marker.exists(), "stopped descendant never handled TERM")
         self.assertIsNone(gate.pid_start(int(ready.read_text())))
         self.assertIsNone(gate.read_state(self.root))
