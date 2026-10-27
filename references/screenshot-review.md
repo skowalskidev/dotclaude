@@ -64,14 +64,34 @@ images unaltered and uncropped in the gallery. TEST: each comparison discloses i
 
 ## Record useful walkthroughs
 
-DO record one short walkthrough video per changed user journey, by default, beside its screenshots.
-Web: Playwright `recordVideo` or a Chrome for Testing screencast. Verify it plays: `ffprobe` duration
-above 0 and one extracted frame showing the real screen. Post it to the PR as a playable inline video
-with the screenshots through that skill's attachment and rendered-playback checks; a text link or
-thumbnail does not pass. Skip only a change with no visible UI, and state that skip in the report. DON'T hand back screenshots alone for a changed journey because video looked optional (the
-fix for a four-PR evidence run that posted images and no clips).
+DO record one walkthrough video per changed user journey, by default, beside its screenshots, and film
+the change inside its flow: start at least one screen before the changed surface, drive the real
+trigger (tap, typing, scroll, sheet or modal opening) at human pace, and end at least one screen after
+it, where the user lands. The clip exists to show context, transitions and movement; a screenshot
+already shows a state. Web: Playwright `recordVideo` or a Chrome for Testing screencast. Verify it
+plays: `ffprobe` duration above 0 and one extracted frame showing the real screen. Post it to the PR as
+a playable inline video with the screenshots through that skill's attachment and rendered-playback
+checks; a text link or thumbnail does not pass.
+NUMBER: at least 8 seconds and at least 3 distinct states. States = 1 +
+`ffmpeg -i <clip> -vf "fps=1,select='gt(scene,0.15)',showinfo" -an -f null - 2>&1 | grep -c pts_time`.
+DO re-record a clip below either number with the surrounding steps. Skip the video only for a change
+with no visible UI or no interaction to drive (a static copy or style change carried by its screenshot
+pair), and state that skip in the report.
+DON'T hand back screenshots alone for a changed journey because video looked optional (the fix for a
+four-PR evidence run that posted images and no clips), and DON'T post a clip of one unchanged screen
+(the fix for PR clips that were 3 seconds of one success screen).
 TEST: a journey report or PR post with screenshots but no playable inline video, explicit blocked
-reason or stated no-UI skip broke the rule.
+reason or stated skip broke the rule; so does any posted clip under 8 seconds or 3 states.
+
+DO run every automated playback check, local or on the posted comment, in a browser that decodes the
+clip: branded Chrome (`chromium.launch({channel:'chrome'})`) for MP4/H.264, because open-source Chromium
+builds ship without proprietary codecs, or record and verify VP9/WebM. Prove the harness first: one
+known-good local clip plays in the same browser through the same play action. Start playback with a
+click on the video's centre or focus plus Space; a click at a fixed native-controls offset can miss
+the play button. NUMBER: every posted video shows advancing `currentTime` and differing first and last
+frames. TEST: the verification record names the browser channel, its version and the control clip's
+result. Zero videos played while metadata loads, or a failing control clip, is a verifier defect, not a
+media defect (the fix for a 66-video check where every clip timed out while all 79 images decoded).
 
 DO also add video for transitions or motion outside a journey when the installed stack supports it.
 Explore first, save the explicit replay, reset state, then record a deliberate pass. Preserve findings

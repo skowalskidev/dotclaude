@@ -114,12 +114,12 @@ for the flow, surface mode for the rest.
 
 ### Film one clip per changed journey
 
-DO record one short walkthrough video per changed journey beside its screenshots, by default, per
-`~/.claude/references/screenshot-review.md` § Record useful walkthroughs: capture method, the
-ffprobe plus one-frame playback check, test-state caveats, and the no-UI skip. Name it
+DO record one walkthrough video per changed journey beside its screenshots, by default, per
+`~/.claude/references/screenshot-review.md` § Record useful walkthroughs. Name it
 `journey-<label>.webm`. Carry each required caveat beside its clip in the local hand-back and PR,
 including fallback player paragraphs; keep the attachment URL in its own paragraph.
-TEST: a changed journey has a verified clip with its required caveat, or the hand-back states the no-UI skip.
+TEST: a changed journey has a clip passing that section's checks with its required caveat, or the
+hand-back states the skip.
 
 ## Step 4 — Hand them back
 
@@ -138,7 +138,7 @@ whose open PR has no posted screenshots is the failure this step exists to preve
 4's local hand-back is the whole job; posting is standing authorization only for a PR that exists.) For
 journey mode, post the step shots in filename (step) order, each captioned with its step, so the comment
 reads as the flow top to bottom. TEST: every open PR whose diff changed a frontend surface carries the
-posted screenshots (verified inline below) and each changed journey's video, each with its before or a `new, no before` note, or a stated no-UI skip,
+posted screenshots (verified inline below) and each changed journey's video, each with its before or a `new, no before` note, or a stated skip,
 never only a local hand-back or a body reference to them.
 
 **Post ONE screenshot table, ONE row per point, BEFORE left of AFTER.** A point is the surface, scenario or journey
@@ -260,7 +260,7 @@ Label this route `API-rendered comment verification; full-page UI unchecked`; it
 media, not the signed-in site's surrounding UI. If unchanged markup cannot load its players, retain
 the verification gap. Both routes require the same checks before reporting success or retiring prior
 evidence. Check every screenshot loads (each `<img>` reports `naturalWidth > 0`), and play every video
-using its visible controls:
+using its visible player, in the browser and with the control clip that § Record useful walkthroughs sets:
 confirm duration > 0, playback time advances, and the expected first and last states appear without
 navigation or media errors. Save the comment URL, verification route and playback results with the evidence report.
 TEST: all screenshots remain visible and every expected video is playable inline, or its cell reports
