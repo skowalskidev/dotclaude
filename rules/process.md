@@ -30,23 +30,20 @@ Whenever I'm making a factual claim about someone else's product (a comparison t
 - **Check ALL of their surfaces before asserting a negative** — pricing page, docs, help centre, FAQ
   (the fix for a "they publish no rate" claim that was in their help centre).
 - **Date-stamp it and reconcile the arithmetic** against the vendor's own stated figures.
-- **A claim that flatters us is the dangerous one.** A stale "competitor costs $50–$110" that turned
-  out to be $39 is the error a competitor notices. Check those hardest.
-- **Never hyperlink a competitor** from our own comparison — no link equity, no referral clicks. Cite
-  as plain text. If a link is ever genuinely needed, it carries `rel="nofollow"`.
-- If the honest number loses, say so or drop the row. Comparison pages that concede where a
-  competitor wins convert better than tables that win every row — and an unbeatable-looking table is
-  the one readers go and disprove.
+- **A claim that flatters us is the dangerous one.** A stale "competitor costs $50–$110" that was
+  really $39 is the error a competitor notices. Check those hardest.
+- **Never hyperlink a competitor** from our own comparison. Cite as plain text; if a link is genuinely
+  needed, it carries `rel="nofollow"`.
+- If the honest number loses, say so or drop the row. Pages that concede where a competitor wins
+  convert better, and an unbeatable-looking table is the one readers go and disprove.
 
 ### Research online BEFORE retrying — don't grind on a brick wall
 When something fails and the cause isn't obvious, **search online (WebSearch/WebFetch, official docs,
 GitHub issues) BEFORE retrying the same class of fix.** Two failed attempts at the same wall is the
-trigger — not ten; it's the *second* step, not a last resort, and often the FIRST step for an unfamiliar
-library or an opaque error code (`ERR_REQUIRE_ESM`, a stack trace deep in `node_modules`), a "works in
-prod but not dev" split, or a dependency/module-load failure. Diagnose the ROOT cause (read the failing
-package's code and issues, check version compatibility) over piling on workarounds — a pinned version or
-one-line fix beats three layers of hacks. No tool access? Say so and ask me to paste the docs/issue —
-don't silently grind.
+trigger, and often the FIRST step for an unfamiliar library, an opaque error code (`ERR_REQUIRE_ESM`), a
+"works in prod but not dev" split, or a module-load failure. Diagnose the ROOT cause (read the failing
+package's code and issues, check version compatibility) over piling on workarounds: a pinned version or
+one-line fix beats three layers of hacks. No tool access? Say so and ask me to paste the docs/issue.
 
 ### Agent-written shell fails fast and loud
 DO open multi-step shell with `set -euo pipefail`, abort on an empty loop input, and end every
@@ -54,17 +51,17 @@ background wait non-zero on timeout; read its first output within 2 minutes. Det
 `references/code-best-practices.md` § Agent-written shell. TEST: no `;` after `cd`, no silenced release.
 
 ### Fix the CLASS of failure, not the one instance I reported
-When I report something wrong with produced output (a bad render, a wrong answer, a broken page), my
-example is evidence of a general failure mode, not the scope of the fix. **Don't patch the instance.**
-Name the rule that was violated, research whether it's a known class not a one-off, and write the fix
-generically so it also catches variants I haven't hit yet.
+When I report wrong output (a bad render, a wrong answer, a broken page), my example is evidence of a
+general failure mode, not the scope of the fix. **Don't patch the instance.** Name the rule that was
+violated, check whether it is a known class, and write the fix generically so it catches variants I
+haven't hit.
 - **Write the rule, not the example.** "The brand mark landed on the building instead of the crew's
-  vests" becomes "a stated placement is authoritative and overrides any default placement" — never
-  "put brand marks on vests." A fix that only recognises my exact wording fails on the next variant.
-- **Keep ONE concrete instance in the fix as an illustration** (`e.g.` / "the fix for X") so it stays
-  actionable — but never let the example become the condition.
-- **Tell me which class you concluded it was and what you checked** to rule out a one-off, so I can
-  judge whether the generalization went too far or not far enough.
+  vests" becomes "a stated placement is authoritative and overrides any default placement", never "put
+  brand marks on vests."
+- **Keep ONE concrete instance** (`e.g.` / "the fix for X") so the fix stays actionable; never let it
+  become the condition.
+- **Tell me which class you concluded and what you checked** to rule out a one-off, so I can judge
+  whether the generalization went too far or not far enough.
 
 ### Front-load everything you need from me — at the START of a session
 Assume I may hand the session over and walk away. Before starting substantial work, survey what the
@@ -141,12 +138,19 @@ disturb my uncommitted WIP in the main checkout when working in a worktree.
 DO apply `rules/self-healing-config.md` to Simon's own config repairs; that explicit standing authority
 includes their merge, push and cleanup. The following default still governs project work.
 
-**Commit only — I own PR and remote operations; never do or raise them unprompted.** After the local
-commit, STOP: no push, PR open/flip/draft/merge, reviewer or label change, PR edit/comment, or
-unprompted PR next-step talk — unless I ask, or a `sk:ship-*` skill whose flow does PR ops is running.
-Merge needs an explicit ask; **'merge to main' is a LOCAL merge — never push or `gh pr merge` a remote
-default branch (origin `main`/`master`) without my own unprompted 'push' (a yes to an option YOU
-authored is not it).** Detail: `references/git-pr-deploy.md`.
+**Commit, and keep a review branch's remote current. I own every other PR and remote operation; never do
+or raise them unprompted.** After the local commit, STOP: no PR open/close/flip/draft/merge, reviewer or
+label change, PR edit/comment, or PR next-step talk, unless I ask or a `sk:ship-*` flow does PR ops.
+Merge needs an explicit ask; **'merge to main' is a LOCAL merge. Never push or `gh pr merge` a remote
+default branch (origin `main`/`master`) without my own unprompted 'push'** (a yes to an option YOU
+authored is not it).
+
+**DEFAULT: push each finished commit to its tracking branch when it backs an open PR or is shared for
+review or testing** (a teammate's PR branch counts). Fetch and merge remote commits first, never rebase
+a shared branch, never force-push, then say in one line that the remote has the new head (short sha).
+No remote PR: commit only. My "wait" or "hold" pauses pushing. Procedure: `references/git-pr-deploy.md`.
+TEST: `git rev-list --count @{u}..HEAD` is 0 at every check-in on such a branch (the fix for a reviewer
+testing a stale draft PR head while seven finished commits sat local).
 
 **Write a navigable commit, one per stage: ONE logical unit per commit** — a finished
 task/fix/phase/milestone/copilot-slice, committed before the next; if the body needs "and also", split
@@ -176,11 +180,10 @@ When one exists it is authoritative, and its criteria stay true across your chan
 reference implementation are in `~/.claude/references/contracts-and-outcomes.md`.
 
 ### Checkpoint before a risky change, so undo does not mean re-deriving it
-Before a change that touches **more than about three files** — a refactor, a rename sweep, a
-migration, a dependency bump — make a restore point FIRST. `/rewind` covers edits made in the main
-session. It does NOT cover everything: a backgrounded forked skill (`context: fork`) applies its
-edits outside the session's checkpoints, and nothing Bash writes is checkpointed at all. For those,
-the restore point is git — commit the good state, or branch, before starting.
+Before a change that touches **more than about three files** (a refactor, a rename sweep, a migration, a
+dependency bump), make a restore point FIRST. `/rewind` covers main-session edits only: a backgrounded
+forked skill (`context: fork`) edits outside the session's checkpoints, and nothing Bash writes is
+checkpointed. For those, commit the good state or branch before starting.
 
 ### Self-verify every visual deliverable before handing back — the default
 **DO open the exact artifact a human will open (web UI in Chrome for Testing, `browser-debugging.md`;
@@ -204,11 +207,11 @@ seed past a new input and report the feature verified; a state written behind th
 path, not that anyone could have got there.
 
 ### Git worktree discipline
-When operating in a git worktree (e.g. `.claude/worktrees/<name>/`), **use the worktree path prefix
-for every file operation** — Read/Edit/Write/Bash. Exploration agents often report the *main* repo's
-absolute paths; using those silently edits the wrong checkout. Never write to the main checkout, and
-**never revert, commit, or disturb my uncommitted WIP** that lives in the main repo. New npm deps may
-need a plain `npm install` in the worktree to populate `node_modules`.
+In a git worktree (e.g. `.claude/worktrees/<name>/`), **use the worktree path prefix for every file
+operation** (Read/Edit/Write/Bash). Exploration agents often report the *main* repo's absolute paths;
+using those silently edits the wrong checkout. Never write to the main checkout, and **never revert,
+commit, or disturb my uncommitted WIP** in the main repo. New npm deps may need a plain `npm install`
+in the worktree.
 
 ### Clean up after yourself — no residual processes or scratch artifacts
 Leave nothing persistent on my machine that I didn't ask for. When a task is done:

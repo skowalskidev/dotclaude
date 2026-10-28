@@ -59,16 +59,25 @@ DO apply `rules/self-healing-config.md` for the explicit standing authorization 
 config repairs. The project-repository restrictions below do not cancel that scoped authorization.
 
 - **I own PR and remote operations — never do or raise them unprompted (the trigger is in
-  `rules/process.md`).** After the local commit, STOP. Do NOT push, open a PR, flip a PR ready/draft,
-  request or add reviewers, add/remove labels, edit a PR body, comment on a PR, or merge — UNLESS I ask
-  for that exact op, or a skill whose defined flow performs PR ops is running (e.g. `/sk:ship-pr`,
-  `/sk:ship-screenshot-changes`, `/sk:ship-resolve-pr-comments`, `/sk:ship-full-detailed-workflow`),
-  which I authorized by invoking it. And DON'T talk about PRs to me — no ready-flip prompts,
-  held-for-you PR next-steps, or reviewer nudges — unless I ask about the PR; I run PR ops on my own
-  cadence or tell you to. Merge is separately gated below (never without an explicit ask). This gates
-  only the PR/remote layer; the local commit-when-done authorization is unchanged. TEST: a hand-back
-  reports what was built and stops, carrying no PR next-step, ready-flip prompt, or reviewer ask I
-  didn't request.
+  `rules/process.md`), with one default exception: pushing finished commits to the branch you are on
+  when it backs an open PR or is shared for review (below).** After the local commit, do NOT open, close,
+  flip ready/draft or merge a PR, request or add reviewers, add/remove labels, edit a PR body, comment on
+  a PR, or push anything else — UNLESS I ask for that exact op, or a skill whose defined flow performs PR
+  ops is running (e.g. `/sk:ship-pr`, `/sk:ship-screenshot-changes`, `/sk:ship-resolve-pr-comments`,
+  `/sk:ship-full-detailed-workflow`), which I authorized by invoking it. And DON'T talk about PRs to
+  me — no ready-flip prompts, held-for-you PR next-steps, or reviewer nudges — unless I ask about the PR;
+  I run PR ops on my own cadence or tell you to. Merge is separately gated below (never without an
+  explicit ask). TEST: a hand-back reports what was built and stops, carrying no PR next-step,
+  ready-flip prompt, or reviewer ask I didn't request.
+- **Keep a review branch's remote current — push each finished commit to the same remote branch.**
+  Applies when `git rev-parse --abbrev-ref @{u}` names a branch that backs an open PR (`gh pr view
+  --json state`) or one shared for testing, including someone else's PR branch. No upstream or no open PR:
+  commit only. Per commit: `git fetch origin <branch>`; if `git rev-list --count HEAD..@{u}` is above 0,
+  merge it in (fast-forward or a merge commit, never a rebase of a shared branch, per § Force-pushing a
+  shared PR branch); `git push origin HEAD:<branch>`, never `--force`; then state "remote has `<short
+  sha>`". The default-branch guard in `hooks/git-commit-guard.py` still blocks `origin main`/`master`,
+  and a PR branch push passes it. Stop pushing on my "wait"/"hold". TEST: `git rev-list --count
+  @{u}..HEAD` prints 0 right after each commit on such a branch.
 - Apply `references/project-instructions.md` before project docs. When allowed, read the project's CLAUDE.md AND CLAUDE.local.md and relevant plan docs at the start of the task — the
   local file carries machine-local setup, test accounts and secrets-by-reference the committed one omits.
 - Merge/rebase the latest default branch in before working, and re-evaluate the plan against what changed (e.g., redesigns that must now be used).

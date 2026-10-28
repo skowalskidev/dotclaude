@@ -496,6 +496,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep every role on the actual chat provider except GPT design work on the Fable tier; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
+            "A branch backing an open PR or shared for review gets each finished commit pushed to its own remote branch (fetch and merge first, never rebase or force), so the remote never trails local; every other PR or remote operation, and any default-branch push, stays gated, and a branch with no remote PR stays commit-only.",
             "Owns research-before-the-second-retry and third-party-claims-from-primary-sources.",
             "Keeps an always-on line that agent-written shell fails fast and loud, pointing to references/code-best-practices.md for the detail.",
             "A mid-run message is QUEUED, never an interrupt, and Simon never has to label it.",
@@ -704,6 +705,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
+            "Owns the review-branch push procedure (fetch, merge in remote commits, plain push, one-line sha report) and the gate on every other PR or remote operation.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
             "A commit is chained after its checks with &&, never ;, so a failing check stops it.",
             "Reuse recorded cleanup authority; prove the exact tip through refreshed default ancestry, merged-PR-head containment with reachable merge commit, or full content proof before branch -D. Recheck tip and ownership; being fully pushed never substitutes for merge proof.",
