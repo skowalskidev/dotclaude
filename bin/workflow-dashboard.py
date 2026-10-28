@@ -213,14 +213,35 @@ def workspace_root(root):
     return next((candidate for candidate in (root, *root.parents) if (candidate / '.git').exists()), root)
 
 
+MISSING_BLOCK_HINT = ('restore its trailing `## Dashboard state` section with the ```dashboard-state JSON '
+                      'block from the previous version of the file (the last exported dashboard HTML embeds '
+                      'that state), then change state only with `workflow-dashboard.py update`; never `init` '
+                      'a second plan beside it')
+
+
+def lost_block_reason(path, content):
+    """Why a *-plan.md without a parseable block is still a dashboard plan, or None for an unrelated file."""
+    if 'dashboard-state' in content or re.search(r'^## Dashboard state\s*$', content, re.M):
+        return 'dashboard-state block is missing or malformed'
+    for sibling in (canonical_dashboard_path(path), runtime_receipt_path(path)):
+        if sibling.exists():
+            return f'no dashboard-state block, but {sibling.name} was exported from it'
+    return None
+
+
 def plan_candidates(context):
-    # A file with no dashboard-state block is not a dashboard plan and is skipped. One WITH a block that
-    # fails to parse or validate is reported, never skipped: skipping made `link` say "not found" and let
-    # `init` create a second plan beside the broken one.
+    # A *-plan.md with no dashboard-state block and no dashboard trace is not a dashboard plan and is
+    # skipped. A plan that lost or mangled its block (a whole-file rewrite dropped it) or whose block fails
+    # to parse or validate is reported, never skipped: skipping made `link` say "not found" and let `init`
+    # create a second plan beside the broken one.
     candidates, rejected = [], []
     for path in sorted(Path(context).glob('*-plan.md')):
         try:
-            if not BLOCK.search(path.read_text()):
+            content = path.read_text()
+            if not BLOCK.search(content):
+                reason = lost_block_reason(path, content)
+                if reason:
+                    rejected.append(f'{path.resolve()}: {reason}; {MISSING_BLOCK_HINT}')
                 continue
             state = read_plan(path)[2]
         except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError) as exc:
@@ -304,7 +325,10 @@ def initial_plan(title, plan, root):
         '## Execution notes\n\n- Dashboard initialized before task routing.\n\n'
         '## Out of scope\n\n- Implementation before task approval.\n\n'
         '## Changelog\n\n### rev 1 · automatic intake\n\nCreated the session record skeleton.\n\n'
-        '## Dashboard state\n\n```dashboard-state\n' + json.dumps(state, indent=2) + '\n```\n'
+        '## Dashboard state\n\n'
+        'Machine-owned: keep this section and its block when rewriting the plan; change it only with '
+        '`workflow-dashboard.py update`.\n\n'
+        '```dashboard-state\n' + json.dumps(state, indent=2) + '\n```\n'
     )
 
 

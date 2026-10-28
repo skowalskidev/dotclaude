@@ -368,7 +368,7 @@ CONTRACTS: dict[str, dict] = {
             "Project narrative plan sections plus computed artifacts and remaining actions into Session record without storing a duplicate.",
             "Atomically initialize one ordinary plan and canonical dashboard in an empty task workspace; reuse its active record on repeated or concurrent intake.",
             "Seed and retain a deferred after-run analysis item, migrate active plans on intake, and exempt only this reserved artifact-free lifecycle section from independent judgement.",
-            "Regenerate and print an absolute canonical dashboard path; reject zero plans and multiple active plans instead of selecting by modification time.",
+            "Regenerate and print an absolute canonical dashboard path; reject zero plans and multiple active plans instead of selecting by modification time; fail link and init loudly, naming the file and the repair, on a *-plan.md whose dashboard-state block is missing, malformed or invalid while it keeps a dashboard trace (heading, fence text or exported sibling), and never create a second plan beside it.",
             "Allow ordinary current-engine work to run without loop options; keep confirmed options mandatory for Gauntlet and Ralph.",
             "Start or attach to the apps/gauntlet app on fixed port 4747, register the plan at its /api/projects endpoint, and write a runtime receipt naming the app's pid, port and url.",
             "Stop unregisters the plan from the apps/gauntlet app and kills it only when no registered plan remains and its process command matches; never kill an app another plan still uses.",

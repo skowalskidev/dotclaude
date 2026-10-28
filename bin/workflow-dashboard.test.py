@@ -562,6 +562,56 @@ class DashboardTests(unittest.TestCase):
                 d.initialize(root)
             self.assertEqual(sorted(p.name for p in context.glob('*-plan.md')), ['notes-plan.md', 'session-plan.md'])
 
+    def test_link_and_init_report_a_plan_that_lost_its_state_block(self):
+        # A whole-file rewrite that drops the trailing block must fail loudly, never read as "no plan"
+        # and never let init create a second plan beside it.
+        variants = {
+            'exported dashboard sibling': lambda context: (context / 'session-dashboard.html').write_text('x'),
+            'heading kept, block dropped': None,
+            'malformed fence': None,
+        }
+        bodies = {
+            'exported dashboard sibling': '# Plan\n\n## Tasks\n\n- rewritten without the state block\n',
+            'heading kept, block dropped': '# Plan\n\n## Dashboard state\n\n(lost)\n',
+            'malformed fence': '# Plan\n\n```dashboard-state\n{"revision": 1}\n',
+        }
+        for label, body in bodies.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                context = root / '.context'
+                context.mkdir()
+                (context / 'notes-plan.md').write_text('# not a dashboard plan\n')
+                (context / 'session-plan.md').write_text(body)
+                if variants[label]:
+                    variants[label](context)
+                with self.assertRaisesRegex(ValueError, r'session-plan\.md: .*restore its trailing `## Dashboard state`'):
+                    d.discover_plan(root)
+                for command in ('link', 'init'):
+                    cli = subprocess.run(
+                        [sys.executable, str(DASHBOARD_SCRIPT), command, '--root', str(root)],
+                        capture_output=True, text=True,
+                    )
+                    self.assertNotEqual(cli.returncode, 0, command)
+                    self.assertIn(str((context / 'session-plan.md').resolve()), cli.stderr)
+                    self.assertIn('workflow-dashboard.py update', cli.stderr)
+                    self.assertNotIn('No dashboard plan found', cli.stderr)
+                self.assertEqual(sorted(p.name for p in context.glob('*-plan.md')),
+                                 ['notes-plan.md', 'session-plan.md'])
+
+    def test_unrelated_plan_file_without_dashboard_trace_is_still_skipped(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = root / '.context'
+            context.mkdir()
+            (context / 'notes-plan.md').write_text('# not a dashboard plan\n')
+            with self.assertRaisesRegex(ValueError, 'No dashboard plan found'):
+                d.discover_plan(root)
+            plan, _, created = d.initialize(root)
+            self.assertTrue(created)
+            self.assertEqual(plan.name, 'session-task-plan.md')
+            self.assertIn('Machine-owned: keep this section and its block', plan.read_text())
+            self.assertEqual(d.discover_plan(root), plan)
+
     def test_serve_attaches_when_healthy_registers_and_writes_receipt(self):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
