@@ -8,6 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 
@@ -162,37 +163,59 @@ class ReportStoreTest(unittest.TestCase):
                                  "--batch", self.batch, "status"], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
 
-    def transcript(self, calls, when="2026-10-29T12:00:00Z"):
-        path = self.root / ("transcript-%d-%s.jsonl" % (calls, when[:13]))
-        line = json.dumps({"type": "assistant", "timestamp": when,
+    @staticmethod
+    def stamp(offset):
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + offset))
+
+    def transcript(self, calls, offset=60, failures=0, correction=None, name="t"):
+        """`calls` tool calls `offset` seconds from now, plus optional failed results and a correction."""
+        when = self.stamp(offset)
+        call = json.dumps({"type": "assistant", "timestamp": when,
                            "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
-        path.write_text("\n".join([line] * calls) + "\n")
+        lines = [call] * calls
+        lines += [json.dumps({"type": "user", "timestamp": when, "message": {"content": [
+            {"type": "tool_result", "is_error": True, "content": "exit 1"}]}})] * failures
+        if correction:
+            lines.append(json.dumps({"type": "user", "timestamp": when,
+                                     "message": {"content": correction}}))
+        path = self.root / f"{name}-{calls}-{failures}-{offset}.jsonl"
+        path.write_text("\n".join(lines) + "\n")
         return str(path)
 
-    def test_due_until_this_workspace_publishes_after_the_ask(self):
-        ask = "2026-10-29T11:00:00Z"
-        busy = self.transcript(20)
-        owed = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask, "--transcript", busy)
-        self.assertTrue(owed["due"], owed)
-        small = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask,
-                             "--transcript", self.transcript(3))
-        self.assertFalse(small["due"])
-        early = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask,
-                             "--transcript", self.transcript(20, "2026-10-29T10:00:00Z"))
-        self.assertFalse(early["due"])
-        workers = json.dumps([{"type": "subagent", "status": "running"}])
-        paused = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask,
-                              "--transcript", busy, "--background", workers)
-        self.assertFalse(paused["due"])
-        self.assertEqual(paused["reason"], "delegated work still running")
+    def owed(self, transcript, ask=None, workspace="/tmp/workspace", reconciled=None, **stop):
+        payload = {"transcript_path": transcript, "background_tasks": [], "session_crons": [],
+                   "last_assistant_message": "Done.", **stop}
+        extra = ["--reconciled-at", reconciled] if reconciled else []
+        return self.run_cli("due", "--workspace", workspace, "--since", ask or self.stamp(-30),
+                            "--stop-payload", json.dumps(payload), *extra)
+
+    def test_due_rearms_on_new_work_since_the_last_report(self):
+        clean = self.transcript(120)
+        self.assertTrue(self.owed(clean)["due"], "a long clean window was not owed")
+        self.assertFalse(self.owed(self.transcript(40))["due"], "a mid-size clean window fired")
+        self.assertTrue(self.owed(self.transcript(40, failures=1))["due"], "failures did not count")
+        self.assertTrue(self.owed(self.transcript(40, correction="no, that's not what I asked"))["due"])
+        self.assertTrue(self.owed(self.transcript(40), reconciled=self.stamp(0))["due"],
+                        "a finished task with enough work did not count")
+        self.assertFalse(self.owed(self.transcript(20, failures=3))["due"], "a small window fired")
+        # Not premature: a status reply, running background work, a pending wakeup, an open question.
+        self.assertFalse(self.owed(clean, ask=self.stamp(3600))["due"], "a turn with no work fired")
+        shell = [{"type": "shell", "status": "running"}]
+        self.assertEqual(self.owed(clean, background_tasks=shell)["reason"], "background work still running")
+        self.assertFalse(self.owed(clean, background_tasks=[{"type": "subagent", "status": "running"}])["due"])
+        self.assertTrue(self.owed(clean, background_tasks=[{"type": "subagent", "status": "completed"}])["due"])
+        self.assertFalse(self.owed(clean, session_crons=[{"recurring": False}])["due"])
+        self.assertFalse(self.owed(clean, last_assistant_message="Which option do you want?")["due"])
+        # Publishing is the watermark: the same window is never owed twice, new work re-arms it.
+        old = self.transcript(120, offset=-60, name="old")
         session_id = self.register()["id"]
         report = self.root / "r.md"
         report.write_text("## Recommendations\n1. thing\n")
         self.run_cli("publish", "--id", session_id, "--file", str(report))
-        self.assertFalse(self.run_cli("due", "--workspace", "/tmp/workspace/nested/..", "--since", ask,
-                                      "--transcript", busy)["due"])
-        self.assertTrue(self.run_cli("due", "--workspace", "/tmp/elsewhere", "--since", ask,
-                                     "--transcript", busy)["due"])
+        self.assertFalse(self.owed(old, ask=self.stamp(-120))["due"], "an analysed window fired again")
+        self.assertTrue(self.owed(clean)["due"], "new work after the report did not re-arm")
+        self.assertTrue(self.owed(old, ask=self.stamp(-120), workspace="/tmp/elsewhere")["due"],
+                        "another workspace's report satisfied this one")
 
     def test_aggregate_digests_unreviewed_reports_once_and_claims_the_batch(self):
         first, second = self.register()["id"], self.register()["id"]

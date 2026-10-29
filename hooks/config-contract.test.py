@@ -80,9 +80,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("session-performance-and-capacity",
      "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
     ("after-run-report-owed-once-per-ask",
-     "After a substantive ask with no report published from its workspace, Stop nudges the after-run "
-     "analysis once per ask without blocking; a published report, running delegated work or a small "
-     "turn stays silent."),
+     "Stop blocks once per request to run the after-run analysis when enough new work landed since "
+     "the workspace's last published report; it re-arms on new work, never re-analyses a covered "
+     "window, waits for reconciliation, running background work and real turns, and never loops."),
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("codex-subscription-only-inference",
@@ -419,6 +419,7 @@ def check_after_run_report_owed_once_per_ask() -> None:
         (repo / ".git" / "info" / "exclude").write_text(".context/\n")
         env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
                "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo)}
+        env.pop("AGENT_DELEGATED_WORKER", None)
         hook = ROOT / "hooks" / "intent-ledger.sh"
         transcript = base / "t.jsonl"
 
@@ -428,15 +429,19 @@ def check_after_run_report_owed_once_per_ask() -> None:
                                "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
             transcript.write_text("\n".join([line] * calls) + "\n")
 
-        def invoke(mode, prompt=None, background=None):
-            payload = {"cwd": str(repo), "session_id": "after-run-contract", "stop_hook_active": False,
-                       "transcript_path": str(transcript), "background_tasks": background or []}
+        def invoke(mode, prompt=None, background=None, active=False, extra_env=None):
+            payload = {"cwd": str(repo), "session_id": "after-run-contract", "stop_hook_active": active,
+                       "transcript_path": str(transcript), "background_tasks": background or [],
+                       "last_assistant_message": "Done and verified."}
             if prompt is not None:
                 payload["prompt"] = prompt
             result = subprocess.run(["bash", str(hook), mode], input=json.dumps(payload),
-                                    text=True, capture_output=True, cwd=repo, env=env)
+                                    text=True, capture_output=True, cwd=repo, env={**env, **(extra_env or {})})
             check(result.returncode == 0, "Ledger hook failed: " + result.stderr)
             return result.stdout
+
+        def blocks_for_analysis(out):
+            return '"block"' in out and "self-optimize-analysis-after-run" in out
 
         def reconcile():
             scratch = base / "note.md"
@@ -445,20 +450,45 @@ def check_after_run_report_owed_once_per_ask() -> None:
                            capture_output=True, cwd=repo, env=env, check=True)
 
         invoke("submit", "Build the importer and verify it.")
-        reconcile()
-        work(3)
-        check(invoke("stop") == "", "A small turn was nudged to run the after-run analysis.")
-        work(20)
-        busy = [{"type": "subagent", "status": "running"}]
-        check(invoke("stop", background=busy) == "", "Running delegated work was treated as a finished batch.")
+        work(150)
         out = invoke("stop")
-        check('"additionalContext"' in out and "after-run report" in out and '"block"' not in out,
-              "A substantive batch with no published report got no non-blocking after-run nudge.")
-        check(invoke("stop") == "", "The after-run nudge repeated for the same ask.")
+        check('"block"' in out and "reconciliation" in out,
+              "Mid-task (unreconciled) the stop did not ask for reconciliation first.")
+        check(not blocks_for_analysis(out), "The after-run analysis fired mid-task, before reconciliation.")
+        reconcile()
+        check(blocks_for_analysis(invoke("stop", active=True)),
+              "The continuation caused by the reconciliation block did not run the after-run analysis.")
+        check(invoke("stop", active=True) == "", "The after-run block looped on its own continuation.")
+        check(invoke("stop") == "", "The after-run block fired twice for one request.")
+
+        time.sleep(1.1)
+        invoke("submit", "What is the status?")
+        reconcile()
+        work(2)
+        check(invoke("stop") == "", "A light status turn fired the after-run analysis.")
 
         time.sleep(1.1)
         invoke("submit", "Now add the exporter.")
         reconcile()
+        work(150)
+        busy = [{"type": "subagent", "status": "running"}]
+        check(invoke("stop", background=busy) == "", "Running delegated work was treated as a finished batch.")
+        check(invoke("stop", active=True) == "",
+              "A stop_hook_active continuation the reconciliation did not cause was blocked.")
+        delegated = invoke("stop", extra_env={"AGENT_DELEGATED_WORKER": "1"})
+        check(delegated == "", "A delegated worker was blocked for the after-run analysis.")
+        check(blocks_for_analysis(invoke("stop")), "New work since the last analysis did not re-arm it.")
+
+        time.sleep(1.1)
+        invoke("submit", "And the CSV variant.")
+        reconcile()
+        time.sleep(1.1)
+        # This request's work happens BEFORE the report is published, so the report covers it.
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        call = json.dumps({"type": "assistant", "timestamp": now,
+                           "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
+        transcript.write_text("\n".join([call] * 150) + "\n")
+        time.sleep(1.1)
         tool = ROOT / "bin" / "session-performance.py"
         reg = json.loads(subprocess.run([sys.executable, str(tool), "register", "--workspace", str(repo),
                                          "--branch", "main", "--task", "exporter"], env=env, text=True,
@@ -467,8 +497,7 @@ def check_after_run_report_owed_once_per_ask() -> None:
         report.write_text("No finding.\n")
         subprocess.run([sys.executable, str(tool), "publish", "--id", reg["id"], "--file", str(report)],
                        env=env, capture_output=True, check=True)
-        work(20)
-        check(invoke("stop") == "", "A report published after the ask did not satisfy the after-run check.")
+        check(invoke("stop") == "", "A window already covered by a published report was analysed again.")
 
 
 def check_intent_ledger_retains_and_rechecks_new_asks() -> None:

@@ -312,9 +312,12 @@ stop)
   # Loop safety, three independent guards. A Stop hook that re-blocks the finish it just caused is an
   # unbreakable session, which is the failure task-intake.sh documents for a different hook.
   #   1. stop_hook_active — the payload's own "you are already continuing because of a stop hook".
-  #   2. a marker for the exact ledger snapshot, so unchanged work cannot repeatedly block.
+  #      Nothing blocks on it, with one bounded exception: the after-run block may follow THIS
+  #      hook's own reconciliation block for the same request, so a reconciled task still gets its
+  #      analysis. Each kind is single-use per request, so a request sees at most two blocks.
+  #   2. markers for the exact ledger snapshot and the request, so unchanged work cannot re-block.
   #   3. a reason that names the exact command satisfying it, so there is always a way out.
-  [ "$(jf '.stop_hook_active')" = "true" ] && exit 0
+  active="$(jf '.stop_hook_active')"
   mkdir -p "$STATE" 2>/dev/null || exit 0
   resolve || exit 0
   [ -f "$LEDGER" ] || exit 0
@@ -336,45 +339,53 @@ stop)
     !fence && /^## [0-9][0-9][0-9][0-9]-.* · reconcile$/ { pending=0 }
     END { print pending+0 }
   ' "$LEDGER")"
-  # After-run check: is a report owed for this workspace since the newest ask? The helper decides from
-  # published reports, the transcript's tool calls since that ask and running delegated work; nothing
-  # the model sets. One nudge per ask, recorded before speaking, so it cannot repeat.
-  afterrun=""
-  ask_ts="$(awk '
+  fence_ts() { awk -v kind="$1" '
     { line=$0; sub(/^ */, "", line)
       if (line ~ /^(```|~~~)/) { mark=substr(line,1,1); match(line, "^" mark "+"); width=RLENGTH
         tail=substr(line,width+1)
         if (!fence) { fence=width; delimiter=mark; next }
         if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }
-    !fence && /^## [0-9][0-9][0-9][0-9]-[^ ]*Z · ask · session / { ts=$2 }
-    END { print ts }' "$LEDGER")"
-  if [ -n "$ask_ts" ] && [ "$(cat "$STATE/$SID.afterrun" 2>/dev/null)" != "$ask_ts" ]; then
-    verdict="$(/usr/bin/python3 "$CFG_ROOT/bin/session-performance.py" due --workspace "$root" \
-      --since "$ask_ts" --transcript "$(jf '.transcript_path')" \
-      --background "$(printf '%s' "$INPUT" | jq -c '.background_tasks // []' 2>/dev/null)" 2>/dev/null)"
-    if [ "$(printf '%s' "$verdict" | jq -r '.due' 2>/dev/null)" = "true" ]; then
-      printf '%s\n' "$ask_ts" > "$STATE/$SID.afterrun" 2>/dev/null
-      afterrun="No after-run report has been published from this workspace since the newest ask \
-($ask_ts). Run /sk:claude-config-self-optimize-analysis-after-run on this batch's own evidence and \
-publish it with bin/session-performance.py; a short no-finding or evidence-gap report counts. \
-This fires once per ask."
-    fi
-  fi
+    !fence && $0 ~ ("^## [0-9][0-9][0-9][0-9]-[^ ]*Z · " kind) { ts=$2 }
+    END { print ts }' "$LEDGER"; }
+  ask_ts="$(fence_ts 'ask · session ')"
+  reconciled="$(fence_ts 'reconcile$')"
+  # Unreconciled work comes first: the turn is mid-task, so the after-run analysis waits for a
+  # boundary and only the reconciliation below can block.
   if [ "$pending" != 1 ]; then
-    [ -n "$afterrun" ] || exit 0
-    jq -cn --arg c "$afterrun" '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:$c}}'
+    # After-run analysis, run automatically. The helper owns the decision from facts the model does
+    # not set: published reports (their publish time is the watermark, so a window is never analysed
+    # twice), new tool calls, failures and corrections since that watermark, this turn's own work,
+    # running background tasks, a pending wakeup and a closing question. It blocks the stop at most
+    # once per user request (the marker below, written before speaking) and on a stop_hook_active
+    # continuation only when this hook's own reconciliation block caused it, so it cannot loop.
+    [ -n "$ask_ts" ] || exit 0
+    [ "$(cat "$STATE/$SID.afterrun" 2>/dev/null)" = "$ask_ts" ] && exit 0
+    if [ "$active" = "true" ] && [ "$(cat "$STATE/$SID.reconblock" 2>/dev/null)" != "$ask_ts" ]; then
+      exit 0
+    fi
+    verdict="$(printf '%s' "$INPUT" | /usr/bin/python3 "$CFG_ROOT/bin/session-performance.py" due \
+      --workspace "$root" --since "$ask_ts" --stop-payload - \
+      ${reconciled:+--reconciled-at "$reconciled"} 2>/dev/null)"
+    [ "$(printf '%s' "$verdict" | jq -r '.due' 2>/dev/null)" = "true" ] || exit 0
+    printf '%s\n' "$ask_ts" > "$STATE/$SID.afterrun" 2>/dev/null || exit 0
+    jq -cn --arg r "Run the after-run analysis now, before finishing: \
+$(printf '%s' "$verdict" | jq -r '"\(.windowToolCalls) tool calls, \(.problems) failures or corrections"' 2>/dev/null) \
+since this workspace's last published report. Invoke /sk:claude-config-self-optimize-analysis-after-run \
+on that window's own evidence and publish it with bin/session-performance.py; a short no-finding or \
+evidence-gap report counts. Publishing moves the watermark, so this window is never analysed twice." \
+      '{decision:"block",reason:$r}'
     exit 0
   fi
+  [ "$active" = "true" ] && exit 0
   snapshot="$(cksum < "$LEDGER")"
   [ "$(cat "$STATE/$SID.stopblock" 2>/dev/null)" = "$snapshot" ] && exit 0
   printf '%s\n' "$snapshot" > "$STATE/$SID.stopblock" 2>/dev/null || exit 0
-  jq -cn --arg r "${afterrun:+$afterrun
-
-}This worktree has recorded input newer than its last reconciliation. Before \
+  printf '%s\n' "$ask_ts" > "$STATE/$SID.reconblock" 2>/dev/null
+  jq -cn --arg r "This worktree has recorded input newer than its last reconciliation. Before \
 finishing: re-read $LEDGER and the living gauntlet plan, account for every request and remaining \
 item, continue ready authorized work, and append the current outcomes with
   ~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>
-Apply rules/self-healing-config.md and link the task's after-run report, repair outcome or explicit evidence gap before reconciling. \
+Apply rules/self-healing-config.md; the after-run analysis is triggered separately once the work is reconciled. \
 Record evidence for completed work and the next action for every blocker or pause. An unapproved \
 proposal remains recorded, not permission to implement. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'

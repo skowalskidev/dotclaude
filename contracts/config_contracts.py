@@ -102,7 +102,7 @@ CONTRACTS: dict[str, dict] = {
             "Ignore unfinished drafts, retain missing participant counts and identify unseen report content by hash across restarts.",
             "Reject a review receipt for a hash different from the inspected report; malformed participants cannot hide healthy reports.",
             "Bound observation commands and output, record unavailable metrics explicitly, and never start models, benchmarks, simulators or background watchers.",
-            "due answers read-only whether a report from the workspace is owed since an ask, from published reports, transcript tool calls since the ask and running delegated work.",
+            "due answers read-only whether a report is owed for new work since the workspace's newest published report (its watermark): at least 100 new tool calls, or 30 with a failure, a correction or a reconciled task; never while background work runs, a one-shot wakeup is pending, the turn made under 3 calls or it ends on a question.",
             "aggregate claims the batch exclusively for six hours and writes one URL-redacted digest and manifest of unreviewed reports; reviewed-manifest receipts only unchanged hashes and releases the claim.",
         ],
     },
@@ -2040,7 +2040,7 @@ CONTRACTS: dict[str, dict] = {
             "Combine simultaneous submit notices into one valid hook JSON document for native host parsing.",
             "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
-            "At Stop, add one non-blocking after-run note per ask when session-performance.py due reports a substantive batch with no report published from the workspace; a model-set marker never decides it.",
+            "At Stop, block once per request with decision block to run the after-run analysis when session-performance.py due reports enough new work since the workspace's last published report; only after reconciliation, and on a stop_hook_active continuation only when this hook's own reconciliation block caused it. A model-set marker never decides it.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "
             "stop.",

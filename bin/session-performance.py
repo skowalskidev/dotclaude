@@ -316,7 +316,6 @@ DIGEST_LINES = 14
 DIGEST_HEADING = re.compile(r"(?i)^#+ .*(recommend|finding|repair|lesson|suggest)")
 URL = re.compile(r"https?://\S+")
 CLAIM_SECONDS = 6 * 3600
-WORKER_TASKS = {"subagent", "workflow", "teammate", "cloud session"}
 
 
 def parse_time(value):
@@ -355,57 +354,101 @@ def published_reports(directory):
     return found
 
 
-def transcript_work(path, since, limit=8_000_000):
-    """Tool calls made at or after `since`, read from the transcript's bounded tail."""
+# The after-run trigger's thresholds. Sources and the evidence behind each number are in
+# references/session-performance.md § When the after-run analysis fires.
+MIN_WINDOW_CALLS = 30      # new tool calls since the last report, with a problem or a finished task
+CLEAN_WINDOW_CALLS = 100   # new tool calls since the last report with no other signal
+MIN_TURN_CALLS = 3         # this turn did work, so it is not a status reply or a plain answer
+CORRECTION = re.compile(
+    r"(?i)^\s*(no|nope|wrong)\b|\b(that's not|that is not|not what i|still (broken|wrong|failing|not)"
+    r"|doesn't work|didn't work|why did you|you (missed|forgot|ignored))\b")
+
+
+def entry_text(content):
+    if isinstance(content, str):
+        return content
+    return "\n".join(part.get("text", "") for part in content or []
+                     if isinstance(part, dict) and part.get("type") == "text")
+
+
+def transcript_work(path, limit=8_000_000):
+    """(time, kind) events from the transcript's bounded tail: tool calls, failures, corrections."""
     if not path:
-        return 0
+        return []
     try:
         with open(path, "rb") as stream:
             stream.seek(0, os.SEEK_END)
             stream.seek(max(0, stream.tell() - limit))
             tail = stream.read().decode("utf-8", errors="replace").splitlines()
     except OSError:
-        return 0
-    calls = 0
+        return []
+    events = []
     for line in tail:
-        if '"tool_use"' not in line:
+        if '"tool_use"' not in line and '"user"' not in line:
             continue
         try:
             entry = json.loads(line)
             when = parse_time(entry.get("timestamp", ""))
         except (ValueError, json.JSONDecodeError, AttributeError):
             continue
-        if when < since:
-            continue
         content = (entry.get("message") or {}).get("content") or []
-        calls += sum(1 for part in content if isinstance(part, dict) and part.get("type") == "tool_use")
-    return calls
+        if entry.get("type") == "assistant" and isinstance(content, list):
+            events += [(when, "call") for part in content
+                       if isinstance(part, dict) and part.get("type") == "tool_use"]
+        elif entry.get("type") == "user":
+            if isinstance(content, list) and any(isinstance(part, dict) and part.get("type") == "tool_result"
+                                                 and part.get("is_error") for part in content):
+                events.append((when, "failure"))
+            text = entry_text(content).strip()
+            # Harness-injected prompts (reminders, task notifications) start with a tag, not Simon.
+            if text and not text.startswith("<") and CORRECTION.search(text[:600]):
+                events.append((when, "correction"))
+    return events
 
 
 def due(args):
-    """Is an after-run report owed for this workspace? Read-only; the Stop hook decides what to say."""
+    """Is an after-run report owed for this workspace now? Read-only; the Stop hook decides what to say.
+
+    The window is everything since this workspace's newest published report: a report is immutable
+    once published, so its publish time is the watermark of the work it covered, and a window is
+    never analysed twice. The trigger re-arms when enough new work lands after that watermark.
+    """
     since = parse_time(args.since)
     latest = 0.0
     root = Path(os.path.abspath(args.root)) / args.batch
     for _, registration, _, path in (published_reports(batch_dir(args)) if root.is_dir() else []):
         if within(str(registration.get("workspace", "")), args.workspace):
             latest = max(latest, path.stat().st_mtime)
-    running = 0
-    if args.background:
+    stop = {}
+    if args.stop_payload:
         try:
-            tasks = json.loads(args.background)
+            stop = json.loads(sys.stdin.read() if args.stop_payload == "-" else args.stop_payload)
         except json.JSONDecodeError:
-            tasks = []
-        running = sum(1 for task in tasks if isinstance(task, dict) and task.get("type") in WORKER_TASKS
-                      and task.get("status") == "running")
-    calls = transcript_work(args.transcript, since)
-    reason = ("report published after the latest ask" if latest >= since else
-              "delegated work still running" if running else
-              "too little work since the latest ask" if calls < args.min_tool_calls else
-              "no report from this workspace since the latest ask")
-    return {"due": latest < since and not running and calls >= args.min_tool_calls, "reason": reason,
-            "toolCalls": calls, "runningWorkers": running,
-            "latestReport": dt.datetime.fromtimestamp(latest, dt.timezone.utc).isoformat() if latest else None}
+            stop = {}
+    tasks = stop.get("background_tasks") or []
+    running = sum(1 for task in tasks if isinstance(task, dict) and task.get("status") == "running")
+    # A one-shot wakeup means the session paused to be woken, not that the batch ended.
+    waking = sum(1 for cron in stop.get("session_crons") or [] if isinstance(cron, dict)
+                 and not cron.get("recurring"))
+    last = (stop.get("last_assistant_message") or "").strip().splitlines()
+    asking = bool(last) and last[-1].rstrip().rstrip("*_`)").endswith("?")
+    events = transcript_work(args.transcript or stop.get("transcript_path"))
+    window = [kind for when, kind in events if when > latest]
+    calls = window.count("call")
+    turn = sum(1 for when, kind in events if kind == "call" and when >= since)
+    problems = window.count("failure") + window.count("correction")
+    finished = bool(args.reconciled_at) and parse_time(args.reconciled_at) > latest
+    enough = calls >= args.clean_window_calls or (calls >= args.min_window_calls and (problems or finished))
+    reason = ("background work still running" if running else
+              "waiting on a scheduled wakeup" if waking else
+              "the turn ends on a question" if asking else
+              "this turn did too little to be a batch boundary" if turn < args.min_turn_calls else
+              "too little new work since the last report" if not enough else
+              "new work since the last report")
+    return {"due": not (running or waking or asking) and turn >= args.min_turn_calls and enough,
+            "reason": reason, "windowToolCalls": calls, "turnToolCalls": turn, "problems": problems,
+            "finishedTask": finished, "runningTasks": running,
+            "watermark": dt.datetime.fromtimestamp(latest, dt.timezone.utc).isoformat() if latest else None}
 
 
 def digest_lines(text):
@@ -510,12 +553,15 @@ def main():
             item.add_argument("--sha256", required=True)
     state = sub.add_parser("status")
     state.add_argument("--expected", type=int, default=0)
-    owed = sub.add_parser("due", help="is an after-run report owed for this workspace since the latest ask")
+    owed = sub.add_parser("due", help="is an after-run report owed for new work since this workspace's last report")
     owed.add_argument("--workspace", required=True)
-    owed.add_argument("--since", required=True, help="ISO time of the latest ask")
-    owed.add_argument("--transcript", help="session transcript; counts tool calls since the ask")
-    owed.add_argument("--background", help="the Stop hook's background_tasks JSON")
-    owed.add_argument("--min-tool-calls", type=int, default=15)
+    owed.add_argument("--since", required=True, help="ISO time of the latest ask (start of this turn)")
+    owed.add_argument("--transcript", help="session transcript; defaults to the Stop payload's")
+    owed.add_argument("--stop-payload", help="the Stop hook's JSON input, or - for stdin")
+    owed.add_argument("--reconciled-at", help="ISO time of the ledger's newest reconcile entry")
+    owed.add_argument("--min-window-calls", type=int, default=MIN_WINDOW_CALLS)
+    owed.add_argument("--clean-window-calls", type=int, default=CLEAN_WINDOW_CALLS)
+    owed.add_argument("--min-turn-calls", type=int, default=MIN_TURN_CALLS)
     sub.add_parser("aggregate", help="digest every unreviewed published report in the batch")
     done = sub.add_parser("reviewed-manifest", help="mark an aggregate's unchanged reports reviewed")
     done.add_argument("--manifest", required=True)

@@ -7,11 +7,32 @@ repeated status questions; reopen it when new execution produces new evidence. A
 not recursively trigger another analysis. TEST: every task hand-back links a report or names its
 unavailable evidence, without making the user request the analysis.
 
-The harness backs this up. `hooks/intent-ledger.sh stop` asks `session-performance.py due` whether a
-report has been published from this workspace since the newest ask. When the batch made at least 15
-tool calls, no delegated worker is still running and nothing was published, it adds one non-blocking
-Stop note per ask (Claude Code's `additionalContext`, loop-guarded by `stop_hook_active`). DO answer it
-with the analysis or a short no-finding report. DON'T publish a placeholder to silence it.
+The harness runs it. `hooks/intent-ledger.sh stop` asks `session-performance.py due`, and when a
+report is owed it returns `decision: "block"` naming `/sk:claude-config-self-optimize-analysis-after-run`.
+DO answer it with the analysis or a short no-finding report. DON'T publish a placeholder to silence it.
+
+### When the after-run analysis fires
+
+A session makes mistakes all through its life, so the trigger re-arms on new work rather than firing
+once per session. The workspace's newest published report is the watermark: reports are immutable, so
+its publish time marks the end of the window it covered, and no window is analysed twice.
+
+| Gate | Rule |
+| --- | --- |
+| Re-arm | 100+ new tool calls since the watermark, or 30+ with a failed tool result, a user correction or a reconciled task |
+| Natural boundary | the ledger is reconciled; this turn made 3+ tool calls; no background task is running; no one-shot wakeup is pending; the last message does not end on a question |
+| Once per request | a per-request marker, written before the block |
+| No loop | blocks on a `stop_hook_active` continuation only when this hook's own reconciliation block caused it, so a request sees at most two blocks (Claude Code caps consecutive continuations at 8) |
+
+Sources for the numbers, measured 30 Oct 2026 over `~/.claude/logs/performance-reviews/`: 275
+reports from 86 sessions, 189 of them addenda (one session published 49), and 17% carry a finding or
+repair, so a low bar mostly produces no-finding noise. Nine windows still had a transcript: no clean
+window under 150 calls held a finding; windows with a user correction held one 1 time in 3, windows
+without one 0 times in 6. Hence 100 for a clean window and 30 with a problem signal; the old floor of 15 fired on
+windows that held no finding. The evidence base is small; revisit the numbers when more transcripts
+survive. Primary sources: the Claude Code hooks reference (Stop input, `stop_hook_active`, the
+8-continuation cap: code.claude.com/docs/en/hooks) and after-action-review practice, which reviews after
+each identifiable event, not only at the end (MSF After Action Review Guide; US Army FM 25-101).
 
 ## Register and record
 
