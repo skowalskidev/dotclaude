@@ -23,6 +23,12 @@ The trap is "this message is short enough to inline". There is no such message. 
 the red commit then needs an `--amend` (the fix for a commit that landed with a failing config test).
 TEST: no `git commit` in a command is reachable after a failed check.
 
+**DO compare `git diff --cached --name-only` with the commit's intended file list immediately before
+every `git commit`, and stop when any other path is staged.** An earlier `git rm`, merge or conflict
+resolution leaves paths staged that `git add <paths>` never resets. TEST: no commit contains a path
+outside its intended list (the fix for deletions staged by an earlier `git rm` landing in an
+unrelated commit).
+
 ## The shape of the message
 
 `~/.claude/.githooks/commit-msg` enforces the subject line in the config repo and rejects anything
