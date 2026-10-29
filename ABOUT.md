@@ -130,8 +130,9 @@ read-only, and the preview runtime carries no production credentials. Procedure:
 
 ## Review complete UI states
 
-Use `/sk:ship-screenshot-changes-advanced` for empty/full states, conditional scenarios and responsive
-layouts. It returns an offline report with an actionable summary table and conditions above every
-screenshot. Blocked and unrun cases remain visible; captured evidence does not imply a pass.
-Useful walkthroughs include video when the installed capture tool supports it. Reports stay local
-until publication is authorized. The quick `/sk:ship-screenshot-changes` workflow remains available.
+Use `/sk:ship-screenshot-changes` for changed surfaces, empty/full states, conditional scenarios and
+responsive layouts. It returns an offline report with an actionable summary table and conditions above
+every screenshot. Blocked and unrun cases remain visible; captured evidence does not imply a pass.
+Every before/after pair and journey video posted to a PR comes out of one template (`bin/pr-evidence.py`):
+red BEFORE and green AFTER bands above the UI, outline-only callouts, videos side by side. The offline
+report stays local until publication is authorized.

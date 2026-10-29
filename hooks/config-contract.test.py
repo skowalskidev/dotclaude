@@ -91,6 +91,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Native Codex reads current shared sources and propagates hook decisions; Claude and Codex launchers preserve the selected project's instruction boundary without copying credentials."),
     ("screenshot-report-preserves-evidence",
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
+    ("pr-evidence-template-stacks-bands-above-ui",
+     "PR before/after screenshots and videos come from one template: bands above the UI, outline-only callouts, the layout rule, timed video ending together."),
     ("design-diff-measures-changed-regions",
      "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
     ("dashboard-runtime-preserves-completion",
@@ -1557,6 +1559,16 @@ def check_session_performance_and_capacity() -> None:
 def check_screenshot_report_preserves_evidence() -> None:
     result = run(["/usr/bin/python3", str(ROOT / "bin" / "screenshot-report.test.py")])
     check(result.returncode == 0, "Screenshot report regression: " + result.stdout + result.stderr)
+
+
+def check_pr_evidence_template_stacks_bands_above_ui() -> None:
+    # Homebrew python3 carries Pillow; /usr/bin/python3 does not. The engine's own deps are in the Brewfile.
+    result = subprocess.run(["python3", str(ROOT / "bin" / "pr-evidence.test.py")],
+                            capture_output=True, text=True, timeout=300)
+    check(result.returncode == 0, "PR evidence template regression: " + result.stdout + result.stderr)
+    skill = (ROOT / "skills/sk/skills/ship-screenshot-changes/SKILL.md").read_text()
+    check("bin/pr-evidence.py" in skill and not (ROOT / "skills/sk/skills/ship-screenshot-changes-advanced").exists(),
+          "Screenshot skill must compose through bin/pr-evidence.py and stay the single screenshot skill")
 
 
 def check_design_diff_measures_changed_regions() -> None:

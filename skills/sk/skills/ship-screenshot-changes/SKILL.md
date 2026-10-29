@@ -1,15 +1,22 @@
 ---
 name: ship-screenshot-changes
-description: Quickly screenshot the changed frontend surfaces for documentation — no bug-hunting, no waiting for anything you don't need. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each changed surface in a real debug browser with realistic example inputs, captures each at BOTH desktop AND mobile (390×844) widths — circling the change with a rounded-rectangle callout, and a BEFORE/AFTER pair for every changed surface and journey — hands them back with a walkthrough video per changed journey (opened in Finder), and — whenever the branch has an open PR — posts them with playable inline videos (one screenshot table, one row per point, before left of after: desktop, mobile and iOS pairs) onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", or "post the screenshots to the PR". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) instead of isolated surfaces — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
-argument-hint: [optional focus, e.g. "the new dashboard section"]
+description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, desktop AND mobile (390×844) — with a BEFORE/AFTER pair for every changed surface and journey and a before/after walkthrough video per changed journey, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — posts the composed images and playable inline videos onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", or "screenshot coverage matrix". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+argument-hint: [changed routes or journeys; whole app only when requested]
 ---
 
-# Screenshot the changed surfaces — fast, for docs or a PR
+# Screenshot the changed surfaces and journeys, before and after
 
-Get the changed frontend surfaces on screen in a real browser, in the state a user would actually see
-them, and capture one clean screenshot of each. No bug-hunting, no edge fuzzing, no fix-loop — that is
-`/sk:test-eyeball`, which reuses THIS skill for the capture. This is the fast path when you just want the
-new things pictured, without waiting for a full QA sweep.
+Get every changed frontend surface and journey on screen in a real browser, in the states a user would
+actually see them, before and after the change, and hand back one review plus PR evidence that looks the
+same on every PR. No bug-hunting or fix-loop: that is `/sk:test-eyeball`, which reuses THIS skill for the
+capture.
+
+DO read `~/.claude/references/screenshot-review.md` first and execute its procedure for the requested
+scope: the complete matrix (empty and full states, conditional scenarios, responsive sizes, complete
+journeys), capture, walkthroughs, the offline report and § PR evidence template.
+TEST: N points have N heading/table blocks in the report with a cell for every column (a gap shows its
+status and reason), each case's conditions sit above its evidence, and every posted pair came out of
+`bin/pr-evidence.py`.
 
 ## Step 0 — Log in to the running app (project-specific)
 
@@ -35,8 +42,11 @@ running session's server.
 
 ## Step 1 — Figure out what changed
 
-`git diff` the branch vs its base. List the exact frontend surfaces the change touches (routes,
-components, states, inputs). Those are what you drive — don't wander the whole app.
+`git diff` the branch vs its base. List the exact frontend surfaces and journeys the change touches
+(routes, components, states, inputs), then build the case matrix per the reference's § Discover the
+complete matrix: empty and full states, every conditional scenario, responsive sizes and complete
+journeys. One case per scenario × viewport × variant, blocked and unrun cases included. Scope to the
+diff unless Simon asks for the whole app.
 
 ## Step 2 — Seed the account into the state the change is meant to be seen in
 
@@ -48,20 +58,17 @@ and record the seed recipe in the project's `CLAUDE.local.md`.
 
 ## Step 3 — Drive each surface with REALISTIC inputs and screenshot it
 
-For every changed surface, put it in the realistic happy-path state a merchant/user would actually see —
-the inputs they'd type — and `take_screenshot({filePath})`. One clean shot per surface with the example
-inputs visible; that shot IS the documentation. Save screenshots INSIDE a workspace root (a repo path,
+For every case in the matrix, put the surface in that state with the inputs a real user would type
+and `take_screenshot({filePath})`. One clean shot per case with the example inputs visible; that shot IS
+the documentation. Save screenshots INSIDE a workspace root (a repo path,
 e.g. `.context/…`), never `/tmp`. Use `evaluate_script` for DOM/state, not `take_snapshot` (which dumps
 tens of KB). No edge inputs, no bug-hunt here — `/sk:test-eyeball` adds those.
 
-**Circle the change so the reviewer sees what moved.** A bare surface shot makes them hunt for it. Insert
-a temporary caption banner in normal flow above the captured content, reserving space for the small label
-that names the change. Keep the caption visible at desktop and mobile widths. After inserting the banner,
-recompute the changed element's `getBoundingClientRect()` and inject only a fixed-position ring overlay
-`<div>` sized to it (a few px border, rounded corners, a soft box-shadow ring, `pointer-events:none`,
-top `z-index`). Verify the caption and changed content are visible without overlap or cropping, then
-`take_screenshot({filePath})` and remove both the ring and banner. One ring colour for AFTER, another for
-BEFORE. A box + label reads faster than an arrow. Works for any element in any UI.
+**Circle the change so the reviewer sees what moved, through the template, never in the DOM.** Capture
+the frame clean, record the changed element's `getBoundingClientRect()` × `devicePixelRatio` as
+`x0,y0,x1,y1`, and pass it to `~/.claude/bin/pr-evidence.py shots` as `--before-callout` /
+`--after-callout`. The engine stacks the captions in bands above the frame and draws outline-only
+callouts, per the reference's § PR evidence template.
 
 **Capture BEFORE and AFTER of every changed surface and journey, video included, not just the end state — the reviewer wants the delta.**
 The default and the `new, no before` case are in `~/.claude/references/screenshot-review.md`. Mechanics for how to get the BEFORE:
@@ -76,7 +83,8 @@ The default and the `new, no before` case are in `~/.claude/references/screensho
 - A structural/DOM change: render BEFORE from the pre-change code in its own tree (`git worktree add
   <dir> <base>`), screenshot, then remove that tree. Never `git stash` or a checkout in the working tree:
   the stash stack is shared by every worktree of the repo.
-- Name each pair `ba-<n>-<surface>-BEFORE.png` / `-AFTER.png`. If the app has themes (light/dark) and
+- Name each pair `ba-<n>-<surface>-BEFORE.png` / `-AFTER.png`, then compose it with
+  `pr-evidence.py shots` into `ba-<n>-<surface>-<platform>.png`. If the app has themes (light/dark) and
   the change reads differently between them, shoot the theme where the difference is clearest — a subtle
   change can be near-invisible in one and obvious in the other.
 
@@ -114,18 +122,21 @@ for the flow, surface mode for the rest.
 
 ### Film one clip per changed journey
 
-DO record one walkthrough video per changed journey beside its screenshots, by default, per
-`~/.claude/references/screenshot-review.md` § Record useful walkthroughs. Name it
-`journey-<label>.webm`. Carry each required caveat beside its clip in the local hand-back and PR,
-including fallback player paragraphs; keep the attachment URL in its own paragraph.
-TEST: a changed journey has a clip passing that section's checks with its required caveat, or the
-hand-back states the skip.
+DO record one walkthrough per changed journey on the base and one on the change, the same steps and
+seeded state on both, per `~/.claude/references/screenshot-review.md` § Record useful walkthroughs.
+Name them `journey-<label>-BEFORE.mp4` / `-AFTER.mp4`, then compose them side by side with
+`~/.claude/bin/pr-evidence.py video` into `journey-<label>.mp4`; that composed clip is the one posted.
+Carry each required caveat beside its clip in the local hand-back and PR; keep the attachment URL in
+its own paragraph.
+TEST: a changed journey has a composed clip passing that section's checks with its required caveat,
+or the hand-back states the skip.
 
 ## Step 4 — Hand them back
 
-Show the annotated shot of each changed surface (its BEFORE/AFTER pair where captured) with the example
-inputs visible, plus each journey's clip, list what each shows, and `open` the screenshots directory in Finder (macOS:
-`open "<abs path>"`) so Simon can flip through them.
+Render the offline review with `~/.claude/bin/screenshot-report.py` per the reference's § Build the
+review, and hand back its link with the actionable TLDR table (Point · Verdict/gap · Next action), the
+composed before/after image of each changed surface and each journey's composed clip, then `open` the
+evidence directory in Finder (macOS: `open "<abs path>"`) so Simon can flip through them.
 **When the branch is large/consolidated** (spans many surfaces), also give a compact TOUR table
 (Area · What changed · Where to find it · What to look at) — brief but complete, no word vomit.
 
@@ -141,38 +152,22 @@ reads as the flow top to bottom. TEST: every open PR whose diff changed a fronte
 posted screenshots (verified inline below) and each changed journey's video, each with its before or a `new, no before` note, or a stated skip,
 never only a local hand-back or a body reference to them.
 
-**Post ONE screenshot table, ONE row per point, BEFORE left of AFTER.** A point is the surface, scenario or journey
-step being shown (e.g. "Advertiser disclosure open"). The first cell is the point label (what changed
-or the condition, 2-8 words). Then one BEFORE cell and one AFTER cell per platform or size captured, in
-the order **Desktop before | Desktop after | Mobile before | Mobile after | iOS before | iOS after**; omit
-a pair no point uses. Keep every point's before and after screenshots in the SAME row; never stack them
-in separate tables or sections. Journey mode: each step is a row, in step order.
+**Post one block per point, laid out by the reference's § PR evidence template.** A point is the surface,
+scenario or journey step being shown (e.g. "Settings: empty list"). Each block holds the composed
+before/after image per captured platform and the point's composed video. Journey mode: one block per
+step, in step order.
 
-DO keep each screenshot in its point's table cell and publish each journey video as an inline player
-with playback controls, never an ordinary `[video](url)` link or a linked thumbnail. Use the attachment
-route below. Keep before/after players in their matching cells only when GitHub renders them there.
-If the table suppresses a player, keep the screenshot table and place labeled Point · Platform ·
-BEFORE / AFTER player paragraphs immediately below it, in the same point and platform order. Mark the
-matching cells `Video below: <point/platform/variant>`; a failed upload shows `blocked: <reason>`.
+DO publish each composed video as an inline player with playback controls, alone in its own
+paragraph, never an ordinary `[video](url)` link or a linked thumbnail. Use the attachment route below;
+a failed upload shows `blocked: <reason>` in its place.
 TEST: every published clip plays within the comment; a click that navigates away or downloads a file
-is a failed inline-video check.
-
-A cell the point applies to but lacks evidence for says its status and reason (`not run: <reason>`, `blocked: <reason>`);
-a cell the point does not cover says `n/a: <reason>`; a new surface says `n/a: new, no before` in its
-before cells. Keep every gap in its own cell.
-
-**Use HTML inside the table, because markdown images carry no width:** desktop
-`<img src="<url>" width="360" alt="<point> desktop before">`, mobile and iOS
-`<img src="<url>" width="200" alt="<point> mobile after">`. Allow horizontal scroll on narrow screens
-rather than shrinking readable phone shots.
-TEST: each point is one row; its before cell sits left of its after cell in that row; no before or
-after image sits outside the table; video paragraphs use only the labeled fallback above; a posted row
-with an after but no before and no `new, no before` note broke the rule.
+is a failed inline-video check; a posted pair with an after but no before and no `new, no before`
+note broke the rule.
 
 **DO publish one fresh consolidated evidence comment on every refresh, then remove the obsolete
 workflow-owned evidence after verification.** Use the existing posting authorization; do not ask again
-to replace and clean up this workflow's evidence. Keep the complete current screenshot table and video
-groups together, so the latest comment shows the current diff (e.g. a renamed switch refreshes one row
+to replace and clean up this workflow's evidence. Keep every current point block and its video
+together, so the latest comment shows the current diff (e.g. a renamed switch refreshes one point block
 while the replacement retains the other current points).
 
 1. **Inventory and assemble.** Fetch every page of `repos/$REPO/issues/$PR/comments` and confirm the
@@ -180,13 +175,12 @@ while the replacement retains the other current points).
    by that author with `<!-- sk:screenshot-changes -->`, or unmarked legacy comments whose screenshot
    layout, media and recorded publication history establish the same workflow ownership. Preserve other
    authors, review discussions, mixed-purpose comments and uncertain matches. Record candidate IDs and
-   bodies locally before cleanup. Carry forward every still-current untouched row, video group, caveat
+   bodies locally before cleanup. Carry forward every still-current untouched point block, video, caveat
    and gap; replace re-captured points and drop only points that left the diff. Migrate older layouts
-   into the single table without losing current evidence.
+   into point blocks without losing current evidence.
 2. **Create or resume this refresh.** Start the body with `<!-- sk:screenshot-changes -->`, followed by
    `<!-- evidence-refresh:<id> -->`; save that unique refresh ID and final body locally before posting.
-   Start each row with `<!-- point:<slug> -->`; bracket fallback video groups with
-   `<!-- point-video:<slug> -->` and `<!-- /point-video:<slug> -->`. Before every create or retry, list
+   Start each point block with `<!-- point:<slug> -->` and end it with `<!-- /point:<slug> -->`. Before every create or retry, list
    comments again for this author's refresh ID. Resume its replacement when found, including after a
    timeout or interrupted attachment upload; create only when absent. A later refresh gets a new ID.
    Use `--body-file` or `-F body=@<file>`; patch only this refresh's replacement while finishing uploads
@@ -215,7 +209,7 @@ Apply `rules/connectors.md` before an auth question or an unsupported-capability
    `--attach` when supported. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
    the CLI replaces that reference with the uploaded URL. A reference within a sentence renders
    as a link. Follow [GitHub's attachment instructions](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video),
-   then apply the table/player layout above and verify the final rendered result. Let the attachment
+   then apply the point-block layout above and verify the final rendered result. Let the attachment
    command create this refresh's replacement, or target its recorded ID to finish it. Reconcile that
    ID before retrying so uploads do not create duplicate replacements.
 2. **Else use GitHub's browser attachment control** in the authenticated test browser. Upload the
@@ -250,7 +244,7 @@ an inline player; do not publish one as a substitute for a verified GitHub video
 `gh api -H "Accept: application/vnd.github.full+json" "repos/$REPO/issues/comments/<id>"` into a
 mode-0600 evidence file and inspect `body_html` locally. Report counts and playback outcomes only;
 private media URLs can carry short-lived credentials, so never print the HTML or signed URLs.
-Confirm one screenshot table, correct point/platform/before-after mapping, and a rendered
+Confirm one block per point, correct point/platform mapping, and a rendered
 video player for every published clip; an anchor alone fails. Open the posted comment in the
 authorized test browser. When that browser lacks access but the authenticated connector/API can read
 the saved comment and its media, render its exact returned `body_html` unchanged in an isolated browser

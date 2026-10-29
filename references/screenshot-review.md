@@ -1,11 +1,12 @@
-# Advanced screenshot review
+# Screenshot review and PR evidence
 
 DO produce one private, offline review for the declared scope, using the existing installed capture
 stack. Read `references/browser-debugging.md`, `references/testing-strategy.md`, and
 `references/user-journey-review.md`; apply `references/ios-simulator.md` only for explicitly requested
 native capture. Follow those owners for connectors, auth, source fidelity, ports and device lifecycle.
 DON'T install a second framework, alter app DOM to add captions, or replace independent tests with images.
-TEST: each capture identifies its source and real UI state, and captions exist only in the report.
+TEST: each capture identifies its source and real UI state, and captions exist only in the report or
+in the § PR evidence template bands.
 
 ## Discover the complete matrix
 
@@ -52,10 +53,9 @@ outputs, baselines or skips. TEST: captured is separate from pass; a missing ima
 
 DO capture every changed surface and journey BEFORE (the base branch or `origin/main`) and AFTER (the
 change), screenshots and video both, with the same seeded state, data and viewport. A new surface shows
-`n/a: new, no before` in its before cell, never a missing cell. Post a PR with one table row per point,
-BEFORE left of AFTER in the same row; use the playable-video fallback in `/sk:ship-screenshot-changes`
-when GitHub cannot render players inside table cells. TEST: an evidence post with an after but no
-before and no `new, no before` note broke the rule.
+`n/a: new, no before` in its before slot, never a missing slot. Compose and post each pair through
+§ PR evidence template. TEST: an evidence post with an after but no before and no `new, no before`
+note broke the rule.
 
 DO capture authentic base/head evidence with matching data, viewport and
 conditions. Use separate cases with variant `before` and `after`, recording revisions in conditions.
@@ -117,6 +117,45 @@ Use keyframes and record the missing video capability when the installed tool ca
 install a second recorder. Keep traces as optional investigation evidence,
 never call a trace an executable replay. TEST: native opt-in and ownership remain intact, and no recording
 process survives hand-back.
+
+## PR evidence template
+
+DO build every before/after image and video posted to a PR with `bin/pr-evidence.py`, the one template
+every run reuses, so evidence looks the same on every PR:
+
+```sh
+python3 ~/.claude/bin/pr-evidence.py shots --before B.png --after A.png --pr <n> \
+  --before-caption "<what happens on the base>" --after-caption "<the result on this PR>" \
+  [--context "<shared action>"] [--before-callout x0,y0,x1,y1] [--after-callout x0,y0,x1,y1] \
+  --out .context/pr-evidence/<point>-<platform>.png
+python3 ~/.claude/bin/pr-evidence.py video --before B.mp4 --after A.mp4 --pr <n> \
+  --before-caption "<what happens>" --after-caption "<the result>" --out .context/pr-evidence/<journey>.mp4
+```
+
+DEFAULT: capture clean, unannotated frames; the engine adds everything else. A red BEFORE band titled
+`BEFORE  <base>` (default `main`) and a green AFTER band titled `AFTER  #<n>` sit STACKED ABOVE their
+frame, each with a one-line caption: what happens on the base, then the result on this PR. Callouts
+are outline-only rounded rectangles around the change, red on before and green on after, given in
+source pixels (`getBoundingClientRect()` x device pixel ratio).
+DON'T overlay a caption on the UI, inject a DOM banner or ring `<div>`, or hand-roll a PIL/ffmpeg
+compose: an overlaid label hides the interface it explains (the fix for a side-by-side clip whose
+labels covered the app header).
+NUMBER: portrait frames side by side, 780 px each, 40 px gap, 150 px bands; landscape frames stacked,
+1280 px wide, 30 px gap, 130 px bands; title 44 px, caption 30 px, at most 60 characters. Video: each
+side plays 10-15 s (speed factor = duration / target, default 12 s, never slowed), holds its final
+state 4-5 s (default 4.5), the shorter side holds its last frame so both end together; H.264,
+yuv420p, `+faststart`.
+
+DO post one block per point in the PR comment: `### <point>`, one line naming what the left (or top)
+and right (or bottom) frames show, then per captured platform a `**Desktop**` / `**Mobile**` / `**iOS**`
+label over its composed image (`<img src="<url>" width="800" alt="<point> <platform> before and after">`),
+then the composed video alone in its own paragraph. A new surface posts its AFTER frame under
+`Before: n/a: new, no before`; a platform without evidence shows `not run: <reason>` or
+`blocked: <reason>`. Post with `gh pr comment <n> --body-file body.md --attach <png> --attach <mp4>`
+and verify through `/sk:ship-screenshot-changes`'s VERIFY checks: each image URL returns 200 `image/png` with
+nonzero size and each video is served as `video/mp4`, then the browser playback checks still decide.
+TEST: every posted pair shows both bands above its frames and no caption over the UI, every changed
+journey has one composed video, and `python3 ~/.claude/bin/pr-evidence.test.py` passes.
 
 ## Build the review
 
@@ -205,7 +244,8 @@ TEST: the report works offline and exposes findings, unreviewed captures and all
 
 DO hand back the local report link plus a compact Point · Verdict/gap · Next action table, one row per point with each column's status in it. State counts
 for capture statuses and review statuses separately, disclose sampled coverage and missing video, and
-name any reviewer decision. Publication requires explicit authorization for destination and content.
+name any reviewer decision. The offline report stays local unless Simon authorizes its destination;
+the PR evidence comment follows § PR evidence template.
 TEST: Simon can review the intended UI journey from the report without driving the app himself.
 
 ## Hand-off check: every state of the artifact you hand over

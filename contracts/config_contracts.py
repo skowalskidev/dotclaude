@@ -247,7 +247,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/screenshot-review.md": {
         "mission": "Simon sees every required UI state and responsive layout with honest evidence and actionable gaps.",
-        "purpose": "Advanced scenario inventory, capture and report procedure.",
+        "purpose": "Scenario inventory, capture, report and PR evidence template procedure.",
         "criteria": [
             "Inventory source branches and real UI states across the declared scope; require empty and full states at every selected supported layout and disclose secondary sampling.",
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
@@ -257,20 +257,22 @@ CONTRACTS: dict[str, dict] = {
             "Reject a clip under 8 seconds or under 3 distinct states (ffmpeg 1 fps scene count above 0.15); re-record it with the surrounding steps.",
             "Run playback checks in a browser that decodes the clip (branded Chrome for H.264, or VP9/WebM) after a known-good control clip passes; record channel and version; zero played is a verifier defect.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
+            "Compose every posted before/after image and video with bin/pr-evidence.py: bands above the UI, outline-only callouts, one block per point; verify image/png and video/mp4 serving, then browser playback decides.",
             "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
             "Hand-off check: run bin/visual-check.py on the exact artifact Simon opens, one row per viewport x state (cap 24, default state first); blank means ink below 0.05%, clipped means cut by an ancestor; view one PNG per distinct view type; loop fix then full re-run until exit 0.",
             "A screen built from a supplied design source adds the workflow-loops measurement report and difference images to the hand-off; the pass table alone never proves a design match.",
             "Add at most two caveat sentences beside clips showing injected errors or test-only end states. Verify environment and network evidence before claiming not production or no live actions; retain unknown failures and avoid production bug-free claims.",
         ],
     },
-    "skills/sk/skills/ship-screenshot-changes-advanced/SKILL.md": {
-        "mission": "Simon gets a comprehensive screenshot review with visible conditions and next actions from one invocation.",
-        "purpose": "Thin advanced screenshot review entrypoint.",
+    "bin/pr-evidence.py": {
+        "mission": "Every PR shows its before and after the same way, captions above the UI and callouts around the change, so a reviewer reads the delta at a glance.",
+        "purpose": "Shared PR evidence template engine: composes before/after screenshot pairs and side-by-side before/after videos.",
         "criteria": [
-            "Route advanced conditional-state and responsive screenshot requests to references/screenshot-review.md while preserving the existing quick screenshot skill.",
-            "Return the local report and separate capture/review counts without implicitly posting to a PR or replacing independent QA.",
-            "Present one case per scenario x viewport x variant within its point heading/table block, with platform media side by side in fixed columns and no Point column.",
-            "Record one verified walkthrough video per changed journey and capture every changed surface and journey before and after by default, per the reference; never treat either as optional.",
+            "Stack the red BEFORE band (base) and green AFTER band (#PR) above each frame with vstack or paste; never overlay a caption on the UI.",
+            "Lay portrait frames side by side at 780 px with a 40 px gap and 150 px bands; stack landscape frames at 1280 px with a 30 px gap and 130 px bands.",
+            "Draw callouts as outline-only rounded rectangles (radius 28, 8 px) from source-pixel boxes; render all text with Pillow, never drawtext.",
+            "Video: speed each side to the 10-15 s target, never slower than recorded, hold the final state 4-5 s, end both sides together; H.264 yuv420p with faststart.",
+            "Exit non-zero with an install hint when Pillow or ffmpeg is missing or an input is absent; bin/pr-evidence.test.py passes in the contract suite.",
         ],
     },
     "bin/design-board.py": {
@@ -1191,18 +1193,21 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/ship-screenshot-changes/SKILL.md": {
-        "mission": "Simon can picture the new UI in the state a user sees it — for docs or a PR — in one fast pass, without waiting for a bug-hunt loop.",
-        "purpose": "Screenshot the changed frontend surfaces in a real browser with realistic inputs, hand them back, and post them to the PR by default whenever one is open.",
+        "mission": "Simon sees every changed surface and journey before and after, across states and sizes, in a review and a PR comment that look the same on every PR.",
+        "purpose": "The one screenshot skill: advanced scenario matrix, before/after capture, journey videos, offline report and the default PR post through the shared evidence template.",
         "criteria": [
-            "Screenshots each CHANGED surface (from git diff), seeded into the state a user would see "
-            "it, with realistic example inputs, saved inside a workspace root — no bug-hunt, no edge "
-            "fuzzing, no fix-loop.",
+            "Screenshots each CHANGED surface and journey (from git diff) across the reference's case "
+            "matrix: empty and full states, conditional scenarios and responsive sizes, seeded with "
+            "realistic inputs, saved inside a workspace root; no bug-hunt or fix-loop.",
+            "Triggers on the former advanced phrases (advanced screenshot review, all conditional "
+            "screenshot scenarios, screenshot coverage matrix); hands back the offline report with "
+            "conditions above each screenshot and an actionable TLDR table.",
             "Has a JOURNEY mode: captures a user FLOW as an ordered numbered sequence (step-<n> shots), "
             "the steps derived from the user journey (/sk:ship-report + references/user-journey-review.md), "
             "and posts them in step order — coexisting with the changed-surfaces mode, not replacing it.",
-            "Circles each change with a rounded-rectangle callout and, for a visual change, captures a "
-            "BEFORE/AFTER pair (old value vs new) — stated generically for any UI, not overfit to one "
-            "framework or token.",
+            "Circles each change with a template callout from the element's box and captures a "
+            "BEFORE/AFTER pair for every changed surface, composed by bin/pr-evidence.py; never "
+            "injects DOM captions or ring overlays.",
             "Posts screenshots to the PR by DEFAULT whenever a PR is open (never opt-in, never only a "
             "body text reference) and GitHub-native — gh --attach or the user-attachments CDN upload, "
             "git-only detached-ref for images only, never an external host; fails loud and verifies the "
@@ -1211,9 +1216,9 @@ CONTRACTS: dict[str, dict] = {
             "Record a unique refresh ID before publication; reconcile saved comments before every create or retry and resume an existing replacement. Patch only that refresh's replacement while completing uploads; never use an unrelated or obsolete comment as upload scratch.",
             "Verify replacement rendering and playback before deleting obsolete workflow-owned evidence, including clearly owned unmarked legacy comments, under existing authorization. Preserve other authors, unrelated discussion, uncertain ownership and concurrent edits; failed verification deletes nothing.",
             "Update workflow-owned evidence links and re-list all comments after cleanup: exactly one current evidence comment remains, intended obsolete IDs are absent and unrelated comments survive. Interrupted cleanup resumes from the verified replacement.",
-            "Post ONE table with one row per point: a point-label first cell, then BEFORE left of AFTER per platform or size in the same row (Desktop before | Desktop after | Mobile before | Mobile after | iOS pairs), 200px-wide mobile/iOS images and a status in every gap cell; never stack befores and afters apart.",
-            "Capture verified before/after walkthrough videos per changed journey by default, per references/screenshot-review.md. State the reference's skip or `new, no before` when applicable; keep screenshots in before/after rows and apply the playable-video fallback when needed.",
-            "Publish videos as verified inline players, never ordinary links or thumbnails; retain screenshot rows and use labeled point/platform/before-after player paragraphs in the same comment when table cells suppress playback. Preserve untouched video groups during updates.",
+            "Post one block per point per the reference's PR evidence template: the composed before/after image per platform and the composed video; a new surface carries `new, no before` and a gap shows its status and reason.",
+            "Record each changed journey on the base and the change, compose them side by side with bin/pr-evidence.py and post that clip; state the reference's skip when applicable.",
+            "Publish videos as verified inline players alone in their own paragraph, never ordinary links or thumbnails. Preserve untouched point blocks and videos during updates.",
             "Verify rendered players and browser playback for every published clip: duration, advancing time, expected first and last states, no navigation or media errors. Record failed uploads or playback as blocked evidence; a reachable file never passes.",
             "Allow labeled API-rendered comment verification using unchanged returned body_html and the same authorized remote media, with identical browser checks; keep full-page UI unverified and reject reconstructed players, local-media substitution or exposed signed URLs.",
             "Carry the shared recording caveat beside each applicable clip in local hand-backs and PR comments, including fallback players, while keeping attachment URLs in their own paragraphs.",

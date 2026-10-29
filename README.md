@@ -9,7 +9,7 @@ Made by Simon. Fork it and make it yours.
 ## Make it yours (quickstart)
 
 1. Clone it to `~/.claude`: `git clone https://github.com/skowalskidev/dotclaude.git ~/.claude` (or clone elsewhere and point Claude Code at it).
-2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq).
+2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq, ffmpeg, pillow).
 3. Run `bash dotfiles/bootstrap.sh`. It wires the safe parts (Claude + Codex skill links, dotfile symlinks, hook bits, the secret-scan gate), scaffolds `identity.local.json` from the template, then prints a checklist of anything left to do and **fails loud until it is all done**. Re-run it until it says `Ready`.
 4. Edit `identity.local.json` with your own accounts: the git-origin substring that marks a WORK repo, your work and personal emails, and your work and personal cloud projects. Untracked, so it is never pushed; it drives the work/personal guard and the boundary context injected each session.
 5. Set up connectors per project with `/sk:setup-connectors` (or copy `connectors/example.json.example` to `connectors/<project>.json`). Schema and steps in `references/connectors-setup.md`.
@@ -97,13 +97,14 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `.githooks/commit-msg` | Conventional-commit gate — rejects a non-conforming subject line. The written standard lives in `references/git-pr-deploy.md`; this makes it bite in this repo |
 | `dotfiles/sync-config.sh` | On-demand commit + push of config changes (used by `/sk:claude-config-sync`) |
 | `dotfiles/cloud-setup.sh` | Cloud counterpart to `bootstrap.sh` — clones this repo and non-destructively symlinks it into `~/.claude` on a fresh cloud box (Claude Code on the web, a container). Paste its contents into the environment's setup-script field; comment out the hook-layer lines for a skills-only install |
-| `dotfiles/Brewfile` | Reproducible CLI deps (gitleaks, jq) — `brew bundle` |
+| `dotfiles/Brewfile` | Reproducible CLI deps (gitleaks, jq, ffmpeg, pillow) — `brew bundle` |
 | `skills/sk/skills/claude-config-sync/` | The `/sk:claude-config-sync` skill — safe commit + push of this repo |
 | `skills/sk/skills/setup-connectors/` | The `/sk:setup-connectors` skill — guided connector setup + doctor + migration audit (no arg does all three) |
 | `skills/sk/skills/claude-config-self-development-research/` | The `/sk:claude-config-self-development-research` skill — quarterly research pass over the config, the skills, the packs and the CLI deps against primary sources; proposes, never applies |
 | `bin/superspeed-dispatch.sh` | Engine for `/sk:work-superspeed`: launches provider-matched workers with exclusive file ownership, checks each effective Claude child's verification against user/project/local permissions before launch, verifies artifacts on disk, and records timing and status. Static preflight refuses unsupported commands; it never grants permissions. |
 | `bin/superspeed-dispatch.test.sh` | Regression test for the dispatcher, with `claude` stubbed so it spends nothing. Asserts the one failure no other signal catches: that the run EXITS once its slices do. A bare `wait` also waits on the concurrency sampler it kills afterwards, which deadlocks a run whose slices all succeeded. Also asserts the sampler stops, the per-slice completion lines and parallel summary are printed, and each slice writes its own status so a killed run still holds the truth |
-| `bin/screenshot-report.py` (+ `bin/screenshot-report.test.py`) | Offline screenshot report renderer for `/sk:ship-screenshot-changes-advanced`; schema and procedure in `references/screenshot-review.md`. Uses Python standard library; no new dependency or credential |
+| `bin/screenshot-report.py` (+ `bin/screenshot-report.test.py`) | Offline screenshot report renderer for `/sk:ship-screenshot-changes`; schema and procedure in `references/screenshot-review.md`. Uses Python standard library; no new dependency or credential |
+| `bin/pr-evidence.py` (+ `bin/pr-evidence.test.py`) | The one PR evidence template: `shots` composes a before/after screenshot pair, `video` a side-by-side before/after MP4, both with red BEFORE / green AFTER caption bands stacked above the UI and outline-only callouts; phone frames side by side, desktop frames stacked. Text drawn with Pillow, so ffmpeg needs no drawtext. Method in `references/screenshot-review.md` § PR evidence template. Needs Pillow + ffmpeg (Brewfile) |
 | `bin/design-diff.py` (+ `bin/design-diff.test.py`) | Any-engine pixel diff of a design image against a built capture: changed %, the largest changed regions in CSS px, `--mask` for recorded exceptions, and a design \| built \| changed PNG panel. Method in `references/workflow-loops.md` § Build from a supplied design source. Python standard library; PNG input |
 | `bin/visual-check.py` (+ `bin/visual-check.test.py`) | Hand-off check for any visual artifact: opens the exact file or URL headless (Node Playwright), screenshots every `--state` x `--viewport`, fails on a blank page or region, a region cut by an ancestor, missing text, page error or failed request, prints the pass table; `--wait-for CSS` waits for data rendered after load, `--route GLOB=FILE` serves a local page an API fixture. Method in `references/screenshot-review.md` § Hand-off check. Python standard library; Node Playwright resolved as in `bin/mockup-shots.py` |
 | `bin/design-board.py` + `bin/design-board.html` (+ `bin/design-board.test.py`) | The board adapter composes the shared presentation frame: phone frames in titled sections on a pan/zoom canvas, picks badged, hidden frames kept in the spec, `window.__measure()` and `window.__flatten()` hooks for the capture loop, every image and the font stored once in the `#spec` island and filled into the frames at runtime; `build`, `extract`, `example`, `check` (runs `bin/visual-check.py`). `references/workflow-loops.md` § Shareable design board owns the method |
@@ -282,7 +283,7 @@ Native adapter details and verified upstream references live in `references/agen
 3. **Make the hooks executable** (git preserves the bit, but ensure it): `chmod +x ~/.claude/hooks/*.py ~/.claude/hooks/*.sh ~/.claude/.githooks/*` — the `.githooks` ones too, or a non-executable `commit-msg` silently no-ops while reading as enforcement.
 4. **Install tooling + enable the secret-scan gate** (see [§ Staying in sync](#staying-in-sync-no-daemon)):
    ```bash
-   brew bundle --file ~/.claude/dotfiles/Brewfile     # gitleaks, jq
+   brew bundle --file ~/.claude/dotfiles/Brewfile     # gitleaks, jq, ffmpeg, pillow
    git -C ~/.claude config core.hooksPath .githooks    # secret gate + conventional-commit gate
    ```
    The SessionStart sync-reminder hook is already wired in `settings.json` (no separate install). There is
@@ -449,9 +450,10 @@ When your Claude config changes (this `CLAUDE.md`, a hook, an `sk` skill, `setti
 commit it here: `git -C ~/.claude add -A && git -C ~/.claude commit -m "..."`. Never commit a secret — the
 allowlist `.gitignore` + belt guard it; scan staged content before pushing.
 
-### Advanced screenshot reviews
+### Screenshot reviews and PR evidence
 
-Invoke `/sk:ship-screenshot-changes-advanced` for conditional states and responsive evidence.
-The existing skill bootstrap discovers the new folder; restart the agent session after syncing.
-No additional setup or secret is required. Generated reports and source captures stay in the project’s
-private `.context/` directory. The config contract suite includes the renderer’s offline tests.
+Invoke `/sk:ship-screenshot-changes` for changed surfaces, conditional states, responsive evidence and
+before/after PR evidence. `bin/pr-evidence.py` composes every posted pair and side-by-side video from one
+template; it needs Pillow and ffmpeg (`brew bundle --file dotfiles/Brewfile`). No secret is required.
+Generated reports and source captures stay in the project's private `.context/` directory. The config
+contract suite runs the renderer's and the template engine's offline tests.
