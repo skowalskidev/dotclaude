@@ -396,7 +396,7 @@ background daemon** (deliberately, to avoid idle CPU):
   state by definition (ports are a property of this machine, not of the config), so the repo carries
   the path and the protocol while the contents stay out. Already excluded by the allowlist, since a
   new top-level file is ignored unless it is opted in.
-- **`~/.claude/state/local-capacity/`** — the three heavy-work leases (`lease.json`, `priority-lease.json`, `lease-3.json`), simulator claims and dev-stack leases (`stacks.json`). Machine-local runtime state, excluded by the allowlist; an interrupted or orphaned owner remains visible until its resources are inspected and explicitly released. Optional untracked `bridge.json` lists absolute legacy BSD lock paths for a mixed deployment.
+- **`~/.claude/state/local-capacity/`** — the three heavy-work leases (`lease.json`, `priority-lease.json`, `lease-3.json`), simulator claims and dev-stack leases (`stacks.json`). Machine-local runtime state, excluded by the allowlist; an interrupted or orphaned owner remains visible until its resources are inspected and explicitly released, unless the lease is provably dead (owner gone, command group empty, no simulator), which admission, `status` and `watchdog` release automatically. Optional untracked `bridge.json` lists absolute legacy BSD lock paths for a mixed deployment.
 - **`~/.claude/.session-root/`** — one line per session id: the root its plan and ledger live in. Machine-local, pruned after 14 days.
 - **`~/.claude/logs/isolate-runs.jsonl`** — one line per `bin/port-slot.sh` run, so the next run in a
   worktree is better aimed than the last. Machine-local, self-trimming to 200 lines, and excluded by the
