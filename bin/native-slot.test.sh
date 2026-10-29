@@ -55,6 +55,10 @@ check 'reclaim-sim drops the claim of an ended owner' 0 "$?"
 check 'reclaimed claim is gone' no "$("$NS" list | grep -q "simulator claim: $SIM" && echo yes || echo no)"
 printf '{}\n' > "$LOCAL_CAPACITY_HOST_JSON"
 
+OUT="$(CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 90 --for 'long wait' -- true 2>&1)"
+check 'a wait above the cap fails before admission' 1 "$?"
+check 'the wait error names the cap in minutes' yes "$(printf '%s' "$OUT" | grep -q -- '--wait-min must be 0..60 minutes (got 90)' && echo yes || echo no)"
+
 mkdir -p "$NATIVE_SLOT_DIR/slot.d"
 CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'blocked build' -- true >/dev/null 2>&1
 check 'legacy slot blocks admission without reaping' 75 "$?"
@@ -71,11 +75,12 @@ import json, sys
 with open(sys.argv[1], 'w') as stream:
     json.dump({'lockPaths': [sys.argv[2]]}, stream)
 PY
-lockf -k "$LEGACY_LOCK" sleep 2 &
+lockf -k "$LEGACY_LOCK" sleep 6 &  # longer than the engine's 3-second legacy-lock grace
 LOCKER=$!
 sleep 0.2
-CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'bridge blocked' -- true >/dev/null 2>&1
+OUT="$(CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'bridge blocked' -- true 2>&1)"
 check 'old lockf holder blocks new gate' 75 "$?"
+check 'the refusal names the live lock holder' yes "$(printf '%s' "$OUT" | grep -q 'held for over 3s by pid' && echo yes || echo no)"
 wait "$LOCKER"
 CLAUDE_NATIVE_SESSION=alpha "$NS" run --wait-min 0 --for 'bridge released' -- true >/dev/null
 check 'new gate runs after old lockf exits' 0 "$?"

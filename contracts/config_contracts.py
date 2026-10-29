@@ -46,8 +46,10 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
             "Defer ordinary admission below 20% CPU idle, above 1.5 load per core while idle is below 35%, or at memory warning; cpu reports the reading. Use compressor share above 40% only when the OS pressure signal is unavailable.",
-            "Admit one supervised priority command under CPU contention or OS memory warning for at most five minutes within the three-slot cap, without a simulator. Critical, unknown or fallback-warning memory refuses.",
-            "Check allowance memory and priority every ten seconds; stop only the owned group on critical or unknown memory, expiry or replacement. Reject separate stages; preserve lease cleanup and all simulator, stack and ownership boundaries.",
+            "Admit one supervised priority command, a simulator run and its stages included, under CPU contention or OS memory warning for its own --max-min within the three-slot cap; a non-priority owner still defers. Critical, unknown or fallback-warning memory refuses.",
+            "Check allowance memory and priority every ten seconds; stop only the owned group on critical or unknown memory, expiry or replacement. Preserve lease cleanup and all simulator, stack and ownership boundaries.",
+            "Sample the host before taking a legacy bridge lock, poll a held lock for at most 3 seconds, then refuse naming each live holder's PID and command name, never its arguments.",
+            "Every deferral names the real blocker and next action. A --wait-min above 60 exits 1 naming the cap in minutes; a --max-min expiry names that limit.",
             "Prove priority checkout ownership at admission, then bind that proof to one supervisor and its exact cwd device/inode. Heartbeats verify that identity and the live grant without repeating ownership subprocesses; allow same-scope renewal and reject changed, expired or unknown scope.",
             "Verify an unreaped child PID, parent, start and private PGID before every teardown signal. Keep the leader unreaped until descendants stop; accept EPERM only for a proven zombie-only group. Retain evidence on unknown/live signal refusal and never repeat a failed teardown.",
             "Keep one token-bound contention allowance machine-wide until its verified lease releases; replacement priority cannot admit another.",

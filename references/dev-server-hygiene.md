@@ -250,7 +250,8 @@ every other session and the session's own sub-agents for hours (the fix for a pr
 `status` shows its owner on a heavy slot; a `watchdog:` line "booted simulator without a lease" never
 names this session's owner.
 DO let foreground `run` retry admission automatically every 10 seconds for up to 5 minutes
-(`--wait-min`, 0 for immediate refusal, maximum 60). It launches the command once after admission;
+(`--wait-min`, 0 for immediate refusal, maximum 60 (`MAX_WAIT_MIN`); a larger value exits 1 naming the cap
+before admission). For a longer wait, rerun the same command at the next task boundary. It launches the command once after admission;
 it never retries a started command. On exit 75, record the holder and next task-boundary retry in the
 living plan, keep independent work moving, and resume without asking Simon to say continue. Ordinary admission (`acquire`, `run`, `claim-sim`,
 `stack-acquire`) defers while current CPU idle is below 20% (`MIN_IDLE_PERCENT`, the second
@@ -262,8 +263,8 @@ compressor holds more than 40% of RAM (`MAX_COMPRESSED_SHARE`). DON'T gate on a 
 figure: macOS compresses opportunistically, so 8 GiB compressed on a 24 GB machine reads level 1 and
 starved agents for hours. DON'T gate on load alone: macOS counts threads blocked in uninterruptible I/O,
 Spotlight and mobileassetd bursts and zombies, so load read 118 to 208 on 8 cores at 51 to 66% idle and
-refused every heavy step, the prioritized one included, for hours. Use the bounded session-priority allowance below for a prioritized foreground command; simulator
-and stack starts retain these thresholds. WHY: load is
+refused every heavy step, the prioritized one included, for hours. Use the session-priority allowance below for a prioritized foreground command, a
+simulator run included; stack starts retain these thresholds. WHY: load is
 a lagging one-minute average that reads low while the CPU is pegged and high long after, so idle is the
 saturation measure and load only adds a signal while idle confirms it. TEST: load 200 at 57% idle with
 normal memory prints `GO`; load 200 at 10% idle prints `DEFER`. Simulator admission additionally defers when any device is Booted, Booting or
@@ -321,11 +322,19 @@ with the primary already admitted, two secondaries can run beside it (the fix fo
 by an exclusive reservation). `status` prints `priority: <owner> until <time>`.
 
 DO let a prioritized session progress through CPU/load contention or OS memory warning with one
-supervised non-simulator `run`, capped at 5 minutes, within the three-slot ceiling, beside existing leases. A token-bound receipt permits only one
+supervised `run`, a `--simulator` run and its `stage` groups included, for its own `--max-min`, within the
+three-slot ceiling, beside existing leases. A token-bound receipt permits only one
 contention allowance machine-wide, even if the priority session changes.
 The runner applies this allowance automatically, checks memory and priority every 10 seconds, and
-ends its own command on critical pressure, unknown memory, expiry or priority replacement. A failed
-host probe, compressed-share fallback warning, full slots or unleased simulator still defers.
+ends its own command on critical pressure, unknown memory, expiry or priority replacement; renew the
+priority with the same `prioritize` command while Simon's instruction stands. A failed
+host probe, critical memory, compressed-share fallback warning, full slots, the one-simulator cap or an
+unleased simulator still defers. A non-priority owner, simulator included, still defers at warning.
+WHY: a prioritized simulator preview Simon was waiting on deferred 30 minutes at warning with all three
+slots free, and a 5-minute allowance cap killed a 120-minute `--max-min` run.
+DO read the exit-75 line: it names the real blocker and the next step (not the priority session; memory
+critical; allowance held by `holder=`; use foreground `run`). TEST: a prioritized `--simulator` run is
+admitted at warning and refused at critical; a non-priority one defers at warning.
 DO retry a transient priority-state lock collision within that heartbeat and the command deadline,
 checking memory before every attempt. TEST: a brief lock collision preserves a live payload;
 critical or unknown memory during that retry ends only its owned group.
@@ -337,11 +346,28 @@ DO verify the unreaped child's PID, parent, start and private process group befo
 Keep its leader unreaped until live descendants stop. Accept a signal permission error only when
 the group is proven zombie-only; otherwise retain its lease without retrying teardown.
 TEST: reaped or foreign children receive no signal, and a live signal refusal preserves evidence.
-Separate `stage` groups are rejected inside this allowance. Keep explicit runner worker limits.
+Keep explicit runner worker limits.
 Use serial phases and resume admission automatically; do not ask Simon to close apps for ordinary
 contention. Never kill another live owner's job, steal a lease or bypass `run`.
 TEST: warning plus 2% CPU idle admits exactly one priority command, a secondary waits, critical memory
 starts no payload, and escalation stops only the owned group and releases its verified lease.
+
+DO keep `run` for commands that finish: builds, test suites, simulator lifecycles, browser batches.
+Pass `--max-min` covering the whole command (default 60, no upper cap); the runner honours it,
+priority allowance included, and on expiry exits 124 naming the `--max-min` limit. DON'T wrap a
+long-lived dev server (`next dev`, `npm run local:web`) in `run`: it holds the session's one lease for
+hours, and that owner's next build or simulator run then exits 75 with "one owner holds at most one
+lease". Boot the server on its claimed port lane (`bin/port-slot.sh`) and its Docker stack under
+`stack-acquire`; lease its separate build and test steps. TEST: `status` shows no heavy slot held by
+a dev server while its session runs a simulator preview.
+
+DO treat a legacy bridge lock (`bridge.json` `lockPaths`) as held only by a live process. The runner
+samples the host before taking it, so a waiting supervisor holds it only for its millisecond state
+check, and polls up to 3 seconds (`LEGACY_LOCK_GRACE_SECONDS`) before refusing. flock is released
+when its last holder exits, so a lock still held is never stale: the refusal names each holder's PID
+and command name from `lsof -t`. Wait for it; never signal it. WHY: waiters holding the lock through a
+one-second CPU probe made each other's attempts read "legacy native lock is held" with no build
+running. TEST: a lock held 0.5 seconds is waited out; one held past the grace names its holder PID.
 
 DO default to yielding between commands: wrap each separate build/test phase in its own `run`, so
 admission automatically waits and resumes at that safe boundary. For an isolated CPU command that

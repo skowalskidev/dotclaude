@@ -67,7 +67,8 @@ CLEANUP_WAIT_SECONDS = 30
 CLEANUP_RETRY_SECONDS = 0.25
 RECOVERY_SAMPLES = 2
 PAUSE_MAX_SECONDS = 300
-PRIORITY_RUN_SECONDS = 300
+MAX_WAIT_MIN = 60  # longest admission wait one run may request
+LEGACY_LOCK_GRACE_SECONDS = 3  # a waiting supervisor holds a legacy lock only for its state check
 ALLOWANCE_SLOT = "priority-run.json"
 OWNER = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}\Z")
 UDID = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\Z")
@@ -1195,6 +1196,37 @@ def other_owner_holds_first_slot(root, owner):
         return bool(lease and lease["owner"] != owner)
 
 
+def flock_with_grace(fd):
+    """Take a legacy flock, polling briefly: another waiter holds it only while checking state."""
+    deadline = time.monotonic() + LEGACY_LOCK_GRACE_SECONDS
+    while True:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.1)
+
+
+def legacy_holder_text(path):
+    """Name the live processes holding a legacy lock (PID and command name only, never arguments)."""
+    holders = []
+    try:
+        result = subprocess.run(["/usr/sbin/lsof", "-t", "--", path], capture_output=True, text=True,
+                                timeout=5, check=False)
+        for pid in sorted({int(item) for item in result.stdout.split() if item.isdigit()} - {os.getpid()}):
+            name = subprocess.run(["/bin/ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True,
+                                  timeout=3, check=False).stdout.strip()
+            holders.append("pid %d (%s)" % (pid, os.path.basename(name) or "exited"))
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        pass
+    who = ", ".join(holders) if holders else "a process lsof cannot see"
+    return ("legacy native lock %s is held for over %ss by %s, outside the heavy slots; a native build or a "
+            "supervisor of an older engine is running. Waiting for it to exit; never signal it. Inspect: lsof %s"
+            % (path, LEGACY_LOCK_GRACE_SECONDS, who, path))
+
+
 @contextmanager
 def legacy_bridge(root, owner=None):
     """Hold every bridged lock; yield (fds, skipped).
@@ -1212,14 +1244,14 @@ def legacy_bridge(root, owner=None):
                 fds.append(fd)
                 if not stat.S_ISREG(os.fstat(fd).st_mode) or Path(name).is_symlink():
                     raise GateError("legacy lock is not a regular file: %s" % name)
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                flock_with_grace(fd)
             except BlockingIOError as exc:
                 if owner is not None and other_owner_holds_first_slot(root, owner):
                     fds.remove(fd)
                     os.close(fd)
                     skipped = True
                     continue
-                raise Busy("legacy native lock is held; defer this heavy job") from exc
+                raise Busy(legacy_holder_text(name)) from exc
             except OSError as exc:
                 raise GateError("legacy native lock cannot be checked: %s" % exc) from exc
         yield tuple(fds), skipped
@@ -1243,8 +1275,26 @@ def holder_text(lease):
     return "holder=%s pid=%s %s%s%s" % (lease["owner"], lease["pid"], condition, sim, command)
 
 
+def deferral_text(reason, allowance_reason, priority, is_priority, child_pending, allowance_holder):
+    """The real blocker plus the next action, so a waiting session knows why and what happens next."""
+    if not is_priority:
+        nxt = ("only the priority session (%s) may pass memory warning or CPU contention; this owner waits for the "
+               "host to recover" % priority_text(priority) if priority else
+               "no session is prioritised; waits for the host to recover. Only Simon's own message may name a "
+               "priority (prioritize)")
+        return "heavy work deferred: %s; %s" % (reason, nxt)
+    if allowance_reason:
+        return ("heavy work deferred: %s; the priority allowance covers memory warning and CPU contention only, so "
+                "this waits until memory leaves critical or the probe recovers" % allowance_reason)
+    if not child_pending:
+        return ("heavy work deferred: %s; the priority allowance needs a supervised foreground run; use "
+                "local-capacity.py run (or native-slot.sh run) instead of acquire" % reason)
+    return ("heavy work deferred: %s; the one machine-wide priority allowance is held by %s; this waits for it to "
+            "finish" % (reason, allowance_holder))
+
+
 def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False,
-            compute_only=False, admission=None):
+            compute_only=False, admission=None, sample=None):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if pid <= 0:
@@ -1253,8 +1303,9 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         raise GateError("simulator must be a UDID")
     if bridge_paths(root) and not allow_bridge:
         raise GateError("legacy lock bridge is active; use foreground run so its lock remains held")
-    # Sample once before locking: iostat waits one interval. Unknown probes fail closed.
-    sample = sample_host()
+    # Sample once before locking: iostat waits one interval. Unknown probes fail closed. A runner samples
+    # before taking any legacy lock, so a refused waiter never holds that lock through the probe.
+    sample = sample_host() if sample is None else sample
     _, reason = host_reading(sample=sample)
     allowance_reason = host_reading(priority_allowance=True, sample=sample)[1] if reason else None
     with locked(root):
@@ -1267,11 +1318,13 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
             owner = priority["owner"]
         states = [read_state(root, slot=name) for name in SLOTS]
         held = [lease for lease in states if lease]
-        allowance = bool(reason and is_priority and child_pending and not simulator and not allowance_token(root)
-                         and not allowance_reason)
+        allowance_held = allowance_token(root) if reason else None
+        allowance = bool(reason and is_priority and child_pending and not allowance_held and not allowance_reason)
         if reason and not allowance:
-            raise Busy("heavy work deferred: %s; one supervised priority allowance is available within the heavy-slot cap" %
-                       (allowance_reason or reason))
+            _, holder = find_lease(root, lambda item: allowance_held is not None
+                                   and secrets.compare_digest(item["token"], allowance_held))
+            raise Busy(deferral_text(reason, allowance_reason, priority, is_priority, child_pending,
+                                     holder_text(holder) if holder else "an ended run"))
         if admission is not None:
             admission.update(owner=owner, priority_allowance=allowance,
                              priority_binding=priority_binding(priority) if is_priority else None)
@@ -1510,8 +1563,6 @@ def finish_stage(root, stage):
 
 
 def stage_command(root, seconds, command):
-    if os.environ.get("LOCAL_CAPACITY_PRIORITY_ALLOWANCE") == "1":
-        raise GateError("priority allowance rejects separate stage groups; run one bounded foreground phase")
     if command and command[0] == "--":
         command = command[1:]
     if not command or seconds <= 0:
@@ -1639,7 +1690,7 @@ class CooperativeRun(OwnedGroup):
 
 
 def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, second_slot_only=False,
-                 pause_safe=False, resource="native"):
+                 pause_safe=False, resource="native", sample=None):
     if not command:
         raise GateError("run requires a foreground command after --")
     if command[0] == "--":
@@ -1648,13 +1699,13 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
         raise GateError("run requires a foreground command after --")
     admission = {}
     token = acquire(root, owner, os.getpid(), simulator, child_pending=True, allow_bridge=True,
-                    second_slot_only=second_slot_only, compute_only=resource == "compute", admission=admission)
+                    second_slot_only=second_slot_only, compute_only=resource == "compute", admission=admission,
+                    sample=sample)
     owner = admission["owner"]
     allowance = admission["priority_allowance"]
     if allowance:
-        max_seconds = min(max_seconds, PRIORITY_RUN_SECONDS)
-        print("capacity priority allowance: one command, at most %s seconds; critical memory still stops it" %
-              PRIORITY_RUN_SECONDS, file=sys.stderr)
+        print("capacity priority allowance: this command runs up to --max-min (%g seconds); it stops early on "
+              "critical or unknown memory, or when the priority ends or changes" % max_seconds, file=sys.stderr)
     metrics["token"] = token
     metrics["start"] = time.monotonic()
     metrics["wait"] = metrics["start"] - metrics["requested"]
@@ -1678,8 +1729,6 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             child_env["LOCAL_CAPACITY_RUN_ROOT"] = str(root)
             child_env["LOCAL_CAPACITY_LEGACY_FDS"] = ",".join(str(fd) for fd in legacy_fds)
             child_env["LOCAL_CAPACITY_RESOURCE"] = resource
-            if allowance:
-                child_env["LOCAL_CAPACITY_PRIORITY_ALLOWANCE"] = "1"
             if pause_safe:
                 child_env["LOCAL_CAPACITY_PAUSE_SAFE"] = "1"
             child = launch_granted(command, read_fd, legacy_fds, child_env)
@@ -1714,7 +1763,9 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 cooperative.terminate() if cooperative else terminate_group(child)
-                print("run exceeded %s seconds; lease retained for inspection; token=%s" % (max_seconds, token), file=sys.stderr)
+                print("run exceeded its --max-min limit of %g seconds and was stopped; lease retained for inspection; "
+                      "token=%s. Pass a larger --max-min for a longer command; a long-lived dev server runs outside "
+                      "run (references/dev-server-hygiene.md)" % (max_seconds, token), file=sys.stderr)
                 return TIMEOUT
             if allowance and time.monotonic() >= next_pressure_check:
                 next_pressure_check = time.monotonic() + RETRY_SECONDS
@@ -1769,7 +1820,8 @@ def check_priority_allowance(root, owner, binding):
     with locked(root):
         priority = read_priority(root)
     if not priority or priority["owner"] != owner or not bound_priority_matches(priority, binding):
-        raise Busy("priority allowance ended: priority expired/changed")
+        raise Busy("priority allowance ended: priority expired/changed; while Simon's priority stands, renew it "
+                   "with the same prioritize command before it expires")
 
 
 def cleanup_run(root, token, simulator):
@@ -1784,9 +1836,11 @@ def cleanup_run(root, token, simulator):
 
 def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=WAIT_SECONDS, pause_safe=False,
                 resource="native"):
-    if (not math.isfinite(wait_seconds) or wait_seconds < 0 or wait_seconds > 3600
-            or not math.isfinite(max_seconds) or max_seconds <= 0):
-        raise GateError("wait must be 0..3600 seconds and runtime must be positive and finite")
+    if not math.isfinite(wait_seconds) or wait_seconds < 0 or wait_seconds > MAX_WAIT_MIN * 60:
+        raise GateError("--wait-min must be 0..%d minutes (got %g); for a longer wait, rerun at the next task "
+                        "boundary" % (MAX_WAIT_MIN, wait_seconds / 60))
+    if not math.isfinite(max_seconds) or max_seconds <= 0:
+        raise GateError("--max-min must be a positive number")
     if resource not in ("native", "compute") or (resource == "compute" and simulator):
         raise GateError("compute resource cannot use a simulator")
     if pause_safe and (simulator or (resource != "compute" and bridge_paths(root))):
@@ -1796,10 +1850,11 @@ def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=
     try:
         while True:
             try:
+                sample = sample_host()  # before the legacy lock: a refused attempt holds it only briefly
                 bridge = nullcontext(((), False)) if resource == "compute" else legacy_bridge(root, owner)
                 with bridge as (legacy_fds, bridge_skipped):
                     code = _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds,
-                                        bridge_skipped, pause_safe, resource)
+                                        bridge_skipped, pause_safe, resource, sample)
                     if "token" in metrics:
                         try:
                             cleanup_run(root, metrics["token"], simulator)
@@ -1874,7 +1929,7 @@ def main(argv=None):
     run_parser.add_argument("--simulator")
     run_parser.add_argument("--max-min", type=float, default=60)
     run_parser.add_argument("--wait-min", type=float, default=WAIT_SECONDS / 60,
-                            help="retry admission every 10 seconds for up to this many minutes (default 5, max 60; 0 is immediate)")
+                            help="retry admission every 10 seconds for up to this many minutes (default 5, max %d; 0 is immediate)" % MAX_WAIT_MIN)
     run_parser.add_argument("--pause-safe", action="store_true",
                             help="assert isolated CPU job tolerates SIGSTOP, retains no shared locks/services and has no wall-clock-sensitive tests")
     run_parser.add_argument("--resource", choices=("native", "compute"), default="native",

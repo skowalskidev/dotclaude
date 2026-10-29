@@ -1132,6 +1132,52 @@ class PriorityTests(unittest.TestCase):
                 gate.run_command(self.root, owner, None, [sys.executable, "-c", "pass"], wait_seconds=0)
             self.assertIsNone(gate.read_state(self.root))
 
+    def test_a_waiter_never_holds_the_legacy_lock_while_probing_the_host(self):
+        lock_path = str(Path(self.tmp.name).resolve() / "old.lock")
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        (self.root / "bridge.json").write_text(json.dumps({"lockPaths": [lock_path]}))
+        os.close(os.open(lock_path, os.O_RDONLY | os.O_CREAT, 0o600))
+        held_during_probe = []
+
+        def probe():
+            fd = os.open(lock_path, os.O_RDONLY)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                held_during_probe.append(False)
+            except BlockingIOError:
+                held_during_probe.append(True)
+            finally:
+                os.close(fd)
+            return 90, 0, 8, 2, "sysctl"
+
+        with mock.patch.object(gate, "sample_host", side_effect=probe):
+            with self.assertRaisesRegex(gate.Busy, "no session is prioritised"):
+                gate.run_command(self.root, "other", None, ["unused"], wait_seconds=0)
+        self.assertEqual(held_during_probe, [False])
+
+    def test_a_briefly_held_legacy_lock_is_waited_out_and_a_lasting_one_names_its_holder(self):
+        lock_path = Path(self.tmp.name).resolve() / "old.lock"
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        (self.root / "bridge.json").write_text(json.dumps({"lockPaths": [str(lock_path)]}))
+        holder = subprocess.Popen([sys.executable, "-c",
+                                   "import fcntl,os,sys,time; fd=os.open(sys.argv[1],os.O_RDONLY|os.O_CREAT,0o600); "
+                                   "fcntl.flock(fd,fcntl.LOCK_EX); print('held',flush=True); time.sleep(float(sys.argv[2]))",
+                                   str(lock_path), "0.5"], stdout=subprocess.PIPE, text=True)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        self.assertEqual(gate.run_command(self.root, "other", None, [sys.executable, "-c", "pass"], wait_seconds=0), 0)
+        holder.wait(5)
+        holder.stdout.close()
+        lasting = subprocess.Popen([sys.executable, "-c",
+                                    "import fcntl,os,sys,time; fd=os.open(sys.argv[1],os.O_RDONLY|os.O_CREAT,0o600); "
+                                    "fcntl.flock(fd,fcntl.LOCK_EX); print('held',flush=True); time.sleep(30)",
+                                    str(lock_path)], stdout=subprocess.PIPE, text=True)
+        self.addCleanup(lambda: (lasting.kill(), lasting.wait(5), lasting.stdout.close()))
+        self.assertEqual(lasting.stdout.readline().strip(), "held")
+        with mock.patch.object(gate, "LEGACY_LOCK_GRACE_SECONDS", 0.2):
+            with self.assertRaisesRegex(gate.Busy, r"held for over 0.2s by pid %d \(" % lasting.pid):
+                gate.run_command(self.root, "other", None, ["unused"], wait_seconds=0)
+        self.assertIsNone(gate.read_state(self.root))
+
     def test_the_holders_own_second_run_never_passes_the_legacy_lock(self):
         self.hold_bridge()
         gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
@@ -1504,16 +1550,47 @@ class PriorityAllowanceTests(unittest.TestCase):
             self.assertEqual(self.run_payload(), 0)
             self.assertEqual(gate.read_state(self.root)["token"], holder)
             gate.release(self.root, holder)
-            for owner, sim, pending in (("primary", None, False), ("secondary", None, True),
-                                        ("primary", SIM, True)):
-                with self.assertRaises(gate.Busy):
-                    gate.acquire(self.root, owner, os.getpid(), sim, child_pending=pending)
+            for owner, pending, says in (("primary", False, "needs a supervised foreground run"),
+                                         ("secondary", True, "only the priority session")):
+                with self.assertRaisesRegex(gate.Busy, says):
+                    gate.acquire(self.root, owner, os.getpid(), None, child_pending=pending)
             first = gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
             gate.prioritize(self.root, "replacement", 30, False)
             with self.assertRaises(gate.Busy):
                 gate.acquire(self.root, "replacement", os.getpid(), None, child_pending=True)
             self.assertEqual(gate.read_state(self.root)["token"], first)
             self.assertEqual(gate.allowance_token(self.root), first)
+            gate.prioritize(self.root, "primary", 30, False)
+            with self.assertRaisesRegex(gate.Busy, "priority allowance is held by holder=primary"):
+                gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
+
+    def test_prioritized_simulator_run_with_stages_is_admitted_at_warning(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        staged = [sys.executable, str(SCRIPT), "stage", "--timeout-seconds", "5", "--", sys.executable, "-c", "pass"]
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "shutdown_owned") as shutdown:
+            self.assertEqual(gate.run_command(self.root, "primary", SIM, staged, wait_seconds=0), 0)
+        shutdown.assert_called_once_with(SIM)
+        self.assertIsNone(gate.read_state(self.root))
+        self.assertIsNone(gate.allowance_token(self.root))
+
+    def test_prioritized_simulator_run_is_refused_at_critical(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(4, "sysctl")), \
+             mock.patch.object(gate, "launch_granted") as launch:
+            with self.assertRaisesRegex(gate.Busy, "waits until memory leaves critical"):
+                gate.run_command(self.root, "primary", SIM, ["unused"], wait_seconds=0)
+            launch.assert_not_called()
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_non_priority_simulator_run_still_defers_at_warning(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "launch_granted") as launch:
+            with self.assertRaisesRegex(gate.Busy, "only the priority session"):
+                gate.run_command(self.root, "secondary", SIM, ["unused"], wait_seconds=0)
+            launch.assert_not_called()
+        self.assertIsNone(gate.read_state(self.root))
 
     def test_compute_allowance_runs_beside_native_simulator_and_releases_only_itself(self):
         PriorityTests.hold_bridge(self)
@@ -1552,12 +1629,21 @@ class PriorityAllowanceTests(unittest.TestCase):
                     self.run_payload()
                 launch.assert_not_called()
 
-    def test_allowance_caps_runtime_and_releases_owned_group(self):
+    def test_allowance_honours_max_min_and_releases_owned_group_at_it(self):
         gate.prioritize(self.root, "primary", 30, False)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
-             mock.patch.object(gate, "PRIORITY_RUN_SECONDS", 0.2):
-            self.assertEqual(self.run_payload("import time; time.sleep(30)", max_seconds=60), gate.TIMEOUT)
-        self.assertIsNone(gate.read_state(self.root))
+        for resource in ("native", "compute"):
+            err = io.StringIO()
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+                 contextlib.redirect_stderr(err):
+                self.assertEqual(self.run_payload(max_seconds=7200, resource=resource), 0)
+            self.assertIn("runs up to --max-min (7200 seconds)", err.getvalue())
+            err = io.StringIO()
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+                 contextlib.redirect_stderr(err):
+                self.assertEqual(self.run_payload("import time; time.sleep(30)", max_seconds=1, resource=resource),
+                                 gate.TIMEOUT)
+            self.assertIn("exceeded its --max-min limit of 1 seconds", err.getvalue())
+            self.assertIsNone(gate.read_state(self.root))
 
     def test_critical_escalation_stops_only_the_started_owned_command(self):
         gate.prioritize(self.root, "primary", 30, False)
@@ -1592,12 +1678,9 @@ class PriorityAllowanceTests(unittest.TestCase):
                     self.run_payload()
             self.assertIsNone(gate.read_priority(self.root))
 
-    def test_allowance_rejects_separate_stage_groups_before_launch(self):
-        with mock.patch.dict(os.environ, LOCAL_CAPACITY_PRIORITY_ALLOWANCE="1"), \
-             mock.patch.object(gate, "launch_granted") as launch:
-            with self.assertRaisesRegex(gate.GateError, "separate stage groups"):
-                gate.stage_command(self.root, 10, ["unused"])
-            launch.assert_not_called()
+    def test_wait_limit_error_names_minutes(self):
+        with self.assertRaisesRegex(gate.GateError, r"--wait-min must be 0..60 minutes \(got 90\)"):
+            gate.run_command(self.root, "primary", None, ["unused"], wait_seconds=90 * 60)
 
     def test_explicit_migration_preserves_priority_owner_and_expiry(self):
         gate.secure_root(self.root)
