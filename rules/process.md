@@ -46,8 +46,8 @@ package's code and issues, check version compatibility) over piling on workaroun
 one-line fix beats three layers of hacks. No tool access? Say so and ask me to paste the docs/issue.
 
 ### Agent-written shell fails fast and loud
-DO open multi-step shell with `set -euo pipefail`, abort on an empty loop input, and end every
-background wait non-zero on timeout; read its first output within 2 minutes. Detail:
+DO chain dependent tool-shell steps with `&&` or `bash -c` (bare `set -e` is inert), abort on
+empty loop input, end waits non-zero on timeout; read first output in 2 min. Detail:
 `references/code-best-practices.md` § Agent-written shell. TEST: no `;` after `cd`, no silenced release.
 
 ### Fix the CLASS of failure, not the one instance I reported

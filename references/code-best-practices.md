@@ -19,8 +19,14 @@ Reference catalog for engineering-quality standards: code quality (DRY/SRP, reus
 `rules/process.md` § Agent-written shell points here. Applies to every script, compound command, trap
 and background loop an agent writes.
 
-**DO open every multi-step script with `set -euo pipefail`; in a one-line compound command, chain each
-dependent step with `&&`.** Use `git -C <dir>` instead of `cd <dir>` for git.
+**DO, in a multi-step command run through the agent's shell tool, chain every dependent step with `&&`,
+or run the whole script inside `bash -c '<script>'` or a script file.** Open a script file or a
+`bash -c` body with `set -euo pipefail`. Use `git -C <dir>` instead of `cd <dir>` for git.
+**DON'T rely on `set -e` typed at the top of a tool command.** The harness evaluates the command inside
+an `&&` list, where the shell disables errexit, so the next step runs after a failure (the fix for a
+config sync where a rejected commit and a failed staged-list check ran on unnoticed).
+TEST: a multi-step tool command with no `&&` chain and no `bash -c` or script-file wrapper relies on
+`set -e` and broke the rule. Quick check: `set -euo pipefail; false; echo x` prints `x` in the tool.
 **DON'T put `;` after a `cd` or after any step a later step depends on.** When the `cd` fails, the steps
 after `;` run in whatever directory the shell was already in (the fix for a `git merge --ff-only` that
 ran in another checkout and moved its local main after `cd <missing-dir> && …; git merge …`).

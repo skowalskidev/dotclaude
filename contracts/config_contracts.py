@@ -602,7 +602,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns the single-source-of-truth guidance the other catalogs point at.",
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
-            "Owns agent-written shell discipline: set -euo pipefail or && chains, never ; after cd, no silenced lookup, cleanup or release without an inline reason, loop inputs checked non-empty, background waits bounded and read early.",
+            "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
         ],
     },
     "references/connectors-setup.md": {
