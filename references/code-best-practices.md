@@ -54,6 +54,12 @@ minutes on usage errors from an empty run id.) The CI wait script lives in `refe
 TEST: every background wait states its condition and timeout, and its first output was read within 2
 minutes of launch.
 
+**DO stop a watcher, poll, monitor or scheduled wake the moment its target finishes or its owner hands
+back,** and stop each one you started before your own hand-back. A delegated worker stops its own
+before returning. DON'T leave a timer that wakes an agent whose work is done: every wake is a full model
+turn (the fix for stale watcher timers that kept waking finished PR agents and burned quota).
+TEST: at hand-back, no background task or wake you started outlives the job it watched.
+
 **DO read a poll's state from a field when the command's exit code encodes a status.** Under `set -o
 pipefail`, `gh pr checks` (8 while checks are pending), `grep -q` (1 on no match) and `diff` (1 when files
 differ) turn "still running" into "done" inside a loop or `if` condition. Poll a JSON field instead, e.g.

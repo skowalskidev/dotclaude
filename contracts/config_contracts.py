@@ -603,6 +603,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "DRY/SRP, reuse before building, observability, UX standards, scope discipline.",
         "criteria": [
             "Owns the single-source-of-truth guidance the other catalogs point at.",
+            "Stop every watcher, poll, monitor or scheduled wake when its target finishes or its owner hands back; none wakes a finished agent.",
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
             "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
         ],
