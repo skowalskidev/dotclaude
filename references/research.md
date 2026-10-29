@@ -23,8 +23,27 @@ never have to ask for it separately; asking is the signal it was already skipped
    primary source, and if that fails, the claim does not exist.
 
 Date-stamp anything version-sensitive and cite the adoption signal, per the bar in
-`rules/engineering-standards.md`. `rules/process.md` owns two rules this pass leans on and does not
-restate: research before the second retry, and third-party claims from primary sources only.
+`rules/engineering-standards.md`. `rules/process.md` owns the rule this pass leans on and does not
+restate: research before the second retry.
+
+## Claims about third parties
+
+`rules/process.md` points here. Whenever I'm making a factual claim about someone else's product (a
+comparison table, pricing, "they don't support X"), the claim has to be defensible:
+Whenever I'm making a factual claim about someone else's product (a comparison table, pricing,
+"they don't support X"), the claim has to be defensible:
+- **Primary sources only.** The vendor's own pages. The blogs that dominate these search results are
+  affiliate content recycling each other and are not citable.
+- **Check ALL of their surfaces before asserting a negative** — pricing page, docs, help centre, FAQ
+  (the fix for a "they publish no rate" claim that was in their help centre).
+- **Date-stamp it and reconcile the arithmetic** against the vendor's own stated figures.
+- **A claim that flatters us is the dangerous one.** A stale "competitor costs $50–$110" that was
+  really $39 is the error a competitor notices. Check those hardest.
+- **Never hyperlink a competitor** from our own comparison. Cite as plain text; if a link is genuinely
+  needed, it carries `rel="nofollow"`.
+- If the honest number loses, say so or drop the row. Pages that concede where a competitor wins
+  convert better, and an unbeatable-looking table is the one readers go and disprove.
+
 
 ## Who benefits if you act on this?
 
