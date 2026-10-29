@@ -1,7 +1,7 @@
 ---
 name: claude-config-self-optimize-analysis-after-run
-description: Analyze every task at hand-back without a reminder, including gauntlet and ordinary sessions. Publish a bounded local report and apply evidence-backed config repairs under the standing self-healing authorization. Use for "why was that slow", "analyse the run", "optimise this", "what did we waste", "self optimise", "CPU contention", or "collect session reports". Supports superspeed logs and asynchronous reports from multiple sessions. Delegated participants report to the active session, which owns its authorized repairs.
-argument-hint: "[run directory | current session] [incident batch | aggregate reports]"
+description: Analyze every task at hand-back without a reminder, including gauntlet and ordinary sessions. Publish a bounded local report and apply evidence-backed config repairs under the standing self-healing authorization. Use for "why was that slow", "analyse the run", "optimise this", "what did we waste", "self optimise", "CPU contention", "collect session reports", or "analyse all sessions". Supports superspeed logs and asynchronous reports from multiple sessions. Delegated participants report to the active session, which owns its authorized repairs.
+argument-hint: "[run directory | current session | all sessions] [incident batch]"
 ---
 
 # Audit and repair the current run
@@ -151,10 +151,18 @@ Then route config findings through `/sk:claude-config-update` under `rules/self-
 Apply and sync in-scope fixes before hand-back; report a concrete blocker instead of offering another
 manual skill invocation. No-finding runs need no edit.
 
+## All sessions
+
+When the argument or ask is "all sessions", run `references/session-performance.md` § Analyse every
+session at once: `aggregate`, read the digest, rank by mechanism across sessions (a class in two or
+more sessions outranks any single-run finding), repair, `reviewed-manifest`, then message each live
+session a landed repair affects. The same bar and five-suggestion cap apply to the whole batch.
+
 ## Cadence
 
 Run automatically after each task batch, including serial and gauntlet work; preserve the queued
-item through tangents and handoff. Publish a no-finding or missing-evidence report when that is the
+item through tangents and handoff. The ledger Stop hook adds one note per ask when a substantive
+batch has published nothing. Publish a no-finding or missing-evidence report when that is the
 result. Do not block the task on peers or acknowledgement. No cron, watcher, diagnostic fan-out or
 expensive rerun; follow the shared lifecycle above.
 

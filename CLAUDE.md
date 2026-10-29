@@ -22,7 +22,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `screenshot-review.md` — screenshot evidence and report schema, the PR evidence template (`bin/pr-evidence.py`), plus the hand-off check (pass table over every state) for any visual artifact.
   - `ios-simulator.md` — simulator preflight, staged execution, local-backend safety, Claude opening the GUI and driving/capturing with XCUITest, preview evidence, bounded hand-back and recovery.
   - `workflow-loops.md` — continuous request reconciliation, modular execution, independent judgement, the shared plan/mockup dashboard, the shareable design board for mockup variants, and building a screen 1:1 from a supplied design source.
-  - `session-performance.md` — after-task reports, bounded measurements and asynchronous coordinator review.
+  - `session-performance.md` — after-task reports (Stop-hook backed), bounded measurements, the all-sessions aggregate pass and asynchronous coordinator review.
   - `agent-hosts.md` — native host wiring, subscription-only Codex billing and update timing.
   - `project-instructions.md` — per-project instruction boundary and the required policy check before loading repo guidance.
   - `config-writing-standard.md` — how every line of this config is written: DO-led, banned hedge words, the DEFAULT/NUMBER/TEST rule, the mission format. Enforced by `hooks/config-contract.test.py`.

@@ -79,6 +79,10 @@ CRITERIA: list[tuple[str, str]] = [
     ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
     ("session-performance-and-capacity",
      "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
+    ("after-run-report-owed-once-per-ask",
+     "After a substantive ask with no report published from its workspace, Stop nudges the after-run "
+     "analysis once per ask without blocking; a published report, running delegated work or a small "
+     "turn stays silent."),
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("codex-subscription-only-inference",
@@ -403,6 +407,68 @@ def check_secrets_retired_guard_leaves_no_dangling_claim() -> None:
                     continue
                 check(RETIRED_CONTEXT.search(line) is not None,
                       f"{sub}/{p.name}:{i} still describes a retired guard as live: {line.strip()[:90]}")
+
+
+def check_after_run_report_owed_once_per_ask() -> None:
+    with tempfile.TemporaryDirectory(prefix="after-run-test-") as tmp:
+        base = Path(tmp).resolve()  # the report store refuses a symlinked ancestor such as /var
+        home, repo = base / "home", base / "repo"
+        home.mkdir()
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+        (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+        env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
+               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo)}
+        hook = ROOT / "hooks" / "intent-ledger.sh"
+        transcript = base / "t.jsonl"
+
+        def work(calls):
+            stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 5))
+            line = json.dumps({"type": "assistant", "timestamp": stamp,
+                               "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
+            transcript.write_text("\n".join([line] * calls) + "\n")
+
+        def invoke(mode, prompt=None, background=None):
+            payload = {"cwd": str(repo), "session_id": "after-run-contract", "stop_hook_active": False,
+                       "transcript_path": str(transcript), "background_tasks": background or []}
+            if prompt is not None:
+                payload["prompt"] = prompt
+            result = subprocess.run(["bash", str(hook), mode], input=json.dumps(payload),
+                                    text=True, capture_output=True, cwd=repo, env=env)
+            check(result.returncode == 0, "Ledger hook failed: " + result.stderr)
+            return result.stdout
+
+        def reconcile():
+            scratch = base / "note.md"
+            scratch.write_text("Done and verified.")
+            subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], text=True,
+                           capture_output=True, cwd=repo, env=env, check=True)
+
+        invoke("submit", "Build the importer and verify it.")
+        reconcile()
+        work(3)
+        check(invoke("stop") == "", "A small turn was nudged to run the after-run analysis.")
+        work(20)
+        busy = [{"type": "subagent", "status": "running"}]
+        check(invoke("stop", background=busy) == "", "Running delegated work was treated as a finished batch.")
+        out = invoke("stop")
+        check('"additionalContext"' in out and "after-run report" in out and '"block"' not in out,
+              "A substantive batch with no published report got no non-blocking after-run nudge.")
+        check(invoke("stop") == "", "The after-run nudge repeated for the same ask.")
+
+        time.sleep(1.1)
+        invoke("submit", "Now add the exporter.")
+        reconcile()
+        tool = ROOT / "bin" / "session-performance.py"
+        reg = json.loads(subprocess.run([sys.executable, str(tool), "register", "--workspace", str(repo),
+                                         "--branch", "main", "--task", "exporter"], env=env, text=True,
+                                        capture_output=True, check=True).stdout)
+        report = base / "report.md"
+        report.write_text("No finding.\n")
+        subprocess.run([sys.executable, str(tool), "publish", "--id", reg["id"], "--file", str(report)],
+                       env=env, capture_output=True, check=True)
+        work(20)
+        check(invoke("stop") == "", "A report published after the ask did not satisfy the after-run check.")
 
 
 def check_intent_ledger_retains_and_rechecks_new_asks() -> None:

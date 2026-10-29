@@ -336,11 +336,41 @@ stop)
     !fence && /^## [0-9][0-9][0-9][0-9]-.* · reconcile$/ { pending=0 }
     END { print pending+0 }
   ' "$LEDGER")"
-  [ "$pending" = 1 ] || exit 0
+  # After-run check: is a report owed for this workspace since the newest ask? The helper decides from
+  # published reports, the transcript's tool calls since that ask and running delegated work; nothing
+  # the model sets. One nudge per ask, recorded before speaking, so it cannot repeat.
+  afterrun=""
+  ask_ts="$(awk '
+    { line=$0; sub(/^ */, "", line)
+      if (line ~ /^(```|~~~)/) { mark=substr(line,1,1); match(line, "^" mark "+"); width=RLENGTH
+        tail=substr(line,width+1)
+        if (!fence) { fence=width; delimiter=mark; next }
+        if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }
+    !fence && /^## [0-9][0-9][0-9][0-9]-[^ ]*Z · ask · session / { ts=$2 }
+    END { print ts }' "$LEDGER")"
+  if [ -n "$ask_ts" ] && [ "$(cat "$STATE/$SID.afterrun" 2>/dev/null)" != "$ask_ts" ]; then
+    verdict="$(/usr/bin/python3 "$CFG_ROOT/bin/session-performance.py" due --workspace "$root" \
+      --since "$ask_ts" --transcript "$(jf '.transcript_path')" \
+      --background "$(printf '%s' "$INPUT" | jq -c '.background_tasks // []' 2>/dev/null)" 2>/dev/null)"
+    if [ "$(printf '%s' "$verdict" | jq -r '.due' 2>/dev/null)" = "true" ]; then
+      printf '%s\n' "$ask_ts" > "$STATE/$SID.afterrun" 2>/dev/null
+      afterrun="No after-run report has been published from this workspace since the newest ask \
+($ask_ts). Run /sk:claude-config-self-optimize-analysis-after-run on this batch's own evidence and \
+publish it with bin/session-performance.py; a short no-finding or evidence-gap report counts. \
+This fires once per ask."
+    fi
+  fi
+  if [ "$pending" != 1 ]; then
+    [ -n "$afterrun" ] || exit 0
+    jq -cn --arg c "$afterrun" '{hookSpecificOutput:{hookEventName:"Stop",additionalContext:$c}}'
+    exit 0
+  fi
   snapshot="$(cksum < "$LEDGER")"
   [ "$(cat "$STATE/$SID.stopblock" 2>/dev/null)" = "$snapshot" ] && exit 0
   printf '%s\n' "$snapshot" > "$STATE/$SID.stopblock" 2>/dev/null || exit 0
-  jq -cn --arg r "This worktree has recorded input newer than its last reconciliation. Before \
+  jq -cn --arg r "${afterrun:+$afterrun
+
+}This worktree has recorded input newer than its last reconciliation. Before \
 finishing: re-read $LEDGER and the living gauntlet plan, account for every request and remaining \
 item, continue ready authorized work, and append the current outcomes with
   ~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>

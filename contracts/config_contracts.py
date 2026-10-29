@@ -92,6 +92,8 @@ CONTRACTS: dict[str, dict] = {
             "Ignore unfinished drafts, retain missing participant counts and identify unseen report content by hash across restarts.",
             "Reject a review receipt for a hash different from the inspected report; malformed participants cannot hide healthy reports.",
             "Bound observation commands and output, record unavailable metrics explicitly, and never start models, benchmarks, simulators or background watchers.",
+            "due answers read-only whether a report from the workspace is owed since an ask, from published reports, transcript tool calls since the ask and running delegated work.",
+            "aggregate claims the batch exclusively for six hours and writes one URL-redacted digest and manifest of unreviewed reports; reviewed-manifest receipts only unchanged hashes and releases the claim.",
         ],
     },
     "references/session-performance.md": {
@@ -102,6 +104,7 @@ CONTRACTS: dict[str, dict] = {
             "Participants publish without waiting for peers; delegated participants return evidence, and the active session owns authorized repairs without draining the shared cloud backlog.",
             "Keep late and missing reports pending until reviewed or the user changes the roster; a file write never claims to wake a dormant chat.",
             "Separate observed data, unknowns and inference; clean up only resources with established ownership.",
+            "Own the all-sessions pass: one aggregate digest, mechanism-level ranking across sessions, receipts for what was read, and one message to each live session a landed repair affects.",
         ],
     },
     "bin/agent_runtime.py": {
@@ -1464,6 +1467,7 @@ CONTRACTS: dict[str, dict] = {
             "of ONE and its own evidence bar pulls every fix toward the incident that produced it.",
             "Optimises the LOGS as well as the run: a question the logs cannot answer is a missing "
             "field, and a missing field looks exactly like a clean run so it never fixes itself.",
+            "An all-sessions argument runs the aggregate pass and ranks findings by mechanism across sessions.",
         ],
     },
     "bin/superspeed-dispatch.sh": {
@@ -2023,6 +2027,7 @@ CONTRACTS: dict[str, dict] = {
             "Combine simultaneous submit notices into one valid hook JSON document for native host parsing.",
             "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
+            "At Stop, add one non-blocking after-run note per ask when session-performance.py due reports a substantive batch with no report published from the workspace; a model-set marker never decides it.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "
             "stop.",

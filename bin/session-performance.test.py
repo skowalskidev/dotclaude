@@ -162,6 +162,57 @@ class ReportStoreTest(unittest.TestCase):
                                  "--batch", self.batch, "status"], capture_output=True, text=True)
         self.assertNotEqual(result.returncode, 0)
 
+    def transcript(self, calls, when="2026-10-29T12:00:00Z"):
+        path = self.root / ("transcript-%d-%s.jsonl" % (calls, when[:13]))
+        line = json.dumps({"type": "assistant", "timestamp": when,
+                           "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
+        path.write_text("\n".join([line] * calls) + "\n")
+        return str(path)
+
+    def test_due_until_this_workspace_publishes_after_the_ask(self):
+        ask = "2026-10-29T11:00:00Z"
+        busy = self.transcript(20)
+        owed = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask, "--transcript", busy)
+        self.assertTrue(owed["due"], owed)
+        small = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask,
+                             "--transcript", self.transcript(3))
+        self.assertFalse(small["due"])
+        early = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask,
+                             "--transcript", self.transcript(20, "2026-10-29T10:00:00Z"))
+        self.assertFalse(early["due"])
+        workers = json.dumps([{"type": "subagent", "status": "running"}])
+        paused = self.run_cli("due", "--workspace", "/tmp/workspace", "--since", ask,
+                              "--transcript", busy, "--background", workers)
+        self.assertFalse(paused["due"])
+        self.assertEqual(paused["reason"], "delegated work still running")
+        session_id = self.register()["id"]
+        report = self.root / "r.md"
+        report.write_text("## Recommendations\n1. thing\n")
+        self.run_cli("publish", "--id", session_id, "--file", str(report))
+        self.assertFalse(self.run_cli("due", "--workspace", "/tmp/workspace/nested/..", "--since", ask,
+                                      "--transcript", busy)["due"])
+        self.assertTrue(self.run_cli("due", "--workspace", "/tmp/elsewhere", "--since", ask,
+                                     "--transcript", busy)["due"])
+
+    def test_aggregate_digests_unreviewed_reports_once_and_claims_the_batch(self):
+        first, second = self.register()["id"], self.register()["id"]
+        body = self.root / "body.md"
+        body.write_text("# Run\nintro\n## Recommendations\n1. Split the slice https://example.test/x\n")
+        self.run_cli("publish", "--id", first, "--file", str(body))
+        self.run_cli("publish", "--id", second, "--file", str(body))
+        result = self.run_cli("aggregate")
+        self.assertEqual((result["reports"], result["sessions"]), (2, 2))
+        digest = Path(result["digest"]).read_text()
+        self.assertIn("1. Split the slice <url>", digest)
+        self.assertNotIn("example.test", digest)
+        self.assertIn("another session", self.run_cli("aggregate", ok=False)["error"])
+        self.run_cli("publish", "--id", first, "--file", str(body), "--addendum")
+        marked = self.run_cli("reviewed-manifest", "--manifest", result["manifest"])
+        self.assertEqual(marked, {"reviewed": 2, "changedSinceDigest": []})
+        again = self.run_cli("aggregate")
+        self.assertEqual(again["reports"], 1)
+        self.run_cli("aggregate", ok=False)
+
 
 if __name__ == "__main__":
     unittest.main()

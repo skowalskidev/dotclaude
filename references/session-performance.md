@@ -7,6 +7,12 @@ repeated status questions; reopen it when new execution produces new evidence. A
 not recursively trigger another analysis. TEST: every task hand-back links a report or names its
 unavailable evidence, without making the user request the analysis.
 
+The harness backs this up. `hooks/intent-ledger.sh stop` asks `session-performance.py due` whether a
+report has been published from this workspace since the newest ask. When the batch made at least 15
+tool calls, no delegated worker is still running and nothing was published, it adds one non-blocking
+Stop note per ask (Claude Code's `additionalContext`, loop-guarded by `stop_hook_active`). DO answer it
+with the analysis or a short no-finding report. DON'T publish a placeholder to silence it.
+
 ## Register and record
 
 DO use `bin/session-performance.py` for local report storage. The default batch is `sessions` under
@@ -52,6 +58,25 @@ unavailable, record the exact gap locally and retain a retry item;
 do not hide the original deliverable behind an analysis dependency. Never run the shared cloud
 backlog from each participant. TEST: two participants can finish in either order without overwrites,
 repeated global work, or waiting for coordinator acknowledgement.
+
+## Analyse every session at once
+
+DO run the all-sessions pass when Simon asks for it ("for all sessions", "every session") or when
+`status` shows reports piling up unreviewed. One command claims the batch for six hours, so two
+sessions never aggregate the same reports, and writes a digest of every unreviewed report's findings:
+
+```sh
+python3 ~/.claude/bin/session-performance.py aggregate          # prints digest + manifest paths
+python3 ~/.claude/bin/session-performance.py reviewed-manifest --manifest <manifest.json>
+```
+
+Read the digest, open a full report only where a finding needs its evidence, and group findings by
+mechanism: a class seen in two or more sessions is a config defect, one session is a sample. Repair
+under `rules/self-healing-config.md`, then record receipts with `reviewed-manifest`; it marks only
+reports whose hash is unchanged and releases the claim. Then tell each live session a landed repair
+affects, per `references/parallelization.md` § Talk to other live sessions.
+TEST: one aggregate run leaves zero unreviewed reports from its manifest, and a report added or
+changed after the digest stays unreviewed.
 
 ## Reconcile asynchronous reports
 
