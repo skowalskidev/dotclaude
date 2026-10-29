@@ -445,6 +445,14 @@ match; a step whose expected request is missing halts the run.
 - **DO run diff-scoped static audits (complexity, dead code, duplication) at the final gate before
   whole suites or builds.** Fix audit findings with the affected audit alone; carry its passing evidence
   into the gate. TEST: a passing audit is not rerun unless its inputs changed.
+- **DO run the project's own cheap static gates exactly as its CI invokes them, before every push to a
+  branch whose CI gates the merge.** Read the CI workflow for the command and scope: its type-check
+  task, lint and duplicate/dead-code steps, over the same paths. DON'T substitute a hand-picked subset
+  such as entry files only; it passes while CI fails, and each CI round trip costs 20+ minutes. This is
+  the convergence gate before a push, not a per-edit run. TEST: each pushed head has a local pass of
+  every static step CI runs, with CI's own command (the fix for two failed CI runs in one session: a
+  duplicate-code step never run locally, and a type error in a test file missed by checking entry files
+  while CI checked every file under the functions tree).
 - **DO add a second-device row to the journey matrix of any account feature:** sign in as the same
   account in a second browser profile or device with empty storage and repeat the feature's core action.
   DON'T read a fact the server owns (plan, quota, entitlement, a saved choice) from device storage.
@@ -468,6 +476,14 @@ match; a step whose expected request is missing halts the run.
   local data, where a warm local cache answers in milliseconds. TEST: each changed budget has a
   production-measured figure next to it (the fix for a 2 second budget on three parallel cache reads
   that took about 3 seconds in production, so a feature passed every local check and was missing live).
+- **DO judge a nondeterministic system (an LLM agent, a ranker, any sampled output) against its baseline
+  with at least 3 runs per side and a per-case paired diff.** Compare each case's checks and outcomes
+  across the runs on both sides; a case that drops in most runs on one side is a regression even when
+  the aggregate pass count matches. DON'T report "no regression" from one run's totals; report the
+  per-case direction and the run count. TEST: every no-regression verdict on sampled output names the
+  runs per side and lists the cases that moved (the fix for an agent prompt change declared clean on
+  67/89 vs 68/89 totals, while one long conversation passed 47/66 vs 53/66 and asked 7 needless
+  questions vs 1 over six runs).
 - **DO tie a coverage verdict to its source revision, collection directory and complete test invocation.**
   Use partial reruns to diagnose failures; they do not replace full-run coverage. TEST: the reported
   percentage traces to complete collection for the same revision being judged.

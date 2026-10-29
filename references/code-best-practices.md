@@ -65,9 +65,12 @@ even inside double quotes, and rewrites the value with no error. This hits git r
 `${c:r}efs/...` and git rejected with `src refspec <sha>efs/... does not match any`).
 TEST: no `$name:` without braces in the command.
 
-**DON'T keep a command in a variable (`L="lockf -k …"; $L xcodebuild`).** zsh does not word-split it, so
-the line exits 127 and the chain after it never runs. Write the command out, or use a function.
-TEST: no `$VAR` in command position.
+**DON'T keep a command or a word list in a scalar variable.** zsh does not word-split an unquoted `$var`:
+`L="lockf -k …"; $L xcodebuild` exits 127, `sed -i … $files` receives the whole list as one path, and
+`for p in $ids` runs once. Write the command out or use a function; hold a list in an array, expand
+it with `${=var}`, or pipe a NUL-separated producer into `xargs -0`.
+TEST: no `$VAR` in command position, and no scalar holding several words is expanded as arguments or
+a loop list.
 
 ### Naming — the reader must not have to open the implementation
 
