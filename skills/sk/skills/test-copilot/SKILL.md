@@ -21,7 +21,8 @@ correlation, and the fix.
 **Don't duplicate the neighbours:**
 - `/sk:test-eyeball` — Claude drives the browser itself. No human needed.
 - `/sk:ship-review` Step 6 — Claude *reasons* over a flow and reports gaps. No live session.
-- **This skill** — Simon drives the UI, Claude watches the server. Human judgement is the point.
+- **This skill** — Simon types the inputs the change adds and judges; Claude drives everything else
+  and watches the server. Human judgement is the point.
 
 Read, don't restate: `~/.claude/references/user-journey-review.md` (what to look for at each step
 while he drives: dead ends, the three states, the wait, when a lock needs a reason),
@@ -178,12 +179,21 @@ server, possibly production. Before any payment step, read the checkout session 
 continue only on a test-mode id.
 TEST: no step with a side effect runs until his first request is in the log.
 
+**DO drive every step yourself except typing an input the change ADDS (1.5), on web and native
+alike.** List those new inputs from the diff before step 1. When the list is empty (a server, prompt
+or copy change that adds no field, button or control), drive the whole walk yourself, watch the logs,
+judge and fix, then hand back the results matrix; send Simon no step to perform.
+**DON'T hand him a step to type into an existing control** (a chat box, a search field, a sign-in
+form). (the fix for a walk that sent "Step 1 of 8 · Do: type the search" for a change that added no
+input, which he refused: "i wanted you to test it not me")
+TEST: every step message that asks Simon to act names an input the diff added.
+
 **DO run a web walk in a browser you control, by default.** Attach the chrome-devtools MCP to the
 project's test browser (Chrome for Testing), reusing one already running on the project's profile
 (launch and attach per `browser-debugging.md` § The test browser). Keep to ONE walk surface per `browser-debugging.md` § The test browser: 1 walk tab
 (an isolated context only for a fresh-visitor or second-account need), the previous step's tab closed
 before a new one opens, every step naming the tab by title and host, a phone viewport that fits the window.
-Load the start URL there yourself. Simon drives in that tab.
+Load the start URL there yourself. Simon types only the new inputs, in that tab.
 **DON'T close or navigate a tab you did not open.** Another session may own it.
 **DO capture every web step yourself.** When he says done or "next", `take_screenshot` that tab with a
 `filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step

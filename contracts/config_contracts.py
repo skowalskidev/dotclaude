@@ -935,6 +935,8 @@ CONTRACTS: dict[str, dict] = {
             "signal the hand-off); does not restate it.",
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
+            "Claude drives every other step, web and native; when the change adds no input it runs the "
+            "whole walk itself and sends Simon no step to perform, only the results.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
             "Proves the human is on the watched server (his first request in the log, the host to expect "
             "named) and halts when a step's expected request is absent; gates payment on a test-mode "
