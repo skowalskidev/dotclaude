@@ -45,6 +45,14 @@ Change priority when instructed; cancel or replace work only on an explicit inst
 the old ID, source decision and replacement ID. A changed requirement reopens its affected checks.
 Do not erase older requests because the newest message is more detailed or changes the topic.
 
+DO restate, in one line, the recorded decision a reply would reverse and what Simon will see change,
+before acting on any reply that reverses a recorded decision, removes a user-visible feature or deletes
+more than 1,000 lines of a feature Simon asked for. Act only on a reply that names or answers that line.
+DON'T bind a short affirmation ("yes", "yes exactly", "ok") to such a reversal while 2 or more proposals
+or questions are open; it binds to none of them. Ordinary choices still proceed on the recommended option.
+TEST: every reversal in the ledger traces to a reply answering its restated user-visible consequence
+(the fix for a "yes exactly" read as agreement to delete an approved onboarding look, restored hours later).
+
 DO recheck the complete queue after each item, new message, verification pass, restart, compaction
 and handoff. Read the source messages as well as the plan to detect an ask never copied into it.
 Continue ready authorized work until none remains; a green test for one item closes only that item.
