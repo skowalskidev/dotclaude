@@ -196,7 +196,8 @@ TEST: the hand-back names the install, the browser download, the applied-migrati
 
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 
-Outside the own-config exception above, **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
+Outside the own-config exception (`/sk:claude-config-sync` lands a head verified by
+`bin/config-land-check.py` with no confirmation), **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
 specific irreversible merge. `hooks/git-commit-guard.py` hard-blocks `gh pr merge` and default-branch
 pushes; clear it with `CLAUDE_ALLOW_PR_MERGE=1` (or `CLAUDE_ALLOW_MAIN_COMMIT=1` for a push) only once

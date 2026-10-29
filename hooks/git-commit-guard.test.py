@@ -65,10 +65,26 @@ def repo(root: Path, name: str, branch: str) -> Path:
     return d
 
 
+def clean_env() -> dict:
+    return {k: v for k, v in __import__("os").environ.items()
+            if k not in ("CLAUDE_ALLOW_MAIN_COMMIT", "CLAUDE_ALLOW_PR_MERGE", "CLAUDE_ALLOW_COMMIT_M")}
+
+
+def git_out(cwd: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(cwd), *args], check=True, capture_output=True,
+                          text=True).stdout.strip()
+
+
+def run_cases(group: str, cases: list, home: Path, failures: list) -> None:
+    for label, cwd, command, denied in cases:
+        reason = run(cwd, command, home)
+        if bool(reason) != denied:
+            failures.append(f"{group}: {label}: got {reason[:160]!r}")
+
+
 def run(cwd: Path, command: str, home=None) -> str:
     payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
-    env = {k: v for k, v in __import__("os").environ.items()
-           if k not in ("CLAUDE_ALLOW_MAIN_COMMIT", "CLAUDE_ALLOW_PR_MERGE", "CLAUDE_ALLOW_COMMIT_M")}
+    env = clean_env()
     if home is not None:
         env["HOME"] = str(home)
     p = subprocess.run([sys.executable, str(GUARD)], input=json.dumps(payload), text=True,
@@ -97,29 +113,115 @@ def main() -> int:
         home = Path(tmp) / "home"
         home.mkdir()
         config = repo(home, ".claude", "main")
+        origin = Path(tmp) / "origin.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True, capture_output=True)
+        for args in (["remote", "add", "origin", str(origin)], ["push", "-q", "origin", "main"],
+                     ["fetch", "-q", "origin"]):
+            subprocess.run(["git", "-C", str(config), *args], check=True, capture_output=True)
         worktree = Path(tmp) / "config-worktree"
         subprocess.run(["git", "-C", str(config), "worktree", "add", "-q",
                         "-b", "config-update/repair", str(worktree)], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(worktree), "-c", "user.email=t@t", "-c", "user.name=t", "commit",
+                        "-q", "--allow-empty", "-F", "/dev/null", "--allow-empty-message"],
+                       check=True, capture_output=True)
+        head = git_out(worktree, "rev-parse", "HEAD")
+        marker = Path(git_out(config, "rev-parse", "--path-format=absolute", "--git-common-dir")) \
+            / "claude-config-land.json"
+
+        def verify(*shas):
+            # What bin/config-land-check.py writes after the suite, scan and reviewed diff pass.
+            marker.write_text(json.dumps({"verified": [{"sha": sha} for sha in shas]}))
+
+        # The pre-change behaviour, kept: commits in the config repo pass; foreign repos are guarded.
+        verify()
         cases = [
-            ("canonical config push", config, f"{PUSH} origin HEAD:main", False),
-            ("config worktree push", worktree, f"{PUSH} origin HEAD:main", False),
+            ("config commit on main", config, f"{COMMIT} -F msg.txt", False),
+            ("config worktree commit", worktree, f"{COMMIT} -F msg.txt", False),
+            ("UNVERIFIED config worktree head to main", worktree, f"{PUSH} origin HEAD:main", True),
+            ("UNVERIFIED canonical config push", config, f"{PUSH} origin main", True),
+            ("config feature-branch push", worktree, f"{PUSH} -u origin config-update/repair", False),
             ("unrelated main push", dirs["main"], f"{PUSH} origin main", True),
             ("unrelated feature push to main", dirs["feature"], f"{PUSH} origin HEAD:main", True),
             ("config command targeting other repo", worktree, f"git -C {dirs['main']} push origin main", True),
             ("foreign bare push uses target branch", worktree, f"git -C {dirs['main']} push", True),
             ("foreign commit uses target branch", worktree, f"git -C {dirs['main']} commit -F msg.txt", True),
-            ("explicit config worktree target", dirs["feature"], f"git -C {worktree} push origin HEAD:main", False),
             ("config inline message still denied", worktree, f"{COMMIT} -m fix", True),
             ("config PR merge still denied", worktree, "gh pr merge 12", True),
         ]
-        for label, cwd, command, denied in cases:
-            reason = run(cwd, command, home)
-            if bool(reason) == denied:
+        run_cases("CONFIG SCOPE", cases, home, failures)
+        passes += sum(1 for _ in cases)
+
+        # The sync flow's landing: the land check recorded this exact head.
+        verify(head)
+        fm = Path(git_out(dirs["main"], "rev-parse", "--path-format=absolute", "--git-common-dir"))
+        (fm / "claude-config-land.json").write_text(json.dumps({"verified": [
+            {"sha": git_out(dirs["main"], "rev-parse", "HEAD")}]}))  # a forged record elsewhere
+        cases = [
+            ("verified worktree head to main", worktree, f"{PUSH} origin HEAD:main", False),
+            ("verified head, explicit -C target", dirs["feature"], f"git -C {worktree} push origin HEAD:main", False),
+            ("verified head, strict-mode compound", dirs["feature"],
+             f"set -euo pipefail; git -C {worktree} push origin HEAD:main", False),
+            ("verified head after cd &&", dirs["feature"], f"cd {worktree} && {PUSH} origin HEAD:main", False),
+            ("verified head with -u and a redirect", worktree, f"{PUSH} -u origin HEAD:main 2>&1", False),
+            ("verified head named by branch", config,
+             f"{PUSH} origin config-update/repair:main", False),
+            ("verified head but FORCED", worktree, f"{PUSH} origin +HEAD:main", True),
+            ("verified head but --force", worktree, f"{PUSH} --force origin HEAD:main", True),
+            ("verified head but a variable path", dirs["feature"], f"git -C $WT push origin HEAD:main", True),
+            ("verified head piped (masks a rejection)", worktree, f"{PUSH} origin HEAD:main | tail -1", True),
+            ("cd without && guard", dirs["main"], f"cd {worktree}; {PUSH} origin HEAD:main", True),
+            ("verified config push mixed with a foreign main push", worktree,
+             f"{PUSH} origin HEAD:main && git -C {dirs['main']} push origin main", True),
+            ("foreign repo with a forged land record", dirs["main"], f"{PUSH} origin main", True),
+            ("foreign repo, strict-mode compound", dirs["feature"],
+             f"set -euo pipefail; git -C {dirs['main']} push origin main", True),
+            ("override still works elsewhere", dirs["main"], f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", False),
+        ]
+        run_cases("CONFIG LANDING", cases, home, failures)
+        passes += len(cases)
+
+        # Remote main moved past the verified head: not a fast-forward, so it stops.
+        subprocess.run(["git", "-C", str(config), "-c", "user.email=t@t", "-c", "user.name=t", "commit",
+                        "-q", "--allow-empty", "--allow-empty-message", "-F", "/dev/null"],
+                       check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(config), "push", "-q", "origin", "main"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(config), "fetch", "-q", "origin"], check=True, capture_output=True)
+        cases = [("verified head that no longer fast-forwards", worktree, f"{PUSH} origin HEAD:main", True)]
+        run_cases("CONFIG LANDING", cases, home, failures)
+        passes += len(cases)
+
+        # The land check itself refuses a foreign repo, a dirty tree and an unread diff.
+        land = GUARD.parent.parent / "bin" / "config-land-check.py"
+        env = {**clean_env(), "HOME": str(home)}
+
+        def land_run(root, *extra):
+            return subprocess.run([sys.executable, str(land), "--root", str(root), *extra],
+                                  capture_output=True, text=True, env=env)
+
+        merged = subprocess.run(["git", "-C", str(worktree), "merge", "-q", "origin/main"],
+                                capture_output=True)
+        (worktree / "x.txt").write_text("change\n")
+        for args in (["add", "x.txt"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-F", "/dev/null",
+                                       "--allow-empty-message"]):
+            subprocess.run(["git", "-C", str(worktree), *args], check=True, capture_output=True)
+        checks = [
+            ("land check rejects a foreign repo", land_run(dirs["main"], "--diff"), "not a checkout"),
+            ("land check rejects an unread diff", land_run(worktree, "--reviewed", "0" * 64), "does not match"),
+        ]
+        shown = land_run(worktree, "--diff")
+        checks.append(("land check prints the diff hash", shown, ""))
+        (worktree / "x.txt").write_text("dirty\n")
+        checks.append(("land check rejects a dirty tree", land_run(worktree, "--reviewed", "0" * 64), "uncommitted"))
+        for label, result, expect in checks:
+            ok = (result.returncode == 0 and "diff-sha256:" in result.stdout) if not expect else \
+                 (result.returncode != 0 and expect in result.stderr)
+            if ok and merged.returncode == 0:
                 passes += 1
             else:
-                failures.append(f"CONFIG SCOPE: {label}: got {reason!r}")
+                failures.append(f"LAND CHECK: {label}: rc={result.returncode} {result.stderr[-160:]!r}")
     for f in failures:
         print(f)
+    passes -= len([f for f in failures if f.startswith("CONFIG ")])
     print(f"{passes} pass, {len(failures)} fail")
     return 1 if failures else 0
 

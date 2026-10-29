@@ -62,9 +62,17 @@ skill commits + pushes those changes safely.
 **A branch from a worktree:** inspect the full `origin/main..<branch>` diff, its evidence and owner.
 For a validated repair within standing scope, fetch and merge current `origin/main` into that branch,
 resolve conflicts only within the owned change and re-run affected checks on the final state. Commit
-with `-F` if needed, secret-scan, then `git push origin <branch>:main`.
+with `-F` if needed, then land it automatically, with no question to Simon and no
+`CLAUDE_ALLOW_MAIN_COMMIT` prefix:
+1. `/usr/bin/python3 ~/.claude/bin/config-land-check.py --root <literal worktree path> --diff`; read
+   the whole diff it prints.
+2. `/usr/bin/python3 ~/.claude/bin/config-land-check.py --root <path> --reviewed <diff-sha256>`. It
+   runs the contract suite and the range secret scan on that exact head and records it.
+3. `git -C <literal path> push origin HEAD:main`, as its own command. `hooks/git-commit-guard.py` lets
+   that head through; a new commit needs steps 1-2 again. Use literal paths: a `$VAR`, pipe or force
+   keeps the guard's block.
 A non-fast-forward rejection means another session landed: fetch, reconcile and validate again;
-never force-push. Verify `git rev-list --left-right --count origin/main...<branch>` returns `0 0`.
+never force-push. Ask Simon only for an excluded decision under `rules/self-healing-config.md`. Verify `git rev-list --left-right --count origin/main...<branch>` returns `0 0`.
 DO run that check as its own command and remove the worktree and branches only after it prints `0 0`.
 DON'T pipe the push through `tail`/`head` or chain cleanup behind it with `&&`: the pipe masks a rejected
 push (the fix for a non-fast-forward push whose worktree and remote branch were deleted anyway and had

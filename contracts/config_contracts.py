@@ -85,6 +85,15 @@ CONTRACTS: dict[str, dict] = {
             "Refuse run and acquire inside a leased run on the same root with exit 1 naming stage, and name stage in the same-owner deferral, so no owner waits on its own lease.",
         ],
     },
+    "bin/config-land-check.py": {
+        "mission": "A validated repair of Simon's own config lands on main with no question, and an unchecked head cannot.",
+        "purpose": "Verifies a config-repo head (contract suite, secret scan, hash-bound diff review, fast-forward) and records its sha for hooks/git-commit-guard.py.",
+        "criteria": [
+            "Refuses a checkout outside the ~/.claude repository, uncommitted tracked changes, a head that does not fast-forward the fetched remote main, and a reviewed hash that differs from the current diff.",
+            "Records the head sha in the shared Git directory only after the contract suite and dotfiles/secret-scan.sh --range both pass on that exact head; a new commit needs a new run.",
+            "hooks/git-commit-guard.test.py drives its refusals; the landing itself proves the success path.",
+        ],
+    },
     "bin/session-performance.py": {
         "mission": "Simon receives independently published session evidence without lost reports, duplicate review or another background workload.",
         "purpose": "Bounded local registration, snapshots, atomic report publication and asynchronous review receipts.",
@@ -1917,8 +1926,11 @@ CONTRACTS: dict[str, dict] = {
             "(env or inline); a general 'merge everything'/'continue' is never a yes for a specific "
             "merge, and the deny requires explicit per-PR confirmation plus a CI-green check.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
-            "hook's env OR prefixed inline on the command; exempts the ~/.claude config repo, "
-            "and its worktrees identified by shared Git storage, never an unrelated repository.",
+            "hook's env OR prefixed inline on the command. In the ~/.claude config repo and its "
+            "worktrees (identified by shared Git storage) a commit passes, and a push to main passes "
+            "with no confirmation only when every pushed head was recorded by bin/config-land-check.py "
+            "and fast-forwards the remote main; a forced, deleting, piped, variable-path, mixed or "
+            "unverified push keeps the block. Every other repository keeps the unchanged guard.",
             "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
             "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
             "Matches the plain Bash tool and parses the command; fails open on a malformed payload.",

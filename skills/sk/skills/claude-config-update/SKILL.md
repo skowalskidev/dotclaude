@@ -269,8 +269,11 @@ A learning from one task must leave the skill usable for **any** task. Generaliz
 ## Step 5 · Resolve authority and prepare the change
 
 DO record the evidence and standing authorization for an in-scope repair in the existing plan.
-Do not ask again to apply, commit, merge, push or clean up. Ask only for an excluded decision or a
-missing value/access that Simon must supply; show the concrete diff and exact blocker in that case.
+Do not ask again to apply, commit, merge, push or clean up: a validated repair lands on main
+automatically through `/sk:claude-config-sync` and `bin/config-land-check.py`, which the commit guard
+accepts with no confirmation and no `CLAUDE_ALLOW_MAIN_COMMIT` prefix. Ask only for an excluded decision
+(a new preference, a weakened safeguard, private information, another owner's files, spending, or
+credentials) or a missing value/access that Simon must supply; show the concrete diff and exact blocker.
 
 DO draft tracked changes in an isolated `config-update/<slug>` worktree off current `origin/main`:
 

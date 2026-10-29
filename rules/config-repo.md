@@ -7,6 +7,7 @@ Keep this single source of truth synced; verify both working-tree state and bran
 
 - **DO finish tracked config changes through `/sk:claude-config-sync`** under the standing authority
   in `rules/self-healing-config.md`. Do not leave a verified repair waiting for a commit question.
+  Its land check (`bin/config-land-check.py`) lets the push to main through with no confirmation.
   **Not `work/` or `skills/sk-work`** (untracked; the diff would be empty).
 - **When the STRUCTURE changes — update the companion/manifest docs in the SAME change** so they never
   go stale: a new/renamed/removed rule, hook, skill, `bin/` script, `connectors/` manifest, or tooling dep
