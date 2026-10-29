@@ -612,6 +612,7 @@ DO inspect processes with names and metadata only. Use `pgrep -l <name>` for dis
 `ps -p <pid> -o pid=,ppid=,pgid=,comm=` for a known PID. Keep arguments and environment values out
 of tool output, logs and artifacts, even for owned processes (e.g. a launcher argument can hold a key).
 **DON'T print full command lines with `pgrep -fl`, `pgrep -af`, `ps aux`, or `ps` args/command fields.**
+`hooks/secret-echo-guard.py` denies those unless the output is consumed (`| wc -l`, a file).
 When exact arguments are required for an existing ownership check, capture them inside a local
 checker and emit only the match verdict and safe metadata; never weaken that check to a name match.
 Before signalling, verify the launch receipt, start time, parent/group and cwd against this task;

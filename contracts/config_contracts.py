@@ -1936,6 +1936,9 @@ CONTRACTS: dict[str, dict] = {
             "gcloud auth print-access-token and print-identity-token, aws configure export-credentials "
             "and get of a secret key or session token, firebase login:ci, security find-generic-password "
             "-w/-g and dump-keychain -d, op read and item get --reveal, a bare env/printenv dump.",
+            "Denies printed process arguments, where a launcher key can sit: ps with default columns, -O or a "
+            "command/args field and no -c, and pgrep -f with -l or -a; ps metadata fields, ps -c, pgrep -l "
+            "and pgrep -f PIDs pass (references/dev-server-hygiene.md § Private process inspection).",
             "Allows a consumed value: redirected to a file, piped to a consumer, or captured by $(...) "
             "into an assignment or another command's argument. Help, status and list verbs pass.",
             "Judges what the shell runs, not text: awkward spacing, an absolute path, &&, ;, pipes, "

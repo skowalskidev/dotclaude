@@ -77,6 +77,16 @@ MUST_FIRE = [
     ("env piped to grep for keys under sh -c", "sh -c 'env | grep KEY'", "env"),
     ("printenv of a token variable", "printenv GITHUB_TOKEN", "printenv"),
     ("printenv of an api key variable", "printenv STRIPE_API_KEY", "printenv"),
+    # process arguments (a launcher argument can hold a key)
+    ("ps aux", "ps aux", "ps with command arguments"),
+    ("ps -ef", "ps -ef", "ps with command arguments"),
+    ("ps default columns for one pid", "ps -p 123", "ps with command arguments"),
+    ("ps command field", "ps -axo pid,command", "ps with command arguments"),
+    ("ps attached args field", "ps -oargs= -p 3", "ps with command arguments"),
+    ("ps -O adds to default columns", "ps -O rss -p 3", "ps with command arguments"),
+    ("ps aux piped to grep", "ps aux | grep node", "ps with command arguments"),
+    ("pgrep -fl", "pgrep -fl node", "pgrep -f"),
+    ("pgrep -af", "pgrep -af next", "pgrep -f"),
 ]
 
 MUST_NOT_FIRE = [
@@ -145,6 +155,13 @@ MUST_NOT_FIRE = [
     ("security -g with stderr hidden", "security find-generic-password -s svc -g 2>/dev/null"),
     ("op read to a file", "op read op://vault/item/field > /tmp/secret"),
     ("op read inside a command substitution argument", 'deploy --token "$(op read op://vault/item/field)"'),
+    # process inspection with names and metadata only
+    ("ps metadata for a known pid", "ps -p 123 -o pid=,ppid=,pgid=,comm="),
+    ("ps elapsed time", "ps -p 3 -o etime="),
+    ("ps -c names only", "ps -Ac"),
+    ("ps counted, not printed", "ps aux | wc -l"),
+    ("pgrep names", "pgrep -l node"),
+    ("pgrep -f pids only", "pgrep -f next-server"),
     # robustness: fail open
     ("empty command", ""),
     ("malformed unterminated quote", "echo 'oops stripe config"),

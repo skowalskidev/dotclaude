@@ -301,6 +301,33 @@ def _cluster_has(args, letters):
     return any(re.fullmatch(r"-[A-Za-z]+", a) and any(ch in a[1:] for ch in letters) for a in args)
 
 
+def _ps_prints_arguments(args):
+    """ps prints each process's full argument list (where a launcher key can sit) unless -c limits the
+    command column to the executable name or every -o/-O list names only argument-free fields."""
+    specs, adds, name_only, skip = [], False, False, False
+    for i, a in enumerate(args):
+        if skip:
+            skip = False
+            continue
+        m = re.fullmatch(r"-([A-Za-z]*?)([oO])(.*)", a)
+        if m:
+            name_only = name_only or "c" in m.group(1)
+            adds = adds or m.group(2) == "O"
+            if m.group(3):
+                specs.append(m.group(3))
+            else:
+                specs.append(args[i + 1] if i + 1 < len(args) else "")
+                skip = True
+        elif re.fullmatch(r"-[A-Za-z]+", a) and "c" in a[1:]:
+            name_only = True
+    if name_only:
+        return False
+    if adds or not specs:
+        return True  # default columns end in the full command line
+    fields = {f.split("=")[0].strip().lower() for spec in specs for f in re.split(r"[,\s]+", spec) if f}
+    return bool(fields & {"command", "args", "cmd"})
+
+
 def classify(words, env_bare):
     """Return (what, instead, stream, narrowing) when the command prints a credential, else None.
     stream is 'stdout' or 'stderr' (security -g); narrowing marks env dumps, where a grep/cut that
@@ -367,6 +394,16 @@ def classify(words, env_bare):
         if pos[:2] == ["item", "get"] and "--reveal" in args:
             return ("op item get --reveal", "op item get without --reveal, or op run -- your-command",
                     "stdout", False)
+    elif cmd == "pgrep":
+        if _cluster_has(args, "f") and (_cluster_has(args, "la") or "--list-full" in args):
+            return ("pgrep -f with -l/-a (full command lines)",
+                    "pgrep -l <name> for names, or pgrep -f <pattern> for PIDs only "
+                    "(references/dev-server-hygiene.md § Private process inspection)", "stdout", False)
+    elif cmd == "ps":
+        if _ps_prints_arguments(args):
+            return ("ps with command arguments",
+                    "ps -p <pid> -o pid=,ppid=,pgid=,comm=, or pgrep -l <name> "
+                    "(references/dev-server-hygiene.md § Private process inspection)", "stdout", False)
     elif cmd == "printenv":
         if not pos:
             return ("printenv", "printenv NAME >/dev/null && echo set (existence), or env | cut -d= -f1 (names)",
@@ -484,7 +521,7 @@ def main() -> int:
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": (
-                f"Blocked: `{what}` prints a credential value into the transcript. rules/security.md: "
+                f"Blocked: `{what}` can print a credential value into the transcript. rules/security.md: "
                 "never surface a secret VALUE into chat or context.\n"
                 f"Run instead: {instead}\n"
                 "Using a credential stays allowed (redirect it to a file, pipe it to the consumer, or "
