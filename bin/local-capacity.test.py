@@ -925,6 +925,148 @@ sys.exit(result.returncode)
                 runner.wait()
 
 
+class AutoReleaseTests(unittest.TestCase):
+    """A provably dead lease frees its slot on admission; anything live, simulator-bound or unknown stays."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name).resolve() / "capacity"
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)),
+                            ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90),
+                            ("live_session_cwds", ["/w/alpha"])):
+            patch = mock.patch.object(gate, name, return_value=value)
+            patch.start()
+            self.addCleanup(patch.stop)
+        gate.secure_root(self.root)
+
+    def exited_group(self):
+        child = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+        child.wait()
+        return child.pid
+
+    def live_group(self):
+        child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
+        self.addCleanup(child.wait)
+        self.addCleanup(child.kill)
+        return child.pid
+
+    def hold(self, slot, owner, pid, pid_start, pgid, simulator=None):
+        lease = {"owner": owner, "pid": pid, "pid_start": pid_start, "simulator": simulator,
+                 "token": os.urandom(32).hex(), "created": time.time(),
+                 "child": {"pid": pgid, "pgid": pgid, "pid_start": "child start"}, "stages": []}
+        gate.write_state(self.root, lease, slot)
+        return lease
+
+    def fill_other_slots(self):
+        for slot in gate.SLOTS[:2]:
+            self.hold(slot, "live-" + slot, os.getpid(), gate.pid_start(os.getpid()), self.live_group())
+
+    def telemetry(self):
+        path = self.root / "telemetry.jsonl"
+        return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
+
+    def test_dead_owner_with_exited_group_and_no_simulator_is_released_on_admission(self):
+        self.fill_other_slots()
+        dead = self.exited_group()
+        self.hold(gate.THIRD_SLOT, "pending-prod-replay", dead, "old start", dead)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            token = gate.acquire(self.root, "newcomer", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT)["token"], token)
+        self.assertIn("auto-released heavy slot 3 of 3: holder=pending-prod-replay (owner pid %d not running" % dead,
+                      stderr.getvalue())
+        event = self.telemetry()[-1]
+        self.assertEqual((event["event"], event["owner"], event["slot"], event["pgid"]),
+                         ("auto-release", "pending-prod-replay", 3, dead))
+        self.assertIn("not running", event["reason"])
+
+    def test_reused_owner_pid_with_exited_group_is_released(self):
+        self.fill_other_slots()
+        dead = self.exited_group()
+        self.hold(gate.THIRD_SLOT, "reused", os.getpid(), "old process start", dead)
+        with contextlib.redirect_stderr(io.StringIO()):
+            gate.acquire(self.root, "newcomer", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT)["owner"], "newcomer")
+        self.assertIn("reused", self.telemetry()[-1]["reason"])
+
+    def test_live_process_in_the_recorded_group_keeps_the_lease(self):
+        self.fill_other_slots()
+        dead = self.exited_group()
+        lease = self.hold(gate.THIRD_SLOT, "still-building", dead, "old start", self.live_group())
+        with self.assertRaises(gate.Busy):
+            gate.acquire(self.root, "newcomer", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
+        self.assertEqual(self.telemetry(), [])
+
+    def test_live_stage_group_keeps_the_lease(self):
+        dead = self.exited_group()
+        lease = self.hold(gate.THIRD_SLOT, "staged", dead, "old start", dead)
+        stage = self.live_group()
+        lease["stages"] = [{"pid": stage, "pgid": stage, "pid_start": "stage start"}]
+        gate.write_state(self.root, lease, gate.THIRD_SLOT)
+        self.assertEqual(gate.reap_dead_leases(self.root), [])
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
+
+    def test_simulator_lease_is_kept_for_reclaim(self):
+        dead = self.exited_group()
+        lease = self.hold(gate.THIRD_SLOT, "sim-holder", dead, "old start", dead, simulator=SIM)
+        self.assertEqual(gate.reap_dead_leases(self.root), [])
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
+
+    def test_unrecorded_or_pending_group_and_unknown_owner_are_kept(self):
+        dead = self.exited_group()
+        pending = self.hold(gate.LEASE_SLOT, "pending", dead, "old start", dead)
+        pending["child"] = {"state": "pending"}
+        gate.write_state(self.root, pending, gate.LEASE_SLOT)
+        bare = self.hold(gate.SECOND_SLOT, "acquire-only", dead, "old start", dead)
+        bare["child"] = None
+        gate.write_state(self.root, bare, gate.SECOND_SLOT)
+        unknown = self.hold(gate.THIRD_SLOT, "unknown", os.getpid(), "old start", dead)
+        with mock.patch.object(gate, "pid_start", return_value=None):
+            self.assertEqual(gate.reap_dead_leases(self.root), [])
+        self.assertEqual([gate.read_state(self.root, slot=name) for name in gate.SLOTS], [pending, bare, unknown])
+
+    def test_live_priority_session_lease_is_kept(self):
+        gate.prioritize(self.root, "vip", 30, False, workspace=None)
+        dead = self.exited_group()
+        lease = self.hold(gate.THIRD_SLOT, "vip", dead, "old start", dead)
+        with mock.patch.object(gate, "owner_session_live", return_value=True):
+            self.assertEqual(gate.reap_dead_leases(self.root), [])
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
+        with mock.patch.object(gate, "owner_session_live", return_value=False), \
+             contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(len(gate.reap_dead_leases(self.root)), 1)
+        self.assertIsNone(gate.read_state(self.root, slot=gate.THIRD_SLOT))
+
+    def test_a_lease_replaced_after_the_probe_is_not_released(self):
+        dead = self.exited_group()
+        self.hold(gate.THIRD_SLOT, "gone", dead, "old start", dead)
+        original = gate.provably_dead
+
+        def replace_then_judge(lease, priority):
+            verdict = original(lease, priority)
+            self.hold(gate.THIRD_SLOT, "replacement", dead, "old start", dead)
+            return verdict
+
+        with mock.patch.object(gate, "provably_dead", side_effect=replace_then_judge):
+            self.assertEqual(gate.reap_dead_leases(self.root), [])
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT)["owner"], "replacement")
+
+    def test_status_and_watchdog_release_and_print_the_owner_and_slot(self):
+        for action in ("status", "watchdog"):
+            dead = self.exited_group()
+            self.hold(gate.THIRD_SLOT, "ended-" + action, dead, "old start", dead)
+            stderr = io.StringIO()
+            with mock.patch.object(gate, "process_table", return_value=[]), \
+                 mock.patch.object(gate, "stack_sweep", return_value=[]), \
+                 mock.patch.object(gate, "print_stacks"), \
+                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+                self.assertEqual(gate.main(["--root", str(self.root), action]), 0)
+            self.assertIn("auto-released heavy slot 3 of 3: holder=ended-" + action, stderr.getvalue())
+            self.assertIsNone(gate.read_state(self.root, slot=gate.THIRD_SLOT))
+
+
 class PriorityTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

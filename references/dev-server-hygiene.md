@@ -458,7 +458,12 @@ the runner's own supervisor cancel at its deadline; a runner timeout retains unc
 inspection. Treat PID death, PID reuse and an interrupted command as ownership questions, not proof
 of cleanup. Inspect the saved receipt and process tree before an explicit
 `release --token <token> --orphan-inspected`; a live owner, recorded child group or booted simulator
-still refuses release. Keep shut-down simulators, derived data and caches for the next scoped run.
+still refuses release.
+DO let `acquire`, `run`, `status` and `watchdog` auto-release a provably dead lease: owner PID gone or
+reused, its recorded command and stage groups empty, no simulator, and no live priority session.
+Each release prints `auto-released heavy slot <n> of 3: holder=<owner>` and writes a `telemetry.jsonl`
+event. TEST: a lease with a running group member, a simulator, a pending launch, no recorded group or a
+failed probe stays held. Keep shut-down simulators, derived data and caches for the next scoped run.
 If an older lease schema is reported, run `python3 ~/.claude/bin/local-capacity.py migrate` to
 upgrade that receipt under lock before any new admission; the owner and child identity remain held.
 

@@ -10,7 +10,8 @@ Explicitly pause-safe foreground runs yield their own group under primary conten
 Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
 simulators, idle simulator claims and extra test browsers; `reclaim-sim` shuts down and unclaims an
-unleased simulator only when its claim owner has no live session. This does not impose an OS CPU or
+unleased simulator only when its claim owner has no live session. Admission, `status` and `watchdog`
+automatically release a provably dead heavy lease (reap_dead_leases). This does not impose an OS CPU or
 memory limit: every participating session must acquire before a heavy command, simulator boot
 or stack start.
 """
@@ -1318,6 +1319,7 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
     sample = sample_host() if sample is None else sample
     _, reason = host_reading(sample=sample)
     allowance_reason = host_reading(priority_allowance=True, sample=sample)[1] if reason else None
+    reap_dead_leases(root)
     with locked(root):
         if not compute_only and (legacy_slot_dir() / "slot.d").exists():
             raise Busy("legacy native slot exists; inspect its holder before migration")
@@ -1443,6 +1445,85 @@ def group_alive(pgid):
         return False
     except PermissionError:
         return True
+
+
+def owner_gone(lease):
+    """Why the lease owner is provably gone ('not running' or 'PID reused'), else None (live or unknown)."""
+    try:
+        os.kill(lease["pid"], 0)
+    except ProcessLookupError:
+        return "owner pid %d not running" % lease["pid"]
+    except PermissionError:
+        pass
+    except OSError:
+        return None
+    current = pid_start(lease["pid"])
+    if current is None:
+        return None  # exited between probes or ps failed: unknown until the next check
+    return "owner pid %d reused" % lease["pid"] if current != lease["pid_start"] else None
+
+
+def provably_dead(lease, priority):
+    """The auto-release reason for a lease nothing can still use, else None.
+
+    Every condition must be proven: owner not running or PID reused, a recorded command group plus
+    every stage group with no process left, no simulator, and not the lease of a live priority
+    session. A pending launch, an acquire-only lease (no recorded group), a simulator lease or any
+    failed probe keeps the lease for the manual `release --orphan-inspected` or `reclaim-sim` path.
+    """
+    child = lease["child"]
+    if lease["simulator"] or not isinstance(child, dict) or "pgid" not in child:
+        return None
+    groups = [child["pgid"]] + [stage["pgid"] for stage in lease["stages"]]
+    try:
+        if any(group_alive(pgid) for pgid in groups):
+            return None
+    except OSError:
+        return None
+    reason = owner_gone(lease)
+    if reason is None:
+        return None
+    if priority and priority["owner"] == lease["owner"]:
+        try:
+            if owner_session_live(priority["owner"], priority["workspace"]):
+                return None
+        except GateError:
+            return None
+    return "%s; command group %s exited; no simulator" % (reason, child["pgid"])
+
+
+def reap_dead_leases(root):
+    """Release provably dead heavy leases. Probes run outside the state lock; the write rechecks the
+    exact lease under it, and a dead owner cannot record new groups, so the verdict still holds."""
+    try:
+        with locked(root):
+            snapshot = [(name, read_state(root, slot=name)) for name in SLOTS]
+            priority = read_priority(root)
+    except GateError:
+        return []  # lock contention or unreadable state: never a release; the caller reports it
+    verdicts = [(name, lease, provably_dead(lease, priority)) for name, lease in snapshot if lease]
+    lines = []
+    for name, lease, reason in verdicts:
+        if reason is None:
+            continue
+        try:
+            with locked(root):
+                if read_state(root, slot=name) != lease:
+                    continue
+                write_state(root, None, name)
+                allowance_token(root)  # clears only a receipt whose retained lease is now gone
+        except GateError:
+            continue
+        number = SLOTS.index(name) + 1
+        line = "auto-released heavy slot %d of %d: holder=%s (%s)" % (number, HEAVY_SLOTS, lease["owner"], reason)
+        print(line, file=sys.stderr)
+        lines.append(line)
+        try:
+            telemetry(root, event="auto-release", owner=lease["owner"], slot=number, pid=lease["pid"],
+                      pgid=lease["child"]["pgid"], reason=reason)
+        except GateError:
+            print("capacity telemetry could not be written", file=sys.stderr)
+    return lines
 
 
 def record_child(root, token, pid, start):
@@ -1985,6 +2066,7 @@ def main(argv=None):
                 raise GateError("host fixture must be inside the explicit test root")
             HOST_FIXTURE = candidate
         if args.action == "status":
+            reap_dead_leases(root)
             snapshot = report_snapshot(root)
             states, priority = snapshot["states"], snapshot["priority"]
             booted = observe_booted()
@@ -2017,6 +2099,7 @@ def main(argv=None):
             print(line + ("" if reason is None else "; " + reason))
             return BUSY if reason else 0
         elif args.action == "watchdog":
+            reap_dead_leases(root)
             lines = [line for line in watchdog_lines(root) if line != "watchdog: clear"]
             try:
                 lines += stack_sweep(False)
