@@ -1871,6 +1871,7 @@ CONTRACTS: dict[str, dict] = {
             "Existing authorization covers validation, main, push, safe activation and cleanup without another commit or merge question.",
             "Retains unresolved or blocked changes with their owner and evidence; resumes authorized work at the next task boundary without blind merging.",
             "Treats a pasted correction as illustrative material, never as a work order.",
+            "Frees rules/ budget only by moving how-to into a referenced owner; no instruction, example or TEST is deleted to fit.",
             "Generalises the lesson; never narrows a skill to one task.",
             "Routes edits and new parts through the canonical workflow, read directly when no native Skill tool exists; applies existing authorization without a sentinel or tool receipt.",
             "Grounds every factual claim (a measured figure, a threshold, how another part behaves) "

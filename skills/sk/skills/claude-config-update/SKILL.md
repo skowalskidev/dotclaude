@@ -296,6 +296,11 @@ change reaches sync in the same run instead of waiting for a generic approval qu
 - Keep the file coherent — additions read as if they were always there, same formatting and altitude.
 - **Do not bloat.** If an addition overlaps an existing line, merge them into one sharper line rather than
   stacking both. A skill that doubles in size per correction stops being usable.
+- **DO make room under the `rules/` byte budget by MOVING deep how-to into its `references/` owner and
+  leaving a one-line pointer.** DON'T delete or trim an existing instruction, example or TEST to fit:
+  that silently weakens a rule nobody asked to change. List every removed `rules/` sentence with its new
+  home in the diff review. TEST: each line removed from `rules/` reappears in a reference the rule
+  points at (the fix for a draft that cut existing examples from a rule file to fit a new section).
 - **DO extract a mechanic a NEW skill shares with an existing part into ONE SSOT, and point both at it.**
   When the new skill reuses a sibling's plumbing (a git ritual, a poll loop, a handoff shape), move that
   mechanic into the `references/*.md` catalog that owns the domain, trim the sibling to a pointer, and have
