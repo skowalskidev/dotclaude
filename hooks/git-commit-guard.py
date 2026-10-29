@@ -293,14 +293,18 @@ def land_verified(repo: str) -> set:
 
 
 def config_push_problem(repo: str, args: list) -> str:
-    """Why this config-repo push may NOT land on main without a confirmation; "" when it may."""
-    positional = []
-    for a in args:
-        if a.startswith("-"):
-            if a not in SAFE_PUSH_OPTS:
-                return f"push option {a} is outside the automatic landing path"
-        else:
-            positional.append(a)
+    """Why this config-repo push may NOT land on main without a confirmation; "" when it may.
+
+    Only a push that can change main is judged: branch pushes, deletions of task branches and the
+    like pass as they did before.
+    """
+    opts = [a for a in args if a.startswith("-")]
+    positional = [a for a in args if not a.startswith("-")]
+    if {"--all", "--mirror"} & set(opts):
+        return f"{'/'.join(sorted({'--all', '--mirror'} & set(opts)))} pushes main as a side effect"
+    if {"-d", "--delete"} & set(opts):
+        doomed = [ref.split("refs/heads/")[-1] for ref in positional[1:]]
+        return "deleting main" if set(doomed) & DEFAULT_BRANCHES else ""
     remote = positional[0] if positional else ""
     pairs = []
     if len(positional) <= 1:
@@ -311,18 +315,22 @@ def config_push_problem(repo: str, args: list) -> str:
         pairs.append(("HEAD", branch))
     else:
         for spec in positional[1:]:
-            if spec.startswith("+"):
-                return f"forced refspec {spec}"
             src, _, dst = spec.partition(":")
-            dst = dst or src
-            if not src:
-                return f"deleting refspec {spec}"
-            pairs.append((src, dst))
+            pairs.append((src, dst or src))
+    strip = lambda ref: ref.lstrip("+")[len("refs/heads/"):] if ref.lstrip("+").startswith("refs/heads/") else ref.lstrip("+")
+    pairs = [(src, strip(dst)) for src, dst in pairs if strip(dst) in DEFAULT_BRANCHES]
+    if not pairs:
+        return ""
+    unsafe = [o for o in opts if o not in SAFE_PUSH_OPTS]
+    if unsafe:
+        return f"push option {unsafe[0]} is outside the automatic landing path"
+    for src, _ in pairs:
+        if src.startswith("+"):
+            return f"forced refspec {src}"
+        if not src:
+            return "deleting main"
     verified = None
     for src, dst in pairs:
-        dst = dst[len("refs/heads/"):] if dst.startswith("refs/heads/") else dst
-        if dst not in DEFAULT_BRANCHES:
-            continue
         sha = _git(repo, "rev-parse", "--verify", "--quiet", src + "^{commit}")
         if not sha:
             return f"cannot resolve {src}"

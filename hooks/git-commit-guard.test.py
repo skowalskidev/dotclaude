@@ -175,6 +175,11 @@ def main() -> int:
             ("foreign repo with a forged land record", dirs["main"], f"{PUSH} origin main", True),
             ("foreign repo, strict-mode compound", dirs["feature"],
              f"set -euo pipefail; git -C {dirs['main']} push origin main", True),
+            ("config task-branch deletion still passes", worktree, f"{PUSH} origin --delete config-update/repair", False),
+            ("config deletion of main", worktree, f"{PUSH} origin --delete main", True),
+            ("config --all push", worktree, f"{PUSH} --all origin", True),
+            ("config force to a task branch keeps the old exemption", worktree,
+             f"{PUSH} --force origin config-update/repair", False),
             ("override still works elsewhere", dirs["main"], f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", False),
         ]
         run_cases("CONFIG LANDING", cases, home, failures)
