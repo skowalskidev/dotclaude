@@ -54,8 +54,10 @@ outputs, baselines or skips. TEST: captured is separate from pass; a missing ima
 DO capture every changed surface and journey BEFORE (the base branch or `origin/main`) and AFTER (the
 change), screenshots and video both, with the same seeded state, data and viewport. A new surface shows
 `n/a: new, no before` in its before slot, never a missing slot. Compose and post each pair through
-§ PR evidence template. TEST: an evidence post with an after but no before and no `new, no before`
-note broke the rule.
+§ PR evidence template. Record BEFORE on a local or preview build of the base branch with the AFTER's
+fixtures, never on the production site: a walk that signs up or pays there writes real data or charges.
+TEST: an evidence post with an after but no before and no `new, no before` note, or a before whose
+recorded URL is a production host, broke the rule.
 
 DO capture authentic base/head evidence with matching data, viewport and
 conditions. Use separate cases with variant `before` and `after`, recording revisions in conditions.

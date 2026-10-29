@@ -461,6 +461,14 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   rest of this list doesn't already cover (their four: objective, output format, tool/source
   guidance, task boundaries). In a Workflow script, make it a real JSON schema via `agent(prompt,
   {schema})` rather than prose, so a wrong shape can't come back at all.
+- **DO number every required output in a brief and require the hand-back to answer each number**
+  with its evidence (path, sha, comment id) or `not done: <reason>`. Check the answers against the
+  brief before accepting, and send every missing number back as ONE fix round at once.
+  TEST: no hand-back is accepted with an unanswered number (the fix for three of four PR workers
+  returning without the before captures, trimmed clips or full body rewrite their brief required).
+- **DO write an unverified cause into a brief as a hypothesis plus the check that would confirm it**,
+  and have the worker run that check first. DON'T state a suspected root cause as fact: the worker
+  builds on it (the fix for a video codec blamed in a brief before playback had been tested).
 - **Precise, not long.** Anthropic's own worked spec is four sentences. An orchestrator that hasn't
   read the code is the node LEAST able to prescribe implementation, so specify the boundary and the
   acceptance test, then stop.
