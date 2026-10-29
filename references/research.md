@@ -51,6 +51,18 @@ This is SIFT plus lateral reading (Caulfield): stop, investigate the source, fin
 trace the claim. Standard across university library guidance and professional fact-checking, and
 itself sold by nobody.
 
+## Forecasting a metered cost
+
+DO size a billable call that sits behind a cache by counting distinct keys per cache-TTL window, from
+a source with a timestamp on every call, then multiply out. Report the daily median, p90 and max
+next to the monthly total, and name the TTL the count assumed.
+DON'T count distinct keys across the whole sample window: a key seen again after the TTL expires is
+billed again, so the count comes out low. A store without per-row timestamps can give ratios only,
+never volume. (the fix for a plan-tier recommendation sized at about 8,100 calls a month from
+distinct keys over two weeks, when a 3-hour cache meant 9,300 to 12,500)
+TEST: the estimate names its TTL, its timestamped source and the daily p90, and a daily cap or plan
+tier is compared against the p90 day, not the average.
+
 ## Proportion
 
 Scale the pass to the decision, not to the task. A one-line fix in familiar code needs a version check
