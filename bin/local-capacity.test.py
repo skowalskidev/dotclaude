@@ -180,11 +180,30 @@ class GateTests(unittest.TestCase):
         self.assertEqual(gate.HEAVY_SLOTS, 3)
         self.assertEqual(len(gate.SLOTS), gate.HEAVY_SLOTS)
 
+    def test_nested_run_is_refused_without_a_retryable_exit(self):
+        """A child of a leased run retrying for its owner's lease would wait out its whole budget."""
+        self.root.mkdir(mode=0o700, exist_ok=True)
+        for action in (["run", "--owner", "alpha", "--wait-min", "0", "--", "true"],
+                       ["acquire", "--owner", "alpha", "--pid", str(os.getpid())]):
+            with mock.patch.dict(os.environ, LOCAL_CAPACITY_RUN_ROOT=str(self.root)):
+                with mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+                    code = gate.main(["--root", str(self.root), *action])
+            self.assertEqual(code, 1, action)
+            self.assertIn("nested lease refused", err.getvalue())
+            self.assertIn("stage", err.getvalue())
+        self.assertIsNone(gate.read_state(self.root))
+
+    def test_a_run_on_another_capacity_root_is_not_nested(self):
+        other = self.root.parent / "other-root"
+        with mock.patch.dict(os.environ, LOCAL_CAPACITY_RUN_ROOT=str(other)):
+            gate.refuse_nested_lease(self.root)
+
     def test_one_owner_holds_at_most_one_lease(self):
         gate.acquire(self.root, "alpha", os.getpid(), None)
         with self.assertRaises(gate.Busy) as refused:
             gate.acquire(self.root, "alpha", os.getpid(), None)
         self.assertIn("one owner holds at most one lease", str(refused.exception))
+        self.assertIn("stage", str(refused.exception))
         self.assertIsNone(gate.read_state(self.root, slot=gate.SECOND_SLOT))
 
     def test_load_guard_defers_the_second_admission_too(self):

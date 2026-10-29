@@ -121,6 +121,16 @@ def root_path(value):
     return Path(value).expanduser()
 
 
+def refuse_nested_lease(root):
+    """A command already inside a leased run cannot take a second lease for the same owner, so the
+    retryable deferral would spin until its wait budget ends. Refuse it once, non-retryably."""
+    parent = os.environ.get("LOCAL_CAPACITY_RUN_ROOT")
+    if parent and Path(parent).expanduser().resolve() == Path(root).expanduser().resolve():
+        raise GateError("nested lease refused: this command already runs inside a leased run on this capacity "
+                        "root, and retrying cannot admit it while the parent runs. Run the heavy step inside the "
+                        "parent: local-capacity.py stage --timeout-seconds <n> -- <command>")
+
+
 def secure_root(root):
     if not root.is_absolute() or ".." in root.parts:
         raise GateError("capacity state directory must be an absolute canonical path without '..'")
@@ -1330,7 +1340,9 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
                              priority_binding=priority_binding(priority) if is_priority else None)
         mine = next((lease for lease in held if lease["owner"] == owner), None)
         if mine:
-            raise Busy("heavy slot busy: %s; one owner holds at most one lease" % holder_text(mine))
+            raise Busy("heavy slot busy: %s; one owner holds at most one lease. This is your own owner's lease, "
+                       "not machine load: a long-lived server or watcher must not hold it (a dev stack takes "
+                       "stack-acquire), and a step of the holding run goes through `stage`" % holder_text(mine))
         if second_slot_only and not states[0]:
             raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
         legacy_lanes = len(bridge_paths(root)) + int((legacy_slot_dir() / "slot.d").exists())
@@ -2023,11 +2035,13 @@ def main(argv=None):
             for line in stack_sweep(args.apply) or ["no idle stacks"]:
                 print(line)
         elif args.action == "acquire":
+            refuse_nested_lease(root)
             print(acquire(root, args.owner, args.pid, args.simulator))
         elif args.action == "release":
             release(root, args.token, args.orphan_inspected)
             print("heavy slot released")
         elif args.action == "run":
+            refuse_nested_lease(root)
             if not math.isfinite(args.max_min) or args.max_min <= 0:
                 raise GateError("--max-min must be a positive number")
             return run_command(root, args.owner, args.simulator, args.command, args.max_min * 60,

@@ -81,6 +81,7 @@ CONTRACTS: dict[str, dict] = {
             "Reject stages whose Python intermediary lost inherited legacy lock descriptors before any payload runs; explicit pass_fds preserves the bridge and excludes competing lock owners.",
             "Migrate an older lease schema explicitly under lock, preserving its owner and child identity; ordinary reads never silently replace it.",
             "Store no command arguments or environment values; reject unsafe state paths and malformed lease data.",
+            "Refuse run and acquire inside a leased run on the same root with exit 1 naming stage, and name stage in the same-owner deferral, so no owner waits on its own lease.",
         ],
     },
     "bin/session-performance.py": {

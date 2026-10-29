@@ -228,8 +228,11 @@ DO admit each heavy build, full test suite, browser batch and simulator lifecycl
 `bin/local-capacity.py`. It admits at most three leases (`HEAVY_SLOTS`) across local projects and
 worktrees, one per owner, so three sessions run heavy work at once; model calls, small reads, edits and
 scoped lightweight checks continue while all are held. This is cooperative admission, not an OS CPU
-ceiling. DON'T create a per-repository gate or nest another lease inside one already held.
-TEST: a fourth owner gets exit 75 naming all three holders, and the same owner asking twice gets exit 75.
+ceiling. DON'T create a per-repository gate or nest another lease inside one already held: `run` and
+`acquire` inside a leased run on the same root exit 1 (not 75) and name `stage`, the way in. A
+same-owner 75 names its own holder; act on it (move a server to `stack-acquire`, run the step as a
+`stage`, or wait) instead of retrying blind. TEST: a fourth owner gets exit 75 naming all three holders,
+the same owner asking twice gets exit 75 naming `stage`, and a nested `run` exits 1.
 
 ```sh
 python3 ~/.claude/bin/local-capacity.py status
