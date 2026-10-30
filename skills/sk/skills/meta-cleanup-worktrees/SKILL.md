@@ -280,7 +280,12 @@ DO read each row's `state` and `workspace_name` first with `sqlite3 -readonly` f
 `directory_name` (newest `updated_at`), and show a set `workspace_name` beside the branch. List only
 rows not yet `archived`: he can't archive a session the app no longer shows. A folder surviving an
 `archived` row is residue, handled below (the fix for an archive list naming an already archived
-session). Leave a listed workspace pending until he archives it, then verify the disk result. Do not run
+session). Leave a listed workspace pending until he archives it.
+DO re-read `state` for every pending row at each later message in the session, and at the start of
+every sweep. For each row now `archived`, verify the disk result and delete its proven ref in that
+turn, with no question. DON'T ask him to say when he has archived.
+TEST: no merged ref outlives its session's archive past his next message or the next sweep.
+Do not run
 `git worktree remove` or `rm` on the workspace itself, even when idle. Preserve Conductor's archive/history state.
 An archive script runs before archiving and handles resources outside the workspace; do not add a
 script to delete its own workspace. Sources: [workflow](https://www.conductor.build/docs/concepts/workflow)
@@ -292,6 +297,13 @@ For each confirmed-removable ordinary worktree or proven abandoned filesystem re
   Allow minutes for `node_modules` deletion; monitor completion rather than impose a short timeout.
   If interrupted, retain the saved inventory and recheck the gate. A `prunable` entry is not permission
   to delete: preserve identity evidence before pruning, and classify any remaining directory below.
+- For a registered folder surviving an `archived` row, remove it with no question when ALL hold:
+  the row's branch matches, the tip passes Step 3 #1, no process is cwd'd in it, and `git status
+  --porcelain` shows only ` D` lines plus untracked generated output (`out/`, `next-env.d.ts`,
+  `*.tsbuildinfo`, `node_modules`, `.next`). Use `git worktree remove --force <exact path>`, because
+  half-deleted tracked files block the plain form, then delete the ref. Any other line → retain it
+  with the reason. This is the only `--force` here (the fix for an archived session's leftover
+  folder that needed a yes with nothing left to decide).
 - For an unregistered directory, first prove it is abandoned filesystem residue, not still managed by
   Conductor. Unknown management status → BLOCK. Apply the full identity, merge, data and idle gates,
   then get an EXTRA confirmation naming that exact canonical path before manual recursive removal.
@@ -347,7 +359,7 @@ reclamation candidates or their blocking reasons.
 Squash/rebase merge (verify merged PR head and reachable merge commit) · no-upstream branch (use
 entire-tip proof) · current/main workspace preserved (task-owned ref-only closure is separate) ·
 merged-but-running (block on another live session) ·
-merged-but-idle-shell (warn) · dirty tree (never `--force`) · detached HEAD (skip branch logic) · PR
+merged-but-idle-shell (warn) · dirty tree (never `--force`, except Step 5's archived-session residue) · detached HEAD (skip branch logic) · PR
 closed-not-merged (never merge proof) · **branch-only orphan whose worktree is already archived (Step 2 enumerates
 all heads-with-no-worktree, including unresolved unique work)** · **`git branch -d` is
 HEAD-relative, so a stale worktree makes it refuse a genuinely-merged branch (gate on `origin/<default>`
