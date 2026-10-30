@@ -261,7 +261,10 @@ whole (a title, a button), and one `--expect TEXT` per key string. Add one `--wa
 page that renders its data after load shows once ready (waits for visible after load and after each state's JS,
 `--wait-timeout MS` default 30000; a timeout fails the row), and one `--route GLOB=FILE` to serve a local page a
 fixture for its API route (content type from the extension, other requests pass through; a missing file exits 2).
-DON'T hand-write a separate Playwright script for either. The tool loads the file fresh per row,
+DON'T hand-write a separate Playwright script for either, and DON'T run the pass through the built-in
+browser pane: it can be hidden, which throttles CSS animations into mid-fade frames, and long screenshot
+batches drop images (the fix for faded demo screenshots read as broken). Use the pane for interactive spot
+checks only. The tool runs headless with reduced motion and loads the file fresh per row,
 screenshots the full page, and exits 1 on any blank page or region, any region or visible element that is
 not fully visible, missing string, page error or failed request (a media preload abort is not one; a missing media file is). A stitched image or PR image has no page: wrap it in a one-line HTML
 page and check that, then view it.

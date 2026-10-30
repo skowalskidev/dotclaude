@@ -131,7 +131,8 @@ const rows = [];
 for (const vp of job.viewports) for (const st of job.states) {
   const row = { viewport: vp, state: st.name, problems: [], regions: 0, clipped: 0, minRegionInk: null, ink: 0, expectMissing: [] };
   const [w, h] = vp.split("x").map(Number);
-  const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
+  // reducedMotion: entrance animations finish at once, so a screenshot never catches a mid-fade frame.
+  const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, reducedMotion: "reduce" });
   page.on("pageerror", (e) => row.problems.push("page error: " + e.message));
   page.on("requestfailed", (r) => {
     const why = r.failure()?.errorText || "unknown error";

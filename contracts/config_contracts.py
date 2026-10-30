@@ -365,6 +365,7 @@ CONTRACTS: dict[str, dict] = {
             "Print the pass table, write it to <out>/pass-table.md beside one full-page PNG per row, and exit 0 clean, 1 on any failure, 2 on bad arguments, more than 24 rows or a missing browser runtime.",
             "Wait for every --wait-for selector to be attached and visible after load and again after each state's JavaScript, within --wait-timeout (default 30000 ms); a selector that never appears fails that row with 'wait-for timed out: <css>' and skips its region checks, without crashing the run.",
             "Serve every --route GLOB=FILE fixture before navigation, content type from the extension (.json is application/json), unmatched requests pass through; exit 2 before any browser starts when the file is missing or the value is not GLOB=FILE.",
+            "Open every row with reducedMotion \"reduce\", so a page whose entrance animations respect prefers-reduced-motion is captured in its settled state, never mid-fade.",
             "Python 3.9+, standard library only; run the browser through Node Playwright resolved as bin/mockup-shots.py resolves it.",
             "Keep bin/visual-check.test.py passing: --route with a missing file exits 2, --wait-for and --wait-timeout parse, and (with Node Playwright) a client-rendered page fails without them and passes with --route and --wait-for, and a tall page whose later region screenshots scroll earlier regions above the viewport passes.",
         ],
