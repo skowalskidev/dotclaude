@@ -272,8 +272,9 @@ its inventory; an earlier yes never covers a different path or newly created wor
   seconds and verifies it exited. If ownership changed or it survives, BLOCK that worktree instead of
   widening the kill. Re-run the idle check after the viewer exits.
 
-For a Conductor-managed workspace, ask Simon to archive its exact workspace name and canonical path
-in the Conductor app. Leave it pending until he does, then verify the disk result. Do not run
+For a Conductor-managed workspace, ask Simon to archive it in the Conductor app. List each by branch
+name first, then workspace name and canonical path: he finds it by branch, not by city name. For a
+detached workspace, give the branch its session worked on (the fix for an archive list he couldn't match). Leave it pending until he does, then verify the disk result. Do not run
 `git worktree remove` or `rm` on the workspace itself, even when idle. Preserve Conductor's archive/history state.
 An archive script runs before archiving and handles resources outside the workspace; do not add a
 script to delete its own workspace. Sources: [workflow](https://www.conductor.build/docs/concepts/workflow)
