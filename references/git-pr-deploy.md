@@ -360,7 +360,10 @@ Then prove the merge yourself, and force:
    the merge commit reachable from current `origin/<default>`, and
    `git merge-base --is-ancestor <tip> <merged-pr-head>` passing. This accepts the exact merged head
    or an older local tip contained in it; a branch name or `MERGED` status alone proves neither.
-   If those commit objects cannot be resolved, retain the ref with that evidence gap.
+   DO fetch a missing head before judging it: `git fetch origin refs/pull/<N>/head:refs/cleanup/<N>`,
+   then delete `refs/cleanup/<N>`. DON'T read an absent object as "not merged": a merged PR's head
+   is often no longer local (the fix for two merged branches reported as unproven). If the objects
+   still cannot be resolved after that fetch, retain the ref with that evidence gap.
    For commits cherry-picked or re-applied, require full content proof:
    `git merge-tree --write-tree origin/<default> <tip>` exits 0 and prints `origin/<default>`'s own
    tree id (merging would change nothing). `git cherry` is diagnostic only: it skips merge commits

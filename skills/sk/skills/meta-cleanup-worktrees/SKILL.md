@@ -1,6 +1,6 @@
 ---
 name: meta-cleanup-worktrees
-description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo. Remove only proven finished, clean, idle workspaces; preserve current/main checkouts. Retire a finished task-owned current local ref separately while preserving its workspace. Reuse existing cleanup authorization, list exact candidates and confirm only uncovered actions. For disk cleanup, measure the whole requested root and prune verified inactive generated caches without deleting source or branches. Block removal with another live session, uncommitted changes or unpreserved unique work; unmerged drafts require authorized reviewed retirement and recovery. Offer merged remote counterparts separately within remote-write authority, limited to owned branches. Use for "delete Conductor archives", "free disk space in Conductor", "clean up archived Conductor caches", "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
+description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo. Remove only proven finished, clean, idle workspaces; preserve current/main checkouts. Retire a finished task-owned current local ref separately while preserving its workspace. Reuse existing cleanup authorization, list exact candidates and confirm only uncovered actions. For disk cleanup, measure the whole requested root and prune verified inactive generated caches without deleting source or branches. Block removal with another live session, uncommitted changes or unpreserved unique work; unmerged drafts require authorized reviewed retirement and recovery. Offer merged remote counterparts separately within remote-write authority, limited to owned branches. Use for "delete Conductor archives", "free disk space in Conductor", "clean up archived Conductor caches", "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "there are still many branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
 argument-hint: "[optional repo path; defaults to the current repo]"
 ---
 
@@ -81,6 +81,22 @@ pruning. Keep current-workspace caches excluded; touch main-clone caches only wh
 includes that context and this same gate passes. Report unresolved or active cache paths as retained.
 TEST: an unmerged workspace's disposable cache can be reclaimed while its source and branch remain;
 an archive's unique design file remains even when a generated sibling directory is removed.
+
+## One pass to the floor
+
+DO finish a repository sweep in ONE pass, down to the refs only Simon can release. Before the first
+hand-back, give every local head one final disposition and carry out everything the request already
+covers: merge-proven deletes, redundant backup/recovery migrations, reviewed superseded drafts and
+idle ordinary worktrees, including one nested in a workspace's `.context`. Use one bundle per sweep.
+DON'T ask permission to review. Reading a diff, a ticket's state or a PR head changes nothing, so
+do it unprompted and ask only about the result.
+DON'T hand back a partial sweep as a progress report.
+Retain for Simon's decision: only copies of work with an open ticket or a stated wish to keep it,
+uncommitted changes, and unported fixes he hasn't declined.
+DO end with the remaining count by group (open PR, archive pending, Simon's decision, live, default)
+and one question block covering every decision and every workspace to archive.
+TEST: a sweep raises at most one question block, and a follow-up "there are still many branches"
+finds zero refs an agent could have removed (the fix for a sweep that took four rounds and two bundles).
 
 ## Step 1 — refresh the merge state (one network read)
 

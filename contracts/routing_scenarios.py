@@ -206,6 +206,7 @@ SCENARIOS: list[dict] = [
     {"phrase": "remove done worktrees and branches", "expect": "meta-cleanup-worktrees"},
     {"phrase": "tidy up my worktrees", "expect": "meta-cleanup-worktrees"},
     {"phrase": "delete merged branches", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "there are still many branches", "expect": "meta-cleanup-worktrees"},
     {"phrase": "which sessions can I archive", "expect": "meta-cleanup-worktrees"},
     {"phrase": "start here", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
     {"phrase": "what should I use for this", "expect": "meta-dotclaude-copilot-start-here-for-any-task"},
