@@ -274,7 +274,13 @@ its inventory; an earlier yes never covers a different path or newly created wor
 
 For a Conductor-managed workspace, ask Simon to archive it in the Conductor app. List each by branch
 name first, then workspace name and canonical path: he finds it by branch, not by city name. For a
-detached workspace, give the branch its session worked on (the fix for an archive list he couldn't match). Leave it pending until he does, then verify the disk result. Do not run
+detached workspace, give the branch its session worked on.
+DO read each row's `state` and `workspace_name` first with `sqlite3 -readonly` from
+`~/Library/Application Support/com.conductor.app/conductor.db`, table `workspaces`, matched on
+`directory_name` (newest `updated_at`), and show a set `workspace_name` beside the branch. List only
+rows not yet `archived`: he can't archive a session the app no longer shows. A folder surviving an
+`archived` row is residue, handled below (the fix for an archive list naming an already archived
+session). Leave a listed workspace pending until he archives it, then verify the disk result. Do not run
 `git worktree remove` or `rm` on the workspace itself, even when idle. Preserve Conductor's archive/history state.
 An archive script runs before archiving and handles resources outside the workspace; do not add a
 script to delete its own workspace. Sources: [workflow](https://www.conductor.build/docs/concepts/workflow)
