@@ -30,8 +30,15 @@ Never re-print an earlier or later step.
 the terminal. Fire the attention signal first, because parallel tool calls make later ordering
 unreliable. This overrides answer-first ordering for a blocking step, and only there.
 
+**DO record the finished step before you send the next one, and make that step the last thing you
+say.** Append the step's result with `hooks/intent-ledger.sh note reconcile <scratch.md>` first. A
+record written after the step message lets the Stop hook reopen the turn, and the human then gets a
+second message after the step. (the fix for a 7-step walk where 6 steps were followed by "Step N is
+recorded, waiting for you")
+
 **DO wait for their result before the next step, and DON'T advance past a failed one.** Collecting N
 failures with one root cause means the later steps were never really tested.
 
 TEST: at any moment the human has exactly ONE action in front of them, a count of where they are, and a
-clear signal it is their turn — and the full plan is in the file, not the chat.
+clear signal it is their turn — and the full plan is in the file, not the chat. A step message is the
+turn's last message.
