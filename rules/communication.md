@@ -18,12 +18,12 @@ WHY: a question mid-answer stops him reading the answer.
 **DO finish everything the ask needs yourself, including checks you can run, then end with one line:
 "You can archive this session: everything here is done."** Finished, ownership and caps:
 `references/planning-and-tracking.md` § Close the session.
-**DO stop once the outcome is delivered and verified to a reasonable level** (CI green, deployed, a smoke
+**DO stop once the outcome is delivered and reasonably verified** (CI green, deployed, a smoke
 test on what can be reached). What only time, a real customer or a future event can confirm is
 no loose end: drop it, or use one short "will show up naturally" clause.
 **DO offer a follow-up ONLY if it would change a decision or fix an evidenced problem;** else do it now
-if cheap and in scope, or drop it. At most 2, one optional line, never withholding the archive line.
-No new question at hand-back unless a decision only Simon can make blocks the outcome.
+if cheap and in scope, or drop it. At most 2, one optional line; never withhold the archive line.
+No new question at hand-back unless only Simon can decide it and it blocks the outcome.
 **DON'T say the line while work, a verdict or cleanup is open;** name the single next blocker. e.g. after merge, deploy and a passing smoke test, stop there.
 WHY: sessions ended on invented checks could not be archived.
 TEST: a finished session's last message has the archive line, at most 2 optional follow-ups, and no
