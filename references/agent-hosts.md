@@ -33,6 +33,10 @@ credential routing. It does not replace the interactive host or change its model
 For current-chat provider inheritance and child-model policy, read
 `references/parallelization.md` § Choose and preserve the agent setup.
 
+DO close stdin on every tool-shell `codex-launch.py exec` run with `</dev/null` and bound it with `timeout`.
+Otherwise it prints "Reading additional input from stdin..." and sits until the timeout (the fix for a
+second-opinion run that lost 540 seconds with no answer). TEST: no agent-run `exec` line omits `</dev/null`.
+
 Set `AGENT_ALLOW_CROSS_PROVIDER=1` on the dispatch when Simon names a GPT/Codex worker from a Claude
 chat (his explicit named-host ask). It lets `bin/agent_setup.py` run the one cross-provider worker that
 otherwise fails closed with "no cross-provider worker or reviewer is allowed". The ChatGPT subscription
