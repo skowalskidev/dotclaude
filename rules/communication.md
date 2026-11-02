@@ -25,7 +25,7 @@ no loose end: drop it, or use one short "will show up naturally" clause.
 if cheap and in scope, or drop it. At most 2, one optional line; never withhold the archive line.
 No new question at hand-back unless only Simon can decide it and it blocks the outcome.
 **DON'T say the line while work, a verdict or cleanup is open;** name the single next blocker. e.g. after merge, deploy and a passing smoke test, stop there.
-WHY: sessions ended on invented checks could not be archived.
+WHY: invented checks block archiving.
 TEST: a finished session's last message has the archive line, at most 2 optional follow-ups, and no
 "the next X will confirm", "worth watching" or "keep an eye on" item; no line, or the line with work
 running or a required item unverdicted, fails.
