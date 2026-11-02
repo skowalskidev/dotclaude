@@ -703,3 +703,7 @@ and reports distinguish retained agents from eligible framework families without
 
 The process-group and signal-discipline sections above are what make any of this actually reach the
 grandchild holding the port.
+
+## Verify cleanup against the underlying storage
+
+A registry stops listing what it has forgotten, so an orphan is invisible to the command you would check with. Reconcile disk against what the tool claims and treat present-but-unlisted as residue.

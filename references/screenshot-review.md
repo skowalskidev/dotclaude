@@ -302,3 +302,11 @@ DO verify installed capabilities rather than pinning instructions to a release. 
 [NIST interaction testing](https://csrc.nist.gov/projects/automated-combinatorial-testing-for-software/combinatorial-methods-in-testing/interactions-involved-in-software-failures).
 Use [WCAG-EM](https://www.w3.org/TR/WCAG-EM/) as methodological support for scope, states and complete
 processes; this screenshot workflow does not establish accessibility conformance.
+
+## Seed the backend, hand me the frontend
+
+When a change adds new UI, seed only the backend
+prerequisites the UI can't create, then walk me through entering the data through the new screens
+myself, step by step — that is where I catch the journey defects a green suite cannot. Never
+seed past a new input and report the feature verified; a state written behind the UI proves the write
+path, not that anyone could have got there.

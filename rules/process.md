@@ -94,9 +94,8 @@ recurring failure: a checkpoint is reached, the summary is worth writing, and th
 end of the turn. **Committing at checkpoints is a git instruction, not a conversational one.** Commit,
 then keep working in the same turn; never trade remaining work for a status update.
 
-Two things that look like permission to stop and are not: **a clean verification** (green tests mean the
-batch is safe to build on, not that the job is over) and **a long turn** (length is not a stopping
-condition, nor is "a good place to pause").
+Not stop signals: a clean verification, a long turn. The closure limit:
+`rules/communication.md` § Close the session.
 
 The ONLY reasons to end early: everything on the list is genuinely done; a blocker needs something only I
 can give (a credential, a prod authorization, a decision where guessing wrong wastes the work); or I
@@ -188,11 +187,9 @@ source); hand off its report, never an eye comparison.
 TEST: a visual hand-off with no pass table over every switchable state of the file actually opened, a
 visible overlap/overflow/cutoff, or a design build with no PASS report broke the rule.
 
-**Seed the backend, hand me the frontend.** When a change adds new UI, seed only the backend
-prerequisites the UI can't create, then walk me through entering the data through the new screens
-myself, step by step — that is where I catch the journey defects a green suite cannot. Never
-seed past a new input and report the feature verified; a state written behind the UI proves the write
-path, not that anyone could have got there.
+**Seed the backend, hand me the frontend.** For new UI, seed only what the UI can't create and walk me
+through entering the data myself; never report verified past a new input. Detail:
+`references/screenshot-review.md` § Seed the backend, hand me the frontend.
 
 ### Git worktree discipline
 In a git worktree (e.g. `.claude/worktrees/<name>/`), **use the worktree path prefix for every file
@@ -228,10 +225,8 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   this is not a repo-wide purge. Preserve unique work and durable outcomes:
   `references/planning-and-tracking.md`. TEST: zero owned refs or paths lack verified removal or a
   protected/active/recovery/blocked reason, owner and next action.
-- **Verify cleanup against the underlying storage, not the tool's own listing.** A registry stops
-  listing what it has forgotten, so an orphan is invisible to the command you'd check with; reconcile
-  disk against what the tool claims and treat present-but-unlisted as residue. Cases:
-  `references/dev-server-hygiene.md`.
+- **Verify cleanup against the underlying storage, not the tool's own listing;** present-but-unlisted is
+  residue. Cases: `references/dev-server-hygiene.md`.
 - **Never install a persistent background process** (login item, LaunchAgent/LaunchDaemon, cron,
   always-on watcher) without asking first — and if you add one for a task, remove it AND its
   registration when done. A login item pointing at a deleted script is the mess to avoid.

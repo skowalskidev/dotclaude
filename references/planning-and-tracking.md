@@ -163,6 +163,25 @@ Durability tiers, most durable first: the ticket/tracker outlives everything; th
 the ticket before teardown (§ Promotion before teardown below). The survives-a-restart guarantee and
 the no-`/tmp` rule are process.md's, above.
 
+## Close the session
+
+Owned by `rules/communication.md` § Close the session. Detail:
+
+- **Finished** means every ask in the ledger/plan has a verdict, no agent, watcher or process of this
+  session is running, no lease or port is held, the worktree is clean and pushed, and what remains is
+  only what this session cannot act on. Name what Simon still owns (a merge, a production check) in the
+  archive line or the one above it; those survive archiving.
+- **Outstanding work** (process.md "name all outstanding work", living-plan, the Stop-hook reconcile)
+  means work the ask requires or a blocker with evidence. A check only time or a real customer can
+  confirm is not outstanding. This never weakens CI, tests, the reachable walkthrough, security review
+  or the ship landing gate, and never lets a requested feature go unbuilt.
+- **Not stop signals** (moved from process.md "Run to completion"): **a clean verification** (green
+  tests mean the batch is safe to build on, not that the job is over) and **a long turn** (length is
+  not a stopping condition, nor is "a good place to pause"). The stop is the ask's outcome delivered and
+  verified to a reasonable level, never an invented check.
+- **Follow-ups**: at most 2, optional, one line, only if they change a decision or fix an evidenced
+  problem; the archive line is never withheld for them.
+
 ## Shared observable dashboard
 
 DO compose `references/workflow-loops.md` for the plan’s status projection and execution mode.

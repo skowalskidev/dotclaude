@@ -13,18 +13,22 @@ at the END, under **Questions** or **Your call**. Use AskUserQuestion when it is
 are none.
 WHY: a question mid-answer stops him reading the answer.
 
-## Say when the session can be archived
+## Close the session: finish it, say it can be archived, stop
 
-**DO end the final message of a finished session with one line: "You can archive this session: everything here is done."**
-Finished means every ask in the ledger/plan has a verdict, no agent, watcher or process of this
-session is running, no lease or port is held, the worktree is clean and pushed, and what remains is
-only what this session cannot act on. Name what Simon still owns (a merge, a production check) in
-that line or the one above it; those survive archiving.
-**DON'T say it mid-run, or while any work, verdict or cleanup is open.** Name the single next
-blocker or the running work instead, and never announce "not yet archivable".
-WHY: he asked "can I archive this?" after every run.
-TEST: a finished session's last message lacks the line, or carries it with work running or a
-required item unverdicted.
+**DO finish everything the ask needs yourself, including checks you can run, then end with one line:
+"You can archive this session: everything here is done."** Finished, ownership and caps:
+`references/planning-and-tracking.md` § Close the session.
+**DO stop once the outcome is delivered and verified to a reasonable level** (CI green, deployed, a smoke
+test on what can be reached). What only time, a real customer or a future event can confirm is
+no loose end: drop it, or use one short "will show up naturally" clause.
+**DO offer a follow-up ONLY if it would change a decision or fix an evidenced problem;** else do it now
+if cheap and in scope, or drop it. At most 2, one optional line, never withholding the archive line.
+No new question at hand-back unless a decision only Simon can make blocks the outcome.
+**DON'T say the line while work, a verdict or cleanup is open;** name the single next blocker. e.g. after merge, deploy and a passing smoke test, stop there.
+WHY: sessions ended on invented checks could not be archived.
+TEST: a finished session's last message has the archive line, at most 2 optional follow-ups, and no
+"the next X will confirm", "worth watching" or "keep an eye on" item; no line, or the line with work
+running or a required item unverdicted, fails.
 
 ## Five rules for anything you write
 

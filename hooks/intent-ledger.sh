@@ -386,7 +386,7 @@ finishing: re-read $LEDGER and the living gauntlet plan, account for every reque
 item, continue ready authorized work, and append the current outcomes with
   ~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>
 Apply rules/self-healing-config.md; the after-run analysis is triggered separately once the work is reconciled. \
-Record evidence for completed work and the next action for every blocker or pause. An unapproved \
+Record evidence for completed work and the next action for every real blocker or pause (not hypothetical checks; see rules/communication.md Close the session). An unapproved \
 proposal remains recorded, not permission to implement. When nothing is left, end the final message with \
 the archive line from rules/communication.md. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'
