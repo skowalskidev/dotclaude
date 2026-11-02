@@ -16,9 +16,9 @@ from pathlib import Path
 HOOK = Path(__file__).parent / "session-identity.sh"
 
 
-def run(identity_file: str) -> dict:
-    env = {**os.environ, "CLAUDE_IDENTITY_FILE": identity_file}
-    out = subprocess.run(["bash", str(HOOK)], capture_output=True, text=True, env=env).stdout.strip()
+def run(identity_file: str, account_file: str = "/nonexistent", cwd: str | None = None) -> dict:
+    env = {**os.environ, "CLAUDE_IDENTITY_FILE": identity_file, "CLAUDE_ACCOUNT_FILE": account_file}
+    out = subprocess.run(["bash", str(HOOK)], capture_output=True, text=True, env=env, cwd=cwd).stdout.strip()
     return json.loads(out) if out else {}
 
 
@@ -51,9 +51,24 @@ def main() -> int:
         if "me@acme.example" in ctx2:
             failures.append("absent-overlay context leaked a stale value")
 
+        # (c) a work repo on another Claude login warns; the work login or another repo does not.
+        for name, url in (("work", "https://github.com/AcmeCorp/app.git"), ("other", "https://github.com/me/app.git")):
+            subprocess.run(["git", "init", "-q", name], cwd=tmp, check=True)
+            subprocess.run(["git", "remote", "add", "origin", url], cwd=Path(tmp) / name, check=True)
+        account = Path(tmp) / "account.json"
+        account.write_text(json.dumps({"oauthAccount": {"emailAddress": "me@home.example"}}))
+        work_repo, other_repo = str(Path(tmp) / "work"), str(Path(tmp) / "other")
+        if "WRONG CLAUDE LOGIN" not in context(run(str(idf), str(account), work_repo)):
+            failures.append("a work repo on another login did not warn")
+        if "WRONG CLAUDE LOGIN" in context(run(str(idf), str(account), other_repo)):
+            failures.append("another repo warned about the login")
+        account.write_text(json.dumps({"oauthAccount": {"emailAddress": "me@acme.example"}}))
+        if "WRONG CLAUDE LOGIN" in context(run(str(idf), str(account), work_repo)):
+            failures.append("a work repo on the work login warned")
+
     for f in failures:
         print(f"FAIL  {f}")
-    print(f"\n{2 - min(len(failures), 2)}/2 checks pass ({len(failures)} failing assertions)")
+    print(f"\n{3 - min(len(failures), 3)}/3 checks pass ({len(failures)} failing assertions)")
     return 1 if failures else 0
 
 
