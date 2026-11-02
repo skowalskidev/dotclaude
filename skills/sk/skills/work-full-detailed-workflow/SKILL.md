@@ -71,7 +71,9 @@ current, reconcile against it.
    Its gap fixes land here; its hand-back follows step 9's pass.
 9. Run the full relevant suites and automated matrix on the converged code, using the timing, retry
    and evidence-reuse policy in `rules/process.md` § Fan out verification. Apply the testing reference
-   sections Defects first and Native simulator suites. Draft PR, tear down scratch, track deploy steps.
+   sections Defects first and Native simulator suites. When the diff changes a stored-data figure or a
+   gate that depends on stored data, run `/sk:ship-verify-with-prod-data` here, unprompted. TEST: such a
+   hand-back cites its population and reconciled figures. Draft PR, tear down scratch, track deploy steps.
 10. Watch the deploy through and loop on what it surfaces; shipping is not done when the merge lands.
 
 Extra task context for this run (if any): $ARGUMENTS
