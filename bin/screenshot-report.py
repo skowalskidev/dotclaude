@@ -144,7 +144,7 @@ def render(doc, root):
              '<meta name="viewport" content="width=device-width, initial-scale=1">',
              '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; media-src data:; style-src \'unsafe-inline\'">',
              f'<title>{e(doc["title"])}</title>',
-             '<style>body{font:16px/1.5 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1800px;color:#222;background:#fff}h1{font-size:28px}h2{font-size:22px}h3{font-size:16px;margin:0 0 6px}a{color:#174c99}table{border-collapse:collapse;width:100%}table.summary{min-width:1000px}table.gallery{table-layout:fixed}.point-block{margin-top:32px}.point-block>h2{margin-bottom:6px}.point-block>p{margin-top:0}td,th{border:1px solid #bbb;padding:8px;text-align:left;vertical-align:top}th.point,td.point{min-width:180px;max-width:240px}img,video{display:block;max-width:100%;height:auto}img.narrow,video.narrow{max-width:300px}p,li,td{overflow-wrap:anywhere}.table{overflow-x:auto;margin-top:16px}.case{border-top:2px solid #aaa;margin-top:14px;padding-top:10px}.case:first-child{border-top:0;margin-top:0;padding-top:0}.conditions{background:#f3f4f6;padding:8px}.conditions ul{margin:4px 0;padding-left:18px}dt{font-weight:600}dd{margin:0 0 10px}pre{white-space:pre-wrap}</style>',
+             '<style>body{font:16px/1.5 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1800px;color:#222;background:#fff}h1{font-size:28px}h2{font-size:22px}h3{font-size:16px;margin:0 0 6px}a{color:#174c99}table{border-collapse:collapse;width:100%}table.summary{min-width:1000px}table.gallery{table-layout:fixed}.point-block{margin-top:32px}.point-block>h2{margin-bottom:6px}.point-block>p{margin-top:0}td,th{border:1px solid #bbb;padding:8px;text-align:left;vertical-align:top}th.point,td.point{min-width:180px;max-width:240px}img,video{display:block;max-width:100%;height:auto}img.narrow,video.narrow{max-width:min(300px,100%)}p,li,td{overflow-wrap:anywhere}.table{overflow-x:auto;margin-top:16px}.case{border-top:2px solid #aaa;margin-top:14px;padding-top:10px}.case:first-child{border-top:0;margin-top:0;padding-top:0}.conditions{background:#f3f4f6;padding:8px}.conditions ul{margin:4px 0;padding-left:18px}dt{font-weight:600}dd{margin:0 0 10px}pre{white-space:pre-wrap}@media(max-width:700px){body{padding:12px}.table{overflow:visible}table.summary,table.gallery{min-width:0!important}table.summary,table.gallery,table.summary tbody,table.gallery tbody,table.summary tr,table.gallery tr,table.summary td,table.gallery td{display:block;width:auto}table.summary thead,table.gallery thead{display:none}table.summary td,table.gallery td{min-width:0;max-width:none;margin-bottom:12px}table.summary td::before,table.gallery td::before{content:attr(data-label);display:block;font-weight:700;margin-bottom:8px}}</style>',
              f'<h1>{e(doc["title"])}</h1><p><strong>{e(summary)}</strong></p>',
              '<p>Capture counts describe evidence, not approval. Review verdicts are supplied by the reviewer.</p>',
              f'<p><b>Scope:</b> {e(doc["scope"])}</p><p><b>Coverage:</b> {e(doc["coverageStrategy"])}</p>',
@@ -152,14 +152,14 @@ def render(doc, root):
              '<details><summary>Run provenance</summary><p>' + e(' · '.join(f'{k}: {v}' for k, v in doc['run'].items())) + '</p></details>',
              f'<div class="table"><table class="summary"><thead><tr><th class="point">Point</th>{head}<th>Next actions</th></tr></thead><tbody>']
     for point in points:
-        row = [f'<tr><td class="point"><a href="#{row_id[point]}">{e(point)}</a></td>']
+        row = [f'<tr><td class="point" data-label="Point"><a href="#{row_id[point]}">{e(point)}</a></td>']
         actions = []
         for col in columns:
             group = cells[(point, col['id'])]
-            row.append('<td>' + '<br>'.join(
+            row.append(f'<td data-label="{e(col["label"])}">' + '<br>'.join(
                 f'<a href="#{e(c["id"])}">{e(c["captureStatus"])} / {e(c["reviewStatus"])}</a>' for c in group) + '</td>')
             actions.extend(f'{col["label"]}: {c["nextAction"]}' for c in group)
-        row.append('<td>' + '<br>'.join(e(a) for a in actions) + '</td></tr>')
+        row.append('<td data-label="Next actions">' + '<br>'.join(e(a) for a in actions) + '</td></tr>')
         parts.extend(row)
     parts.append('</tbody></table></div>')
     for point in points:
@@ -167,7 +167,7 @@ def render(doc, root):
         parts.append(f'<section id="{row_id[point]}" class="point-block"><h2>{e(point)}</h2><p>{e(surfaces)}</p>')
         parts.append(f'<div class="table"><table class="gallery" style="min-width:{len(columns) * 320}px"><thead><tr>{head}</tr></thead><tbody><tr>')
         for col in columns:
-            parts.append('<td>')
+            parts.append(f'<td data-label="{e(col["label"])}">')
             for c in cells[(point, col['id'])]:
                 v = c['viewport']
                 narrow = ' class="narrow"' if v['width'] <= 500 else ''

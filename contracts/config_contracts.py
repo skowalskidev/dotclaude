@@ -258,7 +258,8 @@ CONTRACTS: dict[str, dict] = {
             "Derive capture and review counts separately from cases; never count missing evidence or unreviewed captures as passes.",
             "Reject duplicate IDs, unknown statuses, missing assets and paths escaping the manifest directory; escape metadata and embed original local asset bytes without scripts or network requests.",
             "Place conditions above each uncropped image and retain every gap with its reason and next action in the inline gallery.",
-            "Render each point heading above its own media table with no Point column; preserve declared column order, stacked variants and videos, and cap mobile-width images at 300px. Reject missing cells and undeclared columns.",
+            "Render each point heading above its media table with no Point column; preserve declared column order, stacked variants and videos. Reject missing cells and undeclared columns.",
+            "Stack labeled cells at widths up to 700px using escaped manifest labels; preserve desktop tables and evidence order. Bound narrow images and videos by 300px and their container; verify 320px, 390px and 1440px layouts.",
         ],
     },
     "references/screenshot-review.md": {

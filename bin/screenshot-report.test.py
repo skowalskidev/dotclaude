@@ -4,6 +4,8 @@ import base64
 import copy
 import importlib.util
 from pathlib import Path
+from html import escape
+from html.parser import HTMLParser
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -149,7 +151,7 @@ class ReportTests(unittest.TestCase):
             heading, table = row.split('<table class="gallery"', 1)
             self.assertIn('<h2>', heading)
             self.assertNotIn('class="point"', table)
-            self.assertEqual(table.count('<td>'), 2)
+            self.assertEqual(table.count('<td data-label='), 2)
             self.assertEqual(table.count('<th>'), 2)
             self.assertLess(table.index('Web desktop'), table.index('Web mobile'))
             self.assertLess(row.index('id="empty-wide') if 'empty-wide' in row else row.index('id="full-wide"'),
@@ -158,6 +160,48 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(rows[1].count('<img'), 3)
         self.assertIn('<img class="narrow"', rows[1])
         self.assertIn('<img src=', rows[1])
+
+    def test_mobile_cells_keep_escaped_column_labels_order_and_exact_media(self):
+        class Cells(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.labels, self.media = [], []
+
+            def handle_starttag(self, tag, attrs):
+                values = dict(attrs)
+                if tag == 'td':
+                    self.labels.append(values.get('data-label'))
+                    self.assert_safe(values)
+                elif tag in ('img', 'video'):
+                    self.media.append((tag, values['src']))
+
+            @staticmethod
+            def assert_safe(values):
+                if any(key.startswith('on') for key in values):
+                    raise AssertionError('metadata created an event attribute')
+
+        labels = ['Wide <&> "panel"', 'Narrow & review', "Other 'size'"]
+        self.doc['columns'] = [dict(id=f'column-{i}', label=label) for i, label in enumerate(labels)]
+        video = b'\x1aE\xdf\xa3synthetic'
+        (self.root / 'clip.webm').write_bytes(video)
+        self.doc['cases'] = [dict(self.case, id=f'case-{i}', column=f'column-{i}', video='clip.webm')
+                             for i in (2, 0, 1)]
+        html = report.render(self.doc, self.root)
+        cells = Cells()
+        cells.feed(html)
+        self.assertEqual(cells.labels, ['Point', *labels, 'Next actions', *labels])
+        for label in labels:
+            self.assertIn(f'data-label="{escape(label, quote=True)}"', html)
+        self.assertEqual(cells.media, [
+            ('img', 'data:image/png;base64,' + base64.b64encode(PNG).decode()),
+            ('video', 'data:video/webm;base64,' + base64.b64encode(video).decode()),
+        ] * 3)
+        self.assertLess(html.index('id="case-0"'), html.index('id="case-1"'))
+        self.assertLess(html.index('id="case-1"'), html.index('id="case-2"'))
+        self.assertIn('content:attr(data-label)', html)
+        self.assertIn('@media(max-width:700px)', html)
+        self.assertIn('table.summary,table.gallery{min-width:0!important}', html)
+        self.assertIn('img.narrow,video.narrow{max-width:min(300px,100%)}', html)
 
     def test_missing_cell_unknown_column_and_bad_columns_rejected(self):
         self.doc['cases'].remove(self.desktop)
