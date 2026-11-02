@@ -430,8 +430,12 @@ reason for a part the diff does not touch (no migration, no traffic move).
 **DO build a local `train/<slug>` branch from current `origin/<default>` and merge, in the intended
 merge order, every open or draft PR this work depends on or that touches the same files, tables,
 functions or provider resources.** Use the batch-branch merge loop in § Merging several PRs at once
-(fetch each head, check its sha, `git merge --no-ff`). Run the repo's ordering and migration checks,
-then the affected suites for the union of the PRs' diffs, ONCE.
+(fetch each head, check its sha, `git merge --no-ff`), landing each PR the way the repo lands it: a
+squash train (`git merge --squash` then commit) when the merge queue or the repo's merge method squashes.
+Run the repo's ordering and migration checks, then the affected suites for the union of the PRs' diffs, ONCE.
+**DON'T call a conflict real until it reproduces under the repo's merge method.** A `--no-ff` merge of
+two PRs that share several merge bases can conflict where the squash merges clean (the fix for a false
+train conflict between two PRs that each merged the default branch).
 **DON'T resolve a conflict only on the train branch.** A conflict means the set does not compose in
 that order: fix it on the owning PR's branch (cross-owner gaps follow `/sk:ship-check-merge-readiness`),
 then rebuild the train. Never push the train; delete it at hand-back.

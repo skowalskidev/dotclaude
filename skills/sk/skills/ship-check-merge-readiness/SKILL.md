@@ -125,6 +125,11 @@ land, in what order, and what would have broken otherwise.
   the project has a full-repo static scan (not only a diff-scoped/new-only gate) run THAT too — the
   new-only gate's blind spot is exactly the orphaned or half-migrated file a rebase leaves in a diff
   it never touched, which is the defect class this skill exists to prevent.
+- **DO run `/sk:ship-full-detailed-workflow` on the PR's current head before calling a pushed PR ready.**
+  A standalone run of this skill proves the assembly only: say "assembled, ship run not done", then run
+  the harness in the same turn. **DON'T let green CI stand in for its review, matrix, judges and landing
+  gate.** TEST: a hand-back saying ready cites a landing-gate result on the head it names (the fix for a
+  merge-ready ask answered from this skill and CI alone, where the harness then found six defects).
 - Report: is-it-ready per PR, the assembled deploy order, every cross-owner ticket filed with its
   blocking flag, and anything still open that only the human can settle. Flip to ready only when
   the assembly holds and every blocking dependency is tracked.
