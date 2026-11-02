@@ -522,6 +522,11 @@ executed tests is `not run`, listed with the flag or service it needs. DON'T acc
 "0 failures" alone. TEST: every verification line carries the four counts, and no class with zero
 executed tests counts as passing (the fix for opt-in classes accepted as green at 50 skipped, 0 failed).
 
+**DO root-cause any failure in a test the change added or edited before merging.** A green rerun does
+not clear it; only a failure that also reproduces on the unchanged base counts as an existing flake.
+TEST: every rerun past a PR's own test names the cause (the fix for a new browser test that failed once
+on its PR, passed on rerun, then blocked every deploy on the default branch three runs in a row).
+
 **DO fix final-gate failures and rerun the affected checks** (native: the failed classes only, with
 `xcodebuild -only-testing:<target>/<class>`; the full suite runs once, at convergence, from the
 orchestrator). Reuse the passing remainder; rerun a broader
