@@ -463,6 +463,10 @@ the same gate, and a busy gate defers only the heavy step.
 The spawn prompt is the ONLY channel — a subagent inherits none of the parent conversation — so
 anything it isn't told, it doesn't have.
 
+DO spell out any data contract two workers share: field names, units and the timezone of every date.
+TEST: both prompts quote the same contract (the fix for a report written in UTC days while its reader
+allocated spend by Pacific days, caught only by reading both reports).
+
 `rules/communication.md`'s five rules apply to the spawn prompt, not just to what you write Simon;
 they are always-on and not restated here. The two that bite hardest on a delegation: state the
 expected result (an agent told only what to do cannot tell you it failed), and name the real thing

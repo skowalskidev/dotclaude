@@ -286,6 +286,12 @@ retain the lease on expiry or ownership/resource refusal. Keep status/watchdog e
 their metadata snapshot lock; reclaim always checks current ownership again. TEST: a slow diagnostic
 cannot block admission, and a stale report cannot reclaim a replacement owner's simulator.
 
+DO handle exit 124 in any retry loop around `run`: the lease stays held by design, so the same owner's
+next attempt waits on it until its own limit. Confirm the printed owner PID is dead, release the printed
+token with `--orphan-inspected`, then raise `--max-min` to fit the payload. Give each concurrent queue its
+own `--owner`, and judge a payload by its own output or receipt, not only the lease exit code. TEST: no
+retry loop treats 124 like 75 (the fix for four queues that stalled behind their own retained leases).
+
 DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
 before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle %, load
 and the memory-pressure level, and exits 75 on `DEFER`. On `DEFER`, use the prioritized foreground allowance below when authorized; otherwise wait for the
