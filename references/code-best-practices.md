@@ -54,6 +54,16 @@ minutes on usage errors from an empty run id.) The CI wait script lives in `refe
 TEST: every background wait states its condition and timeout, and its first output was read within 2
 minutes of launch.
 
+**DO send a background command's full raw output to a log file and filter only when reading it.** A
+watcher on a queued heavy job also fires on the wrapper's first waiting line and on no new output
+for 5 minutes, not only on terminal states. When a job Simon is waiting on is queued, tell him at the
+first check what it is queued behind and what clears it, before he asks.
+**DON'T filter a wrapper's waiting or queued lines out of the command itself** (`| grep -v`).
+TEST: no background command contains a `grep -v` of its own status lines; a 0-byte output file at the
+2-minute read counts as unknown state, so inspect the capacity status (`local-capacity.py status`)
+instead of reading it as progress (the fix for a simulator launch that sat deferred 26 minutes behind
+`grep -v "capacity waiting"` until Simon asked whether it was stuck).
+
 **DO stop a watcher, poll, monitor or scheduled wake the moment its target finishes or its owner hands
 back,** and stop each one you started before your own hand-back. A delegated worker stops its own
 before returning. DON'T leave a timer that wakes an agent whose work is done: every wake is a full model
