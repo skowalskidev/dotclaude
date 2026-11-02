@@ -1873,6 +1873,130 @@ class PriorityAllowanceTests(unittest.TestCase):
             self.assertEqual((self.root / "priority-session.json").read_text(), "")
 
 
+class ShortCheckTests(unittest.TestCase):
+    setUp = PriorityTests.setUp
+
+    def run_check(self, code="pass", **kwargs):
+        return gate.run_command(self.root, "check", None, [sys.executable, "-c", code],
+                                resource="compute", short_check=True, max_seconds=kwargs.pop("max_seconds", 120),
+                                wait_seconds=0, **kwargs)
+
+    def test_warning_with_headroom_runs_once_without_priority_and_releases(self):
+        marker = Path(self.tmp.name) / "ran"
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "cpu_idle_percent", return_value=35), \
+             mock.patch.object(gate, "simulator_pressure", return_value=(200, 8)):
+            self.assertEqual(self.run_check("from pathlib import Path; Path(%r).write_text('once')" % str(marker)), 0)
+            with self.assertRaises(gate.Busy):
+                gate.run_command(self.root, "ordinary", None, ["unused"], resource="compute", wait_seconds=0)
+        self.assertEqual(marker.read_text(), "once")
+        self.assertFalse(any(gate.read_state(self.root, slot=slot) for slot in gate.SLOTS))
+        self.assertIsNone(gate.allowance_token(self.root))
+        self.assertIsNone(gate.read_priority(self.root))
+
+    def test_short_check_validates_duration_resource_and_supervision_before_launch(self):
+        with mock.patch.object(gate, "launch_granted") as launch:
+            for resource, seconds in (("native", 120), ("compute", 120.1), ("compute", float("inf"))):
+                with self.assertRaises(gate.GateError):
+                    gate.run_command(self.root, "check", None, ["unused"], resource=resource,
+                                     short_check=True, max_seconds=seconds, wait_seconds=0)
+            with self.assertRaises(gate.GateError):
+                gate.run_command(self.root, "check", SIM, ["unused"], resource="compute", short_check=True, max_seconds=120)
+            with self.assertRaises(gate.GateError):
+                gate.acquire(self.root, "check", os.getpid(), None, short_check=True, compute_only=True)
+            launch.assert_not_called()
+
+    def test_short_check_refuses_critical_fallback_warning_and_insufficient_headroom(self):
+        for memory, idle in (((4, "sysctl"), 90), ((2, "compressed-share"), 90), ((2, "sysctl"), 34.9), ((1, "sysctl"), 19)):
+            with mock.patch.object(gate, "memory_pressure_level", return_value=memory), \
+                 mock.patch.object(gate, "cpu_idle_percent", return_value=idle), \
+                 mock.patch.object(gate, "launch_granted") as launch:
+                with self.assertRaises(gate.Busy):
+                    self.run_check()
+                launch.assert_not_called()
+        for probe in ("memory_pressure_level", "cpu_idle_percent", "simulator_pressure"):
+            with mock.patch.object(gate, probe, side_effect=gate.ProbeFailed("unknown")), \
+                 mock.patch.object(gate, "launch_granted") as launch:
+                with self.assertRaises(gate.Busy):
+                    self.run_check()
+                launch.assert_not_called()
+
+    def test_short_check_keeps_slot_and_simulator_caps(self):
+        for owner in ("one", "two", "three"):
+            gate.acquire(self.root, owner, os.getpid(), None)
+        before = [gate.read_state(self.root, slot=slot) for slot in gate.SLOTS]
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            with self.assertRaisesRegex(gate.Busy, "all 3 heavy slots busy"):
+                self.run_check()
+        self.assertEqual([gate.read_state(self.root, slot=slot) for slot in gate.SLOTS], before)
+        for lease in before:
+            gate.release(self.root, lease["token"])
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaisesRegex(gate.Busy, "booted simulators"):
+                self.run_check()
+
+    def test_short_check_preserves_native_lane_and_other_owner(self):
+        PriorityTests.hold_bridge(self)
+        native = gate.acquire(self.root, "native", os.getpid(), SIM, allow_bridge=True)
+        before = gate.read_state(self.root)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]), \
+             mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "legacy_bridge", side_effect=AssertionError("compute must not touch mutex")):
+            self.assertEqual(self.run_check(), 0)
+        self.assertEqual(gate.read_state(self.root), before)
+        self.assertEqual(gate.read_state(self.root)["token"], native)
+
+    def test_warning_allowance_is_shared_and_reserved_for_explicit_priority(self):
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            token = gate.acquire(self.root, "first", os.getpid(), None, compute_only=True,
+                                 child_pending=True, short_check=True)
+            with self.assertRaisesRegex(gate.Busy, "pressure allowance held by holder=first"):
+                self.run_check()
+            gate.prioritize(self.root, "primary", 30, False)
+            with self.assertRaisesRegex(gate.Busy, "priority allowance is held"):
+                gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
+        # The fixture has no child process; drop only this fixture's unlaunched receipt.
+        slot, lease = gate.find_lease(self.root, lambda item: item["token"] == token)
+        lease["child"] = None
+        gate.write_state(self.root, lease, slot)
+        gate.release(self.root, token)
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            with self.assertRaisesRegex(gate.Busy, "reserved for the priority session"):
+                self.run_check()
+
+    def test_pressure_change_stops_only_owned_command_and_releases_its_lease(self):
+        other = gate.acquire(self.root, "other", os.getpid(), None)
+        before = gate.read_state(self.root)
+        for reading in ((4, "sysctl"), (2, "compressed-share"), gate.ProbeFailed("unknown memory")):
+            with mock.patch.object(gate, "memory_pressure_level", side_effect=[(2, "sysctl"), reading]):
+                self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
+            self.assertEqual(gate.read_state(self.root), before)
+            self.assertEqual(gate.read_state(self.root)["token"], other)
+            self.assertIsNone(gate.allowance_token(self.root))
+        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+             mock.patch.object(gate, "cpu_idle_percent", side_effect=[90, 20]):
+            self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
+        self.assertEqual(gate.read_state(self.root), before)
+
+    def test_normal_admission_still_monitors_critical_memory_and_deadline(self):
+        with mock.patch.object(gate, "memory_pressure_level", side_effect=[(1, "sysctl"), (4, "sysctl")]):
+            self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
+        self.assertEqual(self.run_check("import time; time.sleep(30)", max_seconds=0.3), gate.TIMEOUT)
+        self.assertFalse(any(gate.read_state(self.root, slot=slot) for slot in gate.SLOTS))
+
+    def test_short_check_yields_pressure_allowance_to_new_priority(self):
+        calls = []
+        def pressure():
+            calls.append(1)
+            if len(calls) == 2:
+                gate.prioritize(self.root, "new-primary", 30, False)
+            return 2, "sysctl"
+        with mock.patch.object(gate, "memory_pressure_level", side_effect=pressure):
+            self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
+        self.assertEqual(gate.read_priority(self.root)["owner"], "new-primary")
+        self.assertIsNone(gate.allowance_token(self.root))
+
+
 class WatchdogTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

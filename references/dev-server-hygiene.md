@@ -239,6 +239,23 @@ python3 ~/.claude/bin/local-capacity.py status
 python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-command>
 ```
 
+DO size resource admission to the actual operation. Treat one existing-browser inspection,
+screenshot or focused smoke check as a short check when it uses one worker, starts no server,
+simulator or build, and finishes within 120 seconds. Run it with
+`run --owner <session-id> --resource compute --short-check --max-min 2 --wait-min 0 -- <command>`.
+At OS memory warning, the engine admits one supervised short check when CPU idle is at least 35%
+and a slot is free. It shares the one pressure allowance with priority work and yields that allowance
+to a newly granted priority. Critical or unknown memory, fallback warning, occupied slots and
+ownership conflicts still refuse admission. Every ten seconds the supervisor checks memory and,
+at warning, CPU headroom; it stops only its own command on an unsafe reading or deadline.
+DO select this mode for qualifying focused checks without another permission or priority request.
+DO use ordinary admission for full browser matrices, full suites, builds and stack starts. A generic `cpu`
+DEFER does not replace the short check's own admission decision. Keep other sessions' processes,
+preview ownership, connector boundaries and paid-call approvals intact.
+WHY: a short browser check was repeatedly deferred like a full build despite spare slots and CPU.
+TEST: warning with 35% idle admits the bounded check; warning with 34% idle, critical or unknown
+memory refuses it; a full build without `--short-check` still defers at warning.
+
 DO read `status` first: it prints `heavy slot 1 of 3` through `heavy slot 3 of 3`, each free or its holder,
 then `simulators in use`, the `watchdog:` lines and `dev stacks`.
 DO put EVERY heavy step under a lease, a priority session's included: wrap the command itself, e.g.
@@ -294,7 +311,7 @@ retry loop treats 124 like 75 (the fix for four queues that stalled behind their
 
 DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
 before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle %, load
-and the memory-pressure level, and exits 75 on `DEFER`. On `DEFER`, use the prioritized foreground allowance below when authorized; otherwise wait for the
+and the memory-pressure level, and exits 75 on `DEFER`. On `DEFER`, use the bounded short-check path above for its declared workload, or the prioritized foreground allowance below when authorized; otherwise wait for the
 next task boundary. TEST: no bare heavy command or parallel dispatch starts while the line reads `DEFER`.
 
 DO run `prioritize` only when Simon's own chat message names the task or session that goes first.
@@ -338,7 +355,8 @@ The runner applies this allowance automatically, checks memory and priority ever
 ends its own command on critical pressure, unknown memory, expiry or priority replacement; renew the
 priority with the same `prioritize` command while Simon's instruction stands. A failed
 host probe, critical memory, compressed-share fallback warning, full slots, the one-simulator cap or an
-unleased simulator still defers. A non-priority owner, simulator included, still defers at warning.
+unleased simulator still defers. Ordinary non-priority work, simulator included, still defers at warning;
+the declared short-check path above remains separate.
 WHY: a prioritized simulator preview Simon was waiting on deferred 30 minutes at warning with all three
 slots free, and a 5-minute allowance cap killed a 120-minute `--max-min` run.
 DO read the exit-75 line: it names the real blocker and the next step (not the priority session; memory

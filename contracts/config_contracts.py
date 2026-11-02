@@ -46,7 +46,9 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
             "Defer ordinary admission below 20% CPU idle, above 1.5 load per core while idle is below 35%, or at memory warning; cpu reports the reading. Use compressor share above 40% only when the OS pressure signal is unavailable.",
-            "Admit one supervised priority command, a simulator run and its stages included, under CPU contention or OS memory warning for its own --max-min within the three-slot cap; a non-priority owner still defers. Critical, unknown or fallback-warning memory refuses.",
+            "Admit one supervised priority command under CPU contention or OS memory warning for its own --max-min, including simulator stages. Ordinary non-priority work still defers. Critical, unknown or fallback-warning memory refuses.",
+            "Admit declared compute short checks for at most 120 seconds at OS warning only with at least 35% CPU idle. Retain lease, priority, simulator and ownership caps; share the one pressure allowance and yield it to new priority.",
+            "Monitor short-check memory every ten seconds and CPU headroom at warning; stop only its owned group on critical, unknown, fallback warning, lost headroom or deadline. Refuse unsupervised, native and overlong short-check requests.",
             "Check allowance memory and priority every ten seconds; stop only the owned group on critical or unknown memory, expiry or replacement. Preserve lease cleanup and all simulator, stack and ownership boundaries.",
             "Sample the host before taking a legacy bridge lock, poll a held lock for at most 3 seconds, then refuse naming each live holder's PID and command name, never its arguments.",
             "Every deferral names the real blocker and next action. A --wait-min above 60 exits 1 naming the cap in minutes; a --max-min expiry names that limit.",
@@ -685,6 +687,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Starting, identifying and tearing down dev servers without leaking processes.",
         "criteria": [
             "Apply the shared verification timing policy; resource admission never creates a per-file or per-worker test obligation.",
+            "Classify one bounded browser inspection or focused smoke check separately from heavy batches; use supervised --short-check within its 120-second compute limit. Keep full builds, suites, stacks, ownership, connector and spend boundaries on their existing paths.",
             "Track and stop every started process; retain explicitly requested previews only through their bounded owned lifecycle. Verify identity before trusting logs.",
             "Route iOS simulator execution to references/ios-simulator.md without duplicating its preflight, preview evidence or recovery procedure.",
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",

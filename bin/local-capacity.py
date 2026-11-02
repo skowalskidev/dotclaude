@@ -4,8 +4,9 @@
 At most HEAVY_SLOTS owners hold a heavy lease at once, one lease per owner, and at most
 MAX_BOOTED_SIMULATORS simulator is claimed, leased or booted machine-wide. A priority owner named
 by `prioritize` reserves one slot while absent; other owners use spare slots. Session workers share
-that owner. One supervised command may progress through CPU contention or memory warning for five
-minutes within the heavy-slot cap; critical or unknown memory never permits this allowance.
+that owner. One supervised priority command may progress through CPU contention or memory warning
+within the heavy-slot cap. A declared short compute check may pass OS memory warning with CPU
+headroom for at most two minutes; critical or unknown memory never permits either allowance.
 Explicitly pause-safe foreground runs yield their own group under primary contention.
 Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
@@ -50,6 +51,8 @@ LOAD_PER_CORE = 1.5  # high load is above this many 1-minute load units per logi
 # machine heading for saturation, and is under the 51% idle seen with no saturation at all.
 LOAD_CONFIRM_IDLE_PERCENT = 35
 DEFER_PRESSURE_LEVEL = 2  # admission defers at this kern.memorystatus_vm_pressure_level or worse (1 normal, 2 warning, 4 critical)
+SHORT_CHECK_MAX_SECONDS = 120
+SHORT_CHECK_MIN_IDLE_PERCENT = 35  # short checks need this CPU headroom to pass OS memory warning
 MAX_COMPRESSED_SHARE = 0.4  # fallback only, when the sysctl is unavailable: defer above this share of RAM held by the compressor
 PRESSURE_NAMES = {1: "normal", 2: "warning", 4: "critical"}
 MAX_BOOTED_SIMULATORS = 1  # the one simulator ceiling: claimed, leased or booted, all sessions
@@ -1305,13 +1308,15 @@ def deferral_text(reason, allowance_reason, priority, is_priority, child_pending
 
 
 def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False,
-            compute_only=False, admission=None, sample=None):
+            compute_only=False, admission=None, sample=None, short_check=False):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if pid <= 0:
         raise GateError("pid must be positive")
     if simulator is not None and not UDID.fullmatch(simulator):
         raise GateError("simulator must be a UDID")
+    if short_check and (not compute_only or not child_pending or simulator):
+        raise GateError("short checks require a supervised compute run without a simulator")
     if bridge_paths(root) and not allow_bridge:
         raise GateError("legacy lock bridge is active; use foreground run so its lock remains held")
     # Sample once before locking: iostat waits one interval. Unknown probes fail closed. A runner samples
@@ -1331,14 +1336,23 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         states = [read_state(root, slot=name) for name in SLOTS]
         held = [lease for lease in states if lease]
         allowance_held = allowance_token(root) if reason else None
-        allowance = bool(reason and is_priority and child_pending and not allowance_held and not allowance_reason)
+        short_reason = short_check_reason(sample) if short_check else None
+        if short_check and short_reason:
+            raise Busy("short check deferred: %s" % short_reason)
+        priority_allowance = bool(reason and not short_check and is_priority and child_pending
+                                  and not allowance_held and not allowance_reason)
+        short_allowance = bool(reason and short_check and not allowance_held and (not priority or is_priority))
+        allowance = priority_allowance or short_allowance
         if reason and not allowance:
             _, holder = find_lease(root, lambda item: allowance_held is not None
                                    and secrets.compare_digest(item["token"], allowance_held))
+            if short_check:
+                raise Busy("short check deferred: %s; pressure allowance %s" % (
+                    reason, ("held by " + holder_text(holder)) if holder else "reserved for the priority session"))
             raise Busy(deferral_text(reason, allowance_reason, priority, is_priority, child_pending,
                                      holder_text(holder) if holder else "an ended run"))
         if admission is not None:
-            admission.update(owner=owner, priority_allowance=allowance,
+            admission.update(owner=owner, priority_allowance=priority_allowance, short_check_allowance=short_allowance,
                              priority_binding=priority_binding(priority) if is_priority else None)
         mine = next((lease for lease in held if lease["owner"] == owner), None)
         if mine:
@@ -1783,7 +1797,7 @@ class CooperativeRun(OwnedGroup):
 
 
 def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds, second_slot_only=False,
-                 pause_safe=False, resource="native", sample=None):
+                 pause_safe=False, resource="native", sample=None, short_check=False):
     if not command:
         raise GateError("run requires a foreground command after --")
     if command[0] == "--":
@@ -1793,12 +1807,15 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
     admission = {}
     token = acquire(root, owner, os.getpid(), simulator, child_pending=True, allow_bridge=True,
                     second_slot_only=second_slot_only, compute_only=resource == "compute", admission=admission,
-                    sample=sample)
+                    sample=sample, short_check=short_check)
     owner = admission["owner"]
     allowance = admission["priority_allowance"]
     if allowance:
         print("capacity priority allowance: this command runs up to --max-min (%g seconds); it stops early on "
               "critical or unknown memory, or when the priority ends or changes" % max_seconds, file=sys.stderr)
+    if admission["short_check_allowance"]:
+        print("capacity short-check allowance: at most %g seconds with CPU headroom; "
+              "critical/unknown memory or loss of headroom stops only this command" % max_seconds, file=sys.stderr)
     metrics["token"] = token
     metrics["start"] = time.monotonic()
     metrics["wait"] = metrics["start"] - metrics["requested"]
@@ -1860,10 +1877,12 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
                       "token=%s. Pass a larger --max-min for a longer command; a long-lived dev server runs outside "
                       "run (references/dev-server-hygiene.md)" % (max_seconds, token), file=sys.stderr)
                 return TIMEOUT
-            if allowance and time.monotonic() >= next_pressure_check:
+            if (allowance or short_check) and time.monotonic() >= next_pressure_check:
                 next_pressure_check = time.monotonic() + RETRY_SECONDS
                 try:
-                    retry_state_lock(lambda: check_priority_allowance(root, owner, admission["priority_binding"]),
+                    check = (lambda: check_short_check(root, owner, admission["short_check_allowance"], admission["priority_binding"])) if short_check else (
+                        lambda: check_priority_allowance(root, owner, admission["priority_binding"]))
+                    retry_state_lock(check,
                                      min(deadline, next_pressure_check))
                 except GateError as exc:
                     cooperative.terminate() if cooperative else terminate_group(child)
@@ -1905,6 +1924,28 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
             signal.signal(sig, handler)
 
 
+def short_check_reason(sample):
+    """Short checks may pass only the OS warning signal, with measured CPU headroom."""
+    idle, load, cores, level, source = sample
+    if level == 2 and source == "sysctl" and idle >= SHORT_CHECK_MIN_IDLE_PERCENT:
+        return None
+    return host_reading(sample=sample)[1]
+
+
+def check_short_check(root, owner, allowance, binding):
+    # Critical/unknown memory never waits for metadata or another CPU sample.
+    level, source = memory_pressure_level()
+    if level == 4 or (level == 2 and source != "sysctl"):
+        raise Busy("short check ended: memory is critical/unknown")
+    if level == 2 and cpu_idle_percent() < SHORT_CHECK_MIN_IDLE_PERCENT:
+        raise Busy("short check ended: memory warning without %d%% CPU idle headroom" % SHORT_CHECK_MIN_IDLE_PERCENT)
+    if allowance:
+        with locked(root):
+            priority = read_priority(root)
+        if priority and (priority["owner"] != owner or not bound_priority_matches(priority, binding)):
+            raise Busy("short check ended: pressure allowance is now reserved for the priority session")
+
+
 def check_priority_allowance(root, owner, binding):
     # Check memory before a contended state read too. Unknown/critical never waits on the lock.
     level, source = memory_pressure_level()
@@ -1928,7 +1969,7 @@ def cleanup_run(root, token, simulator):
 
 
 def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=WAIT_SECONDS, pause_safe=False,
-                resource="native"):
+                resource="native", short_check=False):
     if not math.isfinite(wait_seconds) or wait_seconds < 0 or wait_seconds > MAX_WAIT_MIN * 60:
         raise GateError("--wait-min must be 0..%d minutes (got %g); for a longer wait, rerun at the next task "
                         "boundary" % (MAX_WAIT_MIN, wait_seconds / 60))
@@ -1936,6 +1977,8 @@ def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=
         raise GateError("--max-min must be a positive number")
     if resource not in ("native", "compute") or (resource == "compute" and simulator):
         raise GateError("compute resource cannot use a simulator")
+    if short_check and (resource != "compute" or max_seconds > SHORT_CHECK_MAX_SECONDS):
+        raise GateError("--short-check requires --resource compute and --max-min at most %g" % (SHORT_CHECK_MAX_SECONDS / 60))
     if pause_safe and (simulator or (resource != "compute" and bridge_paths(root))):
         raise GateError("pause-safe requires an isolated command without simulator or legacy locks")
     metrics = {"requested": time.monotonic()}
@@ -1947,7 +1990,7 @@ def run_command(root, owner, simulator, command, max_seconds=3600, wait_seconds=
                 bridge = nullcontext(((), False)) if resource == "compute" else legacy_bridge(root, owner)
                 with bridge as (legacy_fds, bridge_skipped):
                     code = _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_fds,
-                                        bridge_skipped, pause_safe, resource, sample)
+                                        bridge_skipped, pause_safe, resource, sample, short_check)
                     if "token" in metrics:
                         try:
                             cleanup_run(root, metrics["token"], simulator)
@@ -2027,6 +2070,8 @@ def main(argv=None):
                             help="assert isolated CPU job tolerates SIGSTOP, retains no shared locks/services and has no wall-clock-sensitive tests")
     run_parser.add_argument("--resource", choices=("native", "compute"), default="native",
                             help="compute asserts no native/simulator/shared-service use; reserves a native lane and takes no legacy mutex")
+    run_parser.add_argument("--short-check", action="store_true",
+                            help="declare one lightweight check, no build/stack/full browser matrix; requires compute and max-min <=2; may pass OS warning with CPU headroom")
     run_parser.add_argument("command", nargs=argparse.REMAINDER)
     stage_parser = sub.add_parser("stage")
     stage_parser.add_argument("--timeout-seconds", type=float, required=True)
@@ -2128,7 +2173,7 @@ def main(argv=None):
             if not math.isfinite(args.max_min) or args.max_min <= 0:
                 raise GateError("--max-min must be a positive number")
             return run_command(root, args.owner, args.simulator, args.command, args.max_min * 60,
-                               args.wait_min * 60, args.pause_safe, args.resource)
+                               args.wait_min * 60, args.pause_safe, args.resource, args.short_check)
         elif args.action == "stage":
             if not math.isfinite(args.timeout_seconds):
                 raise GateError("--timeout-seconds must be finite")
