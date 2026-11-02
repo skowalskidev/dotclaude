@@ -451,6 +451,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "How Claude talks to Simon, and how it writes prompts for subagents.",
         "criteria": [
             "Questions consolidate into one block at the END of a turn.",
+            "A finished session (every ask verdicted, no running work, lease or port, clean pushed worktree) ends its last message with the single line 'You can archive this session: everything here is done.', naming what Simon still owns; never mid-run or while work is open.",
             "Owns the five writing rules. copilot-testing and parallelization point here and do "
             "not restate them.",
         ],

@@ -264,3 +264,25 @@ adds a leak path and no information.
 - Before designing, inspect real production data (via MCP/CLI on the prod project) to verify base assumptions and see realistic document shapes, data patterns, and volumes — including worst cases — and plan for high performance against those worst cases.
 - **Screen production data for the bug BEFORE planning the fix, and let only fresh data count.** The codebase moves fast, so a document written before the relevant code last changed can show a shape the current path no longer produces. DO pull the most-recent documents for the collection, treat a pattern that only pre-change docs show as already-fixed, and corroborate every inconsistency you keep against a second independent signal (a sibling collection, the write path in code, a log line). TEST: each inconsistency carried into the plan appears in data written AFTER the code that writes it last changed, AND is confirmed by one independent source — never inferred from a single stale document.
 - Document platform gotchas discovered during spikes (account constraints, mode restrictions, version quirks) in the plan/test plan so they aren't re-learned.
+
+## Phased execution
+
+Applies only when Simon asks for phases, spacing or a stop after each stage:
+
+- **Plan the phases first** and show me the list before starting, so I can see the whole shape and
+  confirm nothing is missing. Dividing the work does not mean discovering it as you go.
+- **Stop at each phase boundary and wait.** Inside a phase, run-to-completion applies in full: a phase
+  ends when its work is done and verified, not when there is something tidy to report.
+- **Commit as you go**, one logical unit per commit, so a phase boundary is a clean resumable point.
+- **On resume, work out where you left off before doing anything** — read the plan, the commits, and
+  the working tree. Never restart work that is already done, and never assume the previous phase
+  finished cleanly just because it ended.
+- **Phasing is for pacing, never for scope.** Everything on the original list still gets done. If a
+  phase reveals more work, it goes into a later phase, not into the bin.
+
+## Checkpoint before a risky change
+
+Before a change that touches **more than about three files** (a refactor, a rename sweep, a migration, a
+dependency bump), make a restore point FIRST. `/rewind` covers main-session edits only: a backgrounded
+forked skill (`context: fork`) edits outside the session's checkpoints, and nothing Bash writes is
+checkpointed. For those, commit the good state or branch before starting.

@@ -159,16 +159,9 @@ green tree.
 Run-to-completion above is the DEFAULT and stays it. But when I say to work in phases (or to space the
 work out, or to stop after each stage), that overrides it for that task:
 
-- **Plan the phases first** and show me the list before starting, so I can see the whole shape and
-  confirm nothing is missing. Dividing the work does not mean discovering it as you go.
-- **Stop at each phase boundary and wait.** Inside a phase, run-to-completion applies in full: a phase
-  ends when its work is done and verified, not when there is something tidy to report.
-- **Commit as you go**, one logical unit per commit, so a phase boundary is a clean resumable point.
-- **On resume, work out where you left off before doing anything** — read the plan, the commits, and
-  the working tree. Never restart work that is already done, and never assume the previous phase
-  finished cleanly just because it ended.
-- **Phasing is for pacing, never for scope.** Everything on the original list still gets done. If a
-  phase reveals more work, it goes into a later phase, not into the bin.
+Plan the phases first and show the list; stop at each boundary; commit per phase; on resume read the
+plan, commits and tree first; phasing is pacing, never scope. Detail: `references/planning-and-tracking.md`
+§ Phased execution.
 
 ### Check whether the project declares expected outcomes, before changing a unit
 Many carry a contract registry or acceptance criteria that a green test suite does not enforce on its
@@ -177,10 +170,8 @@ When one exists it is authoritative, and its criteria stay true across your chan
 reference implementation are in `~/.claude/references/contracts-and-outcomes.md`.
 
 ### Checkpoint before a risky change, so undo does not mean re-deriving it
-Before a change that touches **more than about three files** (a refactor, a rename sweep, a migration, a
-dependency bump), make a restore point FIRST. `/rewind` covers main-session edits only: a backgrounded
-forked skill (`context: fork`) edits outside the session's checkpoints, and nothing Bash writes is
-checkpointed. For those, commit the good state or branch before starting.
+Before a change touching more than about three files, commit the good state or branch first. Detail:
+`references/planning-and-tracking.md` § Checkpoint before a risky change.
 
 ### Self-verify every visual deliverable before handing back — the default
 **DO open the exact artifact a human will open (web UI in Chrome for Testing, `browser-debugging.md`;

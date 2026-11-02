@@ -13,6 +13,19 @@ at the END, under **Questions** or **Your call**. Use AskUserQuestion when it is
 are none.
 WHY: a question mid-answer stops him reading the answer.
 
+## Say when the session can be archived
+
+**DO end the final message of a finished session with one line: "You can archive this session: everything here is done."**
+Finished means every ask in the ledger/plan has a verdict, no agent, watcher or process of this
+session is running, no lease or port is held, the worktree is clean and pushed, and what remains is
+only what this session cannot act on. Name what Simon still owns (a merge, a production check) in
+that line or the one above it; those survive archiving.
+**DON'T say it mid-run, or while any work, verdict or cleanup is open.** Name the single next
+blocker or the running work instead, and never announce "not yet archivable".
+WHY: he asked "can I archive this?" after every run.
+TEST: a finished session's last message lacks the line, or carries it with work running or a
+required item unverdicted.
+
 ## Five rules for anything you write
 
 Home for these. `copilot-testing` and `parallelization.md` point here; do not restate them there.
