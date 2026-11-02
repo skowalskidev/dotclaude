@@ -1665,7 +1665,9 @@ def check_screenshot_refresh_follows_final_batch() -> None:
     for required in ("**PR description first**", "A link to an evidence comment is not description embedding",
                      "capability checks prove description embedding unsupported or blocked",
                      "preserve all unrelated text and automation footers byte-for-byte",
-                     "zero obsolete or upload-only", "saved PR description", "`body_html` unchanged"):
+                     "zero obsolete or upload-only", "saved PR description", "`body_html` unchanged",
+                     "supported Markdown local references", "zero local media refs",
+                     "no duplicate appended media", "preserve unrelated text and automation footers"):
         check(required in skill, "Description-first publication lost: " + required)
     check("one fresh consolidated evidence comment on every refresh" not in skill,
           "Comment-only default contradicts description-first publication")
