@@ -410,6 +410,16 @@ the same gate, and a busy gate defers only the heavy step.
   the suite. Report exit 75 as a deferred heavy step with the holder and next action. A worker that
   backgrounds a build and returns "still waiting" forces another orchestration round; one run had
   35 such returns. TEST: each worker returns one final report and no stage waits indefinitely.
+- **DO push a finished fix instead of waiting for a local heavy slot when the branch's CI runs that
+  check.** Run the cheap static gates (`testing-strategy.md`), commit, push, read the CI result. Exit 75
+  or a lease wait on a suite CI also runs ends that wait. Keep local runs for what CI skips: a draft PR,
+  a human walk, native runtime. TEST: no finished fix sits uncommitted behind a capacity wait on a
+  non-draft PR's branch (the fix for a two-line fix left uncommitted 40 minutes behind a local lease
+  while CI was free).
+- **DO state the real blocker in every status line about delegated work, from a fresh check of its
+  tree, lease and CI.** Name what it waits on and the next action: a lease holder, an uncommitted fix,
+  a named CI job. DON'T write a bare "still running". End a wait you can end before reporting it.
+  TEST: each status about a worker names its current blocker and next action.
 - **Split a lane that owns a serial resource when it shortens the critical path.** Give disjoint
   features separate editing workers only within the total worker cap and shared heavy-work capacity.
   Queue their native builds through the capacity lease above; more editors do not add build slots.

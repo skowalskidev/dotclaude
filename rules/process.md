@@ -19,6 +19,8 @@ DO defer tests/typechecks/builds across the whole batch and review fixes; allow 
 or explicit requests. Keep hooks/CI. Verify once at convergence; reuse proof, rerun affected coverage.
 Keep native compile/backend checks; native runtime/UI/screenshots are opt-in.
 Apply `references/testing-strategy.md` §§ Defects first and Native simulator suites.
+DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push. Name
+the real blocker in every status. `references/parallelization.md` § Parallelize verification.
 TEST: no routine per-edit/feature/commit runs; mandatory final coverage uses matching inputs.
 
 ### Claims about third parties must come from primary sources
