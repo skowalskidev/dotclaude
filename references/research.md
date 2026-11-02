@@ -45,6 +45,19 @@ Whenever I'm making a factual claim about someone else's product (a comparison t
   convert better, and an unbeatable-looking table is the one readers go and disprove.
 
 
+## Attributing behaviour to an outsider
+
+DO compare the evidence's own identifiers with our runtime before answering "is this ours?" or
+calling traffic, a failure or an account external: the address and network against the CI runner
+hosts printed in job logs, provider egress and teammates' machines; the user agent against our test
+runners' presets and HTTP clients; the first-seen date against our own merges and provider changes.
+DON'T rule out our own systems from a code search. A search finds what the repo names, and a CI
+provider's network is named nowhere in it.
+DON'T build on the attribution until one identifier matches or every runtime was checked. State what
+was checked next to the claim. (the fix for a "scraper" on a hosting network that was our CI's
+runners, found only after a block for it failed that same CI.)
+TEST: an "external" or "not ours" verdict names the runtime identifiers it was compared against.
+
 ## Who benefits if you act on this?
 
 Ask it of every source before repeating what it says. Discount the source in proportion to its stake
