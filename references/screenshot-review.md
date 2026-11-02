@@ -8,6 +8,25 @@ DON'T install a second framework, alter app DOM to add captions, or replace inde
 TEST: each capture identifies its source and real UI state, and captions exist only in the report or
 in the § PR evidence template bands.
 
+## Refresh after the follow-up batch
+
+DO refresh screenshot and walkthrough evidence by default when the current ticket's requested
+follow-ups, review fixes and required checks are finished, unless Simon explicitly waives it.
+Track one pending evidence refresh in the existing plan. Capture for diagnosis during implementation
+is allowed; publish the final evidence only after the whole current batch converges, not after each
+fix or checkpoint. Record the final source revision and verify that published AFTER captures show it.
+DON'T finish a follow-up batch with screenshots of an earlier UI or a promise to update them later.
+TEST: no final publication precedes an outstanding follow-up or required fix in the batch; hand-back
+has current verified evidence or Simon's explicit waiver or a concrete publication blocker.
+
+DO reopen that pending refresh if another follow-up arrives before hand-back, or a fix changes the
+captured UI after publication. Finish the new work, then replace stale points once. Carry forward
+unchanged points only with recorded source/fixture equivalence and their original provenance; never
+relabel an old capture as newly captured. Reconcile all visible points against the final diff before
+publishing (e.g. a later color correction invalidates the earlier image of that control).
+TEST: every current point has final-source capture proof or explicit unchanged-point reuse proof;
+zero points depict a superseded state as the current result.
+
 ## Discover the complete matrix
 
 DO default scope to all changed routes and journeys from the diff and acceptance criteria; retain an
@@ -148,13 +167,15 @@ side plays 10-15 s (speed factor = duration / target, default 12 s, never slowed
 state 4-5 s (default 4.5), the shorter side holds its last frame so both end together; H.264,
 yuv420p, `+faststart`.
 
-DO post one block per point in the PR comment: `### <point>`, one line naming what the left (or top)
+DO post one block per point in the PR description, with a comment only when description embedding
+is unsupported or blocked: `### <point>`, one line naming what the left (or top)
 and right (or bottom) frames show, then per captured platform a `**Desktop**` / `**Mobile**` / `**iOS**`
 label over its composed image (`<img src="<url>" width="800" alt="<point> <platform> before and after">`),
 then the composed video alone in its own paragraph. A new surface posts its AFTER frame under
 `Before: n/a: new, no before`; a platform without evidence shows `not run: <reason>` or
-`blocked: <reason>`. Post with `gh pr comment <n> --body-file body.md --attach <png> --attach <mp4>`
-and verify through `/sk:ship-screenshot-changes`'s VERIFY checks: each image URL returns 200 `image/png` with
+`blocked: <reason>`. Feature-detect `gh pr edit --attach` and use
+`gh pr edit <n> --body-file body.md --attach <png> --attach <mp4>` when supported; apply the
+screenshot skill's destination and attachment fallback before using a comment. Verify through `/sk:ship-screenshot-changes`'s VERIFY checks: each image URL returns 200 `image/png` with
 nonzero size and each video is served as `video/mp4`, then the browser playback checks still decide.
 TEST: every posted pair shows both bands above its frames and no caption over the UI, every changed
 journey has one composed video, and `python3 ~/.claude/bin/pr-evidence.test.py` passes.
@@ -247,7 +268,7 @@ TEST: the report works offline and exposes findings, unreviewed captures and all
 DO hand back the local report link plus a compact Point · Verdict/gap · Next action table, one row per point with each column's status in it. State counts
 for capture statuses and review statuses separately, disclose sampled coverage and missing video, and
 name any reviewer decision. The offline report stays local unless Simon authorizes its destination;
-the PR evidence comment follows § PR evidence template.
+the PR evidence follows § PR evidence template.
 TEST: Simon can review the intended UI journey from the report without driving the app himself.
 
 ## Hand-off check: every state of the artifact you hand over

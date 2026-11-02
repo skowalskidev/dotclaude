@@ -93,6 +93,7 @@ CRITERIA: list[tuple[str, str]] = [
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
      "Native Codex reads current shared sources and propagates hook decisions; Claude and Codex launchers preserve the selected project's instruction boundary without copying credentials."),
+    ("screenshot-refresh-follows-final-batch", "Final ticket evidence defaults to the PR description after all follow-ups, reopens after new fixes, and verifies current media before retiring stale evidence."),
     ("screenshot-report-preserves-evidence",
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
     ("pr-evidence-template-stacks-bands-above-ui",
@@ -1649,6 +1650,25 @@ def check_session_performance_and_capacity() -> None:
     rule = (ROOT / "rules/self-healing-config.md").read_text()
     check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
           "After-run analysis is not routed from the always-on task lifecycle")
+
+
+def check_screenshot_refresh_follows_final_batch() -> None:
+    process = (ROOT / "rules/process.md").read_text()
+    reference = (ROOT / "references/screenshot-review.md").read_text()
+    skill = (ROOT / "skills/sk/skills/ship-screenshot-changes/SKILL.md").read_text()
+    check("§ Refresh after the follow-up batch" in process and "by default for UI ticket work" in process,
+          "Final screenshot refresh lost its always-on route")
+    for required in ("required checks are finished", "unless Simon explicitly waives it",
+                     "only after the whole current batch converges", "reopen that pending refresh",
+                     "unchanged points only with recorded source/fixture equivalence"):
+        check(required in reference, "Final evidence lifecycle lost: " + required)
+    for required in ("**PR description first**", "A link to an evidence comment is not description embedding",
+                     "capability checks prove description embedding unsupported or blocked",
+                     "preserve all unrelated text and automation footers byte-for-byte",
+                     "zero obsolete or upload-only", "saved PR description", "`body_html` unchanged"):
+        check(required in skill, "Description-first publication lost: " + required)
+    check("one fresh consolidated evidence comment on every refresh" not in skill,
+          "Comment-only default contradicts description-first publication")
 
 
 def check_screenshot_report_preserves_evidence() -> None:

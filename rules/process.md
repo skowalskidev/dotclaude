@@ -179,7 +179,8 @@ state he can switch to,** at most 24 variant x viewport x toggle rows: not blank
 strings present, key elements fully visible (cut by no overflow-hidden or scroll ancestor), one
 screenshot per distinct view type viewed. On any failure fix and re-run the WHOLE check until every row
 passes; hand off with the pass table and screenshots path. iOS runtime checks keep their opt-in.
-Tool: `references/screenshot-review.md` § Hand-off check.
+Tool: `references/screenshot-review.md` § Hand-off check. DO apply § Refresh after the follow-up batch
+by default for UI ticket work.
 **DON'T count another file's render, one state, a DOM string or non-white pixels as the check** (a board opened
 blank, then a compare view cropped every phone).
 **DO measure a supplied-design build** (`references/workflow-loops.md` § Build from a supplied design

@@ -66,6 +66,7 @@ SCENARIOS: list[dict] = [
     {"phrase": "make sure this will not regress on production", "expect": "ship-verify-with-prod-data"},
     {"phrase": "look at recent data from all accounts", "expect": "ship-verify-with-prod-data"},
     {"phrase": "does this add up across accounts", "expect": "ship-verify-with-prod-data"},
+    {"phrase": "refresh screenshots after all ticket follow-ups", "expect": "ship-screenshot-changes"},
     {"phrase": "screenshot the changes", "expect": "ship-screenshot-changes"},
     {"phrase": "doc the new UI", "expect": "ship-screenshot-changes"},
     {"phrase": "grab screenshots of what changed", "expect": "ship-screenshot-changes"},
