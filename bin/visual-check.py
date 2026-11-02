@@ -134,8 +134,16 @@ for (const vp of job.viewports) for (const st of job.states) {
   // reducedMotion: entrance animations finish at once, so a screenshot never catches a mid-fade frame.
   const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, reducedMotion: "reduce" });
   page.on("pageerror", (e) => row.problems.push("page error: " + e.message));
+  // Set just before this check closes the page: a request still in flight then, such as a link prefetch, is cut off
+  // by the check itself. A request the page aborted while it was open still counts.
+  let closing = false;
+  const abortedFetches = [];
   page.on("requestfailed", (r) => {
     const why = r.failure()?.errorText || "unknown error";
+    if (closing && why === "net::ERR_ABORTED") return;
+    // A framework prefetches the pages a page links to and cancels those fetches freely, so an aborted fetch is judged
+    // against the page's links just before closing: a fetch of anything else still counts.
+    if (r.resourceType() === "fetch" && why === "net::ERR_ABORTED") { abortedFetches.push(r.url()); return; }
     // Chromium cancels a media preload and re-requests it by byte range, so an aborted media request is not a
     // failed load. A missing media file fails with its own error (net::ERR_FILE_NOT_FOUND) and still counts.
     if (r.resourceType() === "media" && why === "net::ERR_ABORTED") return;
@@ -199,6 +207,15 @@ for (const vp of job.viewports) for (const st of job.states) {
       }
     }
   } catch (e) { row.problems.push("load failed: " + String(e.message).split("\n")[0]); }
+  const links = await page.evaluate(() => [...document.links].map((a) => a.origin + a.pathname)).catch(() => []);
+  for (const url of abortedFetches) {
+    const { origin, pathname } = new URL(url);
+    const target = origin + pathname;
+    // Next.js also fetches a linked page's segment files, /page/__next.*.
+    if (links.some((l) => target === l || target.startsWith(l + "/__next."))) continue;
+    row.problems.push(`request failed (net::ERR_ABORTED): ${url.length > 80 ? "…" + url.slice(-79) : url}`);
+  }
+  closing = true;
   await page.close();
   rows.push(row);
 }

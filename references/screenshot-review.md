@@ -287,7 +287,7 @@ browser pane: it can be hidden, which throttles CSS animations into mid-fade fra
 batches drop images (the fix for faded demo screenshots read as broken). Use the pane for interactive spot
 checks only. The tool runs headless with reduced motion and loads the file fresh per row,
 screenshots the full page, and exits 1 on any blank page or region, any region or visible element that is
-not fully visible, missing string, page error or failed request (a media preload abort is not one; a missing media file is). A stitched image or PR image has no page: wrap it in a one-line HTML
+not fully visible, missing string, page error or failed request (a media preload abort, an aborted fetch of a page it links to, or a request cut off when the tool closes the page is not one; a missing media file is). A stitched image or PR image has no page: wrap it in a one-line HTML
 page and check that, then view it.
 DEFAULT: cap the table at 24 rows (viewports x states) and list every row; the default state is always row one.
 NUMBER: blank means ink share below 0.05%, where ink is the share of pixels differing from the area's

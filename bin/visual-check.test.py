@@ -33,6 +33,11 @@ INK = "<div style='height:120px;background:repeating-linear-gradient(90deg,#c33 
 # A fetch cancelled mid-download fails with net::ERR_ABORTED, which must still count for a non-media request.
 ABORTED_FETCH = ("<!doctype html><title>f</title>" + INK + "<script>const c=new AbortController();"
                  "fetch('/blob.bin',{signal:c.signal}).catch(()=>{});setTimeout(()=>c.abort(),5);</script>")
+# The same abort on a fetch of a page this page links to is a link prefetch the framework dropped, not a failed load.
+ABORTED_PREFETCH = ABORTED_FETCH.replace("<script>", "<a href='/blob.bin'>next</a><script>")
+# A large download always under way, so one is still in flight when the check closes the page after its screenshot.
+IN_FLIGHT_AT_CLOSE = ("<!doctype html><title>f</title>" + INK + "<script>"
+                      "setInterval(()=>fetch('/blob.bin?'+Math.random()).catch(()=>{}),5);</script>")
 
 
 def run(*args: str, cwd: str) -> subprocess.CompletedProcess:
@@ -183,6 +188,12 @@ def main() -> int:
                 (site / "aborted.html").write_text(ABORTED_FETCH)
                 aborted = run(url + "aborted.html", "--out", str(root / "o-aborted"), cwd=tmp)
                 checks["an aborted non-media request still fails"] = aborted.returncode == 1 and "request failed (net::ERR_ABORTED)" in aborted.stdout
+                (site / "prefetch.html").write_text(ABORTED_PREFETCH)
+                prefetch = run(url + "prefetch.html", "--out", str(root / "o-prefetch"), cwd=tmp)
+                checks["an aborted fetch of a linked page is not a failed request"] = prefetch.returncode == 0 and "request failed" not in prefetch.stdout
+                (site / "inflight.html").write_text(IN_FLIGHT_AT_CLOSE)
+                inflight = run(url + "inflight.html", "--out", str(root / "o-inflight"), cwd=tmp)
+                checks["a request cut off by closing the page is not a failed request"] = inflight.returncode == 0 and "request failed" not in inflight.stdout
                 if shutil.which("ffmpeg"):
                     # About 2 MB: large enough that Chromium cancels the preload and re-requests by range.
                     subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=25",
