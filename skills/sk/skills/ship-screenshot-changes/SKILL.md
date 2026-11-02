@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, desktop AND mobile (390×844) — with a BEFORE/AFTER pair for every changed surface and journey and a before/after walkthrough video per changed journey, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — posts the composed images and playable inline videos onto the PR by default (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", or "screenshot coverage matrix". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, desktop AND mobile (390×844) — with a BEFORE/AFTER pair for every changed surface and journey and a before/after walkthrough video per changed journey, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — refreshes the composed images and playable inline videos in the PR description by default after the full ticket follow-up batch, using a comment only when description embedding is unsupported or blocked (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "refresh screenshots after all ticket follow-ups", "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", or "screenshot coverage matrix". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [changed routes or journeys; whole app only when requested]
 ---
 
@@ -142,15 +142,19 @@ evidence directory in Finder (macOS: `open "<abs path>"`) so Simon can flip thro
 
 ## Step 5 — Post them to the PR (ALWAYS when a PR is open; GitHub-only)
 
-When the branch has an OPEN PR (`gh pr view --json number,url,isDraft`), ALWAYS post the screenshots
-onto it with the journey videos — this is the default final step of the capture, not an opt-in. Do NOT ask first, and do NOT
-stop at handing them back locally or leaving a text reference to them in the PR body: a frontend diff
-whose open PR has no posted screenshots is the failure this step exists to prevent. (No open PR → Step
-4's local hand-back is the whole job; posting is standing authorization only for a PR that exists.) For
-journey mode, post the step shots in filename (step) order, each captioned with its step, so the comment
-reads as the flow top to bottom. TEST: every open PR whose diff changed a frontend surface carries the
-posted screenshots (verified inline below) and each changed journey's video, each with its before or a `new, no before` note, or a stated skip,
-never only a local hand-back or a body reference to them.
+DO apply the reference's § Refresh after the follow-up batch before final capture and publication.
+When the branch has an OPEN PR (`gh pr view --json number,url,isDraft`), publish screenshots and journey
+videos by default unless Simon explicitly waives them. Do not ask again. No open PR means the local
+hand-back is the destination. Preserve the shared native opt-in rule.
+
+DO embed the complete current evidence in the **PR description first**, in one bounded
+`<!-- sk:screenshot-changes -->` / `<!-- /sk:screenshot-changes -->` section. Read the fresh description,
+preserve all unrelated text and automation footers byte-for-byte, and verify its saved rendered media.
+A link to an evidence comment is not description embedding. Use one consolidated comment only when
+capability checks prove description embedding unsupported or blocked; record the exact reason and
+link that comment prominently from the description when editing it is available.
+TEST: a supported description contains the actual images and inline videos; a comment fallback carries
+a verified limitation, never an assumption from a missing CLI upload flag.
 
 **Post one block per point, laid out by the reference's § PR evidence template.** A point is the surface,
 scenario or journey step being shown (e.g. "Settings: empty list"). Each block holds the composed
@@ -160,18 +164,17 @@ step, in step order.
 DO publish each composed video as an inline player with playback controls, alone in its own
 paragraph, never an ordinary `[video](url)` link or a linked thumbnail. Use the attachment route below;
 a failed upload shows `blocked: <reason>` in its place.
-TEST: every published clip plays within the comment; a click that navigates away or downloads a file
+TEST: every published clip plays within the chosen description or comment; a click that navigates away or downloads a file
 is a failed inline-video check; a posted pair with an after but no before and no `new, no before`
 note broke the rule.
 
-**DO publish one fresh consolidated evidence comment on every refresh, then remove the obsolete
-workflow-owned evidence after verification.** Use the existing posting authorization; do not ask again
-to replace and clean up this workflow's evidence. Keep every current point block and its video
-together, so the latest comment shows the current diff (e.g. a renamed switch refreshes one point block
-while the replacement retains the other current points).
+DO keep one consolidated current evidence section in the description, or one fresh consolidated
+marker-tagged comment for a proven fallback. Apply existing posting authorization to replacement and
+cleanup. Keep all current point blocks and videos together; an upload-only comment is temporary and
+must not remain as duplicate evidence after the description passes verification.
 
 1. **Inventory and assemble.** Fetch every page of `repos/$REPO/issues/$PR/comments` and confirm the
-   authenticated author. Read saved bodies, never reconstruct them from memory. Select only comments
+   authenticated author. Fetch the PR description too. Read saved bodies, never reconstruct them from memory. Select only comments
    by that author with `<!-- sk:screenshot-changes -->`, or unmarked legacy comments whose screenshot
    layout, media and recorded publication history establish the same workflow ownership. Preserve other
    authors, review discussions, mixed-purpose comments and uncertain matches. Record candidate IDs and
@@ -180,8 +183,10 @@ while the replacement retains the other current points).
    into point blocks without losing current evidence.
 2. **Create or resume this refresh.** Start the body with `<!-- sk:screenshot-changes -->`, followed by
    `<!-- evidence-refresh:<id> -->`; save that unique refresh ID and final body locally before posting.
-   Start each point block with `<!-- point:<slug> -->` and end it with `<!-- /point:<slug> -->`. Before every create or retry, list
-   comments again for this author's refresh ID. Resume its replacement when found, including after a
+   For description publication, replace only its bounded owned section and recheck the fresh body
+   before writing; preserve concurrent unrelated edits. For fallback comments, use the create/resume
+   procedure below. Start each point block with `<!-- point:<slug> -->` and end it with `<!-- /point:<slug> -->`. Before every create or retry, list
+   the chosen destination again for this author's refresh ID. Resume its replacement when found, including after a
    timeout or interrupted attachment upload; create only when absent. A later refresh gets a new ID.
    Use `--body-file` or `-F body=@<file>`; patch only this refresh's replacement while finishing uploads
    or correcting its saved layout. Never use `--edit-last` against an unrelated or obsolete comment.
@@ -193,25 +198,30 @@ while the replacement retains the other current points).
    match the inventory before `gh api -X DELETE repos/$REPO/issues/comments/$ID`; preserve and report
    concurrent edits. Include clearly owned unmarked legacy evidence in cleanup, without another
    permission question. Re-list every page and verify exactly one current workflow-owned evidence
-   comment remains, all intended obsolete IDs are absent, and retained unrelated comments are intact.
+   section remains in the description with zero duplicate evidence comments, or exactly one fallback
+   comment remains; all intended obsolete IDs are absent and unrelated comments are intact.
    On interrupted cleanup, locate the verified replacement and delete only the remaining candidates.
 
-TEST: a completed refresh has a new comment ID, one complete current evidence comment and zero obsolete
-workflow-owned evidence comments. A retry reuses its recorded refresh ID; failed verification deletes
+TEST: a completed refresh has one complete current description section or one verified fallback
+comment, and zero obsolete or upload-only workflow-owned evidence comments. A retry reuses its recorded refresh ID; failed verification deletes
 nothing; unrelated or other-author comments survive. Record the replacement URL and cleanup result.
 
 **GitHub-only — never an external host.** DO use a GitHub-native attachment route and verify the
-rendered comment with the intended repository viewer's access. A successful upload or reachable raw
+rendered destination with the intended repository viewer's access. A successful upload or reachable raw
 file does not prove inline rendering, especially in a private repository.
 Apply `rules/connectors.md` before an auth question or an unsupported-capability claim.
 
-1. **Feature-detect `gh pr comment --attach` (gh 2.99+)** with `gh pr comment --help`. Use `--body-file` and
-   `--attach` when supported. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
+1. **Feature-detect description editing/upload and `gh pr comment --attach` (gh 2.99+)** with
+   `gh pr edit --help` and `gh pr comment --help`. Use `--body-file` and
+   `--attach` with `gh pr edit` when supported; otherwise use the verified attachment fallback. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
    the CLI replaces that reference with the uploaded URL. A reference within a sentence renders
    as a link. Follow [GitHub's attachment instructions](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video),
    then apply the point-block layout above and verify the final rendered result. Let the attachment
    command create this refresh's replacement, or target its recorded ID to finish it. Reconcile that
-   ID before retrying so uploads do not create duplicate replacements.
+   ID before retrying so uploads do not create duplicate replacements. If attachments require a
+   comment, use a recorded workflow-owned staging comment, embed its returned attachment URLs in the
+   description, verify the description, then retire staging. A missing description-upload flag alone
+   does not prove existing attachment URLs cannot be embedded there.
 2. **Else use GitHub's browser attachment control** in the authenticated test browser. Upload the
    image or video to the intended repository's comment editor and preserve its generated attachment
    URL. Collect URLs, then publish this refresh's replacement with its complete media layout, or finish
@@ -240,17 +250,19 @@ before uploading. TEST: each clip is within the applicable limit and passes the 
 DO treat the detached-ref route as image storage only. A raw video blob or release download is not
 an inline player; do not publish one as a substitute for a verified GitHub video attachment.
 
-**VERIFY before reporting done** — fetch the saved comment with
-`gh api -H "Accept: application/vnd.github.full+json" "repos/$REPO/issues/comments/<id>"` into a
+**VERIFY before reporting done** — fetch the saved PR description at `repos/$REPO/pulls/$PR`, or the
+fallback comment at `repos/$REPO/issues/comments/<id>`, with
+`gh api -H "Accept: application/vnd.github.full+json" <endpoint>` into a
 mode-0600 evidence file and inspect `body_html` locally. Report counts and playback outcomes only;
 private media URLs can carry short-lived credentials, so never print the HTML or signed URLs.
 Confirm one block per point, correct point/platform mapping, and a rendered
-video player for every published clip; an anchor alone fails. Open the posted comment in the
+video player for every published clip; an anchor alone fails. Open the posted description or comment in the
 authorized test browser. When that browser lacks access but the authenticated connector/API can read
-the saved comment and its media, render its exact returned `body_html` unchanged in an isolated browser
+the saved description or comment and its media, render its exact returned `body_html` unchanged in an isolated browser
 with the same remote media. Keep authentication headers/tokens outside page markup and private signed URLs out of
 logs/reports. Do not reconstruct the comment, insert players or substitute local media.
-Label this route `API-rendered comment verification; full-page UI unchecked`; it proves the comment's
+Label this route `API-rendered description verification; full-page UI unchecked` or
+`API-rendered comment verification; full-page UI unchecked`; it proves that destination's
 media, not the signed-in site's surrounding UI. If unchanged markup cannot load its players, retain
 the verification gap. Both routes require the same checks before reporting success or retiring prior
 evidence. Check every screenshot loads (each `<img>` reports `naturalWidth > 0`), and play every video
