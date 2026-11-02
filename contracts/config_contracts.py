@@ -848,6 +848,7 @@ CONTRACTS: dict[str, dict] = {
             "Read at the START of a workflow run, not on demand like the other catalogs.",
             "Community write-ups find candidates and are never cited.",
             "A staked recommendation is corroborated against an unstaked source before use.",
+            "An external or not-ours verdict names the runtime identifiers it was compared against.",
             "Holds the third-party claim rules: primary sources, every vendor surface before a negative, dated arithmetic, no competitor hyperlink, concede an honest loss.",
         ],
     },

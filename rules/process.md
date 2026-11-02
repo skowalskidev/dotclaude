@@ -26,6 +26,8 @@ TEST: no routine per-edit/feature/commit runs; mandatory final coverage uses mat
 ### Claims about third parties must come from primary sources
 DO apply `references/research.md` § Claims about third parties to every factual claim about another
 product (comparison, pricing, "they don't support X"). TEST: each such claim cites the vendor's own page.
+DO apply its § Attributing behaviour to an outsider before calling traffic or a failure external.
+TEST: the verdict names the runtime identifiers it was compared against.
 
 ### Research online BEFORE retrying — don't grind on a brick wall
 When something fails and the cause isn't obvious, **search online (WebSearch/WebFetch, official docs,
