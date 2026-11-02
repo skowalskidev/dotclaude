@@ -1243,6 +1243,7 @@ CONTRACTS: dict[str, dict] = {
             "git-only detached-ref for images only, never an external host; fails loud and verifies the "
             "images render (not camo-broken).",
             "Embed one consolidated evidence section in the PR description by default; permit a comment only for a verified description limitation. Preserve untouched current points and provenance; a link alone is not embedding.",
+            "Upload supported Markdown local media references, then use returned native URLs for width-controlled HTML. Verify zero local media refs and duplicate appended media; remove only proven uploader duplicates while preserving unrelated text and footers.",
             "Record a unique refresh ID and reconcile the saved destination before retrying. Preserve unrelated description text and footers; use only recorded workflow-owned staging comments, retired after description verification.",
             "Verify replacement rendering and playback before deleting obsolete workflow-owned evidence, including clearly owned unmarked legacy comments, under existing authorization. Preserve other authors, unrelated discussion, uncertain ownership and concurrent edits; failed verification deletes nothing.",
             "Reconcile one current description section with zero duplicate evidence comments, or one verified fallback comment. Remove only unchanged owned obsolete/staging comments after replacement verification; preserve unrelated and concurrently edited comments.",

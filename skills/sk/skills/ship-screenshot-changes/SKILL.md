@@ -213,8 +213,15 @@ Apply `rules/connectors.md` before an auth question or an unsupported-capability
 
 1. **Feature-detect description editing/upload and `gh pr comment --attach` (gh 2.99+)** with
    `gh pr edit --help` and `gh pr comment --help`. Use `--body-file` and
-   `--attach` with `gh pr edit` when supported; otherwise use the verified attachment fallback. For a video, put `![](PATH/TO/VIDEO)` alone in its own paragraph;
-   the CLI replaces that reference with the uploaded URL. A reference within a sentence renders
+   `--attach` with `gh pr edit` when supported; otherwise use the verified attachment fallback.
+   DO use supported Markdown local references for upload: `![label](PATH/TO/IMAGE)` for an image and
+   `![](PATH/TO/VIDEO)` alone in its own paragraph for a video. Do not expect `--attach` to rewrite
+   raw HTML `<img src="/local/path.png">`; it can leave that broken and append a duplicate upload.
+   After upload, fetch the saved body and map each returned native URL to its point/platform. If
+   width-controlled HTML is needed, replace the Markdown with `<img src="<returned-url>" ...>` only
+   after upload. Remove only uploader-appended duplicates proven by the saved before/after bodies;
+   preserve unrelated text and automation footers. Before completion verify zero local media refs,
+   exactly the intended media counts and no duplicate appended media. A video reference within a sentence renders
    as a link. Follow [GitHub's attachment instructions](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video),
    then apply the point-block layout above and verify the final rendered result. Let the attachment
    command create this refresh's replacement, or target its recorded ID to finish it. Reconcile that
