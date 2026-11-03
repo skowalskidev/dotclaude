@@ -55,6 +55,16 @@
         ]
       },
       {
+        "matcher": "mcp__chrome-devtools__emulate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/emulate-viewport-guard.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {

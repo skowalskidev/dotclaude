@@ -32,6 +32,7 @@ SAFETY: set[str] = {
     "rules/security.md",
     "hooks/work-resource-guard.sh",
     "hooks/background-process-guard.py",
+    "hooks/emulate-viewport-guard.py",
     "hooks/secret-echo-guard.py",
     "hooks/git-commit-guard.py",
     # Compliance / correctness gates — low fire count, high cost-of-absence

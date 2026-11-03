@@ -345,10 +345,23 @@ HOOK_ROUTING: list[dict] = [
                 "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py"]},
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},
-    # chrome-devtools tools fire only the mcp__.* work guard; UI self-verification is the default,
-    # so there is no browser-launch gate.
+    # chrome-devtools tools fire the mcp__.* work guard (emulate also its viewport guard, below);
+    # UI self-verification is the default, so there is no browser-launch gate.
     {"event": "PreToolUse", "tool": "mcp__chrome-devtools__navigate_page",
      "expect": ["work-resource-guard.sh"]},
+    # The emulate viewport guard: an emulated viewport taller than the test window is denied
+    # (references/browser-debugging.md § Fit the window). Landscape measures the width.
+    *({"event": "PreToolUse", "tool": "mcp__chrome-devtools__emulate",
+       "expect": ["work-resource-guard.sh", "emulate-viewport-guard.py"],
+       "tool_input": tool_input, "decides": {"emulate-viewport-guard.py": decision}}
+      for tool_input, decision in (
+          ({"pageId": 1, "viewport": "390x844x3,mobile,touch"}, "deny"),
+          ({"pageId": 1, "viewport": "402x874x3,mobile,touch"}, "deny"),
+          ({"pageId": 1, "viewport": "402x750x3,mobile,touch"}, "allow"),
+          ({"pageId": 1}, "allow"),
+          ({"pageId": 1, "viewport": "844x390x3,mobile,touch,landscape"}, "deny"),
+          ({"pageId": 1, "viewport": "750x402x3,mobile,touch,landscape"}, "allow"),
+      )),
     {"event": "PreToolUse", "tool": "Agent", "expect": []},
     {"event": "PreToolUse", "tool": "Workflow", "expect": []},
     {"event": "PreToolUse", "tool": "Read", "expect": []},
