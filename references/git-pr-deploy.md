@@ -279,7 +279,8 @@ a green rollup on the head sha that went into the batch.
 1. Check numbered files first: list every new migration or numbered manifest entry across the set.
    Numbers must be unique and above the base's newest, and no open PR outside the set may hold one.
    Renumber on the ORIGINAL PR's branch, push, and wait for it to go green again.
-2. `git switch -c batch/<yyyy-mm-dd>-<slug> origin/<default>`, then for each PR in dependency order
+2. `git worktree add -b batch/<yyyy-mm-dd>-<slug> <scratch-path> origin/<default>`, never a `git switch`
+   in a checkout the user, an agent or another session uses; then, inside it, for each PR in dependency order
    (stack bases first): `git fetch origin pull/<n>/head`, check the sha equals `headRefOid`, and
    `git merge --no-ff <sha>`. Resolve a conflict inside that merge commit only (two appended
    manifest lines: keep both).
@@ -427,7 +428,9 @@ reason for a part the diff does not touch (no migration, no traffic move).
 
 ### 1. Merge train
 
-**DO build a local `train/<slug>` branch from current `origin/<default>` and merge, in the intended
+**DO build a local `train/<slug>` branch from current `origin/<default>` in its own `git worktree`,
+never by switching a checkout someone else reads, and remove both at hand-back (the fix for a train
+switched in the shared workspace while a screenshot agent captured from it). Merge, in the intended
 merge order, every open or draft PR this work depends on or that touches the same files, tables,
 functions or provider resources.** Use the batch-branch merge loop in § Merging several PRs at once
 (fetch each head, check its sha, `git merge --no-ff`), landing each PR the way the repo lands it: a
