@@ -446,6 +446,18 @@ class EventTests(unittest.TestCase):
     def result(self, events):
         return astra.collect(json.dumps(event) + '\n' for event in events)
 
+    def test_completion_detects_no_work_after_edit_or_commit_events(self):
+        done = "exists\n| Item | Verdict |\n| exists | pass |"
+        for item in ({"type": "file_change", "changes": [{"path": "a.txt"}]},
+                     {"type": "command_execution", "command": "git commit -F msg", "exit_code": 0}):
+            events = json.dumps({"type": "item.completed", "item": item})
+            self.assertIn("context-loss", astra.completion_reason("No files changed.", events, done, "exists"))
+        self.assertIsNone(astra.completion_reason("Acceptance: pass", "", done, "exists"))
+        self.assertIn("acceptance", astra.completion_reason("Loaded instructions", "", "", "exists"))
+        self.assertIn("unreported", astra.completion_reason("Acceptance: pass", "", done, "exists", "abcdef0 change"))
+        self.assertIn("unreported", astra.completion_reason("Acceptance: pass abcdef0", "", done, "exists",
+                                                            "abcdef0 change\n1234567 another change"))
+
     def test_usage_and_unknown_measurements(self):
         result = self.result([
             {'type': 'thread.started', 'thread_id': 'fixture'},
@@ -535,18 +547,20 @@ if os.environ.get('FIXTURE_SLEEP'):
     time.sleep(60)
 match = re.search(r'When done, write (.+?)/DONE.md', prompt)
 if match and not os.environ.get('FIXTURE_NO_DONE'):
-    Path(match.group(1), 'DONE.md').write_text('src/fixture.py\\n')
+    accept = re.search(r'EXPECTED RESULT: (.*)', prompt).group(1)
+    Path(match.group(1), 'DONE.md').write_text(accept + '\\n| Item | Verdict |\\n| task | pass |\\n')
+final = 'Acceptance: pass' if match else 'Ready'
 if kind == 'claude':
     print(json.dumps({'is_error': False, 'result': 'Ready', 'usage': {}}))
 else:
     print(json.dumps({'type': 'thread.started', 'thread_id': 'fixture'}))
-    print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'Ready'}}))
+    print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': final}}))
     if os.environ.get('FIXTURE_FAIL'):
         print(json.dumps({'type': 'turn.failed'}))
         sys.exit(7)
     if not os.environ.get('FIXTURE_INCOMPLETE'):
         print(json.dumps({'type': 'turn.completed', 'usage': {'input_tokens': 20, 'output_tokens': 5}}))
-    Path(args[args.index('--output-last-message') + 1]).write_text('Ready')
+    Path(args[args.index('--output-last-message') + 1]).write_text(final)
 '''
         for name in ('codex-native', 'claude'):
             path = self.bin / name

@@ -251,8 +251,8 @@ already in context.
 1. **Read `slices/*/verify.txt` first.** A slice whose own check failed is where your time is going,
    and knowing that costs one file rather than a whole diff.
 2. **Check every slice on disk, never on its exit code.** `anthropics/claude-code#74761`: `claude -p`
-   can exit 0 with well-formed result JSON while the agent is mid-task. The `DONE.md` artifact is the
-   evidence; the dispatcher already writes a `status` per slice.
+   can exit 0 with well-formed result JSON while the agent is mid-task. Apply the completion protocol in `references/parallelization.md` § Divisible headless work.
+   Read the dispatcher's per-slice `status` and preserved continuation evidence.
 3. Read any `BLOCKED.md` and finish that work yourself. A blocked slice is the design working, not
    failing: it stopped rather than editing a file another slice owned.
 4. **Check the instructions the slices were least likely to obey: the ones that contradict the file

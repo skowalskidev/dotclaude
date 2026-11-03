@@ -4,6 +4,7 @@ import argparse
 from contextlib import nullcontext
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import subprocess
@@ -54,6 +55,63 @@ def collect(events, event_log=None, model=None, setup="full-openai"):
             result['is_error'] = True
     result['is_error'] = result['is_error'] or result['num_turns'] == 0
     return result
+
+
+def completion_reason(final, events, done, accept, commits="", dirty=""):
+    """Judge completion independently of the native worker's exit code."""
+    worked = bool(commits or dirty)
+    for line in events.splitlines():
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        item = event.get("item", {})
+        if event.get("type") == "item.completed":
+            worked |= item.get("type") == "file_change" and bool(item.get("changes"))
+            worked |= (item.get("type") == "command_execution" and item.get("exit_code") == 0
+                       and bool(re.search(r"\bgit\s+(?:-C\s+\S+\s+)?commit\b", item.get("command", ""))))
+    if worked and re.search(r"no (?:files? (?:were )?changed|work (?:was )?done|changes (?:were )?made)", final, re.I):
+        return "context-loss: final reports no work after recorded edits or commits"
+    if not done or accept not in done or not re.search(r"\|.*(?:verdict|status|result).*\|", done, re.I):
+        return "incomplete: missing acceptance table for the dispatched task"
+    if not re.search(r"acceptance", final, re.I):
+        return "incomplete: final report omits task acceptance"
+    if commits and not all(sha in final + done for sha in re.findall(r"^[0-9a-f]{7,40}", commits, re.M)):
+        return "incomplete: commits since dispatch are unreported"
+    return None
+
+
+def dispatcher_completion(repo, directory, spec, index, base):
+    """Write recovery evidence for the existing superspeed supervisor; never launch a model."""
+    directory = Path(directory)
+    task = json.loads(Path(spec).read_text())["slices"][int(index)]
+    owns = task.get("owns", [])
+    def git(*args):
+        result = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, timeout=10)
+        if result.returncode:
+            raise ValueError("completion Git probe failed")
+        return result.stdout
+    commits = git("log", "--format=%h %s", base + "..HEAD", "--", *owns) if base and owns else ""
+    dirty = git("status", "--short", "--", *owns) if base and owns else ""
+    result = json.loads((directory / "result.json").read_text())
+    if result.get("is_error") or (directory / "BLOCKED.md").exists():
+        return 0  # Ordinary errors and explicit blocks are not context-loss retries.
+    done = (directory / "DONE.md").read_text() if (directory / "DONE.md").exists() else ""
+    events = (directory / "events.jsonl").read_text() if (directory / "events.jsonl").exists() else ""
+    reason = completion_reason(result.get("result", ""), events, done,
+                               task.get("accept", "the files you own are complete and self-consistent"), commits, dirty)
+    (directory / "completion.json").write_text(json.dumps({"reason": reason, "commits": commits, "uncommitted": dirty}) + "\n")
+    if not reason:
+        return 0
+    checkpoint = directory / "CHECKPOINT.md"
+    remaining = checkpoint.read_text() if checkpoint.exists() else "No worker checkpoint. Reconcile each acceptance item against the owned files and checks."
+    continuation = ((directory / "prompt.txt").read_text() +
+                    "\n\nCONTINUATION: recover the original task. Preserve existing work.\nStop reason: " + reason +
+                    "\nCommits since dispatch:\n" + commits + "\nUncommitted owned files:\n" + dirty +
+                    "\nRemaining items and checkpoint:\n" + remaining +
+                    "\nInspect the preserved attempt-0 events and report before changing files. Finish remaining items; report all commits and the acceptance table.\n")
+    (directory / "continuation.txt").write_text(continuation)
+    return 1
 
 
 def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-openai"):
