@@ -453,6 +453,8 @@ class EventTests(unittest.TestCase):
             events = json.dumps({"type": "item.completed", "item": item})
             self.assertIn("context-loss", astra.completion_reason("No files changed.", events, done, "exists"))
         self.assertIsNone(astra.completion_reason("Acceptance: pass", "", done, "exists"))
+        self.assertIsNone(astra.completion_reason("Acceptance: pass. No files changed.", "", done, "exists",
+                                                 dirty=" M existing.txt"))
         self.assertIn("acceptance", astra.completion_reason("Loaded instructions", "", "", "exists"))
         self.assertIn("unreported", astra.completion_reason("Acceptance: pass", "", done, "exists", "abcdef0 change"))
         self.assertIn("unreported", astra.completion_reason("Acceptance: pass abcdef0", "", done, "exists",

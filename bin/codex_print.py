@@ -59,7 +59,7 @@ def collect(events, event_log=None, model=None, setup="full-openai"):
 
 def completion_reason(final, events, done, accept, commits="", dirty=""):
     """Judge completion independently of the native worker's exit code."""
-    worked = bool(commits or dirty)
+    worked = bool(commits)
     for line in events.splitlines():
         try:
             event = json.loads(line)
