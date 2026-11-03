@@ -608,6 +608,20 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
             check(ledger.exists() and ledger.read_bytes() == before,
                   f"Ledger changed or was deleted by a note naming it as the source ({spelling}).")
 
+        # note consumes its source, so a living plan or dashboard passed by mistake must be refused
+        # untouched, with the ledger unchanged (a reconcile once deleted the session's plan).
+        for name in ("session-x-plan.md", "session-x-dashboard.html"):
+            durable = ledger.parent / name
+            durable.write_text("# Session task\n")
+            before = ledger.read_bytes()
+            result = subprocess.run(["bash", str(hook), "note", "reconcile", str(durable)],
+                                    text=True, capture_output=True, cwd=repo, env=env, timeout=10)
+            check(result.returncode == 2 and "living plan or dashboard" in result.stderr,
+                  f"Ledger note accepted a living record as its source ({name}): {result.stderr}")
+            check(durable.exists() and ledger.read_bytes() == before,
+                  f"A note naming a living record deleted it or changed the ledger ({name}).")
+            durable.unlink()
+
 
 def check_intake_initializes_task_record() -> None:
     out = intake("submit", {"session_id": "contract-a", "prompt": "refactor the billing module"})

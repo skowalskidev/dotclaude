@@ -345,6 +345,14 @@ note)
     echo "note: refusing: $src is the ledger itself. Write the note to a scratch file and pass that." >&2
     exit 2
   fi
+  # `rm -f "$src"` below consumes the source, so a durable record passed here is destroyed: a living
+  # plan given as a reconcile source was appended and deleted, and the next intake recreated a blank
+  # skeleton. Refuse any plan or dashboard under a `.context/` before writing anything.
+  case "$src" in
+    */.context/*-plan.md|.context/*-plan.md|*/.context/*-dashboard.html|.context/*-dashboard.html)
+      echo "note: refusing: $src is a living plan or dashboard, and note deletes its source. Write the note to a scratch file and pass that." >&2
+      exit 2 ;;
+  esac
   acquire "$LEDGER" || { echo "note: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
   { printf '\n## %s · %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$kind"; cat "$src"; printf '\n'; } \
