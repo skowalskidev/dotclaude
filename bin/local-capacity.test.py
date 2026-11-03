@@ -10,6 +10,7 @@ import multiprocessing
 import os
 import signal
 import shutil
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -1171,7 +1172,7 @@ class PriorityTests(unittest.TestCase):
 
     def test_expired_record_is_ignored_and_cleaned(self):
         gate.secure_root(self.root)
-        gate.write_priority(self.root, {"owner": "vip", "expires": time.time() - 5, "workspace": None})
+        gate.write_priority(self.root, {"owner": "vip", "expires": time.time() - 5, "workspaces": None})
         token = gate.acquire(self.root, "other", os.getpid(), None)
         self.assertEqual((self.root / "priority.json").read_text(), "")
         gate.release(self.root, token)
@@ -1695,10 +1696,10 @@ class PriorityAllowanceTests(unittest.TestCase):
         match.assert_called_once()
 
     def test_binding_allows_renewal_but_rejects_changed_or_unknown_scope(self):
-        record = {"owner": "primary", "workspace": "/workspace", "expires": time.time() + 60}
+        record = {"owner": "primary", "workspaces": ["/workspace"], "expires": time.time() + 60}
         binding = gate.priority_binding(record)
         self.assertTrue(gate.bound_priority_matches(dict(record, expires=time.time() + 3600), binding))
-        for replacement in (None, dict(record, owner="other"), dict(record, workspace="/other")):
+        for replacement in (None, dict(record, owner="other"), dict(record, workspaces=["/other"])):
             self.assertFalse(gate.bound_priority_matches(replacement, binding))
         with mock.patch.object(gate.Path, "cwd", side_effect=OSError("inaccessible")):
             with self.assertRaises(gate.GateError):
@@ -1847,17 +1848,27 @@ class PriorityAllowanceTests(unittest.TestCase):
         gate.secure_root(self.root)
         old = {"owner": "primary", "expires": time.time() + 120}
         (self.root / "priority.json").write_text(json.dumps(old))
-        self.assertIsNone(gate.read_priority(self.root)["workspace"])
+        self.assertIsNone(gate.read_priority(self.root)["workspaces"])
         gate.migrate(self.root, self.tmp.name)
-        self.assertEqual(gate.read_priority(self.root), dict(old, workspace=str(Path(self.tmp.name).resolve())))
+        self.assertEqual(gate.read_priority(self.root), dict(old, workspaces=[str(Path(self.tmp.name).resolve())]))
         self.assertEqual(json.loads((self.root / "priority.json").read_text()), old)
+
+    def test_single_workspace_scope_requires_reprioritize(self):
+        gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
+        record = gate.read_priority(self.root)
+        path = self.root / "priority-session.json"
+        path.write_text(json.dumps({"grant": gate.priority_grant(record), "workspace": self.tmp.name}))
+        with self.assertRaisesRegex(gate.GateError, "reissue prioritize"):
+            gate.read_priority(self.root)
+        gate.prioritize(self.root, "primary", 30, False, [self.tmp.name])
+        self.assertEqual(gate.read_priority(self.root)["workspaces"], [str(Path(self.tmp.name).resolve())])
 
     def test_old_supervisor_replacement_cannot_transfer_session_scope(self):
         gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
         self.assertEqual(set(json.loads((self.root / "priority.json").read_text())), {"owner", "expires"})
         replacement = {"owner": "other", "expires": time.time() + 60}
         (self.root / "priority.json").write_text(json.dumps(replacement))
-        self.assertIsNone(gate.read_priority(self.root)["workspace"])
+        self.assertIsNone(gate.read_priority(self.root)["workspaces"])
         self.assertEqual((self.root / "priority-session.json").read_text(), "")
 
     def test_clear_and_expiry_remove_session_scope(self):
@@ -2433,6 +2444,21 @@ class SessionOwnershipTests(unittest.TestCase):
         for workspace in (self.sibling, self.unrelated):
             with mock.patch.object(gate.Path, "cwd", return_value=workspace):
                 self.assertFalse(gate.priority_matches(record, "session"), "a copied label cannot grant session priority")
+
+    def test_priority_multiple_workspaces_and_mismatch_hint(self):
+        gate.prioritize(self.root, "session", 30, False, [str(self.checkout), str(self.sibling)])
+        record = gate.read_priority(self.root)
+        self.assertEqual(record["workspaces"], [str(self.checkout), str(self.sibling)])
+        for workspace in (self.checkout, self.sibling):
+            with mock.patch.object(gate.Path, "cwd", return_value=workspace):
+                self.assertTrue(gate.priority_matches(record, "worker"))
+        with mock.patch.object(gate.Path, "cwd", return_value=self.unrelated):
+            self.assertFalse(gate.priority_matches(record, "session"))
+            text = gate.deferral_text("memory warning", None, record, False, True, None, "session")
+        self.assertIn("this checkout is outside the prioritized workspaces", text)
+        for workspace in (self.checkout, self.sibling, self.unrelated):
+            self.assertIn("--workspace " + shlex.quote(str(workspace)), text)
+        self.assertNotIn("only the priority session", text)
 
     def test_parent_session_protects_nested_simulator_and_independent_owner_can_be_reclaimed(self):
         gate.secure_root(self.root)

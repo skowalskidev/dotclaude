@@ -25,6 +25,7 @@ import math
 import os
 import re
 import secrets
+import shlex
 import signal
 import stat
 import subprocess
@@ -275,7 +276,7 @@ def read_priority(root):
     if record["expires"] <= time.time():
         write_priority(root, None)
         return None
-    return dict(record, workspace=read_priority_scope(root, record))
+    return dict(record, workspaces=read_priority_scope(root, record))
 
 
 def priority_grant(record):
@@ -294,22 +295,24 @@ def read_priority_scope(root, record):
         return None
     try:
         scope = json.loads(raw)
-        if (len(raw) > 4096 or not isinstance(scope, dict) or set(scope) != {"grant", "workspace"}
+        if (len(raw) > 4096 or not isinstance(scope, dict) or set(scope) != {"grant", "workspaces"}
                 or not isinstance(scope["grant"], str) or not TOKEN.fullmatch(scope["grant"])
-                or not isinstance(scope["workspace"], str) or not Path(scope["workspace"]).is_absolute()
-                or ".." in Path(scope["workspace"]).parts or any(c in scope["workspace"] for c in "\n\r\t")):
+                or not isinstance(scope["workspaces"], list) or not scope["workspaces"]
+                or any(not isinstance(ws, str) or not Path(ws).is_absolute()
+                       or ".." in Path(ws).parts or any(c in ws for c in "\n\r\t")
+                       for ws in scope["workspaces"])):
             raise ValueError("invalid scope")
     except (ValueError, TypeError) as exc:
         raise GateError("priority session scope is corrupt; reissue prioritize or --clear") from exc
     if not secrets.compare_digest(scope["grant"], priority_grant(record)):
         write_state(root, None, "priority-session.json")
         return None  # a different grant never inherits this session's scope
-    return scope["workspace"]
+    return scope["workspaces"]
 
 
 def write_priority(root, record):
-    scope = ({"grant": priority_grant(record), "workspace": record["workspace"]}
-             if record and record["workspace"] is not None else None)
+    scope = ({"grant": priority_grant(record), "workspaces": record["workspaces"]}
+             if record and record["workspaces"] is not None else None)
     write_state(root, scope, "priority-session.json")
     write_state(root, {key: record[key] for key in ("owner", "expires")} if record else None, "priority.json")
 
@@ -342,10 +345,11 @@ def prioritize(root, owner, minutes, clear, workspace=None):
     if not math.isfinite(minutes) or minutes <= 0 or minutes > PRIORITY_MAX_MIN:
         raise GateError("--minutes must be above 0 and at most %d" % PRIORITY_MAX_MIN)
     if workspace is not None:
-        workspace = checkout_path(workspace)
-        if any(char in workspace for char in "\n\r\t"):
+        workspace = list(dict.fromkeys(checkout_path(ws) for ws in
+                                       ([workspace] if isinstance(workspace, str) else workspace)))
+        if any(char in ws for ws in workspace for char in "\n\r\t"):
             raise GateError("invalid priority workspace")
-    record = {"owner": owner, "expires": time.time() + minutes * 60, "workspace": workspace}
+    record = {"owner": owner, "expires": time.time() + minutes * 60, "workspaces": workspace}
     with locked(root):
         write_priority(root, record)
     return "priority set: " + priority_text(record)
@@ -355,9 +359,9 @@ def priority_matches(record, owner):
     """A session checkout also owns its nested linked worktrees, never sibling repositories."""
     if not record:
         return False
-    if record["workspace"] is None:
+    if record["workspaces"] is None:
         return record["owner"] == owner
-    return session_owns_workspace(checkout_path(Path.cwd()), [record["workspace"]])
+    return session_owns_workspace(checkout_path(Path.cwd()), record["workspaces"])
 
 
 def priority_binding(record):
@@ -365,13 +369,13 @@ def priority_binding(record):
     try:
         cwd = Path.cwd()
         identity = cwd.stat()
-        return (record["owner"], record["workspace"], str(cwd), identity.st_dev, identity.st_ino)
+        return (record["owner"], record["workspaces"], str(cwd), identity.st_dev, identity.st_ino)
     except OSError as exc:
         raise GateError("priority checkout identity is unknown") from exc
 
 
 def bound_priority_matches(record, binding):
-    if not record or binding is None or (record["owner"], record["workspace"]) != binding[:2]:
+    if not record or binding is None or (record["owner"], record["workspaces"]) != binding[:2]:
         return False
     return priority_binding(record) == binding
 
@@ -404,7 +408,7 @@ def migrate(root, priority_workspace=None):
         if priority_workspace is not None:
             record = read_priority(root)
             if record is not None:
-                record["workspace"] = checkout_path(priority_workspace)
+                record["workspaces"] = [checkout_path(priority_workspace)]
                 write_priority(root, record)
         lease = read_state(root, allow_old=True)
         if lease is None:
@@ -1289,9 +1293,16 @@ def holder_text(lease):
     return "holder=%s pid=%s %s%s%s" % (lease["owner"], lease["pid"], condition, sim, command)
 
 
-def deferral_text(reason, allowance_reason, priority, is_priority, child_pending, allowance_holder):
+def deferral_text(reason, allowance_reason, priority, is_priority, child_pending, allowance_holder, requested_owner=None):
     """The real blocker plus the next action, so a waiting session knows why and what happens next."""
     if not is_priority:
+        if priority and requested_owner == priority["owner"] and priority["workspaces"]:
+            workspaces = priority["workspaces"]
+            command = "local-capacity.py prioritize --owner " + shlex.quote(requested_owner)
+            command += "".join(" --workspace " + shlex.quote(ws) for ws in
+                               dict.fromkeys([*workspaces, checkout_path(Path.cwd())]))
+            return ("heavy work deferred: %s; this checkout is outside the prioritized workspaces %s; "
+                    "Simon's priority covers it after: %s" % (reason, workspaces, command))
         nxt = ("only the priority session (%s) may pass memory warning or CPU contention; this owner waits for the "
                "host to recover" % priority_text(priority) if priority else
                "no session is prioritised; waits for the host to recover. Only Simon's own message may name a "
@@ -1350,7 +1361,7 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
                 raise Busy("short check deferred: %s; pressure allowance %s" % (
                     reason, ("held by " + holder_text(holder)) if holder else "reserved for the priority session"))
             raise Busy(deferral_text(reason, allowance_reason, priority, is_priority, child_pending,
-                                     holder_text(holder) if holder else "an ended run"))
+                                     holder_text(holder) if holder else "an ended run", requested_owner))
         if admission is not None:
             admission.update(owner=owner, priority_allowance=priority_allowance, short_check_allowance=short_allowance,
                              priority_binding=priority_binding(priority) if is_priority else None)
@@ -1499,7 +1510,7 @@ def provably_dead(lease, priority):
         return None
     if priority and priority["owner"] == lease["owner"]:
         try:
-            if owner_session_live(priority["owner"], priority["workspace"]):
+            if any(owner_session_live(priority["owner"], ws) for ws in (priority["workspaces"] or [None])):
                 return None
         except GateError:
             return None
@@ -2090,7 +2101,7 @@ def main(argv=None):
     priority_parser.add_argument("--owner")
     priority_parser.add_argument("--minutes", type=float, default=PRIORITY_DEFAULT_MIN)
     priority_parser.add_argument("--clear", action="store_true")
-    priority_parser.add_argument("--workspace", help="session checkout; defaults to current directory, covering its nested linked worktrees")
+    priority_parser.add_argument("--workspace", action="append", help="session checkout; defaults to current directory, repeat for every worker checkout and its nested linked worktrees")
     args = parser.parse_args(argv)
     root = root_path(args.root or (os.environ.get("LOCAL_CAPACITY_RUN_ROOT") if args.action == "stage" else None))
     global SIMCTL_FIXTURE, PRESSURE_FIXTURE, HOST_FIXTURE
