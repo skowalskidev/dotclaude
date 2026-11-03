@@ -80,7 +80,8 @@ affected on deploy:
   prod data, deploy safety, `## Screenshots`, any other. DON'T wrap any section, table, image or
   video in a collapsed `<details>`, and convert one you find while editing the body; a reviewer reads
   a closed block as missing (the fix for screenshots that sat in a closed block and read as missing).
-  TEST: the fetched PR `body_html` contains zero `<details>` elements.
+  TEST: the fetched PR `body_html` holds zero collapsed `<details>`: every `<details>` carries the
+  `open` attribute (GitHub's own wrapper around an attached video is one).
 - When adding the TLDR to an EXISTING PR: fetch the current body first, verify it is
   non-empty, prepend programmatically, and write back — preserving every existing
   section exactly.
