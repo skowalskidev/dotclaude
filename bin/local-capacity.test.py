@@ -1853,15 +1853,43 @@ class PriorityAllowanceTests(unittest.TestCase):
         self.assertEqual(gate.read_priority(self.root), dict(old, workspaces=[str(Path(self.tmp.name).resolve())]))
         self.assertEqual(json.loads((self.root / "priority.json").read_text()), old)
 
-    def test_single_workspace_scope_requires_reprioritize(self):
+    def test_single_workspace_scope_preserves_live_grant_without_rewriting(self):
         gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
         record = gate.read_priority(self.root)
         path = self.root / "priority-session.json"
         path.write_text(json.dumps({"grant": gate.priority_grant(record), "workspace": self.tmp.name}))
-        with self.assertRaisesRegex(gate.GateError, "reissue prioritize"):
-            gate.read_priority(self.root)
-        gate.prioritize(self.root, "primary", 30, False, [self.tmp.name])
-        self.assertEqual(gate.read_priority(self.root)["workspaces"], [str(Path(self.tmp.name).resolve())])
+        before = {name: (self.root / name).read_bytes()
+                  for name in ("priority.json", "priority-session.json")}
+        self.assertEqual(gate.read_priority(self.root), dict(record, workspaces=[self.tmp.name]))
+        for name, content in before.items():
+            self.assertEqual((self.root / name).read_bytes(), content)
+
+    def test_single_workspace_scope_rejects_malformed_records(self):
+        gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
+        grant = gate.priority_grant(gate.read_priority(self.root))
+        path = self.root / "priority-session.json"
+        scopes = [{"grant": grant, "workspace": value}
+                  for value in (None, [], {}, 1, "", "relative", "/a/../b", "/a\nb", "/a\rb", "/a\tb")]
+        scopes += [{"grant": grant, "workspace": self.tmp.name, "workspaces": [self.tmp.name]},
+                   {"grant": "invalid", "workspace": self.tmp.name},
+                   {"grant": grant, "workspace": self.tmp.name, "extra": True}]
+        for scope in scopes:
+            with self.subTest(scope=scope):
+                raw = json.dumps(scope)
+                path.write_text(raw)
+                with self.assertRaisesRegex(gate.GateError, "scope is corrupt"):
+                    gate.read_priority(self.root)
+                self.assertEqual(path.read_text(), raw)
+
+    def test_single_workspace_scope_never_transfers_to_a_replacement_grant(self):
+        gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
+        record = gate.read_priority(self.root)
+        path = self.root / "priority-session.json"
+        path.write_text(json.dumps({"grant": gate.priority_grant(record), "workspace": self.tmp.name}))
+        replacement = {"owner": "other", "expires": time.time() + 60}
+        (self.root / "priority.json").write_text(json.dumps(replacement))
+        self.assertEqual(gate.read_priority(self.root), dict(replacement, workspaces=None))
+        self.assertEqual(path.read_text(), "")
 
     def test_old_supervisor_replacement_cannot_transfer_session_scope(self):
         gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
