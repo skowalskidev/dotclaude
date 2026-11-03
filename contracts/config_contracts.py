@@ -156,6 +156,7 @@ CONTRACTS: dict[str, dict] = {
             "Default implementation to the native Codex config model; allow Astra only for read-only review, preserve native permissions and launcher routing, and pass prompts without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",
+            "Detect no-work finals contradicted by edit or commit events; compare dispatched acceptance and owned Git state, then write continuation evidence for the existing dispatcher without launching a worker here.",
             "Mark every worker AGENT_DELEGATED_WORKER=1 so shared hooks leave the supervisor's plan and ledger alone.",
         ],
     },
@@ -1498,6 +1499,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Engine for /sk:work-superspeed — launch one provider-matched process per slice and log it.",
         "criteria": [
             "Launch headless Claude and Codex slices through their shared native launchers, even when a shell function is unavailable.",
+            "Check Codex final acceptance against commits and edit events; preserve attempts and relaunch one continuation with owned-file state and checkpoints. Fail a second incomplete stop, never accept native exit zero alone.",
             "Validate provider and setup before spending; route GPT design only to the Fable tier and implementation to the mid tier resolved live at dispatch, then fail an incomplete worker.",
             "Sets AGENT_DELEGATED_WORKER=1 on every slice so intake skips session-plan initialization and the intent ledger stays silent, while native approval and security checks stay active.",
             "Verifies each slice by its on-disk artifact, never by exit code "

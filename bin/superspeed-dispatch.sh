@@ -448,6 +448,8 @@ RULES
   actually wrote, clause by clause, with the file open. Having intended to satisfy it is not
   evidence. Reasoning your way into a change that contradicts one of its clauses is the normal way
   this fails, and it is invisible afterwards because the work looks finished either way.
+- After each verification stage, write $SD/CHECKPOINT.md with completed checks, commits and remaining acceptance items.
+- Include an Acceptance table in your final message. In DONE.md, use a table with Item and Verdict columns.
 - When done, write $SD/DONE.md listing every file you changed one per line, then quote the EXPECTED
   RESULT and give a one-line verdict on each clause. If a clause does not hold and you cannot make it
   hold within the files you own, write BLOCKED.md instead."
@@ -456,6 +458,7 @@ RULES
 
   (
     cd "$REPO" || exit 1
+    BASE_HEAD="$(git rev-parse --verify HEAD 2>/dev/null || true)"
     S0=$(date +%s)
     # Backgrounded then waited on so the launcher PID can be recorded for the sampler.
     if [ "$SLICE_PROVIDER" = openai ]; then
@@ -477,6 +480,40 @@ RULES
     printf '%s\n' "$CPID" > "$SD/worker.pid"
     wait "$CPID"
     RC=$?
+    # Supervise Codex completion before accepting its native success result.
+    COMPLETION_RC=0
+    if [ "$SLICE_PROVIDER" = openai ] && [ "$RC" = 0 ]; then
+      completion_check() {
+        python3 - "$SCRIPT_DIR" "$REPO" "$SD" "$SPEC" "$i" "$BASE_HEAD" <<'PYCOMP'
+import sys
+sys.path.insert(0, sys.argv[1])
+from codex_print import dispatcher_completion
+try:
+    sys.exit(dispatcher_completion(*sys.argv[2:]))
+except (OSError, ValueError) as error:
+    print("superspeed: completion check failed: " + str(error), file=sys.stderr)
+    sys.exit(2)
+PYCOMP
+      }
+      completion_check
+      COMPLETION_RC=$?
+      if [ "$COMPLETION_RC" = 1 ]; then
+        log "  slice continuation: $NAME; completion evidence in $SD/completion.json"
+        mkdir -p "$SD/attempt-0"
+        for ARTIFACT in result.json events.jsonl stderr.txt DONE.md completion.json; do
+          [ ! -f "$SD/$ARTIFACT" ] || mv "$SD/$ARTIFACT" "$SD/attempt-0/"
+        done
+        AGENT_SETUP="$SLICE_SETUP" AGENT_MODEL_PROVIDER="$SLICE_PROVIDER" AGENT_DELEGATED_WORKER=1 \
+          "$SCRIPT_DIR/codex-launch.py" -p "$(cat "$SD/continuation.txt")" --model "$SLICE_MODEL" --cd "$REPO" --output-format json \
+          --events-file "$SD/events.jsonl" > "$SD/result.json" 2> "$SD/stderr.txt" &
+        CPID=$!
+        printf '%s\n' "$CPID" > "$SD/worker.pid"
+        wait "$CPID"
+        RC=$?
+        completion_check
+        COMPLETION_RC=$?
+      fi
+    fi
     S1=$(date +%s)
     printf '{"rc":%d,"start":%d,"end":%d,"wall":%d,"pid":%d}\n' \
       "$RC" "$S0" "$S1" "$((S1 - S0))" "$CPID" > "$SD/timing.json"
@@ -491,6 +528,7 @@ RULES
     # DONE.md and exited 0 were reported by the analyser as 4/4 failures, because the only record of
     # their success lived past the point the run died. Per-slice truth belongs to the slice.
     ST=ok
+    [ "$COMPLETION_RC" = 0 ] || ST=incomplete-completion
     [ -f "$SD/DONE.md" ] || ST=no-done-marker
     [ -f "$SD/BLOCKED.md" ] && ST=blocked
     jq -e '.is_error == false' "$SD/result.json" >/dev/null 2>&1 || ST=invalid-result

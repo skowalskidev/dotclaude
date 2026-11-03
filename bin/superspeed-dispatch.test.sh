@@ -80,8 +80,17 @@ cat > "$TMP/bin/codex" <<'STUB'
 if [ "${1:-}" = "--version" ]; then printf 'codex 0.1\n'; exit 0; fi
 PROMPT="$(cat)"
 SD="$(printf '%s\n' "$PROMPT" | grep -oE '/[^ ]*/slices/[a-zA-Z0-9_-]+' | head -1)"
-[ -n "$SD" ] && printf '# done\nstub\n' > "$SD/DONE.md"
-printf '{"type":"thread.started","thread_id":"stub"}\n{"type":"turn.completed","usage":{}}\n'
+if [ "${FIXTURE_CONTEXT_LOSS:-}" = always ] || { [ "${FIXTURE_CONTEXT_LOSS:-}" = 1 ] && [ ! -d "$SD/attempt-0" ]; }; then
+  printf "remaining: run focused check\n" > "$SD/CHECKPOINT.md"
+  printf '%s\n' '{"type":"item.completed","item":{"type":"file_change","changes":[{"path":"a.txt"}]}}' \
+    '{"type":"item.completed","item":{"type":"agent_message","text":"No files changed."}}' \
+    '{"type":"turn.completed","usage":{}}'
+else
+  ACCEPT="$(printf '%s\n' "$PROMPT" | sed -n 's/^EXPECTED RESULT: //p' | head -1)"
+  printf '%s\n| Item | Verdict |\n| task | pass |\n' "$ACCEPT" > "$SD/DONE.md"
+  printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"Acceptance: pass"}}' \
+    '{"type":"turn.completed","usage":{}}'
+fi
 STUB
 chmod +x "$TMP/bin/codex"
 export AGENT_CODEX_BIN="$TMP/bin/codex"
@@ -341,6 +350,30 @@ permission_case "prefix has a command boundary" full-claude general 'printfly ok
   '{"permissions":{"allow":["Bash(printf *)"]}}' absent absent blocked
 permission_case "OpenAI general ignores Claude settings" full-openai general 'printf ok' \
   '{bad json' absent absent allowed
+
+# Native zero-exit context loss must be continued by the existing supervisor.
+jq '.agent_setup="full-openai" | .orchestrator_model="gpt-6-astra" | .model="gpt-5.6-sol" | .slices=[.slices[0]]' \
+  "$TMP/spec.json" > "$TMP/recovery.json"
+FIXTURE_CONTEXT_LOSS=1 PATH="$TMP/bin:$PATH" bash "$DISPATCH" "$TMP/recovery.json" "$TMP/repo/.superspeed/recovery" > "$TMP/recovery.log" 2>&1
+RECOVERY_RC=$?
+RECOVERY="$TMP/repo/.superspeed/recovery/slices/alpha"
+if [ "$RECOVERY_RC" = 0 ] && [ -f "$RECOVERY/attempt-0/events.jsonl" ] && \
+   [ "$(cat "$RECOVERY/status")" = ok ] && grep -q 'remaining: run focused check' "$RECOVERY/continuation.txt"; then
+  pass "context-loss stop automatically continues with preserved evidence"
+else
+  fail "context-loss recovery failed (exit $RECOVERY_RC)"
+  cat "$TMP/recovery.log"
+fi
+
+FIXTURE_CONTEXT_LOSS=always PATH="$TMP/bin:$PATH" bash "$DISPATCH" "$TMP/recovery.json" "$TMP/repo/.superspeed/repeated-loss" > "$TMP/repeated-loss.log" 2>&1
+REPEATED_RC=$?
+REPEATED="$TMP/repo/.superspeed/repeated-loss/slices/alpha"
+if [ "$REPEATED_RC" != 0 ] && [ "$(grep -c 'slice continuation:' "$TMP/repeated-loss.log")" = 1 ] && \
+   [ "$(cat "$REPEATED/status")" != ok ]; then
+  pass "a second incomplete stop fails after exactly one continuation"
+else
+  fail "repeated context loss did not stop at the retry bound"
+fi
 
 [ "$FAILED" = 0 ] && echo "PASS" || echo "FAIL"
 exit "$FAILED"

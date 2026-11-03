@@ -186,6 +186,13 @@ written no new output.** Reap one that slips through with `bin/kill-orphan-worke
 TEST: every divisible GPT/Codex job names the harness, not a bare `codex exec`; no headless worker
 runs past its deadline unkilled.
 
+DO check every headless Codex completion against its dispatched acceptance table, commits since
+start and edit events. Treat a no-work final after recorded work as context loss. Use the existing
+superspeed dispatcher to relaunch one continuation with commits, uncommitted owned files and remaining
+items; preserve both attempts and fail a second incomplete stop. DO write `CHECKPOINT.md` after each
+verification stage so a long slice can resume its remaining checks.
+TEST: a zero-exit no-work report after edit events triggers a continuation, never an `ok` status.
+
 ## Self-improving a parallel run — shared by superspeed and hyperspeed
 
 A parallel harness is mediocre on its first runs and gets good only if each run records what it cost and
