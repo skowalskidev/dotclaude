@@ -327,12 +327,14 @@ python3 ~/.claude/bin/local-capacity.py prioritize --owner <session-id> [--minut
 python3 ~/.claude/bin/local-capacity.py prioritize --clear
 ```
 
-DO set priority from the session checkout, or pass `--workspace <session-checkout>` once. Worker
-`run` labels in that checkout and its physically nested linked worktrees resolve to the priority
-owner automatically; sibling worktrees and unrelated repositories do not inherit it. Renew with the
-same command when Simon's priority instruction remains active; clear it when that work ends.
-Keep simulator claim/release labels identical. TEST: two worker labels share one priority lease,
-including in a nested linked worktree, while a sibling copying the label receives no allowance.
+DO prioritize every checkout its workers run in when Simon names the task to go first: pass
+`--workspace <checkout>` once per checkout to `prioritize --owner <task>`. Worker labels in listed
+checkouts and their nested linked worktrees share one lease owner; unlisted siblings do not match.
+DO re-check a deferred priority run's workspace match before waiting; apply its printed coverage command.
+Renew with the same workspaces while Simon's instruction stands; clear when the work ends.
+Keep simulator claim/release labels identical. Rewrite an old single-workspace scope by reissuing
+`prioritize`; transient scope has only the list shape.
+TEST: every worker checkout matches; an unlisted same-owner sibling prints the coverage fix.
 
 DO migrate an old label-only record once with `migrate --priority-workspace <known-session-checkout>`.
 Relaunch this session's waiting commands through the updated engine. Migration binds a scope receipt
