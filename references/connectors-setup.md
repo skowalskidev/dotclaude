@@ -17,7 +17,9 @@ the provisioner/guard.
   repo's `.env` a symlink to its project file).
 - **No vault, by design.** The engine fetches nothing. A key is minted on demand from its connector's
   own `auth.steps`, kept `chmod 600`, and regenerated when needed — the provider's IAM is the source of
-  truth, so there is no second copy to rotate, sync or leak. Don't propose adding a secret manager.
+  truth, so there is no second copy to rotate, sync or leak. Don't propose adding a secret manager
+  unless Simon asks. A plaintext secret on disk → fix scope + file mode (least-privilege key, `600`,
+  outside the repo, rotate if exposed), never "move it into 1Password".
 
 Use `references/agent-hosts.md` for native Codex configuration. Both hosts consume these manifests;
 Claude uses native local registration, while the Codex launcher reads the current definitions before

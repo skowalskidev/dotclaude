@@ -481,7 +481,7 @@ CONTRACTS: dict[str, dict] = {
             "Use an authorized capable path within credential and write boundaries; ask once with verified host-specific steps only for the remaining human-only action, then wait on dependent work.",
             "Prod is read-only by default; a write is enabled per-request and torn down after.",
             "Per-project detail stays in connectors/*.json, never hard-coded here.",
-            "A model API is reached only through pal, with a key from the repo's own boundary and the per-call yes; shell model-API calls stay denied and the subscription stays the default.",
+            "A model API is reached only through pal, with a key from the repo's own boundary and the per-call yes; a repo's own billable test harness Simon asked to run uses its own path; shell model-API calls stay denied and the subscription stays the default.",
         ],
     },
     "rules/spend-approval.md": {
@@ -489,6 +489,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Billable/metered spend requires per-call approval; a free or trial allowance is a capped budget.",
         "criteria": [
             "Get an explicit per-call yes before every billable operation; one yes is not a batch.",
+            "Simon's own direct, bounded request to run billable work is the yes for the smallest set meeting the bound: name calls and cost, run without re-asking, never exceed or retry past it.",
             "A diagnose/fix/test task is never license to spend; free calls within the allowance cap only until approved.",
             "No bisection or retry loop that fires paid calls until one succeeds.",
             "A free or trial allowance spends at most 5 calls or 10% of it, whichever is smaller, without a yes; each call answers a distinct question.",
