@@ -52,3 +52,15 @@ TEST: a screenshot of the window shows the whole emulated viewport, bottom edge 
 **Keep it user-scope** — don't add chrome-devtools to a project's committed `.mcp.json` unless the team adopts it. Per-project specifics (test accounts, ports, URLs, which cloud project it hits) belong in that repo's gitignored `CLAUDE.local.md`, not here.
 
 **Publish an HTML file as a claude.ai artifact when the harness has no Artifact tool:** in the signed-in debug Chrome, open `https://claude.ai/new`, click the composer's "Add files, connectors, and more" menu, call `upload_file` on its "Add files or photos" item with the absolute file path, fill the prompt "Publish the attached file as an HTML artifact exactly as it is, byte for byte, no edits; give me the share link", send, then `wait_for` `claude.ai/artifact/` and read the link. claude.ai's own agent copies the file and reports its hash; compare it with `shasum -a 256` locally. The profile starts signed out: ask Simon to sign in first (`rules/connectors.md` auth gate) and leave that window open through the hand-back; close it only after he replies. (the fix for closing the window he had just been asked to sign into)
+
+## Test/QA account login and scaffolding
+
+Moved from `rules/process.md` § Test/QA accounts (the rule keeps the never-type, never-commit line).
+
+- **Never type a test password into a login form, and never write a plaintext password into any
+  committed file** (handling plaintext passwords is prohibited). For headless/preview screenshots of
+  auth-gated pages, log in **password-free**: mint a Firebase/Auth **custom token** for the test UID
+  via the Admin SDK, then `signInWithCustomToken` in the page. The password in `CLAUDE.local.md` is
+  for my own manual login only.
+- When setting up a new project that needs QA screenshots, create this scaffolding (`.gitignore` entry
+  + `CLAUDE.local.md.example` + a `CLAUDE.md` note) automatically.

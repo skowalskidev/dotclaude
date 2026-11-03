@@ -24,9 +24,19 @@
 # (references/planning-and-tracking.md). The cross-run log it writes at logs/intent-reconcile.jsonl
 # keeps the ORIGINAL posture: counts and enums only, never prompt text.
 #
+# SHIP GATE (backs rules/process.md "Prove every point of the ask was built")
+# A `git push` of a non-default branch from a repo other than ~/.claude is recorded in session state
+# (PostToolUse). Stop blocks once per set of open pushes until `gate` records the harness result for
+# the pushed head. The written rule is primary; this is the mechanical backstop for a push that
+# skipped it.
+#
 # Modes:  submit                  UserPromptSubmit — append the ask verbatim
 #         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
-#         stop                    Stop — require reconciliation after the newest recorded input
+#         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
+#         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [reason]
+#                                 called by the model — record the landing-gate result for that head
+#         stop                    Stop — require reconciliation after the newest recorded input, then
+#                                 a gate record for every pushed branch head
 
 set -uo pipefail
 
@@ -53,7 +63,7 @@ CRED_RE='(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]
 command -v jq >/dev/null 2>&1 || exit 0
 
 INPUT=""
-[ "$MODE" = "note" ] || INPUT="$(cat 2>/dev/null)"
+case "$MODE" in note|gate) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
 [ -n "$INPUT" ] || INPUT='{}'
 
 jf() { printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null; }
@@ -182,6 +192,65 @@ Git-ignored, and it dies with this worktree. Promote what only it holds before t
 ' >> "$1" 2>/dev/null
 }
 
+# Ship gate state. Pushes live in session state (tab-separated root, branch, head per push; the
+# newest line per root+branch wins). Gate records live in the ledger as `gate: <branch> <sha> <STATUS>
+# <reason>` lines under a "gate" heading, read fence-aware so a quoted prompt cannot forge one.
+PUSHES="$STATE/$SID.pushes"
+
+sha_match() { # two shas name one commit when the shorter (7+ chars) prefixes the longer
+  [ "${#1}" -ge 7 ] && [ "${#2}" -ge 7 ] || return 1
+  case "$1" in "$2"*) return 0 ;; esac
+  case "$2" in "$1"*) return 0 ;; esac
+  return 1
+}
+
+push_branch() { # push_branch ROOT DST — print the pushed branch, or fail when it does not count
+  dst="${2#+}"
+  cur="$(git -C "$1" symbolic-ref -q --short HEAD 2>/dev/null)"
+  [ -n "$dst" ] || dst="$cur"
+  [ "$dst" = HEAD ] && dst="$cur"
+  case "$dst" in refs/heads/*) dst="${dst#refs/heads/}" ;; refs/*) return 1 ;; esac
+  case "$dst" in ""|main|master) return 1 ;; esac
+  printf '%s' "$dst"
+}
+
+record_push() { # record_push ROOT SRC DST
+  b="$(push_branch "$1" "$3")" || return 0
+  src="${2#+}"; [ -n "$src" ] || src=HEAD
+  sha="$(git -C "$1" rev-parse --verify -q "$src^{commit}" 2>/dev/null)" || return 0
+  printf '%s\t%s\t%s\n' "$1" "$b" "$sha" >> "$PUSHES" 2>/dev/null
+}
+
+gate_pairs() { # branch and sha of every recorded gate, outside prompt fences
+  awk '
+    { line=$0; sub(/^ */, "", line)
+      if (line ~ /^(```|~~~)/) { mark=substr(line,1,1); match(line, "^" mark "+"); width=RLENGTH
+        tail=substr(line,width+1)
+        if (!fence) { fence=width; delimiter=mark; next }
+        if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }
+    !fence && /^## [0-9][0-9][0-9][0-9]-/ { ingate = ($0 ~ / · gate$/) }
+    !fence && ingate && /^gate: [^ ]+ [0-9a-f]+ (PASS|BLOCKED|N\/A)( |$)/ { print $2, $3 }
+  ' "$1"
+}
+
+# Print "root<TAB>branch<TAB>sha" for each pushed branch head that has no gate record.
+open_pushes() {
+  [ -s "$PUSHES" ] || return 0
+  gates="$(gate_pairs "$LEDGER")"
+  awk -F'\t' '{ k=$1 FS $2; if (!(k in v)) order[++n]=k; v[k]=$3 }
+    END { for (i=1;i<=n;i++) print order[i] FS v[order[i]] }' "$PUSHES" |
+  while IFS="$(printf '\t')" read -r root branch sha; do
+    found=0
+    while read -r gb gs; do
+      [ -n "$gb" ] || continue
+      if [ "$gb" = "$branch" ] && sha_match "$gs" "$sha"; then found=1; break; fi
+    done <<GATES
+$gates
+GATES
+    [ "$found" -eq 1 ] || printf '%s\t%s\t%s\n' "$root" "$branch" "$sha"
+  done
+}
+
 run_mode() {
 case "$MODE" in
 
@@ -245,7 +314,10 @@ never with Edit or Write.
   pivot     each redirection, written when it lands, not reconstructed at the end.
   reconcile at hand-back on substantive work: one verdict per ask, tagged with its source.
 Mechanics: ~/.claude/references/planning-and-tracking.md. The Stop hook checks for reconciliation
-after the newest recorded input."
+after the newest recorded input. After a push to a non-default branch, run /sk:ship-full-detailed-workflow
+on it and record the result with
+  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]
+or Stop blocks once for the missing gate."
   jq -cn --arg c "GAUNTLET UPDATE: read the new ask in $target and the existing living plan. Apply \
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
 every added requirement, preserve unfinished items and the return point, then refresh the dashboard. \
@@ -308,6 +380,105 @@ note)
   exit 0
   ;;
 
+push)
+  # PostToolUse for Bash: runs only after a successful tool call. Handles `cd X && git -C Y push
+  # origin branch`, several pushes in one command and refspecs; a delete, --tags, --all or --mirror
+  # push, a push to main or master, and any repo inside the config repo record nothing.
+  [ "$(jf '.tool_name')" = "Bash" ] || exit 0
+  cmd="$(jf '.tool_input.command')"
+  case "$cmd" in *push*) ;; *) exit 0 ;; esac
+  cwd="$(jf '.cwd')"
+  [ -n "$cwd" ] || cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+  [ -d "$cwd" ] || exit 0
+  cfg="$(cd -P "$CFG_ROOT" 2>/dev/null && pwd -P)"
+  mkdir -p "$STATE" 2>/dev/null || exit 0
+  dir="$cwd"
+  printf '%s\n' "$cmd" | sed -E 's/(&&|\|\||[;|&])/\
+/g' | while IFS= read -r seg; do
+    read -ra w <<< "$seg"
+    n=${#w[@]}
+    [ "$n" -gt 0 ] || continue
+    k=0
+    while [ "$k" -lt "$n" ]; do w[$k]="${w[$k]//[\"\']/}"; k=$((k + 1)); done
+    i=0
+    while [ "$i" -lt "$n" ] && [[ "${w[$i]}" == *=* ]] && [[ "${w[$i]}" != -* ]]; do i=$((i + 1)); done
+    [ "$i" -lt "$n" ] || continue
+    if [ "${w[$i]}" = cd ]; then
+      t="${w[$((i + 1))]:-}"; t="${t/#\~/$HOME}"
+      if [ -n "$t" ] && nd="$(cd "$dir" 2>/dev/null && cd "$t" 2>/dev/null && pwd -P)"; then dir="$nd"; fi
+      continue
+    fi
+    [ "${w[$i]}" = git ] || continue
+    i=$((i + 1)); gdir="$dir"
+    while [ "$i" -lt "$n" ]; do
+      case "${w[$i]}" in
+        -C) t="${w[$((i + 1))]:-}"; t="${t/#\~/$HOME}"
+            if nd="$(cd "$gdir" 2>/dev/null && cd "$t" 2>/dev/null && pwd -P)"; then gdir="$nd"; fi
+            i=$((i + 2)) ;;
+        -c|--git-dir|--work-tree|--namespace) i=$((i + 2)) ;;
+        -*) i=$((i + 1)) ;;
+        *) break ;;
+      esac
+    done
+    [ "${w[$i]:-}" = push ] || continue
+    i=$((i + 1)); skip=0; pos=()
+    while [ "$i" -lt "$n" ]; do
+      case "${w[$i]}" in
+        --delete|-d|--tags|--all|--mirror) skip=1 ;;
+        --repo|-o|--push-option|--receive-pack|--exec) i=$((i + 1)) ;;
+        -*) ;;
+        *) pos+=("${w[$i]}") ;;
+      esac
+      i=$((i + 1))
+    done
+    [ "$skip" -eq 0 ] || continue
+    root="$(git -C "$gdir" rev-parse --show-toplevel 2>/dev/null)" || continue
+    root="$(cd -P "$root" 2>/dev/null && pwd -P)" || continue
+    case "$root/" in "$cfg"/*) continue ;; esac
+    if [ "${#pos[@]}" -le 1 ]; then
+      cur="$(git -C "$root" symbolic-ref -q --short HEAD 2>/dev/null)"
+      m="$(git -C "$root" config "branch.$cur.merge" 2>/dev/null)"
+      record_push "$root" HEAD "${m:-$cur}"
+    else
+      for spec in "${pos[@]:1}"; do
+        case "$spec" in
+          :*) ;;   # empty source deletes the remote branch
+          *:*) record_push "$root" "${spec%%:*}" "${spec#*:}" ;;
+          *) record_push "$root" "$spec" "$spec" ;;
+        esac
+      done
+    fi
+  done
+  find "$STATE" -type f -mtime +7 -delete 2>/dev/null
+  exit 0
+  ;;
+
+gate)
+  branch="${2:-}"; ref="${3:-}"; status="$(printf '%s' "${4:-}" | tr '[:lower:]' '[:upper:]')"
+  reason="${*:5}"
+  case "$status" in PASS|BLOCKED|N/A) ;; *)
+    echo "gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [reason]" >&2; exit 2 ;;
+  esac
+  if [ -z "$branch" ] || [ -z "$ref" ]; then
+    echo "gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [reason]" >&2; exit 2
+  fi
+  if [ "$status" != PASS ] && [ -z "$reason" ]; then
+    echo "gate: $status needs a reason (the blocker, or why the harness does not apply)" >&2; exit 2
+  fi
+  sha="$(git rev-parse --verify -q "$ref^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$ref" | tr '[:upper:]' '[:lower:]')"
+  case "$sha" in *[!0-9a-f]*|"") echo "gate: cannot resolve $ref to a commit" >&2; exit 2 ;; esac
+  [ "${#sha}" -ge 7 ] || { echo "gate: sha needs 7+ characters" >&2; exit 2; }
+  resolve || { echo "gate: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
+  acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
+  header_if_new "$LEDGER"
+  {
+    printf '\n## %s · gate\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'gate: %s %s %s %s\n' "$branch" "$sha" "$status" "$reason"
+  } >> "$LEDGER"
+  echo "Recorded $status gate for $branch at ${sha:0:7} in $LEDGER"
+  exit 0
+  ;;
+
 stop)
   # Loop safety, three independent guards. A Stop hook that re-blocks the finish it just caused is an
   # unbreakable session, which is the failure task-intake.sh documents for a different hook.
@@ -322,6 +493,9 @@ stop)
   resolve || exit 0
   [ -f "$LEDGER" ] || exit 0
 
+  # The reconciliation and after-run checks, unchanged. Run in a subshell so every exit 0 inside it
+  # only ends this check and the ship gate below still runs after it.
+  stop_ledger() {
   # Parse only actual entry headings, never a fake reconcile header inside a quoted prompt.
   # A reconciliation predating a later ask/plan/pivot cannot close that newer work.
   pending="$(awk '
@@ -390,6 +564,28 @@ Record evidence for completed work and the next action for every real blocker or
 proposal remains recorded, not permission to implement. When nothing is left, end the final message with \
 the archive line from rules/communication.md. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'
+  exit 0
+  }
+  out="$(stop_ledger)"
+  if [ -n "$out" ]; then printf '%s\n' "$out"; exit 0; fi
+
+  # Ship gate: every pushed branch head needs a gate record. It runs even on a stop_hook_active
+  # continuation (a reconciliation block must not hide it) and is bounded by a marker on the exact
+  # set of open pushes, so only a new push or a newer head re-opens it.
+  open="$(open_pushes)"
+  [ -n "$open" ] || exit 0
+  gsnap="$(printf '%s' "$open" | cksum)"
+  [ "$(cat "$STATE/$SID.shipgate" 2>/dev/null)" = "$gsnap" ] && exit 0
+  printf '%s\n' "$gsnap" > "$STATE/$SID.shipgate" 2>/dev/null || exit 0
+  list="$(printf '%s\n' "$open" | awk -F'\t' '{ printf "  %s (%s) at %s\n", $2, $1, substr($3,1,7) }')"
+  msg="This session pushed these branches and recorded no ship-gate result for the pushed head:
+$list
+Before finishing, run /sk:ship-full-detailed-workflow on each (rules/process.md, Prove every point of the \
+ask was built), then record the result:
+  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]
+BLOCKED and N/A need a reason: the exact blocker, or why the harness does not apply to this push. A gate \
+recorded for an older head does not count once a newer head is pushed. This fires at most once per set of open pushes."
+  jq -cn --arg r "$msg" '{decision:"block",reason:$r}'
   exit 0
   ;;
 

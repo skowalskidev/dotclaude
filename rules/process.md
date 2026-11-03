@@ -120,7 +120,8 @@ TEST: every ask in the ledger has a verdict against it. A missing verdict is a m
 
 **DO run `/sk:ship-full-detailed-workflow` on every open PR the work opened or pushed to, before
 hand-back.** Ship-report proves the journeys; the harness reviews and verifies the pushed PR and lands
-its gate.
+its gate. The Stop hook backs this: it blocks once per pushed non-default branch head until
+`hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]` records the result.
 TEST: a hand-back naming an open PR from this run cites that PR's landing-gate result. (the fix for two
 PRs handed back unreviewed; the harness then found a dropped consent event and a no-op column revoke.)
 
@@ -253,10 +254,6 @@ secret an agent shouldn't commit:
 - Reference the account in the committed `CLAUDE.md` **by name only** ("a test account exists; creds
   in `CLAUDE.local.md`") — never put real creds in a committed file. If `CLAUDE.local.md` is missing,
   **ask me for the account** rather than guessing.
-- **Never type a test password into a login form, and never write a plaintext password into any
-  committed file** (handling plaintext passwords is prohibited). For headless/preview screenshots of
-  auth-gated pages, log in **password-free**: mint a Firebase/Auth **custom token** for the test UID
-  via the Admin SDK, then `signInWithCustomToken` in the page. The password in `CLAUDE.local.md` is
-  for my own manual login only.
-- When setting up a new project that needs QA screenshots, create this scaffolding (`.gitignore` entry
-  + `CLAUDE.local.md.example` + a `CLAUDE.md` note) automatically.
+- Password-free login for auth-gated screenshots, and the scaffolding for a new QA project:
+  `references/browser-debugging.md` § Test/QA account login and scaffolding. Never type a test password
+  into a login form; never write a plaintext password into a committed file.

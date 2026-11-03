@@ -2067,6 +2067,14 @@ CONTRACTS: dict[str, dict] = {
             "`note` exits 2 when its source file is the ledger (same inode, any spelling or symlink): "
             "`cat ledger >> ledger` never ends and once grew a ledger to 170 GB. The refusal also "
             "spares the ledger from the `rm -f` of the source.",
+            "Ship gate, the mechanical backstop for rules/process.md's harness-on-every-pushed-PR rule: "
+            "PostToolUse `push` records the repo, branch and head of a successful `git push` to a non-default "
+            "branch in session state, and records nothing for main or master, a delete, tags, a repo inside "
+            "the config repo, or a delegated worker. `gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]` "
+            "appends the result to the ledger (BLOCKED and N/A need a reason). Stop blocks once per set of "
+            "open pushes, also on a stop_hook_active continuation, until each branch's newest pushed head has "
+            "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
+            "never counts.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",

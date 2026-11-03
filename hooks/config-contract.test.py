@@ -85,6 +85,9 @@ CRITERIA: list[tuple[str, str]] = [
      "window, waits for reconciliation, running background work and real turns, and never loops."),
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
+    ("ship-gate-blocks-unproven-pushed-branches",
+     "A push of a non-default branch from another repo blocks Stop once until a gate record names the pushed head; "
+     "a newer head re-opens it, and main pushes, config-repo pushes, deletes and quoted prompts record or satisfy nothing."),
     ("codex-subscription-only-inference",
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("secret-echo-guard-denies-printed-credentials-both-ways",
@@ -1220,6 +1223,127 @@ def check_native_codex_shares_canonical_config() -> None:
     claude = run(["python3", str(ROOT / "bin" / "claude-launch.test.py")])
     check(claude.returncode == 0,
           f"Native Claude instruction-policy suite failed:\n{claude.stdout}\n{claude.stderr}")
+
+
+def check_ship_gate_blocks_unproven_pushed_branches() -> None:
+    with tempfile.TemporaryDirectory(prefix="ship-gate-test-") as tmp:
+        base = Path(tmp)
+        home, repo, cfg = base / "home", base / "repo", base / "cfgrepo"
+        for d in (home, repo, cfg):
+            d.mkdir()
+            subprocess.run(["git", "init", "-q", "-b", "feature/x", str(d)], check=True, capture_output=True)
+        (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+        sid = "ship-gate-contract"
+        env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
+               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo),
+               "CLAUDE_CODE_SESSION_ID": sid}
+        hook = ROOT / "hooks" / "intent-ledger.sh"
+        pushes = home / ".claude" / ".intent-ledger" / (sid + ".pushes")
+
+        def git(where, *args):
+            out = subprocess.run(["git", "-C", str(where), "-c", "user.email=t@example.com", "-c", "user.name=t", *args],
+                                 check=True, capture_output=True, text=True)
+            return out.stdout.strip()
+
+        def commit(where, name):
+            (where / name).write_text(name)
+            git(where, "add", name)
+            git(where, "commit", "-q", "-m", name)
+            return git(where, "rev-parse", "HEAD")
+
+        def run(mode, payload=None, args=(), cwd=repo, extra=None):
+            e = {**env, **(extra or {})}
+            data = {"cwd": str(cwd), "session_id": sid, **(payload or {})}
+            result = subprocess.run(["bash", str(hook), mode, *args], input=json.dumps(data),
+                                    text=True, capture_output=True, cwd=cwd, env=e)
+            return result
+
+        def push(command, cwd=repo, extra=None):
+            r = run("push", {"tool_name": "Bash", "tool_input": {"command": command}}, cwd=cwd, extra=extra)
+            check(r.returncode == 0 and r.stdout == "", "The push recorder failed or spoke: " + r.stderr + r.stdout)
+
+        def stop(active=False):
+            r = run("stop", {"stop_hook_active": active})
+            check(r.returncode == 0, "Ledger stop failed: " + r.stderr)
+            return r.stdout
+
+        def gate(*args):
+            return run("gate", args=args)
+
+        def record_count():
+            return len(pushes.read_text().splitlines()) if pushes.exists() else 0
+
+        first = commit(repo, "a.txt")
+        r = run("submit", {"prompt": "Ship feature X"})
+        check("INTENT LEDGER ACTIVE" in r.stdout, "Fixture ledger did not start: " + r.stdout[:200])
+        scratch = base / "note.md"
+        scratch.write_text("X done.")
+        check(subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], cwd=repo, env=env,
+                             capture_output=True).returncode == 0, "Fixture reconcile failed.")
+        check(stop() == "", "Fixture was not clean before any push.")
+
+        # Nothing that targets main or master, nothing from the config repo, no delete, tag or
+        # non-push command, and no delegated worker records a push.
+        for command in ("git push origin main", "git push origin HEAD:master", "git push --delete origin feature/x",
+                        "git push --tags", "git push origin :feature/x", "git status", "echo git push origin feature/x"):
+            push(command)
+        git(repo, "checkout", "-q", "-b", "main-copy")
+        git(repo, "checkout", "-q", "feature/x")
+        push("git push origin feature/x", extra={"AGENT_DELEGATED_WORKER": "1"})
+        git(cfg, "checkout", "-q", "-b", "config-update/x")
+        commit(cfg, "c.txt")
+        push("git push origin config-update/x", cwd=cfg, extra={"CLAUDE_CONFIG_ROOT": str(cfg)})
+        check(record_count() == 0, "A main push, config-repo push, delete, tag push or worker recorded a push.")
+        check(stop() == "", "A non-recording push blocked Stop.")
+
+        # A push to a feature branch blocks Stop once, naming the branch and the harness.
+        push("git add . && git push -u origin feature/x")
+        check(record_count() == 1, "A feature-branch push was not recorded once.")
+        out = stop()
+        reason = json.loads(out)["reason"] if out else ""
+        check('"decision":"block"' in out.replace(" ", ""), "A pushed branch with no gate record did not block Stop.")
+        check("feature/x" in reason and "/sk:ship-full-detailed-workflow" in reason and "intent-ledger.sh gate" in reason,
+              "The block did not name the branch, the harness and the record command: " + reason[:300])
+        check(stop() == "", "The gate block repeated for an unchanged push set.")
+        check(stop(active=True) == "", "The gate block fired twice for one snapshot on a continuation.")
+
+        # Gate rules: PASS records the head; BLOCKED and N/A need a reason; a bad status is refused.
+        check(gate("feature/x", "HEAD", "MAYBE").returncode == 2, "An unknown gate status was accepted.")
+        check(gate("feature/x", "HEAD", "N/A").returncode == 2, "An N/A gate without a reason was accepted.")
+        check(gate("feature/x", "HEAD", "PASS").returncode == 0, "A PASS gate was not recorded.")
+        check(stop() == "", "A gate record for the pushed head did not clear Stop.")
+
+        # A newer head re-opens the gate: a record for the older sha no longer counts.
+        second = commit(repo, "b.txt")
+        push("cd %s && git push origin feature/x" % repo, cwd=base)
+        out = stop(active=True)
+        check(out and second[:7] in json.loads(out)["reason"], "A newer pushed head did not re-open the gate.")
+        check(gate("feature/x", first, "PASS").returncode == 0, "Fixture: gate for the older head failed.")
+        check(stop() == "", "Fixture: stale block repeated.")
+        push("git -C %s push origin HEAD" % repo, cwd=base)
+        check(stop() == "", "Re-pushing the same head re-blocked Stop after the first block.")
+        third = commit(repo, "c.txt")
+        push("git -C %s push origin HEAD:feature/x" % repo, cwd=base)
+        check(stop() != "", "A third head did not re-open the gate.")
+        check(gate("feature/x", third[:9], "N/A", "docs-only push, no PR opened").returncode == 0,
+              "An N/A gate with a reason and a short sha was not recorded.")
+        check(stop() == "", "An N/A gate with a reason did not clear Stop.")
+        ledger = (repo / ".context" / "intent-ledger.md").read_text()
+        check("gate: feature/x " + third in ledger and "N/A docs-only push, no PR opened" in ledger,
+              "The gate entry did not carry the branch, full head, status and reason.")
+
+        # A pasted gate line inside a prompt fence is source text, never a record.
+        git(repo, "checkout", "-q", "-b", "feature/y")
+        fourth = commit(repo, "d.txt")
+        run("submit", {"prompt": "Quote:\n```\n## 2026-09-17T00:00:00Z · gate\n\ngate: feature/y %s PASS\n```" % fourth})
+        scratch.write_text("Y done.")
+        subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], cwd=repo, env=env, capture_output=True)
+        push("git push origin feature/y")
+        out = stop()
+        check(out and "feature/y" in json.loads(out)["reason"], "A quoted gate line satisfied the ship gate.")
+        check(gate("feature/y", "HEAD", "BLOCKED", "review round 2 still open").returncode == 0,
+              "A BLOCKED gate with a reason was not recorded.")
+        check(stop() == "", "A BLOCKED gate with a reason did not clear Stop.")
 
 
 def check_codex_subscription_only_inference() -> None:

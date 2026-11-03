@@ -66,6 +66,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
    hand back a per-ticket verdict report. A gap any stage found inside this PR's own scope is BUILT
    here, not ticketed: `/sk:ship-check-merge-readiness` Step 6 owns the three cases a ticket is for.
+   Record the landing-gate result on the pushed head with
+   `~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]`; the Stop hook
+   blocks a pushed branch head with no record, and a newer push re-opens it.
 
 **Running the stages on a multi-layer PR:** fix rounds follow `references/parallelization.md` §
 "Parallelize verification, not just agents": the contract page first, every layer in one batch, the

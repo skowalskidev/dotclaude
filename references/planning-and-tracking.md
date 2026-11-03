@@ -259,6 +259,11 @@ without a formal ratified-plan entry. It checks freshness, not whether the agent
 fulfilled each ask. Its stop feedback is bounded to once per unchanged ledger snapshot and respects
 `stop_hook_active`; remaining work must still be reported honestly.
 
+**Ship gate.** `hooks/intent-ledger.sh push` (PostToolUse) records each successful `git push` of a
+non-default branch from a repo other than `~/.claude`. After `/sk:ship-full-detailed-workflow` runs on
+the pushed head, record it with `intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]`
+(BLOCKED and N/A need a reason). Stop blocks once per set of open pushes; a newer head re-opens it.
+
 **Two shortfalls, two different homes.** An ask that was ratified and not built is a Not-met
 criterion and is closed the way any gap is, by
 `/sk:ship-report-and-ensure-correct-user-system-journey`. An ask that never reached the ledger, or a
