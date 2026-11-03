@@ -168,16 +168,17 @@ state 4-5 s (default 4.5), the shorter side holds its last frame so both end tog
 yuv420p, `+faststart`.
 
 DO post one block per point in the PR description, with a comment only when description embedding
-is unsupported or blocked: `### <point>`, one line naming what the left (or top)
+is unsupported or blocked, all under a top-level `## Screenshots` section: `### <point>`, one line naming what the left (or top)
 and right (or bottom) frames show, then per captured platform a `**Desktop**` / `**Mobile**` / `**iOS**`
 label over its composed image (`<img src="<url>" width="800" alt="<point> <platform> before and after">`),
-then the composed video alone in its own paragraph. A new surface posts its AFTER frame under
+then the composed video alone in its own paragraph, never inside a collapsed `<details>` (rule:
+`/sk:ship-pr` § The rest of the body). A new surface posts its AFTER frame under
 `Before: n/a: new, no before`; a platform without evidence shows `not run: <reason>` or
 `blocked: <reason>`. Feature-detect `gh pr edit --attach` and use
 `gh pr edit <n> --body-file body.md --attach <png> --attach <mp4>` when supported; apply the
 screenshot skill's destination and attachment fallback before using a comment. Verify through `/sk:ship-screenshot-changes`'s VERIFY checks: each image URL returns 200 `image/png` with
 nonzero size and each video is served as `video/mp4`, then the browser playback checks still decide.
-TEST: every posted pair shows both bands above its frames and no caption over the UI, every changed
+TEST: every posted pair shows both bands above its frames and no caption over the UI, `body_html` holds zero `<details>`, every changed
 journey has one composed video, and `python3 ~/.claude/bin/pr-evidence.test.py` passes.
 
 ## Build the review

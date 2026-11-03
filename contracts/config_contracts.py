@@ -278,7 +278,7 @@ CONTRACTS: dict[str, dict] = {
             "Run playback checks in a browser that decodes the clip (branded Chrome for H.264, or VP9/WebM) after a known-good control clip passes; record channel and version; zero played is a verifier defect.",
             "Record BEFORE on a local or preview build of the base branch, never a production host.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
-            "Compose every posted before/after image and video with bin/pr-evidence.py: bands above the UI, outline-only callouts, one block per point; verify image/png and video/mp4 serving, then browser playback decides.",
+            "Compose every posted before/after image and video with bin/pr-evidence.py: bands above the UI, outline-only callouts, one block per point; verify image/png and video/mp4 serving, then browser playback decides. Post evidence under a top-level ## Screenshots, never inside a collapsed <details>.",
             "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
             "Hand-off check: run bin/visual-check.py on the exact artifact Simon opens, one row per viewport x state (cap 24, default state first); blank means ink below 0.05%, clipped means cut by an ancestor; view one PNG per distinct view type; loop fix then full re-run until exit 0.",
             "A screen built from a supplied design source adds the workflow-loops measurement report and difference images to the hand-off; the pass table alone never proves a design match.",
@@ -1069,7 +1069,7 @@ CONTRACTS: dict[str, dict] = {
             "Run references/git-pr-deploy.md § Deploy safety on every PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
             "Compose the stage-5 resolver at the final fresh-fetch gate; return new or edited unhandled feedback to resolution and affected verification before PASS, including feedback outside threads.",
             "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
-            "prod-data verdict, the deploy-safety results, the screenshots, resolved threads and the "
+            "prod-data verdict, the deploy-safety results, the screenshots, zero <details> in the fetched body_html, resolved threads and the "
             "Deploy-TLDR are confirmed on EVERY FETCHED PR, not just produced in-session.",
         ],
     },
@@ -1401,6 +1401,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "PR bodies that open with a deploy TLDR.",
         "criteria": [
             "The Deploy TLDR comes first, before any template section.",
+            "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero <details> elements.",
             "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
             "A User journey and a System journey section follow it, read from "
             "references/tldr-report-formats.md, so a reviewer can judge both the feature and the "

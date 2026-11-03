@@ -92,12 +92,16 @@ verified the user + system journey, then handed back with it never posted to the
 - Deploy safety (stage 6), on every PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
   per part.
-- Screenshots (stage 7): every surface eligible under stage 7 has its image and journey video on the PR; record native
+- Screenshots (stage 7): every surface eligible under stage 7 has its image and journey video on the PR,
+  under `## Screenshots`; record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
 - Feedback (stage 5): 0 unhandled current comment revisions and 0 unresolved review threads;
   every actionable finding has a verdict and reply, with no outstanding blocking decision.
 - Deploy-TLDR (stage 8): the PR body opens with it, each production step carrying its check, smoke
   and rollback.
+- Visible sections (every stage): the fetched `body_html` holds zero `<details>` elements; every row
+  above is a visible `##`/`###` heading (rule: `/sk:ship-pr` § The rest of the body). A collapsed
+  section fails even when its content loads.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
 empty or suspiciously short → STOP.
 

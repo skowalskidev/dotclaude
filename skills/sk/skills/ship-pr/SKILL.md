@@ -76,6 +76,11 @@ affected on deploy:
 
 - Follow the repo's PULL_REQUEST_TEMPLATE.md and its committed CLAUDE.md GitHub rules
   (ticket-prefixed title from the Linear ticket, reviewer, labels, assignee).
+- DO give every body section a visible `##` or `###` heading: Deploy TLDR, journeys, test matrix,
+  prod data, deploy safety, `## Screenshots`, any other. DON'T wrap any section, table, image or
+  video in a collapsed `<details>`, and convert one you find while editing the body; a reviewer reads
+  a closed block as missing (the fix for screenshots that sat in a closed block and read as missing).
+  TEST: the fetched PR `body_html` contains zero `<details>` elements.
 - When adding the TLDR to an EXISTING PR: fetch the current body first, verify it is
   non-empty, prepend programmatically, and write back — preserving every existing
   section exactly.
