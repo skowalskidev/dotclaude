@@ -168,9 +168,19 @@ the no-`/tmp` rule are process.md's, above.
 Owned by `rules/communication.md` § Close the session. Detail:
 
 - **Finished** means every ask in the ledger/plan has a verdict, no agent, watcher or process of this
-  session is running, no lease or port is held, the worktree is clean and pushed, and what remains is
-  only what this session cannot act on. Name what Simon still owns (a merge, a production check) in the
-  archive line or the one above it; those survive archiving.
+  session is running, no lease or port is held, the worktree is clean and pushed, and the session holds
+  nothing Simon still needs it for. The line is false while any of these is open:
+  - a CI run, background agent or job this session started, including CI on a head it just pushed;
+  - an open PR or branch this session produced that still needs Simon's merge or deploy;
+  - a promised follow-up: a deploy smoke, a reply to a reporter, or a decision awaiting his answer
+    that blocks shipped value.
+- **When the only remaining step is Simon's own merge or deploy, end with the merge list and no
+  archive line:** each PR to merge, in order, and that this session holds the post-deploy smoke and
+  follow-ups. e.g. two open PRs with CI running on the last push end "Merge #A, then #B; I run the
+  smoke and reply to the reporter after deploy", never the archive line. (the fix for a session that
+  said the line with CI running and two PRs awaiting merge, then had to be asked what to merge.)
+- **Time-only checks**: what only time, a real customer or a future event can confirm is no loose end:
+  drop it, or use one short "will show up naturally" clause.
 - **Outstanding work** (process.md "name all outstanding work", living-plan, the Stop-hook reconcile)
   means work the ask requires or a blocker with evidence. A check only time or a real customer can
   confirm is not outstanding. This never weakens CI, tests, the reachable walkthrough, security review
@@ -180,7 +190,8 @@ Owned by `rules/communication.md` § Close the session. Detail:
   not a stopping condition, nor is "a good place to pause"). The stop is the ask's outcome delivered and
   verified to a reasonable level, never an invented check.
 - **Follow-ups**: at most 2, optional, one line, only if they change a decision or fix an evidenced
-  problem; the archive line is never withheld for them.
+  problem; otherwise do it now if cheap and in scope, or drop it. The archive line is never withheld
+  for an optional follow-up (an open item from the list above is not optional).
 
 ## Shared observable dashboard
 

@@ -16,19 +16,19 @@ WHY: a question mid-answer stops him reading the answer.
 ## Close the session: finish it, say it can be archived, stop
 
 **DO finish everything the ask needs yourself, including checks you can run, then end with one line:
-"You can archive this session: everything here is done."** Finished, ownership and caps:
+"You can archive this session: everything here is done."** Detail, open-work list:
 `references/planning-and-tracking.md` § Close the session.
 **DO stop once the outcome is delivered and reasonably verified** (CI green, deployed, a smoke
-test on what can be reached). What only time, a real customer or a future event can confirm is
-no loose end: drop it, or use one short "will show up naturally" clause.
-**DO offer a follow-up ONLY if it would change a decision or fix an evidenced problem;** else do it now
-if cheap and in scope, or drop it. At most 2, one optional line; never withhold the archive line.
+test on what can be reached); a time-only check is no loose end.
+**DO offer a follow-up ONLY if it would change a decision or fix an evidenced problem.** At most 2, one optional line; never withhold the archive line.
 No new question at hand-back unless only Simon can decide it and it blocks the outcome.
-**DON'T say the line while work, a verdict or cleanup is open;** name the single next blocker. e.g. after merge, deploy and a passing smoke test, stop there.
+**DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
+PR awaiting his merge/deploy, a promised smoke or reply. End with the merge list or the single next
+blocker. e.g. after merge, deploy and a passing smoke test, stop there.
 WHY: invented checks block archiving.
 TEST: a finished session's last message has the archive line, at most 2 optional follow-ups, and no
 "the next X will confirm", "worth watching" or "keep an eye on" item; no line, or the line with work
-running or a required item unverdicted, fails.
+running, an unmerged session PR or an item unverdicted, fails.
 
 ## Five rules for anything you write
 

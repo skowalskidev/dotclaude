@@ -455,7 +455,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "How Claude talks to Simon, and how it writes prompts for subagents.",
         "criteria": [
             "Questions consolidate into one block at the END of a turn.",
-            "A finished session (every ask verdicted, no running work, lease or port, clean pushed worktree) ends its last message with the single line 'You can archive this session: everything here is done.', naming what Simon still owns; never mid-run or while work is open.",
+            "A finished session (every ask verdicted, no running work, lease or port, clean pushed worktree) ends its last message with the single line 'You can archive this session: everything here is done.'; never mid-run or while the session holds anything Simon needs: CI or a job on a pushed head, an open session PR awaiting his merge or deploy, or a promised smoke or reply. When only his merge remains, it ends with the ordered merge list and no archive line.",
             "Closure is reasonable: once the ask's outcome is delivered and verified to a reasonable level, stop; what only time, a real customer or a future event can confirm is dropped or one short clause, at most 2 optional follow-ups that never withhold the archive line, and no new question at hand-back unless a decision only Simon can make blocks the outcome. Never weakens CI, tests, reachable walkthroughs, security or a requested feature.",
             "Owns the five writing rules. copilot-testing and parallelization point here and do "
             "not restate them.",
