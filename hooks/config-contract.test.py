@@ -198,7 +198,8 @@ CRITERIA: list[tuple[str, str]] = [
     ("routing-hooks-fire-for-the-tools-they-target",
      "Each settings.json matcher fires for the tool names it is meant to catch and stays off the ones "
      "it is not. This is the bug class that cost a whole session: a matcher that looks right and "
-     "never matches the tool the session actually uses."),
+     "never matches the tool the session actually uses. A case carrying `tool_input` + `decides` "
+     "also runs the named hook on that input and pins its deny/allow decision."),
     ("retro-log-detects-without-acting",
      "The SessionEnd retro logger writes one JSON line and does nothing else: silent when nothing "
      "triggered, silent when the transcript is missing, no stdout ever, and nothing written outside "
@@ -855,7 +856,8 @@ def check_delegated_worker_leaves_supervisor_record_alone() -> None:
 def check_hooks_all_wired_and_executable() -> None:
     cmds = hook_commands()
     for c in cmds:
-        path = Path(c.split()[0].replace("$HOME", str(Path.home())))
+        # Resolve the wired path against the checkout under test, so a worktree's new hook counts.
+        path = Path(c.split()[0].replace("$HOME/.claude", str(ROOT)).replace("$HOME", str(Path.home())))
         check(path.exists(), f"settings.json wires a hook that does not exist: {path}")
         if path.exists():
             check(os.access(path, os.X_OK),
@@ -1099,6 +1101,20 @@ def check_routing_hooks_fire_for_the_tools_they_target() -> None:
         check(sorted(set(fired)) == expected,
               f"{case['event']} / tool={case['tool']}: expected {expected}, got {sorted(set(fired))}. "
               f"A matcher that silently misses its tool is the bug that deadlocked a whole session.")
+        for hook_name, want in case.get("decides", {}).items():
+            check(hook_name in fired, f"{case['tool']}: `decides` names {hook_name}, which does not fire.")
+            payload = json.dumps({"hook_event_name": case["event"], "tool_name": case["tool"],
+                                  "tool_input": case.get("tool_input", {})})
+            env = {k: v for k, v in os.environ.items() if k != "CLAUDE_TEST_VIEWPORT_MAX_H"}
+            result = subprocess.run([str(ROOT / "hooks" / hook_name)], input=payload, text=True,
+                                    capture_output=True, timeout=20, env=env)
+            try:
+                got = json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+            except Exception:  # noqa: BLE001
+                got = "allow"
+            check(result.returncode == 0 and got == want,
+                  f"{hook_name} on {case['tool']} {case.get('tool_input')}: expected {want}, got {got} "
+                  f"(rc={result.returncode}).")
 
 
 def check_retro_log_detects_without_acting() -> None:

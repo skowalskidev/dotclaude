@@ -31,7 +31,8 @@ only a verdict, per `rules/process.md`; no everyday Chrome instance passes the o
 WHY: each isolated context shows as its own window, so a tab per step left Simon asking "which tab? there are many open".
 TEST: `list_pages` during the walk shows 1 walk tab per live account plus the tabs you found; after hand-back it shows only the tabs you found, and no Chrome for Testing process you launched is left running.
 
-**Fit the window: an emulated phone viewport must fit the test window's visible content area.** Launch with `--size 1280x900` (or taller), and emulate a viewport no taller than the window height minus 150 px for the browser chrome. Default: `402x750` inside `1280x900`. DON'T emulate 402x874 in a 1280x900 window: the page bottom falls below the visible area and the tester cannot reach it (hit twice in one project's walks).
+**Fit the window: an emulated phone viewport must fit the test window's visible content area.** Launch with `--size 1280x900` (or taller), and emulate a viewport no taller than the window height minus 150 px for the browser chrome. Default: `402x750` inside `1280x900`. DON'T emulate 402x874 or 390x844 in a 1280x900 window: the page bottom falls below the visible area and the tester cannot reach it (hit three times in one project's walks).
+`hooks/emulate-viewport-guard.py` denies a taller `emulate` viewport; its `MAX_VIEWPORT_H` owns the cap. For a taller window, relaunch with `--size` and set `CLAUDE_TEST_VIEWPORT_MAX_H` (window height minus the hook's `CHROME_PX`).
 TEST: a screenshot of the window shows the whole emulated viewport, bottom edge included, with no cut-off; `window.innerHeight` from `evaluate_script` is at most the content height.
 
 **Setup:** launch the test browser as a SEPARATE instance with its OWN `--user-data-dir`, never your everyday profile:

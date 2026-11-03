@@ -1968,6 +1968,18 @@ CONTRACTS: dict[str, dict] = {
             "Fails open on a malformed payload.",
         ],
     },
+    "hooks/emulate-viewport-guard.py": {
+        "mission": "An emulated phone viewport always fits the test window, so the tester can reach the page bottom.",
+        "purpose": "PreToolUse: denies mcp__chrome-devtools__emulate with a viewport taller than the test window shows.",
+        "criteria": [
+            "Denies a viewport whose height (width when `landscape`) exceeds MAX_VIEWPORT_H, the one "
+            "source of the cap (default window height minus browser chrome); the reason names the "
+            "fitting viewport, the taller-relaunch route and references/browser-debugging.md § Fit the window.",
+            "CLAUDE_TEST_VIEWPORT_MAX_H raises the cap for a taller launched window.",
+            "Allows an absent viewport (clearing the override); fails open on a malformed payload.",
+            "HOOK_ROUTING cases in contracts/routing_scenarios.py pin deny and allow decisions.",
+        ],
+    },
     "hooks/secret-echo-guard.py": {
         "mission": "A credential value never lands in the transcript because a command printed it, while using that credential stays frictionless.",
         "purpose": "PreToolUse: denies a command whose normal output is a credential value, unless the output is consumed.",
