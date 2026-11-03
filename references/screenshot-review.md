@@ -85,24 +85,34 @@ images unaltered and uncropped in the gallery. TEST: each comparison discloses i
 
 ## Record useful walkthroughs
 
-DO record one walkthrough video per changed user journey, by default, beside its screenshots, and film
-the change inside its flow: start at least one screen before the changed surface, drive the real
-trigger (tap, typing, scroll, sheet or modal opening) at human pace, and end at least one screen after
-it, where the user lands. The clip exists to show context, transitions and movement; a screenshot
-already shows a state. Web: Playwright `recordVideo` or a Chrome for Testing screencast. Verify it
-plays: `ffprobe` duration above 0 and one extracted frame showing the real screen. Post it to the PR as
-a playable inline video with the screenshots through that skill's attachment and rendered-playback
-checks; a text link or thumbnail does not pass.
-NUMBER: at least 8 seconds and at least 3 distinct states. States = 1 +
+DO record one video per user-journey scenario the change affects, each a separate file named and
+captioned by its scenario (e.g. "Ask the cash price while it is still loading"). Take the scenarios
+from the acceptance criteria and the change's states: happy path, loading, slow, a follow-up action
+during loading, and each limit or failure. A combined walk never replaces the per-scenario videos.
+DO shape every clip the same way: a 2-3 s title card stating the scenario and what to watch for (a
+static full-screen page opened in the recording context before the app, never an overlay on the UI),
+then the app from immediately before the triggering action (tap, typing, send), driven at human pace,
+ending 1-2 s after the outcome is on screen. Trim everything after the outcome: no idle tail, no
+unrelated navigation, no next scenario. The composer's final-state hold freezes that outcome frame and
+is not a tail. Web: Playwright `recordVideo` or a Chrome for Testing screencast.
+DO verify each clip by sampling frames (`ffmpeg -ss <t> -i <clip> -frames:v 1 <png>`) and viewing them:
+the first frame is the title card, a frame at the action shows the trigger, and the last frame shows
+the scenario's outcome, each matching the caption. `ffprobe` duration above 0. Post it to the PR as a
+playable inline video through that skill's attachment and rendered-playback checks; a text link or
+thumbnail does not pass.
+NUMBER: at least 8 seconds including the title card, and at least 3 distinct states (title card,
+action, outcome). States = 1 +
 `ffmpeg -i <clip> -vf "fps=1,select='gt(scene,0.15)',showinfo" -an -f null - 2>&1 | grep -c pts_time`.
-DO re-record a clip below either number with the surrounding steps. Skip the video only for a change
+DO lengthen the title card or lead-in for a short scenario, never the tail. Skip video only for a change
 with no visible UI or no interaction to drive (a static copy or style change carried by its screenshot
 pair), and state that skip in the report.
-DON'T hand back screenshots alone for a changed journey because video looked optional (the fix for a
-four-PR evidence run that posted images and no clips), and DON'T post a clip of one unchanged screen
-(the fix for PR clips that were 3 seconds of one success screen).
-TEST: a journey report or PR post with screenshots but no playable inline video, explicit blocked
-reason or stated skip broke the rule; so does any posted clip under 8 seconds or 3 states.
+DON'T hand back screenshots alone for an affected scenario, post one walk covering several scenarios,
+or let a clip run past its outcome (the fix for a PR whose one walk showed part of a scenario, then
+unrelated screens to the end, so the reviewer had to run the app himself; and for clips that were 3
+seconds of one success screen).
+TEST: every affected scenario has its own playable inline video, explicit blocked reason or stated
+skip; each clip's sampled first frame is its title card and its last frame shows the captioned
+outcome; no clip is under 8 seconds or 3 states.
 
 DO run every automated playback check, local or on the posted comment, in a browser that decodes the
 clip: branded Chrome (`chromium.launch({channel:'chrome'})`) for MP4/H.264, because open-source Chromium
@@ -167,9 +177,16 @@ side plays 10-15 s (speed factor = duration / target, default 12 s, never slowed
 state 4-5 s (default 4.5), the shorter side holds its last frame so both end together; H.264,
 yuv420p, `+faststart`.
 
+DO open `## Screenshots` with a scenario table, one row per video: `Scenario | What happens | Video`,
+the Video cell linking the `### <scenario>` block that holds its player (an inline player cannot render
+in a table cell).
+DO post one viewport per state by default: the one the change targets, usually mobile 390px. Add the
+other viewport only when its layout visibly differs, with one line saying what differs. DON'T post a
+desktop and mobile pair that show the same thing, and prefer a video over a screenshot for anything
+that changes over time (the fix for a PR body of 25 near-duplicate desktop/mobile images).
 DO post one block per point in the PR description, with a comment only when description embedding
-is unsupported or blocked, all under a top-level `## Screenshots` section: `### <point>`, one line naming what the left (or top)
-and right (or bottom) frames show, then per captured platform a `**Desktop**` / `**Mobile**` / `**iOS**`
+is unsupported or blocked, all under that top-level `## Screenshots` section: `### <point>`, one line naming what the left (or top)
+and right (or bottom) frames show, then per posted platform a `**Desktop**` / `**Mobile**` / `**iOS**`
 label over its composed image (`<img src="<url>" width="800" alt="<point> <platform> before and after">`),
 then the composed video alone in its own paragraph, never inside a collapsed `<details>` (rule:
 `/sk:ship-pr` § The rest of the body). A new surface posts its AFTER frame under
@@ -178,8 +195,9 @@ then the composed video alone in its own paragraph, never inside a collapsed `<d
 `gh pr edit <n> --body-file body.md --attach <png> --attach <mp4>` when supported; apply the
 screenshot skill's destination and attachment fallback before using a comment. Verify through `/sk:ship-screenshot-changes`'s VERIFY checks: each image URL returns 200 `image/png` with
 nonzero size and each video is served as `video/mp4`, then the browser playback checks still decide.
-TEST: every posted pair shows both bands above its frames and no caption over the UI, every `<details>` in `body_html` carries `open` (GitHub's own video wrapper is one), every changed
-journey has one composed video, and `python3 ~/.claude/bin/pr-evidence.test.py` passes.
+TEST: every posted pair shows both bands above its frames and no caption over the UI, every `<details>` in `body_html` carries `open` (GitHub's own video wrapper is one), every affected
+scenario has its own composed video and a row in the scenario table, no two posted images show the same
+state at two viewports without a stated layout difference, and `python3 ~/.claude/bin/pr-evidence.test.py` passes.
 
 ## Build the review
 
@@ -270,7 +288,8 @@ DO hand back the local report link plus a compact Point · Verdict/gap · Next a
 for capture statuses and review statuses separately, disclose sampled coverage and missing video, and
 name any reviewer decision. The offline report stays local unless Simon authorizes its destination;
 the PR evidence follows § PR evidence template.
-TEST: Simon can review the intended UI journey from the report without driving the app himself.
+TEST: Simon can review every affected scenario from the report and its per-scenario videos without
+driving the app himself.
 
 ## Hand-off check: every state of the artifact you hand over
 
@@ -309,7 +328,9 @@ pass table proves the page renders whole, not that it matches the design.
 `design-board.py check <board.html> <dir>` is the preset for design boards;
 `bin/mockup-shots.py` stays the per-state capture for mockup shells and does not replace this check.
 TEST: every artifact hand-off carries a pass table whose rows cover every switchable state of the file
-actually opened, and re-running the command on that file exits 0.
+actually opened, and re-running the command on that file exits 0 A PR evidence hand-off also lists, per video,
+its scenario and the sampled title-card, action and last frames, each matching its caption (§ Record
+useful walkthroughs).
 
 ## Research basis
 

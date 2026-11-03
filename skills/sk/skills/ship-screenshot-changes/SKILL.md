@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, desktop AND mobile (390×844) — with a BEFORE/AFTER pair for every changed surface and journey and a before/after walkthrough video per changed journey, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — refreshes the composed images and playable inline videos in the PR description by default after the full ticket follow-up batch, using a comment only when description embedding is unsupported or blocked (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "refresh screenshots after all ticket follow-ups", "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", or "screenshot coverage matrix". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, one posted viewport per state (mobile 390×844 by default, desktop only where its layout differs) — with a BEFORE/AFTER pair for every changed surface and journey and a trimmed before/after video per affected user-journey scenario, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — refreshes the composed images and playable inline videos in the PR description by default after the full ticket follow-up batch, using a comment only when description embedding is unsupported or blocked (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "refresh screenshots after all ticket follow-ups", "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", or "screenshot coverage matrix". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [changed routes or journeys; whole app only when requested]
 ---
 
@@ -88,16 +88,14 @@ The default and the `new, no before` case are in `~/.claude/references/screensho
   the change reads differently between them, shoot the theme where the difference is clearest — a subtle
   change can be near-invisible in one and obvious in the other.
 
-**Capture every surface at BOTH desktop AND mobile — mobile is where the layout re-flows (cards stack,
-tables collapse, a two-column hero becomes one), so a desktop-only shot hides half the change.** For each
-surface take one shot at the desktop width and one at a mobile viewport (390×844, the app's mobile
-breakpoint), named `<surface>-desktop.png` / `<surface>-mobile.png` (a before/after pair becomes
-`ba-<n>-<surface>-BEFORE-desktop|mobile.png` / `-AFTER-desktop|mobile.png`; a journey step
+**Post one viewport per state; check the other.** Capture each surface at the viewport the change
+targets (usually mobile 390×844) and check the other viewport; post the second only when its layout
+visibly differs, with one line saying what differs, per the reference's § PR evidence template. Name
+files `<surface>-desktop|mobile.png` (`ba-<n>-<surface>-BEFORE-desktop|mobile.png`, journey steps
 `step-<n>-<label>-desktop|mobile.png`). Set the mobile viewport EXPLICITLY with a Playwright/CDP device
-viewport (or the framework's mobile project) — NEVER `resize_page`: window width is unreliable
-(`browser-debugging.md`), so a resized window silently shoots at desktop width and the "mobile" file is a
-duplicate. TEST: every captured surface has both a `-desktop` and a `-mobile` file, and the mobile file's
-`window.innerWidth` was 390, not the desktop width.
+viewport (or the framework's mobile project), NEVER `resize_page`: window width is unreliable
+(`browser-debugging.md`), so a resized window silently shoots at desktop width. TEST: every `-mobile`
+file's `window.innerWidth` was 390, and no posted desktop/mobile pair shows the same layout.
 
 **Watch for a style scoped to a subtree that a portalled overlay escapes.** Overlays (dialogs, modals,
 dropdowns, tooltips) are commonly portalled to the document root, OUTSIDE the element a scoped token/class
@@ -120,16 +118,17 @@ the shot set, read in filename order, replays the journey with no step missing. 
 still runs for any changed surface a linear flow doesn't reach; the two modes coexist — run journey mode
 for the flow, surface mode for the rest.
 
-### Film one clip per changed journey
+### Film one clip per affected scenario
 
-DO record one walkthrough per changed journey on the base and one on the change, the same steps and
-seeded state on both, per `~/.claude/references/screenshot-review.md` § Record useful walkthroughs.
-Name them `journey-<label>-BEFORE.mp4` / `-AFTER.mp4`, then compose them side by side with
-`~/.claude/bin/pr-evidence.py video` into `journey-<label>.mp4`; that composed clip is the one posted.
-Carry each required caveat beside its clip in the local hand-back and PR; keep the attachment URL in
-its own paragraph.
-TEST: a changed journey has a composed clip passing that section's checks with its required caveat,
-or the hand-back states the skip.
+DO record one clip per affected user-journey scenario on the base and one on the change, the same steps
+and seeded state on both, shaped and verified per `~/.claude/references/screenshot-review.md` § Record
+useful walkthroughs (title card, trigger, outcome, nothing after). Name them
+`scenario-<label>-BEFORE.mp4` / `-AFTER.mp4`, then compose them side by side with
+`~/.claude/bin/pr-evidence.py video` into `scenario-<label>.mp4`; that composed clip is the one posted,
+under its own `### <scenario>` block and a row in the scenario table. Carry each required caveat beside
+its clip in the local hand-back and PR; keep the attachment URL in its own paragraph.
+TEST: each affected scenario has a composed clip passing that section's frame-sample checks with its
+required caveat, or the hand-back states the skip.
 
 ## Step 4 — Hand them back
 
