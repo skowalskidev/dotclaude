@@ -178,7 +178,7 @@ then the composed video alone in its own paragraph, never inside a collapsed `<d
 `gh pr edit <n> --body-file body.md --attach <png> --attach <mp4>` when supported; apply the
 screenshot skill's destination and attachment fallback before using a comment. Verify through `/sk:ship-screenshot-changes`'s VERIFY checks: each image URL returns 200 `image/png` with
 nonzero size and each video is served as `video/mp4`, then the browser playback checks still decide.
-TEST: every posted pair shows both bands above its frames and no caption over the UI, `body_html` holds zero `<details>`, every changed
+TEST: every posted pair shows both bands above its frames and no caption over the UI, every `<details>` in `body_html` carries `open` (GitHub's own video wrapper is one), every changed
 journey has one composed video, and `python3 ~/.claude/bin/pr-evidence.test.py` passes.
 
 ## Build the review

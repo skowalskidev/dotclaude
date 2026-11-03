@@ -99,7 +99,8 @@ verified the user + system journey, then handed back with it never posted to the
   every actionable finding has a verdict and reply, with no outstanding blocking decision.
 - Deploy-TLDR (stage 8): the PR body opens with it, each production step carrying its check, smoke
   and rollback.
-- Visible sections (every stage): the fetched `body_html` holds zero `<details>` elements; every row
+- Visible sections (every stage): the fetched `body_html` holds zero collapsed `<details>`: each
+  one carries `open` (GitHub wraps every attached video in its own open `<details>`); every row
   above is a visible `##`/`###` heading (rule: `/sk:ship-pr` § The rest of the body). A collapsed
   section fails even when its content loads.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning

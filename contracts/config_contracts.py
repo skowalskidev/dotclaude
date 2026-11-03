@@ -1069,7 +1069,7 @@ CONTRACTS: dict[str, dict] = {
             "Run references/git-pr-deploy.md § Deploy safety on every PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
             "Compose the stage-5 resolver at the final fresh-fetch gate; return new or edited unhandled feedback to resolution and affected verification before PASS, including feedback outside threads.",
             "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
-            "prod-data verdict, the deploy-safety results, the screenshots, zero <details> in the fetched body_html, resolved threads and the "
+            "prod-data verdict, the deploy-safety results, the screenshots, zero collapsed <details> (each one open) in the fetched body_html, resolved threads and the "
             "Deploy-TLDR are confirmed on EVERY FETCHED PR, not just produced in-session.",
         ],
     },
@@ -1401,7 +1401,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "PR bodies that open with a deploy TLDR.",
         "criteria": [
             "The Deploy TLDR comes first, before any template section.",
-            "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero <details> elements.",
+            "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero collapsed <details>: every <details> carries open, as GitHub's own attached-video wrapper does.",
             "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
             "A User journey and a System journey section follow it, read from "
             "references/tldr-report-formats.md, so a reviewer can judge both the feature and the "
