@@ -60,7 +60,7 @@ tickets; a fix that belongs to another PR is handed to that owner via
    without Simon asking.
 7. **`/sk:ship-screenshot-changes`** — capture changed web surfaces and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
-   journey videos onto the open PR (GitHub-native); plan the post from the start of the sweep.
+   per-scenario videos onto the open PR (GitHub-native); plan the post from the start of the sweep.
 8. **`/sk:ship-pr`** — the PR body carries the Deploy-TLDR.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
@@ -92,8 +92,9 @@ verified the user + system journey, then handed back with it never posted to the
 - Deploy safety (stage 6), on every PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
   per part.
-- Screenshots (stage 7): every surface eligible under stage 7 has its image and journey video on the PR,
-  under `## Screenshots`; record native
+- Screenshots (stage 7): every surface eligible under stage 7 has its image on the PR and every affected
+  user-journey scenario its own trimmed video and scenario-table row, under `## Screenshots`, with no
+  duplicate desktop/mobile pairs (`references/screenshot-review.md`); record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
 - Feedback (stage 5): 0 unhandled current comment revisions and 0 unresolved review threads;
   every actionable finding has a verdict and reply, with no outstanding blocking decision.

@@ -332,9 +332,10 @@ DO prioritize every checkout its workers run in when Simon names the task to go 
 checkouts and their nested linked worktrees share one lease owner; unlisted siblings do not match.
 DO re-check a deferred priority run's workspace match before waiting; apply its printed coverage command.
 Renew with the same workspaces while Simon's instruction stands; clear when the work ends.
-Keep simulator claim/release labels identical. Rewrite an old single-workspace scope by reissuing
-`prioritize`; transient scope has only the list shape.
-TEST: every worker checkout matches; an unlisted same-owner sibling prints the coverage fix.
+Keep simulator claim/release labels identical. DO read existing single-workspace grants without
+rewriting their state or renewing expiry; new `prioritize` writes use the list shape.
+TEST: existing grants retain their scope and bytes; malformed scopes and grant mismatches never
+transfer priority. Every worker checkout matches; an unlisted same-owner sibling prints the coverage fix.
 
 DO migrate an old label-only record once with `migrate --priority-workspace <known-session-checkout>`.
 Relaunch this session's waiting commands through the updated engine. Migration binds a scope receipt

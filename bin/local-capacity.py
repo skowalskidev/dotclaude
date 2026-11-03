@@ -295,19 +295,23 @@ def read_priority_scope(root, record):
         return None
     try:
         scope = json.loads(raw)
-        if (len(raw) > 4096 or not isinstance(scope, dict) or set(scope) != {"grant", "workspaces"}
-                or not isinstance(scope["grant"], str) or not TOKEN.fullmatch(scope["grant"])
-                or not isinstance(scope["workspaces"], list) or not scope["workspaces"]
+        if (len(raw) > 4096 or not isinstance(scope, dict)
+                or set(scope) not in ({"grant", "workspaces"}, {"grant", "workspace"})
+                or not isinstance(scope["grant"], str) or not TOKEN.fullmatch(scope["grant"])):
+            raise ValueError("invalid scope")
+        # Existing live grants keep their bytes and expiry; normalize only the reader's result.
+        workspaces = scope["workspaces"] if "workspaces" in scope else [scope["workspace"]]
+        if (not isinstance(workspaces, list) or not workspaces
                 or any(not isinstance(ws, str) or not Path(ws).is_absolute()
                        or ".." in Path(ws).parts or any(c in ws for c in "\n\r\t")
-                       for ws in scope["workspaces"])):
+                       for ws in workspaces)):
             raise ValueError("invalid scope")
     except (ValueError, TypeError) as exc:
         raise GateError("priority session scope is corrupt; reissue prioritize or --clear") from exc
     if not secrets.compare_digest(scope["grant"], priority_grant(record)):
         write_state(root, None, "priority-session.json")
         return None  # a different grant never inherits this session's scope
-    return scope["workspaces"]
+    return workspaces
 
 
 def write_priority(root, record):
