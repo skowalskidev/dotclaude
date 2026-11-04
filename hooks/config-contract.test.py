@@ -148,6 +148,10 @@ CRITERIA: list[tuple[str, str]] = [
      "The compatibility frontend uses the shared capacity leases, defers conflicts with exit 75, "
      "and a native project hears the protocol while an idle web project stays silent."),
 
+    ("port-registry-drops-claims-for-deleted-workspaces",
+     "A port claim whose workspace is confirmed deleted and has no listener is dropped on list, "
+     "while a claim for an existing workspace and any bound port are kept."),
+
     # --- Advisory task intake -----------------------------------------------------
     ("intake-initializes-task-record", "Substantive prompts initialize or reuse one ordinary plan and canonical dashboard."),
     ("intake-never-blocks-tools", "Intake cannot deny Agent, Task or Workflow, including with stale former markers."),
@@ -775,6 +779,12 @@ def check_session_keeps_one_root_in_nested_worktrees() -> None:
         check(not list(inner.glob(".context/*-plan.md")),
               "The intake hook opened a second plan inside the nested worktree.")
         clear_markers()
+
+
+def check_port_registry_drops_claims_for_deleted_workspaces() -> None:
+    result = run(["bash", str(ROOT / "bin" / "port-registry.test.sh")])
+    check(result.returncode == 0,
+          f"bin/port-registry.test.sh failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_native_slot_serializes_native_work_across_sessions() -> None:

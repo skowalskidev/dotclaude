@@ -385,6 +385,18 @@ reconcile_into() {
       continue
     fi
     age="$(age_minutes "$c")"
+    # A workspace confirmed deleted with nothing listening cannot boot a server again, so its claim is
+    # dropped at once, before the grace window and before any session-liveness lookup. Liveness is
+    # matched by cwd, and a deleted path has no cwd to match, so every live-session check answers
+    # "unknown" for it and the claim would otherwise be kept forever (a subagent's deleted worktree
+    # held 8 lanes for over an hour, and the parent could not release them because release only
+    # frees claims carrying the caller's own session label). Only a confirmed absence counts:
+    # workspace_missing exits 2 for a broken link, a permission failure or a relative path, and
+    # those keep the claim. A listener never reaches this line, so a bound port is always held.
+    if workspace_missing "$w"; then
+      printf '%s\t%s\t%s\n' "$p" "$s" "$age" >> "$out_held.dropped"
+      continue
+    fi
     if [ "$age" -gt "$GRACE_MIN" ] || { [ "$pid" != "-" ] && ! pid_alive "$pid"; }; then
       # A lane belongs to the SESSION, not to the process that happened to bind it. If a live Claude
       # session is still working in that workspace, its server has merely died or not booted yet and
