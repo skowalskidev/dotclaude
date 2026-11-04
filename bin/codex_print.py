@@ -114,6 +114,19 @@ def dispatcher_completion(repo, directory, spec, index, base):
     return 1
 
 
+def writable_roots(cwd):
+    """Grant shared coordination state and only external Git metadata for linked worktrees."""
+    roots = [str(Path.home().resolve() / '.claude/state/local-capacity')]
+    probe = subprocess.run(['git', '-C', str(cwd), 'rev-parse',
+                            '--path-format=absolute', '--git-common-dir', '--git-dir'],
+                           capture_output=True, text=True, timeout=10)
+    if probe.returncode == 0:
+        common, git_dir = map(Path, probe.stdout.splitlines())
+        if common.resolve() != git_dir.resolve():
+            roots.append(str(common.resolve()))
+    return roots
+
+
 def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-openai"):
     require_provider("openai")
     model = model or resolve_tier('openai', 'mid')
@@ -123,8 +136,10 @@ def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-open
     start = time.monotonic()
     with tempfile.TemporaryDirectory(prefix='codex-print-result-') as temporary:
         final_message = Path(temporary) / 'message.txt'
+        config = (['-c', 'sandbox_workspace_write.writable_roots=' +
+                   json.dumps(writable_roots(cwd))] if sandbox == 'workspace-write' else [])
         command = [str(launcher), '--cd', str(cwd), '-a', 'never',
-                   '-c', 'agents.enabled=false', 'exec', '--model', model,
+                   '-c', 'agents.enabled=false', *config, 'exec', '--model', model,
                    '--sandbox', sandbox, '--json', '--output-last-message', str(final_message), '-']
         environment = dict(os.environ, AGENT_SETUP=setup, AGENT_MODEL_PROVIDER='openai',
                            AGENT_DELEGATED_WORKER='1')

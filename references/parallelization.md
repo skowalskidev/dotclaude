@@ -186,6 +186,15 @@ written no new output.** Reap one that slips through with `bin/kill-orphan-worke
 TEST: every divisible GPT/Codex job names the harness, not a bare `codex exec`; no headless worker
 runs past its deadline unkilled.
 
+DO run every long Codex worker in a linked worktree through `bin/superspeed-dispatch.sh`,
+including a one-slice run. Keep the supervisor attached to its tool job until the dispatcher reports
+completion; consume each slice's status and completion evidence before accepting its result.
+DON'T substitute an ad-hoc `danger-full-access` launcher. Print mode keeps `workspace-write`, adds
+only the linked worktree's Git common directory and the shared capacity lease directory as writable
+roots, and leaves continuation and completion reporting with the dispatcher.
+TEST: a linked-worktree fixture receives its Git common directory; a normal repo receives no extra
+Git root; the supervisor receives the dispatcher's completion and context-loss continuation result.
+
 DO check every headless Codex completion against its dispatched acceptance table, commits since
 start and edit events. Treat a no-work final after recorded work as context loss. Use the existing
 superspeed dispatcher to relaunch one continuation with commits, uncommitted owned files and remaining

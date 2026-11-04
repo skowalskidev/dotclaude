@@ -154,6 +154,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon can launch independent headless OpenAI workers without changing authentication or falling back to Claude.",
         "purpose": "Provide codex -p through native Codex exec and normalize its events.",
         "criteria": [
+            "Keep workspace-write by default; grant only shared capacity lease state and a linked worktree's Git common directory as extra writable roots. Add no Git root for a normal repo and no roots in read-only mode.",
             "Default implementation to the native Codex config model; allow Astra only for read-only review, preserve native permissions and launcher routing, and pass prompts without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",

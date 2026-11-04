@@ -588,6 +588,34 @@ else:
         self.assertNotIn('--ignore-user-config', call['args'])
         self.assertFalse((self.repo / 'NEVER').exists())
 
+    def print_roots(self):
+        result = self.astra_command('-p', 'work')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        args = json.loads(self.calls.read_text().splitlines()[-1])['args']
+        values = [arg.split('=', 1)[1] for arg in args
+                  if arg.startswith('sandbox_workspace_write.writable_roots=')]
+        self.assertEqual(len(values), 1)
+        return json.loads(values[0])
+
+    def test_normal_repo_has_no_extra_git_root(self):
+        subprocess.run(['git', 'init', '-q', str(self.repo)], check=True)
+        self.assertEqual(self.print_roots(),
+                         [str(self.home.resolve() / '.claude/state/local-capacity')])
+
+    def test_linked_worktree_adds_only_common_git_directory(self):
+        main = self.root / 'main repo'
+        subprocess.run(['git', 'init', '-q', str(main)], check=True)
+        subprocess.run(['git', '-C', str(main), '-c', 'user.name=Fixture',
+                        '-c', 'user.email=fixture@example.invalid', 'commit',
+                        '--allow-empty', '-qm', 'fixture'], check=True)
+        linked = self.root / 'linked worktree'
+        subprocess.run(['git', '-C', str(main), 'worktree', 'add', '-qb',
+                        'worker', str(linked)], check=True)
+        self.repo = linked
+        self.assertEqual(self.print_roots(),
+                         [str(self.home.resolve() / '.claude/state/local-capacity'),
+                          str((main / '.git').resolve())])
+
     def test_stdin_and_json_with_events(self):
         events = self.root / 'events.jsonl'
         result = self.astra_command('-p', '--output-format', 'json', '--events-file', str(events),
@@ -595,6 +623,9 @@ else:
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)['model'], 'gpt-5.6-sol')
         self.assertIn('turn.completed', events.read_text())
+        args = json.loads(self.calls.read_text())['args']
+        self.assertFalse(any(arg.startswith('sandbox_workspace_write.writable_roots=')
+                             for arg in args))
 
     def test_long_print_and_equals_forms(self):
         for flag in ('--print', '--print=work', '-p=work'):
