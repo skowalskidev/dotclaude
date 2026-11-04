@@ -70,7 +70,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, layers in any `shared:true` manifest matching the repo, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
 | `bin/agent_runtime.py` + `bin/codex-launch.py` + `bin/claude-launch.py` | Native host launchers; resolve per-project instruction policy before Claude or Codex starts, while Codex enforces subscription-only inference and separate service boundaries |
 | `bin/agent_runtime.test.py` + `bin/claude-launch.test.py` | Offline native host policy and launcher regression tests |
-| `bin/agent_setup.py` + `bin/codex_print.py` | Current-chat provider dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
+| `bin/agent_setup.py` + `bin/codex_print.py` + `bin/capacity_probes.py` | Current-chat provider dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
 | `dotfiles/codex-AGENTS.md` | Native instruction entrypoint linked into the Codex subscription home |
 | `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
 | `connectors/` | Per-project connector manifests (`<project>.json`): connectors, boundary, env, read/write policy, CLI profile, auth steps, and optional boolean `ignoreProjectInstructions` (default `false`). No secrets, only paths. A `shared: true` manifest layers connectors under matching projects but cannot set the instruction flag |
@@ -189,7 +189,11 @@ omitting it uses the OpenAI mid tier resolved live at dispatch. Claude chats kee
 role on Claude; a GPT design slice uses `fable` through the dispatcher.
 
 `bin/codex_print.py` provides the print-mode adapter; `bin/agent_setup.py` validates saved setup/model
-choices. Existing ChatGPT authentication is reused; missing subscription access stops the run instead
+choices. Workspace-write workers grant their checkout, both Git metadata directories and
+`~/.claude/state`, with native outbound network access. `bin/capacity_probes.py` serves live,
+allowlisted CPU, memory and process reads over a private socket for that worker's lifetime;
+failed probes still defer admission. It accepts no command execution or signals. No extra dependency
+or credential is required. Existing ChatGPT authentication is reused; missing subscription access stops the run instead
 of falling back to API billing. Model entitlement is checked by the real runtime, never inferred from fixtures.
 Run `python3 ~/.claude/bin/agent_setup.test.py` for offline wrapper/dispatch/telemetry regression tests.
 

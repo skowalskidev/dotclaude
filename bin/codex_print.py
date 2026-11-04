@@ -12,6 +12,8 @@ import sys
 import tempfile
 import time
 
+from capacity_probes import bridge, ENV as PROBE_ENV
+
 from agent_setup import (
     matches_implementation_model,
     matches_model,
@@ -116,14 +118,15 @@ def dispatcher_completion(repo, directory, spec, index, base):
 
 def writable_roots(cwd):
     """Grant shared coordination state and only external Git metadata for linked worktrees."""
-    roots = [str(Path.home().resolve() / '.claude/state/local-capacity')]
+    roots = [str(cwd.resolve()), str(Path.home().resolve() / '.claude/state')]
     probe = subprocess.run(['git', '-C', str(cwd), 'rev-parse',
-                            '--path-format=absolute', '--git-common-dir', '--git-dir'],
+                            '--path-format=absolute', '--git-dir', '--git-common-dir'],
                            capture_output=True, text=True, timeout=10)
     if probe.returncode == 0:
-        common, git_dir = map(Path, probe.stdout.splitlines())
-        if common.resolve() != git_dir.resolve():
-            roots.append(str(common.resolve()))
+        for item in probe.stdout.splitlines():
+            root = str(Path(item).resolve())
+            if root not in roots:
+                roots.append(root)
     return roots
 
 
@@ -137,43 +140,53 @@ def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-open
     with tempfile.TemporaryDirectory(prefix='codex-print-result-') as temporary:
         final_message = Path(temporary) / 'message.txt'
         config = (['-c', 'sandbox_workspace_write.writable_roots=' +
-                   json.dumps(writable_roots(cwd))] if sandbox == 'workspace-write' else [])
+                   json.dumps(writable_roots(cwd)),
+                   '-c', 'sandbox_workspace_write.network_access=true'] if sandbox == 'workspace-write' else [])
         command = [str(launcher), '--cd', str(cwd), '-a', 'never',
                    '-c', 'agents.enabled=false', *config, 'exec', '--model', model,
                    '--sandbox', sandbox, '--json', '--output-last-message', str(final_message), '-']
         environment = dict(os.environ, AGENT_SETUP=setup, AGENT_MODEL_PROVIDER='openai',
                            AGENT_DELEGATED_WORKER='1')
+        probe_context = (bridge(Path.home() / '.claude/state/local-capacity')
+                         if sandbox == 'workspace-write' else nullcontext(None))
         log_context = events_file.open('w') if events_file else nullcontext()
-        with log_context as event_log, subprocess.Popen(
-                command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
-                cwd=cwd, env=environment, start_new_session=True) as process:
-            def interrupt(signum, frame):
-                raise KeyboardInterrupt
+        with probe_context as probe_path, log_context as event_log:
+            if probe_path:
+                environment[PROBE_ENV] = probe_path
+            return _run_worker(command, prompt, cwd, environment, event_log, final_message, start, model, setup)
 
-            previous = {signum: signal.signal(signum, interrupt)
-                        for signum in (signal.SIGINT, signal.SIGTERM)}
+
+def _run_worker(command, prompt, cwd, environment, event_log, final_message, start, model, setup):
+    with subprocess.Popen(
+            command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+            cwd=cwd, env=environment, start_new_session=True) as process:
+        def interrupt(signum, frame):
+            raise KeyboardInterrupt
+
+        previous = {signum: signal.signal(signum, interrupt)
+                    for signum in (signal.SIGINT, signal.SIGTERM)}
+        try:
             try:
+                process.stdin.write(prompt)
+                process.stdin.close()
+            except BrokenPipeError:
+                pass
+            result = collect(process.stdout, event_log, model, setup)
+            returncode = process.wait()
+        except BaseException:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGTERM)
                 try:
-                    process.stdin.write(prompt)
-                    process.stdin.close()
-                except BrokenPipeError:
-                    pass
-                result = collect(process.stdout, event_log, model, setup)
-                returncode = process.wait()
-            except BaseException:
-                if process.poll() is None:
-                    os.killpg(process.pid, signal.SIGTERM)
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        process.wait()
-                raise
-            finally:
-                for signum, handler in previous.items():
-                    signal.signal(signum, handler)
-        if final_message.is_file():
-            result['result'] = final_message.read_text()
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    os.killpg(process.pid, signal.SIGKILL)
+                    process.wait()
+            raise
+        finally:
+            for signum, handler in previous.items():
+                signal.signal(signum, handler)
+    if final_message.is_file():
+        result['result'] = final_message.read_text()
     result['duration_ms'] = round((time.monotonic() - start) * 1000)
     result['is_error'] = result['is_error'] or returncode != 0
     return result, returncode if returncode else int(result['is_error'])

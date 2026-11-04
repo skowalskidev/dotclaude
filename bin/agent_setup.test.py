@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import socket
 import stat
 import subprocess
 import sys
@@ -15,12 +16,54 @@ import time
 import unittest
 from unittest.mock import patch
 
+import capacity_probes
 import agent_setup
 
 SOURCE = Path(__file__).resolve().parent
 MODULE_SPEC = importlib.util.spec_from_file_location('codex_print_under_test', SOURCE / 'codex_print.py')
 astra = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(astra)
+
+
+class CapacityProbeTests(unittest.TestCase):
+    def test_fixed_allowlist_rejects_shells_writes_and_pid_injection(self):
+        for args in (['/bin/sh', '-c', 'true'], ['/bin/ps', '-p', '1;id', '-o', 'lstart='],
+                     ['/usr/sbin/sysctl', '-w', 'kern.maxproc=1'],
+                     ['/bin/kill', '-9', '1'], ['/bin/ps', '-p', '0', '-o', 'lstart=']):
+            self.assertFalse(capacity_probes.allowed(args), args)
+        self.assertTrue(capacity_probes.allowed(capacity_probes.IOSTAT))
+        self.assertTrue(capacity_probes.allowed(['/bin/ps', '-p', '1', '-o', 'lstart=']))
+
+    def test_live_bridge_round_trip_and_cleanup(self):
+        with tempfile.TemporaryDirectory(prefix='probe-test-', dir='/tmp') as root:
+            with capacity_probes.bridge(root) as path:
+                self.assertEqual(stat.S_IMODE(Path(path).stat().st_mode), 0o600)
+                with patch.dict(os.environ, {capacity_probes.ENV: path}):
+                    result = capacity_probes.probe(['/bin/ps', '-p', str(os.getpid()), '-o', 'lstart='])
+                    self.assertEqual(result.returncode, 0)
+                    self.assertTrue(result.stdout.strip())
+                    with self.assertRaises(OSError):
+                        capacity_probes.probe(['/bin/sh', '-c', 'true'])
+                    with socket.socket(socket.AF_UNIX) as raw:
+                        raw.settimeout(3)
+                        raw.connect(path)
+                        raw.sendall(b'["/bin/sh", "-c", "true"]\n')
+                        self.assertIn('error', json.loads(raw.recv(4096)))
+            self.assertFalse(Path(path).parent.exists())
+
+    def test_unreachable_bridge_fails_closed_without_local_fallback(self):
+        with patch.dict(os.environ, {capacity_probes.ENV: '/nonexistent/probe.sock'}), \
+             patch.object(capacity_probes.subprocess, 'run') as run:
+            with self.assertRaises(OSError):
+                capacity_probes.probe(capacity_probes.IOSTAT)
+            run.assert_not_called()
+
+    def test_bridge_cleanup_on_cancellation(self):
+        with tempfile.TemporaryDirectory(prefix='probe-test-', dir='/tmp') as root:
+            with self.assertRaises(KeyboardInterrupt):
+                with capacity_probes.bridge(root) as path:
+                    raise KeyboardInterrupt
+            self.assertFalse(Path(path).parent.exists())
 
 
 class IsolatedCachesMixin:
@@ -495,7 +538,7 @@ class CommandTests(unittest.TestCase):
             json.dumps({'fetched_at': fetched_at, 'models': models}))
 
     def setUp(self):
-        temporary = tempfile.TemporaryDirectory(prefix='agent-setups-test-')
+        temporary = tempfile.TemporaryDirectory(prefix='agent-setups-test-', dir='/tmp')
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.bin = self.root / 'bin'
@@ -504,7 +547,7 @@ class CommandTests(unittest.TestCase):
         self.home.mkdir()
         self.repo = self.root / 'workspace with spaces'
         self.repo.mkdir()
-        for name in ('agent_setup.py', 'codex_print.py', 'codex-launch.py',
+        for name in ('agent_setup.py', 'codex_print.py', 'capacity_probes.py', 'codex-launch.py',
                      'claude-launch.py', 'superspeed-dispatch.sh'):
             shutil.copy2(SOURCE / name, self.bin / name)
         (self.bin / 'agent_runtime.py').write_text('''import os, sys
@@ -584,6 +627,7 @@ else:
         self.assertIn('agents.enabled=false', call['args'])
         self.assertEqual(call['worker'], '1')
         self.assertIn('workspace-write', call['args'])
+        self.assertIn('sandbox_workspace_write.network_access=true', call['args'])
         self.assertNotIn('--dangerously-bypass-hook-trust', call['args'])
         self.assertNotIn('--ignore-user-config', call['args'])
         self.assertFalse((self.repo / 'NEVER').exists())
@@ -597,12 +641,13 @@ else:
         self.assertEqual(len(values), 1)
         return json.loads(values[0])
 
-    def test_normal_repo_has_no_extra_git_root(self):
+    def test_normal_repo_grants_checkout_git_and_state_only(self):
         subprocess.run(['git', 'init', '-q', str(self.repo)], check=True)
         self.assertEqual(self.print_roots(),
-                         [str(self.home.resolve() / '.claude/state/local-capacity')])
+                         [str(self.repo.resolve()), str(self.home.resolve() / '.claude/state'),
+                          str((self.repo / '.git').resolve())])
 
-    def test_linked_worktree_adds_only_common_git_directory(self):
+    def test_linked_worktree_adds_both_git_directories(self):
         main = self.root / 'main repo'
         subprocess.run(['git', 'init', '-q', str(main)], check=True)
         subprocess.run(['git', '-C', str(main), '-c', 'user.name=Fixture',
@@ -613,7 +658,8 @@ else:
                         'worker', str(linked)], check=True)
         self.repo = linked
         self.assertEqual(self.print_roots(),
-                         [str(self.home.resolve() / '.claude/state/local-capacity'),
+                         [str(linked.resolve()), str(self.home.resolve() / '.claude/state'),
+                          str((main / '.git/worktrees/linked-worktree').resolve()),
                           str((main / '.git').resolve())])
 
     def test_stdin_and_json_with_events(self):
@@ -755,7 +801,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
                               stderr=subprocess.PIPE, text=True) as process:
             try:
                 deadline = time.monotonic() + 5
-                while not self.calls.exists() and time.monotonic() < deadline:
+                while (not self.calls.exists() or not self.calls.read_text().strip()) and time.monotonic() < deadline:
                     time.sleep(0.02)
                 self.assertTrue(self.calls.exists(), 'Native fixture never started')
                 worker_pid = json.loads(self.calls.read_text())['pid']

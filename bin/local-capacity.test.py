@@ -867,7 +867,7 @@ sys.exit(result.returncode)
     def test_parent_death_before_grant_cannot_start_command(self):
         marker = Path(self.tmp.name) / "started-after-death"
         code = ("import importlib.util,os,subprocess,sys; from pathlib import Path; from unittest import mock; "
-                "s=importlib.util.spec_from_file_location('g',sys.argv[1]); "
+                "sys.path.insert(0,str(Path(sys.argv[1]).parent)); s=importlib.util.spec_from_file_location('g',sys.argv[1]); "
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
@@ -890,7 +890,7 @@ sys.exit(result.returncode)
 
     def test_real_run_signal_stops_group_before_releasing(self):
         code = ("import importlib.util,sys; from pathlib import Path; from unittest import mock; "
-                "s=importlib.util.spec_from_file_location('g',sys.argv[1]); "
+                "sys.path.insert(0,str(Path(sys.argv[1]).parent)); s=importlib.util.spec_from_file_location('g',sys.argv[1]); "
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
@@ -1810,11 +1810,13 @@ class PriorityAllowanceTests(unittest.TestCase):
     def test_critical_escalation_stops_only_the_started_owned_command(self):
         gate.prioritize(self.root, "primary", 30, False)
         marker = Path(self.tmp.name) / "started"
-        readings = [(2, "sysctl")] * 3 + [(4, "sysctl")] * 10
-        with mock.patch.object(gate, "memory_pressure_level", side_effect=readings), \
+        # Escalate only after the payload has started, independent of host scheduling.
+        def pressure():
+            return (4 if marker.exists() else 2, "sysctl")
+        with mock.patch.object(gate, "memory_pressure_level", side_effect=pressure), \
              mock.patch.object(gate, "RETRY_SECONDS", 0.05):
             code = "from pathlib import Path; import time; Path(%r).touch(); time.sleep(30)" % str(marker)
-            self.assertEqual(self.run_payload(code), gate.BUSY)
+            self.assertEqual(self.run_payload(code, max_seconds=10), gate.BUSY)
         self.assertTrue(marker.exists())
         self.assertIsNone(gate.read_state(self.root))
 
