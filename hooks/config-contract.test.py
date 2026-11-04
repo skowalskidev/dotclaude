@@ -79,7 +79,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("branch-cleanup-closes-owned-inventory", "Task closure accounts for owned refs; requested repo cleanup surfaces unique branches and preserves recovery, activity and remote-write safeguards."),
     ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
     ("session-performance-and-capacity",
-     "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
+     "Task reports arrive independently, stale review hashes remain pending, competing heavy work cannot take the same machine lease, and every documented lease command runs as written."),
     ("after-run-report-owed-once-per-ask",
      "Stop blocks once per request to run the after-run analysis when enough new work landed since "
      "the workspace's last published report; it re-arms on new work, never re-analyses a covered "
@@ -97,7 +97,7 @@ CRITERIA: list[tuple[str, str]] = [
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
      "Native Codex reads current shared sources and propagates hook decisions; Claude and Codex launchers preserve the selected project's instruction boundary without copying credentials."),
-    ("screenshot-refresh-follows-final-batch", "Final ticket evidence defaults to the PR description after all follow-ups, reopens after new fixes, and verifies current media before retiring stale evidence."),
+    ("screenshot-refresh-follows-final-batch", "Final ticket evidence is captured once on the final head, never in the initial fan-out, defaults to the PR description after all follow-ups, reopens after new fixes, and verifies current media before retiring stale evidence."),
     ("screenshot-report-preserves-evidence",
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
     ("pr-evidence-template-stacks-bands-above-ui",
@@ -1824,6 +1824,13 @@ def check_session_performance_and_capacity() -> None:
     rule = (ROOT / "rules/self-healing-config.md").read_text()
     check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
           "After-run analysis is not routed from the always-on task lifecycle")
+    engine = ROOT / "bin/local-capacity.py"
+    check(os.access(engine, os.X_OK) and engine.read_text().startswith("#!/usr/bin/env python3"),
+          "bin/local-capacity.py must stay executable with its python3 shebang")
+    bare = [str(path.relative_to(ROOT)) for folder in ("rules", "references", "skills/sk")
+            for path in sorted((ROOT / folder).rglob("*.md"))
+            if re.search(r"local-capacity\.py run(?! --owner)", path.read_text())]
+    check(not bare, "Documented local-capacity.py run lacks --owner: " + ", ".join(bare))
 
 
 def check_screenshot_refresh_follows_final_batch() -> None:
@@ -1845,6 +1852,20 @@ def check_screenshot_refresh_follows_final_batch() -> None:
         check(required in skill, "Description-first publication lost: " + required)
     check("one fresh consolidated evidence comment on every refresh" not in skill,
           "Comment-only default contradicts description-first publication")
+    for required in ("DO run the AFTER capture ONCE, on the final head",
+                     "DON'T dispatch the capture in the initial verification fan-out",
+                     "re-capture only the surfaces that change touched",
+                     "A BEFORE capture from the base branch"):
+        check(required in reference, "Capture-once-at-the-end rule lost: " + required)
+    check("DO take AFTER captures once, on the batch's final head" in skill,
+          "Screenshot skill lost its capture-once-at-the-end route")
+    ship = (ROOT / "skills/sk/skills/ship-full-detailed-workflow/SKILL.md").read_text()
+    check("DON'T dispatch the AFTER capture in stage 6's fan-out" in ship
+          and "(GitHub-native); plan the post from the start of the sweep." not in ship,
+          "Ship harness must plan screenshots early but capture only after stages 3-6 fixes")
+    eyeball = (ROOT / "skills/sk/skills/test-eyeball/SKILL.md").read_text()
+    check("after the clean sweep's last fix is committed" in eyeball,
+          "test-eyeball lost its final-capture timing")
 
 
 def check_screenshot_report_preserves_evidence() -> None:
