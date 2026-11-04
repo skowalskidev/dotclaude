@@ -927,6 +927,9 @@ CONTRACTS: dict[str, dict] = {
             "and something the reader can act on at the end.",
             "A change that touches or opens a payment path hands back Block 4 unasked: the payment "
             "files changed (or `none`) and a row per paywall entry with what follows paying and its one check, plus a row per account state with its precondition and production press-to-session rate.",
+            "Every PR body opens with the before/after TLDR: 3-5 table rows with the changed value "
+            "bold, then one **Do:** line naming the action and the fact that makes it safe or risky; "
+            "under 60 words, no prose.",
         ],
     },
     "references/user-journey-review.md": {
@@ -1061,8 +1064,8 @@ CONTRACTS: dict[str, dict] = {
             "Run references/git-pr-deploy.md § Deploy safety on every PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
             "Compose the stage-5 resolver at the final fresh-fetch gate; return new or edited unhandled feedback to resolution and affected verification before PASS, including feedback outside threads.",
             "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
-            "prod-data verdict, the deploy-safety results, the screenshots, zero collapsed <details> (each one open) in the fetched body_html, resolved threads and the "
-            "Deploy-TLDR are confirmed on EVERY FETCHED PR, not just produced in-session.",
+            "prod-data verdict, the deploy-safety results, the screenshots, zero collapsed <details> (each one open) in the fetched body_html, resolved threads, the "
+            "opening TLDR and the Deploy-TLDR are confirmed on EVERY FETCHED PR, not just produced in-session.",
         ],
     },
     "skills/sk/skills/ship-merge-batch/SKILL.md": {
@@ -1396,10 +1399,10 @@ CONTRACTS: dict[str, dict] = {
         "criteria": ["Output is a verified recipe, not shipped code. Billable submits are confirmed first."],
     },
     "skills/sk/skills/ship-pr/SKILL.md": {
-        "mission": "A reviewer can deploy the change from the PR body alone, in the right order, without asking.",
-        "purpose": "PR bodies that open with a deploy TLDR.",
+        "mission": "A reviewer sees what changed and what to do from the PR's first block, and can deploy the change from the body alone, in the right order, without asking.",
+        "purpose": "PR bodies that open with a before/after TLDR, then a deploy TLDR.",
         "criteria": [
-            "The Deploy TLDR comes first, before any template section.",
+            "The body opens with ## TLDR: a Before/After table of 3-5 rows and a **Do:** line, shape owned by references/tldr-report-formats.md; the Deploy TLDR follows it, before any template section.",
             "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero collapsed <details>: every <details> carries open, as GitHub's own attached-video wrapper does.",
             "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
             "A User journey and a System journey section follow it, read from "
