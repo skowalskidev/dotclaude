@@ -34,14 +34,16 @@ applied through to a verified finish — resuming the main thread after any tang
   path before continuing.
 - Apply `references/workflow-loops.md` § Continuous request reconciliation throughout every session.
   Keep `engine=current` with `gauntlet=false` (independent judge off) unless another mode is requested.
-  `/sk:work-gauntlet-loop` uses the same record; invoking it is not required to retain new requests.
+  `/sk:work-full-detailed-workflow` owns that record's lifecycle; invoking it is not required to retain new requests.
 - TEST: every invocation reuses one plan and one dashboard; two active plans stop for reconciliation
   rather than selecting whichever file was modified most recently.
 
 ## Step 1 — read the task and ROUTE it (via the map, verified)
 
-- Match the task to a row in `references/skill-stack.md`; pick the spine skill plus any that genuinely
-  stack. If nothing fits, say so and just do the work — one skill that fits beats three that half-fit.
+- Default the spine for any task that produces a change to `/sk:work-full-detailed-workflow`; every
+  other routed skill runs as a stage inside it, so its final ship stage still runs. Match the task to a
+  row in `references/skill-stack.md` for the stage skills plus any that genuinely stack. If no stage skill fits, say so and run the spine
+  alone — one skill that fits beats three that half-fit.
 - **VERIFY every skill you name is INSTALLED before you plan on it** — glob
   `find -L ~/.claude/skills -name SKILL.md`, or check the runtime skill listing; never write a `/sk:`
   name from memory. A missing or mistyped name derails the run (one non-existent `artifact-design`

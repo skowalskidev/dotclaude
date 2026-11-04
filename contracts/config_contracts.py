@@ -222,19 +222,6 @@ CONTRACTS: dict[str, dict] = {
             "Own the same-machine handoff lifecycle as SSOT: prepare stamps a repeatable resume manifest and bumps a hop; resolve maps a pasted dashboard link, dashboard html or plan back to its plan; a resumed run reuses the recorded options with no second interview; the manifest survives normal updates.",
         ],
     },
-    "skills/sk/skills/work-gauntlet-loop/SKILL.md": {
-        "mission": "Simon starts or resumes verified work with one command and can see every remaining gap.",
-        "purpose": "Work-group Gauntlet entry choosing an execution skill and applying shared judgement.",
-        "criteria": [
-            "Default to current-session execution with the independent judge off; ask for custom options only when requested and preserve existing authorization.",
-            "Display this run’s recorded options read-only, with no editable selectors or generated start command in the dashboard.",
-            "Preserve planning authorization and use the shared dashboard template and runtime tests.",
-            "Select the existing workflow or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor.",
-            "Detect a handoff first: resume from a pasted dashboard link/html/plan via resolve, reusing the recorded engine and options without a second interview.",
-            "Run the shared design-source section from intake for any supplied design or pixel-perfect ask; hold each such section at review until its report is PASS, on either engine with the judge off; restate none of the gate.",
-            "Point a design build at the parallelization worker-per-deliverable section and the design-source harness, design-diff and PR evidence; take machine priority only per dev-server-hygiene; restate none of them.",
-        ],
-    },
     "skills/sk/skills/work-handoff-prepare-and-pickup/SKILL.md": {
         "mission": "Simon hands a running gauntlet to another agent through the dashboard link and it resumes with full context, chained across as many quota walls as it takes.",
         "purpose": "Two-sided same-machine handoff: prepare stamps and returns the resume link; pick-up resolves it and resumes the recorded engine.",
@@ -1275,14 +1262,21 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/work-full-detailed-workflow/SKILL.md": {
-        "mission": "Substantial work runs research to hand-back in one pass, with nothing skipped and no catalog duplicated.",
-        "purpose": "The harness index for substantial work. Points at the reference catalogs.",
+        "mission": "Simon asks for any piece of work in his own words and it runs research to shipped PR in one pass, every request kept through tangents, with no skill to remember and no ship step to ask for.",
+        "purpose": "The one composite work harness: the full detailed workflow's stages plus the gauntlet's session record, engines and judge, ending with the ship harness. Points at the reference catalogs.",
         "criteria": [
+            "Run as the spine of every task-bearing request, including one naming another skill; that skill runs as a stage inside it and an empty stage records N/A with its reason.",
             "Plan and write test coverage before implementation; execute the automated matrix at the final gate after all authorized features and review fixes converge, under the shared testing policy.",
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
             "Names rules/living-plan.md among the always-on rules it does not restate.",
-            "Sends a supplied design source through the intake in references/workflow-loops.md before any builder is briefed, and restates none of it.",
+            "Its final stage runs /sk:ship-full-detailed-workflow on every PR the run opened or pushed, unprompted, reusing earlier evidence for the same head and recording each landing-gate result; no PR records N/A.",
+            "Default to current-session execution with the independent judge off; ask for custom options only when requested and preserve existing authorization.",
+            "Preserve planning authorization; use the shared dashboard template and runtime tests, displaying this run's recorded options read-only with no editable selectors or generated start command.",
+            "Select current or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor owning plan, dashboard and judge.",
+            "Detect a handoff first: resume from a pasted dashboard link/html/plan via resolve, reusing the recorded engine and options without a second interview.",
+            "Run the shared design-source section from intake for any supplied design or pixel-perfect ask; hold each such section at review until its report is PASS, on either engine with the judge off; restate none of the gate.",
+            "Point a design build at the parallelization worker-per-deliverable section and the design-source harness, design-diff and PR evidence; take machine priority only per dev-server-hygiene; restate none of them.",
         ],
     },
     "skills/sk/skills/plan-stable-persistent-dynamic-complete-full-plan/SKILL.md": {
@@ -1746,6 +1740,7 @@ CONTRACTS: dict[str, dict] = {
             "Finds or creates one active plan-backed dashboard before routing, returns its canonical link on request and rejects multiple active plans.",
             "Keeps every session on the shared gauntlet record with current execution and independent judgement off by default; custom execution options remain opt-in.",
             "Writes each routed flow's sources, decisions, artifacts, verdicts and remaining actions into the plan, then refreshes the dashboard.",
+            "Defaults the spine of any task that produces a change to /sk:work-full-detailed-workflow; every other routed skill runs as a stage inside it.",
             "Routes via references/skill-stack.md and verifies every named skill is installed before "
             "planning on it; never restates the map or a skill's method.",
             "Keeps an always-on progress bar per references/progress-bar.md (harness Task list + compact "

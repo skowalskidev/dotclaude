@@ -663,7 +663,7 @@ TEST: after a normal section update the plan still carries its `handoff` manifes
 
 ## Existing workflow execution (`current`)
 
-DO run the existing workflow selected by the entry skill with the confirmed plan and options. Leave an existing planning lock in force
+DO run `/sk:work-full-detailed-workflow`'s stages with the confirmed plan and options. Leave an existing planning lock in force
 until the user's build authorization; never ask for an authorization already given in this session.
 The dashboard is a view, not permission to implement. After each item, verify the criteria and run
 the judge when enabled. Keep working through unfinished items, writing outcomes into the same plan.

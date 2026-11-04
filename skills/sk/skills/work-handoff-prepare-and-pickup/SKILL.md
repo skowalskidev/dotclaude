@@ -28,9 +28,9 @@ DO run PICK UP for the fresh agent:
   `ENGINE`/`GAUNTLET`/`ITERATION`/`PHASE` and `HANDOFF_HOP`. It accepts a loopback dashboard URL, a
   `file://`/filesystem dashboard `.html`, or a plan `.md`.
 - Regenerate the dashboard (`link`) and, if the user wants it open, `serve` it.
-- Resume the recorded engine from `PLAN_PATH` with NO fresh options interview — a gauntlet resumes
-  via `/sk:work-gauntlet-loop --resume <PLAN_PATH>`, ordinary work via
-  `/sk:work-full-detailed-workflow`. Continue where the sections left off with the full plan context.
+- Resume the recorded engine from `PLAN_PATH` with NO fresh options interview, via
+  `/sk:work-full-detailed-workflow --resume <PLAN_PATH>` for every engine. Continue where the sections
+  left off with the full plan context.
 TEST: pick-up resumes the exact recorded engine and progress from any of the three target forms,
 without re-asking the run options.
 
