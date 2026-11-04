@@ -800,6 +800,7 @@ CONTRACTS: dict[str, dict] = {
             "Every step carries a progress count and signals the hand-off as the first action of a "
             "blocking response.",
             "Every step names the surface the human acts in (a browser tab by title and host).",
+            "No edit lands in the tree the human's dev server serves while they walk; a fix is built elsewhere or held and applied at a step boundary after telling them the tab will reload.",
             "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
         ],
     },
@@ -1001,6 +1002,7 @@ CONTRACTS: dict[str, dict] = {
             "named) and halts when a step's expected request is absent; gates payment on a test-mode "
             "session id; binds external-provider forwarders to the app's own credentials with matching "
             "account identity; reconstructs steps he skipped. Method lives in testing-strategy.md.",
+            "Sends a finding needing a visual or design decision to the design route for an approved target before the mid tier implements it; builds fixes outside the served tree during the walk.",
             "Runs /sk:test-automated-full-matrix for its machine pass (Phase 2) rather than restating "
             "the automated method; the two skills are distinct (human journey vs autonomous matrix).",
             "Before the walk and unasked, reports the arms production deals now per platform, stopped and "

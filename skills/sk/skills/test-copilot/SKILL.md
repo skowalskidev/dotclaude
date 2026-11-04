@@ -276,6 +276,11 @@ on the demo path can be low-severity and high-priority.
 - **S4 Minor** — confusing or wrong, low impact
 - **S5 Trivial** — cosmetic
 
+A finding that needs a visual or design decision goes to the design route for an approved target
+first; the mid tier implements that target (`references/parallelization.md` § Strong models orchestrate
+and design). While Simon walks, build each fix in a separate worktree or hold it, and apply it only at
+a step boundary, after telling him the tab will reload (`references/human-pacing.md`).
+
 For each fix: make it, add or extend a test that fails without it, re-run the machine checks,
 then have Simon re-do **just that one step**. **Fix the class, not the instance** (`process.md`) —
 one missing empty state means checking every sibling surface. Keep looping until a full pass

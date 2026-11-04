@@ -39,6 +39,12 @@ recorded, waiting for you")
 **DO wait for their result before the next step, and DON'T advance past a failed one.** Collecting N
 failures with one root cause means the later steps were never really tested.
 
+**DO keep every edit out of the tree the human's dev server serves while they walk.** Build a fix in a
+separate worktree or hold it, and apply it only at a step boundary, after telling them the tab will
+reload and which step to redo. DON'T let a delegated worker commit into the served worktree: the dev
+server hot-reloads the open tab and drops the state they built up. (the fix for a fix that landed mid-step
+and reset the human's in-progress form twice)
+
 TEST: at any moment the human has exactly ONE action in front of them, a count of where they are, and a
 clear signal it is their turn — and the full plan is in the file, not the chat. A step message is the
-turn's last message.
+turn's last message. No file in the served tree changes between a step's hand-off and its result.
