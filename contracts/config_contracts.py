@@ -151,11 +151,19 @@ CONTRACTS: dict[str, dict] = {
             "Permit only the Fable-tier design route for a GPT orchestrator; reject any Astra-, Opus- or Fable-family model as an implementation worker, whatever its version.",
         ],
     },
+    "bin/capacity_probes.py": {
+        "mission": "Sandboxed workers obtain live capacity readings without running their heavy commands outside the sandbox.",
+        "purpose": "Serve allowlisted read-only host probes over a private per-dispatch Unix socket.",
+        "criteria": [
+            "Accept only fixed CPU, memory and process probe arguments; reject arbitrary executables, shells, signals and invalid PIDs. Test allowlist rejection and failed transport.",
+            "Create one private socket per workspace-write dispatch; remove it on success or cancellation. Read each requested probe live with a five-second timeout; never admit using stale or unknown data.",
+        ],
+    },
     "bin/codex_print.py": {
         "mission": "Simon can launch independent headless OpenAI workers without changing authentication or falling back to Claude.",
         "purpose": "Provide codex -p through native Codex exec and normalize its events.",
         "criteria": [
-            "Keep workspace-write by default; grant only shared capacity lease state and a linked worktree's Git common directory as extra writable roots. Add no Git root for a normal repo and no roots in read-only mode.",
+            "Grant workspace-write workers their checkout, git-dir, git-common-dir and ~/.claude/state; enable native outbound network access. Keep read-only workers without these grants. Test both normal and linked Git metadata roots.",
             "Default implementation to the native Codex config model; allow Astra only for read-only review, preserve native permissions and launcher routing, and pass prompts without shell interpolation.",
             "Fail on incomplete turns, malformed events or native errors; terminate the child process group on cancellation.",
             "Report absent cost and API timing as unknown, and preserve optional raw events.",

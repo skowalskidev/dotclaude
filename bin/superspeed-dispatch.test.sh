@@ -23,7 +23,7 @@
 # Usage: bash ~/.claude/bin/superspeed-dispatch.test.sh
 set -uo pipefail
 # These fixtures emulate Claude, independent of the host running the test suite.
-unset CODEX_THREAD_ID CODEX_SESSION_ID CLAUDECODE AGENT_MODEL_PROVIDER AGENT_SETUP CLAUDE_CONFIG_DIR
+unset CODEX_THREAD_ID CODEX_SESSION_ID CLAUDECODE AGENT_MODEL_PROVIDER AGENT_SETUP CLAUDE_CONFIG_DIR AGENT_ALLOW_CROSS_PROVIDER
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 DISPATCH="$SCRIPT_DIR/superspeed-dispatch.sh"
@@ -33,7 +33,7 @@ FAILED=0
 pass() { printf '  ok   %s\n' "$1"; }
 fail() { printf '  FAIL %s\n' "$1"; FAILED=1; }
 
-TMP="$(mktemp -d)"
+TMP="$(mktemp -d /tmp/superspeed-test.XXXXXX)"
 trap 'rm -rf "$TMP"; pkill -f "$TMP" 2>/dev/null || true' EXIT
 export HOME="$TMP/home"
 mkdir -p "$HOME"

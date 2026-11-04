@@ -18,6 +18,8 @@ memory limit: every participating session must acquire before a heavy command, s
 or stack start.
 """
 
+from capacity_probes import probe as capacity_probe
+
 import argparse
 import fcntl
 import hashlib
@@ -432,7 +434,7 @@ def migrate(root, priority_workspace=None):
 
 def pid_start(pid):
     try:
-        result = subprocess.run(["/bin/ps", "-p", str(pid), "-o", "lstart="],
+        result = capacity_probe(["/bin/ps", "-p", str(pid), "-o", "lstart="],
                                 capture_output=True, text=True, timeout=3, check=False)
     except (OSError, subprocess.TimeoutExpired):
         return None
@@ -510,12 +512,12 @@ def simulator_pressure():
 
 def compressed_share():
     """Fraction of physical RAM the memory compressor occupies (vm_stat over hw.memsize). Fallback signal only."""
-    result = subprocess.run(["/usr/bin/vm_stat"], capture_output=True, text=True, timeout=3, check=False)
+    result = capacity_probe(["/usr/bin/vm_stat"], capture_output=True, text=True, timeout=3, check=False)
     if result.returncode:
         raise ValueError("vm_stat failed")
     page = re.search(r"page size of (\d+) bytes", result.stdout)
     pages = re.search(r"Pages occupied by compressor:\s+(\d+)", result.stdout)
-    total = subprocess.run(["/usr/sbin/sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=3, check=False)
+    total = capacity_probe(["/usr/sbin/sysctl", "-n", "hw.memsize"], capture_output=True, text=True, timeout=3, check=False)
     if not page or not pages or total.returncode or int(total.stdout) <= 0:
         raise ValueError("vm_stat output changed")
     return int(pages.group(1)) * int(page.group(1)) / int(total.stdout)
@@ -534,7 +536,7 @@ def memory_pressure_level():
                 raise ValueError("invalid pressure level")
             return value, "sysctl"
         try:
-            result = subprocess.run(["/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
+            result = capacity_probe(["/usr/sbin/sysctl", "-n", "kern.memorystatus_vm_pressure_level"],
                                     capture_output=True, text=True, timeout=3, check=False)
             if not result.returncode and int(result.stdout) in PRESSURE_NAMES:
                 return int(result.stdout), "sysctl"
@@ -551,7 +553,7 @@ def cpu_idle_percent():
         if PRESSURE_FIXTURE is not None:
             value = json.loads(PRESSURE_FIXTURE.read_text()).get("idle", 100)
         else:
-            result = subprocess.run(["/usr/sbin/iostat", "-d", "-C", "-n", "0", "-c", "2", "-w", "1"],
+            result = capacity_probe(["/usr/sbin/iostat", "-d", "-C", "-n", "0", "-c", "2", "-w", "1"],
                                     capture_output=True, text=True, timeout=5, check=False)
             if result.returncode:
                 raise ValueError("iostat exited %d" % result.returncode)
@@ -873,7 +875,7 @@ def process_table():
     try:
         text = host_fixture("ps", "")
         if text is None:
-            result = subprocess.run(["/bin/ps", "-axo", "pid=,ppid=,pcpu=,etime=,command="],
+            result = capacity_probe(["/bin/ps", "-axo", "pid=,ppid=,pcpu=,etime=,command="],
                                     capture_output=True, text=True, timeout=5, check=False)
             if result.returncode:
                 raise ValueError("ps failed")
@@ -1260,7 +1262,7 @@ def legacy_holder_text(path):
         result = subprocess.run(["/usr/sbin/lsof", "-t", "--", path], capture_output=True, text=True,
                                 timeout=5, check=False)
         for pid in sorted({int(item) for item in result.stdout.split() if item.isdigit()} - {os.getpid()}):
-            name = subprocess.run(["/bin/ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True,
+            name = capacity_probe(["/bin/ps", "-o", "comm=", "-p", str(pid)], capture_output=True, text=True,
                                   timeout=3, check=False).stdout.strip()
             holders.append("pid %d (%s)" % (pid, os.path.basename(name) or "exited"))
     except (OSError, ValueError, subprocess.TimeoutExpired):
@@ -1597,7 +1599,7 @@ class OwnedGroup:
     def group_running(self):
         """An unreaped leader pins its PGID, but a zombie alone cannot receive a signal on Darwin."""
         try:
-            result = subprocess.run(["/bin/ps", "-axo", "pgid=,stat="], capture_output=True,
+            result = capacity_probe(["/bin/ps", "-axo", "pgid=,stat="], capture_output=True,
                                     text=True, timeout=3, check=False)
             if result.returncode:
                 raise ValueError("process group probe failed")
@@ -1609,7 +1611,7 @@ class OwnedGroup:
     def child_identity(self):
         """ps retains parent/group/start metadata for an unreaped zombie on macOS Python 3.9 too."""
         try:
-            result = subprocess.run(["/bin/ps", "-p", str(self.child.pid), "-o", "pid=,ppid=,pgid=,lstart=,stat="],
+            result = capacity_probe(["/bin/ps", "-p", str(self.child.pid), "-o", "pid=,ppid=,pgid=,lstart=,stat="],
                                     capture_output=True, text=True, timeout=3, check=False)
             fields = result.stdout.split()
             if result.returncode or len(fields) != 9:
