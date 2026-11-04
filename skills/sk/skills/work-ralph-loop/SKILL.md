@@ -1,6 +1,6 @@
 ---
 name: work-ralph-loop
-description: Run a Ralph loop to complete unfinished plan items with one fresh worker per item and no loose ends. Use for "ralph loop", "fresh worker per task", or "finish every plan item". Works alone or as the execution engine selected by Gauntlet. Reuse the permanent plan and live dashboard, verify each outcome, persist learnings, and resume from a checkpoint without losing evidence.
+description: Run a Ralph loop to complete unfinished plan items with one fresh worker per item and no loose ends. Use for "ralph loop", "fresh worker per task", or "finish every plan item". Works alone or as the execution engine selected by the work harness. Reuse the permanent plan and live dashboard, verify each outcome, persist learnings, and resume from a checkpoint without losing evidence.
 argument-hint: "[goal | --resume plan-path] [--judge on|off] [--max-iterations N] [--references images|names|none] [--inspiration platform names]"
 ---
 

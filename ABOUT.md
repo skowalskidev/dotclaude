@@ -69,15 +69,15 @@ See `references/dev-server-hygiene.md`, `references/ios-simulator.md` and
 `references/session-performance.md`.
 
 Ordinary sessions use current-session execution with the independent judge off and no loop-options
-interview. [sk] `/sk:work-gauntlet-loop` uses this same record; [sk] `/sk:work-ralph-loop` selects
-standalone Ralph. Both use the `work-` group in the personal `sk` plugin; select those skill names in
+interview. [sk] `/sk:work-full-detailed-workflow` is the one work harness on this record, gauntlet
+included, and ships every PR it opened or pushed; [sk] `/sk:work-ralph-loop` selects standalone Ralph. Both use the `work-` group in the personal `sk` plugin; select those skill names in
 Codex. The existing shared `sk` skill directory supplies both hosts. A newly added skill can require a
 new session.
 
-When you request custom loop options, Gauntlet asks you to choose the existing workflow or Ralph’s fresh-worker loop,
+When you request custom loop options, the work harness asks you to choose the existing workflow or Ralph’s fresh-worker loop,
 the separate Gauntlet judge on or off, reference input and iteration budget. The dashboard’s This run
 panel then shows your selected options read-only. Fully specified invocation options count as your answer.
-Standalone Ralph fixes its execution mode and asks for the remaining options. When Gauntlet selects
+Standalone Ralph fixes its execution mode and asks for the remaining options. When the harness selects
 Ralph, it passes the same plan and confirmed choices, so you answer once and keep the same dashboard.
 The host's agent tools execute the work. The Python helper only validates and displays task state;
 it runs no model calls and requires no third-party Python packages.
@@ -110,7 +110,7 @@ Ralph defaults to ten worker iterations before a resumable checkpoint. This is a
 not a time estimate or success condition. Model choice and costs follow the active host/account;
 there is no fixed cost or automatic paid CLI integration. Missing delegation blocks the chosen loop.
 
-Entry skills: `skills/sk/skills/work-gauntlet-loop/` and `skills/sk/skills/work-ralph-loop/`.
+Entry skills: `skills/sk/skills/work-full-detailed-workflow/` and `skills/sk/skills/work-ralph-loop/`.
 Shared runtime: `bin/workflow-dashboard.*`. Protocol and attribution:
 `references/workflow-loops.md`. Validation: `python3 hooks/config-contract.test.py`.
 Runtime plan/evidence files stay in the task workspace and must be preserved before deleting it.

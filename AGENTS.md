@@ -29,7 +29,8 @@ or copy credentials between stores. Preserve work/personal service boundaries in
 ## Shared workflow dashboard
 
 Read `ABOUT.md` for the user-facing overview and `references/workflow-loops.md` for the protocol.
-Keep the thin entry skills `work-gauntlet-loop` and `work-ralph-loop` in the `sk` plugin.
+Keep the thin entry skills `work-full-detailed-workflow` (the composite harness, gauntlet included) and
+`work-ralph-loop` in the `sk` plugin.
 Keep shared runtime in `bin/workflow-dashboard.*`; plan and mockup skills compose the same catalog.
 Run `python3 hooks/config-contract.test.py` after changes; it includes the dashboard runtime tests.
 Use the test-only intake state override in that suite so verification cannot clear live session gates.
