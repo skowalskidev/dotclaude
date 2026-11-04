@@ -19,6 +19,19 @@ DON'T finish a follow-up batch with screenshots of an earlier UI or a promise to
 TEST: no final publication precedes an outstanding follow-up or required fix in the batch; hand-back
 has current verified evidence or Simon's explicit waiver or a concrete publication blocker.
 
+DO run the AFTER capture ONCE, on the final head: after every review, matrix, journey and feedback fix
+in the batch is committed, and pushed when the branch backs a PR. Plan the post (surfaces, scenarios,
+seed data) from the start; start no AFTER capture before the last fix round lands. When a UI-affecting
+change moves the head after capture, re-capture only the surfaces that change touched.
+DON'T dispatch the capture in the initial verification fan-out beside review, matrix or prod-data
+agents: their fixes change the screen and force a full retake. A BEFORE capture from the base branch,
+which cannot change, may run early; an interim screenshot Simon explicitly asks to see is never
+published as final.
+TEST: every published AFTER capture records a source revision equal to the final head or carries
+unchanged-point reuse proof, and no AFTER capture started before the last fix commit (the fix for a
+capture dispatched beside review and matrix agents, retaken in full after their fixes moved a card
+and changed its copy).
+
 DO reopen that pending refresh if another follow-up arrives before hand-back, or a fix changes the
 captured UI after publication. Finish the new work, then replace stale points once. Carry forward
 unchanged points only with recorded source/fixture equivalence and their original provenance; never

@@ -273,6 +273,7 @@ CONTRACTS: dict[str, dict] = {
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
             "Refresh evidence by default after all current ticket follow-ups, review fixes and required checks finish; honor explicit waivers, reopen pending refresh after new work, and require final-source or unchanged-point reuse proof.",
+            "Run AFTER capture once on the final head, never in the initial verification fan-out; plan early, re-capture only surfaces a later UI change touched; base-branch BEFORE capture and requested interim shots may run early.",
             "Group evidence by point: every case carries a point and a column, the manifest declares the ordered columns, and a platform or size a point lacks shows its status and reason in its cell, never dropped or listed apart.",
             "Record one separate video per affected user-journey scenario (from acceptance criteria and states: happy, loading, slow, follow-up during loading, each limit or failure), named and captioned by it; a combined walk never replaces them. Each opens on the real UI just before the trigger with no text slide or title card in the video, and ends 1-2 s after the outcome with no tail; its 1-2 line TLDR (what it shows, expected behaviour) is PR-body text directly above the video; verify by sampled first-UI, action and last frames matching the TLDR; skip only no-UI or no-interaction changes, stated.",
             "Reject a clip under 8 seconds or under 3 distinct states (ffmpeg 1 fps scene count above 0.15); lengthen the UI lead-in, never the tail.",
@@ -1071,6 +1072,7 @@ CONTRACTS: dict[str, dict] = {
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every PR in the run, in parallel and non-blocking; never substitute ad-hoc suites or queries; delegate applicability to prod-data's Phase 1.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
+            "Plan the screenshot post from the sweep start; dispatch AFTER capture once, after stages 3-6 fixes are committed and pushed, on the final head, never in stage 6's fan-out.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each affected scenario's own trimmed video and scenario-table row, no duplicate desktop/mobile pairs, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
@@ -1275,6 +1277,7 @@ CONTRACTS: dict[str, dict] = {
             "Runs as a loop until clean, not a one-shot.",
             "Reuses /sk:ship-screenshot-changes for the capture and the default PR post; adds only "
             "edge-input fuzzing, bug-hunt, the fix-loop and the journey-review, and does not restate them.",
+            "Takes the posted screenshots once, after the clean sweep's last fix commit; sweep-time captures stay diagnostics.",
         ],
     },
     "skills/sk/skills/work-full-detailed-workflow/SKILL.md": {
