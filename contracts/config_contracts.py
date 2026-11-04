@@ -2214,6 +2214,12 @@ CONTRACTS: dict[str, dict] = {
             "owns-workspace tests live cwds from stdin using the same predicate as reconciliation; protect physically nested linked worktrees only with a matching Git common directory, never siblings or unrelated nested repositories.",
             "Report failed process probes, missing session cwds and failed Git probes for candidate nested owners as unknown; preserve port claims and refuse stack reclamation until ownership is known.",
             "Require confirmed workspace absence and absent session ownership before reap reports a kill candidate. Retain inaccessible paths, broken links and deleted children of live parent checkouts; can-reap-workspace repeats the same check before signalling.",
+            "A row whose recorded workspace is confirmed deleted and has no listener is dropped on every "
+            "read path, inside or past the grace window and whatever session-liveness detection says: a "
+            "deleted path has no cwd to match, so its owner cannot return and no caller could release it "
+            "(release frees only the caller's own session label). Only workspace_missing exit 0 counts; "
+            "a broken link, permission failure or relative path keeps the claim, and a listening port is "
+            "always held.",
             "Exit codes stay meaningful: 3 held by another live session, 4 a listener nobody "
             "claimed. The EXIT trap must preserve them.",
             "Release surfaces who was waiting, so the hand-off between sessions reaches Simon. It "
@@ -2246,6 +2252,15 @@ CONTRACTS: dict[str, dict] = {
             "Keep a dead or interrupted holder visible for explicit inspection; never auto-reap another session's claim.",
             "Expand every array that can be empty as ${ARR[@]+\"${ARR[@]}\"}; macOS /bin/bash 3.2 treats a bare empty \"${ARR[@]}\" as unbound under set -u.",
             "Use an isolated state root in offline tests and boot no simulator.",
+        ],
+    },
+    "bin/port-registry.test.sh": {
+        "mission": "A deleted workspace can never hold a port lane, and a live one never loses its lane.",
+        "purpose": "Offline reconcile checks against a temporary registry file and unbound ports.",
+        "criteria": [
+            "Asserts a claim for a deleted workspace with no listener is dropped on list, inside and past the grace window.",
+            "Asserts a claim for an existing workspace inside the grace window is kept, an unverifiable path keeps its claim, and a bound port is held even when its workspace is gone.",
+            "Uses PORT_REGISTRY_FILE under a temporary directory; never reads or writes the real registry.",
         ],
     },
     "bin/native-slot.test.sh": {
