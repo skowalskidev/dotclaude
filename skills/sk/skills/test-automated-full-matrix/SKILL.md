@@ -16,6 +16,10 @@ THIS for its machine pass, then adds the human judgment on top.
 reuse, simulation assessment and native opt-in to this flow.
 TEST: invoking this skill alone does not authorize native runtime/UI tests or screenshot capture.
 
+DO run it from a harness only on a Deep-tier change, per `references/testing-strategy.md` § Size the
+checks to the change; Simon's direct ask runs it at any tier. TEST: a harness run on a Light or Standard
+PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
+
 ## Run it
 
 1. **Enumerate the work-list.** `git diff <base>...HEAD` cross-referenced with the plan's acceptance

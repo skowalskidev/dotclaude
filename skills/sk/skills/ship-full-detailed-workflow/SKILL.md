@@ -24,41 +24,46 @@ tickets; a fix that belongs to another PR is handed to that owner via
    behind/ahead master; the authoritative ticket list from the PR body; the full diff surface
    (`git diff <base>...HEAD`). PUSH the PR's own branch to origin so it is current — CI, the review,
    and merge-readiness all read the pushed state. NEVER push, merge into, or otherwise write master.
+   **DO classify each PR's tier here, per `references/testing-strategy.md` § Size the checks to the
+   change, and run every stage below at that tier.** Deep runs every stage as written; a stage or
+   landing-gate row the tier skips records its skip line instead of running.
+   TEST: each PR's plan entry names its tier and trigger before stage 2 starts.
 1. **`/sk:plan-stable-persistent-dynamic-complete-full-plan`** — fold every ticket and criterion into
    the living plan; reconcile against it at stage 9.
 2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the
    rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
-3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out; fix the confirmed findings.
+3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out; fix the confirmed findings. Standard runs one pass; Light skips it.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
    dial or allowlist relaxation, or an injection surface.
 5. **`/sk:ship-resolve-pr-comments`** — drive EVERY actionable PR comment to a verdict across all feedback surfaces; never hand back a
    list to chase.
 6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification); re-judge criteria whose evidence or inputs those fixes changed, including dependent readers and configuration. Verify the user + system
    journeys AND every ticket's acceptance criteria against the merged diff, one committed test per
-   verdict, close gaps in fix→verify loops.
+   verdict, close gaps in fix→verify loops. Light skips it and records one verdict per ask.
    When it splits into 3-5+ independent tickets, fan the per-ticket verification out — one adversarial verifier per ticket reading the real code against its
    criteria — via a Workflow or `/sk:work-superspeed` / `/sk:work-hyperspeed`
    (`references/parallelization.md`).
-   **DO invoke `/sk:test-automated-full-matrix` AND `/sk:ship-verify-with-prod-data` on EVERY PR in the
-   run, multi-PR and multi-repo included, as real skill invocations dispatched per PR as parallel
+   **DO invoke `/sk:test-automated-full-matrix` AND `/sk:ship-verify-with-prod-data` on EVERY Deep PR in
+   the run, multi-PR and multi-repo included, as real skill invocations dispatched per PR as parallel
    background agents on that same fan-out.** They never block: every stage that reads neither result
    proceeds, ship-report reads the matrix for its per-ticket verdicts (including each feature's
    simulation applicability and evidence), data-surface screenshots wait on the prod-data data mode,
    and the landing gate waits on both. Delegate applicability to prod-data's own Phase 1; record
    its compatibility verdict or doesn't-apply verdict with the traced reason.
    **DON'T substitute ad-hoc suites or one-off queries for either skill, or skip prod-data because the
-   diff looks data-free.** TEST: every PR in the run shows both skills' verdicts at the landing gate.
+   diff looks data-free:** a Standard PR runs prod-data's Phase 1, and a dependency it finds makes the
+   PR Deep. TEST: every Deep PR in the run shows both skills' verdicts at the landing gate.
    (the fix for a run that substituted ad-hoc suites and one-off read-only queries for both skills
    across three PRs; run properly, the matrix found four real gaps and the data check found a
    per-person cross-repo reconciliation.)
-   **DO run `references/git-pr-deploy.md` § Deploy safety on EVERY PR in the run, unprompted, as a
+   **DO run `references/git-pr-deploy.md` § Deploy safety on EVERY Deep PR in the run, unprompted, as a
    parallel background agent on that same fan-out.** It never blocks; stage 8's Deploy TLDR and the
    landing gate wait on it. A merge-train conflict, red suite or unsafe migration is a finding fixed
    before hand-back.
-   **DON'T treat each PR's green CI as proof the set merges and deploys safely.** TEST: every PR in
+   **DON'T treat each PR's green CI as proof the set merges and deploys safely.** TEST: every Deep PR in
    the run shows the merge-train result, migration verdict and cutover table at the landing gate
    without Simon asking.
-7. **`/sk:ship-screenshot-changes`** — capture changed web surfaces and explicitly requested native
+7. **`/sk:ship-screenshot-changes`** — at the PR's tier, capture changed web surfaces and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
    per-scenario videos onto the open PR (GitHub-native); plan the post from the start of the sweep.
 8. **`/sk:ship-pr`** — the PR body carries the TLDR and the Deploy-TLDR.
@@ -67,8 +72,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    hand back a per-ticket verdict report. A gap any stage found inside this PR's own scope is BUILT
    here, not ticketed: `/sk:ship-check-merge-readiness` Step 6 owns the three cases a ticket is for.
    Record the landing-gate result on the pushed head with
-   `~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]`; the Stop hook
-   blocks a pushed branch head with no record, and a newer push re-opens it.
+   `~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]`;
+   a Light or Standard PASS carries its trigger and skipped stages. The Stop hook blocks a pushed branch
+   head with no record, and a newer push re-opens it.
 
 **Running the stages on a multi-layer PR:** fix rounds follow `references/parallelization.md` §
 "Parallelize verification, not just agents": the contract page first, every layer in one batch, the
@@ -83,16 +89,18 @@ scratch file, or a green local run is INCOMPLETE — return to its stage and pos
 reads ✓ against the FETCHED PR, never against memory of having run the stage. (the fix for a run that
 verified the user + system journey, then handed back with it never posted to the PR body.)
 - Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
-- Matrix (stage 6), on every PR: the results table with its COVERED, GAP, NEEDS-DRIVING and SKIPPED
+- Matrix (stage 6), on every Deep PR: the results table with its COVERED, GAP, NEEDS-DRIVING and SKIPPED
   counts, each feature's simulation evidence or concrete N/A reason, and explicit verdicts for required
   cases that did not run.
-- Prod data (stage 6), on every PR: the compatibility verdict from the owning skill, including
+- Prod data (stage 6), on every Deep PR: the compatibility verdict from the owning skill, including
   checked cohorts, unknowns and activation dependencies, or its doesn't-apply verdict with the traced
   reason. An unknown cohort or unmet activation dependency cannot become a compatibility PASS.
-- Deploy safety (stage 6), on every PR: the merge-train result (PR order, default-branch sha, suites,
+- Deploy safety (stage 6), on every Deep PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
   per part.
-- Screenshots (stage 7): every surface eligible under stage 7 has its image on the PR and every affected
+- Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard
+  PR's `Skipped (tier <tier>): <trigger>` line under each matrix, prod-data and deploy-safety heading it skipped.
+- Screenshots (stage 7): every surface eligible under stage 7 at the PR's tier has its image on the PR and every affected
   user-journey scenario its own trimmed video and scenario-table row, under `## Screenshots`, with no
   duplicate desktop/mobile pairs (`references/screenshot-review.md`); record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.

@@ -18,7 +18,8 @@ OpenAI or API fallback. Verify every delegated result on disk.
 DO defer tests/typechecks/builds across the whole batch and review fixes; allow concrete diagnostics
 or explicit requests. Keep hooks/CI. Verify once at convergence; reuse proof, rerun affected coverage.
 Keep native compile/backend checks; native runtime/UI/screenshots are opt-in.
-Apply `references/testing-strategy.md` §§ Defects first and Native simulator suites.
+DO size every check to the change's tier first: `references/testing-strategy.md` §§ Size the checks to
+the change, Defects first and Native simulator suites.
 DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push. Name
 the real blocker in every status. `references/parallelization.md` § Parallelize verification.
 TEST: no routine per-edit/feature/commit runs; mandatory final coverage uses matching inputs.
@@ -108,17 +109,15 @@ where it stands.
 ### Prove every point of the ask was built, before handing back
 
 **DO run `/sk:ship-report-and-ensure-correct-user-system-journey` at the end of any substantial ask, in
-ANY repo — this config included — unprompted.** It walks the user journey and the system journey,
-judges both against the criteria the plan validated, writes a test per verdict, and reconciles the
-worktree's `.context/intent-ledger.md` ask by ask.
+ANY repo — this config included — unprompted.** What it proves: `references/planning-and-tracking.md` § The intent ledger.
 **DON'T treat a green gate or a written summary as proof the ask was covered.** A gate proves the code
 runs. A summary proves you can describe it. Neither proves point four of a five-point ask was built.
 TEST: every ask in the ledger has a verdict against it. A missing verdict is a missing feature.
 
-**DO run `/sk:ship-full-detailed-workflow` on every open PR the work opened or pushed to, before
-hand-back.** Ship-report proves the journeys; the harness reviews and verifies the pushed PR and lands
+**DO run `/sk:ship-full-detailed-workflow` at the PR's tier on every open PR the work opened or pushed
+to, before hand-back.** Ship-report proves the journeys; the harness reviews and verifies the pushed PR and lands
 its gate. The Stop hook backs this: it blocks once per pushed non-default branch head until
-`hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]` records the result.
+`hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [tier] [reason]` records the result.
 TEST: a hand-back naming an open PR from this run cites that PR's landing-gate result. (the fix for two
 PRs handed back unreviewed; the harness then found a dropped consent event and a no-op column revoke.)
 

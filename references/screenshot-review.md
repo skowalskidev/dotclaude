@@ -29,6 +29,9 @@ zero points depict a superseded state as the current result.
 
 ## Discover the complete matrix
 
+DO build this matrix for a Deep-tier change; capture a Light or Standard change at the scope
+`references/testing-strategy.md` § Size the checks to the change gives its tier, and record the skip.
+
 DO default scope to all changed routes and journeys from the diff and acceptance criteria; retain an
 explicit whole-app request. Read render branches, permission checks, flags, account and billing state,
 then explore the real UI before finalizing the matrix. Inventory each materially distinct implemented

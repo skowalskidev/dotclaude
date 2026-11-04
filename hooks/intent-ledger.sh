@@ -33,7 +33,7 @@
 # Modes:  submit                  UserPromptSubmit — append the ask verbatim
 #         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
-#         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [reason]
+#         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]
 #                                 called by the model — record the landing-gate result for that head
 #         stop                    Stop — require reconciliation after the newest recorded input, then
 #                                 a gate record for every pushed branch head
@@ -316,7 +316,7 @@ never with Edit or Write.
 Mechanics: ~/.claude/references/planning-and-tracking.md. The Stop hook checks for reconciliation
 after the newest recorded input. After a push to a non-default branch, run /sk:ship-full-detailed-workflow
 on it and record the result with
-  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]
+  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
 or Stop blocks once for the missing gate."
   jq -cn --arg c "GAUNTLET UPDATE: read the new ask in $target and the existing living plan. Apply \
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
@@ -463,16 +463,20 @@ push)
 
 gate)
   branch="${2:-}"; ref="${3:-}"; status="$(printf '%s' "${4:-}" | tr '[:lower:]' '[:upper:]')"
-  reason="${*:5}"
-  case "$status" in PASS|BLOCKED|N/A) ;; *)
-    echo "gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [reason]" >&2; exit 2 ;;
-  esac
-  if [ -z "$branch" ] || [ -z "$ref" ]; then
-    echo "gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [reason]" >&2; exit 2
-  fi
+  # Optional tier (references/testing-strategy.md, Size the checks to the change). A light or
+  # standard PASS skipped stages, so it needs a reason naming its trigger and the skips.
+  tier="$(printf '%s' "${5:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$tier" in light|standard|deep) reason="${*:6}" ;; *) tier=""; reason="${*:5}" ;; esac
+  usage="gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]"
+  case "$status" in PASS|BLOCKED|N/A) ;; *) echo "$usage" >&2; exit 2 ;; esac
+  if [ -z "$branch" ] || [ -z "$ref" ]; then echo "$usage" >&2; exit 2; fi
   if [ "$status" != PASS ] && [ -z "$reason" ]; then
     echo "gate: $status needs a reason (the blocker, or why the harness does not apply)" >&2; exit 2
   fi
+  if [ "$status" = PASS ] && [ -z "$reason" ] && { [ "$tier" = light ] || [ "$tier" = standard ]; }; then
+    echo "gate: a $tier PASS needs a reason: its trigger and the stages it skipped" >&2; exit 2
+  fi
+  [ -n "$tier" ] && reason="$tier${reason:+ $reason}"
   sha="$(git rev-parse --verify -q "$ref^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$ref" | tr '[:upper:]' '[:lower:]')"
   case "$sha" in *[!0-9a-f]*|"") echo "gate: cannot resolve $ref to a commit" >&2; exit 2 ;; esac
   [ "${#sha}" -ge 7 ] || { echo "gate: sha needs 7+ characters" >&2; exit 2; }
@@ -589,10 +593,11 @@ promised smoke or reply open, end with the merge list instead. This fires at mos
   list="$(printf '%s\n' "$open" | awk -F'\t' '{ printf "  %s (%s) at %s\n", $2, $1, substr($3,1,7) }')"
   msg="This session pushed these branches and recorded no ship-gate result for the pushed head:
 $list
-Before finishing, run /sk:ship-full-detailed-workflow on each (rules/process.md, Prove every point of the \
-ask was built), then record the result:
-  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]
-BLOCKED and N/A need a reason: the exact blocker, or why the harness does not apply to this push. A gate \
+Before finishing, run /sk:ship-full-detailed-workflow on each at its tier (references/testing-strategy.md, \
+Size the checks to the change; rules/process.md, Prove every point of the ask was built), then record it:
+  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
+BLOCKED, N/A and a light or standard PASS need a reason: the exact blocker, why the harness does not \
+apply to this push, or the tier's trigger and skipped stages. A gate \
 recorded for an older head does not count once a newer head is pushed. This fires at most once per set of open pushes."
   jq -cn --arg r "$msg" '{decision:"block",reason:$r}'
   exit 0

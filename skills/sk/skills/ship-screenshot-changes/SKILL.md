@@ -18,6 +18,11 @@ TEST: N points have N heading/table blocks in the report with a cell for every c
 status and reason), each case's conditions sit above its evidence, and every posted pair came out of
 `bin/pr-evidence.py`.
 
+DO size the case matrix to the change's tier, per `references/testing-strategy.md` § Size the checks
+to the change: the complete matrix is the Deep tier, and a Light change gets one BEFORE/AFTER pair of
+its changed state at 390×844 with no video. A direct ask from Simon for the full review runs it whole.
+TEST: a Light run posts one pair and a one-line `Skipped (tier light)` reason for the rest of the matrix.
+
 ## Step 0 — Log in to the running app (project-specific)
 
 **Read `~/.claude/references/browser-debugging.md` AND the project's `CLAUDE.local.md` FIRST — before

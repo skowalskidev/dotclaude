@@ -1341,8 +1341,18 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         # Gate rules: PASS records the head; BLOCKED and N/A need a reason; a bad status is refused.
         check(gate("feature/x", "HEAD", "MAYBE").returncode == 2, "An unknown gate status was accepted.")
         check(gate("feature/x", "HEAD", "N/A").returncode == 2, "An N/A gate without a reason was accepted.")
+        check(gate("feature/x", "HEAD", "PASS", "light").returncode == 2,
+              "A light PASS without its trigger and skipped stages was accepted.")
+        check(gate("feature/x", "HEAD", "PASS", "standard").returncode == 2,
+              "A standard PASS without its trigger and skipped stages was accepted.")
         check(gate("feature/x", "HEAD", "PASS").returncode == 0, "A PASS gate was not recorded.")
         check(stop() == "", "A gate record for the pushed head did not clear Stop.")
+        check(gate("feature/x", "HEAD", "PASS", "Light", "one-cell style; skipped: matrix, prod data").returncode == 0,
+              "A light PASS with a reason was not recorded.")
+        check(gate("feature/x", "HEAD", "PASS", "deep").returncode == 0, "A deep PASS was not recorded.")
+        tiered = (repo / ".context" / "intent-ledger.md").read_text()
+        check("PASS light one-cell style; skipped: matrix, prod data" in tiered and " PASS deep\n" in tiered,
+              "A tiered gate entry did not carry its tier and reason.")
 
         # A newer head re-opens the gate: a record for the older sha no longer counts.
         second = commit(repo, "b.txt")

@@ -257,6 +257,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Scenario inventory, final-batch capture, report and PR evidence template procedure.",
         "criteria": [
             "Inventory source branches and real UI states across the declared scope; require empty and full states at every selected supported layout and disclose secondary sampling.",
+            "Build the full matrix for a Deep-tier change; capture Light and Standard changes at the scope testing-strategy.md gives their tier and record the skip.",
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
             "Refresh evidence by default after all current ticket follow-ups, review fixes and required checks finish; honor explicit waivers, reopen pending refresh after new work, and require final-source or unchanged-point reuse proof.",
@@ -509,6 +510,7 @@ CONTRACTS: dict[str, dict] = {
             "Process inspection emits names and metadata, never arguments or environment values; exact-argument ownership checks stay internal and report verdicts. Signal only currently proven owned processes or candidates passing the existing orphan gate; preserve other live sessions.",
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
+            "Size every check to the change's tier through testing-strategy.md, which owns the tiers; the ship harness runs on every open PR at that tier.",
             "Keep native compile checks and relevant backend payment, auth and data tests; preserve required hooks and CI without bypassing them to impose batch timing.",
             "Keep every role on the actual chat provider except GPT design work on the Fable tier; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
@@ -868,6 +870,8 @@ CONTRACTS: dict[str, dict] = {
             "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
             "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",
             "Separate code verification, activation dependencies and live proof; scope conclusions to captured populations and windows without promising zero regressions.",
+            "Own the Light, Standard and Deep verification tiers: classify from the diff before any check, take the deeper tier when unclear, escalate on an unexpected finding, and record tier, trigger and skipped stages on the PR and gate.",
+            "Every tier keeps CI, required hooks, the project gate list, PR feedback handling, read-only production, spend approval and the post-deploy prod check; a Deep trigger always gets the full harness.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
@@ -990,6 +994,7 @@ CONTRACTS: dict[str, dict] = {
                    "deterministic tests (writing the missing ones), Stage-2 Claude-as-judge, saved and "
                    "posted to the PR.",
         "criteria": [
+            "A harness runs it only on a Deep-tier change under testing-strategy.md and records a skip line otherwise; Simon's direct ask runs it at any tier.",
             "Runs AUTONOMOUSLY — no AskUserQuestion, no human step — so it is safe to leave overnight; "
             "distinct from /sk:test-copilot, the human journey, which runs THIS for its machine pass.",
             "Enumerates EVERY feature in the diff (git diff + plan criteria + Linear) as a matrix row; "
@@ -1055,16 +1060,17 @@ CONTRACTS: dict[str, dict] = {
             "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
-            "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every PR in the run, in parallel and non-blocking; never substitute ad-hoc suites or queries; delegate applicability to prod-data's Phase 1.",
+            "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, and Deep runs every stage as written.",
+            "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each affected scenario's own trimmed video and scenario-table row, no duplicate desktop/mobile pairs, and report unrequested native surfaces as not run.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
-            "Run references/git-pr-deploy.md § Deploy safety on every PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
+            "Run references/git-pr-deploy.md § Deploy safety on every Deep PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
             "Compose the stage-5 resolver at the final fresh-fetch gate; return new or edited unhandled feedback to resolution and affected verification before PASS, including feedback outside threads.",
             "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
-            "prod-data verdict, the deploy-safety results, the screenshots, zero collapsed <details> (each one open) in the fetched body_html, resolved threads, the "
+            "prod-data verdict, the deploy-safety results (each on every Deep PR, a skip line otherwise), the tier line, the screenshots, zero collapsed <details> (each one open) in the fetched body_html, resolved threads, the "
             "opening TLDR and the Deploy-TLDR are confirmed on EVERY FETCHED PR, not just produced in-session.",
         ],
     },
@@ -1228,6 +1234,7 @@ CONTRACTS: dict[str, dict] = {
             "Screenshots each CHANGED surface and journey (from git diff) across the reference's case "
             "matrix: empty and full states, conditional scenarios and responsive sizes, seeded with "
             "realistic inputs, saved inside a workspace root; no bug-hunt or fix-loop.",
+            "Size the case matrix to the change's tier under testing-strategy.md: a Light change posts one before/after pair at 390x844 with no video and a skip line; Simon's direct ask runs the full review.",
             "Triggers on the former advanced phrases (advanced screenshot review, all conditional "
             "screenshot scenarios, screenshot coverage matrix); hands back the offline report with "
             "conditions above each screenshot and an actionable TLDR table.",
@@ -2088,8 +2095,8 @@ CONTRACTS: dict[str, dict] = {
             "Ship gate, the mechanical backstop for rules/process.md's harness-on-every-pushed-PR rule: "
             "PostToolUse `push` records the repo, branch and head of a successful `git push` to a non-default "
             "branch in session state, and records nothing for main or master, a delete, tags, a repo inside "
-            "the config repo, or a delegated worker. `gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [reason]` "
-            "appends the result to the ledger (BLOCKED and N/A need a reason). Stop blocks once per set of "
+            "the config repo, or a delegated worker. `gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]` "
+            "appends the result to the ledger (BLOCKED, N/A and a light or standard PASS need a reason). Stop blocks once per set of "
             "open pushes, also on a stop_hook_active continuation, until each branch's newest pushed head has "
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
             "never counts.",

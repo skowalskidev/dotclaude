@@ -110,7 +110,8 @@ current, reconcile against it.
    commits, closes any gap in code, and reconciles the ledger's asks against what was built, so
    step 2's plan and the shipped result are the same thing. Simon should never have to ask for it.
    Its gap fixes land here; its hand-back follows step 9's pass.
-9. Run the full relevant suites and automated matrix on the converged code, using the timing, retry
+9. Run the relevant suites, and the automated matrix on a Deep-tier change (`references/testing-strategy.md`
+   § Size the checks to the change), on the converged code, using the timing, retry
    and evidence-reuse policy in `rules/process.md` § Fan out verification. Apply the testing reference
    sections Defects first and Native simulator suites. When the diff changes a stored-data figure or a
    gate that depends on stored data, run `/sk:ship-verify-with-prod-data` here, unprompted. TEST: such a

@@ -8,6 +8,8 @@ argument-hint: "[optional: the surface / route / account list to verify]"
 
 DO verify changed figures and runtime eligibility against real production evidence. Apply the shared
 procedure below; fixtures alone do not establish compatibility with current legitimate users.
+DO run it whole from a harness on a Deep-tier change and Phase 1 alone on a Standard one, per
+`references/testing-strategy.md` § Size the checks to the change; Simon's direct ask runs it whole.
 
 It composes, and does not restate:
 - **`~/.claude/rules/connectors.md`** — the read-only prod path, the auth-gate protocol, the
