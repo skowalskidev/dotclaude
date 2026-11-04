@@ -122,7 +122,8 @@ for the flow, surface mode for the rest.
 
 DO record one clip per affected user-journey scenario on the base and one on the change, the same steps
 and seeded state on both, shaped and verified per `~/.claude/references/screenshot-review.md` § Record
-useful walkthroughs (title card, trigger, outcome, nothing after). Name them
+useful walkthroughs (first frame is the real UI, trigger, outcome, nothing after; no text slide, the
+TLDR is PR text above the video). Name them
 `scenario-<label>-BEFORE.mp4` / `-AFTER.mp4`, then compose them side by side with
 `~/.claude/bin/pr-evidence.py video` into `scenario-<label>.mp4`; that composed clip is the one posted,
 under its own `### <scenario>` block and a row in the scenario table. Carry each required caveat beside
