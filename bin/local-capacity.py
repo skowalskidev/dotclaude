@@ -6,7 +6,8 @@ MAX_BOOTED_SIMULATORS simulator is claimed, leased or booted machine-wide. A pri
 by `prioritize` reserves one slot while absent; other owners use spare slots. Session workers share
 that owner. One supervised priority command may progress through CPU contention or memory warning
 within the heavy-slot cap. A declared short compute check may pass OS memory warning with CPU
-headroom for at most two minutes; critical or unknown memory never permits either allowance.
+headroom for at most two minutes. The priority owner's stack start may pass OS memory warning within
+max_stacks(); critical or unknown memory never permits any of these allowances.
 Explicitly pause-safe foreground runs yield their own group under primary contention.
 Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
@@ -585,8 +586,12 @@ def sample_host():
     return idle, load, cores, level, source
 
 
-def host_reading(priority_allowance=False, sample=None):
-    """(verdict line, defer reason or None) from one CPU/load/memory sample."""
+def host_reading(priority_allowance=False, sample=None, memory_warning_allowance=False):
+    """(verdict line, defer reason or None) from one CPU/load/memory sample.
+
+    priority_allowance waives CPU contention and OS (sysctl) memory warning; memory_warning_allowance
+    waives only OS memory warning. Neither waives critical, unknown or fallback-warning memory."""
+    warning_waived = priority_allowance or memory_warning_allowance
     idle, load, cores, level, source = sample_host() if sample is None else sample
     reasons = []
     if not priority_allowance and idle < MIN_IDLE_PERCENT:
@@ -594,7 +599,7 @@ def host_reading(priority_allowance=False, sample=None):
     if not priority_allowance and load > LOAD_PER_CORE * cores and idle < LOAD_CONFIRM_IDLE_PERCENT:
         reasons.append("1-minute load %.1f exceeds %s x %s logical cores with CPU idle %.0f%% below %d%%" % (
             load, LOAD_PER_CORE, cores, idle, LOAD_CONFIRM_IDLE_PERCENT))
-    if level >= DEFER_PRESSURE_LEVEL and not (priority_allowance and level == 2 and source == "sysctl"):
+    if level >= DEFER_PRESSURE_LEVEL and not (warning_waived and level == 2 and source == "sysctl"):
         reasons.append("memory pressure is %s (level %d, via %s), at or above warning" % (PRESSURE_NAMES[level], level, source))
     line = "%s idle=%.0f%% (min %d) load=%.1f (max %.1f on %d cores, counts below %d%% idle) memory-pressure=%s (level %d, defer at %d)" % (
         "DEFER" if reasons else "GO", idle, MIN_IDLE_PERCENT, load, LOAD_PER_CORE * cores, cores,
@@ -607,6 +612,23 @@ def admission_guard(what):
     _, reason = host_reading()
     if reason:
         raise Busy("%s deferred: %s; run serially or retry at the next task boundary" % (what, reason))
+
+
+def stack_admission_guard(root, owner):
+    """Ordinary admission for a stack start; the live priority owner may also pass OS memory warning.
+
+    CPU and load thresholds, critical, unknown and fallback-warning memory still defer every owner."""
+    sample = sample_host()
+    _, reason = host_reading(sample=sample)
+    if not reason:
+        return
+    warning_only = host_reading(sample=sample, memory_warning_allowance=True)[1] is None
+    if warning_only:
+        with locked(root):
+            if priority_matches(read_priority(root), owner):
+                return
+    raise Busy("stack start deferred: %s; %s" % (reason, "only the priority session may start a stack at memory warning; "
+               "retry at the next task boundary" if warning_only else "run serially or retry at the next task boundary"))
 
 
 def legacy_slot_dir():
@@ -1150,7 +1172,7 @@ def stack_acquire(root, owner, workspace):
     swept = stack_sweep(True, exclude=workspace)
     running = observe_stacks()
     if workspace not in running:
-        admission_guard("stack start")
+        stack_admission_guard(root, owner)
     with locked(root):
         running = observe_stacks()
         leases = read_stack_leases(root)

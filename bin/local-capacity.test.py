@@ -2376,17 +2376,48 @@ class StackTests(unittest.TestCase):
         gate.stack_acquire(self.root, "gamma", "/w/c")
         self.assertEqual(set(gate.read_stack_leases(self.root)), {"/w/c"})
 
-    def test_prioritize_and_memory_do_not_bypass_the_stack_cap(self):
+    def test_prioritize_does_not_bypass_the_stack_cap_even_at_normal_or_warning_memory(self):
         gate.prioritize(self.root, "vip", 30, False)
         now = time.time()
         self.host["activity"] = {"/w/a": now, "/w/b": now}
         self.running("/w/a", "/w/b")
-        with self.assertRaises(gate.Busy):
-            gate.stack_acquire(self.root, "vip", "/w/c")
-        self.running()
+        for level in (1, 2):
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")):
+                with self.assertRaises(gate.Busy) as refused:
+                    gate.stack_acquire(self.root, "vip", "/w/c")
+            self.assertIn("2 of 2 local dev stacks in use", str(refused.exception))
+        self.assertNotIn("/w/c", gate.read_stack_leases(self.root))
+
+    def test_priority_owner_starts_a_stack_at_os_memory_warning(self):
+        gate.prioritize(self.root, "vip", 30, False)
         with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            gate.stack_acquire(self.root, "vip", "/w/c")
+        self.assertEqual(gate.read_stack_leases(self.root)["/w/c"]["owner"], "vip")
+
+    def test_non_priority_owner_defers_a_stack_at_memory_warning_naming_the_priority_rule(self):
+        gate.prioritize(self.root, "vip", 30, False)
+        for owner in ("other", "vip"):
+            if owner == "vip":
+                gate.prioritize(self.root, None, 0, True)
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+                with self.assertRaises(gate.Busy) as refused:
+                    gate.stack_acquire(self.root, owner, "/w/c")
+            self.assertIn("memory pressure is warning", str(refused.exception))
+            self.assertIn("only the priority session", str(refused.exception))
+        self.assertEqual(gate.read_stack_leases(self.root), {})
+
+    def test_priority_stack_start_still_defers_on_critical_fallback_or_unknown_memory_and_cpu(self):
+        gate.prioritize(self.root, "vip", 30, False)
+        for memory, idle in (((4, "sysctl"), 90), ((2, "compressed-share"), 90), ((2, "sysctl"), 10)):
+            with mock.patch.object(gate, "memory_pressure_level", return_value=memory), \
+                    mock.patch.object(gate, "cpu_idle_percent", return_value=idle):
+                with self.assertRaises(gate.Busy) as refused:
+                    gate.stack_acquire(self.root, "vip", "/w/c")
+            self.assertNotIn("only the priority session", str(refused.exception))
+        with mock.patch.object(gate, "memory_pressure_level", side_effect=gate.ProbeFailed("memory probe failed; defer heavy work")):
             with self.assertRaises(gate.Busy):
                 gate.stack_acquire(self.root, "vip", "/w/c")
+        self.assertEqual(gate.read_stack_leases(self.root), {})
 
     def test_sweep_stops_only_idle_supabase_stacks_and_keeps_volumes(self):
         old = time.time() - (gate.STACK_IDLE_MIN + 1) * 60

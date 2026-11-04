@@ -48,6 +48,7 @@ CONTRACTS: dict[str, dict] = {
             "Stay executable with its python3 shebang; every documented run command carries --owner.",
             "Defer ordinary admission below 20% CPU idle, above 1.5 load per core while idle is below 35%, or at memory warning; cpu reports the reading. Use compressor share above 40% only when the OS pressure signal is unavailable.",
             "Admit one supervised priority command under CPU contention or OS memory warning for its own --max-min, including simulator stages. Ordinary non-priority work still defers. Critical, unknown or fallback-warning memory refuses.",
+            "Admit the live priority owner's stack start at OS memory warning within max_stacks; CPU and load thresholds, critical, unknown or fallback-warning memory still defer it, and every other owner defers at warning.",
             "Admit declared compute short checks for at most 120 seconds at OS warning only with at least 35% CPU idle. Retain lease, priority, simulator and ownership caps; share the one pressure allowance and yield it to new priority.",
             "Monitor short-check memory every ten seconds and CPU headroom at warning; stop only its owned group on critical, unknown, fallback warning, lost headroom or deadline. Refuse unsupervised, native and overlong short-check requests.",
             "Check allowance memory and priority every ten seconds; stop only the owned group on critical or unknown memory, expiry or replacement. Preserve lease cleanup and all simulator, stack and ownership boundaries.",

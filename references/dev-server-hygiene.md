@@ -284,7 +284,7 @@ figure: macOS compresses opportunistically, so 8 GiB compressed on a 24 GB machi
 starved agents for hours. DON'T gate on load alone: macOS counts threads blocked in uninterruptible I/O,
 Spotlight and mobileassetd bursts and zombies, so load read 118 to 208 on 8 cores at 51 to 66% idle and
 refused every heavy step, the prioritized one included, for hours. Use the session-priority allowance below for a prioritized foreground command, a
-simulator run included; stack starts retain these thresholds. WHY: load is
+simulator run included; a stack start takes only the memory-warning part of it (below). WHY: load is
 a lagging one-minute average that reads low while the CPU is pegged and high long after, so idle is the
 saturation measure and load only adds a signal while idle confirms it. TEST: load 200 at 57% idle with
 normal memory prints `GO`; load 200 at 10% idle prints `DEFER`. Simulator admission additionally defers when any device is Booted, Booting or
@@ -571,6 +571,12 @@ counts; a lease counts for 15 minutes (`STACK_START_GRACE_MIN`) before its conta
 Supabase with `-x` excluding every service the task does not use. WHY: the `supabase start` docs (supabase/cli
 `docs/supabase/start.md`) recommend "at least 7GB of RAM to start all services". TEST: a third `stack-acquire` exits 75 naming the two running
 stacks.
+DO let the live priority owner (by `prioritize` owner or registered checkout) start a stack at OS memory
+warning. CPU and load thresholds, critical, unknown or fallback-warning memory and `max_stacks()` still
+defer it; every other owner defers at warning with a line naming the priority rule. WHY: a prioritized
+session's stack start deferred about 40 minutes at warning with 46% memory free and 68% CPU idle.
+TEST: priority at warning is granted; non-priority at warning, priority at critical and a third stack
+over `max_stacks()` all exit 75.
 
 DO stop idle stacks on events only, never on a timer. `stack-acquire` first stops every idle Supabase
 stack: one whose workspace has no live Claude session (`bin/port-registry.sh sessions`) and no commit,
