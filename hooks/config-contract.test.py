@@ -79,7 +79,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("branch-cleanup-closes-owned-inventory", "Task closure accounts for owned refs; requested repo cleanup surfaces unique branches and preserves recovery, activity and remote-write safeguards."),
     ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
     ("session-performance-and-capacity",
-     "Task reports arrive independently, stale review hashes remain pending, and competing heavy work cannot take the same machine lease."),
+     "Task reports arrive independently, stale review hashes remain pending, competing heavy work cannot take the same machine lease, and every documented lease command runs as written."),
     ("after-run-report-owed-once-per-ask",
      "Stop blocks once per request to run the after-run analysis when enough new work landed since "
      "the workspace's last published report; it re-arms on new work, never re-analyses a covered "
@@ -1822,6 +1822,13 @@ def check_session_performance_and_capacity() -> None:
     rule = (ROOT / "rules/self-healing-config.md").read_text()
     check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
           "After-run analysis is not routed from the always-on task lifecycle")
+    engine = ROOT / "bin/local-capacity.py"
+    check(os.access(engine, os.X_OK) and engine.read_text().startswith("#!/usr/bin/env python3"),
+          "bin/local-capacity.py must stay executable with its python3 shebang")
+    bare = [str(path.relative_to(ROOT)) for folder in ("rules", "references", "skills/sk")
+            for path in sorted((ROOT / folder).rglob("*.md"))
+            if re.search(r"local-capacity\.py run(?! --owner)", path.read_text())]
+    check(not bare, "Documented local-capacity.py run lacks --owner: " + ", ".join(bare))
 
 
 def check_screenshot_refresh_follows_final_batch() -> None:

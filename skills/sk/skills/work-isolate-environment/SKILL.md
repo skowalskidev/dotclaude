@@ -38,7 +38,8 @@ package, a Gradle build), apply `~/.claude/references/dev-server-hygiene.md` §
 2. This worktree's OWN derived-data path, passed on the command line (`-derivedDataPath`), never a
    tracked setting.
 3. Every build, test run and boot enters the shared lease through `native-slot.sh run` or
-   `local-capacity.py run`; exit 75 defers that heavy step.
+   `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <command>`; exit 75 defers
+   that heavy step.
 
 TEST: `native-slot.sh list` names this session beside its simulator, and no build of this session
 runs outside the shared lease.

@@ -45,6 +45,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Bounded foreground scheduling for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
         "criteria": [
             "Admit at most HEAVY_SLOTS (3) heavy leases across workspaces, one per owner; a fourth request and unknown simulator state cannot succeed.",
+            "Stay executable with its python3 shebang; every documented run command carries --owner.",
             "Defer ordinary admission below 20% CPU idle, above 1.5 load per core while idle is below 35%, or at memory warning; cpu reports the reading. Use compressor share above 40% only when the OS pressure signal is unavailable.",
             "Admit one supervised priority command under CPU contention or OS memory warning for its own --max-min, including simulator stages. Ordinary non-priority work still defers. Critical, unknown or fallback-warning memory refuses.",
             "Admit declared compute short checks for at most 120 seconds at OS warning only with at least 35% CPU idle. Retain lease, priority, simulator and ownership caps; share the one pressure allowance and yield it to new priority.",
