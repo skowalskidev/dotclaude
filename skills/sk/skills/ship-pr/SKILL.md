@@ -1,17 +1,18 @@
 ---
 name: ship-pr
-description: Simon's PR-authoring standard — every PR body STARTS with a human-readable Deploy TLDR (imperative, do-only numbered steps covering cross-repo order, build prerequisites, deploy commands, and the post-deploy smoke). Apply whenever creating a PR or finalizing one for review, in any repo.
+description: Simon's PR-authoring standard — every PR body STARTS with a before/after TLDR and a Do line, then a human-readable Deploy TLDR (imperative, do-only numbered steps covering cross-repo order, build prerequisites, deploy commands, and the post-deploy smoke). Apply whenever creating a PR or finalizing one for review, in any repo.
 argument-hint: [optional PR number or "draft body" context]
 ---
 
-# Simon's PR standard — Deploy TLDR first
+# Simon's PR standard — TLDR, then Deploy TLDR
 
 Whenever you create a PR, or finalize/flip one to ready-for-review, the body must START
-with a deployment TLDR, before any template sections.
+with `## TLDR` (shape and TEST: `~/.claude/references/tldr-report-formats.md` § Before/after TLDR),
+then the deployment TLDR, before any template sections.
 
 ## The Deploy TLDR block
 
-- Heading: `## 🚀 Deploy TLDR`, as the very first content of the PR body.
+- Heading: `## 🚀 Deploy TLDR`, as the first content after `## TLDR`.
 - Human-readable numbered steps in the imperative mood.
 - **Only what to DO.** Never what not to do — no warnings or prohibitions in this block. If a
   hazard genuinely must be recorded, it goes in Dev Notes, not the TLDR.
@@ -76,12 +77,12 @@ affected on deploy:
 
 - Follow the repo's PULL_REQUEST_TEMPLATE.md and its committed CLAUDE.md GitHub rules
   (ticket-prefixed title from the Linear ticket, reviewer, labels, assignee).
-- DO give every body section a visible `##` or `###` heading: Deploy TLDR, journeys, test matrix,
+- DO give every body section a visible `##` or `###` heading: TLDR, Deploy TLDR, journeys, test matrix,
   prod data, deploy safety, `## Screenshots`, any other. DON'T wrap any section, table, image or
   video in a collapsed `<details>`, and convert one you find while editing the body; a reviewer reads
   a closed block as missing (the fix for screenshots that sat in a closed block and read as missing).
   TEST: the fetched PR `body_html` holds zero collapsed `<details>`: every `<details>` carries the
   `open` attribute (GitHub's own wrapper around an attached video is one).
-- When adding the TLDR to an EXISTING PR: fetch the current body first, verify it is
+- When adding either TLDR to an EXISTING PR: fetch the current body first, verify it is
   non-empty, prepend programmatically, and write back — preserving every existing
   section exactly.

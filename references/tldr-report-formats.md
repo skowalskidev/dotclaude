@@ -11,7 +11,7 @@ the both-ways check for redundant clutter and missing information, no AI-soundin
 `rules/communication.md` owns where questions go and the shape of a message to a person (§ Answer
 first). Don't restate either here.
 
-Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (every block), `/sk:ship-pr` (user journey and system journey in the PR body),
+Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (every block), `/sk:ship-pr` (the before/after TLDR, user journey and system journey in the PR body),
 `/sk:work-full-detailed-workflow` and `references/planning-and-tracking.md` (Block 1 AND Block 2 open every
 plan, reflecting its current trajectory). One owner, so a format fixed once is fixed everywhere.
 
@@ -57,6 +57,33 @@ failed. Each one has to answer, at a glance: what is this about, what is happeni
   saying what happened to it.
 - **Actionable, not narrated.** Every block ends in something the reader can do: approve it, ask a
   named question, or request a specific change.
+
+## Before/after TLDR
+
+**DO open every PR body with `## TLDR`, above `## 🚀 Deploy TLDR`, holding exactly two parts:**
+1. A `| | Before | After |` table, 3-5 rows, one per thing a user or the system sees or does
+   differently. The row label names the real thing; each cell is a few words; the changed value is
+   **bold**; a neighbour a reader might assume moved reads `unchanged`.
+2. One line starting `**Do:**`, after a blank line (GitHub folds an unseparated line into the
+   table): the reader's action (merge, review a named file, decide a named question) plus the one
+   fact that makes it safe or risky.
+
+**DON'T add a prose paragraph, an intro line, or a row restating a section below.** Under 60 words
+total, table pipes excluded.
+WHY: Simon opens a PR and decides from this block alone; every section below is detail on demand.
+
+```
+| | Before | After |
+|---|---|---|
+| Paid-plan searches (server cap) | 50 a week | **200 a month** |
+| Counter resets | every Monday | **on the account's start day** |
+| Free plan | 5 a week | unchanged |
+
+**Do:** merge. The migration applies itself; no current member is refused.
+```
+
+TEST: the fetched PR body's first heading is `## TLDR`, it holds a Before/After table of 3-5 rows and
+a `**Do:**` line, and nothing else before `## 🚀 Deploy TLDR`.
 
 ## Block 1 · User journey
 

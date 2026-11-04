@@ -61,7 +61,7 @@ tickets; a fix that belongs to another PR is handed to that owner via
 7. **`/sk:ship-screenshot-changes`** — capture changed web surfaces and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
    per-scenario videos onto the open PR (GitHub-native); plan the post from the start of the sweep.
-8. **`/sk:ship-pr`** — the PR body carries the Deploy-TLDR.
+8. **`/sk:ship-pr`** — the PR body carries the TLDR and the Deploy-TLDR.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
    hand back a per-ticket verdict report. A gap any stage found inside this PR's own scope is BUILT
@@ -98,7 +98,8 @@ verified the user + system journey, then handed back with it never posted to the
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
 - Feedback (stage 5): 0 unhandled current comment revisions and 0 unresolved review threads;
   every actionable finding has a verdict and reply, with no outstanding blocking decision.
-- Deploy-TLDR (stage 8): the PR body opens with it, each production step carrying its check, smoke
+- TLDR (stage 8): the body opens with the before/after TLDR and a Do line.
+- Deploy-TLDR (stage 8): it follows the TLDR, each production step carrying its check, smoke
   and rollback.
 - Visible sections (every stage): the fetched `body_html` holds zero collapsed `<details>`: each
   one carries `open` (GitHub wraps every attached video in its own open `<details>`); every row
