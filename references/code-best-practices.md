@@ -94,6 +94,14 @@ it with `${=var}`, or pipe a NUL-separated producer into `xargs -0`.
 TEST: no `$VAR` in command position, and no scalar holding several words is expanded as arguments or
 a loop list.
 
+
+**DO make every data collector an agent writes record each read's status, and treat a failed, refused
+or partial read (HTTP error, permission denied, truncated page, capped pagination) as UNKNOWN, never as an
+empty result.** **DON'T** default a failed read to `[]` or `0`; an absence claim ("no complaint on file",
+"no cancellation request") needs a read that succeeded over the whole scope.
+TEST: the collector's output names every failed or partial read, and no finding of absence rests on one
+(the fix for a dispute-evidence gatherer whose failed reads became empty lists and nearly produced "no
+support contact" statements).
 ### Naming — the reader must not have to open the implementation
 
 Applies to anything someone else reads to decide what a thing does: variables, functions, files,
