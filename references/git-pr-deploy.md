@@ -576,6 +576,27 @@ Keep the same project-instruction policy active before consulting a deploy runbo
 3. When something is wrong or merely not as expected, diagnose the cause, fix it, and go back to 1.
 4. Stop when a full pass comes back clean with nothing outstanding.
 
+### Prod check after every production deploy
+
+**DO run these four steps after any merge whose push deploys and after any explicit deploy command,
+before reporting done.** "Merged" is not "live".
+1. **Deploy run.** Resolve the deploy run for the exact merge commit sha from its check runs and wait
+   for it to end. Expect `success` with the deploy jobs run. A green merge queue does not prove it:
+   the run can fail, or skip every deploy job (the fix for a merge reported done while its deploy run
+   skipped every deploy job).
+2. **New build live.** Read a build id, version endpoint or changed asset from production. Expect it
+   to match the merge commit or the changed file.
+3. **Changed behaviour.** Run the PR's Deploy TLDR `Smoke:` line on production. Keep it read-only: no
+   production write without Simon's per-write yes (`rules/connectors.md`), no paid call without a yes
+   (`rules/spend-approval.md`).
+4. **Verdict.** Report pass or fail with the evidence (run url, build id, smoke output). On a fail,
+   report it with the PR's `Rollback:` line and diagnose per step 3 above.
+
+**DO hand Simon only the step that needs a device or account only he has** (e.g. a real phone), after
+running every mechanically checkable step, with that step's expected result.
+TEST: a deploy hand-back cites the deploy run url and conclusion for the merge sha, the live build
+evidence, and the smoke result; a hand-back with only "merged" or "queue green" fails.
+
 The loop exists because the interesting failures only appear here: environment variables that are not
 set, a runtime that differs from local, a build step that drops an asset, a permission that was never
 granted. None of them can fail locally. If a loose end is left, say which one plainly rather than

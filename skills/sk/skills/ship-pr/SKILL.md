@@ -17,7 +17,7 @@ with a deployment TLDR, before any template sections.
   hazard genuinely must be recorded, it goes in Dev Notes, not the TLDR.
 - **DO give every step that changes production four parts:** its order number, a `Check:` line
   (the precondition and its expected result, e.g. "the provider shows the registration approved"),
-  a `Smoke:` line (the post-step check and its expected result), and a `Rollback:` line (the command
+  a `Smoke:` line (the post-step check and its expected result, read-only, run on production after deploy per `references/git-pr-deploy.md` § Prod check after every production deploy), and a `Rollback:` line (the command
   or setting that restores the prior state). Rollback is an action to run, not a caveat. A step with
   no safe rollback says so on its `Rollback:` line. The content comes from
   `~/.claude/references/git-pr-deploy.md` § Deploy safety. TEST: every merge, deploy, migration

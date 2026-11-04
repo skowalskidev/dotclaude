@@ -24,11 +24,14 @@ test on what can be reached); a time-only check is no loose end.
 No new question at hand-back unless only Simon can decide it and it blocks the outcome.
 **DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
 PR awaiting his merge/deploy, a promised smoke or reply. End with the merge list or the single next
-blocker. e.g. after merge, deploy and a passing smoke test, stop there.
+blocker. After merge and deploy, stop only once production is proven live: the deploy run for the
+merge sha passed, prod serves the new build, and the changed behaviour passed its read-only smoke
+(`references/git-pr-deploy.md` § Shipping is not done until the deploy is verified).
 WHY: invented checks block archiving.
 TEST: a finished session's last message has the archive line, at most 2 optional follow-ups, and no
 "the next X will confirm", "worth watching" or "keep an eye on" item; no line, or the line with work
-running, an unmerged session PR or an item unverdicted, fails.
+running, an unmerged session PR or an item unverdicted, fails; so does "merged" reported as done
+with no prod evidence.
 
 ## Five rules for anything you write
 

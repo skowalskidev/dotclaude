@@ -30,12 +30,9 @@ DO apply its § Attributing behaviour to an outsider before calling traffic or a
 TEST: the verdict names the runtime identifiers it was compared against.
 
 ### Research online BEFORE retrying — don't grind on a brick wall
-When something fails and the cause isn't obvious, **search online (WebSearch/WebFetch, official docs,
-GitHub issues) BEFORE retrying the same class of fix.** Two failed attempts at the same wall is the
-trigger, and often the FIRST step for an unfamiliar library, an opaque error code (`ERR_REQUIRE_ESM`), a
-"works in prod but not dev" split, or a module-load failure. Diagnose the ROOT cause (read the failing
-package's code and issues, check version compatibility) over piling on workarounds: a pinned version or
-one-line fix beats three layers of hacks. No tool access? Say so and ask me to paste the docs/issue.
+DO search online (official docs, GitHub issues) after two failed attempts at the same wall, or first for an
+unfamiliar library or opaque error. Diagnose the root cause over piling on workarounds. Detail:
+`references/research.md` § Research before retrying.
 
 ### Agent-written shell fails fast and loud
 DO chain dependent tool-shell steps with `&&` or `bash -c` (bare `set -e` is inert), abort on
