@@ -39,3 +39,5 @@ turns up NOTHING new (aim for one clean sweep after the last fix). Commit each f
 When a sweep is clean, tell Simon plainly: "no more bugs found." List what you tested (realistic + edge)
 and the bugs you fixed with commit refs. The screenshots, the hand-back-and-open, and the opt-in PR post
 are `/sk:ship-screenshot-changes`'s job — done via that skill, not restated here.
+DO take those final screenshots once, after the clean sweep's last fix is committed; sweep-time
+captures are diagnostics, never the posted evidence. TEST: every posted capture postdates the last fix commit.

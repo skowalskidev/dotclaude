@@ -47,8 +47,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    the run, multi-PR and multi-repo included, as real skill invocations dispatched per PR as parallel
    background agents on that same fan-out.** They never block: every stage that reads neither result
    proceeds, ship-report reads the matrix for its per-ticket verdicts (including each feature's
-   simulation applicability and evidence), data-surface screenshots wait on the prod-data data mode,
-   and the landing gate waits on both. Delegate applicability to prod-data's own Phase 1; record
+   simulation applicability and evidence), stage 7's capture waits on the prod-data data mode and on
+   every fix round, and the landing gate waits on both. Delegate applicability to prod-data's own Phase 1; record
    its compatibility verdict or doesn't-apply verdict with the traced reason.
    **DON'T substitute ad-hoc suites or one-off queries for either skill, or skip prod-data because the
    diff looks data-free:** a Standard PR runs prod-data's Phase 1, and a dependency it finds makes the
@@ -65,7 +65,11 @@ tickets; a fix that belongs to another PR is handed to that owner via
    without Simon asking.
 7. **`/sk:ship-screenshot-changes`** — at the PR's tier, capture changed web surfaces and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
-   per-scenario videos onto the open PR (GitHub-native); plan the post from the start of the sweep.
+   per-scenario videos onto the open PR (GitHub-native). Plan the post from the start of the sweep;
+   capture ONCE, after stages 3-6 fixes are committed and pushed, on the final head, per
+   `references/screenshot-review.md` § Refresh after the follow-up batch.
+   **DON'T dispatch the AFTER capture in stage 6's fan-out**; only a base-branch BEFORE capture runs early.
+   TEST: every posted AFTER capture names the PR's final pushed head or carries unchanged-point reuse proof.
 8. **`/sk:ship-pr`** — the PR body carries the TLDR and the Deploy-TLDR.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,

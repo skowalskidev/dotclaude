@@ -205,8 +205,9 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   `references/dev-server-hygiene.md` § Private process inspection. TEST: zero exposed values;
   signal only proven owned processes or candidates passing the existing orphan gate.
 - **Claim a port lane and heavy lease before binding, building or booting.** Use `bin/port-slot.sh`
-  and `bin/local-capacity.py run`. Fill spare capacity beside the primary; wait/resume automatically
-  and yield at safe command boundaries. Exit 75 → record the retry and keep editing.
+  and `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <cmd>`. Fill spare
+  capacity beside the primary; wait/resume automatically and yield at safe command boundaries.
+  Exit 75 → record the retry and keep editing.
   Run `prioritize` only when Simon names the task to go first ("don't defer" counts); clear it after.
   Every heavy step holds a lease. Act on a `watchdog:` line naming this session at once.
   Never kill a live owner's build or simulator; only a printed `reclaim-sim` frees an ended owner's.

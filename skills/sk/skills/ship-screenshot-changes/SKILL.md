@@ -23,6 +23,11 @@ to the change: the complete matrix is the Deep tier, and a Light change gets one
 its changed state at 390×844 with no video. A direct ask from Simon for the full review runs it whole.
 TEST: a Light run posts one pair and a one-line `Skipped (tier light)` reason for the rest of the matrix.
 
+DO take AFTER captures once, on the batch's final head, per the reference's § Refresh after the
+follow-up batch. Invoked before review and fix rounds converge, plan the matrix and seed data only
+(Steps 1-2) and a base-branch BEFORE capture, then capture after the last fix lands.
+TEST: no AFTER capture's source revision precedes the batch's last fix commit.
+
 ## Step 0 — Log in to the running app (project-specific)
 
 **Read `~/.claude/references/browser-debugging.md` AND the project's `CLAUDE.local.md` FIRST — before

@@ -397,7 +397,8 @@ the same gate, and a busy gate defers only the heavy step.
   working directory and shell; carry the project-selected runtime into that command. TEST: no worker install
   starts before cache warming ends, and each child resolves the required runtime before its batch begins.
 - **Admit native work through the shared capacity lease named in each worker prompt.** Use
-  `bin/local-capacity.py run` or the `bin/native-slot.sh` compatibility frontend. Exit 75 defers
+  `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <command>` or the
+  `bin/native-slot.sh` compatibility frontend. Exit 75 defers
   only the heavy step; keep edits and permitted diagnostics moving. Do not nest leases or wait
   without a deadline. TEST: prompts for native workers name the shared engine, a worker cap,
   and the scoped command it will run.
