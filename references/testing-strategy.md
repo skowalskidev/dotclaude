@@ -263,6 +263,15 @@ Do not move old events into today's window, clear contamination or fill absent e
 preview. TEST: counts and a field-level comparison against the export match except for the declared
 identity/redaction mapping; every windowed result names its calculation clock.
 
+DO corroborate every money, spend or attribution figure the change reads against its external system
+of record (the payment processor, the app store's billing service, the ad platform) through the
+provisioned connector or secret-store path, over the same window, before calling the figure correct.
+Report each source as match or mismatch with both totals. DON'T reconcile the database only against
+itself: two queries over the same tables agree even when a writer never recorded an event.
+TEST: every money, spend or attribution figure in the hand-back names its external source, both totals
+and the window, or the exact access gap. (the fix for store refunds a webhook revoked access on but
+never recorded, found only when the billing service's own refund chart was compared.)
+
 ## Prepare derived state before capture
 
 Trace the app's read path to the store it actually consumes. Import the production copy only into an
