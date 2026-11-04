@@ -34,7 +34,9 @@
 #         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
 #         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]
-#                                 called by the model — record the landing-gate result for that head
+#                                 called by the model — record the landing-gate result for that head;
+#                                 PASS for a branch with an open PR records only when
+#                                 bin/pr-landing-gate.py passes on the fetched PR (exit 1 otherwise)
 #         stop                    Stop — require reconciliation after the newest recorded input, then
 #                                 a gate record for every pushed branch head
 
@@ -219,6 +221,31 @@ record_push() { # record_push ROOT SRC DST
   src="${2#+}"; [ -n "$src" ] || src=HEAD
   sha="$(git -C "$1" rev-parse --verify -q "$src^{commit}" 2>/dev/null)" || return 0
   printf '%s\t%s\t%s\n' "$1" "$b" "$sha" >> "$PUSHES" 2>/dev/null
+}
+
+# landing_check BRANCH — 0 when the branch has no open PR on a GitHub origin, or when
+# bin/pr-landing-gate.py passes on that PR. Otherwise prints the missing rows and fails, so `gate PASS`
+# records nothing. A PR that cannot be looked up or fetched fails: a fetch failure never passes.
+landing_check() {
+  url="$(git remote get-url origin 2>/dev/null)" || return 0
+  repo="$(printf '%s' "$url" | sed -nE 's#^(https://([^@/]+@)?|ssh://git@|git@)github\.com[:/]([^/]+/[^/]+)$#\3#p')"
+  repo="${repo%/}"; repo="${repo%.git}"
+  [ -n "$repo" ] || return 0                                  # not a GitHub origin: no PR to check
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "gate: PASS refused: gh is missing, so open PRs for $1 on $repo cannot be checked" >&2
+    return 1
+  fi
+  prs="$(gh pr list --repo "$repo" --head "$1" --state open --json number,url 2>/dev/null)" || {
+    echo "gate: PASS refused: gh pr list failed for $1 on $repo (a fetch failure never passes)" >&2
+    return 1; }
+  num="$(printf '%s' "$prs" | jq -r '.[0].number // empty' 2>/dev/null)"
+  [ -n "$num" ] || return 0                                   # no open PR: unchanged behaviour
+  out="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" 2>&1)" && {
+    printf '%s\n' "$out"; return 0; }
+  printf '%s\n' "$out" >&2
+  echo "gate: PASS refused for $1: $repo#$num fails the landing gate above. Post each missing \
+row to the PR body, then rerun gate PASS; or record BLOCKED with the blocker." >&2
+  return 1
 }
 
 gate_pairs() { # branch and sha of every recorded gate, outside prompt fences
@@ -480,6 +507,7 @@ gate)
   sha="$(git rev-parse --verify -q "$ref^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$ref" | tr '[:upper:]' '[:lower:]')"
   case "$sha" in *[!0-9a-f]*|"") echo "gate: cannot resolve $ref to a commit" >&2; exit 2 ;; esac
   [ "${#sha}" -ge 7 ] || { echo "gate: sha needs 7+ characters" >&2; exit 2; }
+  if [ "$status" = PASS ]; then landing_check "$branch" || exit 1; fi
   resolve || { echo "gate: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
   acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"

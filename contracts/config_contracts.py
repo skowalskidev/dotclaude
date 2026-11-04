@@ -349,6 +349,21 @@ CONTRACTS: dict[str, dict] = {
             "Python 3.9+, standard library only; keep bin/design-diff.test.py passing under /usr/bin/python3.",
         ],
     },
+    "bin/pr-landing-gate.py": {
+        "mission": "Simon never gets a ship-gate PASS on a PR whose fetched body lacks a landing-gate row, because the record itself is refused.",
+        "purpose": "Fetches a PR body, body_html and review threads through gh and checks every landing-gate row.",
+        "criteria": [
+            "Own the PR body's section headings in SECTIONS; /sk:ship-pr, references/tldr-report-formats.md and the ship harness name this file instead of restating them.",
+            "Match a heading with any emoji or punctuation prefix and any case; ignore headings inside code fences; a summary row under another heading never counts.",
+            "Fail when the first heading is not TLDR with a Before/After table and **Do:** line, or the Deploy TLDR does not follow it, or either journey heading is missing.",
+            "Fail a Test matrix that names no tier, or with no results table or no number beside each of COVERED, GAP, NEEDS-DRIVING and SKIPPED.",
+            "Accept a Light or Standard PR's `Skipped (tier light|standard): <trigger>` line, trigger of three or more words, in place of the matrix, prod-data and deploy-safety legs.",
+            "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
+            "Fail Screenshots without an image or a stated no-eligible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
+            "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
+            "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
+        ],
+    },
     "bin/visual-check.py": {
         "mission": "Simon never opens a visual artifact that renders blank, because the exact file he opens was checked in every state he can switch to.",
         "purpose": "Opens one artifact headlessly per viewport x state, screenshots it full page, and prints a pass table.",
@@ -1064,6 +1079,7 @@ CONTRACTS: dict[str, dict] = {
             "tickets.",
             "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, and Deep runs every stage as written.",
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
+            "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Plan the screenshot post from the sweep start; dispatch AFTER capture once, after stages 3-6 fixes are committed and pushed, on the final head, never in stage 6's fan-out.",
@@ -1414,6 +1430,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "PR bodies that open with a before/after TLDR, then a deploy TLDR.",
         "criteria": [
             "The body opens with ## TLDR: a Before/After table of 3-5 rows and a **Do:** line, shape owned by references/tldr-report-formats.md; the Deploy TLDR follows it, before any template section.",
+            "Name bin/pr-landing-gate.py as the one home of the body's section headings and run it on the fetched PR.",
             "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero collapsed <details>: every <details> carries open, as GitHub's own attached-video wrapper does.",
             "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
             "A User journey and a System journey section follow it, read from "
@@ -2104,6 +2121,9 @@ CONTRACTS: dict[str, dict] = {
             "open pushes, also on a stop_hook_active continuation, until each branch's newest pushed head has "
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
             "never counts.",
+            "`gate PASS` for a branch with an open PR on a GitHub origin records only when bin/pr-landing-gate.py "
+            "exits 0, else exits 1 printing the missing rows; a failed PR lookup refuses PASS. BLOCKED, N/A, "
+            "no open PR and non-GitHub origins are unchanged.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
