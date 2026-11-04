@@ -66,6 +66,8 @@ Tier: deep (a member's search limit and its billing plan).
 | 1 | 201st search refused | db test | COVERED |
 | 2 | Rendered cards | e2e with a mocked server | NEEDS-DRIVING |
 
+Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and request logs.
+
 ## Prod data
 
 **PASS with unknowns** (read-only).
@@ -115,7 +117,8 @@ check(rows(missing) == {"Test matrix"}, f"One-row matrix summary did not fail on
 
 # A tier skip line stands in for the matrix, prod-data and deploy-safety legs; the tier must be named.
 skip = "Skipped (tier light): style-only change to one table cell\n\n"
-light = section(PASSING, "Test matrix", "## Test matrix\n\nTier: light (one table cell's CSS).\n\n" + skip)
+light = section(PASSING, "Test matrix", "## Test matrix\n\nTier: light (one table cell's CSS).\n\n" + skip
+                + "Real-environment walk: " + skip)
 light = section(light, "Prod data", "## Prod data\n\n" + skip)
 light = section(light, "Deploy safety", "## Deploy safety\n\n" + skip)
 check(gate.check_body(light, HTML, 0) == [], f"A light PR with skip lines failed: {gate.check_body(light, HTML, 0)}")
@@ -124,6 +127,19 @@ check({"Test matrix", "Prod data", "Deploy safety"} <= rows(gate.check_body(bare
       "A skip line with no trigger passed")
 untiered = PASSING.replace("Tier: deep (a member's search limit and its billing plan).\n\n", "")
 check(any("no tier named" in m for m in gate.check_body(untiered, HTML, 0)), "A matrix with no tier named passed")
+
+# The matrix section holds the real-environment walk line: PASS, a reasoned N/A or a skip line, never FAIL.
+WALK_LINE = "Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and request logs."
+check(any("no Real-environment walk line" in m for m in gate.check_body(PASSING.replace(WALK_LINE, ""), HTML, 0)),
+      "A matrix with no walk line passed")
+check(any("walk records a FAIL" in m for m in
+          gate.check_body(PASSING.replace(WALK_LINE, "Real-environment walk: FAIL, partner page example is stale."), HTML, 0)),
+      "A failing walk passed")
+walk_na = "Real-environment walk: does not apply, the repo has no runnable local stack."
+check(gate.check_body(PASSING.replace(WALK_LINE, walk_na), HTML, 0) == [], "A reasoned walk N/A failed")
+check(any("walk has no PASS" in m for m in
+          gate.check_body(PASSING.replace(WALK_LINE, "Real-environment walk: N/A"), HTML, 0)),
+      "A bare walk N/A passed")
 
 # A matrix section missing one count label names that label.
 no_gap = PASSING.replace("· 0 GAP ", "")

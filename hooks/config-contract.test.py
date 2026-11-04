@@ -104,6 +104,9 @@ CRITERIA: list[tuple[str, str]] = [
      "PR before/after screenshots and videos come from one template: bands above the UI, outline-only callouts, the layout rule, timed video ending together."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
+    ("matrix-binds-copies-and-walks-real-stack",
+     "The matrix binds copied values to their source and walks every changed state on the real local stack, "
+     "judged per source criterion; the ship harness runs both on Standard PRs."),
     ("design-diff-measures-changed-regions",
      "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
     ("dashboard-runtime-preserves-completion",
@@ -1902,6 +1905,21 @@ def check_pr_landing_gate_refuses_missing_rows() -> None:
               f"{path} does not point at bin/pr-landing-gate.py for the landing-gate rows")
     check('landing_check "$branch"' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
           "intent-ledger.sh gate PASS no longer runs the landing-gate checker")
+
+
+def check_matrix_binds_copies_and_walks_real_stack() -> None:
+    matrix = (ROOT / "skills/sk/skills/test-automated-full-matrix/SKILL.md").read_text()
+    flat = " ".join(matrix.split())
+    for required in ("DO bind every copied value to its source", "every stacked or sibling PR",
+                     "DO walk every changed screen and state autonomously on the real local stack",
+                     "base BEFORE", "(method, URL, headers, body, response)", "every downstream surface",
+                     "one verdict citing that evidence", "DON'T count green suites", "Redact token and cookie values",
+                     "`Real-environment walk:`"):
+        check(required in flat, "Matrix skill lost: " + required)
+    ship = " ".join((ROOT / "skills/sk/skills/ship-full-detailed-workflow/SKILL.md").read_text().split())
+    check("copy binding and real-environment walk on every Standard PR" in ship
+          and "the `Real-environment walk:` line" in ship,
+          "Ship harness no longer runs the walk on Standard PRs or lists it at the landing gate")
 
 
 def check_design_diff_measures_changed_regions() -> None:

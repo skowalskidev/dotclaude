@@ -8,7 +8,7 @@ GraphQL), then checks the rows /sk:ship-full-detailed-workflow § Landing gate l
 is the ONE home of the PR body's section headings: /sk:ship-pr, references/tldr-report-formats.md
 and the harness name this file instead of restating them. A heading matches with any emoji or
 punctuation prefix and any case ("## 🚀 Deploy TLDR"), and may carry a suffix after a non-letter
-("## Test matrix (head abc1234)").
+("## Test matrix (head abc1234)"). The Test matrix section also holds a Real-environment walk line.
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -40,6 +40,8 @@ NO_SURFACE = re.compile(r"no (?:eligible |changed |visible )?(?:frontend |UI |us
 # skipped heading with this line, and its trigger is at least three words.
 TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
 TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:light|standard|deep)\b|\b(?:light|standard|deep)\W{0,3}tier\b", re.I)
+# /sk:test-automated-full-matrix's real-environment walk: one line in the Test matrix section.
+WALK = re.compile(r"^.*real[- ]environment walk.*$", re.I | re.M)
 COLLAPSED = re.compile(r"<details(?![^>]*\bopen\b)[^>]*>", re.I)
 THREADS_QUERY = """query($owner:String!,$name:String!,$pr:Int!,$after:String){
   repository(owner:$owner,name:$name){pullRequest(number:$pr){
@@ -142,6 +144,13 @@ def check_body(body, body_html, unresolved):
                 missing.append("Test matrix: no count for " + ", ".join(absent))
             if not has_table(matrix):
                 missing.append("Test matrix: no results table")
+        walk = WALK.findall(matrix)
+        if not walk:
+            missing.append("Test matrix: no Real-environment walk line")
+        elif any(re.search(r"\bFAIL", w) for w in walk):
+            missing.append("Test matrix: the Real-environment walk records a FAIL")
+        elif not any(re.search(r"\bPASS\b", w) or reasoned_na(w) or TIER_SKIP.search(w) for w in walk):
+            missing.append("Test matrix: the Real-environment walk has no PASS, doesn't-apply reason or skip line")
 
     prod = found.get("Prod data")
     if prod is None:

@@ -63,6 +63,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    **DON'T treat each PR's green CI as proof the set merges and deploys safely.** TEST: every Deep PR in
    the run shows the merge-train result, migration verdict and cutover table at the landing gate
    without Simon asking.
+   **DO run `/sk:test-automated-full-matrix`'s copy binding and real-environment walk on every Standard
+   PR too, after stage 3-6 fixes, on the final head;** a Deep PR's matrix runs them. TEST: every
+   Standard and Deep PR's Test matrix section holds its `Real-environment walk:` line.
 7. **`/sk:ship-screenshot-changes`** — at the PR's tier, capture changed web surfaces and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
    per-scenario videos onto the open PR (GitHub-native). Plan the post from the start of the sweep;
@@ -95,7 +98,7 @@ verified the user + system journey, then handed back with it never posted to the
 - Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
 - Matrix (stage 6), on every Deep PR: the results table with its COVERED, GAP, NEEDS-DRIVING and SKIPPED
   counts, each feature's simulation evidence or concrete N/A reason, and explicit verdicts for required
-  cases that did not run.
+  cases that did not run; on every PR, the `Real-environment walk:` line (a skip line on Light).
 - Prod data (stage 6), on every Deep PR: the compatibility verdict from the owning skill, including
   checked cohorts, unknowns and activation dependencies, or its doesn't-apply verdict with the traced
   reason. An unknown cohort or unmet activation dependency cannot become a compatibility PASS.

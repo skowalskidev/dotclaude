@@ -358,6 +358,7 @@ CONTRACTS: dict[str, dict] = {
             "Fail when the first heading is not TLDR with a Before/After table and **Do:** line, or the Deploy TLDR does not follow it, or either journey heading is missing.",
             "Fail a Test matrix that names no tier, or with no results table or no number beside each of COVERED, GAP, NEEDS-DRIVING and SKIPPED.",
             "Accept a Light or Standard PR's `Skipped (tier light|standard): <trigger>` line, trigger of three or more words, in place of the matrix, prod-data and deploy-safety legs.",
+            "Fail a Test matrix with no Real-environment walk line, or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-eligible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
@@ -1022,6 +1023,7 @@ CONTRACTS: dict[str, dict] = {
             "restate it. Fans out via /sk:work-hyperspeed.",
             "Include simulation applicability and evidence for each feature under testing-strategy.md; required but unrun cases remain explicit gaps or skips, never N/A or covered.",
             "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
+            "Bind every copied value in the diff and its stacked or sibling PRs to its source, and walk every changed state on the real local stack, judging each recorded source criterion from screenshots, requests and rows.",
         ],
     },
     "skills/sk/skills/work-does-this-make-sense-to-build/SKILL.md": {
@@ -1080,6 +1082,7 @@ CONTRACTS: dict[str, dict] = {
             "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, and Deep runs every stage as written.",
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
+            "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head; a Deep PR's matrix runs them.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Plan the screenshot post from the sweep start; dispatch AFTER capture once, after stages 3-6 fixes are committed and pushed, on the final head, never in stage 6's fan-out.",

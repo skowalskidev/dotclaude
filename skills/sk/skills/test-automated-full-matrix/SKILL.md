@@ -33,6 +33,19 @@ PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
 3. **Run the final batch gate once.** The coordinator deduplicates suites across all rows, reuses matching
    passing evidence and runs uncovered relevant checks. Attach results to the matrix; a later workflow
    stage consumes them without rerunning unchanged coverage. Fix failures and rerun affected checks.
+   **DO bind every copied value to its source:** grep the diff and every stacked or sibling PR in the
+   run for copy, examples and constants restating what another file computes (a static page quoting
+   generated text, a constant typed twice), then derive each from its source or add a test comparing it
+   to the source's real output. TEST: every such copy derives or has a binding test.
+   **DO walk every changed screen and state autonomously on the real local stack, when one exists,** on
+   the final head with seeded test data and paid providers stubbed: screenshot each state beside its
+   base BEFORE; record each request (method, URL, headers, body, response) and the persisted rows,
+   then open every downstream surface reading them; judge each acceptance criterion and source claim in
+   the living plan with one verdict citing that evidence. Redact token and cookie values; walk captures
+   are diagnostics. **DON'T count green suites as this evidence.** TEST: the matrix holds a
+   `Real-environment walk:` line with one verdict per source, or a named no-local-stack reason (the fix
+   for a static page's example text left stale by a stacked PR: suites, reviews and screenshots passed,
+   and only a real-stack walk found it).
 4. **Assemble the matrix, save + post.** Save it under the run's `.context/`; POST it to the PR's tests
    section GitHub-native, on `/sk:ship-screenshot-changes` Step 5's posting rails.
 5. **Autonomous to the end.** No human step. Mark unreachable rendered interactions NEEDS-DRIVING and
