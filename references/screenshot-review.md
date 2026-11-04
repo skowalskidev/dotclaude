@@ -89,30 +89,34 @@ DO record one video per user-journey scenario the change affects, each a separat
 captioned by its scenario (e.g. "Ask the cash price while it is still loading"). Take the scenarios
 from the acceptance criteria and the change's states: happy path, loading, slow, a follow-up action
 during loading, and each limit or failure. A combined walk never replaces the per-scenario videos.
-DO shape every clip the same way: a 2-3 s title card stating the scenario and what to watch for (a
-static full-screen page opened in the recording context before the app, never an overlay on the UI),
-then the app from immediately before the triggering action (tap, typing, send), driven at human pace,
-ending 1-2 s after the outcome is on screen. Trim everything after the outcome: no idle tail, no
-unrelated navigation, no next scenario. The composer's final-state hold freezes that outcome frame and
+DO start every clip on the first frame of the real UI, immediately before the triggering action
+(tap, typing, send), driven at human pace, ending 1-2 s after the outcome is on screen. Trim
+everything after the outcome: no idle tail, no unrelated navigation, no next scenario. The composer's final-state hold freezes that outcome frame and
 is not a tail. Web: Playwright `recordVideo` or a Chrome for Testing screencast.
+DON'T put a text slide, title card or intro page in the video; the explanation is real text in the PR.
+DO write each scenario's TLDR as 1-2 lines of PR-body text directly above its video: what the clip
+shows and the expected behaviour (e.g. "Asks the cash price while it loads. Expect a spinner, then
+the fare in the same reply."). It doubles as the scenario table's `What happens` cell.
 DO verify each clip by sampling frames (`ffmpeg -ss <t> -i <clip> -frames:v 1 <png>`) and viewing them:
-the first frame is the title card, a frame at the action shows the trigger, and the last frame shows
-the scenario's outcome, each matching the caption. `ffprobe` duration above 0. Post it to the PR as a
-playable inline video through that skill's attachment and rendered-playback checks; a text link or
+the first frame is the app UI just before the action, a frame at the action shows the trigger, and the
+last frame shows the scenario's outcome, each matching the TLDR. `ffprobe` duration above 0. Post it
+to the PR as a playable inline video through that skill's attachment and rendered-playback checks; a text link or
 thumbnail does not pass.
-NUMBER: at least 8 seconds including the title card, and at least 3 distinct states (title card,
-action, outcome). States = 1 +
+NUMBER: at least 8 seconds, at least 3 distinct states (UI before the action, action, outcome), and a
+TLDR of at most 2 lines. States = 1 +
 `ffmpeg -i <clip> -vf "fps=1,select='gt(scene,0.15)',showinfo" -an -f null - 2>&1 | grep -c pts_time`.
-DO lengthen the title card or lead-in for a short scenario, never the tail. Skip video only for a change
-with no visible UI or no interaction to drive (a static copy or style change carried by its screenshot
+DO lengthen the UI lead-in before the action for a short scenario, never the tail. Skip video only
+for a change with no visible UI or no interaction to drive (a static copy or style change carried by its screenshot
 pair), and state that skip in the report.
 DON'T hand back screenshots alone for an affected scenario, post one walk covering several scenarios,
 or let a clip run past its outcome (the fix for a PR whose one walk showed part of a scenario, then
-unrelated screens to the end, so the reviewer had to run the app himself; and for clips that were 3
-seconds of one success screen).
+unrelated screens to the end, so the reviewer had to run the app himself; for clips that were 3
+seconds of one success screen; and for clips that opened on a text slide the reviewer had to sit
+through instead of reading it above the player).
 TEST: every affected scenario has its own playable inline video, explicit blocked reason or stated
-skip; each clip's sampled first frame is its title card and its last frame shows the captioned
-outcome; no clip is under 8 seconds or 3 states.
+skip; each clip's sampled first frame is the app UI, never a text slide, and its last frame shows the
+outcome its TLDR names; every posted video has a 1-2 line TLDR directly above it in the PR body; no clip
+is under 8 seconds or 3 states.
 
 DO run every automated playback check, local or on the posted comment, in a browser that decodes the
 clip: branded Chrome (`chromium.launch({channel:'chrome'})`) for MP4/H.264, because open-source Chromium
@@ -188,7 +192,8 @@ DO post one block per point in the PR description, with a comment only when desc
 is unsupported or blocked, all under that top-level `## Screenshots` section: `### <point>`, one line naming what the left (or top)
 and right (or bottom) frames show, then per posted platform a `**Desktop**` / `**Mobile**` / `**iOS**`
 label over its composed image (`<img src="<url>" width="800" alt="<point> <platform> before and after">`),
-then the composed video alone in its own paragraph, never inside a collapsed `<details>` (rule:
+then the scenario's 1-2 line TLDR (§ Record useful walkthroughs) as plain text, then the composed video
+alone in its own paragraph directly below that TLDR, never inside a collapsed `<details>` (rule:
 `/sk:ship-pr` § The rest of the body). A new surface posts its AFTER frame under
 `Before: n/a: new, no before`; a platform without evidence shows `not run: <reason>` or
 `blocked: <reason>`. Feature-detect `gh pr edit --attach` and use
@@ -329,7 +334,7 @@ pass table proves the page renders whole, not that it matches the design.
 `bin/mockup-shots.py` stays the per-state capture for mockup shells and does not replace this check.
 TEST: every artifact hand-off carries a pass table whose rows cover every switchable state of the file
 actually opened, and re-running the command on that file exits 0 A PR evidence hand-off also lists, per video,
-its scenario and the sampled title-card, action and last frames, each matching its caption (§ Record
+its scenario, its TLDR and the sampled first-UI, action and last frames, each matching that TLDR (§ Record
 useful walkthroughs).
 
 ## Research basis

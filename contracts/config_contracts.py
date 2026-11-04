@@ -274,8 +274,8 @@ CONTRACTS: dict[str, dict] = {
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
             "Refresh evidence by default after all current ticket follow-ups, review fixes and required checks finish; honor explicit waivers, reopen pending refresh after new work, and require final-source or unchanged-point reuse proof.",
             "Group evidence by point: every case carries a point and a column, the manifest declares the ordered columns, and a platform or size a point lacks shows its status and reason in its cell, never dropped or listed apart.",
-            "Record one separate video per affected user-journey scenario (from acceptance criteria and states: happy, loading, slow, follow-up during loading, each limit or failure), named and captioned by it; a combined walk never replaces them. Each opens on a title card, starts just before the trigger and ends 1-2 s after the outcome with no tail; verify by sampled title, action and last frames matching the caption; skip only no-UI or no-interaction changes, stated.",
-            "Reject a clip under 8 seconds including the title card or under 3 distinct states (ffmpeg 1 fps scene count above 0.15); lengthen the title card or lead-in, never the tail.",
+            "Record one separate video per affected user-journey scenario (from acceptance criteria and states: happy, loading, slow, follow-up during loading, each limit or failure), named and captioned by it; a combined walk never replaces them. Each opens on the real UI just before the trigger with no text slide or title card in the video, and ends 1-2 s after the outcome with no tail; its 1-2 line TLDR (what it shows, expected behaviour) is PR-body text directly above the video; verify by sampled first-UI, action and last frames matching the TLDR; skip only no-UI or no-interaction changes, stated.",
+            "Reject a clip under 8 seconds or under 3 distinct states (ffmpeg 1 fps scene count above 0.15); lengthen the UI lead-in, never the tail.",
             "Run playback checks in a browser that decodes the clip (branded Chrome for H.264, or VP9/WebM) after a known-good control clip passes; record channel and version; zero played is a verifier defect.",
             "Record BEFORE on a local or preview build of the base branch, never a production host.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
@@ -456,6 +456,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "How Claude talks to Simon, and how it writes prompts for subagents.",
         "criteria": [
             "Questions consolidate into one block at the END of a turn.",
+            "Owns the shape of every human-facing message (chat reply, Slack/DM, PR comment, message sent for Simon): line 1 is `Action needed: <what>` or `No action needed`, then at most 5 one-line bullets of at most 20 words, one per distinct issue or outcome, then required actions as numbered steps in the end block; no prose paragraph or background that does not change the action.",
             "A finished session (every ask verdicted, no running work, lease or port, clean pushed worktree) ends its last message with the single line 'You can archive this session: everything here is done.'; never mid-run or while the session holds anything Simon needs: CI or a job on a pushed head, an open session PR awaiting his merge or deploy, or a promised smoke or reply. When only his merge remains, it ends with the ordered merge list and no archive line. After a deploy, 'finished' also needs the production check passed.",
             "Closure is reasonable: once the ask's outcome is delivered and verified to a reasonable level, stop; what only time, a real customer or a future event can confirm is dropped or one short clause, at most 2 optional follow-ups that never withhold the archive line, and no new question at hand-back unless a decision only Simon can make blocks the outcome. Never weakens CI, tests, reachable walkthroughs, security or a requested feature.",
             "Owns the five writing rules. copilot-testing and parallelization point here and do "
@@ -928,7 +929,8 @@ CONTRACTS: dict[str, dict] = {
             "Sole owner of every block SHAPE. planning-and-tracking.md, pr, end-report and "
             "full-detailed-workflow point here and never restate a format.",
             "Owns shape only. rules/copy-quality.md keeps the writing standard and the Five Ws "
-            "check; rules/communication.md keeps where questions go.",
+            "check; rules/communication.md keeps where questions go and the human-facing message "
+            "rule, with its example and WHYs held here.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
             "it does. A silent stop is invisible in the user journey and is the defect this catches.",
             "The two journeys are cross-checked and every mismatch is stated. Printing both and "

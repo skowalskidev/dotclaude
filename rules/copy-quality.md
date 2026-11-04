@@ -51,7 +51,7 @@ Same surfaces as above: anything a human reads. The economy half also applies to
 (`CLAUDE.md`, `ABOUT.md`, plans, PR bodies) — bloat there costs context on every future run.
 
 **Lead with the answer.** Write the shortest version that still lets the reader act, then stop.
-Reams of prose are not thoroughness; they bury the one line the reader needed.
+A message to a person takes the shape in `rules/communication.md` § Answer first.
 
 **Check every explanation BOTH ways before shipping it** — most writing fails on one side or the other:
 - **Cut what's redundant** — anything restating a heading, a label, an adjacent element, or a point

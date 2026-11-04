@@ -8,11 +8,40 @@ writing a plan, a ticket, a PR body, or an end report.
 **Boundary.** This file owns the SHAPE — which parts, in what order, and the test each block has to
 pass. `rules/copy-quality.md` owns the WRITING: lead with the answer, the Five Ws completeness check,
 the both-ways check for redundant clutter and missing information, no AI-sounding copy, no em dashes.
-`rules/communication.md` owns where questions go. Don't restate either here.
+`rules/communication.md` owns where questions go and the shape of a message to a person (§ Answer
+first). Don't restate either here.
 
 Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (every block), `/sk:ship-pr` (user journey and system journey in the PR body),
 `/sk:work-full-detailed-workflow` and `references/planning-and-tracking.md` (Block 1 AND Block 2 open every
 plan, reflecting its current trajectory). One owner, so a format fixed once is fixed everywhere.
+
+## Human-facing messages
+
+The rule, number and TEST live in `rules/communication.md` § Answer first. This section holds its
+example and the WHYs moved out of `rules/` to keep the always-on budget.
+
+DO copy this shape for a chat reply, Slack/DM, PR comment or message sent for Simon:
+
+```
+Action needed: approve the migration in PR #812
+- Search results now cached 6 h, so a repeat search makes no API call
+- Dates past the provider's 330-day horizon skip the call
+- Migration 705 adds one nullable column; nothing else touches prod
+
+Your call
+1. Approve `db/705_add_cache_column.sql` in PR #812
+```
+
+WHY, one per rule:
+- Line 1 action verdict: Simon reads the first line and decides; the reader acts on line one or the
+  reply failed. Nuance he did not ask for buries the line he needed.
+- No prose paragraph: reams of prose are not thoroughness; they bury the one line the reader needed.
+- One end question block (clarification, decision, confirmation, "want me to also…"): a question
+  mid-answer stops him reading the answer.
+- Subagent prompts follow the writing rules: a vague delegation returns vague work, and the subagent
+  cannot ask a follow-up.
+- A pasted example is not a spec: asking him to confirm its specifics spends the one-question-block
+  channel on detail he never meant as a spec.
 
 ## The glance test — what every block must pass
 
