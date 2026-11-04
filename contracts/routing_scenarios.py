@@ -82,6 +82,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "walk me through testing", "expect": "test-copilot"},
     {"phrase": "my tests pass but the app is broken", "expect": "test-copilot"},
 
+    {"phrase": "test this while I watch in the test browser", "expect": "test-copilot"},
+
     # --- Automated full test matrix (autonomous, overnight) ------------------------
     {"phrase": "run the full automated test matrix", "expect": "test-automated-full-matrix"},
     {"phrase": "test this diff exhaustively", "expect": "test-automated-full-matrix"},

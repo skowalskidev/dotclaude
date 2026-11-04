@@ -70,6 +70,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 # --------------------------------------------------------------------------------------
 
 CRITERIA: list[tuple[str, str]] = [
+    ("copilot-walk-is-visible", "Co-pilot walks remain visible and narrated when Claude drives every step; comments become findings and captures follow each action."),
     ("production-compatibility-includes-runtime-gates", "Production verification includes runtime eligibility, current legitimate cohorts and unknown evidence; age and green fixtures cannot clear compatibility gaps."),
     ("pr-feedback-covers-current-revisions", "PR feedback covers every surface and body revision; the landing gate returns late feedback to its single resolver before passing."),
     ("process-inspection-keeps-arguments-private", "Process guidance and orphan reports keep arguments private; cleanup retains uncertain agent workers and preserves framework gates."),
@@ -1549,6 +1550,23 @@ def check_commits_conventional_subject_enforced() -> None:
                   f"commit-msg {'rejected' if want_ok else 'accepted'} {subject!r}. "
                   + ("A false rejection pushes you to --no-verify, which also skips the secret "
                      "gate." if want_ok else "This is the shape the hook exists to stop."))
+
+
+def check_copilot_walk_is_visible() -> None:
+    skill = (ROOT / "skills/sk/skills/test-copilot/SKILL.md").read_text()
+    browser = (ROOT / "references/browser-debugging.md").read_text()
+    walk = skill.split("### 4.1b", 1)[1].split("### 4.2", 1)[0]
+    for phrase in ("run the web walk visibly", "even when you drive\nevery step",
+                   "narrate every web and native step in 1 short line before acting",
+                   "Queue Simon's comments as findings without pausing the walk",
+                   "fix blockers per 4.3", "After your action, or after Simon finishes a new input"):
+        check(phrase in walk, f"Co-pilot walk must preserve: {phrase}")
+    for phrase in ("visible, headed Chrome for Testing window", "zero new inputs",
+                   "Verify the owned window is visible", "headless: false",
+                   "DON'T substitute headless runs, scripted evidence or screenshots"):
+        check(phrase in browser, f"Test-browser visibility owner must preserve: {phrase}")
+    check('When he says done or "next"' not in walk,
+          "Claude-driven captures must not wait for Simon's next signal")
 
 
 def check_production_compatibility_includes_runtime_gates() -> None:

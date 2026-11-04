@@ -23,6 +23,13 @@ TEST: inspect the configured debug-port listener with `ps -p <listener-pid> -o c
 `Google Chrome for Testing`. Check any required debug-flag match inside a local checker that emits
 only a verdict, per `rules/process.md`; no everyday Chrome instance passes the ownership check.
 
+**DO keep every co-pilot web walk in a visible, headed Chrome for Testing window from step 1
+through the last step, including walks with zero new inputs.** Verify the owned window is visible
+before step 1; use `headless: false` for Playwright. Keep automated machine passes separate.
+**DON'T substitute headless runs, scripted evidence or screenshots for the live walk.**
+TEST: Simon can watch each action in the owned test window; a headless walk fails even with passing
+scripts and saved screenshots.
+
 **One walk surface: a walk reuses 1 tab, and every window it opens is closed before hand-back.** Owned here; `/sk:test-copilot` and `references/human-pacing.md` point to it.
 **DO open 1 walk tab (`new_page`) for the whole walk, plus 1 isolated context per distinct account or fresh-visitor need.** Before opening another tab or context for a step, close the one you opened for the previous step (`close_page`), unless the next step needs it. Reuse a tab by `navigate_page`, never by opening a sibling.
 **DO name the surface in every step message by title and host:** "the **Checkout** tab at 127.0.0.1:3000", and say when the previous tab was closed ("closed the old walk tab").

@@ -1,6 +1,6 @@
 ---
 name: test-copilot
-description: Test a feature WITH Simon rather than for him. Claude exhausts every machine-checkable thing first (build, types, tests, seeded states, its own browser pass), instruments the code with reason-coded logs and a correlation id BEFORE starting, then boots and identity-verifies its own dev server and paces Simon through the real user journey ONE step at a time while watching the logs live — so his eyes catch the UX gaps automated tests structurally cannot see, and Claude diagnoses each from the logs and fixes it. Use for "co-pilot test this", "let's test this together", "walk me through testing X", "my tests pass but the app is broken", or before shipping anything a human will click through.
+description: Test a feature WITH Simon rather than for him. Claude exhausts every machine-checkable thing first (build, types, tests, seeded states, its own browser pass), instruments the code with reason-coded logs and a correlation id BEFORE starting, then boots and identity-verifies its own dev server and paces Simon through the real user journey ONE step at a time while watching the logs live — so his eyes catch the UX gaps automated tests structurally cannot see, and Claude diagnoses each from the logs and fixes it. Use for "co-pilot test this", "let's test this together", "walk me through testing X", "my tests pass but the app is broken", "test this while I watch in the test browser", or before shipping anything a human will click through.
 argument-hint: "[what to test, e.g. 'the review queue' or 'this branch']"
 ---
 
@@ -183,19 +183,24 @@ TEST: no step with a side effect runs until his first request is in the log.
 alike.** List those new inputs from the diff before step 1. When the list is empty (a server, prompt
 or copy change that adds no field, button or control), drive the whole walk yourself, watch the logs,
 judge and fix, then hand back the results matrix; send Simon no step to perform.
+**DO narrate every web and native step in 1 short line before acting: what you do and what you
+watch for.** Queue Simon's comments as findings without pausing the walk; fix blockers per 4.3.
+TEST: even with zero new inputs, each step has a live action-and-watch line, and comments become findings.
 **DON'T hand him a step to type into an existing control** (a chat box, a search field, a sign-in
 form). (the fix for a walk that sent "Step 1 of 8 · Do: type the search" for a change that added no
 input, which he refused: "i wanted you to test it not me")
 TEST: every step message that asks Simon to act names an input the diff added.
 
-**DO run a web walk in a browser you control, by default.** Attach the chrome-devtools MCP to the
+**DO run the web walk visibly per `browser-debugging.md` § The test browser, even when you drive
+every step.** Attach the chrome-devtools MCP to the
 project's test browser (Chrome for Testing), reusing one already running on the project's profile
 (launch and attach per `browser-debugging.md` § The test browser). Keep to ONE walk surface per `browser-debugging.md` § The test browser: 1 walk tab
 (an isolated context only for a fresh-visitor or second-account need), the previous step's tab closed
 before a new one opens, every step naming the tab by title and host, a phone viewport that fits the window.
 Load the start URL there yourself. Simon types only the new inputs, in that tab.
 **DON'T close or navigate a tab you did not open.** Another session may own it.
-**DO capture every web step yourself.** When he says done or "next", `take_screenshot` that tab with a
+**DO capture every web step yourself.** After your action, or after Simon finishes a new input,
+`take_screenshot` that tab with a
 `filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step
 names a call, and judge it against the Expect line.
 **DON'T ask him to paste a screenshot of the web walk.** A real-phone walk keeps its own capture route.

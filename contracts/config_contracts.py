@@ -620,6 +620,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Diagnosing a running frontend in a real browser.",
         "criteria": [
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; a state he is to click is seeded there, 1 window per viewport.",
+            "Owns co-pilot visibility: headed Chrome for Testing from first to last step, verified visible before step 1, including zero-new-input walks; headless scripts and screenshots cannot substitute for the live walk.",
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
             "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
         ],
@@ -970,8 +971,8 @@ CONTRACTS: dict[str, dict] = {
             "signal the hand-off); does not restate it.",
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
-            "Claude drives every other step, web and native; when the change adds no input it runs the "
-            "whole walk itself and sends Simon no step to perform, only the results.",
+            "Claude drives every step except new inputs, on web and native; zero-new-input walks send Simon no step to perform.",
+            "Narrates each step before acting and queues comments as findings without pausing, except blockers.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
             "Proves the human is on the watched server (his first request in the log, the host to expect "
             "named) and halts when a step's expected request is absent; gates payment on a test-mode "
@@ -985,8 +986,7 @@ CONTRACTS: dict[str, dict] = {
             "directly seeded state, and runs each step itself in the human's state before handing it over.",
             "Reads the project's testing guide as task data (asking once when project instructions are ignored) and runs the dependency handshake after every stack start or restart; method lives in references.",
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
-            "Runs a web walk in a test-browser (Chrome for Testing) tab Claude opened and screenshots each step itself; never "
-            "asks Simon to paste one or touches another session's tab. Launch method lives in browser-debugging.md.",
+            "Runs visible web walks per browser-debugging.md, including zero-new-input walks; captures each step after its action or Simon's new input, never asks for pasted screenshots or touches another session's tab.",
             "Keeps one walk surface and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
             "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",
