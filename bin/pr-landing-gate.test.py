@@ -1,0 +1,264 @@
+#!/usr/bin/env python3
+"""Offline regression tests for bin/pr-landing-gate.py and the `intent-ledger.sh gate PASS` backstop.
+
+Standard library only. A stub `gh` on PATH serves fixture JSON, so nothing reaches GitHub.
+"""
+import importlib.util
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+SCRIPT = HERE / "pr-landing-gate.py"
+HOOK = ROOT / "hooks" / "intent-ledger.sh"
+spec = importlib.util.spec_from_file_location("pr_landing_gate", SCRIPT)
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
+
+FAILS = []
+
+
+def check(ok, msg):
+    if not ok:
+        FAILS.append(msg)
+
+
+PASSING = """## TLDR
+
+| | Before | After |
+|---|---|---|
+| Paid-plan searches | 50 a week | **200 a month** |
+| Free plan | 5 a week | unchanged |
+
+**Do:** merge. The migration applies itself; no current member is refused.
+
+## 🚀 Deploy TLDR
+
+1. Merge. The pipeline applies the migration first.
+2. Smoke: open Settings as a paid test account and read "200 searches a month".
+
+## User journey
+
+1. A paid member opens Settings and reads the new monthly limit.
+
+## System journey
+
+1. The status read returns the limit and its period.
+
+## Verification
+
+| Leg | Result |
+|---|---|
+| Test matrix | 9 COVERED, 0 GAP, 1 NEEDS-DRIVING, 1 SKIPPED |
+
+## Test matrix
+
+**9 COVERED · 0 GAP · 1 NEEDS-DRIVING · 1 SKIPPED**
+
+| # | Feature | Evidence | Verdict |
+|---|---|---|---|
+| 1 | 201st search refused | db test | COVERED |
+| 2 | Rendered cards | e2e with a mocked server | NEEDS-DRIVING |
+
+## Prod data
+
+**PASS with unknowns** (read-only).
+
+| Cohort | Accounts | Refused on deploy |
+|---|---|---|
+| Free | 120 | same as today |
+| Paid | 80 | 0 |
+
+## Deploy safety
+
+| Merge train (squash onto main) | Result |
+|---|---|
+| this PR alone | applies; order check passes |
+
+| State | Effect | Rollback |
+|---|---|---|
+| New db, old functions | wording only | run the rollback file, then revert |
+
+## Screenshots
+
+### Settings
+<img src="https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000" width="800" alt="Settings">
+"""
+HTML = '<h2>TLDR</h2><details open=""><summary>video</summary></details>'
+
+
+def section(body, heading, replacement):
+    """Replace the `## heading` section (up to the next `## `) with replacement text."""
+    start = body.index("## " + heading + "\n")
+    end = body.find("\n## ", start + 3)
+    end = len(body) if end < 0 else end + 1
+    return body[:start] + replacement + body[end:]
+
+
+def rows(missing):
+    return {m.split(":", 1)[0] for m in missing}
+
+
+# The full body passes.
+check(gate.check_body(PASSING, HTML, 0) == [], f"Passing body failed: {gate.check_body(PASSING, HTML, 0)}")
+
+# Only a one-row matrix summary in the Verification table fails on the matrix row, and only there.
+summary_only = section(PASSING, "Test matrix", "")
+missing = gate.check_body(summary_only, HTML, 0)
+check(rows(missing) == {"Test matrix"}, f"One-row matrix summary did not fail on the matrix row alone: {missing}")
+
+# A matrix section missing one count label names that label.
+no_gap = PASSING.replace("· 0 GAP ", "")
+check(any("GAP" in m for m in gate.check_body(no_gap, HTML, 0)), "A matrix with no GAP count passed")
+bare = PASSING.replace("1 NEEDS-DRIVING", "NEEDS-DRIVING")
+bare = bare.replace("| NEEDS-DRIVING |", "| driving |")
+check(any("NEEDS-DRIVING" in m for m in gate.check_body(bare, HTML, 0)),
+      "A NEEDS-DRIVING label with no number passed")
+
+# A collapsed <details> fails; one carrying open passes.
+collapsed = gate.check_body(PASSING, "<details><summary>Screens</summary></details>" + HTML, 0)
+check(rows(collapsed) == {"Visible sections"}, f"A collapsed <details> did not fail alone: {collapsed}")
+
+# A missing TLDR fails on the TLDR row; a TLDR with no Do line or no Before/After table fails too.
+no_tldr = PASSING[PASSING.index("## 🚀 Deploy TLDR"):]
+check("TLDR" in rows(gate.check_body(no_tldr, HTML, 0)), "A body with no TLDR passed the TLDR row")
+check(any("Do:" in m for m in gate.check_body(PASSING.replace("**Do:** merge", "Merge"), HTML, 0)),
+      "A TLDR with no **Do:** line passed")
+check(any("Before" in m for m in gate.check_body(PASSING.replace("| | Before | After |", "| | Old | New |"), HTML, 0)),
+      "A TLDR with no Before/After table passed")
+
+# Deploy TLDR must follow the TLDR; an emoji or case variant of a heading still matches.
+moved = section(PASSING, "🚀 Deploy TLDR", "") + "\n## Deploy TLDR\n\n1. Merge.\n"
+check(any("next heading" in m for m in gate.check_body(moved, HTML, 0)), "A Deploy TLDR out of order passed")
+check(gate.check_body(PASSING.replace("## Prod data", "## 📊 PROD DATA"), HTML, 0) == [],
+      "An emoji or upper-case heading variant did not match")
+
+# A heading inside a code fence is source text, not a section.
+fenced = section(PASSING, "User journey", "```\n## User journey\n```\n\n")
+check("User journey" in rows(gate.check_body(fenced, HTML, 0)), "A fenced heading counted as a section")
+
+# Prod data and deploy safety accept a named doesn't-apply reason, never a bare one.
+na = "## Prod data\n\nDoes not apply: the diff changes only a build script, no stored data or runtime path.\n\n"
+check(gate.check_body(section(PASSING, "Prod data", na), HTML, 0) == [], "A reasoned prod-data N/A failed")
+check("Prod data" in rows(gate.check_body(section(PASSING, "Prod data", "## Prod data\n\nN/A\n\n"), HTML, 0)),
+      "A bare prod-data N/A passed")
+safety_na = "## Deploy safety\n\nDoes not apply: no migration, no open PR touches these files, nothing to roll.\n\n"
+check(gate.check_body(section(PASSING, "Deploy safety", safety_na), HTML, 0) == [],
+      "A reasoned deploy-safety N/A failed")
+check("Deploy safety" in rows(gate.check_body(section(PASSING, "Deploy safety", "## Deploy safety\n\nFine.\n\n"),
+                                              HTML, 0)), "Deploy safety with no merge train or rollback passed")
+
+# Screenshots need an image or a stated no-eligible-surface reason.
+none = "## Screenshots\n\nNo eligible frontend surface: the diff changes only server SQL.\n"
+check(gate.check_body(section(PASSING, "Screenshots", none), HTML, 0) == [], "A stated no-surface reason failed")
+check("Screenshots" in rows(gate.check_body(section(PASSING, "Screenshots", "## Screenshots\n\nSee below.\n"),
+                                            HTML, 0)), "Screenshots with no image or reason passed")
+
+# Unresolved review threads fail.
+check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
+
+
+# CLI and hook, against a stub gh serving fixture JSON from $GH_STUB.
+STUB = """#!/bin/sh
+case "$1 $2" in
+  "pr list") f=prlist.json ;;
+  "api graphql") f=threads.json ;;
+  api*) f=pull.json ;;
+  *) exit 1 ;;
+esac
+[ -f "$GH_STUB/$f" ] || { echo "stub: no $f" >&2; exit 1; }
+cat "$GH_STUB/$f"
+"""
+
+
+def serve(stub, body, html=HTML, unresolved=0, prs=(7,)):
+    for name in ("prlist.json", "pull.json", "threads.json"):
+        (stub / name).unlink(missing_ok=True)
+    if prs is not None:
+        (stub / "prlist.json").write_text(json.dumps([{"number": n, "url": f"https://example.test/{n}"} for n in prs]))
+    if body is not None:
+        (stub / "pull.json").write_text(json.dumps({"body": body, "body_html": html}))
+    nodes = [{"isResolved": False}] * unresolved + [{"isResolved": True}]
+    (stub / "threads.json").write_text(json.dumps({"data": {"repository": {"pullRequest": {"reviewThreads": {
+        "nodes": nodes, "pageInfo": {"hasNextPage": False, "endCursor": None}}}}}}))
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    base = Path(tmp)
+    bindir, stub, home, repo = base / "bin", base / "stub", base / "home", base / "repo"
+    for d in (bindir, stub, home, repo):
+        d.mkdir()
+    (bindir / "gh").write_text(STUB)
+    (bindir / "gh").chmod(0o755)
+    env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "GH_STUB": str(stub), "HOME": str(home),
+           "CLAUDE_CONFIG_ROOT": str(ROOT), "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo),
+           "CLAUDE_CODE_SESSION_ID": "landing-gate-test"}
+    env.pop("AGENT_DELEGATED_WORKER", None)
+
+    def cli():
+        return subprocess.run([sys.executable, str(SCRIPT), "--repo", "example-org/example-repo", "--pr", "7"],
+                              capture_output=True, text=True, env=env)
+
+    serve(stub, PASSING)
+    r = cli()
+    check(r.returncode == 0 and r.stdout.startswith("pr-landing-gate: PASS"), f"CLI pass: {r.returncode} {r.stdout}{r.stderr}")
+    serve(stub, summary_only)
+    r = cli()
+    check(r.returncode == 1 and "FAIL example-org/example-repo#7 Test matrix" in r.stdout,
+          f"CLI did not print the missing matrix row: {r.returncode} {r.stdout}")
+    serve(stub, None)
+    r = cli()
+    check(r.returncode == 2 and "FETCH FAILED" in r.stderr, f"A fetch failure did not exit 2: {r.returncode} {r.stderr}")
+
+    # The hook: a fixture worktree on a GitHub origin with a ledger.
+    def git(*args):
+        return subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@example.com", "-c", "user.name=t", *args],
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    git("init", "-q", "-b", "feature/x")
+    (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+    (repo / "a.txt").write_text("a")
+    git("add", "a.txt")
+    git("commit", "-q", "-m", "a")
+    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git")
+    payload = json.dumps({"cwd": str(repo), "session_id": "landing-gate-test", "prompt": "Ship X"})
+    subprocess.run(["bash", str(HOOK), "submit"], input=payload, text=True, capture_output=True, cwd=repo, env=env)
+    ledger = repo / ".context" / "intent-ledger.md"
+    check(ledger.exists(), "Fixture ledger was not created")
+
+    def hook_gate(*args):
+        return subprocess.run(["bash", str(HOOK), "gate", *args], text=True, capture_output=True, cwd=repo, env=env)
+
+    def gate_lines():
+        return [ln for ln in ledger.read_text().splitlines() if ln.startswith("gate: ")] if ledger.exists() else []
+
+    serve(stub, summary_only)
+    r = hook_gate("feature/x", "HEAD", "PASS")
+    check(r.returncode == 1 and "Test matrix" in r.stderr and "PASS refused" in r.stderr and gate_lines() == [],
+          f"gate PASS recorded over a failing PR: {r.returncode} {r.stderr}")
+    r = hook_gate("feature/x", "HEAD", "BLOCKED", "matrix not posted yet")
+    check(r.returncode == 0 and len(gate_lines()) == 1, f"gate BLOCKED changed behaviour: {r.returncode} {r.stderr}")
+    serve(stub, None, prs=None)
+    r = hook_gate("feature/x", "HEAD", "PASS")
+    check(r.returncode == 1 and "gh pr list failed" in r.stderr and len(gate_lines()) == 1,
+          f"A failed PR lookup did not refuse PASS: {r.returncode} {r.stderr}")
+    serve(stub, PASSING)
+    r = hook_gate("feature/x", "HEAD", "PASS")
+    check(r.returncode == 0 and "pr-landing-gate: PASS" in r.stdout and gate_lines()[-1].endswith(" PASS "),
+          f"gate PASS over a passing PR did not record: {r.returncode} {r.stdout}{r.stderr}")
+    serve(stub, None, prs=())
+    r = hook_gate("feature/x", "HEAD", "PASS")
+    check(r.returncode == 0 and len(gate_lines()) == 3, f"gate PASS with no open PR changed behaviour: {r.stderr}")
+    git("remote", "set-url", "origin", "https://example.test/o/r.git")
+    serve(stub, None, prs=None)
+    r = hook_gate("feature/x", "HEAD", "PASS")
+    check(r.returncode == 0 and len(gate_lines()) == 4, f"gate PASS on a non-GitHub origin changed behaviour: {r.stderr}")
+
+if FAILS:
+    print("pr-landing-gate.test: FAIL\n  " + "\n  ".join(FAILS))
+    sys.exit(1)
+print("pr-landing-gate.test: PASS")

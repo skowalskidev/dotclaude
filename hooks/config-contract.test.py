@@ -102,6 +102,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
     ("pr-evidence-template-stacks-bands-above-ui",
      "PR before/after screenshots and videos come from one template: bands above the UI, outline-only callouts, the layout rule, timed video ending together."),
+    ("pr-landing-gate-refuses-missing-rows",
+     "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
     ("design-diff-measures-changed-regions",
      "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
     ("dashboard-runtime-preserves-completion",
@@ -1858,6 +1860,17 @@ def check_pr_evidence_template_stacks_bands_above_ui() -> None:
     skill = (ROOT / "skills/sk/skills/ship-screenshot-changes/SKILL.md").read_text()
     check("bin/pr-evidence.py" in skill and not (ROOT / "skills/sk/skills/ship-screenshot-changes-advanced").exists(),
           "Screenshot skill must compose through bin/pr-evidence.py and stay the single screenshot skill")
+
+
+def check_pr_landing_gate_refuses_missing_rows() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "pr-landing-gate.test.py")])
+    check(result.returncode == 0, "PR landing gate regression: " + result.stdout + result.stderr)
+    for path in ("skills/sk/skills/ship-full-detailed-workflow/SKILL.md", "skills/sk/skills/ship-pr/SKILL.md",
+                 "references/tldr-report-formats.md"):
+        check("bin/pr-landing-gate.py" in (ROOT / path).read_text(),
+              f"{path} does not point at bin/pr-landing-gate.py for the landing-gate rows")
+    check('landing_check "$branch"' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
+          "intent-ledger.sh gate PASS no longer runs the landing-gate checker")
 
 
 def check_design_diff_measures_changed_regions() -> None:

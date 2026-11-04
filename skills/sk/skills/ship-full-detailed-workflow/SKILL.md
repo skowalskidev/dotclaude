@@ -107,6 +107,13 @@ verified the user + system journey, then handed back with it never posted to the
   section fails even when its content loads.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
 empty or suspiciously short → STOP.
+**DO run `~/.claude/bin/pr-landing-gate.py --repo <owner/name> --pr <n>` on every PR in the run and
+post each FAIL row before recording the gate.** It owns the section headings and checks the rows above
+mechanically; PASS is recorded only through it, because `hooks/intent-ledger.sh gate <branch> <sha>
+PASS` reruns it and refuses the record on any FAIL. **DON'T record PASS from a one-row summary of a
+leg in a Verification table:** each leg's full section sits under its own heading. TEST: the checker
+prints PASS for each PR named at hand-back (the fix for a PASS recorded over a body holding only
+one-row matrix, prod-data and deploy-safety summaries).
 
 **Conditional legs — fire when the PR calls for them, not by default:**
 - `/sk:test-eyeball` — hammer the changed UI in a real browser (stage 6's journey leg, autonomous).

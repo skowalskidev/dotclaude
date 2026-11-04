@@ -83,7 +83,8 @@ WHY: Simon opens a PR and decides from this block alone; every section below is 
 ```
 
 TEST: the fetched PR body's first heading is `## TLDR`, it holds a Before/After table of 3-5 rows and
-a `**Do:**` line, and nothing else before `## 🚀 Deploy TLDR`.
+a `**Do:**` line, and nothing else before `## 🚀 Deploy TLDR`. `bin/pr-landing-gate.py` checks this
+and owns the heading names.
 
 ## Block 1 · User journey
 

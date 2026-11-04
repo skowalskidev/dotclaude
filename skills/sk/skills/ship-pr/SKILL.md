@@ -77,8 +77,9 @@ affected on deploy:
 
 - Follow the repo's PULL_REQUEST_TEMPLATE.md and its committed CLAUDE.md GitHub rules
   (ticket-prefixed title from the Linear ticket, reviewer, labels, assignee).
-- DO give every body section a visible `##` or `###` heading: TLDR, Deploy TLDR, journeys, test matrix,
-  prod data, deploy safety, `## Screenshots`, any other. DON'T wrap any section, table, image or
+- DO give every body section a visible `##` or `###` heading, named as in `SECTIONS` in
+  `~/.claude/bin/pr-landing-gate.py` (the one home of the names), plus any other the repo's template
+  adds. Run that checker on the fetched PR after every body write. DON'T wrap any section, table, image or
   video in a collapsed `<details>`, and convert one you find while editing the body; a reviewer reads
   a closed block as missing (the fix for screenshots that sat in a closed block and read as missing).
   TEST: the fetched PR `body_html` holds zero collapsed `<details>`: every `<details>` carries the
