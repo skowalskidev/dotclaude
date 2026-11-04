@@ -21,7 +21,8 @@ Keep native compile/backend checks; native runtime/UI/screenshots are opt-in.
 DO size every check to the change's tier first: `references/testing-strategy.md` §§ Size the checks to
 the change, Defects first and Native simulator suites.
 DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push. Name
-the real blocker in every status. `references/parallelization.md` § Parallelize verification.
+the real blocker in every status. DO launch every ready stage at once on a priority ask.
+`references/parallelization.md` §§ Parallelize verification, across tasks AND stages.
 TEST: no routine per-edit/feature/commit runs; mandatory final coverage uses matching inputs.
 
 ### Claims about third parties must come from primary sources

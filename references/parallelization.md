@@ -367,6 +367,15 @@ A `blocked` session sets `status: blocked` + reason in BOTH places and leaves `B
   boot or run a stack as `status` shows free heavy slots; read-only and model-only workers count only
   against the 10 below. Thresholds live in `references/dev-server-hygiene.md` § Machine-wide capacity.
   TEST: a parallel dispatch that started while the check read `DEFER` broke the rule.
+- **DO launch every ready stage in one batch when Simon names the work top priority or asks for full
+  capacity.** A stage is ready when it needs no result from a running stage: each review of a finished
+  diff, each read-only data check, each walk surface on one running stack, each independent PR. Fill
+  the free heavy slots `status` shows and the 10-agent cap below; read-only and model-only stages take
+  no heavy slot. Launch the next ready stage the moment one ends, so the critical path never idles.
+  DON'T queue a ready stage behind a running build, and DON'T send a status message in place of a
+  launch. e.g. two build workers ran while a diff review, a prod-data reach estimate and per-surface
+  walks sat unlaunched until Simon said capacity was unused. TEST: at every check-in under a priority
+  ask, no ready stage is unlaunched while a heavy slot or agent slot is free.
 - **Cap an in-session fan-out at 10 concurrent.** `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` is 10 here (60 per session total); at most 10 background agents run at once and the rest queue. Launching many more than 10 in ONE batch gets the excess REJECTED, not queued (observed: 20 launched → 19 accepted, the 20th errored `You can run 10 subagents at once`). DO cut the work into ≤10 slices, or dispatch in waves of ≤10 and expect ~N/10 waves of wall-clock. TEST: no single launch batch exceeds 10 agents unless the waves are deliberate.
 
 ## Parallelize verification, not just agents

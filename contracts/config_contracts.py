@@ -826,6 +826,7 @@ CONTRACTS: dict[str, dict] = {
             "Native build prompts name the shared capacity engine or its compatibility frontend, a bounded stage and explicit worker cap; a per-run lock file is not the coordination.",
             "Run local-capacity.py cpu before any parallel dispatch; DEFER means serial or wait, and GO admits at most the free heavy slots of workers that build, test, boot or run a stack.",
             "A prompt for a worker that builds a visible screen names its design source, measured spec, target images and capture command, and its hand-back carries the measurement report; it never defers capture to the orchestrator.",
+            "Under a priority or full-capacity ask, launch every stage that needs no running stage's result in one batch, up to the free heavy slots and the 10-agent cap, and refill as stages end; a status message never replaces a ready launch.",
             "Split a serial-resource editing lane only when measured critical-path evidence supports it and the added workers fit both the total worker cap and shared heavy-work capacity.",
             "Freeze the contract and fixture before dispatching every layer together; workers return once with changed files and a check inventory, and the orchestrator owns final verification under the shared batch policy.",
             "Assign changed callers, fixtures and persisted transitions to a worker or reconciler; refresh after rebase and check omission, clear, failure, retry and the next request before the whole-package gate.",
