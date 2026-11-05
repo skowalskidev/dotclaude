@@ -61,6 +61,7 @@ CONTRACTS: dict[str, dict] = {
             "A failed CPU, load or memory probe defers with exit 75 like every other deferral; exit 1 means a fault to inspect, never defer.",
             "Sample CPU/load/memory once per admission attempt and reuse the snapshot. Read CPU from the second one-second iostat sample with a five-second timeout; require its header and two valid rows. Classify failures without printing raw output.",
             "Retry only state-lock contention for completed-run cleanup for at most 30 seconds, revalidating token and resources. Preserve payload result after release; never relaunch or retry an ownership/resource refusal.",
+            "Retry stage metadata lock contention for at most 30 seconds within its deadline, revalidating the same lease before one payload grant. Honor cancellation; retain failed cleanup receipts. Never retry payloads or ownership/resource refusals.",
             "Retry priority-state lock contention within one 10-second heartbeat and the command deadline, checking memory before each attempt. Critical or unknown memory still stops only the owned payload.",
             "Snapshot status/watchdog metadata under a short lock; run external probes outside it. Reclaim mutations revalidate the current owner and lease, never trust a stale diagnostic snapshot.",
             "Count at most MAX_BOOTED_SIMULATORS (1) device machine-wide: claimed, leased or not Shutdown, unleased devices included; a second claim-sim or simulator run exits 75 naming the holder, the same owner included.",

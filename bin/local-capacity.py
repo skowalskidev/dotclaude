@@ -1747,13 +1747,13 @@ def owns_group(lease):
     return isinstance(lease["child"], dict) and lease["child"].get("pgid") == os.getpgrp()
 
 
-def record_stage(root, pid, start):
+def record_stage(root, pid, start, token):
     if not start:
         raise GateError("stage identity could not be recorded")
     with locked(root):
         slot, lease = find_lease(root, owns_group)
-        if not lease:
-            raise GateError("stage must run inside an owned foreground run")
+        if not lease or lease["token"] != token:
+            raise GateError("stage must run inside the same owned foreground run")
         if pid_start(lease["pid"]) != lease["pid_start"]:
             raise GateError("stage owner is no longer live")
         if len(lease["stages"]) >= 64:
@@ -1764,12 +1764,12 @@ def record_stage(root, pid, start):
         return stage
 
 
-def finish_stage(root, stage):
+def finish_stage(root, stage, token):
     if group_alive(stage["pgid"]):
         return
     with locked(root):
         slot, lease = find_lease(root, lambda item: stage in item["stages"])
-        if lease:
+        if lease and lease["token"] == token:
             lease["stages"].remove(stage)
             write_state(root, lease, slot)
 
@@ -1791,12 +1791,6 @@ def stage_command(root, seconds, command):
             os.fstat(fd)
     except (ValueError, OSError) as exc:
         raise GateError("stage legacy lock descriptors are unavailable") from exc
-    with locked(root):
-        slot, lease = find_lease(root, owns_group)
-        if not lease:
-            raise GateError("stage must run inside an owned foreground run")
-    if bridge_paths(root) and not legacy_fds and slot == LEASE_SLOT:
-        raise GateError("stage would lose the legacy lock bridge")
     interrupted = [None]
     old_handlers = {}
     def stop(sig, _frame):
@@ -1805,19 +1799,43 @@ def stage_command(root, seconds, command):
     child = None
     read_fd, write_fd = os.pipe()
     stage = None
+    token = None
+    deadline = time.monotonic() + seconds
+
+    def metadata(operation):
+        retry_deadline = min(deadline, time.monotonic() + CLEANUP_WAIT_SECONDS)
+        def checked():
+            if interrupted[0] is not None:
+                raise InterruptedError("stage interrupted while waiting for metadata")
+            if time.monotonic() >= deadline:
+                raise TimeoutError("stage deadline expired while waiting for metadata")
+            return operation()
+        return retry_state_lock(checked, retry_deadline)
+
+    def identify():
+        with locked(root):
+            slot, lease = find_lease(root, owns_group)
+            if not lease or pid_start(lease["pid"]) != lease["pid_start"]:
+                raise GateError("stage must run inside a live owned foreground run")
+            return slot, lease["token"]
+
     try:
         for sig in (signal.SIGINT, signal.SIGTERM):
             old_handlers[sig] = signal.signal(sig, stop)
+        slot, token = metadata(identify)
+        if bridge_paths(root) and not legacy_fds and slot == LEASE_SLOT:
+            raise GateError("stage would lose the legacy lock bridge")
         child = launch_granted(command, read_fd, legacy_fds)
         os.close(read_fd)
         read_fd = -1
         if interrupted[0] is None:
-            stage = record_stage(root, child.pid, pid_start(child.pid))
+            stage = metadata(lambda: record_stage(root, child.pid, pid_start(child.pid), token))
         if interrupted[0] is not None:
             terminate_group(child)
             return 128 + interrupted[0]
+        if time.monotonic() >= deadline:
+            raise TimeoutError("stage deadline expired before payload grant")
         os.write(write_fd, b"go\n")
-        deadline = time.monotonic() + seconds
         while True:
             if interrupted[0] is not None:
                 terminate_group(child)
@@ -1833,21 +1851,25 @@ def stage_command(root, seconds, command):
             except subprocess.TimeoutExpired:
                 continue
     except (GateError, OSError) as exc:
+        if child is None and not isinstance(exc, (Busy, InterruptedError, TimeoutError)):
+            raise
         if child is not None:
             try:
                 terminate_group(child)
             except (GateError, OSError) as cleanup_exc:
                 print("stage teardown retained for inspection: %s" % cleanup_exc, file=sys.stderr)
         print("stage failed safely: %s" % exc, file=sys.stderr)
-        return BUSY
+        if interrupted[0] is not None:
+            return 128 + interrupted[0]
+        return TIMEOUT if isinstance(exc, TimeoutError) else BUSY
     finally:
         if read_fd >= 0:
             os.close(read_fd)
         os.close(write_fd)
         if stage is not None:
             try:
-                finish_stage(root, stage)
-            except GateError:
+                metadata(lambda: finish_stage(root, stage, token))
+            except (GateError, OSError):
                 pass  # A retained receipt blocks release until inspected.
         for sig, handler in old_handlers.items():
             signal.signal(sig, handler)

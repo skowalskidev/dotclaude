@@ -526,6 +526,124 @@ class GateTests(unittest.TestCase):
                     with self.assertRaises(gate.Busy):
                         gate.release(self.root, lease["token"])
 
+    def stage_fixture(self):
+        gate.acquire(self.root, "mine", os.getpid(), None)
+        for patch in (mock.patch.dict(os.environ, {"LOCAL_CAPACITY_RUN_ROOT": str(self.root)}),
+                      mock.patch.object(gate, "owns_group", return_value=True)):
+            patch.start()
+            self.addCleanup(patch.stop)
+        marker = Path(self.tmp.name) / "stage-runs"
+        return marker, [sys.executable, "-c", "open(%r, 'a').write('once\\n')" % str(marker)]
+
+    def test_stage_retries_each_metadata_boundary_without_relaunch(self):
+        marker, command = self.stage_fixture()
+        original = gate.locked
+        for boundary in (1, 2, 3):  # lookup, registration, completion
+            calls = [0]
+            @contextlib.contextmanager
+            def locked(root):
+                calls[0] += 1
+                if calls[0] == boundary:
+                    raise gate.StateLockBusy("contended")
+                with original(root):
+                    yield
+            with mock.patch.object(gate, "locked", locked):
+                self.assertEqual(gate.stage_command(self.root, 5, command), 0)
+            self.assertEqual(gate.read_state(self.root)["stages"], [])
+        self.assertEqual(marker.read_text(), "once\n" * 3)
+
+    def test_stage_persistent_contention_is_bounded_before_payload(self):
+        marker, command = self.stage_fixture()
+        for seconds, expected, elapsed in ((60, gate.BUSY, 30), (0.5, gate.TIMEOUT, 0.5)):
+            now = [0]
+            with mock.patch.object(gate, "locked", side_effect=gate.StateLockBusy("contended")), \
+                 mock.patch.object(gate.time, "monotonic", side_effect=lambda: now[0]), \
+                 mock.patch.object(gate.time, "sleep", side_effect=lambda n: now.__setitem__(0, now[0] + n)), \
+                 mock.patch.object(gate, "launch_granted") as launch:
+                self.assertEqual(gate.stage_command(self.root, seconds, command), expected)
+                launch.assert_not_called()
+            self.assertEqual(now[0], elapsed)
+        self.assertFalse(marker.exists())
+
+    def test_stage_cancellation_during_lookup_or_registration_never_starts_payload(self):
+        marker, command = self.stage_fixture()
+        original = gate.locked
+        for boundary in (1, 2):
+            calls = [0]
+            @contextlib.contextmanager
+            def locked(root):
+                calls[0] += 1
+                if calls[0] >= boundary:
+                    raise gate.StateLockBusy("contended")
+                with original(root):
+                    yield
+            def cancel(_seconds):
+                signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+            with mock.patch.object(gate, "locked", locked), mock.patch.object(gate.time, "sleep", cancel):
+                self.assertEqual(gate.stage_command(self.root, 5, command), 128 + signal.SIGTERM)
+        self.assertFalse(marker.exists())
+        self.assertEqual(gate.read_state(self.root)["stages"], [])
+
+    def test_stage_retry_rejects_replaced_lease_before_grant(self):
+        marker, command = self.stage_fixture()
+        original = gate.record_stage
+        replacement = gate.read_state(self.root)
+        replacement["token"] = "f" * 64
+        calls = []
+        def record(root, pid, start, token):
+            calls.append(token)
+            if len(calls) == 1:
+                gate.write_state(root, replacement)
+                raise gate.StateLockBusy("contended")
+            return original(root, pid, start, token)
+        with mock.patch.object(gate, "record_stage", side_effect=record):
+            self.assertEqual(gate.stage_command(self.root, 5, command), gate.BUSY)
+        self.assertEqual(len(calls), 2)
+        self.assertFalse(marker.exists())
+        self.assertEqual(gate.read_state(self.root), replacement)
+
+    def test_stage_persistent_registration_contention_never_grants_payload(self):
+        marker, command = self.stage_fixture()
+        with mock.patch.object(gate, "record_stage", side_effect=gate.StateLockBusy("contended")), \
+             mock.patch.object(gate, "CLEANUP_WAIT_SECONDS", 0.05):
+            self.assertEqual(gate.stage_command(self.root, 5, command), gate.BUSY)
+        self.assertFalse(marker.exists())
+        self.assertEqual(gate.read_state(self.root)["stages"], [])
+
+    def test_stage_completion_contention_preserves_result_and_receipt(self):
+        marker, command = self.stage_fixture()
+        command[-1] += "; raise SystemExit(7)"
+        with mock.patch.object(gate, "finish_stage", side_effect=gate.StateLockBusy("contended")), \
+             mock.patch.object(gate, "CLEANUP_WAIT_SECONDS", 0.05):
+            self.assertEqual(gate.stage_command(self.root, 5, command), 7)
+        self.assertEqual(marker.read_text(), "once\n")
+        stages = gate.read_state(self.root)["stages"]
+        self.assertEqual(len(stages), 1)
+        self.assertFalse(gate.group_alive(stages[0]["pgid"]))
+
+    def test_stage_does_not_grant_after_registration_exhausts_deadline(self):
+        marker, command = self.stage_fixture()
+        original = gate.record_stage
+        now = [0]
+        def record(*args):
+            stage = original(*args)
+            now[0] = 6
+            return stage
+        with mock.patch.object(gate, "record_stage", side_effect=record), \
+             mock.patch.object(gate.time, "monotonic", side_effect=lambda: now[0]):
+            self.assertEqual(gate.stage_command(self.root, 5, command), gate.TIMEOUT)
+        self.assertFalse(marker.exists())
+        for stage in gate.read_state(self.root)["stages"]:
+            self.assertFalse(gate.group_alive(stage["pgid"]))
+
+    def test_stage_does_not_retry_ownership_or_resource_refusal(self):
+        marker, command = self.stage_fixture()
+        for refusal in (gate.GateError("owner changed"), gate.Busy("resource refused")):
+            with mock.patch.object(gate, "record_stage", side_effect=refusal) as record:
+                self.assertEqual(gate.stage_command(self.root, 5, command), gate.BUSY)
+                record.assert_called_once()
+        self.assertFalse(marker.exists())
+
     def test_stage_receipt_limit_rejects_before_writing(self):
         gate.acquire(self.root, "mine", os.getpid(), None, child_pending=True)
         lease = gate.read_state(self.root)
@@ -535,7 +653,7 @@ class GateTests(unittest.TestCase):
                            for index in range(64)]
         gate.write_state(self.root, lease)
         with self.assertRaises(gate.GateError):
-            gate.record_stage(self.root, 2000, "known")
+            gate.record_stage(self.root, 2000, "known", lease["token"])
         self.assertEqual(gate.read_state(self.root), lease)
 
     def test_python_wrapper_preserves_bridge_or_fails_before_payload(self):
