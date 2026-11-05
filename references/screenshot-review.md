@@ -247,22 +247,38 @@ DO record each scenario as one continuous take from a fresh browser context at t
 viewport (default 390×844, § PR evidence template). Read the installed version (`npx playwright
 --version`): at 1.59 or later wrap the run in `page.screencast.start({ path, size })` and
 `page.screencast.stop()` (1.64 adds `fps`); below 1.59 use the context's `recordVideo: { dir, size }`
-and close the context to save the file. Set `size` to the viewport.
+and close the context to save the file. Set `size` exactly equal to the viewport: frames arrive at the
+CSS viewport size and are never upscaled, so a larger `size` pads the canvas grey. For a crisper video
+raise the viewport or `deviceScaleFactor`, never `size`.
+DO start every take from a reset seed: a reset script per persona restores the account, its records
+and every per-account one-time state (an intro already seen, a reward already claimed) before each take.
 DO drive each step at human pace: web-first waits (`await expect(locator).toBeVisible()`), typing
-through `locator.pressSequentially(text, { delay: 50 })`, and one fixed 1 s pause after each screen
-settles. Log each step's start offset and its wait (action to expected state) in milliseconds to
-`steps.json`, and the console errors, app-origin responses of 400 or above and paid calls to the run log.
+through `locator.pressSequentially(text, { delay: 50-90 })`, one fixed 1 s pause after each screen
+settles and a 1 s pause after the outcome. Drive every control a human would use (e.g. tap a Stop
+button the moment it shows), so every wait in the video is the app's own.
+DO wait on an element that appears only after the event (the button the result reveals), never on
+text the screen already shows (a label containing the result's words matches before the event).
+Navigate onto a third-party hosted page with `waitForURL(url, { waitUntil: 'commit' })` (the default
+`load` hangs there), and tap a perpetually animated control with `click({ force: true })`.
+DO log each step's start offset and its wait (action to expected state) in milliseconds to
+`steps.json`; log every console error, every paid call and every response of 400 or above with host,
+path, request action, response body, page URL and time to the run log, and label each response
+`app` or `third-party` (a hosted payment page's own captcha or wallet errors are third-party). Install
+`unhandledRejection` and `uncaughtException` handlers that save a screenshot, the last 40 requests
+and the browser log before the harness exits.
 DON'T trim, cut, speed up or reorder any part, waits and loading included; DON'T add a title, chapter
 or intro card, `screencast.showActions`, `showChapter`, `showOverlay`, the video config's `show`, or any
-other text over the UI; DON'T pause longer than 1 s to pad the video.
+other text over the UI; DON'T pause longer than 1 s anywhere: a still over 1 s that the script made is
+a recorder defect, fixed in the script.
 DO compose with `python3 ~/.claude/bin/pr-evidence.py run --clip <raw.webm> --title "<scenario>"
 --caption "<description>" --out .context/pr-evidence/run-<slug>.mp4`. Its band above the frame, holding
 the scenario name and description for the whole video, is the only edit; it prints every still stretch
-of 2 s or more.
+of 2 s or more. The caption is one line that never wraps: at most 80 characters at 390 px.
 DO rehearse the script headless before the first take. DON'T re-take a run hoping a flaky step or a
 slow wait passes the next time: it is a finding, and the next take follows its fix.
-TEST: the posted MP4's duration equals the raw recording's within 0.5 s, and the run log lists every
-take with the fix that preceded it.
+TEST: the first contact sheet shows the UI filling the whole canvas with no grey padding, the first
+step frame shows the whole caption, the posted MP4's duration equals the raw recording's within 0.5 s,
+and the run log lists every take with the fix that preceded it.
 
 ### Review, fix and re-record until clean
 
@@ -270,26 +286,41 @@ DO review every take in two passes and write each finding as `mm:ss` · screen �
 looked off · potential fix (file or component when known):
 1. **Contact sheet, end to end.** `ffmpeg -i run-<slug>.mp4 -vf "fps=1,scale=320:-1,tile=6x10"
    sheet-<slug>-%02d.png` (one frame per second, 60 per sheet); view every sheet.
-2. **Per screen, full resolution.** One frame at each step start from `steps.json`
-   (`ffmpeg -ss <t> -i run-<slug>.mp4 -frames:v 1 step-<n>.png`); view each and check copy, layout,
-   cut-off text, every number against the seed or database, loading flashes, and the run log's
-   console errors and failed requests.
+2. **Per screen, full resolution.** One frame at each step start + 0.8 s from `steps.json`
+   (`ffmpeg -ss <t> -i run-<slug>.mp4 -frames:v 1 step-<n>.png`), montaged 4 per image and read at
+   full size; check copy, layout, cut-off text, every number against the seed or database, loading
+   flashes, and the run log's console errors and failed requests. Check each screen for these
+   recurring in-scope bug classes:
+   - a screen drawn before its data arrives: it needs a same-size placeholder, and the actions that
+     need that data stay disabled until it exists;
+   - state-specific wording kept on the first screen of a step but lost on its second (e.g. a code
+     screen after a phone screen);
+   - a provider-branded label (a wallet name) shown before the capability is known; derive it from a
+     synchronous capability check;
+   - a prefetch for a paywall firing for a user who cannot meet it (an already-paid member);
+   - two client requests racing to create state for one customer; the client issuing both sequences them.
+DO measure a suspected visual gap before building a fix: `ffmpeg -i run-<slug>.mp4 -vf
+blackdetect=d=0.1 -f null -` for blank frames, the engine's still list for frozen ones. Under 0.5 s
+followed by the screen's own transition is no finding.
 
 | # | Check | Pass when |
 |---|---|---|
 | 1 | Story | The first frame is the user's first screen, every scripted step appears in order, the last frame shows the outcome |
-| 2 | Band | It names the scenario and matches the PR description line |
+| 2 | Band | It names the scenario, matches the PR description line and shows the whole caption on one line |
 | 3 | Success data | No error, empty, unavailable or placeholder frame |
 | 4 | No redundant state | No screen repeats without a step between, and the script has no back-and-forth |
 | 5 | Waits | No app-caused wait over 2 s in `steps.json` or the engine's still list |
 | 6 | Screens | Copy, layout and numbers are right on every step frame, with no cut-off text or loading flash |
-| 7 | Clean log | Zero console errors and zero app-origin responses of 400 or above; paid calls 0 |
+| 7 | Clean log | Zero console errors and zero `app` responses of 400 or above; each `third-party` one named; paid calls 0 |
 | 8 | Plays | Duration above 0 and the browser playback check in § Record useful walkthroughs passes |
 
 DO fix each finding, then re-record the WHOLE run and review it again; loop until a take has zero findings:
 - An app bug or broken-looking UI inside the change's scope: fix the code with the smallest change
   and a test that fails without it, one commit per fix, staging whole files by path.
 - A script or seed defect (a wrong selector, a missing seed row): fix the script or seed.
+- A flake (a step that fails in some takes): reproduce it 5 times on fresh state with requests logged,
+  forcing the timing that triggers it (e.g. delay the data the screen waits on), name the cause, then
+  fix it under the matching line above. A fix that trades an error for a wait reports the new wait's length and screen.
 - Outside the change's scope: list it under `Outside this change:` with its potential fix; it does not
   hold the loop.
 DO push each fix commit when the branch backs a PR, and re-capture the screenshot points it touched

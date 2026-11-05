@@ -291,6 +291,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep verification runs separate from the short before/after clips: one complete raw real-time run per main journey, fresh arrival to outcome, at most 6 per PR, at the Standard and Deep tiers; neither counts as the other.",
             "Plan every scenario with a step script and seed before recording; seed only pre-existing world data on a production build with realistic values; zero paid calls by default, a paid step only with a per-call yes, else skipped and costed.",
             "Never trim, cut, speed up or overlay a run; no title, chapter or action cards; the only edit is bin/pr-evidence.py run's scenario band above the frame.",
+            "Record at screencast size equal to the viewport from a reset seed, drive every control a human uses, wait only on elements that appear after the event, keep the caption to one 80-character line, log every 400-plus response labelled app or third-party, save a screenshot, recent requests and the browser log on any harness failure, and reproduce a flake with logged requests before fixing it.",
             "Review each take by contact sheet and full-resolution step frames, fix in-scope app findings in code with a failing-first test and one commit each, re-record the whole run until zero findings; stop at 3 attempts or a product decision.",
             "Post only the final clean run under ## Verification runs after an independent fresh-context review: table, Findings: none, Fixed during review with shas, Not covered and Sources lines.",
         ],
