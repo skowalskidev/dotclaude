@@ -30,12 +30,14 @@ GUARD = Path(__file__).parent / "work-resource-guard.sh"
 # Generic test identity — the values the guard compares against. Nothing real.
 WORK_ORG_MATCH = "TestWorkOrg"
 WORK_EMAIL = "work@test.example"
+WORK_LOGIN_2 = "work2@test.example"
 PERSONAL_EMAIL = "personal@test.example"
 WORK_PROJECTS = ["testworkprod", "testworkdev"]
 PERSONAL_PROJECT = "testpersonalproj"
 IDENTITY = {
     "workOrgMatch": WORK_ORG_MATCH,
     "workEmail": WORK_EMAIL,
+    "workClaudeLogins": [WORK_EMAIL, WORK_LOGIN_2],
     "personalEmail": PERSONAL_EMAIL,
     "workCloudProjects": WORK_PROJECTS,
     "personalCloudProject": PERSONAL_PROJECT,
@@ -82,6 +84,8 @@ MUST_FIRE = [
      "personal", f"firebase use {WORK_PROJECTS[1]}"),
     ("the work account in a personal repo",
      "personal", f"gcloud config set account {WORK_EMAIL}"),
+    ("a second listed work login in a personal repo",
+     "personal", f"gcloud config set account {WORK_LOGIN_2}"),
     ("the work Codex home in a personal repo",
      "personal", "CODEX_HOME=~/.codex-work codex exec 'review this'"),
     # --- the work direction (repo origin contains the work-org match) ---
@@ -122,6 +126,8 @@ MUST_NOT_FIRE = [
      "personal", f"git commit -m 'wire up stripe {WORKP} handling'"),
     ("a work account named inside a quoted argument is prose",
      "personal", f"codex exec 'the docs mention {WORK_EMAIL} here'"),
+    ("a second work login named inside a quoted argument is prose",
+     "personal", f"codex exec 'the docs mention {WORK_LOGIN_2} here'"),
     ("a retired 1Password path in prose is just a string now",
      "personal", "echo 'op://vault was removed from the config'"),
     ("checking the firebase account is how the fix is found",

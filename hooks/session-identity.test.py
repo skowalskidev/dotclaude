@@ -82,6 +82,11 @@ def main() -> int:
         account.write_text(json.dumps({"oauthAccount": {"emailAddress": "me@acme.example"}}))
         if "WRONG CLAUDE LOGIN" in context(run(str(idf2), str(account), work_repo)):
             failures.append("workEmail stopped being accepted when workClaudeLogins is set")
+        # (e) the boundary line names every work login as WORK, never the personal address.
+        boundary = context(run(str(idf2), str(account), other_repo))
+        logins = boundary.split("work Claude logins [", 1)[-1].split("]", 1)[0]
+        if "me@acme.example" not in logins or "me2@acme.example" not in logins or "me@home.example" in logins:
+            failures.append(f"boundary line does not list every work login as WORK: {boundary!r}")
 
     for f in failures:
         print(f"FAIL  {f}")

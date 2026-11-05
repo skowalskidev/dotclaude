@@ -30,11 +30,13 @@ cmd="$(printf '%s\n' "$meta" | sed -n 2p)"
 # --- identity overlay: the work/personal values this guard compares against ---
 # CLAUDE_IDENTITY_FILE overrides the path (used by the test to drive off a fixture overlay).
 ID_FILE="${CLAUDE_IDENTITY_FILE:-$HOME/.claude/identity.local.json}"
-WORK_ORG_MATCH=""; WORK_EMAIL=""; PERSONAL_EMAIL=""; WORK_PROJECTS_RE=""; PERSONAL_PROJECT=""
+WORK_ORG_MATCH=""; WORK_EMAIL=""; WORK_LOGINS=""; PERSONAL_EMAIL=""; WORK_PROJECTS_RE=""; PERSONAL_PROJECT=""
 if [ -f "$ID_FILE" ] && command -v jq >/dev/null 2>&1; then
   WORK_ORG_MATCH="$(jq -r '.workOrgMatch // ""' "$ID_FILE" 2>/dev/null)"
   WORK_EMAIL="$(jq -r '.workEmail // ""' "$ID_FILE" 2>/dev/null)"
   PERSONAL_EMAIL="$(jq -r '.personalEmail // ""' "$ID_FILE" 2>/dev/null)"
+  # Every work account: workEmail plus the optional workClaudeLogins list, one per line.
+  WORK_LOGINS="$(jq -r '([.workEmail // empty] + (.workClaudeLogins // [])) | map(select(length > 0)) | unique | .[]' "$ID_FILE" 2>/dev/null)"
   # Alternation for a regex, longest-first so a prefix can't shadow a longer id.
   WORK_PROJECTS_RE="$(jq -r '(.workCloudProjects // []) | sort_by(-length) | join("|")' "$ID_FILE" 2>/dev/null)"
   PERSONAL_PROJECT="$(jq -r '.personalCloudProject // ""' "$ID_FILE" 2>/dev/null)"
@@ -214,10 +216,15 @@ if [ "$tool" = "Bash" ]; then
     # being invoked, so the address merely appearing in prose — a commit message, a quoted argument,
     # a doc being echoed — is not a block. That is the false-positive class that retired the old
     # text-matching security guard, and hooks/work-resource-guard.test.py pins it.
-    if [ -n "$WORK_EMAIL" ] \
-       && printf '%s' "$cmd" | grep -qF "$WORK_EMAIL" \
-       && { is_cmd firebase || is_cmd gcloud || is_cmd aws || is_cmd gh || is_cmd npx; }; then
-      deny "Blocked by personal-resource policy: '$WORK_EMAIL' is your WORK account. Personal repos must use ${PERSONAL_EMAIL:-your personal account}."
+    # Every listed work account counts (workEmail + workClaudeLogins), so a second work login is
+    # blocked here exactly like the first.
+    if [ -n "$WORK_LOGINS" ] && { is_cmd firebase || is_cmd gcloud || is_cmd aws || is_cmd gh || is_cmd npx; }; then
+      while IFS= read -r work_login; do
+        [ -n "$work_login" ] || continue
+        if printf '%s' "$cmd" | grep -qF "$work_login"; then
+          deny "Blocked by personal-resource policy: '$work_login' is your WORK account. Personal repos must use ${PERSONAL_EMAIL:-your personal account}."
+        fi
+      done <<< "$WORK_LOGINS"
     fi
 
     # Stripe profile rules. Both are gated on is_cmd so the flag merely APPEARING in a commit message,

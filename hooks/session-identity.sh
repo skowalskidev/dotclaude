@@ -37,4 +37,4 @@ if [ -n "$wo" ] && [ -n "$we" ] && [ -n "$claude_email" ] && [ "$login_ok" != "t
   account_warning=" WRONG CLAUDE LOGIN: this is a work repo and Claude is signed in as ${claude_email}, not one of the accepted work logins (${accepted_logins}). Tell Simon in your first reply and start no workers until he switches. A running chat keeps the login it started with, so switching needs a new chat."
 fi
 
-emit "Work/personal boundary (your identity overlay): WORK = ${we:-?}, cloud projects [${wp:-?}], git-origin match '${wo:-?}'. PERSONAL = ${pe:-?}, cloud project ${pp:-?}. Never cross work and personal resources; the guard enforces it, but keep them apart proactively.${account_warning}"
+emit "Work/personal boundary (your identity overlay): WORK = ${we:-?}, work Claude logins [${accepted_logins:-?}] (connectors on any of them serve work tasks), cloud projects [${wp:-?}], git-origin match '${wo:-?}'. PERSONAL = ${pe:-?}, cloud project ${pp:-?}. Never cross work and personal resources; the guard enforces it, but keep them apart proactively.${account_warning}"

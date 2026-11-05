@@ -144,6 +144,15 @@ host's new-chat entry (ChatGPT: **Try in chat**) and check there. Report a missi
 from an OAuth failure. Verify each host independently; ChatGPT success does not prove native Codex
 access, and Claude credentials do not authenticate an OpenAI session.
 
+DO treat every Claude account listed in the identity overlay (`workEmail` plus `workClaudeLogins`) as
+a work account: a claude.ai connector on any of them is authorized for work tasks. claude.ai
+connectors follow the CLI's signed-in account, so before calling one unavailable run `claude mcp list`
+and read the overlay; to reach a connector held by another listed account, sign the CLI in as that
+account (`/login`) or connect the same connector on the signed-in account.
+DON'T extend this to the personal account; the work/personal boundary stays as written.
+TEST: an "unavailable" verdict on a claude.ai connector names the signed-in account, the overlay's
+work accounts and the `claude mcp list` result.
+
 DO keep shared work connector metadata in one matching shared manifest, with `boundary: work` and
 `gated: true`; remove a project duplicate when moving it. Use `claude-connector` only for the Claude
 account route. Record another host's observed status without inventing an MCP registration or a new
