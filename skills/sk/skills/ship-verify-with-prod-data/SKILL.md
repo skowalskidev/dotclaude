@@ -88,6 +88,9 @@ representative account, then re-read (Phase 3) and confirm the surface now recon
 verified only in prose is unverified.
 TEST: the dev account's surface reconciles after the dev recompute, and the prod steps are copy-paste
 with a stated order (writer deploy → recompute → readers).
+**DO give a backfill that ships as a migration its runtime-versus-timeout verdict** from
+`references/git-pr-deploy.md` § Migration safety, Runtime at production volume. TEST: the hand-back
+names its measured runtime and the pipeline timeout.
 
 ## Phase 6 · Before screenshots — name the data mode
 

@@ -477,7 +477,7 @@ result; a conflict or red suite is fixed before hand-back, never reported as a c
 
 ### 2. Migration safety
 
-**DO record four facts per migration:**
+**DO record five facts per migration:**
 1. **Number.** Above every migration on the default branch and every open PR's
    (§ Git, PRs, integration, the open-PR numbering check), timestamps included.
 2. **Real apply order.** Read the deploy workflow and scripts, not a README, and state with file:line
@@ -490,13 +490,25 @@ result; a conflict or red suite is fixed before hand-back, never reported as a c
 4. **Backfill reach.** Count, read-only against production through the provisioned path
    (`rules/connectors.md`), the rows each backfill or data migration changes, by class, and record the
    query and the counts.
+5. **Runtime at production volume.** For every migration that rewrites or backfills existing rows,
+   measure before merge, read-only: `EXPLAIN` (never `EXPLAIN ANALYZE`) on production, or time its
+   SELECT part on production read-only or on a production-sized local copy. Read the deploy
+   pipeline's statement timeout from the repo (workflow, migration runner or role setting) with
+   file:line and record both figures. At or above half the timeout, rewrite it into bounded batches
+   (per owner, thread or id range) before merge.
+   **DON'T raise the timeout for a rewrite of a user-facing table:** the statement then holds its row
+   locks on user data for minutes. A row count and a size limit are not a runtime.
+   WHY: a timed-out statement rolls back, the deploy step fails, later code deploys skip, and every
+   later merge fails the same step until the file changes (the fix for a one-statement JSON rewrite of
+   about 1,400 rows that hit a 2-minute pipeline timeout and needed a hotfix PR).
 
 **DO prove compatibility mechanically when the repo has a local database:** apply the train's
 migrations in order to a fresh local stack, then run the DEFAULT branch's affected database suites on
 that schema (old code, new schema). Run the new code on the old schema too when the pipeline can ship
 code first.
-TEST: every migration has a number, apply-order, compatibility and reach verdict; a migration that
-breaks the live code under either order has been split before hand-back.
+TEST: every migration has a number, apply-order, compatibility and reach verdict, and each
+data-rewriting one names its measured runtime and the pipeline timeout; a migration that breaks the
+live code under either order, or runs at half the timeout or more, has been split before hand-back.
 
 ### 3. Live-traffic cutover
 
