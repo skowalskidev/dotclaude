@@ -544,8 +544,11 @@ command CI runs that can fail the change (lints, audits, design-system checks, t
 source tests), each with its local command. Run each gate that takes under 2 minutes once on the
 untouched branch and record what it forbids; this is the one diagnostic the batch runs by default.
 Write those constraints into every builder brief, and run the whole list once at convergence, before
-the first push. DON'T learn a gate from a failed CI run. TEST: the first CI run on a new pull request
-fails on no gate that has a local command (the fix for five gates found one push at a time).
+the first push. Run the whole list again before every later push whose diff touches files any gate
+reads: a review fix that edits a test still owes the duplicate-code and dead-code gates, not only the
+suite it touched. DON'T learn a gate from a failed CI run. TEST: no CI run on the pull request, first
+or later, fails on a gate that has a local command (the fix for five gates found one push at a time,
+and for review-fix pushes that reran one gate and failed CI on another).
 
 **DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
 PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant

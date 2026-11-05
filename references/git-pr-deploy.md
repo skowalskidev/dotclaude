@@ -154,7 +154,7 @@ and event, then wait under `references/code-best-practices.md` § Agent-written 
 ```sh
 set -euo pipefail
 SHA=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
-JOB=<a required check's job name, e.g. preflight>
+JOB=<a required job that starts at push time, e.g. preflight; not a roll-up gated on other jobs>
 RUN=""
 for _ in $(seq 1 10); do  # the job registers a few seconds to minutes after the push
   RUN=$(gh api "repos/$O/$R/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[]
@@ -180,7 +180,8 @@ done
 
 **DO filter by a required check's job name.** An unfiltered first run is often a fast side workflow
 (PR metadata, dependabot) that finishes before the required workflow registers, so the wait reports
-green early.
+green early. Pick a job with no `needs:`: a roll-up job that waits on others registers only
+when they finish, after the lookup's 5 minutes, so the wait aborts with no run id.
 **DON'T resolve it with `gh run list --branch` or `--workflow`.** A branch, event or workflow-name
 mismatch returns nothing, and every later `gh run view` fails on the empty id.
 TEST: a CI wait's run id traces to the head sha, and the wait exits non-zero on an empty id, a failed
