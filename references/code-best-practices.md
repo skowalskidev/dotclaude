@@ -77,6 +77,10 @@ differ) turn "still running" into "done" inside a loop or `if` condition. Poll a
 != "COMPLETED")] | length'`, or guard the command with an inline reason: `(gh pr checks <n> || true) |
 grep -q pending  # exit 8 means pending`. (the fix for a CI wait that reported done with 15 checks
 still pending.)
+**DON'T treat an all-complete rollup as a finished CI wait.** Right after a push the rollup lists only
+the checks registered so far, so a fast side workflow can complete it while the required workflow is
+still queued. Wait on the head sha's required run with `references/git-pr-deploy.md`'s recipe. (the fix
+for a watcher that reported green on 3 checks while the deploy workflow had not started.)
 TEST: no loop or `if` condition under pipefail pipes a status-coded command without a guard or a
 field read.
 
