@@ -511,8 +511,16 @@ with `pgrep -g <pgid> -l` and verify its owned members stopped, preserving other
 
 DO cap native runner parallelism inside the lease: `xcodebuild -jobs 4
 -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1` on hosts with at
-least 8 logical cores, or at most half the cores (minimum 1) on smaller hosts. Apply explicit worker
-limits to Gradle and other runners. Apply `rules/process.md` § Fan out verification to scheduling;
+least 8 logical cores, or at most half the cores (minimum 1) on smaller hosts. Cap compiler threads
+separately from build jobs: for Swift whole-module optimization, pass
+`SWIFT_USE_PARALLEL_WHOLE_MODULE_OPTIMIZATION=NO` to the local build invocation. Verify the installed
+`Swift.xcspec` supports it and inspect the emitted compiler/frontend arguments for `-num-threads 1`.
+DON'T assume `-jobs` or `OTHER_SWIFT_FLAGS` caps compiler threads: Xcode can append a larger value
+(the fix for a four-job build still emitting eight compiler threads).
+Source: [SwiftBuild compiler argument construction](https://github.com/swiftlang/swift-build/blob/main/Sources/SWBCore/SpecImplementations/Tools/SwiftCompiler.swift).
+TEST: a WMO invocation carries no later thread-count override above 1; a mismatch is unresolved,
+never permission to bypass capacity or the watchdog. Apply explicit worker limits to Gradle and other
+runners. Apply `rules/process.md` § Fan out verification to scheduling;
 use `test-without-building` only for matching artifacts. For
 web suites, start at two workers (`vitest --maxWorkers=2`, `node --test --test-concurrency=2` or
 `playwright test --workers=2`) after confirming the installed CLI accepts that flag. Playwright's
