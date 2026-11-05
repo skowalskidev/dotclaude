@@ -1058,6 +1058,20 @@ CONTRACTS: dict[str, dict] = {
             "holds up gets three lines and a plain yes.",
         ],
     },
+    "skills/sk/skills/work-investigate-and-fix/SKILL.md": {
+        "mission": "A pasted production alert ends as a shipped, deployed fix that measurably helps users, or as a corroborated verdict that nothing needs fixing.",
+        "purpose": "Front door for production alerts and error reports: verdict per symptom, corroborated root cause, root fix, regression sweep, deploy proof.",
+        "criteria": [
+            "Record every symptom in the paste as its own session-record item and close each with one verdict: root-caused, already fixed, expected or needs a decision.",
+            "Discover provisioned connectors before asking for access; back every load-bearing claim with 2 independent sources; keep prod read-only and paid calls under spend-approval.",
+            "Call a cause a bug only after citing the commit and the ticket intent it contradicts; an external or provider verdict names the runtime identifiers compared.",
+            "Pin the fix with a test shown failing on the old code; fix the owning source, not the alert.",
+            "Prove the outcome changed for users with denominators where authorized; a silenced alert alone is never reported as a fix.",
+            "Sweep every deploy in the window with per-surface before/after rates and denominators through a read-only parallel agent; fold in-scope fixes into the same PR.",
+            "Compose work-full-detailed-workflow, work-does-this-make-sense-to-build, ship-pr and ship-full-detailed-workflow by name; restate none of their methods.",
+            "After merge, verify the deploy run for the merge sha and run a read-only production smoke before reporting done.",
+        ],
+    },
     "skills/sk/skills/plan-research/SKILL.md": {
         "mission": "A research question comes back as a ranked, cited answer that survived refutation, not a single-source guess.",
         "purpose": "Runs a research question through decompose, parallel multi-source find, adversarial verify, rank, and a cited TLDR.",

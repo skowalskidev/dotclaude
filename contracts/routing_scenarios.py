@@ -51,6 +51,12 @@ SCENARIOS: list[dict] = [
     {"phrase": "pick up this handoff", "expect": "work-handoff-prepare-and-pickup"},
     {"phrase": "I'm running out of quota", "expect": "work-handoff-prepare-and-pickup"},
     {"phrase": "keep handing this off to another agent", "expect": "work-handoff-prepare-and-pickup"},
+    # Production alerts and error reports: the investigate-and-fix front door.
+    {"phrase": "investigate these alerts and fix them", "expect": "work-investigate-and-fix"},
+    {"phrase": "investigate X and fix it", "expect": "work-investigate-and-fix"},
+    {"phrase": "pasted Slack alert", "expect": "work-investigate-and-fix"},
+    {"phrase": "is prod ok", "expect": "work-investigate-and-fix"},
+    {"phrase": "any regressions since the deploy", "expect": "work-investigate-and-fix"},
     # --- Repo and code -------------------------------------------------------------
     {"phrase": "clean up the repo", "expect": "maintenance-code-cleanup-repo"},
     {"phrase": "find dead code", "expect": "maintenance-code-cleanup-repo"},
