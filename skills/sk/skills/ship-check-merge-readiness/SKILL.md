@@ -131,8 +131,9 @@ land, in what order, and what would have broken otherwise.
   gate.** TEST: a hand-back saying ready cites a landing-gate result on the head it names (the fix for a
   merge-ready ask answered from this skill and CI alone, where the harness then found six defects).
 - Report: is-it-ready per PR, the assembled deploy order, every cross-owner ticket filed with its
-  blocking flag, and anything still open that only the human can settle. Flip to ready only when
-  the assembly holds and every blocking dependency is tracked.
+  blocking flag, and anything still open that only the human can settle. Flip to ready only at merge
+  prep, when the assembly holds and every blocking dependency is tracked
+  (`references/git-pr-deploy.md` § CI runs once, at merge prep).
 - **Four execution traps quietly break the proof — check each.** (1) A PR stacked on a non-default
   branch has its heavy CI jobs SKIPPED (only the PR targeting the default branch runs the full suite);
   skipped ≠ passed, so cover missing evidence in the final local gate. (2) A gate

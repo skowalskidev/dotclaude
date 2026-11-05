@@ -24,6 +24,7 @@ tickets; a fix that belongs to another PR is handed to that owner via
    behind/ahead master; the authoritative ticket list from the PR body; the full diff surface
    (`git diff <base>...HEAD`). PUSH the PR's own branch to origin so it is current — CI, the review,
    and merge-readiness all read the pushed state. NEVER push, merge into, or otherwise write master.
+   Leave a draft PR in draft: `references/git-pr-deploy.md` § CI runs once, at merge prep.
    **DO classify each PR's tier here, per `references/testing-strategy.md` § Size the checks to the
    change, and run every stage below at that tier.** Deep runs every stage as written; a stage or
    landing-gate row the tier skips records its skip line instead of running.

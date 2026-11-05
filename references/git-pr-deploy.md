@@ -134,6 +134,25 @@ fetch is the check, never a new pin.
 TEST: a force push whose lease value came from `ls-remote` or fetch output in the same step, or one that
 drops a commit authored by another session, broke the rule.
 
+## CI runs once, at merge prep
+
+**DO keep a work PR in draft, with its CI off, through development and every review round.** Push
+each finished commit to the draft branch for review as `rules/process.md` already directs. Mark it
+ready (`gh pr ready <n>`), which starts CI, only at merge prep: Simon asked to merge, the base is
+merged in, and the gate list passed locally in one pass on the head being marked
+(`references/testing-strategy.md` § Defects first).
+**DON'T fix CI or mark a PR ready mid-development to see what CI says.** CI fixes belong to merge prep.
+TEST: a PR's first CI run starts at merge prep, on a head carrying a full local gate-list pass.
+
+**DO let a failing CI run finish before acting on it, then fix every failure in one batch.** List
+every run for the head sha (`gh run list --commit <sha>`), wait until all are `completed`, read each
+failed job's log at once (`gh run view <id> --log-failed`), fix every failure, rerun the whole local
+gate list and push once.
+**DON'T push on the first red check, and DON'T fix one job and wait on a full rerun to find the next.**
+TEST: each red CI run is followed by one push that fixes every job it failed, made after a full local
+gate-list pass (the fix for a first CI run that failed on a secret-scan false positive on a test
+fixture token and an i18n coverage gate the base had added, both with local commands).
+
 ## After a push, and after merging the base in
 
 Applies once a push is authorized (Simon asked, or a `sk:ship-*` flow that pushes is running).
@@ -192,7 +211,7 @@ list from `references/testing-strategy.md` § Defects first; e.g. a rule that a 
 above every migration on the base). TEST: the first CI run after a base merge fails on no gate that has
 a local command.
 
-**DO finish four steps after merging the base, before the next commit:**
+**DO finish five steps after merging the base, before the next commit:**
 1. Reinstall dependencies with the project's lockfile command.
 2. Re-download the test browsers and pinned binaries (a base dependency bump can change the browser a
    test tool needs).
@@ -200,8 +219,10 @@ a local command.
    number, and state which files are applied (a stale record of the old name hides a base migration
    that took its number).
 4. Read `git status` for tracked files a tool rewrote, and revert or explain each.
-TEST: the hand-back names the install, the browser download, the applied-migration comparison and the
-`git status` result.
+5. Re-read the CI workflow files and refresh the gate list (`references/testing-strategy.md` §
+   Defects first).
+TEST: the hand-back names the install, the browser download, the applied-migration comparison, the
+`git status` result and the base sha the gate list was refreshed at.
 
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 

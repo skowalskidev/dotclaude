@@ -487,11 +487,11 @@ match; a step whose expected request is missing halts the run.
 - **DO run diff-scoped static audits (complexity, dead code, duplication) at the final gate before
   whole suites or builds.** Fix audit findings with the affected audit alone; carry its passing evidence
   into the gate. TEST: a passing audit is not rerun unless its inputs changed.
-- **DO run the project's own cheap static gates exactly as its CI invokes them, before every push to a
-  branch whose CI gates the merge.** Read the CI workflow for the command and scope: its type-check
+- **DO run the project's own cheap static gates exactly as its CI invokes them, before every push or
+  ready-flip that starts CI.** Read the CI workflow for the command and scope: its type-check
   task, lint and duplicate/dead-code steps, over the same paths. DON'T substitute a hand-picked subset
   such as entry files only; it passes while CI fails, and each CI round trip costs 20+ minutes. This is
-  the convergence gate before a push, not a per-edit run. TEST: each pushed head has a local pass of
+  the convergence gate before CI runs, not a per-edit run. TEST: each head CI runs on has a local pass of
   every static step CI runs, with CI's own command (the fix for two failed CI runs in one session: a
   duplicate-code step never run locally, and a type error in a test file missed by checking entry files
   while CI checked every file under the functions tree).
@@ -539,16 +539,25 @@ needs it or Simon's explicit request; record the reason and scope. Compile an im
 only when required to continue the work. DON'T turn cheap checks or dependency builds into a per-edit
 verification loop. Leave required hooks and CI enabled and unchanged.
 
-**DO read the project's CI configuration at intake and write its gate list into the plan:** every
-command CI runs that can fail the change (lints, audits, design-system checks, type checks, pinned
-source tests), each with its local command. Run each gate that takes under 2 minutes once on the
-untouched branch and record what it forbids; this is the one diagnostic the batch runs by default.
-Write those constraints into every builder brief, and run the whole list once at convergence, before
-the first push. Run the whole list again before every later push whose diff touches files any gate
-reads: a review fix that edits a test still owes the duplicate-code and dead-code gates, not only the
-suite it touched. DON'T learn a gate from a failed CI run. TEST: no CI run on the pull request, first
-or later, fails on a gate that has a local command (the fix for five gates found one push at a time,
-and for review-fix pushes that reran one gate and failed CI on another).
+**DO read the project's CI configuration at intake, and again after every merge or rebase of the base
+branch, and write its gate list into the plan:** every command CI runs that can fail the change (lints,
+audits, design-system checks, type checks, pinned source tests), each with its local command. Diff the
+re-read list against the recorded one and add every new gate; the base can add a gate at any merge.
+Run each gate that takes under 2 minutes once on the untouched branch and record what it forbids; this
+is the one diagnostic the batch runs by default. Write those constraints into every builder brief.
+DON'T learn a gate from a failed CI run. TEST: the plan's gate list names the base sha it was read at,
+and that sha is the latest base merged into the branch (e.g. an i18n coverage gate the base added
+after intake, missed across two base merges).
+
+**DO run the whole gate list in one pass at merge prep, before the ready-flip that starts CI**
+(`references/git-pr-deploy.md` § CI runs once, at merge prep), over CI's own scope: every static gate,
+the secret scan over the branch's commit range (e.g. `gitleaks git --log-opts="origin/<base>..HEAD"`),
+design and i18n checks, the unit suites and the e2e specs the diff affects. Run the whole list again
+before every later push to a ready PR whose diff touches files any gate reads: a review fix that edits
+a test still owes the duplicate-code and dead-code gates, not only the suite it touched. TEST: no CI
+run on the pull request, first or later, fails on a gate that has a local command (the fix for five
+gates found one push at a time, for review-fix pushes that reran one gate and failed CI on another,
+and for a secret-scan false positive on a test fixture token caught only by CI).
 
 **DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
 PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant

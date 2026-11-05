@@ -20,6 +20,7 @@ or explicit requests. Keep hooks/CI. Verify once at convergence; reuse proof, re
 Keep native compile/backend checks; native runtime/UI/screenshots are opt-in.
 DO size every check to the change's tier first: `references/testing-strategy.md` §§ Size the checks to
 the change, Defects first and Native simulator suites.
+DO keep a work PR draft until merge prep: `references/git-pr-deploy.md` § CI runs once, at merge prep.
 DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push. Name
 the real blocker in every status. DO launch every ready stage at once on a priority ask.
 `references/parallelization.md` §§ Parallelize verification, across tasks AND stages.
@@ -156,9 +157,8 @@ green tree.
 Run-to-completion above is the DEFAULT and stays it. But when I say to work in phases (or to space the
 work out, or to stop after each stage), that overrides it for that task:
 
-Plan the phases first and show the list; stop at each boundary; commit per phase; on resume read the
-plan, commits and tree first; phasing is pacing, never scope. Detail: `references/planning-and-tracking.md`
-§ Phased execution.
+Apply `references/planning-and-tracking.md` § Phased execution: show the phases first, stop at each
+boundary, commit per phase.
 
 ### Check whether the project declares expected outcomes, before changing a unit
 Many carry a contract registry or acceptance criteria that a green test suite does not enforce on its
