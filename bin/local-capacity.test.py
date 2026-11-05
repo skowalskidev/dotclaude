@@ -8,6 +8,7 @@ import fcntl
 import json
 import multiprocessing
 import os
+import re
 import signal
 import shutil
 import shlex
@@ -1028,25 +1029,64 @@ class AutoReleaseTests(unittest.TestCase):
             self.assertEqual(gate.reap_dead_leases(self.root), [])
         self.assertEqual([gate.read_state(self.root, slot=name) for name in gate.SLOTS], [pending, bare, unknown])
 
-    def test_live_priority_session_lease_is_kept(self):
+    def test_live_priority_sessions_dead_lease_is_released_with_its_allowance(self):
+        # A live priority session keeps its live leases; a dead one only blocked its own owner.
         gate.prioritize(self.root, "vip", 30, False, workspace=None)
+        live = self.hold(gate.LEASE_SLOT, "vip-live", os.getpid(), gate.pid_start(os.getpid()), self.live_group())
         dead = self.exited_group()
         lease = self.hold(gate.THIRD_SLOT, "vip", dead, "old start", dead)
-        with mock.patch.object(gate, "owner_session_live", return_value=True):
-            self.assertEqual(gate.reap_dead_leases(self.root), [])
-        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
-        with mock.patch.object(gate, "owner_session_live", return_value=False), \
-             contextlib.redirect_stderr(io.StringIO()):
+        gate.write_state(self.root, {"token": lease["token"]}, gate.ALLOWANCE_SLOT)
+        stderr = io.StringIO()
+        with mock.patch.object(gate, "owner_session_live", return_value=True), contextlib.redirect_stderr(stderr):
             self.assertEqual(len(gate.reap_dead_leases(self.root)), 1)
+        self.assertIn("holder=vip (owner pid %d not running" % dead, stderr.getvalue())
         self.assertIsNone(gate.read_state(self.root, slot=gate.THIRD_SLOT))
+        self.assertEqual(gate.read_state(self.root, slot=gate.LEASE_SLOT), live)
+        with gate.locked(self.root):
+            self.assertIsNone(gate.allowance_token(self.root))
+
+    def test_release_ignores_an_unrelated_unclaimed_simulator_but_not_its_own(self):
+        gate.write_claims(self.root, {SIM2: "other-session"}, {SIM2: "/w/other"})
+        unrelated = "99999999-8888-7777-6666-555555555555"
+        for booted, claim_owner, refused in (([unrelated], None, None), ([SIM], None, "owned simulator"),
+                                             ([SIM2], None, None), ([SIM2], "mine", "claimed by this owner")):
+            with self.subTest(booted=booted, claim_owner=claim_owner):
+                if claim_owner:
+                    gate.write_claims(self.root, {SIM2: claim_owner}, {SIM2: "/w/alpha"})
+                dead = self.exited_group()
+                lease = self.hold(gate.LEASE_SLOT, "mine", dead, "old start", dead,
+                                  simulator=SIM if booted == [SIM] else None)
+                with mock.patch.object(gate, "observe_booted", return_value=booted):
+                    if refused:
+                        with self.assertRaisesRegex(gate.Busy, refused):
+                            gate.release(self.root, lease["token"], orphan_inspected=True)
+                        self.assertEqual(gate.read_state(self.root, slot=gate.LEASE_SLOT), lease)
+                        gate.write_state(self.root, None, gate.LEASE_SLOT)
+                    else:
+                        gate.release(self.root, lease["token"], orphan_inspected=True)
+                        self.assertIsNone(gate.read_state(self.root, slot=gate.LEASE_SLOT))
+
+    def test_ownership_probe_failure_never_aborts_admission(self):
+        gate.prioritize(self.root, "vip", 30, False, workspace="/")
+        failure = gate.GateError("workspace ownership probe failed; idle stacks are unknown")
+        with mock.patch.object(gate.Path, "cwd", return_value=Path("/w/elsewhere")), \
+             mock.patch.object(gate, "checkout_path", side_effect=lambda path: str(path)), \
+             mock.patch.object(gate, "session_owns_workspace", side_effect=failure):
+            token = gate.acquire(self.root, "vip", os.getpid(), None, child_pending=True)
+            self.assertEqual(gate.read_state(self.root)["owner"], "vip")
+            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+                with self.assertRaisesRegex(gate.Busy, "ownership is unknown"):
+                    gate.acquire(self.root, "vip-worker", os.getpid(), None, child_pending=True)
+        gate.write_state(self.root, None, gate.LEASE_SLOT)
+        del token
 
     def test_a_lease_replaced_after_the_probe_is_not_released(self):
         dead = self.exited_group()
         self.hold(gate.THIRD_SLOT, "gone", dead, "old start", dead)
         original = gate.provably_dead
 
-        def replace_then_judge(lease, priority):
-            verdict = original(lease, priority)
+        def replace_then_judge(lease):
+            verdict = original(lease)
             self.hold(gate.THIRD_SLOT, "replacement", dead, "old start", dead)
             return verdict
 
@@ -1691,7 +1731,7 @@ class PriorityAllowanceTests(unittest.TestCase):
         gate.prioritize(self.root, "primary", 30, False)
         with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
              mock.patch.object(gate, "RETRY_SECONDS", 0.05), \
-             mock.patch.object(gate, "priority_matches", side_effect=[True, gate.GateError("ownership timeout")]) as match:
+             mock.patch.object(gate, "priority_scope", side_effect=[True, gate.GateError("ownership timeout")]) as match:
             self.assertEqual(self.run_payload("import time; time.sleep(0.25)"), 0)
         match.assert_called_once()
 
@@ -2521,6 +2561,55 @@ class SessionOwnershipTests(unittest.TestCase):
             self.assertIn("--workspace " + shlex.quote(str(workspace)), text)
         self.assertNotIn("only the priority session", text)
 
+    def agent_worktree(self, agent_id):
+        path = self.checkout / ".claude/worktrees" / ("agent-" + agent_id)
+        self.git("-C", str(self.checkout), "worktree", "add", "-q", "--detach", str(path))
+        (path / "apps/api").mkdir(parents=True)
+        return path
+
+    def transcript(self, workspace, agent_id, session="11111111-2222-3333-4444-555555555555"):
+        slug = re.sub(r"[^A-Za-z0-9]", "-", str(workspace))
+        path = self.base / "projects" / slug / session / "subagents" / ("agent-%s.jsonl" % agent_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}\n")
+
+    def test_priority_covers_its_own_agent_worktrees_by_transcript_not_siblings(self):
+        self.host["projects"] = str(self.base / "projects")
+        other = self.base / "other session"
+        self.git("-C", str(self.checkout), "worktree", "add", "-q", "--detach", str(other))
+        mine, foreign, unknown = (self.agent_worktree(agent) for agent in ("a5267979a3a79ae5", "b5267979a3a79ae5",
+                                                                            "c5267979a3a79ae5"))
+        self.transcript(self.sibling, "a5267979a3a79ae5")
+        self.transcript(other, "b5267979a3a79ae5")
+        gate.prioritize(self.root, "session", 30, False, str(self.sibling))
+        record = gate.read_priority(self.root)
+        for workspace in (self.sibling, mine, mine / "apps/api"):
+            with mock.patch.object(gate.Path, "cwd", return_value=workspace):
+                self.assertTrue(gate.priority_matches(record, "worker"), workspace)
+        for workspace in (foreign, unknown, other, self.checkout / "apps/api"):
+            with mock.patch.object(gate.Path, "cwd", return_value=workspace):
+                self.assertFalse(gate.priority_matches(record, "session"), workspace)
+        for projects in (self.base / "absent", None):
+            self.host["projects"] = str(projects) if projects else str(self.base / "unreadable")
+            if projects is None:
+                (self.base / "unreadable").mkdir(mode=0)
+                self.addCleanup((self.base / "unreadable").chmod, 0o755)
+            with mock.patch.object(gate.Path, "cwd", return_value=mine):
+                self.assertFalse(gate.priority_matches(record, "session"))
+
+    def test_unknown_ownership_or_sessions_stop_no_stack_and_never_raise(self):
+        self.running(str(self.nested))
+        self.host["sessions"] = [str(self.checkout)]
+        for patch in (mock.patch.object(gate, "session_owns_workspace",
+                                        side_effect=gate.GateError("workspace ownership probe failed; idle stacks are unknown")),
+                      mock.patch.object(gate, "live_session_cwds",
+                                        side_effect=gate.GateError("live-session probe failed; idle stacks are unknown"))):
+            with patch:
+                lines = gate.stack_sweep(True)
+                self.assertTrue(lines and all("unknown" in line and "nothing stopped" in line for line in lines), lines)
+                self.assertEqual(gate.stack_acquire(self.root, "new-task", str(self.base / "new-task")), lines)
+        self.calls.assert_not_called()
+
     def test_parent_session_protects_nested_simulator_and_independent_owner_can_be_reclaimed(self):
         gate.secure_root(self.root)
         self.host["sessions"] = [str(self.checkout / "apps/api")]
@@ -2734,8 +2823,7 @@ esac
         self.running(str(self.nested))
         self.host["sessions"] = [str(self.checkout)]
         with mock.patch.object(gate.subprocess, "run", return_value=mock.Mock(returncode=2)):
-            with self.assertRaisesRegex(gate.GateError, "ownership probe failed"):
-                gate.stack_sweep(True)
+            self.assertIn("ownership probe failed", "".join(gate.stack_sweep(True)))
         self.calls.assert_not_called()
 
     def test_failed_process_probes_and_missing_cwds_are_unknown_and_keep_claims(self):
@@ -2777,8 +2865,7 @@ esac
         self.running(str(self.nested))
         self.host["sessions"] = [str(self.checkout)]
         with mock.patch.dict(os.environ, env):
-            with self.assertRaisesRegex(gate.GateError, "ownership probe failed"):
-                gate.stack_sweep(True)
+            self.assertIn("ownership probe failed", "".join(gate.stack_sweep(True)))
         self.calls.assert_not_called()
         registry = Path(env["PORT_REGISTRY_FILE"])
         registry.write_text("## Held\n| 39001 | child | %s | fixture | 2000-01-01T00:00:00Z | - |\n" % self.nested)
