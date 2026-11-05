@@ -110,6 +110,12 @@ bypasses for anything blocking a fast loop:
   condition you invent afterwards. TEST: the written count equals the removed count and a re-read finds
   none (the fix for a time-based cleanup condition that matched nothing one second later and left the
   rows behind).
+  DO apply the same to every external test object a run creates (Stripe customers, coupons,
+  subscriptions, Auth users, uploads): record its id the moment it is created and delete only those
+  ids at teardown. DON'T select deletions by time window, name prefix or "all test-mode" on a shared
+  account, which also removes other live sessions' objects. TEST: every teardown deletion traces to an
+  id this run recorded (the fix for 29 test customers deleted by "created since" that included other
+  sessions' objects).
 
 ## Local time-driven simulations
 
