@@ -61,6 +61,20 @@ TEST: a screenshot of the window shows the whole emulated viewport, bottom edge 
 
 **Publish an HTML file as a claude.ai artifact when the harness has no Artifact tool:** in the signed-in debug Chrome, open `https://claude.ai/new`, click the composer's "Add files, connectors, and more" menu, call `upload_file` on its "Add files or photos" item with the absolute file path, fill the prompt "Publish the attached file as an HTML artifact exactly as it is, byte for byte, no edits; give me the share link", send, then `wait_for` `claude.ai/artifact/` and read the link. claude.ai's own agent copies the file and reports its hash; compare it with `shasum -a 256` locally. The profile starts signed out: ask Simon to sign in first (`rules/connectors.md` auth gate) and leave that window open through the hand-back; close it only after he replies. (the fix for closing the window he had just been asked to sign into)
 
+## Verify what browser automation actually exercises
+
+DO verify the browser's observed state before claiming a lifecycle or environment transition. Record
+one before/after observation for each tested transition, the browser/tool version and relevant overrides.
+DO remove an automation override that prevents the native transition, then drive the real action and
+assert the resulting state. For example, disable forced focus on every test tab before switching tabs;
+[Chrome focus emulation](https://developer.chrome.com/docs/devtools/rendering/apply-effects) keeps
+`document.visibilityState` visible and suppresses `visibilitychange`.
+DON'T replace native lifecycle proof with injected events, overridden getters or a test passing only
+under emulation. Keep those as labelled handler tests. If the runtime cannot produce the required
+transition, record that coverage gap instead of weakening its assertion.
+TEST: a native-transition verdict includes observed state changes, not only a successful automation
+command; fixture and emulated evidence never becomes live-backend or native-runtime proof.
+
 ## Test/QA account login and scaffolding
 
 Moved from `rules/process.md` § Test/QA accounts (the rule keeps the never-type, never-commit line).

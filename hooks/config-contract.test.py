@@ -1924,8 +1924,17 @@ def check_matrix_binds_copies_and_walks_real_stack() -> None:
                      "DO walk every changed screen and state autonomously on the real local stack",
                      "base BEFORE", "(method, URL, headers, body, response)", "every downstream surface",
                      "one verdict citing that evidence", "DON'T count green suites", "Redact token and cookie values",
-                     "`Real-environment walk:`"):
+                     "`Real-environment walk:`", "inspect the screenshots at each meaningful step yourself",
+                     "correlate each action with its requests, responses and persisted state",
+                     "Fix observed bugs and rerun affected scenarios", "captured-but-uninspected images",
+                     "Verify what browser automation actually exercises"):
         check(required in flat, "Matrix skill lost: " + required)
+    browser = " ".join((ROOT / "references/browser-debugging.md").read_text().split())
+    for required in ("Verify what browser automation actually exercises", "one before/after observation",
+                     "browser/tool version and relevant overrides", "remove an automation override",
+                     "drive the real action", "injected events, overridden getters",
+                     "record that coverage gap instead of weakening its assertion"):
+        check(required in browser, "Browser evidence validity lost: " + required)
     ship = " ".join((ROOT / "skills/sk/skills/ship-full-detailed-workflow/SKILL.md").read_text().split())
     check("copy binding and real-environment walk on every Standard PR" in ship
           and "the `Real-environment walk:` line" in ship,

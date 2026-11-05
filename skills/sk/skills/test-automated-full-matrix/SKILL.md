@@ -40,9 +40,12 @@ PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
    **DO walk every changed screen and state autonomously on the real local stack, when one exists,** on
    the final head with seeded test data and paid providers stubbed: screenshot each state beside its
    base BEFORE; record each request (method, URL, headers, body, response) and the persisted rows,
-   then open every downstream surface reading them; judge each acceptance criterion and source claim in
-   the living plan with one verdict citing that evidence. Redact token and cookie values; walk captures
-   are diagnostics. **DON'T count green suites as this evidence.** TEST: the matrix holds a
+   then open every downstream surface reading them. **DO inspect the screenshots at each meaningful
+   step yourself**, and correlate each action with its requests, responses and persisted state before
+   judging each acceptance criterion and source claim in the living plan with one verdict citing that evidence.
+   Apply `references/browser-debugging.md` § Verify what browser automation actually exercises.
+   Redact token and cookie values; walk captures are diagnostics. Fix observed bugs and rerun affected
+   scenarios. **DON'T count green suites or captured-but-uninspected images as this evidence.** TEST: the matrix holds a
    `Real-environment walk:` line with one verdict per source, or a named no-local-stack reason (the fix
    for a static page's example text left stale by a stacked PR: suites, reviews and screenshots passed,
    and only a real-stack walk found it).
