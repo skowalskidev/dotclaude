@@ -119,8 +119,19 @@ last frame shows the scenario's outcome, each matching the TLDR. `ffprobe` durat
 to the PR as a playable inline video through that skill's attachment and rendered-playback checks; a text link or
 thumbnail does not pass.
 NUMBER: at least 8 seconds, at least 3 distinct states (UI before the action, action, outcome), and a
-TLDR of at most 2 lines. States = 1 +
+TLDR of at most 2 lines. DO record the default scene-count diagnostic as 1 +
 `ffmpeg -i <clip> -vf "fps=1,select='gt(scene,0.15)',showinfo" -an -f null - 2>&1 | grep -c pts_time`.
+DO retain that count unchanged. When it is below 3, keep the clip blocked unless a reviewer personally
+views timestamped first-UI, action and outcome frames extracted from that exact clip and identifies
+at least 3 meaningful scenario states matching its TLDR. Record the clip SHA-256, each sample's path,
+SHA-256, timestamp and observed state, reviewer identity, failed diagnostic and explicit fallback
+verdict in the verification receipt. Require the same duration, playback and control-clip checks;
+re-extract and re-review after any clip change. A composed comparison needs this proof for each side.
+WHY: sparse UI changes such as typing can remain below a whole-frame scene threshold.
+DON'T lower the threshold, count cursor blinks or compression noise as states, or accept differing
+hashes alone as semantic proof. Missing, repeated or ambiguous states remain blocked.
+TEST: a below-3 diagnostic passes only with a complete hash-bound visual-review receipt and all other
+video checks passing; a static clip or a receipt for different bytes fails.
 DO lengthen the UI lead-in before the action for a short scenario, never the tail. Skip video only
 for a change with no visible UI or no interaction to drive (a static copy or style change carried by its screenshot
 pair), and state that skip in the report.
