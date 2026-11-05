@@ -101,10 +101,15 @@ images unaltered and uncropped in the gallery. TEST: each comparison discloses i
 
 ## Record useful walkthroughs
 
+These are the SHORT per-change BEFORE/AFTER clips. The complete raw run of each main journey is a
+separate deliverable, § Verification run videos; DON'T apply this section's length, speed, trim or
+lead-in rules to it, and DON'T count either one as the other.
+
 DO record one video per user-journey scenario the change affects, each a separate file named and
 captioned by its scenario (e.g. "Ask the cash price while it is still loading"). Take the scenarios
-from the acceptance criteria and the change's states: happy path, loading, slow, a follow-up action
-during loading, and each limit or failure. A combined walk never replaces the per-scenario videos.
+from the acceptance criteria and the change's states: the changed step's success case, loading, slow,
+a follow-up action during loading, and each limit or failure. A combined walk never replaces the
+per-scenario videos.
 DO start every clip on the first frame of the real UI, immediately before the triggering action
 (tap, typing, send), driven at human pace, ending 1-2 s after the outcome is on screen. Trim
 everything after the outcome: no idle tail, no unrelated navigation, no next scenario. The composer's final-state hold freezes that outcome frame and
@@ -160,9 +165,10 @@ Explore first, save the explicit replay, reset state, then record a deliberate p
 from exploration even when the final recording succeeds. In Playwright use
 its supported video configuration or feature-detected `page.screencast`; retain successful demo videos,
 not only failures. Match recording size to viewport, finalize by closing the context or stopping the
-recorder, then inspect playback from first to last state and check readable labels. Native action
-annotations are optional when the installed API supports them. TEST: an inline video plays the
-actual replay, not exploration or an unfinished file.
+recorder, then inspect playback from first to last state and check readable labels.
+DON'T turn on Playwright's on-video text (`screencast.showActions`, `showChapter`, `showOverlay`, or
+the video config's `show`); a caption belongs in the band above the frame. TEST: an inline video
+plays the actual replay, not exploration or an unfinished file, with no text drawn over the UI.
 
 DO put a caveat of at most two sentences beside each clip showing an injected error or test-only end
 state. Name that state and the verified recording environment. Check the capture setup and network
@@ -179,6 +185,144 @@ Use keyframes and record the missing video capability when the installed tool ca
 install a second recorder. Keep traces as optional investigation evidence,
 never call a trace an executable replay. TEST: native opt-in and ownership remain intact, and no recording
 process survives hand-back.
+
+## Verification run videos
+
+One raw, continuous, real-time recording per main journey the change touches, from a fresh arrival on
+the user's first screen through every step to the final outcome, on seeded success data. It is
+verification evidence for Simon as the developer: the agent records, reviews and fixes in a loop
+until a run shows nothing wrong, and that clean run is what he watches for his last human review.
+Never a demo, so nothing in it is polished or hidden.
+
+DO post verification runs by default on every PR whose diff changes a user journey: at the Standard
+tier one per changed journey, at the Deep tier one per main journey that passes through a changed
+surface. A Light PR, or a PR with no visible surface, posts none (`references/testing-strategy.md`
+§ Size the checks to the change).
+NUMBER: at most 6 runs per PR, ranked by how many users take the journey; name the rest in `Not covered`.
+TEST: `bin/pr-landing-gate.py` fails a PR whose `## Screenshots` posts a video and which has no
+`## Verification runs` section.
+
+### Plan the scenarios first
+
+DO write `.context/verification-runs/plan.md` before the first recording, one scenario per main happy
+path, 0 to 100 (e.g. a new visitor opens the start page, signs in with the local test code, picks a
+plan, pays with a test card and lands on the unlocked screen). Each scenario holds its name (2-6
+words), the one-line description used in its band and PR block, the numbered step script (action and
+expected visible state), the seed it needs, the viewport, the outcome, and each paid dependency with
+its free substitute.
+DON'T record before every scenario has a step script and a seed.
+TEST: every posted run maps to a plan row whose steps all appear in it, in order.
+
+### Seed so every screen shows its success state
+
+DO seed only what a real user would find already there: the catalog, prices and offers so every
+paywall renders priced, availability, supplier and model responses, and the account history a
+returning-user journey assumes. Drive every step the video shows through the UI (§ Capture and
+review: never seed past the action being proved).
+DO make the run look like production: the production build (the project's build and start commands,
+never the dev server, so no framework dev indicator or error overlay), realistic names and values
+(a full name, a real city pair, a plausible price), production copy and live feature-flag values.
+DON'T show a test banner, debug panel, placeholder value (`test`, `lorem`, `$0.00`, `foo@bar`) or an
+error, empty or unavailable state caused by missing seed data. A third-party test-mode marker the app
+cannot remove (e.g. a payment provider's test badge) stays and is named in `Not covered`.
+DO treat every real app error, slow step or flake that appears on seeded success data as a finding
+for § Review, fix and re-record until clean. DON'T hide it by changing the seed, a stub or a
+test-only code path.
+WHY: an error from missing test data is not realistic; one from the app is what Simon is testing.
+TEST: no posted run shows an error, empty or unavailable frame, and no fix-loop commit touches only
+seed, stub or test-only code to make an app finding disappear.
+
+### Spend nothing
+
+DEFAULT: zero paid calls. Use free test modes (payment provider test keys and test cards), the
+project's local test sign-in code, stubbed model and supplier providers, and seeded responses. Run a
+paid call only when no free path exists AND Simon gives a per-call yes under `rules/spend-approval.md`;
+otherwise skip that step, record the rest of the run, and name the step and its rough cost in
+`Not covered`.
+TEST: the run log records `paid calls: 0`, or each paid call traces to its per-call yes.
+
+### Record it raw
+
+DO record each scenario as one continuous take from a fresh browser context at the product's primary
+viewport (default 390×844, § PR evidence template). Read the installed version (`npx playwright
+--version`): at 1.59 or later wrap the run in `page.screencast.start({ path, size })` and
+`page.screencast.stop()` (1.64 adds `fps`); below 1.59 use the context's `recordVideo: { dir, size }`
+and close the context to save the file. Set `size` to the viewport.
+DO drive each step at human pace: web-first waits (`await expect(locator).toBeVisible()`), typing
+through `locator.pressSequentially(text, { delay: 50 })`, and one fixed 1 s pause after each screen
+settles. Log each step's start offset and its wait (action to expected state) in milliseconds to
+`steps.json`, and the console errors, app-origin responses of 400 or above and paid calls to the run log.
+DON'T trim, cut, speed up or reorder any part, waits and loading included; DON'T add a title, chapter
+or intro card, `screencast.showActions`, `showChapter`, `showOverlay`, the video config's `show`, or any
+other text over the UI; DON'T pause longer than 1 s to pad the video.
+DO compose with `python3 ~/.claude/bin/pr-evidence.py run --clip <raw.webm> --title "<scenario>"
+--caption "<description>" --out .context/pr-evidence/run-<slug>.mp4`. Its band above the frame, holding
+the scenario name and description for the whole video, is the only edit; it prints every still stretch
+of 2 s or more.
+DO rehearse the script headless before the first take. DON'T re-take a run hoping a flaky step or a
+slow wait passes the next time: it is a finding, and the next take follows its fix.
+TEST: the posted MP4's duration equals the raw recording's within 0.5 s, and the run log lists every
+take with the fix that preceded it.
+
+### Review, fix and re-record until clean
+
+DO review every take in two passes and write each finding as `mm:ss` · screen · what went wrong or
+looked off · potential fix (file or component when known):
+1. **Contact sheet, end to end.** `ffmpeg -i run-<slug>.mp4 -vf "fps=1,scale=320:-1,tile=6x10"
+   sheet-<slug>-%02d.png` (one frame per second, 60 per sheet); view every sheet.
+2. **Per screen, full resolution.** One frame at each step start from `steps.json`
+   (`ffmpeg -ss <t> -i run-<slug>.mp4 -frames:v 1 step-<n>.png`); view each and check copy, layout,
+   cut-off text, every number against the seed or database, loading flashes, and the run log's
+   console errors and failed requests.
+
+| # | Check | Pass when |
+|---|---|---|
+| 1 | Story | The first frame is the user's first screen, every scripted step appears in order, the last frame shows the outcome |
+| 2 | Band | It names the scenario and matches the PR description line |
+| 3 | Success data | No error, empty, unavailable or placeholder frame |
+| 4 | No redundant state | No screen repeats without a step between, and the script has no back-and-forth |
+| 5 | Waits | No app-caused wait over 2 s in `steps.json` or the engine's still list |
+| 6 | Screens | Copy, layout and numbers are right on every step frame, with no cut-off text or loading flash |
+| 7 | Clean log | Zero console errors and zero app-origin responses of 400 or above; paid calls 0 |
+| 8 | Plays | Duration above 0 and the browser playback check in § Record useful walkthroughs passes |
+
+DO fix each finding, then re-record the WHOLE run and review it again; loop until a take has zero findings:
+- An app bug or broken-looking UI inside the change's scope: fix the code with the smallest change
+  and a test that fails without it, one commit per fix, staging whole files by path.
+- A script or seed defect (a wrong selector, a missing seed row): fix the script or seed.
+- Outside the change's scope: list it under `Outside this change:` with its potential fix; it does not
+  hold the loop.
+DO push each fix commit when the branch backs a PR, and re-capture the screenshot points it touched
+(§ Refresh after the follow-up batch).
+DO stop the loop for a scenario when one finding survives 3 fix attempts or needs a product decision
+(copy meaning, pricing, legal, design direction). Post that run marked `blocked: <finding>` with its
+open findings and name the decision in the hand-back.
+DO, when a take is clean, hand its contact sheets, step frames and run log to an INDEPENDENT reviewer
+(a fresh-context subagent, or the orchestrator when a subagent recorded) with the checks above. Any
+finding it returns restarts the loop. Tell Simon a run is ready only after both passes and that
+review report zero findings.
+TEST: every posted run that is not `blocked` has zero findings from the recorder's two passes and the
+independent review on its own frames, and each `Fixed during review` item names a commit on the
+branch whose test fails without it.
+
+### Post under `## Verification runs`
+
+DO add a top-level `## Verification runs` section after `## Screenshots` in the PR description, posted
+and verified through `/sk:ship-screenshot-changes` Step 5's attachment and playback route:
+- a `Scenario | Steps | Outcome | Video` table, one row per run, the Video cell linking its block;
+- per run, `### <scenario>`, then the band's description line as text, then `**Findings:** none`,
+  then `**Fixed during review:**` with one item per fix: what was wrong · `mm:ss` in the earlier take ·
+  the fix commit's short sha, or `none`, then any `Outside this change:` items, then the video alone in
+  its own paragraph; a blocked run shows its open findings in place of `none`;
+- one `Not covered:` line: journeys not recorded, skipped paid steps with rough cost, test markers the
+  app cannot remove;
+- one `Sources:` line linking the practice sources this section cites (§ Research basis).
+DON'T compose a verification run as a before/after pair or post it inside `## Screenshots`.
+DON'T post an earlier take, a take with an open finding unless it is marked `blocked`, or the
+fix-loop's intermediate videos.
+TEST: the fetched body holds the section with its table, a `Not covered:` line and a `Sources:` line,
+and per run one playable video of the final take with `Findings: none` (or its `blocked` findings)
+and a `Fixed during review` list whose shas exist on the branch.
 
 ## PR evidence template
 
@@ -369,7 +513,11 @@ useful walkthroughs).
 DO verify installed capabilities rather than pinning instructions to a release. Sources checked
 2026-10-15: [Playwright snapshots](https://playwright.dev/docs/test-snapshots),
 [emulation](https://playwright.dev/docs/emulation), [videos](https://playwright.dev/docs/videos),
-[screencast](https://playwright.dev/docs/api/class-screencast),
+[screencast](https://playwright.dev/docs/api/class-screencast) (rechecked 2026-11-06: `start` takes
+`path`, `size`, `quality`, `onFrame`, and `fps` from 1.64; `stop` saves the file),
+[release notes](https://playwright.dev/docs/release-notes) (1.59 adds `page.screencast` with
+`showActions`, `showChapter` and `showOverlay`; 1.64 adds `fps` and the `style` option for action
+decorations),
 [agents](https://playwright.dev/docs/test-agents), [traces](https://playwright.dev/docs/trace-viewer),
 [responsive design](https://web.dev/articles/responsive-web-design-basics),
 [reflow](https://www.w3.org/WAI/WCAG21/Understanding/reflow),

@@ -1,6 +1,6 @@
 ---
 name: ship-screenshot-changes
-description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, one posted viewport per state (mobile 390×844 by default, desktop only where its layout differs) — with a BEFORE/AFTER pair for every changed surface and journey and a trimmed before/after video per affected user-journey scenario, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — refreshes the composed images and playable inline videos in the PR description by default after the full ticket follow-up batch, using a comment only when description embedding is unsupported or blocked (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "refresh screenshots after all ticket follow-ups", "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", or "screenshot coverage matrix". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, one posted viewport per state (mobile 390×844 by default, desktop only where its layout differs) — with a BEFORE/AFTER pair for every changed surface and journey and a trimmed before/after video per affected user-journey scenario, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change, plus one raw verification run video per main happy path (0 to 100 on seeded success data, zero paid calls) that it reviews frame by frame, fixes and re-records until clean before posting under ## Verification runs. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — refreshes the composed images and playable inline videos in the PR description by default after the full ticket follow-up batch, using a comment only when description embedding is unsupported or blocked (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "refresh screenshots after all ticket follow-ups", "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", "screenshot coverage matrix", "record the happy paths", "happy path videos", or "verification run videos". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [changed routes or journeys; whole app only when requested]
 ---
 
@@ -145,6 +145,16 @@ its clip in the local hand-back and PR; keep the attachment URL in its own parag
 TEST: each affected scenario has a composed clip passing that section's frame-sample checks with its
 required caveat, or the hand-back states the skip.
 
+### Record the verification runs
+
+DO run `~/.claude/references/screenshot-review.md` § Verification run videos by default at the tiers it
+names, after the short clips: plan each main happy path 0 to 100, seed success data with zero paid
+calls, record each run raw, review, fix and re-record until clean, pass the independent review, then
+post only the final clean runs under `## Verification runs`. They are a separate deliverable from the
+short clips above; neither replaces the other.
+TEST: a PR whose `## Screenshots` posts a video also carries `## Verification runs`, and
+`~/.claude/bin/pr-landing-gate.py` passes that section.
+
 ## Step 4 — Hand them back
 
 Render the offline review with `~/.claude/bin/screenshot-report.py` per the reference's § Build the
@@ -157,8 +167,8 @@ evidence directory in Finder (macOS: `open "<abs path>"`) so Simon can flip thro
 ## Step 5 — Post them to the PR (ALWAYS when a PR is open; GitHub-only)
 
 DO apply the reference's § Refresh after the follow-up batch before final capture and publication.
-When the branch has an OPEN PR (`gh pr view --json number,url,isDraft`), publish screenshots and journey
-videos by default unless Simon explicitly waives them. Do not ask again. No open PR means the local
+When the branch has an OPEN PR (`gh pr view --json number,url,isDraft`), publish screenshots, journey
+videos and verification runs by default unless Simon explicitly waives them. Do not ask again. No open PR means the local
 hand-back is the destination. Preserve the shared native opt-in rule.
 
 DO embed the complete current evidence in the **PR description first**, in one bounded

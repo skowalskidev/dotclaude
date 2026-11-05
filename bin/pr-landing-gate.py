@@ -31,6 +31,7 @@ SECTIONS = {
     "Prod data": "Prod data",
     "Deploy safety": "Deploy safety",
     "Screenshots": "Screenshots",
+    "Verification runs": "Verification runs",
 }
 MATRIX_COUNTS = ("COVERED", "GAP", "NEEDS-DRIVING", "SKIPPED")
 DOES_NOT_APPLY = re.compile(r"does(?: not|n['’]t) apply|\bN/A\b", re.I)
@@ -42,6 +43,10 @@ TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s
 TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:light|standard|deep)\b|\b(?:light|standard|deep)\W{0,3}tier\b", re.I)
 # /sk:test-automated-full-matrix's real-environment walk: one line in the Test matrix section.
 WALK = re.compile(r"^.*real[- ]environment walk.*$", re.I | re.M)
+# A posted video: an inline <video> or a bare GitHub attachment URL alone on its line (images are <img> or ![]()).
+VIDEO = re.compile(r"<video\s|^\s*https://github\.com/user-attachments/assets/\S+\s*$", re.I | re.M)
+# references/screenshot-review.md § Verification run videos: the labels each run block and the section carry.
+RUN_LABELS = ("Findings:", "Fixed during review:", "Not covered:", "Sources:")
 COLLAPSED = re.compile(r"<details(?![^>]*\bopen\b)[^>]*>", re.I)
 THREADS_QUERY = """query($owner:String!,$name:String!,$pr:Int!,$after:String){
   repository(owner:$owner,name:$name){pullRequest(number:$pr){
@@ -178,6 +183,19 @@ def check_body(body, body_html, unresolved):
     elif not re.search(r"<img\s|<video\s|!\[[^\]]*\]\(|user-attachments/assets/", shots, re.I) \
             and not NO_SURFACE.search(shots) and not reasoned_na(shots):
         missing.append("Screenshots: no image and no stated no-eligible-surface reason")
+
+    runs = found.get("Verification runs")
+    if runs is None:
+        if shots is not None and VIDEO.search(shots):
+            missing.append("Verification runs: ## Screenshots posts a video but there is no Verification runs heading")
+    elif not (TIER_SKIP.search(runs) or NO_SURFACE.search(runs) or reasoned_na(runs)):
+        if not has_table(runs):
+            missing.append("Verification runs: no scenario table")
+        if not VIDEO.search(runs):
+            missing.append("Verification runs: no posted video")
+        absent = [label for label in RUN_LABELS if label.lower() not in runs.replace("*", "").lower()]
+        if absent:
+            missing.append("Verification runs: no " + ", ".join(absent) + " line")
 
     collapsed = len(COLLAPSED.findall(body_html or ""))
     if collapsed:

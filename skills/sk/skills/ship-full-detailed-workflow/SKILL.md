@@ -68,8 +68,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    PR too, after stage 3-6 fixes, on the final head;** a Deep PR's matrix runs them. TEST: every
    Standard and Deep PR's Test matrix section holds its `Real-environment walk:` line.
 7. **`/sk:ship-screenshot-changes`** — at the PR's tier, capture changed web surfaces and explicitly requested native
-   surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images and
-   per-scenario videos onto the open PR (GitHub-native). Plan the post from the start of the sweep;
+   surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images,
+   per-scenario videos and verification runs onto the open PR (GitHub-native). Plan the post from the start of the sweep;
    capture ONCE, after stages 3-6 fixes are committed and pushed, on the final head, per
    `references/screenshot-review.md` § Refresh after the follow-up batch.
    **DON'T dispatch the AFTER capture in stage 6's fan-out**; only a base-branch BEFORE capture runs early.
@@ -112,6 +112,8 @@ verified the user + system journey, then handed back with it never posted to the
   user-journey scenario its own trimmed video and scenario-table row, under `## Screenshots`, with no
   duplicate desktop/mobile pairs (`references/screenshot-review.md`); record native
   surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
+- Verification runs (stage 7): each main journey the PR's tier names has its final clean run under
+  `## Verification runs` (`references/screenshot-review.md` § Verification run videos).
 - Feedback (stage 5): 0 unhandled current comment revisions and 0 unresolved review threads;
   every actionable finding has a verdict and reply, with no outstanding blocking decision.
 - TLDR (stage 8): the body opens with the before/after TLDR and a Do line.

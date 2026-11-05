@@ -188,6 +188,31 @@ check(gate.check_body(section(PASSING, "Screenshots", none), HTML, 0) == [], "A 
 check("Screenshots" in rows(gate.check_body(section(PASSING, "Screenshots", "## Screenshots\n\nSee below.\n"),
                                             HTML, 0)), "Screenshots with no image or reason passed")
 
+# Verification runs: required once ## Screenshots posts a video; when present, it carries a table, a
+# video and its Findings, Fixed during review, Not covered and Sources lines, or a skip/no-surface reason.
+ATTACH = "https://github.com/user-attachments/assets/11111111-1111-1111-1111-111111111111"
+with_video = PASSING.rstrip("\n") + "\n\n### Settings flow\n\n" + ATTACH + "\n"
+check(rows(gate.check_body(with_video, HTML, 0)) == {"Verification runs"},
+      "A Screenshots video with no Verification runs section passed")
+RUNS = ("## Verification runs\n\n| Scenario | Steps | Outcome | Video |\n|---|---|---|---|\n"
+        "| Change the plan | 6 | New limit shown | [video](#change-the-plan) |\n\n### Change the plan\n\n"
+        "Opens Settings, picks the monthly plan, reads the new limit.\n\n**Findings:** none\n\n"
+        "**Fixed during review:** limit read 0 at 00:14 · abc1234\n\n" + ATTACH + "\n\n"
+        "Not covered: the yearly plan (a paid supplier step, about $0.40).\n\n"
+        "Sources: https://playwright.dev/docs/videos\n")
+complete = with_video + "\n" + RUNS
+check(gate.check_body(complete, HTML, 0) == [], f"A complete Verification runs section failed: "
+      f"{gate.check_body(complete, HTML, 0)}")
+check(gate.check_body(PASSING + "\n" + RUNS, HTML, 0) == [], "Verification runs beside image-only screenshots failed")
+for label in ("**Findings:** none", "**Fixed during review:**", "Not covered:", "Sources:"):
+    cut = complete.replace(label, "")
+    check(any("Verification runs" in m for m in gate.check_body(cut, HTML, 0)),
+          f"Verification runs with no {label} line passed")
+no_vid = with_video + "\n" + RUNS.replace(ATTACH + "\n\n", "")
+check(any("no posted video" in m for m in gate.check_body(no_vid, HTML, 0)), "Verification runs with no video passed")
+skipped = with_video + "\n## Verification runs\n\nSkipped (tier standard): no journey changed, only one copy string\n"
+check(gate.check_body(skipped, HTML, 0) == [], "A Verification runs skip line failed")
+
 # Unresolved review threads fail.
 check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
 

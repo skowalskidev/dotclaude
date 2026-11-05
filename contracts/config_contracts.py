@@ -275,7 +275,7 @@ CONTRACTS: dict[str, dict] = {
             "Refresh evidence by default after all current ticket follow-ups, review fixes and required checks finish; honor explicit waivers, reopen pending refresh after new work, and require final-source or unchanged-point reuse proof.",
             "Run AFTER capture once on the final head, never in the initial verification fan-out; plan early, re-capture only surfaces a later UI change touched; base-branch BEFORE capture and requested interim shots may run early.",
             "Group evidence by point: every case carries a point and a column, the manifest declares the ordered columns, and a platform or size a point lacks shows its status and reason in its cell, never dropped or listed apart.",
-            "Record one separate video per affected user-journey scenario (from acceptance criteria and states: happy, loading, slow, follow-up during loading, each limit or failure), named and captioned by it; a combined walk never replaces them. Each opens on the real UI just before the trigger with no text slide or title card in the video, and ends 1-2 s after the outcome with no tail; its 1-2 line TLDR (what it shows, expected behaviour) is PR-body text directly above the video; verify by sampled first-UI, action and last frames matching the TLDR; skip only no-UI or no-interaction changes, stated.",
+            "Record one separate video per affected user-journey scenario (from acceptance criteria and states: the changed step's success case, loading, slow, follow-up during loading, each limit or failure), named and captioned by it; a combined walk never replaces them. Each opens on the real UI just before the trigger with no text slide or title card in the video, and ends 1-2 s after the outcome with no tail; its 1-2 line TLDR (what it shows, expected behaviour) is PR-body text directly above the video; verify by sampled first-UI, action and last frames matching the TLDR; skip only no-UI or no-interaction changes, stated.",
             "Reject a clip under 8 seconds or under 3 meaningful states; retain the default ffmpeg 1 fps scene count above 0.15 and lengthen the UI lead-in, never the tail.",
             "Allow a below-3 diagnostic only with personally reviewed first-UI, action and outcome samples: clip/sample SHA-256, timestamps, paths, observed states, reviewer and explicit verdict; preserve failed counts, duration and playback checks. Re-review changed bytes and each composed side.",
             "Keep static, repeated or ambiguous states blocked; differing hashes, cursor blinks and compression noise never prove semantic states. Never lower the scene threshold to pass.",
@@ -288,16 +288,22 @@ CONTRACTS: dict[str, dict] = {
             "Hand-off check: run bin/visual-check.py on the exact artifact Simon opens, one row per viewport x state (cap 24, default state first); blank means ink below 0.05%, clipped means cut by an ancestor; view one PNG per distinct view type; loop fix then full re-run until exit 0.",
             "A screen built from a supplied design source adds the workflow-loops measurement report and difference images to the hand-off; the pass table alone never proves a design match.",
             "Add at most two caveat sentences beside clips showing injected errors or test-only end states. Verify environment and network evidence before claiming not production or no live actions; retain unknown failures and avoid production bug-free claims.",
+            "Keep verification runs separate from the short before/after clips: one complete raw real-time run per main journey, fresh arrival to outcome, at most 6 per PR, at the Standard and Deep tiers; neither counts as the other.",
+            "Plan every scenario with a step script and seed before recording; seed only pre-existing world data on a production build with realistic values; zero paid calls by default, a paid step only with a per-call yes, else skipped and costed.",
+            "Never trim, cut, speed up or overlay a run; no title, chapter or action cards; the only edit is bin/pr-evidence.py run's scenario band above the frame.",
+            "Review each take by contact sheet and full-resolution step frames, fix in-scope app findings in code with a failing-first test and one commit each, re-record the whole run until zero findings; stop at 3 attempts or a product decision.",
+            "Post only the final clean run under ## Verification runs after an independent fresh-context review: table, Findings: none, Fixed during review with shas, Not covered and Sources lines.",
         ],
     },
     "bin/pr-evidence.py": {
         "mission": "Every PR shows its before and after the same way, captions above the UI and callouts around the change, so a reviewer reads the delta at a glance.",
-        "purpose": "Shared PR evidence template engine: composes before/after screenshot pairs and side-by-side before/after videos.",
+        "purpose": "Shared PR evidence template engine: composes before/after screenshot pairs, side-by-side before/after videos and banded verification run videos.",
         "criteria": [
             "Stack the red BEFORE band (base) and green AFTER band (#PR) above each frame with vstack or paste; never overlay a caption on the UI.",
             "Lay portrait frames side by side at 780 px with a 40 px gap and 150 px bands; stack landscape frames at 1280 px with a 30 px gap and 130 px bands.",
             "Draw callouts as outline-only rounded rectangles (radius 28, 8 px) from source-pixel boxes; render all text with Pillow, never drawtext.",
             "Video: speed each side to the 10-15 s target, never slower than recorded, hold the final state 4-5 s, end both sides together; H.264 yuv420p with faststart.",
+            "Run: stack one neutral scenario band above the raw clip for its whole length, keep it real time and uncut with no hold, and print every still stretch of at least --still seconds.",
             "Exit non-zero with an install hint when Pillow or ffmpeg is missing or an input is absent; bin/pr-evidence.test.py passes in the contract suite.",
         ],
     },
@@ -398,6 +404,7 @@ CONTRACTS: dict[str, dict] = {
             "Fail a Test matrix with no Real-environment walk line, or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-eligible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
+            "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -1159,6 +1166,7 @@ CONTRACTS: dict[str, dict] = {
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Plan the screenshot post from the sweep start; dispatch AFTER capture once, after stages 3-6 fixes are committed and pushed, on the final head, never in stage 6's fan-out.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each affected scenario's own trimmed video and scenario-table row, no duplicate desktop/mobile pairs, and report unrequested native surfaces as not run.",
+            "Confirm at the landing gate each main journey the PR's tier names has its final clean run under ## Verification runs.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
             "Run references/git-pr-deploy.md § Deploy safety on every Deep PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
@@ -1335,6 +1343,7 @@ CONTRACTS: dict[str, dict] = {
             "Has a JOURNEY mode: captures a user FLOW as an ordered numbered sequence (step-<n> shots), "
             "the steps derived from the user journey (/sk:ship-report + references/user-journey-review.md), "
             "and posts them in step order — coexisting with the changed-surfaces mode, not replacing it.",
+            "Records the verification runs per references/screenshot-review.md by default at the tiers it names, after the short clips and separate from them, and posts only the final clean runs under ## Verification runs.",
             "Circles each change with a template callout from the element's box and captures a "
             "BEFORE/AFTER pair for every changed surface, composed by bin/pr-evidence.py; never "
             "injects DOM captions or ring overlays.",

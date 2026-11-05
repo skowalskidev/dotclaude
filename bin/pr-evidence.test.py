@@ -3,7 +3,8 @@
 
 Asserts the template rules: layout dimensions, bands ABOVE frames (band colour in the band rows,
 none of it in the frame rows below), outline-only callouts, video duration within the target plus
-hold, and both sides ending together. Needs Pillow and ffmpeg, the engine's own dependencies.
+hold, both sides ending together, and a verification run kept real time and uncut with its still
+stretches reported. Needs Pillow and ffmpeg, the engine's own dependencies.
 """
 import json
 import subprocess
@@ -21,6 +22,7 @@ except ImportError:
     sys.exit("pr-evidence.test: Pillow missing for " + sys.executable + " (brew install pillow)")
 
 RED, GREEN, BG = (205, 45, 45), (25, 140, 70), (18, 18, 18)
+RUN = (36, 52, 80)
 CONTENT = (200, 200, 205)
 MARK = (40, 80, 200)  # the top stripe of every synthetic frame; must stay visible under the band
 
@@ -172,6 +174,41 @@ def test_video(tmp: Path):
     check(13.5 <= dur <= 14.5, f"desktop video duration {dur:.2f}s")
 
 
+def still_clip(path: Path):
+    # 3 s motion, 5 s frozen (an app-caused wait), 3 s motion: 11 s, portrait. overlay evaluates x per
+    # frame; a drawbox expression is evaluated once, so it cannot make motion.
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=0xc8c8cd:s=390x844:d=11:r=10",
+                        "-f", "lavfi", "-i", "color=c=0x806040:s=60x60:d=11:r=10", "-filter_complex",
+                        "[0:v]drawbox=x=0:y=0:w=iw:h=30:color=0x2850c8:t=fill[bg];"
+                        "[bg][1:v]overlay=x='if(lt(t,3),t*40,if(lt(t,8),120,120+(t-8)*40))':y=60",
+                        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(path)],
+                       capture_output=True, text=True)
+    check(r.returncode == 0, f"could not synthesize {path.name}: {r.stderr}")
+
+
+def test_run(tmp: Path):
+    raw = tmp / "run.mp4"
+    still_clip(raw)
+    out = tmp / "run-out.mp4"
+    r = engine("run", "--clip", str(raw), "--title", "Buy a plan", "--caption", "Opens the app, pays, lands on home",
+               "--fps", "10", "--preset", "ultrafast", "--out", str(out))
+    if not out.is_file():
+        return check(False, "run output missing")
+    w, h, codec, pix, dur = probe(out)
+    check((w, h) == (780, 150 + 1688), f"run portrait layout {w}x{h}")
+    check(codec == "h264" and pix == "yuv420p", f"run codec {codec}/{pix}, want h264/yuv420p")
+    check(10.7 <= dur <= 11.3, f"run duration {dur:.2f}s, want the raw 11 s: no trim, speed-up or hold")
+    first = frame_at(out, 0.2, tmp / "run-first.png")
+    check(band_holds(first, 0, 780, 0, 150, RUN), "run band missing above the frame at the start")
+    check(none_of(first, 0, 780, 150, 1000, RUN), "run band colour inside the frame (caption overlaid)")
+    check(near(first.getpixel((390, 150 + 20)), MARK, 30), "run frame's top rows hidden under the band")
+    mid = frame_at(out, 5.5, tmp / "run-mid.png")
+    check(near(mid.getpixel((300, 150 + 180)), (128, 96, 64), 40),
+          "the frozen stretch was cut: 5.5 s should still show the square parked at x=120")
+    check("stills>=2s: 1" in r.stdout and "still 3." in r.stdout,
+          f"run did not report the 5 s still stretch: {r.stdout}")
+
+
 def test_fails_fast(tmp: Path):
     r = subprocess.run([sys.executable, str(ENGINE), "shots", "--before", str(tmp / "nope.png"),
                         "--after", str(tmp / "nope.png"), "--pr", "1", "--before-caption", "a",
@@ -191,6 +228,7 @@ def main() -> int:
         test_fails_fast(tmp)
         test_shots(tmp)
         test_video(tmp)
+        test_run(tmp)
     for f in FAILS:
         print("FAIL", f, file=sys.stderr)
     print(f"pr-evidence: {'ok' if not FAILS else str(len(FAILS)) + ' failure(s)'}")

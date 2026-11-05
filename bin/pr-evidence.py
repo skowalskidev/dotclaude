@@ -7,6 +7,8 @@
   pr-evidence.py video --before B.mp4 --after A.mp4 --before-caption TEXT --after-caption TEXT
                        --pr N [--base main] [--context TEXT] [--target 12] [--hold 4.5]
                        [--layout auto|side|stack] [--fps 30] --out OUT.mp4
+  pr-evidence.py run --clip RUN.webm --title SCENARIO --caption TEXT [--still 2] [--fps 30]
+                       --out OUT.mp4
 
 Every caption sits in a coloured band STACKED ABOVE its frame (never overlaid on the UI): red
 BEFORE band titled with the base, green AFTER band titled with the PR number. Portrait (phone)
@@ -14,6 +16,12 @@ frames sit side by side with a 40 px gap; landscape (desktop) frames stack with 
 Callouts are outline-only rounded rectangles drawn around the change. Text is rendered with Pillow,
 so ffmpeg needs no drawtext filter. Method and posting rules: references/screenshot-review.md
 § PR evidence template.
+
+`run` composes one verification run video: a neutral band naming the scenario sits above the frame
+for the whole video, and the raw recording plays in real time, uncut, with no speed change and no
+added hold. It prints every still stretch of at least --still seconds (ffmpeg freezedetect) so each
+app-caused wait is reported as a finding, never edited out. Method: references/screenshot-review.md
+§ Verification run videos.
 """
 from __future__ import annotations
 
@@ -34,6 +42,7 @@ except ImportError:  # fail fast, before any work
 BG = (0x12, 0x12, 0x12)
 BEFORE_RGB = (205, 45, 45)
 AFTER_RGB = (25, 140, 70)
+RUN_RGB = (36, 52, 80)  # neutral band above a verification run: no before/after colour coding
 TEXT_RGB = (255, 255, 255)
 PHONE_W = 780          # each portrait frame is scaled to this width
 DESKTOP_W = 1280       # each landscape frame is scaled to this width
@@ -246,6 +255,53 @@ def cmd_video(args) -> int:
     return 0
 
 
+def stills(ffmpeg: str, path: str, seconds: float, duration: float) -> list[tuple[float, float]]:
+    """(start, length) of every frozen stretch of at least `seconds`, from ffmpeg freezedetect."""
+    r = subprocess.run([ffmpeg, "-v", "info", "-i", path, "-vf", f"freezedetect=n=-60dB:d={seconds}",
+                        "-an", "-f", "null", "-"], capture_output=True, text=True)
+    if r.returncode != 0:
+        die(f"freezedetect failed on {path}: {r.stderr.strip()[-300:]}")
+    out, start = [], None
+    for line in r.stderr.splitlines():
+        if "freeze_start:" in line:
+            start = float(line.rsplit(":", 1)[1])
+        elif "freeze_end:" in line and start is not None:
+            out.append((start, float(line.rsplit(":", 1)[1]) - start))
+            start = None
+    if start is not None:  # frozen through the last frame
+        out.append((start, duration - start))
+    return out
+
+
+def cmd_run(args) -> int:
+    ffmpeg, ffprobe = need("ffmpeg"), need("ffprobe")
+    w, h, duration = probe(ffprobe, args.clip)
+    layout = "side" if h > w else "stack"
+    width = PHONE_W if layout == "side" else DESKTOP_W
+    band_h = BAND_SIDE_H if layout == "side" else BAND_STACK_H
+    height = even(h * width / w)
+    with tempfile.TemporaryDirectory(prefix="pr-evidence-") as tmp:
+        band_png = Path(tmp, "band-run.png")
+        band(width, band_h, RUN_RGB, args.title, args.caption).save(band_png)
+        graph = (f"[0:v]setpts=PTS-STARTPTS,fps={args.fps},scale={width}:{height}:flags=lanczos,setsar=1[c];"
+                 f"[1:v]format=rgb24,setsar=1[b];"
+                 f"[b][c]vstack=inputs=2,scale=out_range=tv,format=yuv420p[out]")
+        Path(args.out).parent.mkdir(parents=True, exist_ok=True)
+        cmd = [ffmpeg, "-y", "-v", "error", "-i", args.clip, "-loop", "1", "-framerate", str(args.fps),
+               "-t", f"{duration:.3f}", "-i", str(band_png), "-filter_complex", graph, "-map", "[out]",
+               "-an", "-c:v", "libx264", "-preset", args.preset, "-crf", "23", "-pix_fmt", "yuv420p",
+               "-color_range", "tv", "-movflags", "+faststart", "-t", f"{duration:.3f}", args.out]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            die(f"ffmpeg failed:\n{r.stderr.strip()}")
+    waits = stills(ffmpeg, args.clip, args.still, duration)
+    print(f"{args.out} layout={layout} duration={duration:.2f}s real-time, uncut")
+    for start, length in waits:
+        print(f"still {start:.2f}s-{start + length:.2f}s ({length:.2f}s): name the screen and report it")
+    print(f"stills>={args.still:g}s: {len(waits)}")
+    return 0
+
+
 def common(p) -> None:
     p.add_argument("--before", required=True)
     p.add_argument("--after", required=True)
@@ -272,9 +328,21 @@ def main(argv=None) -> int:
     v.add_argument("--hold", type=float, default=4.5, help="seconds the final state is held (4-5)")
     v.add_argument("--fps", type=int, default=30)
     v.add_argument("--preset", default="medium", help="libx264 preset")
+    w = sub.add_parser("run", help="one raw verification run -> MP4 with its scenario band above")
+    w.add_argument("--clip", required=True, help="the raw continuous recording of the run")
+    w.add_argument("--title", required=True, help="the scenario name")
+    w.add_argument("--caption", required=True, help="one line: what the run shows, same text as in the PR")
+    w.add_argument("--still", type=float, default=2.0, help="report still stretches of at least this many seconds")
+    w.add_argument("--fps", type=int, default=30)
+    w.add_argument("--preset", default="medium", help="libx264 preset")
+    w.add_argument("--out", required=True)
     args = ap.parse_args(argv)
     if args.cmd == "video" and not (10 <= args.target <= 15 and 4 <= args.hold <= 5):
         die("--target must be 10-15 s and --hold 4-5 s")
+    if args.cmd == "run":
+        if args.still <= 0:
+            die("--still must be above 0 s")
+        return cmd_run(args)
     return cmd_shots(args) if args.cmd == "shots" else cmd_video(args)
 
 
