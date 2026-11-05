@@ -42,6 +42,8 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
 - `project` — label.
 - `boundary` — `work` | `personal`. Default for connectors that omit their own.
 - `ignoreProjectInstructions` — optional boolean on a selected non-shared project manifest, default `false`. `true` activates `references/project-instructions.md`; shared manifests cannot set it. This does not change connector or credential policy.
+- `monitor` — optional; the daily health pulse's probes and project SQL. Schema and method:
+  `references/production-monitoring.md`.
 - `match` — array of substrings; the manifest is selected when ANY appears in the repo's `git remote
   get-url origin` (or, for path-based fallback, in the repo path). First matching manifest wins.
 
@@ -294,7 +296,7 @@ when database and payment-provider reads already held the cause).
 
 | Kind | Command | Dialect | Last run |
 |---|---|---|---|
-| Supabase Management API logs | `curl --fail --silent --show-error --get "https://api.supabase.com/v1/projects/$PROJECT_REF/analytics/endpoints/logs" --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --data-urlencode "sql=select source, count() events, countIf(toInt32OrZero(log_attributes['response.status_code']) between 500 and 599) server_errors, min(timestamp) first_event, max(timestamp) last_event from logs where source in ('edge_logs','function_edge_logs','function_logs') group by source limit 10" --data-urlencode "iso_timestamp_start=$START_UTC" --data-urlencode "iso_timestamp_end=$END_UTC"` | ClickHouse; `server_errors` counts HTTP 5xx for `edge_logs` and `function_edge_logs`, not runtime errors in `function_logs`. | 2026-10-20; 20-minute UTC window, all 3 sources returned. |
+| Supabase Management API logs | `curl --fail --silent --show-error --get "https://api.supabase.com/v1/projects/$PROJECT_REF/analytics/endpoints/logs" --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --data-urlencode "sql=select source, count() events, countIf(toInt32OrZero(log_attributes['response.status_code']) between 500 and 599) server_errors, min(timestamp) first_event, max(timestamp) last_event from logs where source in ('edge_logs','function_edge_logs','function_logs') group by source limit 10" --data-urlencode "iso_timestamp_start=$START_UTC" --data-urlencode "iso_timestamp_end=$END_UTC"` | ClickHouse; `server_errors` counts HTTP 5xx for `edge_logs` and `function_edge_logs`, not runtime errors in `function_logs`. | 2026-11-05; 24h UTC windows (the endpoint's maximum), every source; `bin/health-pulse.py` `LOG_SOURCES` runs the same dialect daily. |
 
 ## Known verification items (confirm during first live run)
 

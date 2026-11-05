@@ -102,6 +102,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
     ("pr-evidence-template-stacks-bands-above-ui",
      "PR before/after screenshots and videos come from one template: bands above the UI, outline-only callouts, the layout rule, timed video ending together."),
+    ("health-pulse-reads-only-and-flags-real-regressions",
+     "The daily pulse only reads, never prints a key, flags a tanking paywall arm, a dropped webhook and a jump in failures, and keeps noise green."),
     ("ci-gate-list-counts-every-pr-run-step",
      "The local CI gate list is derived from the workflow files: every pull-request run step counted, container needs marked, an empty list never passes."),
     ("pr-landing-gate-refuses-missing-rows",
@@ -263,6 +265,10 @@ def read(rel: str) -> str:
 
 
 def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
+    # A child test that reads stdin (a stub doing `$(cat)`) must see EOF, not the caller's open
+    # pipe: inherited stdin hung superspeed-dispatch.test.sh until the 120s timeout.
+    if "input" not in kw:
+        kw.setdefault("stdin", subprocess.DEVNULL)
     return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kw)
 
 
@@ -1906,6 +1912,14 @@ def check_pr_evidence_template_stacks_bands_above_ui() -> None:
     skill = (ROOT / "skills/sk/skills/ship-screenshot-changes/SKILL.md").read_text()
     check("bin/pr-evidence.py" in skill and not (ROOT / "skills/sk/skills/ship-screenshot-changes-advanced").exists(),
           "Screenshot skill must compose through bin/pr-evidence.py and stay the single screenshot skill")
+
+
+def check_health_pulse_reads_only_and_flags_real_regressions() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "health-pulse.test.py")])
+    check(result.returncode == 0, "health pulse regression: " + result.stdout + result.stderr)
+    skill = (ROOT / "skills/sk/skills/monitor-daily-health-conversion-capacity-errors/SKILL.md").read_text()
+    check("bin/health-pulse.py" in skill and "references/production-monitoring.md" in skill,
+          "the daily health skill must compose bin/health-pulse.py and references/production-monitoring.md")
 
 
 def check_ci_gate_list_counts_every_pr_run_step() -> None:

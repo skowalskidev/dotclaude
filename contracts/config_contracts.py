@@ -372,6 +372,19 @@ CONTRACTS: dict[str, dict] = {
             "Python 3.9+, standard library plus the system ruby for YAML; keep bin/ci-gate-list.test.py passing under /usr/bin/python3.",
         ],
     },
+    "bin/health-pulse.py": {
+        "mission": "Simon sees each morning which production signal broke or degraded, with evidence, without opening five dashboards or touching prod data.",
+        "purpose": "Runs every read-only probe a project's monitor block enables and prints a digest ranked worst first, plus a dated snapshot.",
+        "criteria": [
+            "Every call is a read: SQL goes through the Management API with read_only true, and manifest SQL that is not one SELECT or WITH, or holds a write or session keyword, is refused.",
+            "Load keys in-process from the connectors' secret.path files; never print a value, and scrub tokens and loaded values from every error.",
+            "Judge rates with a pooled two-proportion z-test plus a 0.5-point floor, counts with a Poisson z-score, and under minEvents read low-sample, never green.",
+            "Split conversion by seg and grp; judge a group with too little history against its segment and mark it new.",
+            "A probe that cannot measure reports unknown with its reason; a crash stays one row; corroborate pairs flag a gap past tolerance.",
+            "Exit 0 with no red row, 1 with a red row, 2 on a usage or manifest error; --draft derives the generic block from the connectors.",
+            "Python 3.9+, standard library only; keep bin/health-pulse.test.py passing under /usr/bin/python3.",
+        ],
+    },
     "bin/pr-landing-gate.py": {
         "mission": "Simon never gets a ship-gate PASS on a PR whose fetched body lacks a landing-gate row, because the record itself is refused.",
         "purpose": "Fetches a PR body, body_html and review threads through gh and checks every landing-gate row.",
@@ -890,6 +903,16 @@ CONTRACTS: dict[str, dict] = {
             "Before a ticket goes to a build, every decision it depends on is resolved INTO the ticket "
             "(the option chosen plus a one-line why) and every requirement is present, so a builder that "
             "cannot ask — a cloud session, a parallel part, a teammate — misses nothing and guesses nothing.",
+        ],
+    },
+    "references/production-monitoring.md": {
+        "mission": "A daily health check flags real regressions in conversion, capacity and errors and stays quiet on noise, so Simon acts on every red row.",
+        "purpose": "The daily pulse's method, vendor-sourced thresholds, monitor block schema and triage table.",
+        "criteria": [
+            "Cover traffic, errors, saturation and latency plus the business funnel, symptoms first, and read every log source.",
+            "Compare with the same weekday on the previous 4 weeks; logs with the previous 24h; short-retention tables against stored snapshots.",
+            "State each threshold with its primary source: SRE book, NIST, Datadog, Supabase Detecting issues, RevenueCat.",
+            "Document every monitor block key and metric kind, and require each metric to return a row read-only before it is saved.",
         ],
     },
     "references/research.md": {
@@ -1873,6 +1896,17 @@ CONTRACTS: dict[str, dict] = {
             "Treats explicit archive deletion as authorization to remove archived contents, including old source/evidence, without renewed permission or merge/reproducibility proof; requires exact canonical archive scope, keep-list exclusions, no active use/open files and no outside symlink traversal.",
             "Rechecks archive identity, scope and activity before deletion; preserves outside app/chat metadata and active managed workspace lifecycle. Records sizes/paths, verifies absence or retained exceptions, and re-evaluates remaining large categories within the authorized cleanup scope.",
             "Reuses bin/port-registry.sh and bin/kill-orphan-workers.sh; points to process.md and dev-server-hygiene.md for shared teardown rules.",
+        ],
+    },
+    "skills/sk/skills/monitor-daily-health-conversion-capacity-errors/SKILL.md": {
+        "mission": "Simon knows at a glance each morning whether anything broke, a paywall is hurting conversion or capacity is running out, with a cause and next step per red row.",
+        "purpose": "Daily read-only health check for any repo with connectors; builds the repo's monitor block on first run, then runs, triages and tunes it.",
+        "criteria": [
+            "Read the matched manifest and references/connectors-setup.md before the first probe; prod stays read-only and nothing is sent or posted.",
+            "On a first run, derive the generic block with --draft, find the repo's signals in source, verify every metric read-only, and save into the private manifest.",
+            "Check every connector the engine has no probe for by hand with its own read-only tool.",
+            "Give each red, amber and unknown row a corroborated cause, or the ruled-out causes, and one named next step.",
+            "Tune false alarms and missed problems back into the manifest; hand fixes to /sk:work-investigate-and-fix.",
         ],
     },
     "skills/sk/skills/meta-report-standup-weekly/SKILL.md": {

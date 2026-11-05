@@ -31,6 +31,7 @@ PREFIXES: dict[str, str] = {
     "plan-": "Researching and deciding BEFORE building: gathering evidence, comparing options, ranking an approach.",
     "ship-": "Getting a change out and reporting on it: PR, review, the end report.",
     "test-": "Verifying something behaves: driving the UI, pacing a human through a flow.",
+    "monitor-": "Watching live production read-only: daily health, capacity, errors and conversion.",
     "maintenance-code-": "Improving code that already exists: cleanup, performance.",
     "meta-": "About Simon's own work, his dev environment, and how his config's skills are used rather "
              "than a single code change: reporting what he did, housekeeping his workspaces, or routing "

@@ -208,6 +208,13 @@ SCENARIOS: list[dict] = [
     # Adjacent to the group above and deliberately separate: that one judges ONE change against its
     # plan, this one narrates a PERSON'S week to a room. Both answer "what did I do", so the split
     # is the object (a diff vs a period), and the phrases below never say "this" for that reason.
+    # Daily production health: read-only digest across every connector.
+    {"phrase": "daily health check", "expect": "monitor-daily-health-conversion-capacity-errors"},
+    {"phrase": "monitor everything", "expect": "monitor-daily-health-conversion-capacity-errors"},
+    {"phrase": "did anything break", "expect": "monitor-daily-health-conversion-capacity-errors"},
+    {"phrase": "is the new paywall tanking conversion", "expect": "monitor-daily-health-conversion-capacity-errors"},
+    {"phrase": "are we running out of capacity on supabase", "expect": "monitor-daily-health-conversion-capacity-errors"},
+    {"phrase": "are users hitting errors", "expect": "monitor-daily-health-conversion-capacity-errors"},
     {"phrase": "standup report", "expect": "meta-report-standup-weekly"},
     {"phrase": "write my standup", "expect": "meta-report-standup-weekly"},
     {"phrase": "monday morning standup", "expect": "meta-report-standup-weekly"},

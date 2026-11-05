@@ -45,6 +45,7 @@ config suite; this is the reading of it.
 | `plan-` | Researching and deciding before building | 2 |
 | `ship-` | Getting a change out, and reporting on it | 10 |
 | `test-` | Verifying something behaves | 2 |
+| `monitor-` | Watching live production read-only | 1 |
 | `maintenance-code-` | Improving code already there | 2 |
 | `meta-` | Reporting on his work, housekeeping his environment, and routing tasks to skills | 3 |
 | (none) | `setup-connectors`, already verb-first | 1 |
@@ -68,6 +69,7 @@ config suite; this is the reading of it.
 | Any task reaches hand-back, or several sessions contend for the machine | `/sk:claude-config-self-optimize-analysis-after-run` | — | Apply `references/session-performance.md`; no user reminder is required. |
 | Keeping ONE living plan that updates in place, without re-reading it or implementing yet | `/sk:plan-stable-persistent-dynamic-complete-full-plan` | — | Maintains a single source-of-truth plan at `.context/<slug>-plan.md`: updates only the sections a request touches, prepends a dated changelog, and shows only the changed section as the delta, so Simon never re-reads the whole plan. Stays locked in plan-mode — every request folds into the plan — until an explicit "implement"/"go build", then asks whether to cut Linear tickets and hands off to `/sk:work-full-detailed-workflow`. Reuses `references/planning-and-tracking.md` for what a complete plan contains. Distinct from `/sk:work-does-this-make-sense-to-build` (decides whether to build) and `/sk:plan-research` (answers a question). |
 | Vague intent, no clear scope yet | — | `[gstack] /spec` | Turns "make the dashboard better" into an executable spec before the harness starts. |
+| A daily or morning production health check: did anything break, conversion or paywall drops, capacity, errors across every connector | `/sk:monitor-daily-health-conversion-capacity-errors` | `/sk:work-investigate-and-fix` for a red row Simon wants fixed | Proactive and read-only: it finds the symptom nobody reported; the investigate skill owns a fix. |
 | Pasted production alerts, an error report or alert link, "investigate X and fix it", "is prod ok" | `/sk:work-investigate-and-fix` | `/sk:work-full-detailed-workflow` as the build spine | The front door for a production symptom; it hands the fix to the spine. Use `[gstack] /investigate` below only for a local break with no production evidence. |
 | Something is broken and the cause is not obvious | — | `[gstack] /investigate` | Root-cause first. `process.md` already says research before the second retry; this is the structured version. |
 | Repo or config cleanup | `/sk:maintenance-code-cleanup-repo` | `/simplify`, `[gstack] /health` | `/simplify` (built-in) applies reuse and simplification fixes to the CHANGED code; `/health` gives the quality dashboard. The spine owns the audit-fix-verify loop. |
