@@ -66,9 +66,26 @@ def main() -> int:
         if "WRONG CLAUDE LOGIN" in context(run(str(idf), str(account), work_repo)):
             failures.append("a work repo on the work login warned")
 
+        # (d) workClaudeLogins: a listed login in a work repo is accepted, an unlisted one still warns,
+        # and an overlay without the key behaves as before (only workEmail accepted).
+        account.write_text(json.dumps({"oauthAccount": {"emailAddress": "me2@acme.example"}}))
+        if "WRONG CLAUDE LOGIN" not in context(run(str(idf), str(account), work_repo)):
+            failures.append("a second login not in the overlay was accepted without workClaudeLogins")
+        idf2 = Path(tmp) / "identity2.json"
+        idf2.write_text(json.dumps({**json.loads(idf.read_text()), "workClaudeLogins": ["me2@acme.example"]}))
+        if "WRONG CLAUDE LOGIN" in context(run(str(idf2), str(account), work_repo)):
+            failures.append("a login listed in workClaudeLogins warned in a work repo")
+        account.write_text(json.dumps({"oauthAccount": {"emailAddress": "me3@acme.example"}}))
+        warn = context(run(str(idf2), str(account), work_repo))
+        if "WRONG CLAUDE LOGIN" not in warn or "me2@acme.example" not in warn:
+            failures.append(f"an unlisted login did not warn naming the accepted list: {warn!r}")
+        account.write_text(json.dumps({"oauthAccount": {"emailAddress": "me@acme.example"}}))
+        if "WRONG CLAUDE LOGIN" in context(run(str(idf2), str(account), work_repo)):
+            failures.append("workEmail stopped being accepted when workClaudeLogins is set")
+
     for f in failures:
         print(f"FAIL  {f}")
-    print(f"\n{3 - min(len(failures), 3)}/3 checks pass ({len(failures)} failing assertions)")
+    print(f"\n{len(failures)} failing assertions" if failures else "\nall checks pass")
     return 1 if failures else 0
 
 

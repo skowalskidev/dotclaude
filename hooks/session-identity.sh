@@ -24,14 +24,17 @@ we="$(jq -r '.workEmail // ""' "$ID_FILE" 2>/dev/null)"
 pe="$(jq -r '.personalEmail // ""' "$ID_FILE" 2>/dev/null)"
 wp="$(jq -r '(.workCloudProjects // []) | join(", ")' "$ID_FILE" 2>/dev/null)"
 pp="$(jq -r '.personalCloudProject // ""' "$ID_FILE" 2>/dev/null)"
+# Accepted Claude logins for a work repo: workEmail plus the optional workClaudeLogins list.
+accepted_logins="$(jq -r '([.workEmail // empty] + (.workClaudeLogins // [])) | unique | join(", ")' "$ID_FILE" 2>/dev/null)"
 
 # A work repo on another Claude login spends the wrong subscription, and nothing else would say so.
 account_warning=""
 account_file="${CLAUDE_ACCOUNT_FILE:-$HOME/.claude.json}"
 claude_email="$(jq -r '.oauthAccount.emailAddress // ""' "$account_file" 2>/dev/null)"
 origin_url="$(git remote get-url origin 2>/dev/null || true)"
-if [ -n "$wo" ] && [ -n "$we" ] && [ -n "$claude_email" ] && [ "$claude_email" != "$we" ] && [[ "$origin_url" == *"$wo"* ]]; then
-  account_warning=" WRONG CLAUDE LOGIN: this is a work repo and Claude is signed in as ${claude_email}, not ${we}. Tell Simon in your first reply and start no workers until he switches. A running chat keeps the login it started with, so switching needs a new chat."
+login_ok="$(jq -r --arg e "$claude_email" '(([.workEmail // empty] + (.workClaudeLogins // [])) | index($e)) != null' "$ID_FILE" 2>/dev/null)"
+if [ -n "$wo" ] && [ -n "$we" ] && [ -n "$claude_email" ] && [ "$login_ok" != "true" ] && [[ "$origin_url" == *"$wo"* ]]; then
+  account_warning=" WRONG CLAUDE LOGIN: this is a work repo and Claude is signed in as ${claude_email}, not one of the accepted work logins (${accepted_logins}). Tell Simon in your first reply and start no workers until he switches. A running chat keeps the login it started with, so switching needs a new chat."
 fi
 
 emit "Work/personal boundary (your identity overlay): WORK = ${we:-?}, cloud projects [${wp:-?}], git-origin match '${wo:-?}'. PERSONAL = ${pe:-?}, cloud project ${pp:-?}. Never cross work and personal resources; the guard enforces it, but keep them apart proactively.${account_warning}"

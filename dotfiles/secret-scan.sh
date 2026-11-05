@@ -60,7 +60,7 @@ if [ -f "$IDENTITY" ] && command -v jq >/dev/null 2>&1; then
     fi
   # Only distinctive values (length > 4) so short/common tokens can't cause false positives.
   done <<EOF
-$(jq -r '([.workEmail, .personalEmail, .workOrgMatch, .personalCloudProject] + (.workCloudProjects // [])) | .[] | select(. != null and (tostring | length > 4))' "$IDENTITY" 2>/dev/null)
+$(jq -r '([.workEmail, .personalEmail, .workOrgMatch, .personalCloudProject] + (.workCloudProjects // []) + (.workClaudeLogins // [])) | .[] | select(. != null and (tostring | length > 4))' "$IDENTITY" 2>/dev/null)
 EOF
 fi
 exit 0
