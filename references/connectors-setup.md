@@ -173,6 +173,24 @@ missing or ambiguous recipient, completion condition or required access; do not 
 the same authorized message. If Simon asks only for a draft, show it and wait. General connector setup
 does not authorize automatic future notifications.
 
+DO send through OpenAI's official Slack connector from a Claude chat when Simon names OpenAI/Codex or
+the claude.ai Slack connector is not loaded (it follows the CLI's account). Codex `exec` runs with
+approval policy `never`, so `slack.slack_send_message` fails with "MCP tool call requires approval, but
+approval policy is never" until that run sets the app's tool approval. Recipe, verified 2026-11-05:
+1. Read the Slack app id: the `connector_id` of the entry whose `tool.name` is `slack.slack_send_message`
+   in `~/.codex/cache/codex_apps_tools/*.json` (the work app id is in the ignored overlay).
+2. Run `cd /tmp && AGENT_ALLOW_CROSS_PROVIDER=1 timeout 300 ~/.claude/bin/codex-launch.py exec
+   --skip-git-repo-check -c 'apps.<app id>.default_tools_approval_mode="approve"' "<prompt>" </dev/null`.
+   The prompt says: verify workspace and identity, check the target conversation for an existing copy,
+   send exactly one message with Simon's text, never retry, return the permalink.
+3. Expect a permalink in the output. Check the conversation before any retry.
+`default_tools_approval_mode` is the documented per-app key (Codex config reference, `apps.<id>`:
+`auto | prompt | writes | approve`). A per-tool `-c apps.<id>.tools.slack_send_message.approval_mode`
+alone, and the `_slack_send_message` and `"slack.slack_send_message"` key spellings, did not clear the
+block. Scope `approve` to that one run through `-c`; never write it to `~/.codex/config.toml`.
+`AGENT_ALLOW_CROSS_PROVIDER=1` applies only because Simon named the host (`references/agent-hosts.md`).
+The per-message authorization above still gates the send.
+
 DO apply `rules/communication.md` and `rules/copy-quality.md` to every outgoing message.
 Use those existing TL;DR and actionable-copy standards; do not define separate Slack writing rules.
 
