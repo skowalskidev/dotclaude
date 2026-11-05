@@ -81,6 +81,7 @@ ALLOWANCE_SLOT = "priority-run.json"
 OWNER = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}\Z")
 UDID = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\Z")
 TOKEN = re.compile(r"[0-9a-f]{64}\Z")
+AGENT_WORKTREE = re.compile(r"agent-([A-Za-z0-9_-]{1,64})\Z")
 SIMCTL_FIXTURE = None
 PRESSURE_FIXTURE = None
 HOST_FIXTURE = None
@@ -362,13 +363,61 @@ def prioritize(root, owner, minutes, clear, workspace=None):
     return "priority set: " + priority_text(record)
 
 
-def priority_matches(record, owner):
-    """A session checkout also owns its nested linked worktrees, never sibling repositories."""
+def claude_projects_dir():
+    configured = host_fixture("projects", None)
+    return Path(configured) if configured is not None else Path.home() / ".claude/projects"
+
+
+def agent_transcript_owned(checkout, workspaces):
+    """An Agent-tool worker worktree (<repo>/.claude/worktrees/agent-<id>, or a path inside it) belongs to
+    a prioritized session whose transcript records that agent:
+    ~/.claude/projects/<slug(workspace)>/<session>/subagents/agent-<id>.jsonl. A missing or unreadable
+    transcript directory is not ownership, and a sibling checkout never matches."""
+    parts = Path(checkout).parts
+    agents = [match.group(1) for index in range(len(parts) - 2)
+              if parts[index] == ".claude" and parts[index + 1] == "worktrees"
+              for match in [AGENT_WORKTREE.fullmatch(parts[index + 2])] if match]
+    if not agents:
+        return False
+    projects = claude_projects_dir()
+    for workspace in workspaces:
+        try:
+            sessions = [entry for entry in (projects / re.sub(r"[^A-Za-z0-9]", "-", workspace)).iterdir()
+                        if entry.is_dir()]
+        except OSError:
+            continue
+        for session in sessions:
+            for agent in agents:
+                try:
+                    if (session / "subagents" / ("agent-%s.jsonl" % agent)).is_file():
+                        return True
+                except OSError:
+                    continue
+    return False
+
+
+def priority_scope(record, owner):
+    """True when this caller holds the priority, False when it does not, None when its checkout ownership
+    is unknown (a failed probe). A session checkout owns its nested linked worktrees and its own agent
+    worktrees, never sibling repositories; unknown never grants priority and never aborts admission."""
     if not record:
         return False
     if record["workspaces"] is None:
         return record["owner"] == owner
-    return session_owns_workspace(checkout_path(Path.cwd()), record["workspaces"])
+    try:
+        checkout = checkout_path(Path.cwd())
+    except (GateError, OSError):
+        return None
+    if checkout in record["workspaces"] or agent_transcript_owned(checkout, record["workspaces"]):
+        return True
+    try:
+        return session_owns_workspace(checkout, record["workspaces"])
+    except GateError:
+        return None
+
+
+def priority_matches(record, owner):
+    return priority_scope(record, owner) is True
 
 
 def priority_binding(record):
@@ -1083,18 +1132,25 @@ def session_owns_workspace(workspace, cwds):
 
 
 def idle_stacks(stacks, exclude=None):
-    """Supabase stacks with no live session in their workspace and no change for STACK_IDLE_MIN."""
-    cwds = live_session_cwds()
+    """(Supabase stacks with no live session in their workspace and no change for STACK_IDLE_MIN, unknown).
+
+    A failed session or ownership probe counts every stack as active: it returns no stack and the probe
+    error, so a sweep stops nothing and the command that asked for the sweep still proceeds."""
+    candidates = [(ws, stack) for ws, stack in sorted(stacks.items()) if ws != exclude and stack["supabase"]]
+    if not candidates:
+        return [], None
     idle = []
-    for workspace, stack in sorted(stacks.items()):
-        if workspace == exclude or not stack["supabase"]:
-            continue
-        if session_owns_workspace(workspace, cwds):
-            continue
-        quiet = (time.time() - workspace_activity(workspace)) / 60
-        if quiet >= STACK_IDLE_MIN:
-            idle.append((workspace, stack["project"], int(quiet)))
-    return idle
+    try:
+        cwds = live_session_cwds()
+        for workspace, stack in candidates:
+            if session_owns_workspace(workspace, cwds):
+                continue
+            quiet = (time.time() - workspace_activity(workspace)) / 60
+            if quiet >= STACK_IDLE_MIN:
+                idle.append((workspace, stack["project"], int(quiet)))
+    except GateError as exc:
+        return [], str(exc)
+    return idle, None
 
 
 def stop_stack(project):
@@ -1108,8 +1164,11 @@ def stop_stack(project):
 
 
 def stack_sweep(apply, exclude=None):
+    idle, unknown = idle_stacks(observe_stacks(), exclude)
+    if unknown:
+        return ["idle stacks unknown (%s); nothing stopped" % unknown]
     lines = []
-    for workspace, project, quiet in idle_stacks(observe_stacks(), exclude):
+    for workspace, project, quiet in idle:
         if apply:
             try:
                 stop_stack(project)
@@ -1321,14 +1380,21 @@ def holder_text(lease):
     return "holder=%s pid=%s %s%s%s" % (lease["owner"], lease["pid"], condition, sim, command)
 
 
-def deferral_text(reason, allowance_reason, priority, is_priority, child_pending, allowance_holder, requested_owner=None):
+def deferral_text(reason, allowance_reason, priority, is_priority, child_pending, allowance_holder, requested_owner=None,
+                  ownership_unknown=False):
     """The real blocker plus the next action, so a waiting session knows why and what happens next."""
     if not is_priority:
+        if priority and ownership_unknown:
+            return ("heavy work deferred: %s; this checkout's priority ownership is unknown (the ownership probe "
+                    "failed), so it waits as ordinary work and rechecks on every retry" % reason)
         if priority and requested_owner == priority["owner"] and priority["workspaces"]:
             workspaces = priority["workspaces"]
+            try:
+                here = checkout_path(Path.cwd())
+            except (GateError, OSError):
+                here = os.getcwd()
             command = "local-capacity.py prioritize --owner " + shlex.quote(requested_owner)
-            command += "".join(" --workspace " + shlex.quote(ws) for ws in
-                               dict.fromkeys([*workspaces, checkout_path(Path.cwd())]))
+            command += "".join(" --workspace " + shlex.quote(ws) for ws in dict.fromkeys([*workspaces, here]))
             return ("heavy work deferred: %s; this checkout is outside the prioritized workspaces %s; "
                     "Simon's priority covers it after: %s" % (reason, workspaces, command))
         nxt = ("only the priority session (%s) may pass memory warning or CPU contention; this owner waits for the "
@@ -1368,7 +1434,8 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         if not compute_only and (legacy_slot_dir() / "slot.d").exists():
             raise Busy("legacy native slot exists; inspect its holder before migration")
         priority = read_priority(root)
-        is_priority = priority_matches(priority, owner)
+        scope = priority_scope(priority, owner)
+        is_priority = scope is True
         requested_owner = owner
         if is_priority:
             owner = priority["owner"]
@@ -1389,7 +1456,8 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
                 raise Busy("short check deferred: %s; pressure allowance %s" % (
                     reason, ("held by " + holder_text(holder)) if holder else "reserved for the priority session"))
             raise Busy(deferral_text(reason, allowance_reason, priority, is_priority, child_pending,
-                                     holder_text(holder) if holder else "an ended run", requested_owner))
+                                     holder_text(holder) if holder else "an ended run", requested_owner,
+                                     ownership_unknown=scope is None))
         if admission is not None:
             admission.update(owner=owner, priority_allowance=priority_allowance, short_check_allowance=short_allowance,
                              priority_binding=priority_binding(priority) if is_priority else None)
@@ -1464,13 +1532,17 @@ def release(root, token, orphan_inspected=False):
         for stage in lease["stages"]:
             if group_alive(stage["pgid"]):
                 raise Busy("recorded stage group %s is still running; inspect it before releasing" % stage["pgid"])
+        # Only this lease's own simulator or one its owner claimed can hold its release; another session's
+        # booted simulator is that session's to shut down.
         other_sims = {item["simulator"] for item in (read_state(root, slot=name) for name in SLOTS if name != slot)
                       if item and item["simulator"]}
         booted = [udid for udid in observe_booted() if udid not in other_sims]
         if lease["simulator"] in booted:
             raise Busy("owned simulator %s is still booted; shut it down, then release this token" % lease["simulator"])
-        if booted:
-            raise Busy("booted simulators %s remain; inspect them before releasing" % ",".join(booted))
+        claimed = [udid for udid in booted if read_claims(root).get(udid) == lease["owner"]]
+        if claimed:
+            raise Busy("simulators %s claimed by this owner are still booted; shut them down, then release this token"
+                       % ",".join(claimed))
         write_state(root, None, slot)
         allowance_token(root)  # clears only a receipt whose retained lease is now gone
 
@@ -1516,13 +1588,14 @@ def owner_gone(lease):
     return "owner pid %d reused" % lease["pid"] if current != lease["pid_start"] else None
 
 
-def provably_dead(lease, priority):
+def provably_dead(lease):
     """The auto-release reason for a lease nothing can still use, else None.
 
     Every condition must be proven: owner not running or PID reused, a recorded command group plus
-    every stage group with no process left, no simulator, and not the lease of a live priority
-    session. A pending launch, an acquire-only lease (no recorded group), a simulator lease or any
-    failed probe keeps the lease for the manual `release --orphan-inspected` or `reclaim-sim` path.
+    every stage group with no process left, and no simulator. A live priority session's dead lease is
+    released too: nothing can still use it and keeping it only blocks that session. A pending launch,
+    an acquire-only lease (no recorded group), a simulator lease or any failed probe keeps the lease for
+    the manual `release --orphan-inspected` or `reclaim-sim` path.
     """
     child = lease["child"]
     if lease["simulator"] or not isinstance(child, dict) or "pgid" not in child:
@@ -1536,12 +1609,6 @@ def provably_dead(lease, priority):
     reason = owner_gone(lease)
     if reason is None:
         return None
-    if priority and priority["owner"] == lease["owner"]:
-        try:
-            if any(owner_session_live(priority["owner"], ws) for ws in (priority["workspaces"] or [None])):
-                return None
-        except GateError:
-            return None
     return "%s; command group %s exited; no simulator" % (reason, child["pgid"])
 
 
@@ -1551,10 +1618,9 @@ def reap_dead_leases(root):
     try:
         with locked(root):
             snapshot = [(name, read_state(root, slot=name)) for name in SLOTS]
-            priority = read_priority(root)
     except GateError:
         return []  # lock contention or unreadable state: never a release; the caller reports it
-    verdicts = [(name, lease, provably_dead(lease, priority)) for name, lease in snapshot if lease]
+    verdicts = [(name, lease, provably_dead(lease)) for name, lease in snapshot if lease]
     lines = []
     for name, lease, reason in verdicts:
         if reason is None:

@@ -330,6 +330,8 @@ python3 ~/.claude/bin/local-capacity.py prioritize --clear
 DO prioritize every checkout its workers run in when Simon names the task to go first: pass
 `--workspace <checkout>` once per checkout to `prioritize --owner <task>`. Worker labels in listed
 checkouts and their nested linked worktrees share one lease owner; unlisted siblings do not match.
+DO let a prioritized session's Agent-tool worktree (`<repo>/.claude/worktrees/agent-<id>`) inherit the priority with no `--workspace`; TEST: it matches only when `~/.claude/projects/<slug of a listed checkout>/<session>/subagents/agent-<id>.jsonl` exists, and a missing or unreadable transcript directory or a sibling checkout never matches.
+DO treat a failed checkout-ownership probe as no priority, never as a failed command; TEST: `run` waits as ordinary work with a line naming the unknown ownership and is admitted when the host allows it.
 DO re-check a deferred priority run's workspace match before waiting; apply its printed coverage command.
 Renew with the same workspaces while Simon's instruction stands; clear when the work ends.
 Keep simulator claim/release labels identical. DO read existing single-workspace grants without
@@ -489,9 +491,9 @@ the runner's own supervisor cancel at its deadline; a runner timeout retains unc
 inspection. Treat PID death, PID reuse and an interrupted command as ownership questions, not proof
 of cleanup. Inspect the saved receipt and process tree before an explicit
 `release --token <token> --orphan-inspected`; a live owner, recorded child group or booted simulator
-still refuses release.
+still refuses release. Only the lease's own simulator or a booted simulator its owner claimed refuses release; another session's booted simulator never does.
 DO let `acquire`, `run`, `status` and `watchdog` auto-release a provably dead lease: owner PID gone or
-reused, its recorded command and stage groups empty, no simulator, and no live priority session.
+reused, its recorded command and stage groups empty, and no simulator; a live priority session's dead lease included.
 Each release prints `auto-released heavy slot <n> of 3: holder=<owner>` and writes a `telemetry.jsonl`
 event. TEST: a lease with a running group member, a simulator, a pending launch, no recorded group or a
 failed probe stays held. Keep shut-down simulators, derived data and caches for the next scoped run.
@@ -587,6 +589,7 @@ index or changed file for 60 minutes (`STACK_IDLE_MIN`). It runs what `supabase 
 report only lists them. A compose stack without that label is reported, never stopped. WHY: Docker
 Desktop's Resource Saver stops the VM only "when no containers are running for a period of time". TEST: a stack with a
 live session or a change in the last 60 minutes is never stopped, and no data volume is removed.
+DO treat a failed session or ownership probe as every stack active: the sweep prints `idle stacks unknown (...); nothing stopped` and the asking command continues. TEST: a probe failure stops no stack and never fails `stack-acquire`.
 
 DO use `bin/native-slot.sh` only as a compatibility frontend to this same engine. Its `run`, `list`,
 `claim-sim`, `release-sim` and `jobs` commands share the local-capacity lease and claims; it owns no
