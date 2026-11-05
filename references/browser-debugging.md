@@ -73,7 +73,7 @@ DON'T replace native lifecycle proof with injected events, overridden getters or
 under emulation. Keep those as labelled handler tests. If the runtime cannot produce the required
 transition, record that coverage gap instead of weakening its assertion.
 TEST: a native-transition verdict includes observed state changes, not only a successful automation
-command; fixture and emulated evidence never becomes live-backend or native-runtime proof.
+command; fixture and emulated evidence never becomes live-backend or installed native-app proof.
 
 ## Test/QA account login and scaffolding
 

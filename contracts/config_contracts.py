@@ -638,7 +638,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; a state he is to click is seeded there, 1 window per viewport.",
             "Owns co-pilot visibility: headed Chrome for Testing from first to last step, verified visible before step 1, including zero-new-input walks; headless scripts and screenshots cannot substitute for the live walk.",
-            "Verify observed native browser transitions and automation overrides; record before/after state and versions, remove overrides that prevent the transition, and label synthetic handler coverage separately from native or live proof.",
+            "Verify observed native browser transitions and automation overrides; record before/after state and versions, remove overrides that prevent the transition, and label synthetic handler coverage separately from observed browser transitions and live-backend proof.",
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
             "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
         ],
