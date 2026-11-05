@@ -155,10 +155,15 @@ and event, then wait under `references/code-best-practices.md` § Agent-written 
 set -euo pipefail
 SHA=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
 JOB=<a required check's job name, e.g. preflight>
-RUN=$(gh api "repos/$O/$R/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[]
-  | select(.app.slug == "github-actions") | select(.name == "'"$JOB"'") | (.details_url // "")
-  | capture("/runs/(?<id>[0-9]+)").id] | unique | first // empty')
-[ -n "$RUN" ] || { echo "no Actions run for $SHA" >&2; exit 1; }
+RUN=""
+for _ in $(seq 1 10); do  # the job registers a few seconds to minutes after the push
+  RUN=$(gh api "repos/$O/$R/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[]
+    | select(.app.slug == "github-actions") | select(.name == "'"$JOB"'") | (.details_url // "")
+    | capture("/runs/(?<id>[0-9]+)").id] | unique | first // empty')
+  [ -n "$RUN" ] && break
+  sleep 30
+done
+[ -n "$RUN" ] || { echo "no $JOB run for $SHA after 5 min" >&2; exit 1; }
 deadline=$(( $(date +%s) + 1800 ))
 while :; do
   st=$(gh run view "$RUN" --json status,conclusion -q '.status + "/" + .conclusion')
@@ -175,7 +180,7 @@ done
 
 **DO filter by a required check's job name.** An unfiltered first run is often a fast side workflow
 (PR metadata, dependabot) that finishes before the required workflow registers, so the wait reports
-green early. Retry the lookup for up to 5 minutes while the job has not registered.
+green early.
 **DON'T resolve it with `gh run list --branch` or `--workflow`.** A branch, event or workflow-name
 mismatch returns nothing, and every later `gh run view` fails on the empty id.
 TEST: a CI wait's run id traces to the head sha, and the wait exits non-zero on an empty id, a failed
