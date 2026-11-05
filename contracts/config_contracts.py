@@ -362,6 +362,16 @@ CONTRACTS: dict[str, dict] = {
             "Python 3.9+, standard library only; keep bin/design-diff.test.py passing under /usr/bin/python3.",
         ],
     },
+    "bin/ci-gate-list.py": {
+        "mission": "A local gate list matches what CI runs on a pull request, so no PR fails CI on a gate the list dropped.",
+        "purpose": "Prints every run step of every GitHub Actions job triggered by pull_request or merge_group, with working directories and container needs.",
+        "criteria": [
+            "List each run step of each job whose workflow triggers on the chosen events, with workflow, job and step working directories, job if:, matrix keys, and a pointer for a reusable-workflow job; uses: steps never count.",
+            "Mark a step in a job with services:, or whose command starts a container, as CI-only? with the reason, and end with a TOTAL line counting run steps.",
+            "Exit 0 with the list, 1 when no job runs on the events, 2 on a usage error, unreadable file, missing ruby or YAML parse failure.",
+            "Python 3.9+, standard library plus the system ruby for YAML; keep bin/ci-gate-list.test.py passing under /usr/bin/python3.",
+        ],
+    },
     "bin/pr-landing-gate.py": {
         "mission": "Simon never gets a ship-gate PASS on a PR whose fetched body lacks a landing-gate row, because the record itself is refused.",
         "purpose": "Fetches a PR body, body_html and review threads through gh and checks every landing-gate row.",
@@ -911,6 +921,7 @@ CONTRACTS: dict[str, dict] = {
             "Own the Light, Standard and Deep verification tiers: classify from the diff before any check, take the deeper tier when unclear, escalate on an unexpected finding, and record tier, trigger and skipped stages on the PR and gate.",
             "Every tier keeps CI, required hooks, the project gate list, PR feedback handling, read-only production, spend approval and the post-deploy prod check; a Deep trigger always gets the full harness.",
             "Re-read the CI gate list after every base merge or rebase, and run it in one pass over CI's own scope, secret scan included, before the ready-flip that starts CI.",
+            "Derive the CI gate list from the workflow files with bin/ci-gate-list.py, one row per pull-request run step; each skipped row, a CI-only container step included, names its reason.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",

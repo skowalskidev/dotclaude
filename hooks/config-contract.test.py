@@ -102,6 +102,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
     ("pr-evidence-template-stacks-bands-above-ui",
      "PR before/after screenshots and videos come from one template: bands above the UI, outline-only callouts, the layout rule, timed video ending together."),
+    ("ci-gate-list-counts-every-pr-run-step",
+     "The local CI gate list is derived from the workflow files: every pull-request run step counted, container needs marked, an empty list never passes."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
     ("matrix-binds-copies-and-walks-real-stack",
@@ -1904,6 +1906,13 @@ def check_pr_evidence_template_stacks_bands_above_ui() -> None:
     skill = (ROOT / "skills/sk/skills/ship-screenshot-changes/SKILL.md").read_text()
     check("bin/pr-evidence.py" in skill and not (ROOT / "skills/sk/skills/ship-screenshot-changes-advanced").exists(),
           "Screenshot skill must compose through bin/pr-evidence.py and stay the single screenshot skill")
+
+
+def check_ci_gate_list_counts_every_pr_run_step() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "ci-gate-list.test.py")])
+    check(result.returncode == 0, "CI gate list regression: " + result.stdout + result.stderr)
+    check("bin/ci-gate-list.py" in (ROOT / "references/testing-strategy.md").read_text(),
+          "references/testing-strategy.md does not point at bin/ci-gate-list.py for the gate list")
 
 
 def check_pr_landing_gate_refuses_missing_rows() -> None:

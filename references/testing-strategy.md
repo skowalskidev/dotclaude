@@ -548,6 +548,14 @@ is the one diagnostic the batch runs by default. Write those constraints into ev
 DON'T learn a gate from a failed CI run. TEST: the plan's gate list names the base sha it was read at,
 and that sha is the latest base merged into the branch (e.g. an i18n coverage gate the base added
 after intake, missed across two base merges).
+**DO derive that list mechanically from the workflow files with `python3 ~/.claude/bin/ci-gate-list.py`
+in the repo root:** every `run:` step of every job triggered by `pull_request` or `merge_group`, with its
+working directory, one row each. Run a marked `CI-only?` step locally when its container runtime is
+available; otherwise name it skipped with that reason, as for a job whose `if:` excludes pull requests.
+**DON'T hand-build the list from reading the workflow:** a hand-built mirror drops steps (the fix for one
+that missed a coverage-audit job, then a migration-order step that then failed CI).
+TEST: the gate list's row count equals the helper's `TOTAL` run steps, and every skipped row names
+its reason.
 
 **DO run the whole gate list in one pass at merge prep, before the ready-flip that starts CI**
 (`references/git-pr-deploy.md` § CI runs once, at merge prep), over CI's own scope: every static gate,
