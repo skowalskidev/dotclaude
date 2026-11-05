@@ -53,7 +53,11 @@ running session's server.
 ## Step 1 — Figure out what changed
 
 `git diff` the branch vs its base. List the exact frontend surfaces and journeys the change touches
-(routes, components, states, inputs), then build the case matrix per the reference's § Discover the
+(routes, components, states, inputs). A backend or data change whose output renders on a screen (copy,
+translations, prices, counts) has a surface too: list the screen that shows that output and capture it
+with production-shaped data before and after; "no frontend files changed" is not "no visible surface".
+(the fix for a translation-backend PR first evidenced with a CI table until Simon asked for the
+translated screen.) Then build the case matrix per the reference's § Discover the
 complete matrix: empty and full states, every conditional scenario, responsive sizes and complete
 journeys. One case per scenario × viewport × variant, blocked and unrun cases included. Scope to the
 diff unless Simon asks for the whole app.
