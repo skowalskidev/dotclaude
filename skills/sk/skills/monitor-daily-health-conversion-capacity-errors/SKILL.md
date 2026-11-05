@@ -49,22 +49,28 @@ Run this when the manifest has no `monitor` block, or Simon asks to re-tune it.
   tool (e.g. new urgent bugs in the issue tracker, error reporting in a cloud console), one row each.
   TEST: every connector in the manifest has a row or a stated reason.
 
-## 4. Triage every red, amber and unknown row
+## 4. Pin the root cause of every red, amber and unknown row
 
-For each, worst first, at most 10:
+Start from the digest's Likely cause column; it is a heuristic until triage proves it. For each row,
+worst first, at most 10, with 3 or more rows fanned out to parallel read-only investigators:
 
-- DO read its detail lines, then corroborate with a second read-only source: the log signature
-  behind an error count, the code path that writes a failing row, the provider's own number.
-- DO find what changed: the Changes row, `git log --since=48.hours --oneline origin/<default>` in the
-  repo, new experiment arms or offerings in the data. Tie the row to a change, or say none fits.
-- DO state the likely cause and one next step with the real name: the RPC, function, migration,
-  arm, sender or quota. Use the reference's triage table and `monitor.notes` first.
-- DON'T call a row a problem from one source when a second disagrees; say which source and why.
-  TEST: every non-green row in the hand-back has a cause line (or "cause unknown" plus what was ruled
-  out) and a next step.
+- DO find the ONSET: the first day or hour the signal moved, from daily log counts or the metric's
+  own SQL per day over 14 days.
+- DO tie the onset to what changed: the Changes row, `git log --since=<onset - 2 days> origin/<default>`
+  in the repo, migrations, experiment arms or offerings, compute or config changes.
+- DO read the code path that writes the failing row or serves the failing request, and name it
+  `file:line`; corroborate with a second read-only source (log signature, provider record, row data).
+- DO mark a row the data disproves as a false alarm with its root cause (a metric counting the wrong
+  rows), and fix the metric in step 5.
+- DON'T stop at a symptom ("statement timeouts") or a category ("load"); the root cause names the
+  commit, migration, function, config row or code line.
+  TEST: every non-green row in the hand-back has a root cause naming a specific thing plus its
+  evidence, or "not proven" plus what was ruled out, and a next step.
 
 ## 5. Tune, so tomorrow's digest is sharper
 
+- DO save each proven root cause into the manifest's `monitor.causes` under the row's check id
+  (`cause`, `found` date, `fix`), so the next digest's Likely cause column shows it pinned.
 - DO fix a false alarm at its source in the manifest: a threshold under `thresholds`, a better metric
   SQL, or an `acknowledge` entry with `until` and `why` for an accepted standing issue.
 - DO add a metric when triage found a problem no row flagged.
@@ -73,6 +79,7 @@ For each, worst first, at most 10:
 ## 6. Hand back
 
 Line 1 is `Action needed: <the top red row>` or `No action needed`, per `rules/communication.md`.
-Then a table of the red and amber rows only (status, check, now vs baseline, cause, next step),
-then one line naming the green count and the saved digest path. A fix runs through
+Then one table of the red and amber rows only, with these columns in this order: status, finding,
+evidence (now vs baseline), root cause (the pinned thing with `file:line`, commit or config row),
+next step. Then one line naming the green count and the saved digest path. A fix runs through
 `/sk:work-investigate-and-fix` when Simon asks for it; this skill only reads.

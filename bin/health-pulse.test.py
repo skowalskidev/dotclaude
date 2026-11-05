@@ -258,6 +258,40 @@ with tempfile.TemporaryDirectory() as tmp:
     expect(delta == 86400 and abs(secs - 86400) < 1, f"since_last_run delta={delta} secs={secs}")
     expect(hp.since_last_run(ctx, "ops", 10) == (None, None), "a counter below its last value restarted")
 
+# A cause triage pinned shows in the cause column on a non-green row, and the digest has that column.
+with tempfile.TemporaryDirectory() as tmp:
+    ctx = ctx_for({"causes": {"x": {"cause": "admin page polls every 5s", "found": "2026-11-06", "fix": "cache it"}}}, tmp)
+    rows = [hp.check("Errors", "x", "X", "warn", cause="heuristic"), hp.check("Errors", "y", "Y", "ok", cause="n/a")]
+    hp.pin_causes(ctx, rows)
+    expect(rows[0]["cause"].startswith("admin page polls every 5s (pinned 2026-11-06); fix: cache it"), rows[0]["cause"])
+    md = hp.markdown(ctx, rows)
+    expect("| Likely cause |" in md and "admin page polls" in md and "n/a" not in md,
+           "the digest carries a Likely cause column, filled only on non-green rows")
+
+# Twilio: a recipient not on WhatsApp is not our failure; an unregistered SMS sender is, per sender.
+with tempfile.TemporaryDirectory() as tmp:
+    ctx = ctx_for({"twilio": {"maxPages": 1}}, tmp, {"TWILIO_ACCOUNT_SID": "AC" + "0" * 32,
+                                                    "TWILIO_API_KEY_SID": "SK" + "1" * 32, "TWILIO_API_KEY_SECRET": "s" * 32})
+    stamp = (NOW - dt.timedelta(hours=2)).strftime("%a, %d %b %Y %H:%M:%S +0000")
+    msgs = ([{"from": "whatsapp:+14245550000", "direction": "outbound-api", "status": "delivered", "date_sent": stamp}] * 9
+            + [{"from": "whatsapp:+14245550000", "direction": "outbound-api", "status": "undelivered",
+                "error_code": 63024, "date_sent": stamp}] * 3
+            + [{"from": "+17275550000", "direction": "outbound-api", "status": "undelivered",
+                "error_code": 30034, "date_sent": stamp}] * 6)
+
+    def fake_http(url, headers, data=None):
+        if "monitor.twilio.com" in url:
+            return {"alerts": []}
+        return {"messages": msgs if "DateSent%3E=" + (NOW - dt.timedelta(hours=24)).date().isoformat() in url else []}
+
+    ctx.http = fake_http
+    rows = {r["id"]: r for r in hp.probe_twilio(ctx)}
+    wa = [k for k in rows if "whatsapp" in k]
+    sms = rows.get("twilio-failed:no service · sms …0000", {})
+    expect(not wa, f"recipients not on WhatsApp must not raise a row: {list(rows)}")
+    expect(sms.get("status") in ("crit", "warn") and "30034" in sms.get("cause", ""),
+           f"an unregistered SMS sender failing 6/6 is its own flagged row naming 30034: {sms}")
+
 if FAILS:
     print("FAIL health-pulse:\n- " + "\n- ".join(FAILS))
     sys.exit(1)

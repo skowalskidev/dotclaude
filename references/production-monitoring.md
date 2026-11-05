@@ -64,6 +64,10 @@ amber under 99%; disk also amber when growth fills it to 85% within 21 days.
 
 ## Presentation
 
+**DO give every non-green row a cause.** The engine fills Likely cause from the top log signature
+and its SQLSTATE hint, the metric's `hint`, a corroborate pair's `hint`, or the sender-side Twilio code;
+a cause pinned in `monitor.causes` overrides it.
+
 **DO rank worst first: red, amber, unknown, acknowledged, low-sample, green; a row that was green
 in the previous snapshot is marked NEW and ranks first within its colour.** An unknown row always
 carries the reason it could not measure.
@@ -85,6 +89,7 @@ project ids. `health-pulse.py --draft` writes the generic part from the manifest
 | `metrics` | project SQL rows, below |
 | `corroborate` | `{label, a, b, tolerancePct, minGap, hint}`; `a`/`b` are `stripe:charge.succeeded`, `metric:<id>`, `logs:<id>` or `revenuecat:<id>` |
 | `acknowledge` | `{id, until, why}` per muted check |
+| `causes` | `{<check id>: {cause, found, fix}}`, root causes triage proved; shown in the digest's Likely cause column |
 | `thresholds` | overrides for any `DEFAULTS` key in the engine |
 | `env` | extra key files beyond the connectors' `secret.path` entries |
 | `notes` | repo-specific triage context the skill reads first (known causes, owners, dashboards) |
@@ -112,3 +117,6 @@ TEST: every metric returns a row in a `--only metrics` run before the block is s
 | Stripe charges above ledger payments | the payment webhook is failing or skipping | the webhook-delivery row; the webhook function's logs |
 | A sender with 30034 | US A2P 10DLC registration missing for that number | Twilio's error page linked in the row |
 | Trials or conversions down with no error rise | an experiment arm, offering or price changed | experiment arms in the data; recent merges |
+| A "stuck" or "never sent" row with a click time | the table also stores click-only rows; not a send | the code that inserts that row |
+| Twilio 63024, 30005, 30006 | the recipient: not on WhatsApp, number gone, landline ([Twilio errors](https://www.twilio.com/docs/api/errors/63024)) | counted as undeliverable, never as our failure |
+| Failures from a sender outside the project's services | another app on a shared provider account | scope with `messagingServiceSids`; report it to that app's owner |

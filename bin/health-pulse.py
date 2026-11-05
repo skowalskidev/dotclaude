@@ -89,6 +89,7 @@ DEFAULTS = {
     "minEvents": 5,
     "minBaselineEvents": 20,     # a group with less history than this is judged against its segment
     "failShareWarnPct": 10.0,    # a delivery channel failing this share of sends is amber even if not new
+    "failShareCritPct": 50.0,
     "longQuerySeconds": 30,      # Supabase "Detecting issues": active sessions older than 30 seconds.
     "slowQueryMs": 1000,
     "slowQueryMinCalls": 100,
@@ -118,6 +119,9 @@ SQLSTATE_HINTS = {
 # Connector-name prefixes the engine probes; any other data connector is listed for a manual check.
 COVERED = ("supabase", "stripe", "revenuecat", "twilio")
 NOT_DATA = ("pal", "slack")  # model and messaging tools, not production signal sources
+# Twilio delivery errors the RECIPIENT causes (not on WhatsApp, number gone, landline), per Twilio's
+# own error pages. They are listed but never count as our failure; 30034 (unregistered sender) does.
+RECIPIENT_SIDE_ERRORS = {"63024", "30005", "30006"}
 FUNCTION_LIMIT_REASONS = ("WallClockTime", "CPUTime", "Memory")
 CAPS_KEEP = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "ERROR", "FATAL", "PANIC", "LOG", "INFO",
              "WARN", "WARNING", "SQL", "API", "JWT", "RPC", "OTP", "SMS", "URL", "HTTP", "RLS", "UTC"}
@@ -264,9 +268,11 @@ def sqlstate_hint(sig):
     return None
 
 
-def check(area, cid, label, status, now="", baseline="", why="", detail=None, source=""):
+def check(area, cid, label, status, now="", baseline="", why="", detail=None, source="", cause=""):
+    """One digest row. `why` is the statistic that judged it; `cause` the likely cause, which a cause
+    pinned in the manifest's monitor.causes overrides."""
     return {"area": area, "id": cid, "label": label, "status": status, "now": now, "baseline": baseline,
-            "why": why, "detail": detail or [], "source": source, "new": False}
+            "why": why, "detail": detail or [], "source": source, "new": False, "cause": cause}
 
 
 def num(x):
@@ -636,6 +642,11 @@ def probe_postgres(ctx, sb):
         old = ctx.previous_snapshot(min_age_days=0.75)
         base = (old or {}).get("values", {}).get("pgss")
         span = "since stats reset"
+        try:
+            reset = sb.sql("select stats_reset::date::text as d from extensions.pg_stat_statements_info")[0]["d"]
+            span = f"cumulative since the {reset} stats reset; 24h deltas start with the next run"
+        except (ProbeError, IndexError, KeyError):
+            pass
         if base:
             span = f"since {old.get('date')}"
             delta = {}
@@ -654,7 +665,9 @@ def probe_postgres(ctx, sb):
                          "warn" if slow else "ok", f"{len(slow)} averaging ≥ {cfg['slowQueryMs']:g} ms", "",
                          "frequent slow calls eat the CPU and trigger statement timeouts" if slow else "",
                          [f"{name}: {total / max(calls, 1):,.0f} ms mean × {calls:,.0f} calls = {total / 3.6e6:,.1f} h"
-                          for calls, total, name in top], "supabase"))
+                          for calls, total, name in top], "supabase",
+                         (f"{slow[0][2]} averages {slow[0][1] / max(slow[0][0], 1):,.0f} ms over {slow[0][0]:,.0f} calls"
+                          if slow else "")))
     except ProbeError as e:
         out.append(check("Capacity", "slow-queries", "Slowest queries", "unknown",
                          why="pg_stat_statements unreadable: " + str(e)[:160], source="supabase"))
@@ -773,8 +786,12 @@ def probe_logs(ctx, sb):
             detail.append(f"{n:,}× {sig}" + (f" → {hint}" if hint else ""))
         if error:
             detail.append("signatures unavailable: " + error[:160])
+        top_share = ""
+        if detail and total:
+            n_top = int(detail[0].split("×", 1)[0].replace(",", ""))
+            top_share = f"{n_top / total * 100:.0f}% are: " + detail[0].split("× ", 1)[1]
         out.append(check("Errors", "logs-" + src["id"], src["label"], status, now_text, base_text, why, detail,
-                         "supabase-logs"))
+                         "supabase-logs", top_share[:220]))
     requests = int(now_totals.get("api-5xx__den") or 0)
     before = None if before_totals is None else int(before_totals.get("api-5xx__den") or 0)
     status, why = judge_count(requests, before, ctx.cfg, better="higher") if before is not None else ("ok", "")
@@ -904,7 +921,7 @@ def count_metric(ctx, sb, metric):
         status, why = judge_count(current, mean, ctx.cfg, metric.get("better", "lower"))
         ctx.values["metric:" + metric["id"]] = current
         return check(area, metric["id"], label, status, f"{current:,.0f}", "" if mean is None else f"{mean:,.1f}",
-                     why + lag_note(metric), source="metrics")
+                     why + lag_note(metric), source="metrics", cause=metric.get("hint", ""))
     except ProbeError as e:
         return check(area, metric["id"], label, "unknown", why=str(e), source="metrics")
 
@@ -939,7 +956,7 @@ def rate_metric(ctx, sb, metric):
     status, why = judge_rate(x1, n1, x0, n0, ctx.cfg, better)
     ctx.values["metric:" + metric["id"]] = n1
     head = check(area, metric["id"], label, status, fmt_pct(x1, n1), fmt_pct(x0 / max(weeks, 1), n0 / max(weeks, 1)),
-                 why + lag_note(metric), source="metrics")
+                 why + lag_note(metric), source="metrics", cause=metric.get("hint", ""))
     out.append(head)
     segs = sorted({r.get("seg") for r in cur if r.get("seg") is not None}, key=str)
     parents = {None: head}
@@ -986,9 +1003,8 @@ def value_metric(ctx, sb, metric):
                 status, why = "ok", "trend baseline starts today"
         detail = [", ".join(f"{k}={v}" for k, v in r.items() if k != "n") for r in rows[:8] if len(r) > 1]
         unit = metric.get("unit", "")
-        hint = metric.get("hint", "") if status in ("crit", "warn") else ""
         return check(area, metric["id"], label, status, f"{value:,.1f}{unit}" if unit else f"{value:,.0f}", "",
-                     "; ".join(x for x in (why, hint) if x), detail, "metrics")
+                     why, detail, "metrics", metric.get("hint", ""))
     except ProbeError as e:
         return check(area, metric["id"], label, "unknown", why=str(e), source="metrics")
 
@@ -1148,7 +1164,9 @@ def probe_twilio(ctx):
         for _ in range(int(conf.get("maxPages", 10))):
             page = ctx.http(url, headers)
             for m in page.get("messages") or []:
-                svc = m.get("messaging_service_sid") or "no service"
+                sender = str(m.get("from") or "")
+                channel = sender.split(":", 1)[0] if ":" in sender else "sms"
+                svc = m.get("messaging_service_sid") or f"no service · {channel} …{sender[-4:]}"
                 if (services and svc not in services) or str(m.get("direction", "")).startswith("inbound"):
                     continue
                 try:
@@ -1160,9 +1178,12 @@ def probe_twilio(ctx):
                 row = per.setdefault(svc, {"sent": 0, "failed": 0, "codes": {}})
                 row["sent"] += 1
                 if m.get("status") in ("failed", "undelivered"):
-                    row["failed"] += 1
                     code = str(m.get("error_code"))
                     row["codes"][code] = row["codes"].get(code, 0) + 1
+                    if code in RECIPIENT_SIDE_ERRORS:
+                        row["recipient"] = row.get("recipient", 0) + 1
+                    else:
+                        row["failed"] += 1
             nxt = page.get("next_page_uri")
             if not nxt:
                 return per
@@ -1179,17 +1200,24 @@ def probe_twilio(ctx):
         detail = []
         for svc, r in sorted(cur.items(), key=lambda kv: -kv[1]["failed"]):
             codes = ", ".join(f"{n}× {c}" for c, n in sorted(r["codes"].items(), key=lambda kv: -kv[1])[:4])
-            detail.append(f"{svc[:10]}: {fmt_pct(r['failed'], r['sent'])} failed" + (f" ({codes})" if codes else ""))
+            label = svc if svc.startswith("no service") else svc[:10]
+            detail.append(f"{label}: {fmt_pct(r['failed'], r['sent'])} failed on our side"
+                          + (f", {r['recipient']} undeliverable recipients" if r.get("recipient") else "")
+                          + (f" ({codes})" if codes else ""))
             past = old.get(svc, {"failed": 0, "sent": 0})
             s, w = judge_rate(r["failed"], r["sent"], past["failed"], past["sent"], ctx.cfg, better="lower")
             share = r["failed"] / r["sent"] * 100 if r["sent"] else 0
-            if s == "ok" and r["failed"] >= ctx.cfg["minEvents"] and share >= ctx.cfg["failShareWarnPct"]:
-                s, w = "warn", f"{share:.0f}% of this sender's texts fail; " + w
+            if s in ("ok", "low-sample") and r["failed"] >= ctx.cfg["minEvents"] and share >= ctx.cfg["failShareWarnPct"]:
+                # A sender failing this often is broken whether or not it has last week's history.
+                s = "crit" if share >= ctx.cfg["failShareCritPct"] else "warn"
+                w = f"{share:.0f}% of this sender's messages fail on our side; " + w
             if s in ("crit", "warn"):
-                out.append(check("Errors", "twilio-failed:" + svc, f"SMS failures · sender {svc[:10]}", s,
+                ours = [c for c in r["codes"] if c not in RECIPIENT_SIDE_ERRORS]
+                out.append(check("Errors", "twilio-failed:" + svc, f"Message failures · {label}", s,
                                  fmt_pct(r["failed"], r["sent"]), fmt_pct(past["failed"], past["sent"]), w,
                                  [f"{n}× error {c}: https://www.twilio.com/docs/api/errors/{c}"
-                                  for c, n in sorted(r["codes"].items(), key=lambda kv: -kv[1])[:4]], "twilio"))
+                                  for c, n in sorted(r["codes"].items(), key=lambda kv: -kv[1])[:4]], "twilio",
+                                 "Twilio error " + ", ".join(ours[:3]) + " (sender-side); see its error page" if ours else ""))
         codes = sorted({c for r in cur.values() for c in r["codes"]})
         if codes:
             detail.append("error docs: " + ", ".join(f"https://www.twilio.com/docs/api/errors/{c}" for c in codes[:4]))
@@ -1232,8 +1260,9 @@ def corroborate(ctx):
         tolerance = max(float(pair.get("tolerancePct", 20)) / 100 * max(a, b), float(pair.get("minGap", 3)))
         status = "ok" if gap <= tolerance else ("crit" if gap > 2 * tolerance else "warn")
         out.append(check("Corroboration", cid, pair["label"], status, f"{a:g} vs {b:g}", "",
-                         pair.get("hint", "the two sources disagree; one side is dropping writes") if status != "ok" else "",
-                         [f"{pair['a']} = {a:g}", f"{pair['b']} = {b:g}"], "corroborate"))
+                         f"gap {gap:g} over tolerance {tolerance:g}" if status != "ok" else "",
+                         [f"{pair['a']} = {a:g}", f"{pair['b']} = {b:g}"], "corroborate",
+                         pair.get("hint", "the two sources disagree; one side is dropping writes")))
     return out
 
 
@@ -1273,6 +1302,7 @@ def run(ctx, only):
     for c in checks:
         c["new"] = c["status"] in ("crit", "warn") and before.get(c["id"]) == "ok"
     acknowledge(ctx, checks)
+    pin_causes(ctx, checks)
     return sorted(checks, key=lambda c: (RANK[c["status"]], not c["new"], c["area"], c["label"]))
 
 
@@ -1287,6 +1317,17 @@ def acknowledge(ctx, checks):
             if c["id"] == ack.get("id") and c["status"] in ("crit", "warn") and ctx.now.date() <= until:
                 c["acked"], c["status"] = c["status"], "ack"
                 c["why"] = f"acknowledged until {until} ({ack.get('why', 'no reason given')}); " + c["why"]
+
+
+def pin_causes(ctx, checks):
+    """A root cause triage proved is stored in monitor.causes and shown in the cause column next time."""
+    pinned = ctx.monitor.get("causes") or {}
+    for c in checks:
+        known = pinned.get(c["id"])
+        if known and c["status"] != "ok":
+            c["cause"] = f"{known.get('cause', '')} (pinned {known.get('found', '?')})"
+            if known.get("fix"):
+                c["cause"] += f"; fix: {known['fix']}"
 
 
 def draft_monitor(manifest):
@@ -1325,7 +1366,7 @@ def draft_monitor(manifest):
         elif name.startswith("twilio") and "twilio" not in draft:
             draft["twilio"] = {"accountSidEnv": "TWILIO_ACCOUNT_SID", "keySidEnv": "TWILIO_API_KEY_SID",
                                "keySecretEnv": "TWILIO_API_KEY_SECRET"}
-    draft["metrics"], draft["corroborate"], draft["acknowledge"] = [], [], []
+    draft["metrics"], draft["corroborate"], draft["acknowledge"], draft["causes"] = [], [], [], {}
     return draft
 
 
@@ -1341,11 +1382,11 @@ def markdown(ctx, checks):
     lines = [f"# Health pulse · {ctx.project} · {ctx.now.strftime('%Y-%m-%d %H:%M UTC')}", "",
              f"Last {ctx.hours:g}h against the same window on the previous {ctx.cfg['baselineWeeks']} weeks "
              "(logs: previous 24h). " + " · ".join(f"{ICON[s]} {counts[s]} {s}" for s in RANK if counts[s]), "",
-             "| | Area | Check | Now | Baseline | Why |", "|---|---|---|---|---|---|"]
+             "| | Area | Check | Now | Baseline | Why | Likely cause |", "|---|---|---|---|---|---|---|"]
     for c in checks:
         flag = "**NEW** " if c.get("new") else ""
         lines.append(f"| {ICON[c['status']]} | {c['area']} | {cell(c['label'])} | {cell(c['now'])} | "
-                     f"{cell(c['baseline'])} | {flag}{cell(c['why'])} |")
+                     f"{cell(c['baseline'])} | {flag}{cell(c['why'])} | {cell(c.get('cause', '')) if c['status'] != 'ok' else ''} |")
     details = [c for c in checks if c["detail"] and (c["status"] != "ok" or c["area"] in ("Errors", "Changes", "Conversion"))]
     if details:
         lines += ["", "## Details"]
