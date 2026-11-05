@@ -303,6 +303,12 @@ retain the lease on expiry or ownership/resource refusal. Keep status/watchdog e
 their metadata snapshot lock; reclaim always checks current ownership again. TEST: a slow diagnostic
 cannot block admission, and a stale report cannot reclaim a replacement owner's simulator.
 
+DO retry stage metadata lock contention for at most 30 seconds within the stage deadline, including
+cleanup stages. Revalidate the same lease on each attempt and honor cancellation before granting the
+payload once. Keep ownership/resource refusals immediate; retain receipts when completion cannot be
+recorded. TEST: a brief lock collision neither skips cleanup nor reruns a payload; persistent contention
+starts no unregistered payload and cannot extend the stage deadline.
+
 DO handle exit 124 in any retry loop around `run`: the lease stays held by design, so the same owner's
 next attempt waits on it until its own limit. Confirm the printed owner PID is dead, release the printed
 token with `--orphan-inspected`, then raise `--max-min` to fit the payload. Give each concurrent queue its
