@@ -273,7 +273,15 @@ DO let foreground `run` retry admission automatically every 10 seconds for up to
 (`--wait-min`, 0 for immediate refusal, maximum 60 (`MAX_WAIT_MIN`); a larger value exits 1 naming the cap
 before admission). For a longer wait, rerun the same command at the next task boundary. It launches the command once after admission;
 it never retries a started command. On exit 75, record the holder and next task-boundary retry in the
-living plan, keep independent work moving, and resume without asking Simon to say continue. Ordinary admission (`acquire`, `run`, `claim-sim`,
+living plan, keep independent work moving, and resume without asking Simon to say continue.
+DO, in a script or chain that runs leased steps, stop at a step's exit 75 and print it as deferred,
+never as pass; `&&` and `set -euo pipefail` in a script file both stop there
+(`references/code-best-practices.md` § Agent-written shell). Pass `--wait-min` sized to the wait you
+accept when the step must run now. Call the lease through a shell function or an array, never a
+command stored in a string variable, which zsh does not word-split, so nothing runs.
+DON'T run a later step that reads a deferred step's output (the fix for two chained verification runs
+whose 75 under memory pressure let later steps read missing output for about 20 minutes).
+TEST: no leased step's exit 75 is followed by a step that reads its output. Ordinary admission (`acquire`, `run`, `claim-sim`,
 `stack-acquire`) defers while current CPU idle is below 20% (`MIN_IDLE_PERCENT`, the second
 `iostat -d -C -n 0 -c 2 -w 1` sample), the 1-minute load exceeds 1.5 x logical cores (`LOAD_PER_CORE`) while
 CPU idle is also below 35% (`LOAD_CONFIRM_IDLE_PERCENT`), or the OS reports memory pressure at warning or worse (`kern.memorystatus_vm_pressure_level` >= 2 via `sysctl -n`;

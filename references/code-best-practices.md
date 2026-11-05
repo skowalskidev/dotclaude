@@ -98,6 +98,9 @@ it with `${=var}`, or pipe a NUL-separated producer into `xargs -0`.
 TEST: no `$VAR` in command position, and no scalar holding several words is expanded as arguments or
 a loop list.
 
+**DO apply `references/dev-server-hygiene.md` § Machine-wide capacity to a script that runs leased
+steps:** it owns the exit-75 stop.
+
 
 **DO make every data collector an agent writes record each read's status, and treat a failed, refused
 or partial read (HTTP error, permission denied, truncated page, capped pagination) as UNKNOWN, never as an
