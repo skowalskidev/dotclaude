@@ -25,9 +25,9 @@ Keep this single source of truth synced; verify both working-tree state and bran
 - **Route EVERY `~/.claude` change through `/sk:claude-config-update` — mandatory, whenever Simon asks
   for a config change, "create a new skill" included, unprompted.** It fits the structure (thin
   `CLAUDE.md` index, one concern per `rules/*.md`, deep how-to in `references/*.md`, enforcement in
-  `hooks/`, engine in `bin/`, flows in `skills/`), checks authorization, and keeps the
-  contracts/routing tests in step. Use the native Skill tool when present, otherwise read and follow
-  its canonical `SKILL.md`. This is the routing and review workflow, not a second approval lock.
+  `hooks/`, engine in `bin/`, flows in `skills/`), checks authorization, drafts in its own
+  `config-update/<slug>` worktree (`hooks/worktree-path-guard.py` denies live edits) and keeps the
+  contracts/routing tests in step. It is the routing and review flow, not a second approval lock.
   Existing explicit or standing authorization covers the edit; no sentinel or tool-call receipt is
   required. Native approvals and the secret, credential, worktree and git guards remain in force.
 

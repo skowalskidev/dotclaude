@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-ASK before ONE thing: an Edit/Write from inside a git WORKTREE that targets a file in the
-MAIN checkout (or a DIFFERENT worktree) of the same repo, instead of this worktree's copy.
+Guard TWO wrong-checkout edits. ASK before an Edit/Write from inside a git WORKTREE that targets a
+file in the MAIN checkout (or a DIFFERENT worktree) of the same repo. DENY an Edit/Write into a
+tracked file of the live ~/.claude config checkout, from any session (second check, below).
 
 WHY THIS EXISTS
 
@@ -24,9 +25,21 @@ NOT flagged, on purpose:
   - not in a worktree at all (cwd has no `/.claude/worktrees/<name>`): the main checkout IS the
     workspace, so every edit is correct;
   - a target under THIS worktree (the correct case);
-  - a target outside the repo entirely — ~/.claude config (its own guard covers it), /tmp
+  - a target outside the repo entirely — ~/.claude config (the second check below covers it), /tmp
     scratch, anything else;
   - reads, and any non-edit tool.
+
+SECOND CHECK: THE LIVE CONFIG CHECKOUT (deny, from any session)
+
+Several sessions repair ~/.claude at once. An Edit/Write straight into the live checkout's tracked
+files puts their changes in one shared working tree, where they clash and one session's commit
+sweeps up another's WIP. Every tracked config change goes through its own `config-update/<slug>`
+worktree (skills/sk/skills/claude-config-update Step 5). So a target under the live checkout
+(realpath of ~/.claude, or $CLAUDE_LIVE_CONFIG_ROOT for tests) that is NOT under its
+`.claude/worktrees/` and NOT git-ignored there is denied, with the worktree command to run instead.
+A deny, not an ask: the redirect is always available, so the agent re-routes with no prompt to Simon.
+Ignored paths stay open (auto-memory under projects/, the untracked work/ and sk-work skills,
+.context, plans, settings.local.json), and so does every worktree or Conductor workspace of the repo.
 
 SEATBELT, NOT A WALL
 
@@ -38,6 +51,7 @@ that breaks the session gets switched off, and a guard that is off protects noth
 import json
 import os
 import re
+import subprocess
 import sys
 
 EDIT_TOOLS = {"Edit", "Write", "MultiEdit", "NotebookEdit"}
@@ -63,6 +77,32 @@ def _under(path: str, root: str) -> bool:
     return path.startswith(root.rstrip("/") + "/")
 
 
+def live_config_denial(fp: str):
+    """The deny reason when `fp` is a tracked file in the live config checkout; None otherwise."""
+    live = os.path.realpath(os.environ.get("CLAUDE_LIVE_CONFIG_ROOT") or os.path.expanduser("~/.claude"))
+    real = os.path.realpath(fp)
+    if not _under(real, live) or _under(real, os.path.join(live, ".claude", "worktrees")):
+        return None
+    rel = os.path.relpath(real, live)
+    try:
+        ignored = subprocess.run(["git", "-C", live, "check-ignore", "-q", "--", rel],
+                                 capture_output=True, timeout=5)
+    except Exception:
+        return None  # Fail open when git can't answer.
+    if ignored.returncode != 1:
+        return None  # 0 = ignored (personal/untracked area), 128 = not a git repo or git error.
+    return (
+        f"This edit targets a tracked file in the LIVE config checkout:\n  {real}\n\n"
+        "Parallel sessions share that working tree, so direct edits there clash. Make the change "
+        "in this task's own config worktree instead (claude-config-update Step 5):\n"
+        "  git -C ~/.claude fetch origin\n"
+        "  git -C ~/.claude worktree add ~/.claude/.claude/worktrees/config-update-<slug> "
+        "-b config-update/<slug> origin/main\n"
+        f"then edit  ~/.claude/.claude/worktrees/config-update-<slug>/{rel}  and land it with "
+        "/sk:claude-config-sync."
+    )
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -73,6 +113,15 @@ def main() -> int:
         return 0
 
     cwd = payload.get("cwd") or os.getcwd()
+    raw = target_path(payload)
+    if raw:
+        fp0 = os.path.normpath(raw if os.path.isabs(raw) else os.path.join(cwd, raw))
+        reason = live_config_denial(fp0)
+        if reason:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                                     "permissionDecision": "deny",
+                                                     "permissionDecisionReason": reason}}))
+            return 0
     m = WORKTREE_RE.match(cwd)
     if not m:
         return 0  # Not operating inside a worktree — every checkout edit is the right one.
