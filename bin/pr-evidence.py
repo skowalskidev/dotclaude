@@ -42,7 +42,9 @@ except ImportError:  # fail fast, before any work
 BG = (0x12, 0x12, 0x12)
 BEFORE_RGB = (205, 45, 45)
 AFTER_RGB = (25, 140, 70)
-RUN_RGB = (36, 52, 80)  # neutral band above a verification run: no before/after colour coding
+# Simon's chosen verification-run band colour (navy #243450, chosen 6 Nov 2026), kept as the template look.
+# The band text is white (TEXT_RGB). pr-evidence.test.py pins both; never recolour without his ask.
+RUN_RGB = (36, 52, 80)
 TEXT_RGB = (255, 255, 255)
 PHONE_W = 780          # each portrait frame is scaled to this width
 DESKTOP_W = 1280       # each landscape frame is scaled to this width
