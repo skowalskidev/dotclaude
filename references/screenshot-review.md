@@ -202,6 +202,13 @@ NUMBER: at most 6 runs per PR, ranked by how many users take the journey; name t
 TEST: `bin/pr-landing-gate.py` fails a PR whose `## Screenshots` posts a video and which has no
 `## Verification runs` section.
 
+### The band look is fixed
+
+DO let `bin/pr-evidence.py run` draw the band: navy #243450 (`RUN_RGB`), a white title (the scenario)
+and a white one-line subtitle (its description), stacked above the frame. Simon chose this look on
+6 Nov 2026. DON'T restyle, recolour or hand-roll it.
+TEST: `bin/pr-evidence.test.py` fails if `RUN_RGB` is not (36, 52, 80) or the band lacks white text.
+
 ### Plan the scenarios first
 
 DO write `.context/verification-runs/plan.md` before the first recording, one scenario per main happy

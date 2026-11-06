@@ -6,6 +6,7 @@ none of it in the frame rows below), outline-only callouts, video duration withi
 hold, both sides ending together, and a verification run kept real time and uncut with its still
 stretches reported. Needs Pillow and ffmpeg, the engine's own dependencies.
 """
+import importlib.util
 import json
 import subprocess
 import sys
@@ -186,6 +187,20 @@ def still_clip(path: Path):
     check(r.returncode == 0, f"could not synthesize {path.name}: {r.stderr}")
 
 
+def white_pixels(img, x0, x1, y0, y1):
+    return sum(near(img.getpixel((x, y)), (255, 255, 255), 10)
+               for y in range(y0, y1) for x in range(x0, x1, 2))
+
+
+def test_run_band_look():
+    """Simon's chosen look (navy #243450, white text) is part of the template: pin the constants."""
+    spec = importlib.util.spec_from_file_location("pr_evidence_engine", ENGINE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    check(mod.RUN_RGB == (36, 52, 80), f"RUN_RGB is {mod.RUN_RGB}, Simon's template colour is (36, 52, 80)")
+    check(mod.TEXT_RGB == (255, 255, 255), f"TEXT_RGB is {mod.TEXT_RGB}, the band text must be white")
+
+
 def test_run(tmp: Path):
     raw = tmp / "run.mp4"
     still_clip(raw)
@@ -201,6 +216,8 @@ def test_run(tmp: Path):
     first = frame_at(out, 0.2, tmp / "run-first.png")
     check(band_holds(first, 0, 780, 0, 150, RUN), "run band missing above the frame at the start")
     check(none_of(first, 0, 780, 150, 1000, RUN), "run band colour inside the frame (caption overlaid)")
+    check(near(first.getpixel((774, 2)), RUN, 6), "run band corner is not exactly Simon's navy (36, 52, 80)")
+    check(white_pixels(first, 0, 780, 0, 150) > 200, "run band has no white title/subtitle text")
     check(near(first.getpixel((390, 150 + 20)), MARK, 30), "run frame's top rows hidden under the band")
     mid = frame_at(out, 5.5, tmp / "run-mid.png")
     check(near(mid.getpixel((300, 150 + 180)), (128, 96, 64), 40),
@@ -225,6 +242,7 @@ def main() -> int:
             return 1
     with tempfile.TemporaryDirectory(prefix="pr-evidence-test-") as d:
         tmp = Path(d)
+        test_run_band_look()
         test_fails_fast(tmp)
         test_shots(tmp)
         test_video(tmp)
