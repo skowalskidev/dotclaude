@@ -1,0 +1,7 @@
+{
+  "_comment": "Copy to <root>/index.json, where <root> is connectorRoots.<boundary> in identity.local.json (e.g. a connectors/ folder inside your work-projects folder, and another inside your personal-projects folder). One root per boundary, outside every git repo. `match` lists git-origin or path substrings whose repos receive this root's shared-account routes. Projects live in <root>/projects/<project>.json, providers in <root>/<provider>.json. Schema: references/connectors-setup.md.",
+  "boundary": "work",
+  "match": [
+    "YourOrg/"
+  ]
+}

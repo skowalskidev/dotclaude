@@ -12,9 +12,9 @@ Made by Simon. Fork it and make it yours.
 2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq, ffmpeg, pillow).
 3. Run `bash dotfiles/bootstrap.sh`. It wires the safe parts (Claude + Codex skill links, dotfile symlinks, hook bits, the secret-scan gate), scaffolds `identity.local.json` from the template, then prints a checklist of anything left to do and **fails loud until it is all done**. Re-run it until it says `Ready`.
 4. Edit `identity.local.json` with your own accounts: the git-origin substring that marks a WORK repo, your work and personal emails, and your work and personal cloud projects. Optional `workClaudeLogins` lists extra Claude logins accepted in a work repo (alongside `workEmail`). Untracked, so it is never pushed; it drives the work/personal guard and the boundary context injected each session.
-5. Set up connectors per project with `/sk:setup-connectors` (or copy `connectors/example.json.example` to `connectors/<project>.json`). Schema and steps in `references/connectors-setup.md`.
+5. Set `connectorRoots` in `identity.local.json` (one local registry root per boundary, outside every repo), then set up connectors with `/sk:setup-connectors` (or copy the `connectors/*.json.example` templates into each root). Schema and steps in `references/connectors-setup.md`.
 
-Your accounts live only in the untracked overlay files (`identity.local.json`, `connectors/*.json`), so nothing personal is ever committed. The full step-by-step an agent can run is in [§ Agent setup](#-agent-setup-run-in-order); `bootstrap.sh` automates its mechanical parts and tells you what is left.
+Your accounts live only in the untracked overlay (`identity.local.json`) and the local connector registry roots outside this repo, so nothing personal is ever committed. The full step-by-step an agent can run is in [§ Agent setup](#-agent-setup-run-in-order); `bootstrap.sh` automates its mechanical parts and tells you what is left.
 
 ## On Claude Code on the web (cloud)
 
@@ -57,7 +57,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `contracts/skill_naming.py` | The `<group>-<what-it-does>` prefixes skills are named by, so typing a group narrows the slash menu instead of scrolling all 16. The suite fails on a skill matching no group; the principle behind it is in `references/code-best-practices.md` |
 | `hooks/retro-trigger-log.sh` | SessionEnd hook — appends one JSON line of guard-denial counts to `~/.claude/logs/`. Detects and reports only; `/sk:claude-config-self-development-research` reads it for class-level findings |
 | `bin/install-third-party-skills.sh` | Clones the third-party skill packs `references/skill-stack.md` stacks on |
-| `hooks/work-resource-guard.sh` | PreToolUse work/personal isolation guard — Bash + data-driven `mcp__.*` connector boundary (from `connectors/`, including `shared:true` manifests) + Firebase prod write-guard. Also denies a CLI left unpinned when its own default profile belongs to the other boundary |
+| `hooks/work-resource-guard.sh` | PreToolUse work/personal isolation guard — Bash + data-driven `mcp__.*` connector boundary (from the connector registry through `bin/connector_registry.py`, shared-account routes included) + Firebase prod write-guard. Also denies a CLI left unpinned when its own default profile belongs to the other boundary |
 | `hooks/work-resource-guard.test.py` | Its both-directions suite, driven through the hook's real stdin contract. The 9 must-NOT-fire cases pin that a name in prose is never a block |
 | `hooks/git-commit-guard.test.py` | Both directions for the commit/push/merge guard. The must-NOT-fire cases pin that a quoted note, heredoc body or filename naming a push is never a block |
 | `hooks/git-commit-guard.py` | PreToolUse Bash guard — blocks a commit/push on `main`/`master` and a `git commit` with `-m`/heredoc (the `-F`-only rule). In this config repo a commit passes and a main push passes when `bin/config-land-check.py` verified the head. Overrides: `CLAUDE_ALLOW_MAIN_COMMIT=1`, `CLAUDE_ALLOW_COMMIT_M=1` |
@@ -66,14 +66,15 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/emulate-viewport-guard.py` | PreToolUse `mcp__chrome-devtools__emulate` guard — denies an emulated viewport taller than the test window (height, or width when landscape) above its `MAX_VIEWPORT_H` cap. Override for a taller window: `CLAUDE_TEST_VIEWPORT_MAX_H` |
 | `hooks/secret-echo-guard.py` | PreToolUse Bash guard — denies a command whose normal output is a credential value (`stripe config --list`, `gh auth token`, `gcloud auth print-access-token`, `op read`, a bare `env` dump, …) unless the value is redirected, piped to a consumer or captured by `$(...)`. Never blocks file reads. No override: the user runs it in their own terminal |
 | `hooks/secret-echo-guard.test.py` | Its both-directions suite: parser variants (`sh -c`, `&&`, absolute path, spacing) must fire; help/status verbs, consumed values and text that merely names a command must not |
-| `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any manifest server not set up. Does NOT provision; that is `/sk:setup-connectors` |
-| `bin/connectors-provision.sh` | Generic connector engine — reads `connectors/<project>.json`, layers in any `shared:true` manifest matching the repo, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
+| `hooks/session-connectors.sh` | SessionStart hook — read-only connector precheck: flags a connector needing re-auth, notes any registry MCP server not set up. Does NOT provision; that is `/sk:setup-connectors` |
+| `bin/connector_registry.py` (+ `bin/connector_registry.test.py`) | The ONE connector loader and route resolver: reads the local registry roots named by `connectorRoots` (index, `projects/`, one file per provider, `health.json`), selects a repo's effective connector set, `resolve <capability>` orders routes by availability, circuit health and scope, `record` writes outcomes, `migrate`/`check-migration` convert legacy manifests. Python standard library |
+| `bin/connectors-provision.sh` | Generic connector engine — reads the repo's effective connector set from the loader, registers local-scope MCP servers, reports missing key files. Fetches no secrets |
 | `bin/agent_runtime.py` + `bin/codex-launch.py` + `bin/claude-launch.py` | Native host launchers; resolve per-project instruction policy before Claude or Codex starts, while Codex enforces subscription-only inference and separate service boundaries |
 | `bin/agent_runtime.test.py` + `bin/claude-launch.test.py` | Offline native host policy and launcher regression tests |
 | `bin/agent_setup.py` + `bin/codex_print.py` + `bin/capacity_probes.py` | Current-chat provider dispatch validation and the headless `codex -p` adapter; offline coverage in `bin/agent_setup.test.py` |
 | `dotfiles/codex-AGENTS.md` | Native instruction entrypoint linked into the Codex subscription home |
 | `references/agent-hosts.md` | Native setup, ownership, trust, authentication and refresh protocol |
-| `connectors/` | Per-project connector manifests (`<project>.json`): connectors, boundary, env, read/write policy, CLI profile, auth steps, and optional boolean `ignoreProjectInstructions` (default `false`). No secrets, only paths. A `shared: true` manifest layers connectors under matching projects but cannot set the instruction flag |
+| `connectors/` | Public templates only (`index.json.example`, `project.json.example`, `provider.json.example`) for the local connector registry, which lives outside this repo in one root per boundary. No secrets, only paths |
 | `skills/sk/skills/work-full-detailed-workflow/` | `/sk:work-full-detailed-workflow` — the one work harness: full detailed workflow plus the session gauntlet (Ralph or independent judgement when requested), ending with `/sk:ship-full-detailed-workflow` on every PR it opened or pushed |
 | `skills/sk/skills/monitor-daily-health-conversion-capacity-errors/` | `/sk:monitor-daily-health-conversion-capacity-errors` — daily read-only health check for any repo with connectors; builds the repo's `monitor` block on first run, then runs `bin/health-pulse.py`, triages and tunes |
 | `skills/sk/skills/work-investigate-and-fix/` | `/sk:work-investigate-and-fix` — front door for pasted production alerts and error reports; composes `/sk:work-full-detailed-workflow` as the build spine |
@@ -139,14 +140,14 @@ want the work/personal boundary in the cloud (never commit real accounts).
 
 Codex (including GPT models run through Codex in Conductor) uses the same private configuration as
 Claude Code. Keep editing the canonical files in this repo. Skills and native instructions are linked;
-the launcher reads connector manifests and hook wiring directly. No manual copy or sync step exists
+the launcher reads the connector registry and hook wiring directly. No manual copy or sync step exists
 between the agents. Standalone ChatGPT conversations do not load files from your Mac.
 
 ### Install on a Mac
 
 1. Install Codex on PATH and Python 3.11+ (`python3 --version`). Use the existing ChatGPT login in
-   `~/.codex`. Fill in `identity.local.json` and your untracked project manifests.
-   Set `ignoreProjectInstructions: true` only in a selected project manifest to suppress repo-provided instruction Markdown in new sessions; leave it absent or `false` for normal project docs.
+   `~/.codex`. Fill in `identity.local.json` (including `connectorRoots`) and your local connector registry roots.
+   Set `ignoreProjectInstructions: true` only in a selected registry project file (`<root>/projects/<project>.json`) to suppress repo-provided instruction Markdown in new sessions; leave it absent or `false` for normal project docs.
 2. Run `bash ~/.claude/dotfiles/bootstrap.sh`. It links skills and the native AGENTS.md into
    `~/.codex`. If an AGENTS.md already exists, review it first, then run
    `python3 ~/.claude/bin/agent_runtime.py install --replace`. This archives the old file once and
@@ -173,7 +174,7 @@ its boundary, the way Claude does. `identity.local.json` still selects work/pers
 Read `references/agent-hosts.md` for billing enforcement and login recovery. The old `~/.codex-work`
 API credentials remain unused and untouched. Set `AGENT_CODEX_BIN`
 to an absolute executable only if the real Codex binary is not on PATH. `command codex` bypasses the
-shell function and therefore bypasses manifest projection; use the launcher for setup and diagnosis.
+shell function and therefore bypasses connector projection; use the launcher for setup and diagnosis.
 
 ### Delegated model provider
 
@@ -208,11 +209,11 @@ Run `python3 ~/.claude/bin/agent_setup.test.py` for offline wrapper/dispatch/tel
 | `rules/*.md`, `CLAUDE.md` | Claude's native loader; Codex's linked entrypoint and SessionStart context. Next session, or explicitly re-read during an existing conversation. |
 | `skills/sk/` | Both hosts discover the same files through links. Restart if the skill catalog is stale. |
 | `settings.json` hook commands | Claude's native hook loader; Codex's dispatcher reads the current wiring on each event. New event definitions require a process restart and native trust review. |
-| `connectors/<project>.json` | Both launchers resolve `ignoreProjectInstructions` before a new process starts. Codex also projects connectors at launch; Claude's provisioner consumes the same manifest. Restart an existing chat after changing the instruction flag. |
+| Connector registry roots (`connectorRoots`) | Both launchers resolve `ignoreProjectInstructions` before a new process starts. Codex also projects connectors at launch; Claude's provisioner consumes the same loader output. Restart an existing chat after changing the instruction flag. |
 | `identity.local.json` | Both hosts use the same project identity source. Restart Codex when changing service boundaries. |
 
 Codex writes no copied rules or connector settings. Its per-profile `.agent-runtime/` receipt stores
-only names it has managed, so removed manifest connectors are disabled even if an older native
+only names it has managed, so removed registry connectors are disabled even if an older native
 registration still exists. On-demand write connectors stay disabled. Unmanaged native connectors keep
 their own settings. Project-specific metadata stays outside team repos; credentials stay in native stores.
 
@@ -229,7 +230,7 @@ python3 ~/.claude/bin/agent_runtime.test.py
 /usr/bin/python3 ~/.claude/hooks/config-contract.test.py
 ```
 
-The doctor prints the matched manifest and expected credential home without exposing secret values.
+The doctor prints the matched registry project and expected credential home without exposing secret values.
 Check authentication through the launcher's `mcp list`; declared/registered is not authenticated.
 If instructions are missing, check for `AGENTS.override.md`, verify the native instruction link, and confirm
 Conductor uses the launcher. If hooks are absent, check `/hooks` trust. If CLI results differ from the
@@ -338,14 +339,15 @@ no dependency or credential. Start a new session if its name is absent from the 
 These live **outside** this repo and are **not** committed. Prompt the user for each; never invent one.
 - `~/.codex/` contains the Codex ChatGPT login. Check `~/.claude/bin/codex-launch.py login status`; if missing, run `~/.claude/bin/codex-launch.py login` and complete ChatGPT sign-in. Never recreate API-key auth for workers or reviews.
 - `~/.claude.json` — Claude Code's main config (MCP servers, OAuth). Reconfigure MCP servers with `claude mcp`.
-- `pal` holds one work Gemini key in `~/dev/tools/pal-mcp-server/.env`. Declare the `pal` record in a work-boundary connector manifest (`references/connectors-setup.md`, Model-API keys); until then the guard denies every `mcp__pal__*` call.
+- The connector registry roots (`connectorRoots` in `identity.local.json`): local data, never in this repo. Restore them from your own backup or rebuild them with `/sk:setup-connectors`; the `connectors/*.example` templates show the shape.
+- `pal` holds one work Gemini key in `~/dev/tools/pal-mcp-server/.env`. Declare the `pal` route in the work registry root (`references/connectors-setup.md`, Model-API keys); until then the guard denies every `mcp__pal__*` call.
 - Firebase / service-account keys — referenced by path in `CLAUDE.md`; ask the user to place them.
-- Connector credentials (work), set up per project by **`/sk:setup-connectors`** (see `rules/connectors.md` + `references/connectors-setup.md`). All live OUTSIDE this repo. Each connector's manifest carries the exact recreate steps in its `auth.steps`; those are the source of truth, not this list:
-  - `~/.config/gcloud-work/` — the WORK gcloud config home. Keeping it separate from the default `~/.config/gcloud` (personal) is what stops the work account and its ADC leaking into personal projects. Recreate with the steps in your work connector manifest (`connectors/example.json.example` shows the shape; `references/connectors-setup.md` documents it).
-  - An org key directory for work projects that share a credential: one shared `.env` (keys that reach several projects, e.g. a platform management token) plus one `<project>.env` per project. Each repo and worktree `.env` is a symlink to its project file. The directory and the recreate steps are in each work connector manifest's `secret.path` and `auth.steps`.
+- Connector credentials (work), set up per project by **`/sk:setup-connectors`** (see `rules/connectors.md` + `references/connectors-setup.md`). All live OUTSIDE this repo. Each connector route carries the exact recreate steps in its `auth.steps`; those are the source of truth, not this list:
+  - `~/.config/gcloud-work/` — the WORK gcloud config home. Keeping it separate from the default `~/.config/gcloud` (personal) is what stops the work account and its ADC leaking into personal projects. Recreate with the steps in your work connector routes (`connectors/provider.json.example` shows the shape; `references/connectors-setup.md` documents it).
+  - An org key directory for work projects that share a credential: one shared `.env` (keys that reach several projects, e.g. a platform management token) plus one `<project>.env` per project. Each repo and worktree `.env` is a symlink to its project file. The directory and the recreate steps are in each work connector route's `secret.path` and `auth.steps`.
   - `~/.config/firebase-mcp/work-dev/`, `~/.config/firebase-mcp/work-prod/` — stub project dirs. `firebase mcp` has no `--project` flag, so the project and the account both come from the dir (`.firebaserc` + the configstore's per-directory entries). Pinning them there is what stops a worktree drifting the target.
   - `~/.config/firebase-keys/work-prod-readonly.json` — read-only (IAM viewer) prod key. Regenerated on demand with `gcloud`; GCP IAM is the source of truth, so there is no secret store to restore from. Steps are in the `firebase-prod` entry.
-  - Stripe CLI profiles in `~/.config/stripe/config.toml` (`stripe login --project-name=work-sandbox|work-prod`, plus a personal profile per that project's manifest). Note `work-prod` grants FULL live keys — nothing mechanical makes it read-only. `[default]` is a work profile, so personal repos must always pin `--project-name=`; the guard enforces it.
+  - Stripe CLI profiles in `~/.config/stripe/config.toml` (`stripe login --project-name=work-sandbox|work-prod`, plus a personal profile per that project's stripe route). Note `work-prod` grants FULL live keys — nothing mechanical makes it read-only. `[default]` is a work profile, so personal repos must always pin `--project-name=`; the guard enforces it.
   - **There is no secret store.** Every credential above is minted on demand from its connector's `auth.steps` and kept `chmod 600` outside this repo. Nothing to restore from a vault, and nothing to recreate here beyond running those steps.
 
 ### Agent boundaries

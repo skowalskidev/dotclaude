@@ -77,7 +77,7 @@ TEST: no acknowledgement lacks an `until` date and a reason.
 
 ## The `monitor` block
 
-Lives in the private `~/.claude/connectors/<project>.json`, never in a repo: it names tables and
+Lives in the project's private registry record (`<root>/projects/<project>.json`, `references/connectors-setup.md`), never in a repo: it names tables and
 project ids. `health-pulse.py --draft` writes the generic part from the manifest's connectors.
 
 | Key | Holds |

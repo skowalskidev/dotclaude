@@ -1,53 +1,118 @@
-# Connectors & credentials — the system (engine + per-project manifests)
+# Connectors & credentials — the system (engine + local connector registry)
 
 Deep, on-demand how-to. The always-on behavioral rule is `rules/connectors.md`; this file is the
-technical spec the engine derives from. Read it when setting up connectors, adding one, or debugging
-the provisioner/guard.
+technical spec the engine derives from. Read it when resolving a route, setting up connectors, adding
+one, or debugging the provisioner/guard.
 
 ## Shape (DRY/SRP)
 
-- **Generic engine, once, in `~/.claude`:** `bin/connectors-provision.sh`, `hooks/session-connectors.sh`,
-  `hooks/work-resource-guard.sh`, the `/sk:setup-connectors` skill, and `rules/connectors.md`. None of
-  these hard-code a project.
-- **Per-project manifest:** `~/.claude/connectors/<project>.json` — one file per project, the ONLY place
-  project detail lives. The engine picks the manifest whose `match` hits the current git origin.
-- **Secrets never live here.** Manifests carry only paths. Real secrets live in AWS Secrets Manager
-  (work runtime) or machine-local files outside every repo, at each connector's `secret.path`:
+- **Generic engine, once, in `~/.claude`:** `bin/connector_registry.py` (the ONE loader and the route
+  resolver), `bin/connectors-provision.sh`, `hooks/session-connectors.sh`, `hooks/work-resource-guard.sh`,
+  `bin/agent_runtime.py`, `bin/health-pulse.py`, the `/sk:setup-connectors` skill and
+  `rules/connectors.md`. None of these hard-codes a project, and none parses a registry file itself.
+- **Local registry, one root per boundary, outside every repo:** `connectorRoots.work` and
+  `connectorRoots.personal` in `identity.local.json` (e.g. a `connectors/` folder in the work-projects
+  folder beside the org key directory, and one in the personal-projects folder).
+  `CLAUDE_CONNECTOR_ROOTS="work=/a,personal=/b"` overrides both for tests. `~/.claude/connectors/`
+  holds only the public `*.example` templates.
+- **Secrets never live in the registry.** Records carry only paths. Real secrets live in AWS Secrets
+  Manager (work runtime) or machine-local files outside every repo, at each route's `secret.path`:
   `~/.config/**`, or an org key directory (a shared `.env` plus one `<project>.env` per project, each
   repo's `.env` a symlink to its project file).
-- **No vault, by design.** The engine fetches nothing. A key is minted on demand from its connector's
+- **No vault, by design.** The engine fetches nothing. A key is minted on demand from its route's
   own `auth.steps`, kept `chmod 600`, and regenerated when needed — the provider's IAM is the source of
   truth, so there is no second copy to rotate, sync or leak. Don't propose adding a secret manager
   unless Simon asks. A plaintext secret on disk → fix scope + file mode (least-privilege key, `600`,
   outside the repo, rotate if exposed), never "move it into 1Password".
 
-Use `references/agent-hosts.md` for native Codex configuration. Both hosts consume these manifests;
+Use `references/agent-hosts.md` for native Codex configuration. Both hosts consume the same loader;
 Claude uses native local registration, while the Codex launcher reads the current definitions before
-starting the process. Codex has no manually maintained mirror of a manifest. The native adapter's
+starting the process. Codex has no manually maintained mirror of the registry. The native adapter's
 ownership receipt stores server names only, so deleted entries cannot fall back to old registrations.
 Keep host-specific authentication separate. A Conductor workspace does not merge the hosts' MCP stores.
 
-## Manifest schema (`connectors/<project>.json`, plain JSON — no comments, jq-parseable)
+## Why this layout (research, 2026-11-06)
 
-```json
-{
-  "project": "codebase",
-  "boundary": "work",
-  "ignoreProjectInstructions": false,
-  "match": ["YourOrg/codebase", "your-org/codebase", "conductor/workspaces/codebase"],
-  "connectors": [ { "...": "see connector record" } ]
-}
+- **Scoped layers matched by name, highest precedence wins:** Claude Code loads MCP servers from local,
+  project and user scope and "connects to it once, using the definition from the highest-precedence
+  source" ([Claude Code MCP docs](https://code.claude.com/docs/en/mcp)). Here a project route beats a
+  shared-account route of the same `name`.
+- **An ordered provider chain that stops at the first source that works:** "After valid credentials are
+  found, the search is stopped" ([AWS SDK credential provider chain](https://docs.aws.amazon.com/sdkref/latest/guide/standardized-credentials.html));
+  named, user-level configurations with one active at a time ([gcloud configurations](https://docs.cloud.google.com/sdk/docs/configurations)).
+  The resolver is that chain, per capability.
+- **Shared values in one place, referenced by projects:** Doppler references secrets "across configs and
+  projects" ([Doppler secrets](https://docs.doppler.com/docs/secrets)); here a shared-account route is
+  written once and ranks for every project of its boundary.
+- **Record failures and stop retrying a failing route for a while:** the circuit breaker's closed, open
+  and half-open states ([Azure circuit breaker pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)).
+  Health lives in `health.json`, apart from the records, as Claude Code keeps its needs-auth cache apart
+  from its config.
+- **Rejected:** a secret vault (no-vault policy above); one monolithic registry file (every outcome
+  rewrites every record, and concurrent sessions collide); per-project copies of a shared account (the
+  four drifting copies of one Twilio key this replaced).
+
+## Registry schema (plain JSON, jq-parseable, one root per boundary)
+
+```
+<root>/index.json             {"boundary": "work", "match": ["YourOrg/"]}
+<root>/projects/<project>.json {"match": [...], "ignoreProjectInstructions": false, "monitor": {...}}
+<root>/<provider>.json        {"provider", "capabilities", "scope", "routes": [route, ...]}
+<root>/health.json            {"<provider>/<route id>": {"lastSuccess": {...}, "lastFailure": {...}}}
 ```
 
-- `project` — label.
-- `boundary` — `work` | `personal`. Default for connectors that omit their own.
-- `ignoreProjectInstructions` — optional boolean on a selected non-shared project manifest, default `false`. `true` activates `references/project-instructions.md`; shared manifests cannot set it. This does not change connector or credential policy.
-- `monitor` — optional; the daily health pulse's probes and project SQL. Schema and method:
-  `references/production-monitoring.md`.
-- `match` — array of substrings; the manifest is selected when ANY appears in the repo's `git remote
-  get-url origin` (or, for path-based fallback, in the repo path). First matching manifest wins.
+- `index.json` — `boundary` (`work` | `personal`, must equal its `connectorRoots` key) and `match`:
+  git-origin or path substrings whose repos receive this root's shared-account routes. A route's
+  boundary always equals its root's; a record that says otherwise is unreadable.
+- `projects/<project>.json` — `match` (substrings of the git origin; the path is used only when there is
+  no remote; two matching projects fail), optional boolean `ignoreProjectInstructions` (default
+  `false`; `true` activates `references/project-instructions.md`, and it is rejected anywhere else),
+  optional `monitor` (the daily health pulse's probes and project SQL, `references/production-monitoring.md`).
+  The project's root decides its boundary; it must agree with the identity overlay.
+- `<provider>.json` — one file per provider: `provider`, `capabilities` (e.g. `slack.send`,
+  `supabase.read`), `scope` (default for its routes), `routes` in PREFERENCE order, optional `notes`.
+- **Route** = a connector record (below) plus `id` (unique in the file), optional `capabilities`,
+  `scope` (`shared-account`: one account any project of the boundary can use; `per-project`: a key for
+  the projects in `serves`), `serves` (projects it is known to serve), optional `requires`
+  (`{"claudeAccount": "<email or identity-overlay key>"}`) and optional `recipe` (the exact steps).
+- **Provisioned set:** a per-project route is registered, guarded and launched for the projects in
+  `serves`; a shared-account route for every repo of the root, or only for its `serves` list when it has
+  one. Provisioning never adds a server somewhere new; the resolver still ranks every route.
+- `health.json` — written only by `record`, `chmod 600`, under a lock with an atomic replace.
 
-### Connector record
+## Resolve, try, record
+
+```
+python3 ~/.claude/bin/connector_registry.py resolve slack.send            # ordered routes for this repo
+python3 ~/.claude/bin/connector_registry.py record slack codex-app ok     # after a success
+python3 ~/.claude/bin/connector_registry.py record slack claude-ai fail --reason "not loaded on this login"
+python3 ~/.claude/bin/connector_registry.py list | roots | manifest | project <name>
+```
+
+The resolver returns only the session boundary's routes whose capabilities match the query (the
+provider name, an exact capability, or a prefix such as `slack`), in this order:
+1. Unblocked before BLOCKED: `requires.claudeAccount` differing from the CLI's signed-in account (read
+   from `~/.claude.json` `oauthAccount`, never a token), or `enabledOnDemand`. Both are human steps.
+2. A closed circuit before an open one: a route whose last failure is newer than its last success and
+   under 24 h old is `open`; after 24 h it is `half-open` and ranks like an untested route.
+3. Routes serving this project (shared-account, listed in `serves`, or with a recorded success here)
+   before the rest of the boundary.
+4. Proven (`ok`) before untested, then the file's declared preference, then the most recent success.
+DO record the outcome of every attempt, success and failure, with the failure reason. A record whose
+reason names a human-only cause (another login, missing consent) keeps the next session from trying it
+first. TEST: after a failed route, the next `resolve` in the same boundary lists it after every
+untried route for 24 h.
+
+### Migrating legacy manifests
+
+`connector_registry.py migrate --from <dir of legacy manifests> [--write] [--provider-map JSON]` builds
+both roots: a `shared: true` manifest becomes the root's `match` plus shared-account routes; a record
+that reaches the same account from two or more projects (same name, kind, key path, profile, transport
+and write policy) becomes ONE shared-account route listing them in `serves`, with differing `auth`
+text kept under `auth.byProject`. `check-migration --from <dir>` exits 1 unless every legacy project
+field and connector field is reachable through the loader with its original value.
+
+### Connector record (the body of every route)
 
 ```json
 {
@@ -77,11 +142,13 @@ Fields:
   on its live server-id `name`, e.g. `mcp__<id>__*`. Use when the connector is configured in claude.ai,
   not via `claude mcp add-json`; no `mcp` block, and no guard change is needed since the guard is already
   name/boundary-driven and kind-agnostic).
+  `codex-app` (an app in the Codex ChatGPT login, reached from any chat through `codex exec`; carries
+  `codexApp: {appId, tool}` and a `recipe`; never registered, readiness `codex-app`).
   A new type = one new adapter case in `bin/connectors-provision.sh` (+ `hooks/work-resource-guard.sh`
   only if it needs kind-specific guard logic); nothing else changes.
 - `env` — variant: `dev`|`prod`|`sandbox`|`production`|… A platform may have several records (Firebase
   dev + prod; Stripe sandbox + production), all usable at once.
-- `boundary` — `work`|`personal`; the guard enforces it. Defaults to the manifest `boundary`.
+- `boundary` — filled in from the root; the guard enforces it. Omit it in a route.
 - `readOnly` — true = must not mutate (e.g. prod read). `gated` — writes require explicit per-write ok.
 - `enabledOnDemand` — NOT provisioned by default; only enabled when required (e.g. a prod-write pathway).
 - `ephemeral` — torn down after use (materialized key removed).
@@ -95,23 +162,24 @@ Fields:
   profile is denied by data rather than by a hardcoded name (this is what stops a bare `stripe` in a
   personal repo from silently hitting the work account).
 - `auth` — `{ how, steps[] }`. `steps` are the exact numbered instructions the auth-gate relays to Simon.
+  A migrated shared-account route may carry `auth.byProject.<project>` with that project's own text.
 
 ## Adapters (the per-`kind` behaviors the engine calls)
 
 Each `kind` implements the same five behaviors:
-1. **provision** — make it available (Claude mcp-*: `claude mcp add-json -s local`; Codex: native launch-time projection; api/cli/env/claude-connector: no-op).
-2. **readiness** — is it usable now? (mcp-*: registered + not needs-auth; cli: logged-in profile; api/env: key/secret present; claude-connector: `account` — loaded from claude.ai settings, so present whenever the session has it).
+1. **provision** — make it available (Claude mcp-*: `claude mcp add-json -s local`; Codex: native launch-time projection; api/cli/env/claude-connector/codex-app: no-op).
+2. **readiness** — is it usable now? (mcp-*: registered + not needs-auth; cli: logged-in profile; api/env: key/secret present; claude-connector: `account` — loaded from claude.ai settings for the signed-in account; codex-app: present in the Codex apps cache).
 3. **auth-steps** — the numbered fix (from `auth.steps`), which is also how the key gets created.
 4. **boundary-guard** — deny in the wrong boundary; deny writes when `readOnly`/`gated` (handled data-driven in the guard).
 5. **secret-location** — where the key lives (for `permissions.deny` + the readiness check).
 
 To add a NEW kind: add its case to the `provision`/`readiness` switch in `bin/connectors-provision.sh`
-and (if it exposes tools) to the guard. The manifest, skill, and auth-gate need no change.
+and (if it exposes tools) to the guard. The registry, skill, and auth-gate need no change.
 
 ## Capability diagnosis
 
 DO search the active host's tool and app/plugin catalog by name AND description. A catalog entry,
-manifest or enabled flag proves neither installation nor exposed tools. Use native status to resolve
+registry route or enabled flag proves neither installation nor exposed tools. Use native status to resolve
 that distinction; missing tools alone prove neither an auth failure nor an outage.
 
 DO reuse matching live capability evidence; otherwise run one bounded read-only check per authorized
@@ -150,20 +218,22 @@ DO treat every Claude account listed in the identity overlay (`workEmail` plus `
 a work account: a claude.ai connector on any of them is authorized for work tasks. claude.ai
 connectors follow the CLI's signed-in account, so before calling one unavailable run `claude mcp list`
 and read the overlay; to reach a connector held by another listed account, sign the CLI in as that
-account (`/login`) or connect the same connector on the signed-in account.
+account (`/login`) or connect the same connector on the signed-in account. Record each account as its
+own route with `requires.claudeAccount`, so the resolver marks the other login BLOCKED and runs the
+next route instead of asking.
 DON'T extend this to the personal account; the work/personal boundary stays as written.
 TEST: an "unavailable" verdict on a claude.ai connector names the signed-in account, the overlay's
 work accounts and the `claude mcp list` result.
 
-DO keep shared work connector metadata in one matching shared manifest, with `boundary: work` and
-`gated: true`; remove a project duplicate when moving it. Use `claude-connector` only for the Claude
-account route. Record another host's observed status without inventing an MCP registration or a new
-adapter kind. Keep real workspace/user IDs and proof links in the ignored overlay, never this catalog.
+DO keep a shared work account as ONE shared-account provider file in the work root, with `gated: true`
+on every write route; remove a project duplicate when moving it. Use `claude-connector` only for a
+Claude account route and `codex-app` for the Codex app route; never invent an MCP registration for
+another host. Keep real workspace/user IDs, app ids and proof links in the registry, never this catalog.
 
 DO confirm the live workspace, signed-in identity and recipient/channel before sending. Resolve an
 ambiguous display name before any write: list every channel or user whose name contains the stem
 Simon named (e.g. `engineer*`). DO wait for his pick when more than one matches, even if one matches
-exactly; a preference recorded in the manifest overlay settles it.
+exactly; a preference recorded in the route's `recipientPreferences` settles it.
 TEST: a send to a named channel cites the full match list, or the recorded preference it used.
 A requested setup test authorizes one self-DM; return its permalink and record the result.
 Accept Simon's screenshot or receipt as evidence without sending a second test. Label evidence from another host accurately.
@@ -176,23 +246,24 @@ missing or ambiguous recipient, completion condition or required access; do not 
 the same authorized message. If Simon asks only for a draft, show it and wait. General connector setup
 does not authorize automatic future notifications.
 
-DO send through OpenAI's official Slack connector from a Claude chat when Simon names OpenAI/Codex or
-the claude.ai Slack connector is not loaded (it follows the CLI's account). Codex `exec` runs with
-approval policy `never`, so `slack.slack_send_message` fails with "MCP tool call requires approval, but
-approval policy is never" until that run sets the app's tool approval. Recipe, verified 2026-11-05:
-1. Read the Slack app id: the `connector_id` of the entry whose `tool.name` is `slack.slack_send_message`
-   in `~/.codex/cache/codex_apps_tools/*.json` (the work app id is in the ignored overlay).
-2. Run `cd /tmp && AGENT_ALLOW_CROSS_PROVIDER=1 timeout 300 ~/.claude/bin/codex-launch.py exec
-   --skip-git-repo-check -c 'apps.<app id>.default_tools_approval_mode="approve"' "<prompt>" </dev/null`.
-   The prompt says: verify workspace and identity, check the target conversation for an existing copy,
-   send exactly one message with Simon's text, never retry, return the permalink.
-3. Expect a permalink in the output. Check the conversation before any retry.
-`default_tools_approval_mode` is the documented per-app key (Codex config reference, `apps.<id>`:
-`auto | prompt | writes | approve`). A per-tool `-c apps.<id>.tools.slack_send_message.approval_mode`
-alone, and the `_slack_send_message` and `"slack.slack_send_message"` key spellings, did not clear the
-block. Scope `approve` to that one run through `-c`; never write it to `~/.codex/config.toml`.
-`AGENT_ALLOW_CROSS_PROVIDER=1` applies only because Simon named the host (`references/agent-hosts.md`).
-The per-message authorization above still gates the send.
+DO run a `codex-app` route from a Claude chat when the resolver lists it first, through the exact
+command in its `recipe`; the record holds the app id. Every `codex-app` run (verified 2026-11-05 and
+2026-11-06 for a message and for a thread reply with a video upload):
+1. Sets `-c 'apps.<app id>.default_tools_approval_mode="approve"'` for that run only. `codex exec` runs
+   with approval policy `never`, so an app write fails with "MCP tool call requires approval, but
+   approval policy is never" without it. `default_tools_approval_mode` is the documented per-app key
+   (Codex config reference, `apps.<id>`: `auto | prompt | writes | approve`); a per-tool
+   `apps.<id>.tools.<tool>.approval_mode` alone, and the `_<tool>` and `"<app>.<tool>"` spellings, did
+   not clear the block. Never write `approve` to `~/.codex/config.toml`.
+2. Passes `-C <dir>` and absolute file paths (exec otherwise runs in the repo directory and relative
+   paths break), and `-s workspace-write -c sandbox_workspace_write.network_access=true` when the run
+   uploads bytes with `curl`.
+3. Verifies the workspace by display name OR URL subdomain (a workspace-list tool can return either)
+   and the signed-in identity, checks the target conversation for an existing copy, sends exactly once,
+   never retries, and returns the permalink. Check the conversation before any retry.
+4. Sets `AGENT_ALLOW_CROSS_PROVIDER=1`, authorized for a resolver-ordered `codex-app` route by Simon's
+   standing instruction (2026-11-06) as well as by a named-host ask (`references/agent-hosts.md`).
+The per-message authorization above still gates every send, on every route.
 
 DO apply `rules/communication.md` and `rules/copy-quality.md` to every outgoing message.
 Use those existing TL;DR and actionable-copy standards; do not define separate Slack writing rules.
@@ -211,16 +282,25 @@ inference never takes an API key (`bin/agent_runtime.py`); Codex reaches `pal` t
 MCP server inside its boundary. Shell calls to api.openai.com or generativelanguage.googleapis.com
 are denied in every repo, whatever key file they name.
 
-DO declare `pal` as ONE record in `connectors/work-shared.json` (`boundary: work`, `kind: mcp-stdio` with its
+DON'T call OpenAI or Gemini from the shell; the guard denies it in every repo. A repo's own billable
+test harness Simon asked to run uses the repo's path, not pal.
+
+DO declare `pal` as ONE shared-account route in the work root's `pal.json` (`kind: mcp-stdio` with its
 `mcp` command, `secret.path` `~/dev/tools/pal-mcp-server/.env`, which holds one work Gemini key). Claude
-loads `pal` from user scope in `~/.claude.json`; the Codex launch registers it from this record, enabled
-only when the session's boundary equals the record's. `hooks/work-resource-guard.sh` passes `mcp__pal__*` only when exactly
-one `pal` record exists across `connectors/*.json` and its boundary equals the repo's. Undeclared, declared
-twice, no `jq` and an unreadable manifest all deny.
-TEST: `mcp__pal__version` passes in a work repo and is denied in a personal repo; `connectors-provision.sh
---host codex --check` lists `pal mcp-stdio` in a work repo and no `pal` in a personal one.
+loads `pal` from user scope in `~/.claude.json`; the Codex launch registers it from this route, enabled
+only when the session's boundary equals the route's. `hooks/work-resource-guard.sh` passes `mcp__pal__*` only when
+`pal` is declared under exactly one boundary across both roots and it equals the repo's. Undeclared,
+declared in both roots, no `jq` and an unreadable record all deny.
+TEST: `mcp__pal__version` passes in a work repo and is denied in a personal repo, and so is a shell
+model-API call anywhere; `connectors-provision.sh --host codex --check` lists `pal mcp-stdio` in a work
+repo and no `pal` in a personal one.
 
 ## Secret homes (never committed, never in `~/.claude`)
+
+DO keep work runtime secrets in AWS Secrets Manager, loaded by `apps/api` `dogfood()` at startup;
+DON'T hand-add them to a per-worktree `.env`. Every other key is a `chmod 600` file outside every repo
+at its route's `secret.path`; personal credentials are machine-local and gitignored (`.env`, or the
+platform's own store).
 
 | Class | Home |
 | --- | --- |
@@ -242,37 +322,40 @@ mode, move it to the file its connector's `secret.path` names, and mint a fresh 
 `auth.steps` because the old one was exposed. Do not propose importing it into a vault.
 
 **Personal files stay OUT of team repos.** Everything above lives outside every project repo (in
-`~/.claude` or `~/.config`), so no personal connector artifact lands in a team repo and no project's
-committed `.gitignore` is ever touched. If some tool genuinely forces a personal file to sit inside a
+`~/.claude`, `~/.config` or a registry root), so no personal connector artifact lands in a team repo and
+no project's committed `.gitignore` is ever touched. If some tool genuinely forces a personal file to sit inside a
 project repo, ignore it in a NON-committed local layer teammates never see — `.git/info/exclude` (that
 repo only) or the global `core.excludesFile` (`~/.gitignore_global`, all repos) — never in the shared
 `.gitignore`. (Simon already has `core.excludesFile = ~/.gitignore_global` configured.)
+DO keep them uncommitted, not just ignored: `~/.gitignore_global` ignores the secret patterns
+(`*serviceAccountKey*.json`, `.firebase/`, `.env.op`) so `git add -A` never stages them; gitleaks or
+pre-commit scans content on commit (the `~/.claude` repo gates with gitleaks; team repos rely on their
+own CI). DON'T force-add a secret past `.gitignore`; git commands themselves stay unblocked.
 
-## Shared manifests (`"shared": true`) — one connector, layered across every matching project
+## Scope: shared-account vs per-project
 
-A manifest with `"shared": true` (e.g. `connectors/personal-shared.json`) declares connectors used by
-MORE than one project under a single `match` (a path or origin substring), instead of copying the same
-connector record into every project manifest that needs it.
-
-- **Layers UNDER the project manifest, never instead of it.** `bin/connectors-provision.sh` resolves
-  the project manifest by first-match as before (shared manifests are excluded from that loop), then
-  separately collects every `shared:true` manifest whose `match` also hits this repo — and applies
-  BOTH. A project connector always wins on a `name` clash.
-- **`--check` and provisioning include shared connectors automatically**; `--manifest --shared DIR`
-  prints just the matching shared manifest paths. `hooks/work-resource-guard.sh` reads shared manifests
-  the same way, so the work/personal boundary and the `gated`/`readOnly` write-guard cover a shared
-  connector exactly like a project one.
-- **Codex gets the same connectors.** `bin/agent_runtime.py` layers matching shared manifests under
-  the project manifest for a Codex launch, project connector first on a `name` clash, and leaves out
-  a shared manifest whose `boundary` differs from the session's. TEST: `connectors-provision.sh
-  --host codex --check` in a repo that matches both lists the project's connectors and the shared ones.
-- **Still never carries a secret value** — same `secret.path` declaration as any other connector.
+- **shared-account** — one account every project of the boundary can use (one Twilio account, one
+  Linear workspace, one Slack workspace, `pal`). Written once in the root; the resolver ranks it as
+  serving every project of that boundary, and it layers under each matched project's routes.
+- **per-project** — a key that reaches one project's resource (a database service key, a project's
+  Firebase service account). `serves` lists the projects; the resolver still returns it for another
+  project of the same boundary, ranked after the routes that serve that project, and a recorded success
+  for a project counts as serving it from then on.
+- **Layering:** a project route wins a `name` clash over a shared-account one. `--check`, provisioning,
+  `hooks/work-resource-guard.sh` and the Codex launch all read the same effective set from the loader,
+  so the boundary and the `gated`/`readOnly` write guard cover a shared route exactly like a project
+  one. TEST: `connectors-provision.sh --check` in a work repo lists its project routes, then the
+  shared ones marked `(shared)`.
+- **Still never carries a secret value** — same `secret.path` declaration as any other route.
 
 ## Onboarding a new project
 
-1. Drop a `~/.claude/connectors/<project>.json` with `match` (a git-origin substring) + its connectors.
-2. Run `/sk:setup-connectors` in that project — it provisions. The SessionStart hook only reports; it never provisions.
-3. Do any manual steps it reports red (create a read-only SA, `stripe login --project-name=…`, …).
+1. Add `<root>/projects/<project>.json` with `match` (a git-origin substring), in the root of the
+   project's boundary.
+2. Add its routes: append to an existing `<provider>.json` (add the project to `serves`, or nothing
+   for a shared-account route), or create one from `~/.claude/connectors/provider.json.example`.
+3. Run `/sk:setup-connectors` in that project — it provisions. The SessionStart hook only reports; it never provisions.
+4. Do any manual steps it reports red (create a read-only SA, `stripe login --project-name=…`, …).
 
 ## Prod-write pathway (separate, on-demand, confirmed, ephemeral)
 

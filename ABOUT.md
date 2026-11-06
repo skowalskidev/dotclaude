@@ -5,7 +5,7 @@ This private configuration provides Simon's cross-project skills, rules, hooks a
 
 ## Claude and Codex
 
-Both agents use the same rules, references, skills and project connector manifests in this repository.
+Both agents use the same rules, references and skills in this repository, and the same local connector registry through one loader.
 Codex receives linked instructions and reads the current connector definitions through its native
 launcher. There are no separately maintained copies to synchronize. All Codex roles use the existing
 ChatGPT subscription, including reviews; API billing has no exception. Work and personal service

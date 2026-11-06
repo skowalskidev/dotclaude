@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from agent_setup import check_models, require_provider
+import connector_registry
 
 ROOT = Path(__file__).resolve().parent.parent
 EVENTS = {'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
@@ -31,55 +32,15 @@ def origin(cwd):
 
 
 def project(cwd):
-    """Match remote first; allow path matches only when there is no remote. Fail on ambiguity.
+    """(index path | None, effective manifest, boundary) through the one connector loader.
 
-    A manifest with "shared": true never takes the project slot. Its connectors are layered
-    under the project manifest's, the way connectors-provision.sh layers them, so Codex is given
-    the same connectors as Claude. A project connector wins a name clash, and a shared manifest
-    of the other boundary is left out.
+    bin/connector_registry.py owns matching: remote first, path only without a remote, two matching
+    projects fail, shared-account routes of the session's boundary layer under the project's routes,
+    and a project route wins a name clash. Codex is given the same connectors as Claude.
     """
-    remote = origin(cwd)
-    where = str(Path(cwd).resolve())
-    target = remote or where
-    matches, shared = [], []
-    for path in sorted((ROOT / 'connectors').glob('*.json')):
-        manifest = read_json(path)
-        wanted = manifest.get('match', [])
-        if manifest.get('shared') is True:
-            # The provisioner matches a shared manifest on the origin and the path together.
-            if any(value and value in remote + where for value in wanted):
-                shared.append((path, manifest))
-        elif any(value and value in target for value in wanted):
-            matches.append((path, manifest))
-    if len(matches) > 1:
-        raise ValueError('Multiple connector manifests match this project: ' +
-                         ', '.join(path.name for path, _ in matches))
     identity = read_json(ROOT / 'identity.local.json')
-    work_match = identity.get('workOrgMatch', '')
-    boundary = 'work' if remote and work_match and work_match in remote else 'personal'
-    path, manifest = matches[0] if matches else (None, {})
-    for candidate, record in [*matches, *shared]:
-        if 'ignoreProjectInstructions' in record:
-            if record.get('shared') is True:
-                raise ValueError('ignoreProjectInstructions belongs only in a project connector manifest: ' + candidate.name)
-            if not isinstance(record['ignoreProjectInstructions'], bool):
-                raise ValueError('ignoreProjectInstructions must be a boolean in ' + candidate.name)
-    if manifest.get('boundary', boundary) != boundary:
-        raise ValueError('Connector manifest and identity.local.json disagree about the project boundary')
-    names = {item.get('name') for item in manifest.get('connectors', [])}
-    layered, sources = [], []
-    for shared_path, shared_manifest in shared:
-        if shared_manifest.get('boundary', boundary) != boundary:
-            continue
-        sources.append(shared_path.name)
-        for item in shared_manifest.get('connectors', []):
-            if item.get('name') not in names:
-                names.add(item.get('name'))
-                layered.append(item)
-    if sources:
-        manifest = {**manifest, 'connectors': [*manifest.get('connectors', []), *layered],
-                    'sharedFrom': sources}
-    return path, manifest, boundary
+    roots = connector_registry.load_all(identity)
+    return connector_registry.select(cwd, remote=origin(cwd), identity=identity, roots=roots)
 
 
 def subscription_home():
@@ -351,13 +312,14 @@ def context(cwd):
              'Project boundary: ' + boundary, 'Expected Codex home: ' + str(home),
              'Codex inference: ChatGPT subscription only, including workers and reviews; no API fallback. '
              'rules/connectors.md governs every other model API.',
-             'Connector manifest: ' + (str(path) if path else 'none matched')]
+             'Connector registry: ' + (str(path) + ' (project ' + manifest.get('project', '?') + ')'
+                                       if path else 'no project matched')]
     lines.append(policy_context(cwd))
     if os.environ.get('AGENT_DELEGATED_WORKER') == '1':
         lines.append('Session role: delegated worker (AGENT_DELEGATED_WORKER=1). The supervisor owns the session '
                      'plan, dashboard and intent ledger; do not create, edit or reconcile them. Return results.')
     if manifest.get('sharedFrom'):
-        lines.append('Shared connector manifests: ' + ', '.join(manifest['sharedFrom']))
+        lines.append('Shared connector routes from: ' + ', '.join(manifest['sharedFrom']))
     for connector in manifest.get('connectors', []):
         name = connector['name']
         state = 'on-demand; disabled' if connector.get('enabledOnDemand') else 'declared; verify live tool/auth status'
@@ -365,7 +327,8 @@ def context(cwd):
         if connector.get('kind') == 'mcp-http' and 'oauth' in connector.get('auth', {}).get('how', '').lower():
             command = shlex.join([str(ROOT / 'bin/codex-launch.py'), 'mcp', 'login', name])
             lines.append('If OAuth is missing, authenticate from this workspace: ' + command)
-    lines += ['Read the manifest and references/connectors-setup.md before reporting a capability unavailable.',
+    lines += ['Before reporting a capability unavailable, run ' + str(ROOT / 'bin/connector_registry.py') +
+              ' resolve <capability> and try its routes in order (rules/connectors.md).',
               'Rules below are read from their canonical files, not a generated copy.']
     for file in [ROOT / 'CLAUDE.md', *sorted((ROOT / 'rules').glob('*.md'))]:
         lines += ['\n--- ' + str(file) + ' ---', file.read_text()]
@@ -377,6 +340,7 @@ def policy_context(cwd):
     if not manifest.get('ignoreProjectInstructions', False):
         return 'Project instruction policy: default; repository instructions load normally.'
     return ('Project instruction policy: ignoreProjectInstructions=true from ' + str(path) +
+            ' (project ' + manifest.get('project', '?') + ')' +
             '. Read ' + str(ROOT / 'references/project-instructions.md') +
             ' before using repository documentation; preserve personal ~/.claude instructions.')
 
@@ -536,9 +500,10 @@ def main():
                 print('{}')
         elif args.action == 'doctor':
             path, manifest, boundary = project(args.cwd)
-            print('Manifest:', path or 'none', '\nCodex home:', subscription_home())
+            print('Registry project:', (str(path) + ' ' + manifest.get('project', '?')) if path else 'none',
+                  '\nCodex home:', subscription_home())
             if manifest.get('sharedFrom'):
-                print('Shared manifests:', ', '.join(manifest['sharedFrom']))
+                print('Shared routes from:', ', '.join(manifest['sharedFrom']))
             print('Codex inference: ChatGPT subscription only; other model APIs follow rules/connectors.md')
             for conn in manifest.get('connectors', []):
                 state = 'on-demand' if conn.get('enabledOnDemand') else 'manifest-driven; authentication unverified'

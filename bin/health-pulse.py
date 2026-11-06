@@ -4,8 +4,9 @@
   health-pulse.py [--project NAME | --manifest PATH] [--json] [--only PROBE,...] [--hours 24]
                   [--state-dir DIR] [--no-snapshot]
 
-Reads the `monitor` block of `~/.claude/connectors/<project>.json` (resolved from the current
-directory's git origin when --project is omitted) and runs each probe it enables:
+Reads the `monitor` block of the project's record in the connector registry (bin/connector_registry.py;
+resolved from the current directory's git origin when --project is omitted) and runs each probe it
+enables:
 
   supabase   infrastructure (disk, memory, CPU, IOPS, connections, pooler queue) from the project's
              Prometheus endpoint; Postgres cache hit, long-running and slowest queries; service
@@ -60,7 +61,6 @@ import urllib.request
 from pathlib import Path
 
 HOME_CLAUDE = Path(os.environ.get("CLAUDE_HOME", Path.home() / ".claude"))
-CONNECTORS = HOME_CLAUDE / "connectors"
 STATE_DIR = HOME_CLAUDE / "monitor"
 SUPABASE_API = "https://api.supabase.com/v1"
 RC_API = "https://api.revenuecat.com/v2"
@@ -1406,12 +1406,10 @@ def save_snapshot(ctx, checks):
 def load_manifest(args):
     if args.manifest:
         return json.loads(Path(args.manifest).read_text())
-    if args.project:
-        path = CONNECTORS / f"{args.project}.json"
-        if not path.is_file():
-            raise ValueError(f"no manifest {path}")
-        return json.loads(path.read_text())
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    if args.project:
+        from connector_registry import project_manifest  # the one connector loader
+        return project_manifest(args.project)
     from agent_runtime import project  # the one manifest resolver, shared with the launchers
     path, manifest, _ = project(Path.cwd())
     if not path:

@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to <root>/projects/<project>.json. A project file holds matching and project policy only; its connectors are routes in the provider files that list this project in `serves`.",
+  "match": [
+    "YourOrg/your-project",
+    "your-project"
+  ],
+  "ignoreProjectInstructions": false
+}

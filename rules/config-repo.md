@@ -10,7 +10,7 @@ Keep this single source of truth synced; verify both working-tree state and bran
   Its land check (`bin/config-land-check.py`) lets the push to main through with no confirmation.
   **Not `work/` or `skills/sk-work`** (untracked; the diff would be empty).
 - **When the STRUCTURE changes — update the companion/manifest docs in the SAME change** so they never
-  go stale: a new/renamed/removed rule, hook, skill, `bin/` script, `connectors/` manifest, or tooling dep
+  go stale: a new/renamed/removed rule, hook, skill, `bin/` script, `connectors/` template, or tooling dep
   means updating `README.md` (the inventory table + `Agent setup` + `Secrets to recreate`), `AGENTS.md` if
   affected, the `CLAUDE.md` index line, and `dotfiles/Brewfile` for a new dependency. `README.md` is the
   reproduce-on-a-new-machine manifest; a stale one silently breaks setup. This is part of "done" for a

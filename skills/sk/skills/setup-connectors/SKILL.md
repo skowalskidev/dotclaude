@@ -1,14 +1,15 @@
 ---
 name: setup-connectors
-description: Guided co-pilot to set up, health-check ("doctor"), add, or extend the connectors/credentials for the CURRENT project (Firebase, Linear, Stripe, Twilio, AWS, pal, …). Does everything it can automatically, then hands Simon numbered steps for the rest and waits. Use for "connect Slack", "message someone when work is done", or "send a Slack completion message"; also when connectors aren't working ("can't access Firebase/Stripe/Linear", "not enough permissions"), when first setting up a machine/project, when adding a new connector, to enable a one-off prod write, or to audit the existing setup for insecure credential handling (world-readable key files, a secret inside a repo, a CLI profile defaulting to the wrong work/personal account) and fix it. Reads the per-project manifest in ~/.claude/connectors/<project>.json; the deep spec is references/connectors-setup.md.
+description: Guided co-pilot to set up, health-check ("doctor"), add, or extend the connectors/credentials for the CURRENT project (Firebase, Linear, Stripe, Twilio, AWS, pal, …). Does everything it can automatically, then hands Simon numbered steps for the rest and waits. Use for "connect Slack", "message someone when work is done", or "send a Slack completion message"; also when connectors aren't working ("can't access Firebase/Stripe/Linear", "not enough permissions"), when first setting up a machine/project, when adding a new connector, to enable a one-off prod write, or to audit the existing setup for insecure credential handling (world-readable key files, a secret inside a repo, a CLI profile defaulting to the wrong work/personal account) and fix it. Reads the local connector registry through bin/connector_registry.py (one root per boundary, one file per provider); the deep spec is references/connectors-setup.md.
 argument-hint: "[add | migrate | enable-prod-write <platform>]  — no arg = setup + doctor for the current project"
 ---
 
 # Set up / doctor the connectors for this project
 
-The premise: connectors + credentials are declared per project in `~/.claude/connectors/<project>.json`
-and driven by a generic engine (`~/.claude/bin/connectors-provision.sh` + the guard + the SessionStart
-hook). This skill is the guided front door. On a plain `/sk:setup-connectors` (no args) it AUTOMATICALLY takes
+The premise: connectors + credentials are declared once in the local registry (one root per boundary,
+`connectorRoots` in `identity.local.json`; one `<provider>.json` per provider, projects in
+`projects/<project>.json`), read only through `~/.claude/bin/connector_registry.py`, and driven by a
+generic engine (`~/.claude/bin/connectors-provision.sh` + the guard + the SessionStart hook). This skill is the guided front door. On a plain `/sk:setup-connectors` (no args) it AUTOMATICALLY takes
 care of the whole setup for the current project — provisions what it can, diagnoses the rest
 green/yellow/red (like `flutter doctor`), AND audits for insecure local approaches to migrate — then
 proposes everything (auth steps + migrations) in ONE consolidated pass and waits for Simon's decisions.
@@ -25,9 +26,10 @@ focused shortcuts: `add` = register a new connector; `migrate` = run ONLY the au
 DO use the reference's **Official account connectors and completion messages** procedure for hosted
 Slack setup and requested work notifications. Inspect the active host's tools before provisioning.
 DO handle a message through an already connected account directly, without auditing unrelated services.
-DO use the matching shared work manifest even when no project-specific manifest exists; an unrelated
+DO run `connector_registry.py resolve <capability>` first and use its first unblocked route, recording
+the outcome; a shared-account work route applies even when no project record exists. An unrelated
 personal checkout does not authorize work-resource access. An explicit work-message request targets
-the work manifest and still requires checking the connected workspace and recipient.
+the work root and still requires checking the connected workspace and recipient.
 DO record a request such as "message someone when work is done" in the living plan with its recipient,
 completion condition and message purpose. After verification, send once under that authorization and
 return the message link. If the work is unfinished, retain the request; do not announce completion.
@@ -37,11 +39,11 @@ once with a receipt, or remains visibly blocked with the exact missing recipient
 ## Mode: setup + doctor (default)
 
 1. **Resolve the project.** `~/.claude/bin/connectors-provision.sh --manifest` prints this project's
-   manifest; `--manifest --shared "$PWD"` lists matching shared manifests. Use both. If neither
-   matches, show the repo's `git remote get-url origin` and collect the missing setup in `add` mode.
-   An account connector already declared in a matching shared manifest needs no duplicate project file.
+   effective connector set (its routes, then the shared-account routes); `connector_registry.py roots`
+   shows both roots. If nothing matches, show the repo's `git remote get-url origin` and collect the
+   missing setup in `add` mode. A shared-account route needs no duplicate project record.
 2. **Provision what's automatable.** Run `~/.claude/bin/connectors-provision.sh`. It registers the
-   manifest's MCP servers at local scope and warns about any declared key file that is missing. It
+   registry's MCP servers at local scope and warns about any declared key file that is missing. It
    fetches nothing — there is no vault. If it reports "NEW MCP servers were registered", they load
    NEXT session — per the auth-gate, tell Simon up front: "restart the session/app to load <servers>,
    then reply restarted", and wait.
@@ -57,12 +59,13 @@ once with a receipt, or remains visibly blocked with the exact missing recipient
      run INSIDE the directory being worked in (the account is per-directory). For Stripe use
      `grep -E '^\[|display_name|account_id' ~/.config/stripe/config.toml` — **never `stripe config
      --list`, which prints live and test SECRET KEY VALUES into the transcript.** Then confirm the
-     manifest's `cli.profile` exists and its `display_name` matches this repo's boundary; a profile
+     route's `cli.profile` exists and its `display_name` matches this repo's boundary; a profile
      that is missing, or whose `[default]` belongs to the other boundary, is red not yellow, because a
      bare command silently falls through to it. Logged in and correct = green.
    - **env** (twilio) — reachable via AWS at app startup = green; if AWS creds are stale = yellow (`aws sso login`).
 4. **Do the automatable parts yourself** for every non-green connector, and collect the manual ones with
-   their exact `auth.steps` from the manifest (numbered).
+   their exact `auth.steps` from the route (numbered). Record each verified result with
+   `connector_registry.py record <provider> <route> ok|fail --reason ...`.
 5. **Auto-audit for migrations (ALWAYS — no sub-command needed).** Run the scan + assessment from the
    *migrate* procedure below and fold any proposed migrations into the same plan; Simon never has to
    remember to ask for it.
@@ -79,21 +82,26 @@ once with a receipt, or remains visibly blocked with the exact missing recipient
   `firebasedatabase.viewer`); mint its key to `~/.config/firebase-keys/work-prod-readonly.json` and
   `chmod 600` it. The exact `gcloud` commands are in that connector's `auth.steps`.
 - Stripe: one named profile per boundary — `stripe login --project-name=work-sandbox`,
-  `--project-name=work-prod`, and a personal one per that project's manifest. Never leave a repo
+  `--project-name=work-prod`, and a personal one per that project's stripe route. Never leave a repo
   relying on `[default]`.
 - AWS: ensure creds are active (`aws sso login` or your configured refresh) so `dogfood()` provides Twilio.
 
 ## Mode: add (register a new connector — any kind, boundary-aware)
 
-1. Gather: `name`, `kind` (mcp-http | mcp-stdio | cli | api/service-key | env — open; if it's a new
-   kind, capture how to provision/authenticate/guard it), `env` (dev/prod/sandbox/production), `boundary`
-   (defaults to the project's), `readOnly`/`gated` (true for prod reads/gated writes), the `mcp` block or
+1. Gather: `provider`, its `capabilities`, `scope` (shared-account when one account serves every
+   project of the boundary; per-project with `serves` when the key reaches one project's resource),
+   then per route: `id`, `name`, `kind` (mcp-http | mcp-stdio | cli | api/service-key | env |
+   claude-connector | codex-app — open; if it's a new
+   kind, capture how to provision/authenticate/guard it), `env` (dev/prod/sandbox/production),
+   `readOnly`/`gated` (true for prod reads/gated writes), the `mcp` block or
    `cli` block (`{name, profile}`), an optional `secret` (`{path}` — where the key lives, not where to
    fetch it from), and `auth.steps` (the numbered fix, including the command that mints the key).
-2. Append the record to this project's `~/.claude/connectors/<project>.json` (create the file with a
-   `match` from the git origin if it doesn't exist). **jq-validate** the file before saving.
+2. Add the route to `<root>/<provider>.json` in the root of this repo's boundary (create it from
+   `~/.claude/connectors/provider.json.example`; create `<root>/projects/<project>.json` with a `match`
+   from the git origin if the project has none). An existing provider gets a new route in preference
+   order, never a second file. **jq-validate** the file, then run `connector_registry.py list`.
 3. Run the default mode to provision + diagnose the new connector. The data-driven guard covers its
-   boundary automatically — no guard edit. NEVER write a secret value into the manifest; only a
+   boundary automatically — no guard edit. NEVER write a secret value into the registry; only a
    machine-local path.
 
 ## Mode: migrate (audit the existing setup + propose secure migrations)
@@ -134,12 +142,12 @@ Suggest a secret manager only if Simon asks for one.
      location, so do it and verify with `stat`, not with `cat`.
    - Anything that needs the VALUE (creating a profile, minting a key, rotating) is Simon's step:
      give the exact command from the connector's `auth.steps` and wait.
-   - **Record it in the manifest** (`~/.claude/connectors/<project>.json`) so it is remembered on every
+   - **Record it in the registry route** (`<root>/<provider>.json`) so it is remembered on every
      future worktree: a `secret.path` for a key file, a `cli.profile` for a CLI. The guard reads those,
      so declaring it is what makes the boundary enforceable rather than remembered.
    - If a secret was exposed (world-readable, committed, or pasted anywhere), recommend ROTATING it —
      tightening the mode does not un-expose what was already readable.
-6. **Report** what changed, what was left as-is (and why), and sync tracked config changes under `rules/self-healing-config.md`. Keep ignored manifests local.
+6. **Report** what changed, what was left as-is (and why), and sync tracked config changes under `rules/self-healing-config.md`. Keep the registry roots local.
 
 ## Mode: enable-prod-write <platform> (separate, on-demand, confirmed, ephemeral)
 
@@ -150,7 +158,7 @@ second, agent-run only as the gated exception). For the platform's `enabledOnDem
 (e.g. `firebase-prod-write`):
 1. Mint its write key from the provider's IAM using that connector's own `auth.steps`, to
    `<secret.path>` (`chmod 600`). Nothing is pulled from a store; the key does not exist until now.
-2. Register it: `claude mcp add-json <name> "<mcp-block>" -s local` (from the manifest record).
+2. Register it: `claude mcp add-json <name> "<mcp-block>" -s local` (from the route record).
 3. Tell Simon: name the EXACT change and ask him to confirm ("yes, write <X> to prod"). Only after his
    explicit yes, run the guard's confirmation for that write (the write-guard requires `CLAUDE_PROD_WRITE_OK=1`
    for the gated tool — set it only for the confirmed write).
@@ -163,4 +171,4 @@ second, agent-run only as the gated exception). For the platform's `enabledOnDem
 
 A brand-new skill FOLDER needs a Claude Code restart to appear in the slash menu; edits to an existing
 SKILL.md are live. Newly-registered MCP servers load on the NEXT session (advise a restart). After any
-tracked change under `~/.claude`, finish `/sk:claude-config-sync` within the repair policy above. Never commit secrets or ignored overlays.
+tracked change under `~/.claude`, finish `/sk:claude-config-sync` within the repair policy above. Never commit secrets or ignored overlays; the registry roots are local and never committed.

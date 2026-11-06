@@ -6,8 +6,8 @@
 #                      personal secrets, ~/.config/personal-keys.env, direct personal Gemini API).
 #   * PERSONAL repos : block WORK resources (your work email account; your work cloud projects; and firebase
 #                      commands while the CLI's active account is the work one).
-#   * MODEL APIs     : the pal MCP passes only inside its declared boundary (connectors/*.json); shell
-#                      calls to model-API hosts are denied everywhere.
+#   * MODEL APIs     : the pal MCP passes only inside its declared boundary (the connector registry);
+#                      shell calls to model-API hosts are denied everywhere.
 # git/gh and gstack's Claude review are allowed everywhere.
 #
 # The work/personal VALUES this guard compares against live in an untracked overlay,
@@ -65,50 +65,35 @@ is_cmd() {
   printf '%s' "$cmd" | grep -qE "(^|[;&|(]|&&|\|\|)[[:space:]]*(((exec|command|nohup|time|env|sudo)[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*)*$1([[:space:]]|$)"
 }
 
-# --- connector manifests: data-driven work/personal boundary + read-only/gated lookups (~/.claude/connectors/) ---
-CONN_DIR="$HOME/.claude/connectors"
-# The CURRENT project's manifest (matched by git origin), for reading this repo's own connector config.
-CONN_MANIFEST="$("$HOME/.claude/bin/connectors-provision.sh" --manifest "$dir" 2>/dev/null || true)"
-# Any "shared": true manifest that ALSO matches this repo (e.g. connectors/personal-shared.json), layered
-# under the project manifest above — read the same way connectors-provision.sh layers them for
-# provisioning/--check, so the boundary guard never has a blind spot for a shared connector.
-SHARED_CONN_MANIFESTS="$("$HOME/.claude/bin/connectors-provision.sh" --manifest --shared "$dir" 2>/dev/null || true)"
-# A connector NAME can appear under more than one boundary (e.g. `firebase` is work in one manifest AND
-# personal in another), so boundary isolation uses the SET of boundaries the name appears under
-# across ALL manifests (project, shared, and every other project's) — deny only if that set is
-# non-empty and does NOT include the current repo's boundary.
-connector_boundaries() { # $1=server -> unique boundaries across all manifests, one per line
-  command -v jq >/dev/null 2>&1 || return 0
-  local f
-  for f in "$CONN_DIR"/*.json; do
-    [ -e "$f" ] || continue
-    jq -r --arg n "$1" '.connectors[]? | select(.name==$n) | (.boundary // empty)' "$f" 2>/dev/null
-  done | sort -u
+# --- connector registry: data-driven work/personal boundary + read-only/gated lookups ---
+# One loader (bin/connector_registry.py) reads both registry roots named in the identity overlay
+# (connectorRoots), so the guard has no parser of its own and no blind spot for a shared route.
+# It runs only when a rule below needs it (an MCP tool, a bare stripe), never on every Bash call.
+REGISTRY="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/bin/connector_registry.py"
+FACTS=""; FACTS_FOR=""
+guard_facts() { # $1=server -> JSON {boundaries, readOnly, gated} for this repo (cached per call)
+  [ "$FACTS_FOR" = "$1" ] && { printf '%s' "$FACTS"; return 0; }
+  FACTS_FOR="$1"
+  FACTS="$(CLAUDE_IDENTITY_FILE="$ID_FILE" "$PY" "$REGISTRY" guard-facts "$1" --cwd "$dir" 2>/dev/null || true)"
+  printf '%s' "$FACTS"
 }
-connector_field() { # $1=server $2=field, from THIS project's manifest first, else any layered SHARED manifest
+# A connector NAME can appear under more than one boundary (e.g. `firebase` is work for one project AND
+# personal for another), so boundary isolation uses the SET of boundaries the name appears under across
+# BOTH roots: deny only if that set is non-empty and does NOT include the current repo's boundary.
+connector_boundaries() { # $1=server -> unique boundaries across the registry, one per line
   command -v jq >/dev/null 2>&1 || return 0
-  local v=""
-  if [ -n "$CONN_MANIFEST" ] && [ -f "$CONN_MANIFEST" ]; then
-    v="$(jq -r --arg n "$1" --arg k "$2" '.connectors[]? | select(.name==$n) | (.[$k] // empty)' "$CONN_MANIFEST" 2>/dev/null | head -1)"
-  fi
-  if [ -z "$v" ] && [ -n "$SHARED_CONN_MANIFESTS" ]; then
-    local f
-    while IFS= read -r f; do
-      [ -n "$f" ] && [ -f "$f" ] || continue
-      v="$(jq -r --arg n "$1" --arg k "$2" '.connectors[]? | select(.name==$n) | (.[$k] // empty)' "$f" 2>/dev/null | head -1)"
-      [ -n "$v" ] && break
-    done <<< "$SHARED_CONN_MANIFESTS"
-  fi
-  printf '%s' "$v"
+  guard_facts "$1" | jq -r '.boundaries[]?' 2>/dev/null
+}
+connector_field() { # $1=server $2=readOnly|gated, this repo's route first, else a same-boundary route
+  command -v jq >/dev/null 2>&1 || return 0
+  guard_facts "$1" | jq -r --arg k "$2" '.[$k] // empty' 2>/dev/null
 }
 connector_cli_profile() { # $1=CLI name -> the profile THIS project pins for it (empty if none declared)
-  command -v jq >/dev/null 2>&1 || return 0
-  [ -n "$CONN_MANIFEST" ] && [ -f "$CONN_MANIFEST" ] || return 0
-  jq -r --arg n "$1" '.connectors[]? | select(.kind=="cli" and ((.cli.name // "")==$n)) | (.cli.profile // empty)' "$CONN_MANIFEST" 2>/dev/null | head -1
+  CLAUDE_IDENTITY_FILE="$ID_FILE" "$PY" "$REGISTRY" cli-profile "$1" --cwd "$dir" 2>/dev/null || true
 }
 
-# MCP servers that spend a model-API key. Each must be declared in EXACTLY ONE boundary in
-# connectors/*.json. Undeclared, declared twice, no jq or an unreadable manifest all deny, because the
+# MCP servers that spend a model-API key. Each must be declared in EXACTLY ONE boundary in the
+# registry. Undeclared, declared twice, no jq or an unreadable record all deny, because the
 # generic isolation below only denies a server whose declared boundary differs from this repo's.
 MODEL_KEY_SERVERS="pal"
 
@@ -121,7 +106,7 @@ case "$tool" in
     case " $MODEL_KEY_SERVERS " in
       *" $_server "*)
         [ "$(printf '%s\n' "$_bs" | sed '/^$/d' | wc -l | tr -d ' ')" = "1" ] || \
-          deny "Blocked: MCP server '$_server' spends a model-API key and its boundary is not declared (or is declared twice). Declare ONE '$_server' record with boundary work|personal in connectors/*.json (references/connectors-setup.md, Model-API keys). Undeclared means denied." ;;
+          deny "Blocked: MCP server '$_server' spends a model-API key and its boundary is not declared (or is declared twice). Declare ONE '$_server' route in one registry root (references/connectors-setup.md, Model-API keys). Undeclared means denied." ;;
     esac
     if [ -n "$_bs" ] && ! printf '%s\n' "$_bs" | grep -qxF "$_cur"; then
       deny "Blocked by work/personal isolation: MCP server '$_server' is not a $_cur connector (it belongs to: $(printf '%s' "$_bs" | tr '\n' ' ')). Work and personal resources must not cross."

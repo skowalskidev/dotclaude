@@ -14,7 +14,7 @@ no step writes, refunds, sends or posts.
 ## 1. Resolve the project and its connectors
 
 - DO run `python3 ~/.claude/bin/agent_runtime.py policy --cwd .` in the project's workspace; it names
-  the matched `connectors/<project>.json` and the `ignoreProjectInstructions` boundary. Apply
+  the matched registry project (`bin/connector_registry.py manifest`) and the `ignoreProjectInstructions` boundary. Apply
   `references/project-instructions.md` before reading any repo doc.
 - DO read that manifest and `references/connectors-setup.md` before the first probe; a connector that
   needs auth goes through the auth gate in `rules/connectors.md`, asked once with every gap together.

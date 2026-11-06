@@ -126,15 +126,15 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon starts Codex with current shared instructions, the right project connectors and his chosen project-instruction boundary without copying configuration.",
         "purpose": "Native Codex launch, project policy, context, hook and installation adapter.",
         "criteria": [
-            "Read rules, settings and connector manifests from the canonical source at invocation time.",
-            "Accept ignoreProjectInstructions only as a boolean in the selected non-shared project manifest; default false and reject invalid placement or type.",
+            "Read rules, settings and the connector registry (through bin/connector_registry.py) from the canonical source at invocation time.",
+            "Accept ignoreProjectInstructions only as a boolean in the selected registry project file; default false and reject invalid placement or type.",
             "When true, set Codex project_doc_max_bytes=0 at launch, reject caller overrides, and report the resolved policy at SessionStart without dropping global personal instructions.",
             "Expose policy --cwd for workflows and policy-hook for Claude SessionStart; retain connector and credential boundaries under either flag value.",
-            "Resolve one project manifest per workspace and layer every matching `shared: true` manifest of the same boundary under it, project connector first on a name clash; a shared manifest never takes the project slot, and two matching project manifests fail.",
+            "Resolve one registry project per workspace through bin/connector_registry.py and layer its root's shared-account routes of the same boundary under it, project route first on a name clash; two matching projects fail.",
             "Register a shared MCP connector that spends a model-API key (`pal`) for Codex only inside its boundary; Codex's own inference stays on the ChatGPT subscription.",
             "Use the existing ChatGPT subscription for every Codex role; preserve work/personal service boundaries and reject a mismatched session boundary.",
             "Block cached API authentication and CLI billing overrides; strip inherited API environment and pin the native subscription endpoint without modifying credentials.",
-            "Disable on-demand connectors and retired manifest-owned names; never copy authentication files.",
+            "Disable on-demand connectors and retired registry-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
             "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
@@ -529,12 +529,12 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon gets work through existing authorized service access and is asked once only for a verified human-only step.",
         "purpose": "Auth-gate protocol and the work/personal boundary for external services.",
         "criteria": [
-            "Check current host tools/plugins, native status, selected manifests and authorized fallback paths before an auth question; declared or installed never proves exposed or authenticated.",
+            "Run the route resolver, try every unblocked route in its order and record each outcome before an auth question; declared or installed never proves exposed or authenticated.",
             "Verify the requested action, including CLI version/help and current official support for a missing feature; a successful read never proves upload or write capability.",
             "Scope failures to host, profile and action; a signed-out test browser or missing tool never proves service-wide auth failure.",
             "Use an authorized capable path within credential and write boundaries; ask once with verified host-specific steps only for the remaining human-only action, then wait on dependent work.",
             "Prod is read-only by default; a write is enabled per-request and torn down after.",
-            "Per-project detail stays in connectors/*.json, never hard-coded here.",
+            "Per-project detail stays in the local registry roots, never hard-coded here; a fallback never leaves the session boundary or skips a per-message or per-write gate.",
             "A model API is reached only through pal, with a key from the repo's own boundary and the per-call yes; a repo's own billable test harness Simon asked to run uses its own path; shell model-API calls stay denied and the subscription stays the default.",
         ],
     },
@@ -689,16 +689,16 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "references/connectors-setup.md": {
-        "mission": "A new project's connectors work first try, from one manifest, with no credential in a repo.",
-        "purpose": "The connector engine's how-to and the manifest schema.",
+        "mission": "A capability reaches its service through the first working route, from one registry, with no credential in a repo.",
+        "purpose": "The connector engine's how-to, the registry schema and the route order.",
         "criteria": [
             "Diagnose exact-action capability through host catalog and native status, bounded authorized checks, tool schemas and CLI version support; distinguish authentication, unavailable tools, unreachable services, missing features and policy denials.",
-            "Schema here matches what bin/connectors-provision.sh actually reads.",
+            "Schema and route order here match what bin/connector_registry.py actually reads and returns, with primary sources for the layout.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
             "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
-            "Documents the pal record and its home in connectors/work-shared.json, matching what hooks/work-resource-guard.sh reads.",
-            "Documents ignoreProjectInstructions as a real boolean on selected non-shared project manifests, default false.",
+            "Documents the pal route and its home in the work registry root, matching what hooks/work-resource-guard.sh reads.",
+            "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
             "Keeps one tested log query per production connector kind, re-tested at first need; after 2 failed log reads a session switches to the provider's own record of the event.",
         ],
     },
@@ -1949,7 +1949,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "A project's tools reach the right account first try, and Simon does only the steps nobody else can.",
         "purpose": "Guided connector setup, doctor, and migration audit.",
         "criteria": [
-            "Reads connectors/<project>.json. Asks before creating or reading a credential.",
+            "Reads the registry through bin/connector_registry.py and resolves routes before setup. Asks before creating or reading a credential.",
             "Routes official Slack setup and requested completion messages through the shared connector catalog, preserving per-message authorization and unfinished notification tasks.",
         ],
     },
@@ -2241,8 +2241,8 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work and personal service credentials never cross, model-API keys included; inference stays on the shared subscription and the pal MCP is the only API route.",
         "purpose": "Enforces the work/personal boundary on Bash and MCP tools.",
         "criteria": [
-            "Allow the shared Codex subscription in either project boundary. Allow the pal MCP only when exactly one pal record declares the repo's own boundary, and deny it when undeclared, doubly declared, jq is missing or a manifest is unreadable. Deny every shell call to a model-API host in every repo.",
-            "Data-driven from connectors/*.json, not hard-coded.",
+            "Allow the shared Codex subscription in either project boundary. Allow the pal MCP only when one boundary declares pal and it is the repo's own; deny it when undeclared, in both roots, jq is missing or a record is unreadable. Deny every shell call to a model-API host in every repo.",
+            "Data-driven from the connector registry through bin/connector_registry.py, not hard-coded; the loader runs only for MCP tools and bare CLI profile checks.",
             "git commands stay unblocked so staging AND inspection always work, including a path "
             "that carries the other boundary's name. A compound that also invokes another CLI is "
             "not exempt, so git cannot launder the command after it.",
@@ -2253,8 +2253,8 @@ CONTRACTS: dict[str, dict] = {
             "as pinning the account.",
             "A CLI whose default profile belongs to the other boundary is denied when "
             "unpinned, not just when the wrong profile is named explicitly.",
-            "Reads shared:true manifests too, so a shared connector's boundary is enforced "
-            "exactly like a project connector's, and never leaks a secret value.",
+            "Reads shared-account routes too, so a shared route's boundary is enforced "
+            "exactly like a project route's, and never leaks a secret value.",
         ],
     },
     # --- Git hooks -----------------------------------------------------------------
@@ -2275,14 +2275,22 @@ CONTRACTS: dict[str, dict] = {
     },
     # --- Engine scripts ------------------------------------------------------------
     "bin/connectors-provision.sh": {
-        "mission": "A new project's connectors come up from its manifest alone, with no bespoke script per project.",
-        "purpose": "Generic connector engine driven by connectors/*.json.",
+        "mission": "A new project's connectors come up from its registry record alone, with no bespoke script per project.",
+        "purpose": "Generic connector engine driven by the connector registry loader.",
         "criteria": [
             "Reads servers registered under BOTH the worktree and the main worktree path.",
-            "Generic. Per-project detail stays in the manifests.",
-            "A shared:true manifest layers its connectors under the resolved project manifest, "
-            "never replaces it as the selected project manifest, and never wins a name clash "
-            "against a project connector.",
+            "Generic. Per-project detail stays in the registry; matching and layering live only in bin/connector_registry.py.",
+        ],
+    },
+    "bin/connector_registry.py": {
+        "mission": "Every connector reader sees the same registry, and an agent reaches a capability through the first working route without asking Simon while one remains.",
+        "purpose": "The one connector loader, route resolver, health recorder and legacy migration.",
+        "criteria": [
+            "Read only the roots named by connectorRoots (or CLAUDE_CONNECTOR_ROOTS); a route's boundary always equals its root's.",
+            "Resolve returns only the session boundary's routes: unblocked first, open circuits last, routes serving the project before others, proven before untested, then declared order.",
+            "Never exclude a same-boundary route for scope; record writes health.json under a lock, mode 600, same boundary only.",
+            "Migration keeps every legacy project and connector field reachable; check-migration fails on any missing value.",
+            "Python 3.9 standard library only, so the /usr/bin/python3 guard can import nothing else.",
         ],
     },
     "bin/install-third-party-skills.sh": {
@@ -2530,6 +2538,6 @@ CONTRACTS: dict[str, dict] = {
             "Every finding names its part, its numbers, and the store record behind it.",
         ],
     },
-    # --- Connector manifests are a per-user untracked overlay (connectors/*.json, gitignored);
-    #     the tracked template is connectors/example.json.example. No per-manifest contract entries. ---
+    # --- The connector registry is local data outside this repo (connectorRoots); the tracked
+    #     templates are connectors/*.json.example. No per-record contract entries. ---
 }

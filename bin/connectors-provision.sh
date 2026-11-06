@@ -1,34 +1,32 @@
 #!/usr/bin/env bash
 # connectors-provision.sh — per-project connector provisioning and native-host discovery.
 #
-# Reads the per-project manifest ~/.claude/connectors/<project>.json chosen by matching the current
-# git origin, and registers that project's MCP servers at LOCAL scope (claude mcp add-json -s local).
-# Runnable by hand, by hooks/session-connectors.sh, or by a Conductor scripts.setup. Never hard-codes a
-# project. Fast (no `claude mcp list` / no network for the registration check). Designed to be safe in a
-# hook: never exits non-zero, never blocks.
+# Reads this project's effective connector set from the ONE loader, bin/connector_registry.py (the
+# registry lives outside ~/.claude, one root per boundary; see references/connectors-setup.md), and
+# registers its MCP servers at LOCAL scope (claude mcp add-json -s local). Runnable by hand, by
+# hooks/session-connectors.sh, or by a Conductor scripts.setup. Never hard-codes a project. Fast (no
+# `claude mcp list` / no network for the registration check). Designed to be safe in a hook: never
+# exits non-zero, never blocks.
 #
-# It does NOT fetch secrets. There is no secret store in this setup: a connector's `secret.path` is a
+# It does NOT fetch secrets. There is no secret store in this setup: a route's `secret.path` is a
 # DECLARATION of where its key lives so --check can report presence, and the key is created by hand from
-# that connector's own `auth.steps` (e.g. `gcloud iam service-accounts keys create`). GCP/Stripe/Firebase
+# that route's own `auth.steps` (e.g. `gcloud iam service-accounts keys create`). GCP/Stripe/Firebase
 # IAM is the source of truth, and a key is regenerated on demand rather than mirrored into a vault.
 #
 # Usage:
 #   connectors-provision.sh [DIR]           provision the project at DIR (default: $PWD)
-#   connectors-provision.sh --check [DIR]    print a readiness report (one line per connector, project
-#                                            THEN any layered shared connectors, no writes)
-#   connectors-provision.sh --manifest [DIR] print the resolved PROJECT manifest path (or nothing)
-#   connectors-provision.sh --manifest --shared [DIR]  print matching SHARED manifest paths instead
+#   connectors-provision.sh --check [DIR]    print a readiness report (one line per connector: the
+#                                            project's routes, then shared-account routes, no writes)
+#   connectors-provision.sh --manifest [DIR] print the effective manifest JSON (or nothing)
 #   connectors-provision.sh --host codex [--check] [DIR] inspect the launch-time Codex projection
 #
-# A manifest with "shared": true (e.g. connectors/personal-shared.json) layers its connectors under
-# whichever project manifest matches this repo (or on its own, if none matches) — never instead of it,
-# and never as the selected PROJECT manifest itself. A project connector of the same `name` always wins.
+# Which capability route to TRY first is a different question: bin/connector_registry.py resolve.
 #
 # Adapters by connector.kind: mcp-http | mcp-stdio (registered as MCP servers); api | service-key |
-# cli | env | claude-connector (no MCP registration — readiness is reported by --check, setup is via the
-# auth-gate/doctor). claude-connector is a claude.ai account-level connector loaded from claude.ai
-# connector settings, NOT via `claude mcp add-json` — the engine never registers it; the boundary guard
-# matches on its live server-id `name`.
+# cli | env | claude-connector | codex-app (no MCP registration; readiness is reported by --check,
+# setup is via the auth-gate/doctor). claude-connector is a claude.ai account-level connector loaded
+# from claude.ai connector settings; codex-app is an app in the Codex ChatGPT login, reached through
+# codex exec. The engine registers neither; the boundary guard matches on the route `name`.
 # A new kind = add a case below. See ~/.claude/references/connectors-setup.md for the schema.
 set -u
 
@@ -46,29 +44,26 @@ if [ "${1:-}" = "--host" ]; then
   esac
 fi
 
-CONN_DIR="$HOME/.claude/connectors"
+REGISTRY="$(cd "$(dirname "$0")" && pwd)/connector_registry.py"
+PY="$(command -v /usr/bin/python3 || command -v python3)"
 CLAUDE_JSON="$HOME/.claude.json"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 expand_tilde() { case "$1" in "~/"*) printf '%s' "$HOME/${1#\~/}" ;; *) printf '%s' "$1" ;; esac; }
 
-[ -d "$CONN_DIR" ] || { echo "connectors: no ~/.claude/connectors dir; nothing to do" >&2; exit 0; }
-have jq || { echo "connectors: jq not found; cannot read manifests" >&2; exit 0; }
+have jq || { echo "connectors: jq not found; cannot read the registry output" >&2; exit 0; }
+[ -n "$PY" ] && [ -f "$REGISTRY" ] || { echo "connectors: python3 or connector_registry.py missing" >&2; exit 0; }
 
 # --- parse args ---
-mode="provision"; dir="$PWD"; want_shared=0
+mode="provision"; dir="$PWD"
 case "${1:-}" in
   --check)    mode="check";    shift ;;
   --manifest) mode="manifest"; shift ;;
-  -h|--help)  sed -n '2,20p' "$0"; exit 0 ;;
+  -h|--help)  sed -n '2,27p' "$0"; exit 0 ;;
 esac
-# --manifest --shared: list matching SHARED manifest paths instead of the project manifest.
-if [ "$mode" = "manifest" ] && [ "${1:-}" = "--shared" ]; then want_shared=1; shift; fi
 [ -n "${1:-}" ] && dir="$1"
 [ -d "$dir" ] || dir="$PWD"
 
-# --- resolve the manifest for this project via git origin (fallback: repo path) ---
-origin="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
 top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$dir")"
 # In a linked git worktree (a Conductor workspace), `claude mcp ... -s local` records the server under the
 # MAIN worktree's path in ~/.claude.json, not the linked worktree's. Reading only "$top" therefore reports
@@ -78,48 +73,23 @@ top="$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$dir"
 top_main="$top"
 gitcommon="$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 [ -n "$gitcommon" ] && [ -d "$gitcommon" ] && top_main="$(dirname "$gitcommon")"
-manifest=""
-for f in "$CONN_DIR"/*.json; do
-  [ -e "$f" ] || continue
-  # A shared manifest ("shared": true) layers UNDER whichever project manifest resolves for this repo;
-  # it must never win the first-match project slot itself (see the shared-manifest loop below).
-  [ "$(jq -r '.shared // false' "$f" 2>/dev/null)" = "true" ] && continue
-  while IFS= read -r m; do
-    [ -n "$m" ] || continue
-    case "$origin$top" in *"$m"*) manifest="$f"; break ;; esac
-  done < <(jq -r '.match[]? // empty' "$f" 2>/dev/null)
-  [ -n "$manifest" ] && break
-done
 
-# Every manifest with "shared": true whose match hits this repo's origin/path, in addition to (never
-# instead of) the project manifest above. A project connector wins on a name clash (enforced below,
-# where shared connectors are merged in).
-shared_manifests=""
-for f in "$CONN_DIR"/*.json; do
-  [ -e "$f" ] || continue
-  [ "$(jq -r '.shared // false' "$f" 2>/dev/null)" = "true" ] || continue
-  while IFS= read -r m; do
-    [ -n "$m" ] || continue
-    case "$origin$top" in *"$m"*) shared_manifests="$shared_manifests
-$f"; break ;; esac
-  done < <(jq -r '.match[]? // empty' "$f" 2>/dev/null)
-done
-shared_manifests="$(printf '%s\n' "$shared_manifests" | sed '/^$/d')"
+# The effective connector set: the matched project's routes first, then shared-account routes of the
+# same boundary (a project route wins a name clash). Matching and layering live in the loader only.
+effective="$("$PY" "$REGISTRY" manifest --cwd "$dir" 2>/dev/null || true)"
+count="$(printf '%s' "$effective" | jq -r '(.connectors // []) | length' 2>/dev/null || echo 0)"
 
 if [ "$mode" = "manifest" ]; then
-  if [ "$want_shared" = "1" ]; then
-    [ -n "$shared_manifests" ] && printf '%s\n' "$shared_manifests"
-  else
-    [ -n "$manifest" ] && printf '%s\n' "$manifest"
-  fi
+  [ "${count:-0}" -gt 0 ] || [ "$(printf '%s' "$effective" | jq -r '.project // empty' 2>/dev/null)" != "" ] \
+    && printf '%s\n' "$effective"
   exit 0
 fi
-if [ -z "$manifest" ] && [ -z "$shared_manifests" ]; then
-  echo "connectors: no manifest matches this project (origin: ${origin:-none})" >&2
+if [ "${count:-0}" -eq 0 ]; then
+  echo "connectors: no registry project or shared route matches this repo ($dir)" >&2
   exit 0
 fi
 
-proj="$([ -n "$manifest" ] && jq -r '.project // "?"' "$manifest" || echo "(shared-only)")"
+proj="$(printf '%s' "$effective" | jq -r '.project // "(shared-only)"')"
 
 # Servers AVAILABLE this session, across ALL scopes Claude Code loads (fast, no network): local (keyed by
 # BOTH this worktree and the main worktree — see top_main above) + user scope in ~/.claude.json, PLUS the
@@ -151,6 +121,7 @@ check_line() {
     cli) status="cli" ;;
     env) status="env" ;;
     claude-connector) status="account" ;;   # claude.ai account-level connector; loaded from claude.ai settings, not registered here
+    codex-app) status="codex-app" ;;        # an app in the Codex ChatGPT login; reached through codex exec
   esac
   if [ -n "$spath" ] && [ "$kind" != api ] && [ "$kind" != service-key ]; then
     [ -f "$(expand_tilde "$spath")" ] || status="$status,key-missing"
@@ -158,33 +129,23 @@ check_line() {
   printf '%s\t%s\t%s\t%s%s\n' "$name" "$kind" "$env" "$status" "$2"
 }
 
-# --- CHECK mode: emit "name<TAB>kind<TAB>env<TAB>status" per connector, project THEN layered shared
-# connectors (a shared connector is skipped when the project manifest already declares that `name` —
-# project always wins on a clash), and exit ---
+# --- CHECK mode: emit "name<TAB>kind<TAB>env<TAB>status[<TAB>(shared)]" per connector and exit ---
 if [ "$mode" = "check" ]; then
-  project_names=""
-  [ -n "$manifest" ] && project_names="$(jq -r '.connectors[]?.name' "$manifest" 2>/dev/null)"
-  if [ -n "$manifest" ]; then
-    jq -c '.connectors[]?' "$manifest" 2>/dev/null | while IFS= read -r c; do check_line "$c" ""; done
-  fi
-  if [ -n "$shared_manifests" ]; then
-    while IFS= read -r sf; do
-      [ -n "$sf" ] || continue
-      jq -c '.connectors[]?' "$sf" 2>/dev/null | while IFS= read -r c; do
-        cname="$(printf '%s' "$c" | jq -r '.name')"
-        printf '%s\n' "$project_names" | grep -qxF "$cname" && continue   # project wins on name clash
-        check_line "$c" "	(shared: $(basename "$sf"))"
-      done
-    done <<< "$shared_manifests"
-  fi
+  printf '%s' "$effective" | jq -c '.connectors[]?' 2>/dev/null | while IFS= read -r c; do
+    if [ "$(printf '%s' "$c" | jq -r '.scope // ""')" = "shared-account" ]; then
+      check_line "$c" "	(shared)"
+    else
+      check_line "$c" ""
+    fi
+  done
   exit 0
 fi
 
 # --- PROVISION mode ---
 added=0; skipped=0
-echo "connectors: provisioning '$proj' (manifest: $(basename "${manifest:-none}"))" >&2
+echo "connectors: provisioning '$proj' from the connector registry" >&2
 
-provision_connector() { # $1=connector JSON, $2=1 if from a shared manifest (name-clash already checked by caller)
+provision_connector() { # $1=connector JSON (the loader already resolved name clashes)
   c="$1"
   name="$(printf '%s' "$c" | jq -r '.name')"
   kind="$(printf '%s' "$c" | jq -r '.kind')"
@@ -216,36 +177,13 @@ provision_connector() { # $1=connector JSON, $2=1 if from a shared manifest (nam
         echo "  ! 'claude' CLI not on PATH; cannot register $name" >&2
       fi
       ;;
-    api|service-key|cli|env|claude-connector) : ;;   # no MCP registration; readiness is via --check and the auth-gate/doctor
+    api|service-key|cli|env|claude-connector|codex-app) : ;;   # no MCP registration; readiness is via --check and the auth-gate/doctor
     *) echo "  ? unknown kind '$kind' for $name (add an adapter in connectors-provision.sh)" >&2 ;;
   esac
 }
 
-# register MCP servers for every connector NOT enabledOnDemand, project manifest first
-project_names=""
-if [ -n "$manifest" ]; then
-  project_names="$(jq -r '.connectors[]?.name' "$manifest" 2>/dev/null)"
-  while IFS= read -r c; do [ -n "$c" ] && provision_connector "$c"; done < <(jq -c '.connectors[]?' "$manifest" 2>/dev/null)
-fi
-
-# then every layered SHARED manifest matching this repo — project connectors win on a name clash, and a
-# name already provisioned by an earlier shared manifest is not provisioned twice.
-if [ -n "$shared_manifests" ]; then
-  shared_seen=""
-  while IFS= read -r sf; do
-    [ -n "$sf" ] || continue
-    echo "connectors: layering shared manifest $(basename "$sf")" >&2
-    while IFS= read -r c; do
-      [ -n "$c" ] || continue
-      cname="$(printf '%s' "$c" | jq -r '.name')"
-      printf '%s\n' "$project_names" | grep -qxF "$cname" && continue
-      printf '%s\n' "$shared_seen" | grep -qxF "$cname" && continue
-      shared_seen="$shared_seen
-$cname"
-      provision_connector "$c"
-    done < <(jq -c '.connectors[]?' "$sf" 2>/dev/null)
-  done <<< "$shared_manifests"
-fi
+# register MCP servers for every connector NOT enabledOnDemand, in the loader's order
+while IFS= read -r c; do [ -n "$c" ] && provision_connector "$c"; done < <(printf '%s' "$effective" | jq -c '.connectors[]?' 2>/dev/null)
 
 echo "connectors: done ($added added, $skipped already present)." >&2
 if [ "$added" -gt 0 ]; then

@@ -172,39 +172,49 @@ def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash", pat
     return bool(out)
 
 
-def _home_with(root: Path, name: str, manifests: dict) -> Path:
-    """A throwaway $HOME whose connectors/ holds exactly `manifests` ({filename: raw text})."""
+def _write_root(root_dir: Path, index, providers: dict) -> None:
+    """One registry root: index.json (dict or raw text) plus {provider: dict or raw text} files."""
+    root_dir.mkdir(parents=True, exist_ok=True)
+    (root_dir / "index.json").write_text(index if isinstance(index, str) else json.dumps(index))
+    for provider, record in providers.items():
+        (root_dir / f"{provider}.json").write_text(record if isinstance(record, str) else json.dumps(record))
+
+
+def _home_with(root: Path, name: str, roots: dict) -> Path:
+    """A throwaway home whose identity overlay names exactly `roots` ({boundary: (index, providers)})."""
     home = root / name
-    (home / ".claude" / "connectors").mkdir(parents=True)
-    for filename, text in manifests.items():
-        (home / ".claude" / "connectors" / filename).write_text(text)
+    home.mkdir(parents=True)
+    for boundary, (index, providers) in roots.items():
+        _write_root(home / f"registry-{boundary}", index, providers)
     identity = home / "identity.local.json"
-    identity.write_text(json.dumps(IDENTITY))
+    identity.write_text(json.dumps({**IDENTITY, "connectorRoots": {
+        boundary: str(home / f"registry-{boundary}") for boundary in roots}}))
     return identity
 
 
-def _pal(boundary: str) -> dict:
-    return {"name": "pal", "kind": "api", "boundary": boundary, "secret": {"path": PAL_ENV}}
+def _pal() -> dict:
+    return {"provider": "pal", "scope": "shared-account", "routes": [
+        {"id": "pal", "name": "pal", "kind": "api", "secret": {"path": PAL_ENV}}]}
 
 
-def _manifest(boundary: str, *records: dict) -> str:
-    return json.dumps({"project": f"{boundary}-shared-fixture", "boundary": boundary, "shared": True,
-                       "match": ["no-repo-matches-this/"], "connectors": list(records)})
+def _root(boundary: str, *providers: dict):
+    return ({"boundary": boundary, "match": ["no-repo-matches-this/"]},
+            {record["provider"]: record for record in providers})
 
 
-# (label, manifests, expected-to-fire in a work repo, expected-to-fire in a personal repo)
+# (label, registry roots, expected-to-fire in a work repo, expected-to-fire in a personal repo)
 PAL_SCENARIOS = [
     ("pal undeclared is denied in both boundaries (fail closed)", {}, True, True),
     ("pal declared work: allowed in work, denied in personal",
-     {"w.json": _manifest("work", _pal("work"))}, False, True),
+     {"work": _root("work", _pal())}, False, True),
     ("pal declared personal: denied in work, allowed in personal",
-     {"p.json": _manifest("personal", _pal("personal"))}, True, False),
+     {"personal": _root("personal", _pal())}, True, False),
     ("pal declared in BOTH boundaries is ambiguous, so denied everywhere",
-     {"w.json": _manifest("work", _pal("work")), "p.json": _manifest("personal", _pal("personal"))}, True, True),
-    ("pal declared in an unreadable manifest is undeclared, so denied everywhere",
-     {"w.json": '{"connectors": [ {"name": "pal", "boundary": "work"'}, True, True),
-    ("a record with no boundary of its own and no manifest boundary is undeclared",
-     {"w.json": json.dumps({"connectors": [{"name": "pal", "kind": "api"}]})}, True, True),
+     {"work": _root("work", _pal()), "personal": _root("personal", _pal())}, True, True),
+    ("pal declared in an unreadable record is undeclared, so denied everywhere",
+     {"work": (_root("work")[0], {"pal": '{"provider": "pal", "routes": [ {"id": "pal"'})}, True, True),
+    ("a root whose index declares no boundary is undeclared",
+     {"work": ({"match": []}, {"pal": _pal()})}, True, True),
 ]
 
 
@@ -223,20 +233,15 @@ def main() -> int:
             "auth_mode": "chatgpt", "tokens": {"access_token": "fixture-only"}}))
         dirs = {"work": work, "personal": personal}
 
-        # A "shared": true manifest (e.g. connectors/personal-shared.json) declares a connector once
-        # and it must layer under whichever project manifest matches — including across the
-        # work/personal boundary. Fixture a personal-only connector under the fake $HOME/.claude
-        # (fires() already points HOME at identity_file.parent) so this test needs no real machine
-        # connector: a WORK repo must never pick it up, and a PERSONAL repo under dev/vs-code-projects/
-        # (this manifest's real `match`) does.
-        fixture_connectors = root / ".claude" / "connectors"
-        fixture_connectors.mkdir(parents=True)
-        (fixture_connectors / "personal-shared-fixture.json").write_text(json.dumps({
-            "project": "personal-shared-fixture", "boundary": "personal", "shared": True,
-            "match": ["dev/vs-code-projects/"],
-            "connectors": [{"name": "linear-api", "kind": "api", "boundary": "personal",
-                             "readOnly": False, "gated": False}],
-        }))
+        # A shared-account route in the PERSONAL root reaches every repo the root's `match` hits, and a
+        # WORK repo under the same folder must never pick it up. The fixture root is named in the
+        # main identity overlay, so this test needs no real machine registry.
+        _write_root(root / "registry-personal", {"boundary": "personal", "match": ["dev/vs-code-projects/"]},
+                    {"linear": {"provider": "linear", "scope": "shared-account", "routes": [
+                        {"id": "linear-api", "name": "linear-api", "kind": "api",
+                         "readOnly": False, "gated": False}]}})
+        identity_file.write_text(json.dumps({**IDENTITY, "connectorRoots": {
+            "personal": str(root / "registry-personal")}}))
         shared_personal = root / "dev" / "vs-code-projects" / "some-personal-app"
         shared_work = root / "dev" / "vs-code-projects" / "some-work-app"
         _init_repo(shared_personal, "https://github.com/some-user/some-personal-app.git")
@@ -262,21 +267,30 @@ def main() -> int:
             real = shutil.which(tool_name)
             if real:
                 (no_jq_bin / tool_name).symlink_to(real)
-        declared = _home_with(root, "pal-nojq", {"w.json": _manifest("work", _pal("work"))})
+        declared = _home_with(root, "pal-nojq", {"work": _root("work", _pal())})
         if not fires(work, declared, "", "mcp__pal__codereview", path=str(no_jq_bin)):
             failures.append("SHOULD HAVE BLOCKED declared pal when jq is missing")
+        # The write policy comes through the loader too: a read-only route blocks its write tools only.
+        readonly = _home_with(root, "readonly-route", {"work": (
+            {"boundary": "work", "match": [WORK_ORG_MATCH]},
+            {"dbx": {"provider": "dbx", "scope": "shared-account", "routes": [
+                {"id": "dbx", "name": "dbx", "kind": "mcp-http", "readOnly": True}]}})})
+        if not fires(work, readonly, "", "mcp__dbx__update_row"):
+            failures.append("SHOULD HAVE BLOCKED a write tool on a readOnly registry route")
+        if fires(work, readonly, "", "mcp__dbx__list_rows"):
+            failures.append("FALSE POSITIVE: a read tool blocked on a readOnly registry route")
         if not fires(shared_work, identity_file, "", "mcp__linear-api__create_issue"):
             failures.append("SHOULD HAVE BLOCKED personal-shared linear-api in a WORK repo")
         if fires(shared_personal, identity_file, "", "mcp__linear-api__create_issue"):
             failures.append(
                 "FALSE POSITIVE: personal-shared linear-api blocked in a PERSONAL repo under dev/vs-code-projects/")
 
-    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + 2 * len(PAL_SCENARIOS) + 3
+    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + 2 * len(PAL_SCENARIOS) + 5
     for f in failures:
         print(f"FAIL  {f}")
     print(f"\n{total - len(failures)} pass / {len(failures)} fail "
           f"(MUST_FIRE {len(MUST_FIRE)}, MUST_NOT_FIRE {len(MUST_NOT_FIRE)}, "
-          f"pal scenarios {len(PAL_SCENARIOS)} x 2, jq-missing and shared-linear cases 3)")
+          f"pal scenarios {len(PAL_SCENARIOS)} x 2, jq-missing, read-only route and shared-linear cases 5)")
     return 1 if failures else 0
 
 

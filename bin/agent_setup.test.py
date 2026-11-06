@@ -700,6 +700,7 @@ print(json.dumps(sys.argv[1:]))
 
     def test_work_worker_uses_subscription_despite_old_api_home_and_environment(self):
         shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
         subprocess.run(['git', 'init', '-q', str(self.repo)], check=True, env=self.env)
         subprocess.run(['git', '-C', str(self.repo), 'remote', 'add', 'origin',
                         'https://example.invalid/WorkOrg/project.git'], check=True, env=self.env)
@@ -725,6 +726,7 @@ print(json.dumps(sys.argv[1:]))
 
     def test_worker_with_api_auth_never_starts_native_inference(self):
         shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
         (self.home / '.codex/auth.json').write_text(json.dumps({
             'auth_mode': 'apikey', 'OPENAI_API_KEY': 'fixture-only'}))
         result = self.astra_command('-p', 'work')
@@ -734,6 +736,7 @@ print(json.dumps(sys.argv[1:]))
 
     def test_review_uses_real_subscription_launcher_without_api_exception(self):
         shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
         (self.bin / 'codex-native').write_text('''#!/usr/bin/env python3
 import json, os, sys
 print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
@@ -858,6 +861,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
 
     def test_dispatch_workers_use_real_subscription_launcher(self):
         shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
         subprocess.run(['git', 'init', '-q', str(self.repo)], check=True, env=self.env)
         subprocess.run(['git', '-C', str(self.repo), 'remote', 'add', 'origin',
                         'https://example.invalid/WorkOrg/project.git'], check=True, env=self.env)
@@ -904,6 +908,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
 
     def test_claude_chat_cannot_launch_codex_print_or_native_review(self):
         shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
         self.env['CLAUDECODE'] = '1'
         for args in (('-p', 'review'), ('review', '--base', 'master')):
             with self.subTest(args=args):
@@ -914,6 +919,7 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
 
     def test_claude_chat_can_use_codex_metadata_without_inference(self):
         shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
         self.env['CLAUDECODE'] = '1'
         result = self.astra_command('--version')
         self.assertEqual(result.returncode, 0, result.stderr)

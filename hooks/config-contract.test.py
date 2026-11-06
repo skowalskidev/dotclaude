@@ -1753,7 +1753,7 @@ def check_connector_capability_before_auth() -> None:
     connectors = (ROOT / 'rules/connectors.md').read_text()
     discovery, gate = connectors.split('## The auth-gate protocol', 1)
     for required in ('tools and connected apps/plugins', 'native MCP status',
-                     'project and shared manifests', 'read-only check',
+                     'route record in the registry roots', 'read-only check',
                      'exact requested action', 'CLI version/help', 'current official',
                      'signed-out test browser', 'credential and write'):
         check(required in discovery, 'Capability preflight lost: ' + required)
@@ -1763,6 +1763,9 @@ def check_connector_capability_before_auth() -> None:
           'Connector catalog lost exact-action diagnosis')
     check('only after the checks above' in gate and 'Stop\n   dependent work' in gate,
           'Auth gate must follow capability checks and stop dependent work')
+    for required in ('connector_registry.py resolve', 'record every outcome', 'without asking',
+                     "DON'T ask Simon to reconnect", 'only ranks a route'):
+        check(required in discovery, 'Automatic route fallback lost: ' + required)
     security = (ROOT / 'rules/security.md').read_text()
     check('apply `rules/connectors.md` for capability discovery' in security,
           'Security must delegate auth ordering to the connector owner')

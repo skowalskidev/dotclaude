@@ -18,6 +18,7 @@ SOURCE = Path(__file__).with_name('agent_runtime.py')
 SPEC = importlib.util.spec_from_file_location('agent_runtime_under_test', SOURCE)
 runtime = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runtime)
+registry = runtime.connector_registry
 
 
 class RuntimeTests(unittest.TestCase):
@@ -28,10 +29,13 @@ class RuntimeTests(unittest.TestCase):
         self.root = self.base / 'shared'
         self.home = self.base / 'home'
         self.cwd = self.base / 'workspace'
-        for directory in (self.root / 'connectors', self.root / 'rules',
+        for directory in (self.root / 'rules',
                           self.root / 'bin', self.root / 'dotfiles', self.home, self.cwd):
             directory.mkdir(parents=True, exist_ok=True)
-        self.write('identity.local.json', {'workOrgMatch': 'WorkOrg/'})
+        self.registry_roots = {'work': self.base / 'registry-work', 'personal': self.base / 'registry-personal'}
+        self.legacy = {}
+        self.write('identity.local.json', {'workOrgMatch': 'WorkOrg/', 'connectorRoots': {
+            boundary: str(path) for boundary, path in self.registry_roots.items()}})
         self.write('settings.json', {'hooks': {}})
         (self.root / 'CLAUDE.md').write_text('Canonical instructions v1')
         (self.root / 'rules/example.md').write_text('Canonical rule v1')
@@ -50,12 +54,20 @@ class RuntimeTests(unittest.TestCase):
         file.write_text(json.dumps(value))
         return file
 
+    def rebuild(self):
+        """Write self.legacy (manifest-shaped fixtures) as a registry through the real migration."""
+        for path in self.registry_roots.values():
+            if path.exists():
+                for file in sorted(path.rglob('*'), reverse=True):
+                    file.unlink() if file.is_file() else file.rmdir()
+        tree = registry.build_registry(self.legacy)
+        registry.write_registry(tree, list(self.registry_roots.items()), force=True)
+
     def manifest(self, name='personal', match=None, boundary='personal', connectors=None, **extra):
-        return self.write('connectors/' + name + '.json', {
-            'match': match or ['PersonalOrg/'], 'boundary': boundary,
-            'connectors': connectors or [],
-            **extra,
-        })
+        self.legacy[name] = {'project': name, 'match': match or ['PersonalOrg/'], 'boundary': boundary,
+                             'connectors': connectors or [], **extra}
+        self.rebuild()
+        return self.registry_roots[boundary] / 'projects' / (name + '.json')
 
     def connector(self, name='linear', url='https://example.invalid/mcp', **extra):
         return {'name': name, 'kind': 'mcp-http', 'mcp': {'type': 'http', 'url': url}, **extra}
@@ -82,6 +94,7 @@ class RuntimeTests(unittest.TestCase):
         self.manifest('path', match=[str(self.cwd)])
         path, _, boundary = runtime.project(self.cwd)
         self.assertEqual(path.name, 'remote.json')
+        self.assertEqual(path.parent.parent, self.registry_roots['personal'])
         self.assertEqual(boundary, 'personal')
 
     def test_path_fallback_only_without_remote(self):
@@ -107,12 +120,12 @@ class RuntimeTests(unittest.TestCase):
 
     def test_instruction_policy_rejects_shared_manifest_and_caller_override(self):
         self.shared()
-        shared_file = self.root / 'connectors/shared.json'
-        record = json.loads(shared_file.read_text())
-        self.write('connectors/shared.json', {**record, 'ignoreProjectInstructions': True})
+        self.legacy['shared']['ignoreProjectInstructions'] = True
+        self.rebuild()
         with self.assertRaisesRegex(ValueError, 'only in a project connector manifest'):
             runtime.project(self.cwd)
-        shared_file.unlink()
+        del self.legacy['shared']
+        self.rebuild()
         for args in (['-c', 'project_doc_max_bytes=123'],
                      ['--config=project_doc_max_bytes=123'],
                      ['-cproject_doc_max_bytes=123']):
@@ -144,9 +157,10 @@ class RuntimeTests(unittest.TestCase):
             runtime.project(self.cwd)
 
     def shared(self, name='shared', match=None, boundary='personal', connectors=None):
-        return self.write('connectors/' + name + '.json', {
-            'shared': True, 'match': match or ['PersonalOrg/'], 'boundary': boundary,
-            'connectors': connectors or [self.connector('extra')]})
+        self.legacy[name] = {'shared': True, 'match': match or ['PersonalOrg/'], 'boundary': boundary,
+                             'connectors': connectors or [self.connector('extra')]}
+        self.rebuild()
+        return self.registry_roots[boundary] / 'index.json'
 
     def test_shared_manifest_layers_under_the_project_manifest(self):
         own = self.manifest('project', connectors=[self.connector('linear')])
@@ -156,9 +170,10 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(path, own)
         self.assertEqual([item['name'] for item in manifest['connectors']], ['linear', 'extra'])
         self.assertEqual(manifest['connectors'][0]['mcp']['url'], 'https://example.invalid/mcp')
-        self.assertEqual(manifest['sharedFrom'], ['shared.json'])
+        self.assertEqual(manifest['sharedFrom'], [str(self.registry_roots['personal'])])
         self.assertIn('mcp_servers.extra=', ' '.join(runtime.overrides(self.cwd)[0]))
-        self.assertIn('Shared connector manifests: shared.json', runtime.context(self.cwd))
+        self.assertIn('Shared connector routes from: ' + str(self.registry_roots['personal']),
+                      runtime.context(self.cwd))
 
     def test_shared_manifest_alone_never_takes_the_project_slot(self):
         self.shared()
@@ -735,7 +750,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(output['home'], str(self.home / '.codex'))
         self.assertEqual(output['provider'], 'openai')
         self.assertEqual(output['launch'], str(self.cwd.resolve()))
-        self.assertEqual(output['manifest'], str(self.root / 'connectors/personal.json'))
+        self.assertEqual(output['manifest'], str(self.registry_roots['personal'] / 'projects/personal.json'))
         self.assertEqual(output['args'][-2:], ['app-server', '--stdio'])
         self.assertTrue(any(value.startswith('mcp_servers.') for value in output['args']))
 

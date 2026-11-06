@@ -26,7 +26,7 @@ skill commits + pushes those changes safely.
   Simon** rather than commit it.
 - **The remote is PUBLIC: a push publishes.** Besides secrets, STOP on any real account, org name,
   project name or email in the diff. Those belong in the untracked overlay (`identity.local.json`,
-  `connectors/*.json`, `work/`), and tracked text stays generic ("your work org").
+  the connector registry roots, `work/`), and tracked text stays generic ("your work org").
 - **Authority:** apply `rules/self-healing-config.md`. Its standing scope authorizes validated own-config
   repairs through commit, merge, push, activation and cleanup; do not request those approvals again.
   Never force-push, rewrite published history or use this authorization for another repository.

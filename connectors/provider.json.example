@@ -1,0 +1,76 @@
+{
+  "_comment": "Copy to <root>/<provider>.json, one file per provider. Routes are listed in preference order; bin/connector_registry.py resolve <capability> ranks them by availability, health (<root>/health.json) and scope. `scope` shared-account = one account every project of this boundary can use; per-project = a key for the projects in `serves`. `serves` ranks a route, it never forbids trying it elsewhere in the same boundary. No secret VALUES: only paths and steps.",
+  "provider": "chat",
+  "capabilities": [
+    "chat.read",
+    "chat.send",
+    "chat.upload"
+  ],
+  "scope": "shared-account",
+  "routes": [
+    {
+      "id": "claude-ai",
+      "name": "chat",
+      "kind": "claude-connector",
+      "env": "prod",
+      "readOnly": false,
+      "gated": true,
+      "requires": {
+        "claudeAccount": "workEmail"
+      },
+      "claudeConnector": {
+        "serverName": "claude.ai Chat",
+        "toolPrefix": "mcp__claude_ai_Chat__"
+      },
+      "auth": {
+        "how": "Account-level claude.ai connector. It loads only when the Claude CLI is signed in as the account it is connected on.",
+        "steps": [
+          "claude.ai > Customize > Connectors > Chat > Connect, signed in as that account",
+          "Start a new Claude Code session"
+        ]
+      }
+    },
+    {
+      "id": "codex-app",
+      "name": "chat-codex-app",
+      "kind": "codex-app",
+      "env": "prod",
+      "readOnly": false,
+      "gated": true,
+      "codexApp": {
+        "appId": "<app id from ~/.codex/cache/codex_apps_tools>",
+        "tool": "chat.send_message"
+      },
+      "auth": {
+        "how": "The same provider's official app in the Codex ChatGPT login, reached from a Claude chat through codex exec.",
+        "steps": [
+          "Codex: Apps > Chat > Connect, then start a new Codex process"
+        ]
+      },
+      "recipe": [
+        "The exact codex exec command and prompt rules for this route (references/connectors-setup.md)."
+      ]
+    },
+    {
+      "id": "api-key",
+      "name": "chat-api",
+      "kind": "api",
+      "env": "prod",
+      "readOnly": true,
+      "gated": true,
+      "scope": "per-project",
+      "serves": [
+        "your-project"
+      ],
+      "secret": {
+        "path": "~/path/to/your-project.env"
+      },
+      "auth": {
+        "how": "A project-scoped read key, chmod 600, outside every repo.",
+        "steps": [
+          "Mint the key in the provider console and save it to the secret path"
+        ]
+      }
+    }
+  ]
+}

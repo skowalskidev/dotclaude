@@ -65,7 +65,7 @@ a backstop — the shape `rules/security.md` already uses.
    Only these. Never touch a project CLAUDE.md that isn't the current project's, and never a third party's file.
 5. **The config's executable + wiring layers** — when a lesson needs enforcement or activation, not just
    prose. `~/.claude/hooks/*` (PreToolUse/SessionStart enforcement), `~/.claude/bin/*` (engine scripts),
-   `~/.claude/connectors/*.json` (per-project connector manifests), `~/.claude/dotfiles/*` and the
+   `bin/connector_registry.py` and the public `connectors/*.example` templates (the real registry lives in its local roots), `~/.claude/dotfiles/*` and the
    machine-level files symlinked to them (e.g. `~/.gitignore_global` — tracked here, so a rule needing
    a machine-wide git or shell setting lands in the repo rather than as untracked machine state), and
    the ACTIVATION layer that turns a rule/hook on: `~/.claude/settings.json` (hook wiring,
@@ -74,11 +74,11 @@ a backstop — the shape `rules/security.md` already uses.
    mechanical part) so a change lands COMPLETE, not half-wired. A capability that spans layers (a rule +
    a hook + a `bin` script + a manifest + settings wiring + a skill) gets ALL its needed pieces created
    coherently and NONE that aren't. This is also the home for **adding a connector** (write the
-   `connectors/<project>.json` record; the data-driven guard + provisioner cover the rest).
+   route in the local registry (`references/connectors-setup.md`); the data-driven guard + provisioner cover the rest).
 
 **Structure/altitude router — keep the layout clean.** Route each piece to its right home: always-on
 behavioral → `rules/`; deep how-to → `references/`; executable enforcement → `hooks/`; engine logic →
-`bin/`; user-invocable flow → `skills/`; per-project specifics → `connectors/*.json` (or a project
+`bin/`; user-invocable flow → `skills/`; per-project specifics → the local connector registry (or a project
 `CLAUDE.local.md`, or the project's auto-memory when its instructions are ignored, per
 `references/project-instructions.md`); deterministic wiring → `settings.json`. **Top-level `~/.claude/CLAUDE.md` stays a
 thin index** (one line per rule/reference), never the detail.

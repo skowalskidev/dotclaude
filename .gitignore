@@ -23,8 +23,8 @@
 !/rules/
 !/bin/
 !/connectors/
-# Real connector manifests are a PER-USER untracked overlay (like identity.local.json).
-# Only the *.example templates are tracked.
+# The real connector registry lives OUTSIDE this repo (connectorRoots in identity.local.json).
+# Only the *.example templates are tracked here.
 /connectors/*.json
 !/contracts/
 !/apps/

@@ -127,12 +127,13 @@ else
 fi
 echo
 
-# 5) Connectors — per-project, optional. Reuse the skill; or restore your own manifests by hand.
-echo "5. Connectors (optional, per project)"
-if ls "$ROOT"/connectors/*.json >/dev/null 2>&1; then
-  ok "$(ls "$ROOT"/connectors/*.json | wc -l | tr -d ' ') connector manifest(s) present"
+# 5) Connectors — a local registry per boundary, outside this repo, named in identity.local.json.
+echo "5. Connectors (optional, one registry root per boundary)"
+roots="$(python3 "$ROOT/bin/connector_registry.py" roots 2>/dev/null || true)"
+if [ -n "$roots" ]; then
+  printf '%s\n' "$roots" | while IFS="$(printf '\t')" read -r b p state n rest; do ok "$b registry: $p ($state, $n)"; done
 else
-  ok "none yet — in a project run /sk:setup-connectors to set them up, or copy your own connectors/<project>.json in"
+  ok "none yet: set connectorRoots in identity.local.json, copy connectors/*.example into each root, or run /sk:setup-connectors in a project"
 fi
 echo
 

@@ -2,12 +2,13 @@
 # SessionStart hook: connector precheck. Harness-agnostic (Claude app, CLI, Conductor). EVENT-DRIVEN —
 # runs at session start; NO timers, NO cron, NO `claude mcp list` (slow). Fast (<100ms), no-network.
 #
-# Two things, scoped to THIS project's manifest, and CAREFUL not to mislead:
+# Two things, scoped to THIS project's effective connector set (bin/connector_registry.py), and CAREFUL
+# not to mislead:
 #   (a) NEEDS RE-AUTH — a connector that IS available this session (present in ANY scope: local + user +
 #       the committed .mcp.json) AND is flagged in ~/.claude/mcp-needs-auth-cache.json -> surface it up
 #       front with the numbered step (auth-gate). Only ever flags a server that actually exists this
 #       session, so it can't tell Claude a working connector is broken.
-#   (b) NOT SET UP — a manifest MCP server genuinely absent from EVERY scope this session -> note it and
+#   (b) NOT SET UP — a registry MCP server genuinely absent from EVERY scope this session -> note it and
 #       point to /sk:setup-connectors. Informational + conditional; it does NOT auto-provision, does NOT
 #       order a restart, and does NOT claim an available server is missing.
 # See rules/connectors.md (behavior) + references/connectors-setup.md (system).
@@ -24,9 +25,9 @@ cwd="$(printf '%s' "$payload" | jq -r '.cwd // empty' 2>/dev/null)"
 [ -n "$cwd" ] || cwd="$PWD"
 
 manifest="$("$PROVISION" --manifest "$cwd" 2>/dev/null)"
-[ -n "$manifest" ] && [ -f "$manifest" ] || exit 0
+[ -n "$manifest" ] || exit 0
 
-auth_step_for() { jq -r --arg n "$1" '.connectors[]? | select(.name==$n) | (.auth.steps[0] // "run /mcp and re-authenticate")' "$manifest" 2>/dev/null; }
+auth_step_for() { printf '%s' "$manifest" | jq -r --arg n "$1" '.connectors[]? | select(.name==$n) | (.auth.steps[0] // "run /mcp and re-authenticate")' 2>/dev/null; }
 
 # Classify from --check (availability is all-scopes): which servers are available vs genuinely not set up.
 available=""; notset=""
@@ -51,7 +52,7 @@ if [ -f "$AUTHC" ]; then
     needs="${needs}  - ${n} — $(auth_step_for "$n")
 "
   done <<EOF
-$(jq -r '.connectors[]?.name' "$manifest" 2>/dev/null)
+$(printf '%s' "$manifest" | jq -r '.connectors[]?.name' 2>/dev/null)
 EOF
 fi
 
@@ -68,7 +69,7 @@ if [ -n "$notset" ]; then
   msg="${msg}
 
 NOT SET UP for this project this session (no tools are loaded for these): ${notset}
-This matters ONLY if the task actually needs one of them. If it does, tell the user up front to run /sk:setup-connectors (it provisions them + reports any manual steps), then restart. Do NOT claim you can't do something that a DIFFERENT, already-loaded connector CAN do, and do NOT fabricate access. If a connector you need already works, just use it."
+This matters ONLY if the task actually needs one of them. If it does, first run ~/.claude/bin/connector_registry.py resolve <capability> and try the other routes in its order; only when every route is blocked, tell the user up front to run /sk:setup-connectors (it provisions them + reports any manual steps), then restart. Do NOT claim you can't do something that a DIFFERENT, already-loaded connector CAN do, and do NOT fabricate access. If a connector you need already works, just use it."
 fi
 
 jq -cn --arg c "$msg" '{hookSpecificOutput:{hookEventName:"SessionStart",additionalContext:$c}}'

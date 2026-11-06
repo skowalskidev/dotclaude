@@ -16,6 +16,7 @@ mkdir -p "$ROOT/dotfiles" "$ROOT/hooks" "$ROOT/.githooks" "$ROOT/connectors" \
   "$ROOT/skills/gstack" "$ROOT/bin" "$SBHOME"
 cp "$HERE/bootstrap.sh" "$ROOT/dotfiles/bootstrap.sh"
 cp "$HERE/../bin/agent_runtime.py" "$ROOT/bin/agent_runtime.py"
+cp "$HERE/../bin/connector_registry.py" "$ROOT/bin/connector_registry.py"
 cp "$HERE/codex-AGENTS.md" "$ROOT/dotfiles/codex-AGENTS.md"
 cp "$HERE/../identity.example.json" "$ROOT/identity.example.json"
 cp "$HERE/gitignore_global" "$ROOT/dotfiles/gitignore_global" 2>/dev/null || printf '*.key\n' > "$ROOT/dotfiles/gitignore_global"

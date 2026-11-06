@@ -1,6 +1,6 @@
 # Native agent hosts
 
-Keep rules, references, skills, identity and project connector manifests under `~/.claude`.
+Keep rules, references, skills and identity under `~/.claude`; the connector registry stays in its local roots (`references/connectors-setup.md`).
 Use `bin/agent_runtime.py` for native host policy and Codex adaptation; use `settings.json` for shared hook commands.
 Keep account credentials in each host's own store. Never copy OAuth tokens between hosts or profiles.
 Use the existing ChatGPT subscription in `~/.codex` for every Codex role, including reviews.
@@ -9,7 +9,7 @@ Use the existing ChatGPT subscription in `~/.codex` for every Codex role, includ
 
 Apply `references/project-instructions.md` before any project-doc read. Start Claude through
 `~/.claude/bin/claude-launch.py` (or the sourced `claude` shell function) and Codex through
-`~/.claude/bin/codex-launch.py`. Both resolve the selected project's private manifest before native
+`~/.claude/bin/codex-launch.py`. Both resolve the selected project's registry record before native
 instruction loading. The Claude launcher sets the native project-instruction exclusion when the flag
 is true; Codex sets `project_doc_max_bytes=0`, while the linked global `~/.codex/AGENTS.md` stays active.
 SessionStart reports the value. Restart the process and chat after a flag change; existing context
@@ -38,7 +38,8 @@ Otherwise it prints "Reading additional input from stdin..." and sits until the 
 second-opinion run that lost 540 seconds with no answer). TEST: no agent-run `exec` line omits `</dev/null`.
 
 Set `AGENT_ALLOW_CROSS_PROVIDER=1` on the dispatch when Simon names a GPT/Codex worker from a Claude
-chat (his explicit named-host ask). It lets `bin/agent_setup.py` run the one cross-provider worker that
+chat (his explicit named-host ask), or for a `codex-app` connector route the resolver lists first
+(his standing instruction, `references/connectors-setup.md`). It lets `bin/agent_setup.py` run the one cross-provider worker that
 otherwise fails closed with "no cross-provider worker or reviewer is allowed". The ChatGPT subscription
 billing is unaffected, and the guard's default block stays for every switch Simon did not ask for.
 Record the real Claude `orchestrator_model` and add `"worker_provider": "openai"` to the spec; never put an
@@ -54,7 +55,7 @@ Keep model selection in native Codex configuration; the launcher enforces subscr
 The adapter never replaces built-in model instructions or edits credential files.
 
 Each launch resolves `--cd`, then `CONDUCTOR_WORKSPACE_PATH`, then the current directory;
-matches the git origin to one manifest; and passes current MCP definitions and hook dispatcher
+matches the git origin to one registry project; and passes current MCP definitions and hook dispatcher
 definitions to the real executable through native `-c` arguments. No projection is written to disk.
 An ownership receipt under the chosen home's `.agent-runtime/` stores server names only; it disables
 removed entries so an obsolete native registration cannot silently become active again.
@@ -66,7 +67,7 @@ TEST: `~/.claude/bin/codex-launch.py --version` reports the selected binary with
 
 Use `identity.local.json` and git origin to select project connectors, not model billing.
 Both work and personal projects use the same Codex subscription home. Service credentials stay
-boundary-scoped; the session hook rejects another boundary or manifest inside a running process.
+boundary-scoped; the session hook rejects another boundary or project inside a running process.
 Start a separate process when switching projects. Keep an explicitly chosen model intact.
 
 Restart the Codex process after changing connector definitions or hook event registrations.
@@ -117,21 +118,21 @@ If it is missing, run `~/.claude/bin/codex-launch.py login` and complete the Cha
 Do not read, copy or delete old `~/.codex-work` credentials; that API home is no longer selected.
 Restart Conductor's Codex processes after this billing change; existing processes retain old auth.
 
-Read `references/connectors-setup.md`. The manifest's service/CLI/secret metadata stays authoritative.
+Read `references/connectors-setup.md`. The registry's service/CLI/secret metadata stays authoritative.
 Only supported stdio/HTTP MCP records become native Codex MCP settings; non-MCP records stay metadata.
 On-demand and opposite-boundary connector records remain disabled. Unsupported fields fail with a
 named validation error instead of silently dropping settings. Literal HTTP auth headers are rejected.
 
 Run `python3 ~/.claude/bin/agent_runtime.py doctor --cwd <workspace>` for metadata-only diagnostics.
 Run the launcher with `mcp list` to check native status, then `mcp login <name>` when OAuth is missing.
-Authenticate to the project account in the browser; the manifest's Claude `/mcp` steps are not Codex UI.
+Authenticate to the project account in the browser; the route's Claude `/mcp` steps are not Codex UI.
 Never report a connector authenticated merely because it is declared or registered.
 
 ## Verification
 
 Run `python3 bin/agent_runtime.test.py` and `python3 hooks/config-contract.test.py` from the config root.
 Keep tests inside temporary homes with fake executables; do not spend model calls or contact cloud services.
-Verify a fresh Conductor session names the selected manifest and applies shared instructions before tools.
+Verify a fresh Conductor session names the selected registry project and applies shared instructions before tools.
 Keep the native runtime's trust/auth steps explicit in the hand-back when human interaction remains.
 
 ## Upstream references

@@ -5,8 +5,9 @@ These are the canonical personal instructions for Claude Code and Codex; this fi
 the native Codex entrypoint. Apply the shared rules subject to the host's higher-priority instructions.
 Read the current files again after a config update; do not rely on an earlier session's contents.
 
-Before using or declaring a project connector unavailable, read `~/.claude/rules/connectors.md`,
-`~/.claude/references/connectors-setup.md`, and the matching `~/.claude/connectors/*.json`.
+Before using or declaring a project connector unavailable, read `~/.claude/rules/connectors.md` and
+`~/.claude/references/connectors-setup.md`, then run `python3 ~/.claude/bin/connector_registry.py resolve
+<capability> --cwd <workspace>` and try its routes in order.
 Resolve the project from its git origin and check its identity/environment before accessing services.
 The native launcher selects the manifest and credential home; its startup context names them.
 If no startup context appeared, run `python3 ~/.claude/bin/agent_runtime.py context --cwd <workspace>`.
