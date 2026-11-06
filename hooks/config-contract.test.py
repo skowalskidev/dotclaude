@@ -1426,6 +1426,9 @@ def check_codex_subscription_only_inference() -> None:
     result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")])
     check(result.returncode == 0,
           f"Git commit/push guard regressions failed:\n{result.stdout}\n{result.stderr}")
+    result = run(["python3", str(ROOT / "hooks/worktree-path-guard.test.py")])
+    check(result.returncode == 0,
+          f"Worktree/live-config edit guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_secret_echo_guard_denies_printed_credentials_both_ways() -> None:

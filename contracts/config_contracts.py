@@ -2050,8 +2050,8 @@ CONTRACTS: dict[str, dict] = {
     # See TRACKED_SKILL_PLUGINS in hooks/config-contract.test.py for why.
     # --- Hooks (wired in settings.json) --------------------------------------------
     "hooks/worktree-path-guard.py": {
-        "mission": "An edit from inside a worktree never silently lands in the main checkout by using the main repo's absolute path.",
-        "purpose": "PreToolUse: asks (not a hard deny) before an Edit/Write from a worktree session that targets the main checkout or a sibling worktree.",
+        "mission": "An edit from inside a worktree never silently lands in the main checkout by using the main repo's absolute path, and parallel sessions never edit the live ~/.claude checkout's shared working tree.",
+        "purpose": "PreToolUse: asks (not a hard deny) before an Edit/Write from a worktree session that targets the main checkout or a sibling worktree; denies an Edit/Write into a tracked file of the live ~/.claude checkout and names the config-update worktree command.",
         "criteria": [
             "Fires only when the session cwd is under `<main>/.claude/worktrees/<name>/` AND the "
             "resolved target is under the main root but OUTSIDE this worktree (the main tree or a "
@@ -2062,6 +2062,10 @@ CONTRACTS: dict[str, dict] = {
             "/tmp), or for a non-edit tool.",
             "Fails open on a malformed payload or an unresolvable cwd/path. A guard that breaks the "
             "session gets switched off.",
+            "Denies, from any session, an Edit/Write whose resolved target is under the live ~/.claude "
+            "checkout, outside its .claude/worktrees/, and not git-ignored there; the reason names the "
+            "config-update worktree command. Ignored areas (projects/ memory, work/, .context) stay open. "
+            "hooks/worktree-path-guard.test.py covers both checks and runs inside the contract suite.",
         ],
     },
     "hooks/git-commit-guard.py": {
