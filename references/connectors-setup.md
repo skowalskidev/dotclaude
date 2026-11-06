@@ -161,9 +161,12 @@ account route. Record another host's observed status without inventing an MCP re
 adapter kind. Keep real workspace/user IDs and proof links in the ignored overlay, never this catalog.
 
 DO confirm the live workspace, signed-in identity and recipient/channel before sending. Resolve an
-ambiguous display name before any write. A requested setup test authorizes one self-DM; return its
-permalink and record the result. Accept Simon's screenshot or receipt as evidence without sending a
-second test. Label evidence from another host accurately.
+ambiguous display name before any write: list every channel or user whose name contains the stem
+Simon named (e.g. `engineer*`). DO wait for his pick when more than one matches, even if one matches
+exactly; a preference recorded in the manifest overlay settles it.
+TEST: a send to a named channel cites the full match list, or the recorded preference it used.
+A requested setup test authorizes one self-DM; return its permalink and record the result.
+Accept Simon's screenshot or receipt as evidence without sending a second test. Label evidence from another host accurately.
 
 DO treat "when this work is done, message <recipient> with <purpose>" as authorization for that one
 completion message. Carry the request in the existing plan, finish and verify the work, write a short
