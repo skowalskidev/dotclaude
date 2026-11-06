@@ -61,6 +61,8 @@ current, reconcile against it.
 
 ## Session record, engines and judge
 
+- DO read `~/.claude/references/workflow-loops.md` at intake on every run and apply its whole shared
+  lifecycle: supervisor order, run options, reference setup, engines, judge, handoff and resume.
 - DO detect a handoff FIRST: when `--resume` gets a dashboard link/HTML/plan (or a bare pasted link),
   run `workflow-dashboard.py resolve --target`, resume the recorded engine from its `PLAN_PATH`, and
   retain its recorded options without a second interview. Hand off with
@@ -73,10 +75,10 @@ current, reconcile against it.
 - DO dispatch the selected engine within existing authorization and any required target approval:
   `current` runs the stages below in this session; `ralph` runs `/sk:work-ralph-loop` with the same
   plan and confirmed options, and its results return here for stages 7-10.
-- DO retain supervisor ownership of the plan, dashboard and any enabled independent judge. Run the
-  shared judge stage after each build result and route its gaps back to the selected engine.
-- DO run § Build from a supplied design source from intake whenever a design source is supplied, by
-  anyone and in any format, or a pixel-perfect match is asked for. Hold each such section at `review`
+- DO retain supervisor ownership of the plan, dashboard and any enabled independent judge; step 5
+  places the judge after each build result and routes its gaps back to the selected engine.
+- DO run `references/workflow-loops.md` § Build from a supplied design source from intake whenever a
+  design source is supplied, by anyone and in any format, or a pixel-perfect match is asked for. Hold each such section at `review`
   until its measurement report is PASS with its difference images and every exception named; a
   side-by-side read by eye never passes it, on either engine and with the judge off.
 - DO run a design build's deliverables per `references/parallelization.md` § One isolated worker per
@@ -98,9 +100,12 @@ current, reconcile against it.
    `prompt-derived`, and his approval is the ratification. That is the common case, not the edge one.
 3. Verify the foundation assumptions (read the real code, check online, run an empirical spike) — and
    read the project's contracts before changing any unit that has one. When the task supplies a design
-   source, finish its intake here, before step 5 briefs a builder.
+   source, finish the intake in `references/workflow-loops.md` § Build from a supplied design source
+   here, before step 5 briefs a builder.
 4. Plan tree-structured coverage and write needed tests; defer execution to step 9.
 5. Implement the whole authorized task batch, including every feature, on the selected engine; delegate independent edits using the saved setup and inspect the returned diffs on disk.
+   After each item: verify its criteria, persist, refresh the dashboard, and with the judge on run
+   `references/workflow-loops.md` § Shared judge stage on that revision, routing its gaps back here.
 6. Observability + failure handling; never fail silently, no dead-end states.
 7. Review before the heavy gate: `/sk:ship-review` over the whole diff, with step 8's criterion judges in
    the same fan-out, and fix its confirmed findings.
