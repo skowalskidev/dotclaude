@@ -93,6 +93,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("secret-echo-guard-denies-printed-credentials-both-ways",
      "A Bash command that prints a credential value is denied, awkward variants included, while a consumed value, a help verb and text that names a command all pass."),
+    ("outbound-message-guard-caps-messages-to-others",
+     "A Slack or Gmail send or draft over the 5-line TLDR cap is denied, while a short message, a read, a canvas, the one-shot override and the --check CLI behave as documented."),
     ("agent-setups-preserve-provider-choice",
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
@@ -1442,6 +1444,19 @@ def check_secret_echo_guard_denies_printed_credentials_both_ways() -> None:
     result = run(["python3", str(ROOT / "hooks/secret-echo-guard.test.py")])
     check(result.returncode == 0,
           f"Secret-echo guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_outbound_message_guard_caps_messages_to_others() -> None:
+    groups = settings().get("hooks", {}).get("PreToolUse", [])
+    wired = [g.get("matcher") for g in groups
+             if any(h.get("command", "").endswith("hooks/outbound-message-guard.py") for h in g.get("hooks", []))]
+    check(bool(wired), "settings.json must wire hooks/outbound-message-guard.py on PreToolUse.")
+    for tool in ("mcp__claude_ai_Slack__slack_send_message", "mcp__claude_ai_Gmail__send_message"):
+        check(any(m and re.fullmatch(m, tool) for m in wired),
+              f"The outbound-message guard matcher must match {tool}.")
+    result = run(["python3", str(ROOT / "hooks/outbound-message-guard.test.py")])
+    check(result.returncode == 0,
+          f"Outbound-message guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_agent_setups_preserve_provider_choice() -> None:

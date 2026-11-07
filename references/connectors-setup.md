@@ -239,8 +239,9 @@ A requested setup test authorizes one self-DM; return its permalink and record t
 Accept Simon's screenshot or receipt as evidence without sending a second test. Label evidence from another host accurately.
 
 DO treat "when this work is done, message <recipient> with <purpose>" as authorization for that one
-completion message. Carry the request in the existing plan, finish and verify the work, write a short
-factual update with the relevant result/link, send once, and return the Slack permalink. Explicit
+completion message. Carry the request in the existing plan, finish and verify the work, write the
+update to `references/tldr-report-formats.md` § Message for someone else, send once, and return the
+Slack permalink. Explicit
 wording supplied by Simon stays unchanged; otherwise summarize the completed task. Ask only for a
 missing or ambiguous recipient, completion condition or required access; do not re-ask permission for
 the same authorized message. If Simon asks only for a draft, show it and wait. General connector setup
@@ -258,15 +259,18 @@ command in its `recipe`; the record holds the app id. Every `codex-app` run (ver
 2. Passes `-C <dir>` and absolute file paths (exec otherwise runs in the repo directory and relative
    paths break), and `-s workspace-write -c sandbox_workspace_write.network_access=true` when the run
    uploads bytes with `curl`.
-3. Verifies the workspace by display name OR URL subdomain (a workspace-list tool can return either)
+3. Measures the draft first: `python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`;
+   expect `ok`, and cut the draft on exit 1. The PreToolUse guard does not see a `codex exec` prompt.
+4. Verifies the workspace by display name OR URL subdomain (a workspace-list tool can return either)
    and the signed-in identity, checks the target conversation for an existing copy, sends exactly once,
    never retries, and returns the permalink. Check the conversation before any retry.
-4. Sets `AGENT_ALLOW_CROSS_PROVIDER=1`, authorized for a resolver-ordered `codex-app` route by Simon's
+5. Sets `AGENT_ALLOW_CROSS_PROVIDER=1`, authorized for a resolver-ordered `codex-app` route by Simon's
    standing instruction (2026-11-06) as well as by a named-host ask (`references/agent-hosts.md`).
 The per-message authorization above still gates every send, on every route.
 
-DO apply `rules/communication.md` and `rules/copy-quality.md` to every outgoing message.
-Use those existing TL;DR and actionable-copy standards; do not define separate Slack writing rules.
+DO apply `rules/communication.md` and `rules/copy-quality.md` to every outgoing message, before the
+send call, on every route. Use those existing TL;DR and actionable-copy standards; do not define
+separate Slack writing rules.
 
 DO obey runtime approvals and existing write gates. If a send times out or returns an uncertain
 result, check the target conversation before retrying; never duplicate a message on assumption.

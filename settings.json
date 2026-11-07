@@ -65,6 +65,16 @@
         ]
       },
       {
+        "matcher": "mcp__.*([Ss]lack|[Gg]mail).*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/outbound-message-guard.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit",
         "hooks": [
           {

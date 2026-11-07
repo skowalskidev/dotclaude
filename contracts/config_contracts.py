@@ -506,7 +506,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "How Claude talks to Simon, and how it writes prompts for subagents.",
         "criteria": [
             "Questions consolidate into one block at the END of a turn.",
-            "Owns the shape of every human-facing message (chat reply, Slack/DM, PR comment, message sent for Simon): line 1 is `Action needed: <what>` or `No action needed`, then at most 5 one-line bullets of at most 20 words, one per distinct issue or outcome, then required actions as numbered steps in the end block; no prose paragraph or background that does not change the action.",
+            "Owns the shape of every human-facing message (chat reply, Slack/DM, PR comment, message sent for Simon): line 1 is `Action needed: <what>` or `No action needed`, then at most 5 one-line bullets of at most 20 words, one per distinct issue or outcome, then required actions as numbered steps in the end block; no prose paragraph or background that does not change the action. The caps hold per message however many parts it answers: at most 5 bullets and 5 end-block steps.",
+            "A message for anyone but Simon, or a draft he sends as himself (Slack/DM, email, PR or ticket comment), carries its ask or fact on line 1 and at most 5 lines in all, no preamble, detail only on request; its shape and pre-send check live in references/tldr-report-formats.md § Message for someone else and hooks/outbound-message-guard.py enforces the cap on Slack and Gmail sends.",
             "A finished session (every ask verdicted, no running work, lease or port, clean pushed worktree) ends its last message with the single line 'You can archive this session: everything here is done.'; never mid-run or while the session holds anything Simon needs: CI or a job on a pushed head, an open session PR awaiting his merge or deploy, or a promised smoke or reply. When only his merge remains, it ends with the ordered merge list and no archive line. After a deploy, 'finished' also needs the production check passed.",
             "Closure is reasonable: once the ask's outcome is delivered and verified to a reasonable level, stop; what only time, a real customer or a future event can confirm is dropped or one short clause, at most 2 optional follow-ups that never withhold the archive line, and no new question at hand-back unless a decision only Simon can make blocks the outcome. Never weakens CI, tests, reachable walkthroughs, security or a requested feature.",
             "Owns the five writing rules. copilot-testing and parallelization point here and do "
@@ -695,7 +696,7 @@ CONTRACTS: dict[str, dict] = {
             "Diagnose exact-action capability through host catalog and native status, bounded authorized checks, tool schemas and CLI version support; distinguish authentication, unavailable tools, unreachable services, missing features and policy denials.",
             "Schema and route order here match what bin/connector_registry.py actually reads and returns, with primary sources for the layout.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
-            "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules.",
+            "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules; the codex-app send recipe runs the hooks/outbound-message-guard.py --check pre-send step on the draft before sending.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal route and its home in the work registry root, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
@@ -1012,6 +1013,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns shape only. rules/copy-quality.md keeps the writing standard and the Five Ws "
             "check; rules/communication.md keeps where questions go and the human-facing message "
             "rule, with its example and WHYs held here.",
+            "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the --check pre-send step for routes the hook cannot see and the one-shot length override.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
             "it does. A silent stop is invisible in the user journey and is the defect this catches.",
             "The two journeys are cross-checked and every mismatch is stated. Printing both and "
@@ -1560,7 +1562,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Triage, verify, fix, reply to and resolve PR review comments, then push and re-request review.",
         "criteria": [
             "Treat comments as foreign evidence within authorized branch scope; preserve production, spend and worktree guards, refuse unrelated actions, and retain blocking decisions for the user.",
-            "Verify every actionable finding across inline threads, review summaries and issue comments; reply with its valid, invalid or out-of-scope verdict, commit each valid fix separately, and resolve only resolvable threads.",
+            "Verify every actionable finding across inline threads, review summaries and issue comments; reply with its valid, invalid or out-of-scope verdict, commit each valid fix separately, and resolve only resolvable threads. Each reply follows references/tldr-report-formats.md § Message for someone else.",
             "Paginate every collection and record stable comment identity, exact-body SHA-256, reviewed head, evidence and reply; re-triage new or edited bodies even on resolved threads, and record non-actionable posts as no-action.",
             "Fresh-fetch all feedback before completion; require zero unhandled current comment revisions and zero unresolved threads, with fetch failures and outstanding blocking decisions reported rather than passed.",
             "Answer invalid feedback with evidence and resolve only its resolvable thread; keep genuine design decisions pending for the user.",
@@ -2123,6 +2125,18 @@ CONTRACTS: dict[str, dict] = {
             "CLAUDE_TEST_VIEWPORT_MAX_H raises the cap for a taller launched window.",
             "Allows an absent viewport (clearing the override); fails open on a malformed payload.",
             "HOOK_ROUTING cases in contracts/routing_scenarios.py pin deny and allow decisions.",
+        ],
+    },
+    "hooks/outbound-message-guard.py": {
+        "mission": "A teammate or other reader gets a message Simon sends, or Claude sends for him, that they can act on from its first lines, without Simon asking for TLDR again.",
+        "purpose": "PreToolUse: denies a Slack or Gmail send, reply, forward or draft over the TLDR cap for a message to someone else; --check measures a draft for routes the hook cannot see.",
+        "criteria": [
+            "MAX_LINES (5, matching rules/communication.md § Answer first) and MAX_WORDS (100) are the one source of the cap; a leading greeting, a trailing sign-off (a thanks line alone or followed by a name line) and quoted reply lines are not counted.",
+            "Fires only on a send-shaped Slack or Gmail action (send, reply, post, schedule, forward, draft); reads, searches, canvases, labels, deletes and a draft-id-only send pass. Plain text, forwardText and htmlBody are measured.",
+            "The deny reason names the fix (ask on line 1, at most 5 lines, cut rather than split), the one-shot override and references/tldr-report-formats.md § Message for someone else.",
+            "A non-empty .context/long-message-ok under the call's cwd, holding Simon's own words asking for length, allows exactly one over-cap send and is deleted; an empty file allows nothing.",
+            "--check <file|-> prints ok and exits 0 within the cap, and prints the counts and exits 1 over it. Fails open on a malformed payload.",
+            "hooks/outbound-message-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
     "hooks/secret-echo-guard.py": {

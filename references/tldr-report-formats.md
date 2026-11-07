@@ -2,8 +2,8 @@
 
 On-demand catalog. Sole owner of the SHAPE of the human-readable blocks that describe a piece of
 work: what the user goes through, what the system does, what changed on this branch, and, when the change
-is near money, what it does to a payment path. Read it when
-writing a plan, a ticket, a PR body, or an end report.
+is near money, what it does to a payment path, plus the shape of a message to someone else. Read it
+when writing a plan, a ticket, a PR body, an end report, or a message a teammate will read.
 
 **Boundary.** This file owns the SHAPE — which parts, in what order, and the test each block has to
 pass. `rules/copy-quality.md` owns the WRITING: lead with the answer, the Five Ws completeness check,
@@ -41,7 +41,54 @@ WHY, one per rule:
 - Subagent prompts follow the writing rules: a vague delegation returns vague work, and the subagent
   cannot ask a follow-up.
 - A pasted example is not a spec: asking him to confirm its specifics spends the one-question-block
-  channel on detail he never meant as a spec.
+  channel on detail he never meant as a spec. He shows the SHAPE of what he wants; a number, name or
+  step inside it is illustration, not a requirement.
+- The caps hold per message, not per part: a reply answering three questions that gives each part its
+  own bullets and step block reaches 9 bullets, which is how replies kept growing.
+- State the expected result: "Run X" with no outcome can only be obeyed, never checked, so neither
+  of you can tell it went wrong.
+- Close the session without invented checks: a time-only "the next X will confirm" item blocks
+  archiving for nothing.
+- The five writing rules live in `rules/communication.md`; `copilot-testing` and `parallelization.md`
+  point there and do not restate them.
+
+## Message for someone else
+
+The rule and its number live in `rules/communication.md` § Answer first. This section holds the shape,
+the pre-send check and the override. It covers every message read by anyone but Simon: a Slack/DM or
+email to a teammate, a PR or ticket comment, and a draft Simon sends as himself.
+
+DO write it as:
+1. Line 1: the ask or the fact the reader needs, naming the real thing (PR number, screen, date).
+2. At most 4 more lines, each one fact, link or step the reader acts on.
+
+**DON'T** open with a greeting run-up or context the reader already has, add the `Action needed`
+line (that shape is for Simon), recap, or close with "let me know if you have questions". Offer
+detail in one clause ("details on request") only when it exists.
+NUMBER: at most 5 non-blank lines and 100 words, a one-line greeting and a short sign-off excluded.
+
+```
+Hey, PR #812 (search cache) is ready for your review.
+- Adds one nullable column; nothing else touches prod
+- Needs your yes before Monday's deploy
+```
+
+DO show a draft for Simon as the message alone in one quote block, under a chat reply that itself
+follows § Human-facing messages. Both stay TLDR: the draft at most 5 lines, the reply around it with
+no commentary restating the draft.
+
+DO measure a draft before sending it by any route the hook cannot see (a `codex-app` run,
+`gh pr comment`, `gh api .../replies`):
+`python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`. Expect `ok` and exit 0;
+exit 1 prints the counts. Cut the draft; DON'T split it into several messages.
+`hooks/outbound-message-guard.py` denies a Slack or Gmail send, reply, forward or draft over the cap.
+When Simon's own message asked for the length ("send the team the full write-up"), write his words
+into `.context/long-message-ok` in the working directory; the guard allows the next send only and
+deletes the file.
+WHY: a teammate reads the notification preview and the first lines; a long message from Simon reads
+as a long instruction from him.
+TEST: every message to someone else has at most 5 lines and 100 words, or traces to a
+`.context/long-message-ok` quoting Simon's request for length.
 
 ## The glance test — what every block must pass
 

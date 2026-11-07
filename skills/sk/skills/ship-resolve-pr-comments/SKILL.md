@@ -154,6 +154,8 @@ For each valid finding, in order:
    For review summaries and issue comments, post a PR issue comment linking the source comment
    and addressing its findings; record the reply URL. Use the same reply route for invalid or
    out-of-scope feedback. Do not edit another author's comment.
+   DO write every reply to `references/tldr-report-formats.md` § Message for someone else, its
+   pre-send check included.
 
 5. **Resolve only a resolvable thread** by its `PRRT_` id (the thread id from Step 0, not a comment id):
 
