@@ -29,6 +29,7 @@ class CapacityProbeTests(unittest.TestCase):
     def test_fixed_allowlist_rejects_shells_writes_and_pid_injection(self):
         for args in (['/bin/sh', '-c', 'true'], ['/bin/ps', '-p', '1;id', '-o', 'lstart='],
                      ['/usr/sbin/sysctl', '-w', 'kern.maxproc=1'],
+                     ['/usr/sbin/sysctl', '-n', 'kern.memorystatus_vm_pressure_level'], ['/usr/bin/vm_stat'],
                      ['/bin/kill', '-9', '1'], ['/bin/ps', '-p', '0', '-o', 'lstart=']):
             self.assertFalse(capacity_probes.allowed(args), args)
         self.assertTrue(capacity_probes.allowed(capacity_probes.IOSTAT))

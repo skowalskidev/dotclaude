@@ -15,9 +15,6 @@ IOSTAT = ['/usr/sbin/iostat', '-d', '-C', '-n', '0', '-c', '2', '-w', '1']
 
 def allowed(args):
     if args == IOSTAT or args in (
-            ['/usr/bin/vm_stat'],
-            ['/usr/sbin/sysctl', '-n', 'hw.memsize'],
-            ['/usr/sbin/sysctl', '-n', 'kern.memorystatus_vm_pressure_level'],
             ['/bin/ps', '-axo', 'pid=,ppid=,pcpu=,etime=,command='],
             ['/bin/ps', '-axo', 'pgid=,stat=']):
         return True
@@ -57,7 +54,7 @@ def probe(args, **kwargs):
 
 @contextmanager
 def bridge(root):
-    """Expose only fresh CPU, memory and process reads, for the lifetime of one dispatcher."""
+    """Expose only fresh CPU and process reads, for the lifetime of one dispatcher."""
     Path(root).mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='probe-', dir=root) as directory:
         path = str(Path(directory) / 'host.sock')
