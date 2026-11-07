@@ -44,6 +44,8 @@ applied through to a verified finish — resuming the main thread after any tang
   other routed skill runs as a stage inside it, so its final ship stage still runs. Match the task to a
   row in `references/skill-stack.md` for the stage skills plus any that genuinely stack. If no stage skill fits, say so and run the spine
   alone — one skill that fits beats three that half-fit.
+- **INVOKE the spine with the Skill tool before the first edit; naming it in the plan is not running
+  it.** TEST: the spine's Skill call precedes the task's first file edit or commit.
 - **VERIFY every skill you name is INSTALLED before you plan on it** — glob
   `find -L ~/.claude/skills -name SKILL.md`, or check the runtime skill listing; never write a `/sk:`
   name from memory. A missing or mistyped name derails the run (one non-existent `artifact-design`

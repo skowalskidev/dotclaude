@@ -135,7 +135,8 @@ includes their merge, push and cleanup. The following default still governs proj
 
 **Commit, and keep a review branch's remote current. I own every other PR and remote operation; never do
 or raise them unprompted.** After the local commit, STOP: no PR open/close/flip/draft/merge, reviewer or
-label change, PR edit/comment, or PR next-step talk, unless I ask or a `sk:ship-*` flow does PR ops.
+label change, PR edit/comment, or PR next-step talk, unless I ask or a `sk:ship-*` flow or the work
+harness does PR ops; it ends each change task at a ready, green PR.
 Merge needs an explicit ask; **'merge to main' is a LOCAL merge. Never push or `gh pr merge` a remote
 default branch (origin `main`/`master`) without my own unprompted 'push'** (a yes to an option YOU
 authored is not it).
@@ -143,9 +144,8 @@ authored is not it).
 **DEFAULT: push each finished commit to its tracking branch when it backs an open PR or is shared for
 review or testing** (a teammate's PR branch counts). Fetch and merge remote commits first, never rebase
 a shared branch, never force-push, then say in one line that the remote has the new head (short sha).
-No remote PR: commit only. My "wait" or "hold" pauses pushing. Procedure: `references/git-pr-deploy.md`.
-TEST: `git rev-list --count @{u}..HEAD` is 0 at every check-in on such a branch (the fix for a reviewer
-testing a stale draft PR head while seven finished commits sat local).
+No PR outside the harness: commit only. "wait"/"hold" pauses pushing. Procedure: `references/git-pr-deploy.md`.
+TEST: `git rev-list --count @{u}..HEAD` is 0 at every check-in on such a branch.
 
 **Write a navigable commit, one per stage: ONE logical unit per commit** — a finished
 task/fix/phase/milestone/copilot-slice, committed before the next; if the body needs "and also", split
