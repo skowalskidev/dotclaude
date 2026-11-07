@@ -45,6 +45,12 @@ reload and which step to redo. DON'T let a delegated worker commit into the serv
 server hot-reloads the open tab and drops the state they built up. (the fix for a fix that landed mid-step
 and reset the human's in-progress form twice)
 
+**DO treat the surface you handed over as theirs alone until they reply.** Read it only (screenshot,
+DOM, console, network, logs). Announce any action you take there as its own numbered step first. DON'T
+drive it while their step is open: two drivers in one live tab replay each other's actions. (the fix
+for a walk where Claude tapped X and typed a phrase after "done", mid-step, and the screen opened twice)
+
 TEST: at any moment the human has exactly ONE action in front of them, a count of where they are, and a
 clear signal it is their turn — and the full plan is in the file, not the chat. A step message is the
-turn's last message. No file in the served tree changes between a step's hand-off and its result.
+turn's last message. No file in the served tree changes between a step's hand-off and its result, and no
+click, keystroke or navigation from Claude lands on their surface in that window.
