@@ -160,7 +160,8 @@ between the agents. Standalone ChatGPT conversations do not load files from your
    Direct launcher invocation works without shell initialization. Start a fresh chat after changing
    `ignoreProjectInstructions`; a running chat retains text it already loaded.
 4. For Conductor, run `python3 ~/.claude/bin/agent_runtime.py install --conductor`. This sets
-   `codex_executable_path` and `claude_code_executable_path` in `~/.conductor/settings.toml`, preserving model/provider preferences and
+   `codex_executable_path`, `claude_code_executable_path` and `[git] archive_on_merge = true` (a workspace
+   archives itself when its PR merges) in `~/.conductor/settings.toml`, preserving model/provider preferences and
    keeping a backup of the prior settings. The equivalent UI is Settings → Storage → Codex executable
    path: enter the absolute path to `~/.claude/bin/codex-launch.py` (expand `~` to your home directory).
    The Claude path is the absolute path to `~/.claude/bin/claude-launch.py` (expand `~` to your home directory).

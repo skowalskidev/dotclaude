@@ -439,8 +439,24 @@ def install(home, replace=False):
     link.symlink_to(target)
 
 
+def archive_on_merge(tables):
+    """Set git.archive_on_merge so a workspace archives itself when its PR merges.
+    Leaves delete_branch_on_archive alone: a manual archive must never delete an unmerged branch."""
+    entry = 'archive_on_merge = true\n'
+    header = re.search(r'^[ \t]*\[git\][ \t]*(?:#.*)?(?:\n|$)', tables, re.M)
+    if not header:
+        return tables + ('' if not tables or tables.endswith('\n') else '\n') + '\n[git]\n' + entry
+    after = re.search(r'^[ \t]*\[', tables[header.end():], re.M)
+    end = header.end() + after.start() if after else len(tables)
+    body = tables[header.end():end]
+    pattern = r'^[ \t]*(?:archive_on_merge|"archive_on_merge")[ \t]*=.*(?:\n|$)'
+    body = re.sub(pattern, lambda _: entry, body, flags=re.M) if re.search(pattern, body, re.M) \
+        else entry + body
+    return tables[:header.end()] + body + tables[end:]
+
+
 def configure_conductor():
-    """Set both supported executable keys; leave model/provider preferences intact."""
+    """Set both supported executable keys and archive-on-merge; leave model/provider preferences intact."""
     path = Path.home() / '.conductor/settings.toml'
     text = path.read_text() if path.exists() else ''
     # User-level keys must precede the first table; never append them inside [models].
@@ -455,7 +471,7 @@ def configure_conductor():
             top = re.sub(pattern, lambda _: entry, top, flags=re.M)
         else:
             top = entry + top
-    updated = top + rest
+    updated = top + archive_on_merge(rest)
     if updated == text:
         return
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -272,6 +272,10 @@ its inventory; an earlier yes never covers a different path or newly created wor
   seconds and verifies it exited. If ownership changed or it survives, BLOCK that worktree instead of
   widening the kill. Re-run the idle check after the viewer exits.
 
+Conductor's `[git] archive_on_merge` (set by `bin/agent_runtime.py install --conductor`) archives a
+workspace by itself when its PR merges; `delete_branch_on_archive` stays off, so the gated ref
+deletion below still removes the merged ref. DO list for manual archive only a workspace with no PR
+or one that merged before the setting.
 For a Conductor-managed workspace, ask Simon to archive it in the Conductor app. List each by branch
 name first, then workspace name and canonical path: he finds it by branch, not by city name. For a
 detached workspace, give the branch its session worked on.

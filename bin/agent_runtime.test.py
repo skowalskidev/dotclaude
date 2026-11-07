@@ -516,11 +516,28 @@ class RuntimeTests(unittest.TestCase):
         parsed = tomllib.loads(path.read_text())
         self.assertEqual(parsed['codex_executable_path'], str(self.root / 'bin/codex-launch.py'))
 
+    def test_conductor_archive_on_merge_joins_existing_git_table_once(self):
+        path = self.home / '.conductor/settings.toml'
+        path.parent.mkdir()
+        path.write_text('[git]\nbranch_prefix_type = "github_username"\narchive_on_merge = false\n'
+                        '[models]\ndefault = "fixture"\n')
+        runtime.configure_conductor()
+        parsed = tomllib.loads(path.read_text())
+        self.assertIs(parsed['git']['archive_on_merge'], True)
+        self.assertEqual(parsed['git']['branch_prefix_type'], 'github_username')
+        self.assertNotIn('delete_branch_on_archive', parsed['git'])
+        self.assertEqual(parsed['models']['default'], 'fixture')
+        self.assertEqual(path.read_text().count('archive_on_merge'), 1)
+        modified = path.stat().st_mtime_ns
+        runtime.configure_conductor()
+        self.assertEqual(path.stat().st_mtime_ns, modified)
+
     def test_conductor_creates_new_settings_without_spurious_backup(self):
         runtime.configure_conductor()
         path = self.home / '.conductor/settings.toml'
         self.assertEqual(tomllib.loads(path.read_text())['codex_executable_path'],
                          str(self.root / 'bin/codex-launch.py'))
+        self.assertIs(tomllib.loads(path.read_text())['git']['archive_on_merge'], True)
         self.assertFalse(path.with_name('settings.toml.before-shared-config').exists())
 
     def test_session_start_matcher_checks_source(self):
