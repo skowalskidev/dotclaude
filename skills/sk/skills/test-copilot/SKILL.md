@@ -286,6 +286,8 @@ then have Simon re-do **just that one step**. **Fix the class, not the instance*
 one missing empty state means checking every sibling surface. Keep looping until a full pass
 comes back clean; one round of fixes is not the end.
 
+Order the fixes, his re-walk and the red tape per `references/testing-strategy.md` § Human-driven sessions ("order work around a pending human re-walk"); the Phase 6 commit, push and evidence follow his passing walk.
+
 ---
 
 ## Phase 6 — Close out
