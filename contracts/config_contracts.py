@@ -1384,7 +1384,7 @@ CONTRACTS: dict[str, dict] = {
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
             "For a bug fix, step 3 reproduces it with a control under the testing-strategy reproduce-first section before any implementation.",
             "Names rules/living-plan.md among the always-on rules it does not restate.",
-            "Its final stage runs /sk:ship-full-detailed-workflow on every PR the run opened or pushed, unprompted, reusing earlier evidence for the same head and recording each landing-gate result; no PR records N/A.",
+            "Its final stage runs /sk:ship-full-detailed-workflow on every PR the run opened or pushed, unprompted, reusing earlier evidence for the same head and recording each landing-gate result; a change task ends at a ready PR with green CI and landing gate PASS, merge left to Simon; N/A only when no tracked file changed.",
             "Default to current-session execution with the independent judge off; ask for custom options only when requested and preserve existing authorization.",
             "Preserve planning authorization; use the shared dashboard template and runtime tests, displaying this run's recorded options read-only with no editable selectors or generated start command.",
             "Select current or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor owning plan, dashboard and judge.",
@@ -1857,7 +1857,7 @@ CONTRACTS: dict[str, dict] = {
             "Finds or creates one active plan-backed dashboard before routing, returns its canonical link on request and rejects multiple active plans.",
             "Keeps every session on the shared gauntlet record with current execution and independent judgement off by default; custom execution options remain opt-in.",
             "Writes each routed flow's sources, decisions, artifacts, verdicts and remaining actions into the plan, then refreshes the dashboard.",
-            "Defaults the spine of any task that produces a change to /sk:work-full-detailed-workflow; every other routed skill runs as a stage inside it.",
+            "Defaults the spine of any task that produces a change to /sk:work-full-detailed-workflow and invokes it with the Skill tool before the first edit; every other routed skill runs as a stage inside it.",
             "Routes via references/skill-stack.md and verifies every named skill is installed before "
             "planning on it; never restates the map or a skill's method.",
             "Keeps an always-on progress bar per references/progress-bar.md (harness Task list + compact "

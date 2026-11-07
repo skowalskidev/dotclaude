@@ -121,14 +121,19 @@ current, reconcile against it.
    and evidence-reuse policy in `rules/process.md` § Fan out verification. Apply the testing reference
    sections Defects first and Native simulator suites. When the diff changes a stored-data figure or a
    gate that depends on stored data, run `/sk:ship-verify-with-prod-data` here, unprompted. TEST: such a
-   hand-back cites its population and reconciled figures. Draft PR, tear down scratch, track deploy steps.
+   hand-back cites its population and reconciled figures. Push the branch and open its draft PR with
+   `/sk:ship-pr` (the ticket the repo's commit hook needs is filed here), tear down scratch, track deploy steps.
 10. **Ship, unprompted — the final stage.** DO run `/sk:ship-full-detailed-workflow` on every PR this
     run opened or pushed to, before hand-back, without Simon asking. Hand it steps 7-9's evidence for
     the same head; it reruns only what later fixes changed. Record each PR's landing-gate result with
-    `hooks/intent-ledger.sh gate`. With no PR opened or pushed, record this stage N/A with that reason.
+    `hooks/intent-ledger.sh gate`. End state: the PR is ready for review, CI is green on its head, the
+    landing gate is PASS and the hand-back names it for Simon to merge; merge stays his ask. Record N/A
+    only when the run changed no tracked file; a local-only commit is never a finished change task.
     When another supervisor composes this skill per ask or slice, return the result and leave this
     stage to that supervisor, recorded as N/A naming it. Once Simon merges, watch the deploy through
     and loop on what it surfaces; shipping is not done when the merge lands.
-    TEST: a hand-back naming a PR from this run cites its ship landing-gate result.
+    TEST: a hand-back naming a PR from this run cites its ship landing-gate result and green CI; a
+    hand-back with an unpushed change commit fails (the fix for a fix committed locally and called done
+    until Simon asked where the PR was).
 
 Extra task context for this run (if any): $ARGUMENTS

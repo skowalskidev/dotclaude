@@ -70,7 +70,9 @@ config repairs. The project-repository restrictions below do not cancel that sco
   flip ready/draft or merge a PR, request or add reviewers, add/remove labels, edit a PR body, comment on
   a PR, or push anything else — UNLESS I ask for that exact op, or a skill whose defined flow performs PR
   ops is running (e.g. `/sk:ship-pr`, `/sk:ship-screenshot-changes`, `/sk:ship-resolve-pr-comments`,
-  `/sk:ship-full-detailed-workflow`), which I authorized by invoking it. And DON'T talk about PRs to
+  `/sk:ship-full-detailed-workflow`, and `/sk:work-full-detailed-workflow`, the default spine of every
+  change task, whose stages 9-10 push, open and ready the PR), which I authorized by invoking it or by
+  asking for the change. And DON'T talk about PRs to
   me — no ready-flip prompts, held-for-you PR next-steps, or reviewer nudges — unless I ask about the PR;
   I run PR ops on my own cadence or tell you to. Merge is separately gated below (never without an
   explicit ask). TEST: a hand-back reports what was built and stops, carrying no PR next-step,
@@ -83,7 +85,8 @@ config repairs. The project-repository restrictions below do not cancel that sco
   shared PR branch); `git push origin HEAD:<branch>`, never `--force`; then state "remote has `<short
   sha>`". The default-branch guard in `hooks/git-commit-guard.py` still blocks `origin main`/`master`,
   and a PR branch push passes it. Stop pushing on my "wait"/"hold". TEST: `git rev-list --count
-  @{u}..HEAD` prints 0 right after each commit on such a branch.
+  @{u}..HEAD` prints 0 right after each commit on such a branch (the fix for a reviewer testing a stale
+  draft PR head while seven finished commits sat local).
 - Apply `references/project-instructions.md` before project docs. When allowed, read the project's CLAUDE.md AND CLAUDE.local.md and relevant plan docs at the start of the task — the
   local file carries machine-local setup, test accounts and secrets-by-reference the committed one omits.
 - Merge/rebase the latest default branch in before working, and re-evaluate the plan against what changed (e.g., redesigns that must now be used).
@@ -138,8 +141,9 @@ drops a commit authored by another session, broke the rule.
 
 **DO keep a work PR in draft, with its CI off, through development and every review round.** Push
 each finished commit to the draft branch for review as `rules/process.md` already directs. Mark it
-ready (`gh pr ready <n>`), which starts CI, only at merge prep: Simon asked to merge, the base is
-merged in, and the gate list passed locally in one pass on the head being marked
+ready (`gh pr ready <n>`), which starts CI, only at merge prep: the work harness reached stage 10 or
+Simon asked to merge, the base is merged in, and the gate list passed locally in one pass on the head
+being marked
 (`references/testing-strategy.md` § Defects first).
 **DON'T fix CI or mark a PR ready mid-development to see what CI says.** CI fixes belong to merge prep.
 TEST: a PR's first CI run starts at merge prep, on a head carrying a full local gate-list pass.
