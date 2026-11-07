@@ -23,7 +23,7 @@ test on what can be reached); a time-only check is no loose end.
 **DO offer a follow-up ONLY if it would change a decision or fix an evidenced problem.** At most 2, one optional line; never withhold the archive line.
 No new question at hand-back unless only Simon can decide it and it blocks the outcome.
 **DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
-PR awaiting his merge/deploy, a promised smoke or reply. End with the merge list or the single next
+PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply. End with the merge list or the single next
 blocker. After merge and deploy, stop only once production is proven live: the deploy run for the
 merge sha passed, prod serves the new build, and the changed behaviour passed its read-only smoke
 (`references/git-pr-deploy.md` § Shipping is not done until the deploy is verified).
