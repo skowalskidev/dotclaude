@@ -169,6 +169,24 @@ check(any("Do:" in m for m in gate.check_body(PASSING.replace("**Do:** merge", "
 check(any("Before" in m for m in gate.check_body(PASSING.replace("| | Before | After |", "| | Old | New |"), HTML, 0)),
       "A TLDR with no Before/After table passed")
 
+# One run names every requirement: a missing heading lists what its section must hold, and the
+# independent checks inside a present section all report together (the fix for a PR body that took
+# eight rewrites because each run revealed one more hidden requirement).
+tldr_only = PASSING[:PASSING.index("## 🚀 Deploy TLDR")]
+for line in gate.check_body(tldr_only, HTML, 0):
+    if "heading" in line and not line.startswith(("TLDR", "Visible")):
+        check("(needs: " in line, f"A missing heading did not list its requirements: {line}")
+matrix_need = next((m for m in gate.check_body(tldr_only, HTML, 0) if m.startswith("Test matrix")), "")
+check(all(k in matrix_need for k in ("tier", "COVERED", "Real-environment walk")),
+      f"The missing Test matrix line did not name the tier, counts and walk: {matrix_need}")
+check(set(gate.SECTIONS) - {"Verification runs"} <= set(gate.NEEDS), "A gated section has no NEEDS entry")
+both = PASSING.replace("**Do:** merge", "Merge").replace("| | Before | After |", "| | Old | New |")
+tldr_rows = [m for m in gate.check_body(both, HTML, 0) if m.startswith("TLDR")]
+check(len(tldr_rows) == 2, f"A TLDR missing both its table and Do line did not report both: {tldr_rows}")
+bare_prod = section(PASSING, "Prod data", "## Prod data\n\nChecked the accounts.\n\n")
+prod_rows = [m for m in gate.check_body(bare_prod, HTML, 0) if m.startswith("Prod data")]
+check(len(prod_rows) == 2, f"Prod data with no verdict and no table did not report both: {prod_rows}")
+
 # Deploy TLDR must follow the TLDR; an emoji or case variant of a heading still matches.
 moved = section(PASSING, "🚀 Deploy TLDR", "") + "\n## Deploy TLDR\n\n1. Merge.\n"
 check(any("next heading" in m for m in gate.check_body(moved, HTML, 0)), "A Deploy TLDR out of order passed")

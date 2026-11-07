@@ -38,6 +38,26 @@ SECTIONS = {
     "Verification runs": "Verification runs",
 }
 MATRIX_COUNTS = ("COVERED", "GAP", "NEEDS-DRIVING", "SKIPPED")
+# What each section must hold, printed with a missing heading so one gate run names every requirement
+# instead of revealing them one rewrite at a time. Keep in step with the checks in check_body.
+NEEDS = {
+    "TLDR": "first heading; a | | Before | After | table; a **Do:** line",
+    "Deploy TLDR": "the next heading after the TLDR; numbered deploy steps",
+    "User journey": "what the user goes through",
+    "System journey": "what the system does, in steps",
+    "Test matrix": ("a tier named (light, standard or deep) with its trigger; counts for "
+                    + ", ".join(MATRIX_COUNTS) + "; a results table; a 'Real-environment walk:' line "
+                    "with PASS, a reasoned does-not-apply or a skip line"),
+    "Regression check": "a table row per modified pre-existing file, each with PASS or INTENDED",
+    "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
+    "Deploy safety": "a merge-train result and a rollback, or a reasoned does-not-apply",
+    "Screenshots": "an image, or a stated no-eligible-surface reason",
+}
+
+
+def no_heading(row):
+    """The missing-heading line for a row, with everything its section must hold."""
+    return f"{row}: no {SECTIONS[row]} heading (needs: {NEEDS[row]})"
 DOES_NOT_APPLY = re.compile(r"does(?: not|n['’]t) apply|\bN/A\b", re.I)
 NO_SURFACE = re.compile(r"no (?:eligible |changed |visible )?(?:frontend |UI |user-facing )?surface|"
                         r"no (?:frontend|UI|visible) change", re.I)
@@ -124,7 +144,7 @@ def reasoned_na(text):
 def check_regression(text, modified):
     """Missing-row strings for the Regression check section; modified = pre-existing paths the PR changes."""
     if text is None:
-        return ["Regression check: no Regression check heading"]
+        return [no_heading("Regression check")]
     rows = [ln for ln in text.splitlines() if re.match(r"^\s*\|.*\|\s*$", ln)]
     out = []
     if any(REGRESSION_BAD.search(r) for r in rows):
@@ -160,24 +180,25 @@ def check_body(body, body_html, unresolved, modified=()):
     tldr = found.get("TLDR")
     tldr_first = bool(heads) and matches(heads[0], SECTIONS["TLDR"])
     if not tldr_first:
-        missing.append("TLDR: the body's first heading is not a TLDR heading")
-    elif not re.search(r"^\s*\|[^\n]*\bBefore\b[^\n]*\|[^\n]*\bAfter\b[^\n]*\|", tldr, re.M | re.I) \
-            or not has_table(tldr):
-        missing.append("TLDR: no | | Before | After | table")
-    elif not re.search(r"^\s*\*\*Do:\*\*", tldr, re.M):
-        missing.append("TLDR: no **Do:** line")
+        missing.append(f"TLDR: the body's first heading is not a TLDR heading (needs: {NEEDS['TLDR']})")
+    else:
+        if not re.search(r"^\s*\|[^\n]*\bBefore\b[^\n]*\|[^\n]*\bAfter\b[^\n]*\|", tldr, re.M | re.I) \
+                or not has_table(tldr):
+            missing.append("TLDR: no | | Before | After | table")
+        if not re.search(r"^\s*\*\*Do:\*\*", tldr, re.M):
+            missing.append("TLDR: no **Do:** line")
     if "Deploy TLDR" not in found:
-        missing.append("Deploy TLDR: no Deploy TLDR heading")
+        missing.append(no_heading("Deploy TLDR"))
     elif tldr_first and not matches(next((t for lv, t, _ in order[1:] if lv <= order[0][0]), ""),
                                     SECTIONS["Deploy TLDR"]):
         missing.append("Deploy TLDR: it is not the next heading after the TLDR")
     for row in ("User journey", "System journey"):
         if row not in found:
-            missing.append(f"{row}: no {SECTIONS[row]} heading")
+            missing.append(no_heading(row))
 
     matrix = found.get("Test matrix")
     if matrix is None:
-        missing.append("Test matrix: no Test matrix heading (a summary row elsewhere does not count)")
+        missing.append(no_heading("Test matrix") + "; a summary row elsewhere does not count")
     else:
         if not TIER_NAMED.search(matrix):
             missing.append("Test matrix: no tier named (light, standard or deep, with its trigger)")
@@ -199,17 +220,16 @@ def check_body(body, body_html, unresolved, modified=()):
 
     prod = found.get("Prod data")
     if prod is None:
-        missing.append("Prod data: no Prod data heading")
-    elif TIER_SKIP.search(prod):
-        pass
-    elif not re.search(r"\b(PASS|FAIL)\b", prod) and not DOES_NOT_APPLY.search(prod):
-        missing.append("Prod data: no verdict (PASS, FAIL or does not apply)")
-    elif not has_table(prod) and not reasoned_na(prod):
-        missing.append("Prod data: no cohort table and no doesn't-apply reason")
+        missing.append(no_heading("Prod data"))
+    elif not TIER_SKIP.search(prod):
+        if not re.search(r"\b(PASS|FAIL)\b", prod) and not DOES_NOT_APPLY.search(prod):
+            missing.append("Prod data: no verdict (PASS, FAIL or does not apply)")
+        if not has_table(prod) and not reasoned_na(prod):
+            missing.append("Prod data: no cohort table and no doesn't-apply reason")
 
     safety = found.get("Deploy safety")
     if safety is None:
-        missing.append("Deploy safety: no Deploy safety heading")
+        missing.append(no_heading("Deploy safety"))
     else:
         na = reasoned_na(safety) or TIER_SKIP.search(safety) is not None
         if not re.search(r"merge[- ]train", safety, re.I) and not na:
@@ -219,7 +239,7 @@ def check_body(body, body_html, unresolved, modified=()):
 
     shots = found.get("Screenshots")
     if shots is None:
-        missing.append("Screenshots: no Screenshots heading")
+        missing.append(no_heading("Screenshots"))
     elif not re.search(r"<img\s|<video\s|!\[[^\]]*\]\(|user-attachments/assets/", shots, re.I) \
             and not NO_SURFACE.search(shots) and not reasoned_na(shots):
         missing.append("Screenshots: no image and no stated no-eligible-surface reason")
