@@ -101,7 +101,8 @@ current, reconcile against it.
 3. Verify the foundation assumptions (read the real code, check online, run an empirical spike) — and
    read the project's contracts before changing any unit that has one. When the task supplies a design
    source, finish the intake in `references/workflow-loops.md` § Build from a supplied design source
-   here, before step 5 briefs a builder.
+   here, before step 5 briefs a builder. For a bug fix, reproduce it here first under
+   `references/testing-strategy.md` § Reproduce a reported bug first, then prove the root cause.
 4. Plan tree-structured coverage and write needed tests; defer execution to step 9.
 5. Implement the whole authorized task batch, including every feature, on the selected engine; delegate independent edits using the saved setup and inspect the returned diffs on disk.
    After each item: verify its criteria, persist, refresh the dashboard, and with the judge on run

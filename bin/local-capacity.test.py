@@ -41,7 +41,6 @@ def setUpModule():
 
 def competing(root, queue, event, owner):
     with mock.patch.object(gate, "observe_booted", return_value=[]), \
-         mock.patch.object(gate, "memory_pressure_level", return_value=(1, "sysctl")), \
          mock.patch.object(gate, "cpu_idle_percent", return_value=90):
         event.wait()
         for _ in range(200):
@@ -75,9 +74,6 @@ class GateTests(unittest.TestCase):
         self.pressure = mock.patch.object(gate, "simulator_pressure", return_value=(0, 8))
         self.pressure.start()
         self.addCleanup(self.pressure.stop)
-        self.memory = mock.patch.object(gate, "memory_pressure_level", return_value=(1, "sysctl"))
-        self.memory.start()
-        self.addCleanup(self.memory.stop)
         self.idle = mock.patch.object(gate, "cpu_idle_percent", return_value=90)
         self.idle.start()
         self.addCleanup(self.idle.stop)
@@ -274,64 +270,25 @@ class GateTests(unittest.TestCase):
         gate.release_sim(self.root, SIM, "alpha")
         gate.claim_sim(self.root, SIM2, "beta")
 
-    def test_memory_guard_defers_on_warning_and_critical(self):
-        for level, name in ((2, "warning"), (4, "critical")):
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")):
-                with self.assertRaises(gate.Busy) as refused:
-                    gate.acquire(self.root, "build", os.getpid(), None)
-            self.assertIn("memory pressure is %s (level %d, via sysctl)" % (name, level), str(refused.exception))
-            self.assertIsNone(gate.read_state(self.root))
-
-    def sysctl_run(self, level, vm_stat=None, memsize="25769803776\n"):
-        """Fake subprocess.run: the pressure sysctl answers `level` (None = unavailable); vm_stat and hw.memsize feed the fallback."""
+    def test_memory_pressure_never_defers_admission(self):
+        """Swap on the SSD absorbs memory pressure: warning or critical with CPU headroom still admits."""
         real = subprocess.run
+        calls = []
 
         def run(cmd, **kwargs):
-            if cmd[0] not in ("/usr/sbin/sysctl", "/usr/bin/vm_stat"):
-                return real(cmd, **kwargs)  # ps, simctl and the rest stay real
-            if cmd[-1] == "kern.memorystatus_vm_pressure_level":
-                if level is None:
-                    return mock.Mock(returncode=1, stdout="")
-                return mock.Mock(returncode=0, stdout="%s\n" % level)
-            if cmd[-1] == "hw.memsize":
-                return mock.Mock(returncode=0, stdout=memsize)
-            return mock.Mock(returncode=0, stdout=vm_stat or "")
-        return mock.patch.object(gate.subprocess, "run", side_effect=run)
-
-    def test_pressure_level_is_read_from_the_os_sysctl(self):
-        self.memory.stop()
-        try:
-            for level in (1, 2, 4):
-                with self.sysctl_run(level):
-                    self.assertEqual(gate.memory_pressure_level(), (level, "sysctl"))
-        finally:
-            self.memory.start()
-
-    def test_eight_gib_compressed_with_normal_pressure_is_go(self):
-        self.memory.stop()
-        try:
-            vm_stat = ("Mach Virtual Memory Statistics: (page size of 16384 bytes)\n"
-                       "Pages occupied by compressor:           524288.\n")  # 8 GiB of 24 GiB RAM
-            with self.sysctl_run(1, vm_stat):
-                token = gate.acquire(self.root, "build", os.getpid(), None)
-                self.assertTrue(gate.host_reading()[0].startswith("GO "))
-            gate.release(self.root, token)
-        finally:
-            self.memory.start()
-
-    def test_unavailable_sysctl_falls_back_to_the_compressed_share_of_ram(self):
-        self.memory.stop()
-        try:
-            page = "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages occupied by compressor:           %d.\n"
-            with self.sysctl_run(None, page % 524288):  # 8 GiB of 24 GiB = 33%
-                self.assertEqual(gate.memory_pressure_level(), (1, "compressed-share"))
-            with self.sysctl_run(None, page % 655360):  # 10 GiB of 24 GiB = 42%
-                self.assertEqual(gate.memory_pressure_level(), (2, "compressed-share"))
-            with self.sysctl_run(None, "changed"):
-                with self.assertRaises(gate.GateError):
-                    gate.memory_pressure_level()
-        finally:
-            self.memory.start()
+            calls.append(list(cmd))
+            if cmd[0] in ("/usr/sbin/sysctl", "/usr/bin/vm_stat"):
+                return mock.Mock(returncode=0, stdout="4\n")  # what a critical pressure sysctl would answer
+            return real(cmd, **kwargs)
+        with mock.patch.object(gate.subprocess, "run", side_effect=run):
+            token = gate.acquire(self.root, "build", os.getpid(), None)
+            line, reason = gate.host_reading()
+        gate.release(self.root, token)
+        self.assertIsNone(reason)
+        self.assertTrue(line.startswith("GO "))
+        self.assertNotIn("memory", line)
+        self.assertFalse([cmd for cmd in calls if cmd[0] in ("/usr/sbin/sysctl", "/usr/bin/vm_stat")])
+        self.assertFalse(hasattr(gate, "memory_pressure_level"))
 
     def test_cpu_idle_is_read_from_the_second_iostat_sample(self):
         self.idle.stop()
@@ -356,20 +313,18 @@ class GateTests(unittest.TestCase):
         self.assertIsNone(gate.read_state(self.root))
         self.assertEqual(gate.read_claims(self.root), {})
 
-    def test_admission_samples_cpu_load_and_memory_once_even_when_deferred(self):
-        for idle, level in ((90, 1), (2, 1), (90, 4)):
-            with self.subTest(idle=idle, level=level), \
+    def test_admission_samples_cpu_and_load_once_even_when_deferred(self):
+        for idle in (90, 2):
+            with self.subTest(idle=idle), \
                  mock.patch.object(gate, "cpu_idle_percent", return_value=idle) as cpu, \
-                 mock.patch.object(gate, "simulator_pressure", return_value=(0, 8)) as load, \
-                 mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")) as memory:
-                if idle == 90 and level == 1:
+                 mock.patch.object(gate, "simulator_pressure", return_value=(0, 8)) as load:
+                if idle == 90:
                     gate.release(self.root, gate.acquire(self.root, "sample", os.getpid(), None))
                 else:
                     with self.assertRaises(gate.Busy):
                         gate.acquire(self.root, "sample", os.getpid(), None)
                 cpu.assert_called_once_with()
                 load.assert_called_once_with()
-                memory.assert_called_once_with()
 
     def test_cpu_probe_failure_classifies_without_exposing_output(self):
         self.idle.stop()
@@ -414,7 +369,7 @@ class GateTests(unittest.TestCase):
                     gate.acquire(self.root, "over", os.getpid(), None)
 
     def test_high_load_with_idle_cpu_is_go_and_with_a_busy_cpu_is_defer(self):
-        """Load 200 on 8 cores at 57% idle and normal memory is I/O-wait load, not saturation: GO."""
+        """Load 200 on 8 cores at 57% idle is I/O-wait load, not saturation: GO."""
         self.assertEqual(gate.LOAD_CONFIRM_IDLE_PERCENT, 35)
         with mock.patch.object(gate, "simulator_pressure", return_value=(200, 8)):
             with mock.patch.object(gate, "cpu_idle_percent", return_value=57):
@@ -990,8 +945,7 @@ sys.exit(result.returncode)
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
-                "m=mock.patch.object(g,'memory_pressure_level',return_value=(1,'sysctl')); m.start(); "
-                "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
+                                "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
                 "g.acquire(Path(sys.argv[2]),'crashed',os.getpid(),None,child_pending=True); "
                 "r,w=os.pipe(); "
                 "subprocess.Popen(['/bin/sh','-c',"
@@ -1013,8 +967,7 @@ sys.exit(result.returncode)
                 "g=importlib.util.module_from_spec(s); s.loader.exec_module(g); "
                 "p=mock.patch.object(g,'observe_booted',return_value=[]); p.start(); "
                 "q=mock.patch.object(g,'simulator_pressure',return_value=(0,8)); q.start(); "
-                "m=mock.patch.object(g,'memory_pressure_level',return_value=(1,'sysctl')); m.start(); "
-                "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
+                                "c=mock.patch.object(g,'cpu_idle_percent',return_value=90); c.start(); "
                 "sys.exit(g.run_command(Path(sys.argv[2]),'runner',None,"
                 "[sys.executable,'-c','import time; time.sleep(30)']))")
         runner = subprocess.Popen([sys.executable, "-c", code, str(SCRIPT), str(self.root)],
@@ -1053,7 +1006,7 @@ class AutoReleaseTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
         for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)),
-                            ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90),
+                            ("cpu_idle_percent", 90),
                             ("live_session_cwds", ["/w/alpha"])):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
@@ -1192,7 +1145,7 @@ class AutoReleaseTests(unittest.TestCase):
              mock.patch.object(gate, "session_owns_workspace", side_effect=failure):
             token = gate.acquire(self.root, "vip", os.getpid(), None, child_pending=True)
             self.assertEqual(gate.read_state(self.root)["owner"], "vip")
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=5):
                 with self.assertRaisesRegex(gate.Busy, "ownership is unknown"):
                     gate.acquire(self.root, "vip-worker", os.getpid(), None, child_pending=True)
         gate.write_state(self.root, None, gate.LEASE_SLOT)
@@ -1231,7 +1184,7 @@ class PriorityTests(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
-        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("cpu_idle_percent", 90)):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -1273,7 +1226,6 @@ class PriorityTests(unittest.TestCase):
         gate.prioritize(self.root, "vip", 30, False)
         saturated = (
             (("simulator_pressure", (52.5, 8)), ("cpu_idle_percent", 30)),  # load confirmed by a busy CPU
-            (("memory_pressure_level", (4, "sysctl")),),
             (("cpu_idle_percent", 5),),
         )
         for probes in saturated:
@@ -1355,14 +1307,14 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(go.returncode, 0, go.stderr)
         self.assertEqual(len(go.stdout.splitlines()), 1)
         self.assertTrue(go.stdout.startswith("GO idle=100%"), go.stdout)
-        (self.root / "pressure.json").write_text(json.dumps({"load": 200, "cores": 8, "idle": 57, "memory_level": 1}))
+        (self.root / "pressure.json").write_text(json.dumps({"load": 200, "cores": 8, "idle": 57}))
         env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
                    LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
         io_wait = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "cpu"],
                                  env=env, capture_output=True, text=True, timeout=20)
         self.assertEqual(io_wait.returncode, 0, io_wait.stdout)
         self.assertTrue(io_wait.stdout.startswith("GO idle=57% (min 20) load=200.0"), io_wait.stdout)
-        (self.root / "pressure.json").write_text(json.dumps({"load": 1, "cores": 8, "idle": 8.5, "memory_level": 2}))
+        (self.root / "pressure.json").write_text(json.dumps({"load": 1, "cores": 8, "idle": 8.5}))
         env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
                    LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
         defer = subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), "cpu"],
@@ -1370,8 +1322,7 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(defer.returncode, gate.BUSY)
         self.assertTrue(defer.stdout.startswith("DEFER idle=8%"), defer.stdout)
         self.assertIn("CPU idle 8% is below 20%", defer.stdout)
-        self.assertIn("memory pressure is warning (level 2, via sysctl)", defer.stdout)
-        self.assertIn("memory-pressure=warning (level 2, defer at 2)", defer.stdout)
+        self.assertNotIn("memory", defer.stdout)
 
     def test_a_failed_host_probe_defers_with_exit_75_not_a_hard_failure(self):
         self.root.mkdir(mode=0o700, exist_ok=True)
@@ -1379,8 +1330,7 @@ class PriorityTests(unittest.TestCase):
         env = dict(os.environ, LOCAL_CAPACITY_PRESSURE_JSON=str(self.root / "pressure.json"),
                    LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"))
         broken = (({"load": 0, "cores": 8, "idle": "unreadable"}, "CPU probe failed (invalid idle percent); defer heavy work"),
-                  ({"load": 0, "idle": 90}, "host load probe failed; defer simulator work"),
-                  ({"load": 0, "cores": 8, "idle": 90, "memory_level": 3}, "memory probe failed; defer heavy work"))
+                  ({"load": 0, "idle": 90}, "host load probe failed; defer simulator work"))
         for fixture, message in broken:
             (self.root / "pressure.json").write_text(json.dumps(fixture))
             for args in (("run", "--owner", "prober", "--wait-min", "0", "--", sys.executable, "-c", "pass"), ("cpu",),
@@ -1468,7 +1418,7 @@ class PriorityTests(unittest.TestCase):
                 held_during_probe.append(True)
             finally:
                 os.close(fd)
-            return 90, 0, 8, 2, "sysctl"
+            return 5, 0, 8  # CPU contention defers this non-priority waiter
 
         with mock.patch.object(gate, "sample_host", side_effect=probe):
             with self.assertRaisesRegex(gate.Busy, "no session is prioritised"):
@@ -1564,11 +1514,11 @@ class CooperativeTests(unittest.TestCase):
         with self.assertRaises(gate.Busy):
             gate.acquire(self.root, "three", os.getpid(), None)
 
-    def test_pause_and_stable_resume_retain_lease_and_memory(self):
+    def test_pause_and_stable_resume_retain_lease_and_its_memory(self):
         c = self.controller()
         before = gate.read_state(self.root)
         gate.prioritize(self.root, "primary", 30, False)
-        with mock.patch.object(gate, "host_reading", side_effect=[("DEFER", "memory warning"), ("GO", None),
+        with mock.patch.object(gate, "host_reading", side_effect=[("DEFER", "CPU idle 5% is below 20%"), ("GO", None),
                                                                 ("DEFER", "CPU busy"), ("GO", None), ("GO", None)]):
             for _ in range(4):
                 self.tick(c)
@@ -1597,7 +1547,7 @@ class CooperativeTests(unittest.TestCase):
     def test_pause_deadline_bounds_memory_retention(self):
         c = self.controller()
         gate.prioritize(self.root, "primary", 30, False)
-        with mock.patch.object(gate, "host_reading", return_value=("DEFER", "memory warning")):
+        with mock.patch.object(gate, "host_reading", return_value=("DEFER", "CPU idle 5% is below 20%")):
             self.tick(c)
             self.now += gate.PAUSE_MAX_SECONDS
             with self.assertRaisesRegex(gate.Busy, "pause exceeded"):
@@ -1737,8 +1687,7 @@ class CooperativeTests(unittest.TestCase):
 
     def test_compute_keeps_pressure_and_simulator_guards(self):
         PriorityTests.hold_bridge(self)
-        for probe, value in (("cpu_idle_percent", 1), ("memory_pressure_level", (2, "sysctl")),
-                             ("observe_booted", [SIM])):
+        for probe, value in (("cpu_idle_percent", 1), ("observe_booted", [SIM])):
             with mock.patch.object(gate, probe, return_value=value):
                 with self.assertRaises(gate.Busy):
                     gate.run_command(self.root, "compute", None, ["unused"], resource="compute", wait_seconds=0)
@@ -1769,12 +1718,11 @@ class PriorityAllowanceTests(unittest.TestCase):
         return gate.run_command(self.root, "primary", None, [sys.executable, "-c", code],
                                 wait_seconds=0, **kwargs)
 
-    def test_priority_progresses_under_warning_or_cpu_contention(self):
+    def test_priority_progresses_under_cpu_contention(self):
         gate.prioritize(self.root, "primary", 30, False)
-        for level, idle, load in ((2, 90, 0), (1, 2, 300), (2, 2, 300)):
+        for idle, load in ((5, 0), (2, 300)):
             marker = Path(self.tmp.name) / "completed"
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")), \
-                 mock.patch.object(gate, "cpu_idle_percent", return_value=idle), \
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=idle), \
                  mock.patch.object(gate, "simulator_pressure", return_value=(load, 8)):
                 self.assertEqual(self.run_payload("from pathlib import Path; Path(%r).touch()" % str(marker)), 0)
             self.assertTrue(marker.exists())
@@ -1804,7 +1752,7 @@ class PriorityAllowanceTests(unittest.TestCase):
             return original(root, owner, binding)
 
         try:
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
                  mock.patch.object(gate, "RETRY_SECONDS", 1), \
                  mock.patch.object(gate, "CLEANUP_RETRY_SECONDS", 0.01), \
                  mock.patch.object(gate, "check_priority_allowance", side_effect=check):
@@ -1817,37 +1765,9 @@ class PriorityAllowanceTests(unittest.TestCase):
         self.assertTrue(marker.exists())
         self.assertIsNone(gate.read_state(self.root))
 
-    def test_memory_failure_during_lock_retry_stops_started_payload(self):
-        for failure in ((4, "sysctl"), gate.ProbeFailed("unknown memory")):
-            gate.prioritize(self.root, "primary", 30, False)
-            marker = Path(self.tmp.name) / "started"
-            checks = []
-            original = gate.check_priority_allowance
-
-            def check(root, owner, binding):
-                checks.append(owner)
-                if len(checks) == 1:
-                    until = time.monotonic() + 2
-                    while not marker.exists() and time.monotonic() < until:
-                        time.sleep(0.01)
-                    self.assertTrue(marker.exists())
-                    raise gate.StateLockBusy("contended")
-                with mock.patch.object(gate, "memory_pressure_level", **(
-                        {"side_effect": failure} if isinstance(failure, Exception) else {"return_value": failure})):
-                    return original(root, owner, binding)
-
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
-                 mock.patch.object(gate, "check_priority_allowance", side_effect=check), \
-                 mock.patch.object(gate, "CLEANUP_RETRY_SECONDS", 0.01):
-                code = "from pathlib import Path; import time; Path(%r).touch(); time.sleep(30)" % str(marker)
-                self.assertEqual(self.run_payload(code), gate.BUSY)
-            self.assertEqual(len(checks), 2)
-            self.assertIsNone(gate.read_state(self.root))
-            marker.unlink()
-
     def test_allowance_uses_admission_proof_without_repeating_ownership_probe(self):
         gate.prioritize(self.root, "primary", 30, False)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
              mock.patch.object(gate, "RETRY_SECONDS", 0.05), \
              mock.patch.object(gate, "priority_scope", side_effect=[True, gate.GateError("ownership timeout")]) as match:
             self.assertEqual(self.run_payload("import time; time.sleep(0.25)"), 0)
@@ -1863,10 +1783,10 @@ class PriorityAllowanceTests(unittest.TestCase):
             with self.assertRaises(gate.GateError):
                 gate.bound_priority_matches(record, binding)
 
-    def test_warning_requires_supervision_and_one_machine_wide_allowance(self):
+    def test_contention_requires_supervision_and_one_machine_wide_allowance(self):
         gate.prioritize(self.root, "primary", 30, False)
         holder = gate.acquire(self.root, "secondary", os.getpid(), None)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=5):
             self.assertEqual(self.run_payload(), 0)
             self.assertEqual(gate.read_state(self.root)["token"], holder)
             gate.release(self.root, holder)
@@ -1884,28 +1804,19 @@ class PriorityAllowanceTests(unittest.TestCase):
             with self.assertRaisesRegex(gate.Busy, "priority allowance is held by holder=primary"):
                 gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
 
-    def test_prioritized_simulator_run_with_stages_is_admitted_at_warning(self):
+    def test_prioritized_simulator_run_with_stages_is_admitted_under_cpu_contention(self):
         gate.prioritize(self.root, "primary", 30, False)
         staged = [sys.executable, str(SCRIPT), "stage", "--timeout-seconds", "5", "--", sys.executable, "-c", "pass"]
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
              mock.patch.object(gate, "shutdown_owned") as shutdown:
             self.assertEqual(gate.run_command(self.root, "primary", SIM, staged, wait_seconds=0), 0)
         shutdown.assert_called_once_with(SIM)
         self.assertIsNone(gate.read_state(self.root))
         self.assertIsNone(gate.allowance_token(self.root))
 
-    def test_prioritized_simulator_run_is_refused_at_critical(self):
+    def test_non_priority_simulator_run_still_defers_under_cpu_contention(self):
         gate.prioritize(self.root, "primary", 30, False)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(4, "sysctl")), \
-             mock.patch.object(gate, "launch_granted") as launch:
-            with self.assertRaisesRegex(gate.Busy, "waits until memory leaves critical"):
-                gate.run_command(self.root, "primary", SIM, ["unused"], wait_seconds=0)
-            launch.assert_not_called()
-        self.assertIsNone(gate.read_state(self.root))
-
-    def test_non_priority_simulator_run_still_defers_at_warning(self):
-        gate.prioritize(self.root, "primary", 30, False)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
              mock.patch.object(gate, "launch_granted") as launch:
             with self.assertRaisesRegex(gate.Busy, "only the priority session"):
                 gate.run_command(self.root, "secondary", SIM, ["unused"], wait_seconds=0)
@@ -1918,31 +1829,24 @@ class PriorityAllowanceTests(unittest.TestCase):
         before = gate.read_state(self.root)
         gate.prioritize(self.root, "primary", 30, False)
         with mock.patch.object(gate, "observe_booted", return_value=[SIM]), \
-             mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
              mock.patch.object(gate, "cpu_idle_percent", return_value=2):
             self.assertEqual(self.run_payload(resource="compute"), 0)
             self.assertEqual(gate.read_state(self.root), before)
             self.assertEqual(gate.read_state(self.root)["token"], native)
             self.assertIsNone(gate.allowance_token(self.root))
 
-    def test_warning_never_exceeds_slot_cap(self):
+    def test_contention_never_exceeds_slot_cap(self):
         for owner in ("one", "two", "three"):
             gate.acquire(self.root, owner, os.getpid(), None)
         gate.prioritize(self.root, "primary", 30, False)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=5):
             with self.assertRaisesRegex(gate.Busy, "all 3 heavy slots busy"):
                 self.run_payload()
         self.assertIsNone(gate.allowance_token(self.root))
 
-    def test_critical_fallback_and_unknown_never_launch_payload(self):
+    def test_unknown_cpu_or_load_never_launches_payload(self):
         gate.prioritize(self.root, "primary", 30, False)
-        for value in ((4, "sysctl"), (2, "compressed-share")):
-            with mock.patch.object(gate, "memory_pressure_level", return_value=value), \
-                 mock.patch.object(gate, "launch_granted") as launch:
-                with self.assertRaises(gate.Busy):
-                    self.run_payload()
-                launch.assert_not_called()
-        for probe in ("memory_pressure_level", "cpu_idle_percent", "simulator_pressure"):
+        for probe in ("cpu_idle_percent", "simulator_pressure"):
             with mock.patch.object(gate, probe, side_effect=gate.ProbeFailed("unknown")), \
                  mock.patch.object(gate, "launch_granted") as launch:
                 with self.assertRaises(gate.Busy):
@@ -1953,36 +1857,38 @@ class PriorityAllowanceTests(unittest.TestCase):
         gate.prioritize(self.root, "primary", 30, False)
         for resource in ("native", "compute"):
             err = io.StringIO()
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
                  contextlib.redirect_stderr(err):
                 self.assertEqual(self.run_payload(max_seconds=7200, resource=resource), 0)
             self.assertIn("runs up to --max-min (7200 seconds)", err.getvalue())
             err = io.StringIO()
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
                  contextlib.redirect_stderr(err):
                 self.assertEqual(self.run_payload("import time; time.sleep(30)", max_seconds=1, resource=resource),
                                  gate.TIMEOUT)
             self.assertIn("exceeded its --max-min limit of 1 seconds", err.getvalue())
             self.assertIsNone(gate.read_state(self.root))
 
-    def test_critical_escalation_stops_only_the_started_owned_command(self):
+    def test_expiry_during_allowance_stops_and_cleans_record(self):
+        # Expire only after the payload has started: a wall-clock expiry raced a loaded host's admission.
         gate.prioritize(self.root, "primary", 30, False)
         marker = Path(self.tmp.name) / "started"
-        # Escalate only after the payload has started, independent of host scheduling.
-        def pressure():
-            return (4 if marker.exists() else 2, "sysctl")
-        with mock.patch.object(gate, "memory_pressure_level", side_effect=pressure), \
-             mock.patch.object(gate, "RETRY_SECONDS", 0.05):
-            code = "from pathlib import Path; import time; Path(%r).touch(); time.sleep(30)" % str(marker)
-            self.assertEqual(self.run_payload(code, max_seconds=10), gate.BUSY)
-        self.assertTrue(marker.exists())
-        self.assertIsNone(gate.read_state(self.root))
+        original = gate.check_priority_allowance
 
-    def test_expiry_during_allowance_stops_and_cleans_record(self):
-        gate.prioritize(self.root, "primary", 0.002, False)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
-             mock.patch.object(gate, "RETRY_SECONDS", 0.05):
-            self.assertEqual(self.run_payload("import time; time.sleep(30)"), gate.BUSY)
+        def check(root, owner, binding):
+            if marker.exists():
+                with gate.locked(root):
+                    record = gate.read_priority(root)
+                    if record:
+                        record["expires"] = time.time() - 1
+                        gate.write_priority(root, record)
+            return original(root, owner, binding)
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
+             mock.patch.object(gate, "RETRY_SECONDS", 0.05), \
+             mock.patch.object(gate, "check_priority_allowance", side_effect=check):
+            code = "from pathlib import Path; import time; Path(%r).touch(); time.sleep(30)" % str(marker)
+            self.assertEqual(self.run_payload(code, max_seconds=20), gate.BUSY)
+        self.assertTrue(marker.exists())
         self.assertIsNone(gate.read_priority(self.root))
         self.assertIsNone(gate.read_state(self.root))
 
@@ -1995,7 +1901,7 @@ class PriorityAllowanceTests(unittest.TestCase):
                 record = gate.read_priority(self.root)
                 record["expires"] = time.time() - 1
                 gate.write_priority(self.root, record)
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=5):
                 with self.assertRaises(gate.Busy):
                     self.run_payload()
             self.assertIsNone(gate.read_priority(self.root))
@@ -2072,138 +1978,13 @@ class PriorityAllowanceTests(unittest.TestCase):
             self.assertEqual((self.root / "priority-session.json").read_text(), "")
 
 
-class ShortCheckTests(unittest.TestCase):
-    setUp = PriorityTests.setUp
-
-    def run_check(self, code="pass", **kwargs):
-        return gate.run_command(self.root, "check", None, [sys.executable, "-c", code],
-                                resource="compute", short_check=True, max_seconds=kwargs.pop("max_seconds", 120),
-                                wait_seconds=0, **kwargs)
-
-    def test_warning_with_headroom_runs_once_without_priority_and_releases(self):
-        marker = Path(self.tmp.name) / "ran"
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
-             mock.patch.object(gate, "cpu_idle_percent", return_value=35), \
-             mock.patch.object(gate, "simulator_pressure", return_value=(200, 8)):
-            self.assertEqual(self.run_check("from pathlib import Path; Path(%r).write_text('once')" % str(marker)), 0)
-            with self.assertRaises(gate.Busy):
-                gate.run_command(self.root, "ordinary", None, ["unused"], resource="compute", wait_seconds=0)
-        self.assertEqual(marker.read_text(), "once")
-        self.assertFalse(any(gate.read_state(self.root, slot=slot) for slot in gate.SLOTS))
-        self.assertIsNone(gate.allowance_token(self.root))
-        self.assertIsNone(gate.read_priority(self.root))
-
-    def test_short_check_validates_duration_resource_and_supervision_before_launch(self):
-        with mock.patch.object(gate, "launch_granted") as launch:
-            for resource, seconds in (("native", 120), ("compute", 120.1), ("compute", float("inf"))):
-                with self.assertRaises(gate.GateError):
-                    gate.run_command(self.root, "check", None, ["unused"], resource=resource,
-                                     short_check=True, max_seconds=seconds, wait_seconds=0)
-            with self.assertRaises(gate.GateError):
-                gate.run_command(self.root, "check", SIM, ["unused"], resource="compute", short_check=True, max_seconds=120)
-            with self.assertRaises(gate.GateError):
-                gate.acquire(self.root, "check", os.getpid(), None, short_check=True, compute_only=True)
-            launch.assert_not_called()
-
-    def test_short_check_refuses_critical_fallback_warning_and_insufficient_headroom(self):
-        for memory, idle in (((4, "sysctl"), 90), ((2, "compressed-share"), 90), ((2, "sysctl"), 34.9), ((1, "sysctl"), 19)):
-            with mock.patch.object(gate, "memory_pressure_level", return_value=memory), \
-                 mock.patch.object(gate, "cpu_idle_percent", return_value=idle), \
-                 mock.patch.object(gate, "launch_granted") as launch:
-                with self.assertRaises(gate.Busy):
-                    self.run_check()
-                launch.assert_not_called()
-        for probe in ("memory_pressure_level", "cpu_idle_percent", "simulator_pressure"):
-            with mock.patch.object(gate, probe, side_effect=gate.ProbeFailed("unknown")), \
-                 mock.patch.object(gate, "launch_granted") as launch:
-                with self.assertRaises(gate.Busy):
-                    self.run_check()
-                launch.assert_not_called()
-
-    def test_short_check_keeps_slot_and_simulator_caps(self):
-        for owner in ("one", "two", "three"):
-            gate.acquire(self.root, owner, os.getpid(), None)
-        before = [gate.read_state(self.root, slot=slot) for slot in gate.SLOTS]
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
-            with self.assertRaisesRegex(gate.Busy, "all 3 heavy slots busy"):
-                self.run_check()
-        self.assertEqual([gate.read_state(self.root, slot=slot) for slot in gate.SLOTS], before)
-        for lease in before:
-            gate.release(self.root, lease["token"])
-        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
-            with self.assertRaisesRegex(gate.Busy, "booted simulators"):
-                self.run_check()
-
-    def test_short_check_preserves_native_lane_and_other_owner(self):
-        PriorityTests.hold_bridge(self)
-        native = gate.acquire(self.root, "native", os.getpid(), SIM, allow_bridge=True)
-        before = gate.read_state(self.root)
-        with mock.patch.object(gate, "observe_booted", return_value=[SIM]), \
-             mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
-             mock.patch.object(gate, "legacy_bridge", side_effect=AssertionError("compute must not touch mutex")):
-            self.assertEqual(self.run_check(), 0)
-        self.assertEqual(gate.read_state(self.root), before)
-        self.assertEqual(gate.read_state(self.root)["token"], native)
-
-    def test_warning_allowance_is_shared_and_reserved_for_explicit_priority(self):
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
-            token = gate.acquire(self.root, "first", os.getpid(), None, compute_only=True,
-                                 child_pending=True, short_check=True)
-            with self.assertRaisesRegex(gate.Busy, "pressure allowance held by holder=first"):
-                self.run_check()
-            gate.prioritize(self.root, "primary", 30, False)
-            with self.assertRaisesRegex(gate.Busy, "priority allowance is held"):
-                gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
-        # The fixture has no child process; drop only this fixture's unlaunched receipt.
-        slot, lease = gate.find_lease(self.root, lambda item: item["token"] == token)
-        lease["child"] = None
-        gate.write_state(self.root, lease, slot)
-        gate.release(self.root, token)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
-            with self.assertRaisesRegex(gate.Busy, "reserved for the priority session"):
-                self.run_check()
-
-    def test_pressure_change_stops_only_owned_command_and_releases_its_lease(self):
-        other = gate.acquire(self.root, "other", os.getpid(), None)
-        before = gate.read_state(self.root)
-        for reading in ((4, "sysctl"), (2, "compressed-share"), gate.ProbeFailed("unknown memory")):
-            with mock.patch.object(gate, "memory_pressure_level", side_effect=[(2, "sysctl"), reading]):
-                self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
-            self.assertEqual(gate.read_state(self.root), before)
-            self.assertEqual(gate.read_state(self.root)["token"], other)
-            self.assertIsNone(gate.allowance_token(self.root))
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")), \
-             mock.patch.object(gate, "cpu_idle_percent", side_effect=[90, 20]):
-            self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
-        self.assertEqual(gate.read_state(self.root), before)
-
-    def test_normal_admission_still_monitors_critical_memory_and_deadline(self):
-        with mock.patch.object(gate, "memory_pressure_level", side_effect=[(1, "sysctl"), (4, "sysctl")]):
-            self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
-        self.assertEqual(self.run_check("import time; time.sleep(30)", max_seconds=0.3), gate.TIMEOUT)
-        self.assertFalse(any(gate.read_state(self.root, slot=slot) for slot in gate.SLOTS))
-
-    def test_short_check_yields_pressure_allowance_to_new_priority(self):
-        calls = []
-        def pressure():
-            calls.append(1)
-            if len(calls) == 2:
-                gate.prioritize(self.root, "new-primary", 30, False)
-            return 2, "sysctl"
-        with mock.patch.object(gate, "memory_pressure_level", side_effect=pressure):
-            self.assertEqual(self.run_check("import time; time.sleep(30)"), gate.BUSY)
-        self.assertEqual(gate.read_priority(self.root)["owner"], "new-primary")
-        self.assertIsNone(gate.allowance_token(self.root))
-
-
 class WatchdogTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
         gate.secure_root(self.root)
-        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")),
-                            ("cpu_idle_percent", 90), ("live_session_cwds", ["/w/alpha", "/w/beta"])):
+        for name, value in (("observe_booted", []), ("simulator_pressure", (0, 8)), ("cpu_idle_percent", 90), ("live_session_cwds", ["/w/alpha", "/w/beta"])):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -2283,7 +2064,7 @@ class ReclaimTests(unittest.TestCase):
         gate.secure_root(self.root)
         self.sessions = ["/w/alpha/apps/ios"]
         self.devices = {SIM: "Booted"}
-        for name, value in (("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
+        for name, value in (("simulator_pressure", (0, 8)), ("cpu_idle_percent", 90)):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -2494,7 +2275,7 @@ class StackTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name).resolve() / "capacity"
         self.host = {"stacks": [], "vm_gib": 7.75, "sessions": [], "activity": {}}
-        for name, value in (("simulator_pressure", (0, 8)), ("memory_pressure_level", (1, "sysctl")), ("cpu_idle_percent", 90)):
+        for name, value in (("simulator_pressure", (0, 8)), ("cpu_idle_percent", 90)):
             patch = mock.patch.object(gate, name, return_value=value)
             patch.start()
             self.addCleanup(patch.stop)
@@ -2536,48 +2317,29 @@ class StackTests(unittest.TestCase):
         gate.stack_acquire(self.root, "gamma", "/w/c")
         self.assertEqual(set(gate.read_stack_leases(self.root)), {"/w/c"})
 
-    def test_prioritize_does_not_bypass_the_stack_cap_even_at_normal_or_warning_memory(self):
+    def test_prioritize_does_not_bypass_the_stack_cap(self):
         gate.prioritize(self.root, "vip", 30, False)
         now = time.time()
         self.host["activity"] = {"/w/a": now, "/w/b": now}
         self.running("/w/a", "/w/b")
-        for level in (1, 2):
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(level, "sysctl")):
-                with self.assertRaises(gate.Busy) as refused:
-                    gate.stack_acquire(self.root, "vip", "/w/c")
-            self.assertIn("2 of 2 local dev stacks in use", str(refused.exception))
+        with self.assertRaises(gate.Busy) as refused:
+            gate.stack_acquire(self.root, "vip", "/w/c")
+        self.assertIn("2 of 2 local dev stacks in use", str(refused.exception))
         self.assertNotIn("/w/c", gate.read_stack_leases(self.root))
 
-    def test_priority_owner_starts_a_stack_at_os_memory_warning(self):
+    def test_stack_start_defers_every_owner_on_cpu_contention_or_an_unknown_probe(self):
         gate.prioritize(self.root, "vip", 30, False)
-        with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
-            gate.stack_acquire(self.root, "vip", "/w/c")
-        self.assertEqual(gate.read_stack_leases(self.root)["/w/c"]["owner"], "vip")
-
-    def test_non_priority_owner_defers_a_stack_at_memory_warning_naming_the_priority_rule(self):
-        gate.prioritize(self.root, "vip", 30, False)
-        for owner in ("other", "vip"):
-            if owner == "vip":
-                gate.prioritize(self.root, None, 0, True)
-            with mock.patch.object(gate, "memory_pressure_level", return_value=(2, "sysctl")):
+        for owner in ("vip", "other"):
+            with mock.patch.object(gate, "cpu_idle_percent", return_value=10):
                 with self.assertRaises(gate.Busy) as refused:
                     gate.stack_acquire(self.root, owner, "/w/c")
-            self.assertIn("memory pressure is warning", str(refused.exception))
-            self.assertIn("only the priority session", str(refused.exception))
+            self.assertIn("stack start deferred: CPU idle 10% is below 20%", str(refused.exception))
+            with mock.patch.object(gate, "cpu_idle_percent", side_effect=gate.ProbeFailed("CPU probe failed")):
+                with self.assertRaises(gate.Busy):
+                    gate.stack_acquire(self.root, owner, "/w/c")
         self.assertEqual(gate.read_stack_leases(self.root), {})
-
-    def test_priority_stack_start_still_defers_on_critical_fallback_or_unknown_memory_and_cpu(self):
-        gate.prioritize(self.root, "vip", 30, False)
-        for memory, idle in (((4, "sysctl"), 90), ((2, "compressed-share"), 90), ((2, "sysctl"), 10)):
-            with mock.patch.object(gate, "memory_pressure_level", return_value=memory), \
-                    mock.patch.object(gate, "cpu_idle_percent", return_value=idle):
-                with self.assertRaises(gate.Busy) as refused:
-                    gate.stack_acquire(self.root, "vip", "/w/c")
-            self.assertNotIn("only the priority session", str(refused.exception))
-        with mock.patch.object(gate, "memory_pressure_level", side_effect=gate.ProbeFailed("memory probe failed; defer heavy work")):
-            with self.assertRaises(gate.Busy):
-                gate.stack_acquire(self.root, "vip", "/w/c")
-        self.assertEqual(gate.read_stack_leases(self.root), {})
+        gate.stack_acquire(self.root, "other", "/w/c")
+        self.assertEqual(gate.read_stack_leases(self.root)["/w/c"]["owner"], "other")
 
     def test_sweep_stops_only_idle_supabase_stacks_and_keeps_volumes(self):
         old = time.time() - (gate.STACK_IDLE_MIN + 1) * 60
@@ -2673,7 +2435,7 @@ class SessionOwnershipTests(unittest.TestCase):
                 self.assertTrue(gate.priority_matches(record, "worker"))
         with mock.patch.object(gate.Path, "cwd", return_value=self.unrelated):
             self.assertFalse(gate.priority_matches(record, "session"))
-            text = gate.deferral_text("memory warning", None, record, False, True, None, "session")
+            text = gate.deferral_text("CPU idle 5% is below 20%", record, False, True, None, "session")
         self.assertIn("this checkout is outside the prioritized workspaces", text)
         for workspace in (self.checkout, self.sibling, self.unrelated):
             self.assertIn("--workspace " + shlex.quote(str(workspace)), text)

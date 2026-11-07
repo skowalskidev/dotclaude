@@ -81,6 +81,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
    hand back a per-ticket verdict report. A gap any stage found inside this PR's own scope is BUILT
    here, not ticketed: `/sk:ship-check-merge-readiness` Step 6 owns the three cases a ticket is for.
+   Before any ready-flip, enqueue or merge this run performs, run the merge-prep local gate list:
+   `references/testing-strategy.md` § Defects first.
    Record the landing-gate result on the pushed head with
    `~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]`;
    a Light or Standard PASS carries its trigger and skipped stages. The Stop hook blocks a pushed branch

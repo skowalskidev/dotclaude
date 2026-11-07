@@ -38,6 +38,8 @@ DO classify each cause: code bug, deliberate decision, external provider, or our
 traffic (`references/research.md` § Attributing behaviour to an outsider).
 TEST: a "bug" verdict cites the commit and the ticket intent it contradicts; an "external" verdict
 names the runtime identifiers it was compared against.
+DO reproduce each "bug" verdict, with its control, before step 5's fix:
+`references/testing-strategy.md` § Reproduce a reported bug first, then prove the root cause.
 
 ## 4 · Judge the fix before building it
 
@@ -48,8 +50,8 @@ practice (`references/research.md`), citing primary sources.
 
 DO fix the single owner of the value or behaviour (`rules/engineering-standards.md` § Single source
 of truth) and the class of failure (`rules/process.md` § Fix the CLASS of failure).
-DO pin the invariant with a test, then revert the fix locally and watch that test fail.
-TEST: the hand-back cites the test failing on the old code and passing on the fix.
+DO keep step 3's reproduction and control as the regression tests; the hand-back carries that
+section's old-code and fixed-code results.
 DO run the repo's local gates (`references/testing-strategy.md` § Defects first), open the PR with
 `/sk:ship-pr` and run `/sk:ship-full-detailed-workflow` on it.
 

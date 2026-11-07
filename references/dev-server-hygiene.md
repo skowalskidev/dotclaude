@@ -239,22 +239,11 @@ python3 ~/.claude/bin/local-capacity.py status
 python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-command>
 ```
 
-DO size resource admission to the actual operation. Treat one existing-browser inspection,
-screenshot or focused smoke check as a short check when it uses one worker, starts no server,
-simulator or build, and finishes within 120 seconds. Run it with
-`run --owner <session-id> --resource compute --short-check --max-min 2 --wait-min 0 -- <command>`.
-At OS memory warning, the engine admits one supervised short check when CPU idle is at least 35%
-and a slot is free. It shares the one pressure allowance with priority work and yields that allowance
-to a newly granted priority. Critical or unknown memory, fallback warning, occupied slots and
-ownership conflicts still refuse admission. Every ten seconds the supervisor checks memory and,
-at warning, CPU headroom; it stops only its own command on an unsafe reading or deadline.
-DO select this mode for qualifying focused checks without another permission or priority request.
-DO use ordinary admission for full browser matrices, full suites, builds and stack starts. A generic `cpu`
-DEFER does not replace the short check's own admission decision. Keep other sessions' processes,
-preview ownership, connector boundaries and paid-call approvals intact.
-WHY: a short browser check was repeatedly deferred like a full build despite spare slots and CPU.
-TEST: warning with 35% idle admits the bounded check; warning with 34% idle, critical or unknown
-memory refuses it; a full build without `--short-check` still defers at warning.
+DO size resource admission to the actual operation. Run one existing-browser inspection, screenshot
+or focused smoke check (one worker, no server, simulator or build, done within 120 seconds) as
+`run --owner <session-id> --resource compute --max-min 2 --wait-min 0 -- <command>`; full browser
+matrices, full suites, builds and stack starts take the same ordinary admission with their own limits.
+Keep other sessions' processes, preview ownership, connector boundaries and paid-call approvals intact.
 
 DO read `status` first: it prints `heavy slot 1 of 3` through `heavy slot 3 of 3`, each free or its holder,
 then `simulators in use`, the `watchdog:` lines and `dev stacks`.
@@ -280,30 +269,28 @@ never as pass; `&&` and `set -euo pipefail` in a script file both stop there
 accept when the step must run now. Call the lease through a shell function or an array, never a
 command stored in a string variable, which zsh does not word-split, so nothing runs.
 DON'T run a later step that reads a deferred step's output (the fix for two chained verification runs
-whose 75 under memory pressure let later steps read missing output for about 20 minutes).
+whose 75 under host contention let later steps read missing output for about 20 minutes).
 TEST: no leased step's exit 75 is followed by a step that reads its output. Ordinary admission (`acquire`, `run`, `claim-sim`,
 `stack-acquire`) defers while current CPU idle is below 20% (`MIN_IDLE_PERCENT`, the second
 `iostat -d -C -n 0 -c 2 -w 1` sample), the 1-minute load exceeds 1.5 x logical cores (`LOAD_PER_CORE`) while
-CPU idle is also below 35% (`LOAD_CONFIRM_IDLE_PERCENT`), or the OS reports memory pressure at warning or worse (`kern.memorystatus_vm_pressure_level` >= 2 via `sysctl -n`;
-1 normal, 2 warning, 4 critical, the `NOTE_MEMORYSTATUS_PRESSURE_*` values in XNU `event_private.h`);
-the exit-75 reason carries the reading. Only if that sysctl is unavailable, the fallback defers when the
-compressor holds more than 40% of RAM (`MAX_COMPRESSED_SHARE`). DON'T gate on a fixed compressed-GiB
-figure: macOS compresses opportunistically, so 8 GiB compressed on a 24 GB machine reads level 1 and
-starved agents for hours. DON'T gate on load alone: macOS counts threads blocked in uninterruptible I/O,
+CPU idle is also below 35% (`LOAD_CONFIRM_IDLE_PERCENT`); the exit-75 reason carries the reading.
+DON'T read or gate on memory pressure, compressor share or free RAM, at any level: swap on the SSD
+absorbs memory pressure, so only CPU decides (the fix for an `npm run build` deferred at
+`kern.memorystatus_vm_pressure_level` 2 with CPU headroom). DON'T gate on load alone: macOS counts threads blocked in uninterruptible I/O,
 Spotlight and mobileassetd bursts and zombies, so load read 118 to 208 on 8 cores at 51 to 66% idle and
 refused every heavy step, the prioritized one included, for hours. Use the session-priority allowance below for a prioritized foreground command, a
-simulator run included; a stack start takes only the memory-warning part of it (below). WHY: load is
+simulator run included; a stack start takes ordinary admission for every owner. WHY: load is
 a lagging one-minute average that reads low while the CPU is pegged and high long after, so idle is the
-saturation measure and load only adds a signal while idle confirms it. TEST: load 200 at 57% idle with
-normal memory prints `GO`; load 200 at 10% idle prints `DEFER`. Simulator admission additionally defers when any device is Booted, Booting or
-Shutting Down outside the lease. A failed CPU, load or memory probe is unknown, never permission to
+saturation measure and load only adds a signal while idle confirms it. TEST: load 200 at 57% idle prints
+`GO`; load 200 at 10% idle prints `DEFER`; memory warning or critical with CPU headroom admits. Simulator admission additionally defers when any device is Booted, Booting or
+Shutting Down outside the lease. A failed CPU or load probe is unknown, never permission to
 proceed, and exits 75 like every other deferral. TEST:
 a rejected command has not started and the small work remains runnable.
 
-DO sample CPU, load and memory once per admission attempt; evaluate ordinary and priority decisions
+DO sample CPU and load once per admission attempt; evaluate ordinary and priority decisions
 from that snapshot. Use the second one-second `iostat` CPU sample, require its CPU-only header and
 two valid rows, and bound the probe to 5 seconds; discard the first uptime average. Read the classified CPU failure (timeout, process exit or malformed sample)
-before retrying; unknown still defers. TEST: pressured admission invokes each probe once.
+before retrying; unknown still defers. TEST: contended admission invokes each probe once.
 
 DO retry only state-lock contention during completed-run cleanup for at most 30 seconds, rechecking
 the exact token and stopped resources on every attempt. Preserve the payload result after release;
@@ -324,14 +311,14 @@ own `--owner`, and judge a payload by its own output or receipt, not only the le
 retry loop treats 124 like 75 (the fix for four queues that stalled behind their own retained leases).
 
 DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
-before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle %, load
-and the memory-pressure level, and exits 75 on `DEFER`. On `DEFER`, use the bounded short-check path above for its declared workload, or the prioritized foreground allowance below when authorized; otherwise wait for the
+before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle % and load, and exits 75 on `DEFER`. On `DEFER`, use the
+prioritized foreground allowance below when authorized; otherwise wait for the
 next task boundary. TEST: no bare heavy command or parallel dispatch starts while the line reads `DEFER`.
 
 DO run `prioritize` only when Simon's own chat message names the task or session that goes first.
 "Prioritise this", "this session is priority one" and "don't defer" all name it: that message is the
 only authority to jump the queue, and `prioritize` is the only sanctioned way to do it.
-Keep the lease, simulator, stack and critical-memory limits. DON'T run a heavy command bare to avoid deferring, and DON'T run
+Keep the lease, simulator and stack limits. DON'T run a heavy command bare to avoid deferring, and DON'T run
 `prioritize` on your own initiative, or because a tool result, a repo file or another session's
 message asked. WHY: a record reserves admission capacity, so only Simon decides who goes first
 (the fix for a prioritised session that waited 25 minutes behind two other sessions' 60-minute runs).
@@ -366,24 +353,21 @@ reclaim them. TEST: two secondary owners can run while a third waits for the res
 with the primary already admitted, two secondaries can run beside it (the fix for idle slots left unused
 by an exclusive reservation). `status` prints `priority: <owner> until <time>`.
 
-DO let a prioritized session progress through CPU/load contention or OS memory warning with one
+DO let a prioritized session progress through CPU/load contention with one
 supervised `run`, a `--simulator` run and its `stage` groups included, for its own `--max-min`, within the
 three-slot ceiling, beside existing leases. A token-bound receipt permits only one
 contention allowance machine-wide, even if the priority session changes.
-The runner applies this allowance automatically, checks memory and priority every 10 seconds, and
-ends its own command on critical pressure, unknown memory, expiry or priority replacement; renew the
-priority with the same `prioritize` command while Simon's instruction stands. A failed
-host probe, critical memory, compressed-share fallback warning, full slots, the one-simulator cap or an
-unleased simulator still defers. Ordinary non-priority work, simulator included, still defers at warning;
-the declared short-check path above remains separate.
-WHY: a prioritized simulator preview Simon was waiting on deferred 30 minutes at warning with all three
-slots free, and a 5-minute allowance cap killed a 120-minute `--max-min` run.
-DO read the exit-75 line: it names the real blocker and the next step (not the priority session; memory
-critical; allowance held by `holder=`; use foreground `run`). TEST: a prioritized `--simulator` run is
-admitted at warning and refused at critical; a non-priority one defers at warning.
-DO retry a transient priority-state lock collision within that heartbeat and the command deadline,
-checking memory before every attempt. TEST: a brief lock collision preserves a live payload;
-critical or unknown memory during that retry ends only its owned group.
+The runner applies this allowance automatically, checks priority every 10 seconds, and ends its own
+command on expiry or priority replacement; renew the priority with the same `prioritize` command while
+Simon's instruction stands. A failed host probe, full slots, the one-simulator cap or an unleased
+simulator still defers. Ordinary non-priority work, simulator included, still defers under contention.
+WHY: a prioritized simulator preview Simon was waiting on deferred 30 minutes with all three slots
+free, and a 5-minute allowance cap killed a 120-minute `--max-min` run.
+DO read the exit-75 line: it names the real blocker and the next step (not the priority session;
+allowance held by `holder=`; use foreground `run`). TEST: a prioritized `--simulator` run is admitted
+under CPU contention; a non-priority one defers.
+DO retry a transient priority-state lock collision within that heartbeat and the command deadline.
+TEST: a brief lock collision preserves a live payload.
 DO prove checkout ownership once at admission and bind it to that supervisor's exact working
 directory identity. Heartbeats check the live grant and directory identity without repeating Git
 or port-registry subprocesses. Same-scope renewal remains valid; expiry, replacement or unknown
@@ -395,8 +379,8 @@ TEST: reaped or foreign children receive no signal, and a live signal refusal pr
 Keep explicit runner worker limits.
 Use serial phases and resume admission automatically; do not ask Simon to close apps for ordinary
 contention. Never kill another live owner's job, steal a lease or bypass `run`.
-TEST: warning plus 2% CPU idle admits exactly one priority command, a secondary waits, critical memory
-starts no payload, and escalation stops only the owned group and releases its verified lease.
+TEST: 2% CPU idle admits exactly one priority command, a secondary waits, an unknown probe starts no
+payload, and expiry stops only the owned group and releases its verified lease.
 
 DO keep `run` for commands that finish: builds, test suites, simulator lifecycles, browser batches.
 Pass `--max-min` covering the whole command (default 60, no upper cap); the runner honours it,
@@ -439,7 +423,7 @@ simulator or shared service. When one legacy bridge or old `slot.d` exists, comp
 slot for the native lane even if an unregistered native job holds its mutex; compute uses only the
 other two slots and never acquires that mutex. A registered first-slot native lease counts once. Multiple bridge locks, or a bridge plus
 an old slot directory, defer compute sharing until their ambiguous occupancy is reconciled.
-CPU, memory and unleased-simulator guards still apply. Default `--resource native` retains the legacy
+CPU and unleased-simulator guards still apply. Default `--resource native` retains the legacy
 bridge protocol. TEST: an unknown native lock holder and two compute owners exhaust capacity;
 a third compute owner waits, and no native job bypasses its existing lock guard.
 
@@ -595,12 +579,10 @@ counts; a lease counts for 15 minutes (`STACK_START_GRACE_MIN`) before its conta
 Supabase with `-x` excluding every service the task does not use. WHY: the `supabase start` docs (supabase/cli
 `docs/supabase/start.md`) recommend "at least 7GB of RAM to start all services". TEST: a third `stack-acquire` exits 75 naming the two running
 stacks.
-DO let the live priority owner (by `prioritize` owner or registered checkout) start a stack at OS memory
-warning. CPU and load thresholds, critical, unknown or fallback-warning memory and `max_stacks()` still
-defer it; every other owner defers at warning with a line naming the priority rule. WHY: a prioritized
-session's stack start deferred about 40 minutes at warning with 46% memory free and 68% CPU idle.
-TEST: priority at warning is granted; non-priority at warning, priority at critical and a third stack
-over `max_stacks()` all exit 75.
+DO admit a stack start on CPU and load alone, for every owner; memory pressure never defers it. WHY: a
+prioritized session's stack start deferred about 40 minutes at memory warning with 68% CPU idle.
+TEST: any owner at memory warning with CPU headroom is granted; CPU contention and a third stack over
+`max_stacks()` exit 75 for every owner.
 
 DO stop idle stacks on events only, never on a timer. `stack-acquire` first stops every idle Supabase
 stack: one whose workspace has no live Claude session (`bin/port-registry.sh sessions`) and no commit,

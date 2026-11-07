@@ -548,6 +548,28 @@ ordered before the walk (the fix for videos and CI waits run ahead of his re-tes
   Use partial reruns to diagnose failures; they do not replace full-run coverage. TEST: the reported
   percentage traces to complete collection for the same revision being judged.
 
+## Reproduce a reported bug first, then prove the root cause
+
+**DO reproduce every reported bug on the unchanged code before writing its fix:** one failing test or
+scripted run showing the user's symptom. It is the recorded concrete diagnostic § Defects first
+allows; record its command and output in the plan.
+**DO run that reproduction under the user's real conditions:** their engine and runtime (browser
+engine, OS, app build), production-shaped input sizes and data, and their entry path, read from the
+report, logs or production read-only. Name every condition you could not match.
+**DON'T reproduce on a convenient substitute.** WHY: a substitute can pass on the buggy code (e.g.
+WebKit localStorage refuses a ~2.5M-character value holding one non-Latin-1 character and Chromium
+stores it, so a Chromium-only repro passed on the broken build).
+**DO pair it with at least 1 control:** an input that worked for a real user before the fix, through
+the same test (e.g. the smaller record that opened fine). The repro fails and the control passes on
+the old code; both pass on the fix. That split proves the named cause is the discriminating factor.
+**DO revert the fix locally once and watch the repro fail again, then restore it.**
+**DON'T write the fix before the repro:** a test written to the fix can pass on both versions. When
+the bug will not reproduce under matched conditions, list each condition tried and report the fix
+as unproven, never root-caused.
+TEST: a bug-fix hand-back cites the repro failing and the control passing on the old code under
+named user conditions, and both passing on the fix; a missing control or an unnamed condition gap
+is an unproven root cause.
+
 ## Defects first
 
 **DO default to zero automated tests, typechecks or verification builds during the whole authorized
@@ -575,15 +597,26 @@ that missed a coverage-audit job, then a migration-order step that then failed C
 TEST: the gate list's row count equals the helper's `TOTAL` run steps, and every skipped row names
 its reason.
 
-**DO run the whole gate list in one pass at merge prep, before the ready-flip that starts CI**
-(`references/git-pr-deploy.md` § CI runs once, at merge prep), over CI's own scope: every static gate,
-the secret scan over the branch's commit range (e.g. `gitleaks git --log-opts="origin/<base>..HEAD"`),
-design and i18n checks, the unit suites and the e2e specs the diff affects. Run the whole list again
+**DO run the whole gate list locally in one pass at merge prep, the last step before the ready-flip
+that starts CI, a merge-queue enqueue, a merge or a deploy** (`references/git-pr-deploy.md` § CI runs
+once, at merge prep). Re-derive it with `bin/ci-gate-list.py` on the final head and run every row,
+over CI's own scope: every static gate, typecheck, lint and format, the secret scan over the branch's
+commit range (e.g. `gitleaks git --log-opts="origin/<base>..HEAD"`), design and i18n checks, unit and
+database/migration suites, e2e specs against a built site, and the native compile when the diff
+touches native code. A row whose workflow `paths:` filter or job `if:` excludes this diff is named
+skipped with that reason. Fix every failure before the flip or enqueue, so CI confirms rather than
+discovers. Lease each heavy row through `local-capacity.py run --owner <session-id>`; its exit 75
+is a wait, never a pass or a skip. A failure in a test the change did not add or edit that passes
+when rerun alone is a load flake: record it by name with both results. Run the whole list again
 before every later push to a ready PR whose diff touches files any gate reads: a review fix that edits
-a test still owes the duplicate-code and dead-code gates, not only the suite it touched. TEST: no CI
-run on the pull request, first or later, fails on a gate that has a local command (the fix for five
-gates found one push at a time, for review-fix pushes that reran one gate and failed CI on another,
-and for a secret-scan false positive on a test fixture token caught only by CI).
+a test still owes the duplicate-code and dead-code gates, not only the suite it touched.
+**DON'T run a hand-picked or remembered list at merge prep.** TEST: the merge-prep record lists each
+CI job step it mirrored, by helper row, with its result, names every step not run locally with its
+reason, and its row count equals the helper's `TOTAL`; no CI run on the pull request, first or later,
+fails on a gate that has a local command (the fix for five gates found one push at a time, for
+review-fix pushes that reran one gate and failed CI on another, for a secret-scan false positive on a
+test fixture token caught only by CI, and for a hand-picked list that passed while CI's design job
+failed on its i18n coverage script).
 
 **DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
 PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant
