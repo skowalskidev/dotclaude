@@ -1870,10 +1870,25 @@ class PriorityAllowanceTests(unittest.TestCase):
             self.assertIsNone(gate.read_state(self.root))
 
     def test_expiry_during_allowance_stops_and_cleans_record(self):
-        gate.prioritize(self.root, "primary", 0.002, False)
+        # Expire only after the payload has started: a wall-clock expiry raced a loaded host's admission.
+        gate.prioritize(self.root, "primary", 30, False)
+        marker = Path(self.tmp.name) / "started"
+        original = gate.check_priority_allowance
+
+        def check(root, owner, binding):
+            if marker.exists():
+                with gate.locked(root):
+                    record = gate.read_priority(root)
+                    if record:
+                        record["expires"] = time.time() - 1
+                        gate.write_priority(root, record)
+            return original(root, owner, binding)
         with mock.patch.object(gate, "cpu_idle_percent", return_value=5), \
-             mock.patch.object(gate, "RETRY_SECONDS", 0.05):
-            self.assertEqual(self.run_payload("import time; time.sleep(30)"), gate.BUSY)
+             mock.patch.object(gate, "RETRY_SECONDS", 0.05), \
+             mock.patch.object(gate, "check_priority_allowance", side_effect=check):
+            code = "from pathlib import Path; import time; Path(%r).touch(); time.sleep(30)" % str(marker)
+            self.assertEqual(self.run_payload(code, max_seconds=20), gate.BUSY)
+        self.assertTrue(marker.exists())
         self.assertIsNone(gate.read_priority(self.root))
         self.assertIsNone(gate.read_state(self.root))
 
