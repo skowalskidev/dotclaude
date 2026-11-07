@@ -69,6 +69,10 @@ tickets; a fix that belongs to another PR is handed to that owner via
    **DO run `/sk:test-automated-full-matrix`'s copy binding and real-environment walk on every Standard
    PR too, after stage 3-6 fixes, on the final head;** a Deep PR's matrix runs them. TEST: every
    Standard and Deep PR's Test matrix section holds its `Real-environment walk:` line.
+   **DO run `references/testing-strategy.md` § Regression check on EVERY PR at every tier, Light
+   included, on the final head after stage 3-6 fixes;** its base screenshots reuse stage 7's
+   base-branch BEFORE capture. TEST: every PR body holds `## Regression check` with one row per
+   modified pre-existing file.
 7. **`/sk:ship-screenshot-changes`** — at the PR's tier, capture changed web surfaces and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images,
    per-scenario videos and verification runs onto the open PR (GitHub-native). Plan the post from the start of the sweep;
@@ -110,6 +114,8 @@ verified the user + system journey, then handed back with it never posted to the
 - Deploy safety (stage 6), on every Deep PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
   per part.
+- Regression check (stage 6), on every PR: one row per modified pre-existing file with PASS or
+  INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors.
 - Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard
   PR's `Skipped (tier <tier>): <trigger>` line under each matrix, prod-data and deploy-safety heading it skipped.
 - Screenshots (stage 7): every surface eligible under stage 7 at the PR's tier has its image on the PR and every affected

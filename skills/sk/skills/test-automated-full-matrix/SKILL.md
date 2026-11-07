@@ -44,6 +44,9 @@ PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
    step yourself**, and correlate each action with its requests, responses and persisted state before
    judging each acceptance criterion and source claim in the living plan with one verdict citing that evidence.
    Apply `references/browser-debugging.md` § Verify what browser automation actually exercises.
+   Walk, too, every existing screen a modified pre-existing file reaches and each screen reused in a
+   new place beside its original place, and feed the results into the PR's `## Regression check`
+   (`references/testing-strategy.md` § Regression check).
    Redact token and cookie values; walk captures are diagnostics. Fix observed bugs and rerun affected
    scenarios. **DON'T count green suites or captured-but-uninspected images as this evidence.** TEST: the matrix holds a
    `Real-environment walk:` line with one verdict per source, or a named no-local-stack reason (the fix

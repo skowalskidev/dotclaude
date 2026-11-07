@@ -9,6 +9,9 @@ is the ONE home of the PR body's section headings: /sk:ship-pr, references/tldr-
 and the harness name this file instead of restating them. A heading matches with any emoji or
 punctuation prefix and any case ("## 🚀 Deploy TLDR"), and may carry a suffix after a non-letter
 ("## Test matrix (head abc1234)"). The Test matrix section also holds a Real-environment walk line.
+The Regression check section holds one row per pre-existing file the PR modifies, renames or removes
+(the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED: the method is
+references/testing-strategy.md § Regression check.
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -28,6 +31,7 @@ SECTIONS = {
     "User journey": "User journey",
     "System journey": "System journey",
     "Test matrix": "Test matrix",
+    "Regression check": "Regression check",
     "Prod data": "Prod data",
     "Deploy safety": "Deploy safety",
     "Screenshots": "Screenshots",
@@ -47,6 +51,10 @@ WALK = re.compile(r"^.*real[- ]environment walk.*$", re.I | re.M)
 VIDEO = re.compile(r"<video\s|^\s*https://github\.com/user-attachments/assets/\S+\s*$", re.I | re.M)
 # references/screenshot-review.md § Verification run videos: the labels each run block and the section carry.
 RUN_LABELS = ("Findings:", "Fixed during review:", "Not covered:", "Sources:")
+# references/testing-strategy.md § Regression check: a row's result, and the file statuses that need a row.
+REGRESSION_OK = re.compile(r"\b(?:PASS|INTENDED)\b")
+REGRESSION_BAD = re.compile(r"\b(?:FAIL|REGRESSED)\b")
+PRE_EXISTING = ("modified", "renamed", "removed", "changed")
 COLLAPSED = re.compile(r"<details(?![^>]*\bopen\b)[^>]*>", re.I)
 THREADS_QUERY = """query($owner:String!,$name:String!,$pr:Int!,$after:String){
   repository(owner:$owner,name:$name){pullRequest(number:$pr){
@@ -113,7 +121,37 @@ def reasoned_na(text):
     return False
 
 
-def check_body(body, body_html, unresolved):
+def check_regression(text, modified):
+    """Missing-row strings for the Regression check section; modified = pre-existing paths the PR changes."""
+    if text is None:
+        return ["Regression check: no Regression check heading"]
+    rows = [ln for ln in text.splitlines() if re.match(r"^\s*\|.*\|\s*$", ln)]
+    out = []
+    if any(REGRESSION_BAD.search(r) for r in rows):
+        out.append("Regression check: a row records FAIL")
+    if not modified:
+        if not has_table(text) and not reasoned_na(text) \
+                and not re.search(r"no pre-?existing file", text, re.I):
+            out.append("Regression check: no table and no stated no-pre-existing-file reason")
+        return out
+    if not has_table(text):
+        return out + ["Regression check: no table for the PR's modified pre-existing files"]
+    unlisted, unresolved = [], []
+    for path in modified:
+        hits = [r for r in rows if path in r.replace("`", "")]
+        if not hits:
+            unlisted.append(path)
+        elif not any(REGRESSION_OK.search(r) for r in hits):
+            unresolved.append(path)
+    if unlisted:
+        shown = ", ".join(unlisted[:5]) + (f" and {len(unlisted) - 5} more" if len(unlisted) > 5 else "")
+        out.append(f"Regression check: no row for {len(unlisted)} modified pre-existing file(s): {shown}")
+    if unresolved:
+        out.append("Regression check: no PASS or INTENDED result for " + ", ".join(unresolved[:5]))
+    return out
+
+
+def check_body(body, body_html, unresolved, modified=()):
     """Return one 'row: what is missing' string per failing landing-gate row."""
     missing = []
     found, order = sections(body)
@@ -156,6 +194,8 @@ def check_body(body, body_html, unresolved):
             missing.append("Test matrix: the Real-environment walk records a FAIL")
         elif not any(re.search(r"\bPASS\b", w) or reasoned_na(w) or TIER_SKIP.search(w) for w in walk):
             missing.append("Test matrix: the Real-environment walk has no PASS, doesn't-apply reason or skip line")
+
+    missing += check_regression(found.get("Regression check"), list(modified or ()))
 
     prod = found.get("Prod data")
     if prod is None:
@@ -205,11 +245,19 @@ def check_body(body, body_html, unresolved):
     return missing
 
 
-def gh(*args):
+def gh_out(*args):
     r = subprocess.run(["gh", *args], capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError(f"gh {args[0]} {args[1] if len(args) > 1 else ''} failed: {r.stderr.strip()[:300]}")
-    return json.loads(r.stdout)
+    return r.stdout
+
+
+def gh(*args):
+    return json.loads(gh_out(*args))
+
+
+def gh_lines(*args):
+    return [ln.strip() for ln in gh_out(*args).splitlines() if ln.strip()]
 
 
 def fetch(repo, pr):
@@ -226,7 +274,10 @@ def fetch(repo, pr):
         if not threads["pageInfo"]["hasNextPage"]:
             break
         after = threads["pageInfo"]["endCursor"]
-    return data.get("body") or "", data.get("body_html") or "", unresolved
+    statuses = "|".join(PRE_EXISTING)
+    files = gh_lines("api", f"repos/{repo}/pulls/{pr}/files", "--paginate",
+                     "--jq", f'.[] | select(.status | test("^({statuses})$")) | .filename')
+    return data.get("body") or "", data.get("body_html") or "", unresolved, files
 
 
 def main():
@@ -238,7 +289,7 @@ def main():
         print(f"pr-landing-gate: usage: --repo must be owner/name, got {args.repo}", file=sys.stderr)
         return 2
     try:
-        body, body_html, unresolved = fetch(args.repo, args.pr)
+        body, body_html, unresolved, modified = fetch(args.repo, args.pr)
     except (RuntimeError, KeyError, TypeError, ValueError) as err:
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: {err}", file=sys.stderr)
         return 2
@@ -246,7 +297,7 @@ def main():
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: body empty or under 200 chars",
               file=sys.stderr)
         return 2
-    missing = check_body(body, body_html, unresolved)
+    missing = check_body(body, body_html, unresolved, modified)
     for row in missing:
         print(f"pr-landing-gate: FAIL {args.repo}#{args.pr} {row}")
     if missing:

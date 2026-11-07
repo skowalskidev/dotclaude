@@ -68,6 +68,14 @@ Tier: deep (a member's search limit and its billing plan).
 
 Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and request logs.
 
+## Regression check
+
+| File | Hunks | Existing callers checked | Base-vs-head evidence | Result |
+|---|---|---|---|---|
+| `src/settings/Limit.tsx` | 2 | Settings, Billing | design-diff 0.0% changed outside the limit row | INTENDED: monthly limit wording |
+| `src/auth/Gate.tsx` | 1 | Sign-in, Invite | buttons 0 px from the viewport bottom on base and head | PASS |
+| `Gate` newly mounted | - | mirrors `src/invite/Invite.tsx:41` | difference: none | PASS |
+
 ## Prod data
 
 **PASS with unknowns** (read-only).
@@ -213,6 +221,29 @@ check(any("no posted video" in m for m in gate.check_body(no_vid, HTML, 0)), "Ve
 skipped = with_video + "\n## Verification runs\n\nSkipped (tier standard): no journey changed, only one copy string\n"
 check(gate.check_body(skipped, HTML, 0) == [], "A Verification runs skip line failed")
 
+# Regression check: one row per modified pre-existing file, each PASS or INTENDED, none FAIL.
+MODIFIED = ["src/settings/Limit.tsx", "src/auth/Gate.tsx"]
+check(gate.check_body(PASSING, HTML, 0, MODIFIED) == [],
+      f"A complete regression check failed: {gate.check_body(PASSING, HTML, 0, MODIFIED)}")
+no_reg = section(PASSING, "Regression check", "")
+check(rows(gate.check_body(no_reg, HTML, 0, MODIFIED)) == {"Regression check"}, "A body with no regression check passed")
+unlisted = gate.check_body(PASSING, HTML, 0, MODIFIED + ["src/app/Frame.tsx"])
+check(any("no row for 1" in m and "src/app/Frame.tsx" in m for m in unlisted),
+      f"A modified pre-existing file with no row passed: {unlisted}")
+bare_row = PASSING.replace("buttons 0 px from the viewport bottom on base and head | PASS |",
+                           "buttons 0 px from the viewport bottom on base and head | looked fine |")
+check(any("no PASS or INTENDED" in m and "src/auth/Gate.tsx" in m for m in gate.check_body(bare_row, HTML, 0, MODIFIED)),
+      "A row with no PASS or INTENDED result passed")
+failed = PASSING.replace("on base and head | PASS |", "buttons 220 px above the bottom on head | FAIL |")
+check(any("records FAIL" in m for m in gate.check_body(failed, HTML, 0, MODIFIED)), "A FAIL regression row passed")
+untabled = section(PASSING, "Regression check", "## Regression check\n\nAll good.\n\n")
+check(any("no table" in m for m in gate.check_body(untabled, HTML, 0, MODIFIED)), "A regression check with no table passed")
+new_only = section(PASSING, "Regression check",
+                   "## Regression check\n\nNo pre-existing file modified: the diff only adds a new script and its test.\n\n")
+check(gate.check_body(new_only, HTML, 0, []) == [], "A stated no-pre-existing-file reason failed")
+check("Regression check" in rows(gate.check_body(new_only, HTML, 0, MODIFIED)),
+      "A no-pre-existing-file claim passed while the PR modifies existing files")
+
 # Unresolved review threads fail.
 check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
 
@@ -222,6 +253,7 @@ STUB = """#!/bin/sh
 case "$1 $2" in
   "pr list") f=prlist.json ;;
   "api graphql") f=threads.json ;;
+  "api "*/files) f=files.txt ;;
   api*) f=pull.json ;;
   *) exit 1 ;;
 esac
@@ -230,13 +262,15 @@ cat "$GH_STUB/$f"
 """
 
 
-def serve(stub, body, html=HTML, unresolved=0, prs=(7,)):
-    for name in ("prlist.json", "pull.json", "threads.json"):
+def serve(stub, body, html=HTML, unresolved=0, prs=(7,), files=("src/auth/Gate.tsx",)):
+    for name in ("prlist.json", "pull.json", "threads.json", "files.txt"):
         (stub / name).unlink(missing_ok=True)
     if prs is not None:
         (stub / "prlist.json").write_text(json.dumps([{"number": n, "url": f"https://example.test/{n}"} for n in prs]))
     if body is not None:
         (stub / "pull.json").write_text(json.dumps({"body": body, "body_html": html}))
+    if files is not None:
+        (stub / "files.txt").write_text("".join(f + "\n" for f in files))
     nodes = [{"isResolved": False}] * unresolved + [{"isResolved": True}]
     (stub / "threads.json").write_text(json.dumps({"data": {"repository": {"pullRequest": {"reviewThreads": {
         "nodes": nodes, "pageInfo": {"hasNextPage": False, "endCursor": None}}}}}}))
@@ -265,6 +299,13 @@ with tempfile.TemporaryDirectory() as tmp:
     r = cli()
     check(r.returncode == 1 and "FAIL example-org/example-repo#7 Test matrix" in r.stdout,
           f"CLI did not print the missing matrix row: {r.returncode} {r.stdout}")
+    serve(stub, PASSING, files=("src/auth/Gate.tsx", "src/app/Frame.tsx"))
+    r = cli()
+    check(r.returncode == 1 and "Regression check: no row for 1" in r.stdout and "src/app/Frame.tsx" in r.stdout,
+          f"CLI did not fail a modified file with no regression row: {r.returncode} {r.stdout}{r.stderr}")
+    serve(stub, PASSING, files=None)
+    r = cli()
+    check(r.returncode == 2 and "FETCH FAILED" in r.stderr, f"A failed file-list fetch did not exit 2: {r.returncode} {r.stderr}")
     serve(stub, None)
     r = cli()
     check(r.returncode == 2 and "FETCH FAILED" in r.stderr, f"A fetch failure did not exit 2: {r.returncode} {r.stderr}")

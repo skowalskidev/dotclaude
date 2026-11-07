@@ -108,6 +108,9 @@ CRITERIA: list[tuple[str, str]] = [
      "The local CI gate list is derived from the workflow files: every pull-request run step counted, container needs marked, an empty list never passes."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
+    ("regression-check-runs-on-every-pr",
+     "Every PR proves its modified pre-existing files left outside paths alone and names the caller each newly "
+     "mounted shared part mirrors; the ship harness, review, matrix and capture scope all invoke that one method."),
     ("matrix-binds-copies-and-walks-real-stack",
      "The matrix binds copied values to their source and walks every changed state on the real local stack, "
      "judged per source criterion; the ship harness runs both on Standard PRs."),
@@ -1944,6 +1947,29 @@ def check_pr_landing_gate_refuses_missing_rows() -> None:
               f"{path} does not point at bin/pr-landing-gate.py for the landing-gate rows")
     check('landing_check "$branch"' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
           "intent-ledger.sh gate PASS no longer runs the landing-gate checker")
+
+
+def check_regression_check_runs_on_every_pr() -> None:
+    method = " ".join((ROOT / "references/testing-strategy.md").read_text().split())
+    for required in ("## Regression check: prove the diff left existing paths alone", "at every tier",
+                     "--diff-filter=MRD", "passes on the base", "bin/design-diff.py",
+                     "in a NEW place against the same screen in its original place", "above 2 CSS px",
+                     "INTENDED", "bin/pr-landing-gate.py", "§ Regression check, PR feedback handling"):
+        check(required in method, "Regression check method lost: " + required)
+    mount = " ".join((ROOT / "references/code-best-practices.md").read_text().split())
+    for required in ("### Mount a shared part the way its existing callers do", "read every existing call site",
+                     "the wrappers, frames and providers", "DON'T wire a shared part from its own props type alone"):
+        check(required in mount, "Shared-part mounting rule lost: " + required)
+    for path in ("skills/sk/skills/ship-full-detailed-workflow/SKILL.md", "skills/sk/skills/ship-review/SKILL.md",
+                 "skills/sk/skills/test-automated-full-matrix/SKILL.md", "references/screenshot-review.md"):
+        text = " ".join((ROOT / path).read_text().split())
+        check("`references/testing-strategy.md` § Regression check" in text,
+              f"{path} does not invoke testing-strategy.md § Regression check")
+    review = " ".join((ROOT / "skills/sk/skills/ship-review/SKILL.md").read_text().split())
+    check("§ Mount a shared part the way its existing callers do" in review,
+          "ship-review's caller-parity lens no longer points at the mounting rule")
+    gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
+    check('"Regression check": "Regression check"' in gate_src, "The landing gate no longer owns a Regression check row")
 
 
 def check_matrix_binds_copies_and_walks_real_stack() -> None:

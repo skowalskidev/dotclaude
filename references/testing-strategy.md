@@ -33,7 +33,7 @@ below a trigger present in the diff, name that trigger once and run what he name
 `## Test matrix` section (each skipped section's heading stays, holding `Skipped (tier light): <trigger>`)
 and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`.
 **DON'T skip a stage silently, or drop the gates every tier keeps:** CI and required hooks, the gate
-list in § Defects first, PR feedback handling, the Deploy TLDR, read-only production, spend approval
+list in § Defects first, § Regression check, PR feedback handling, the Deploy TLDR, read-only production, spend approval
 (`rules/spend-approval.md`) and `references/git-pr-deploy.md` § Prod check after every production deploy.
 TEST: every PR and gate record names one tier and its trigger; a Light or Standard PR shows a skip
 line per skipped stage; a diff holding any Deep trigger shows the full harness's results. (e.g. Light
@@ -547,6 +547,40 @@ ordered before the walk (the fix for videos and CI waits run ahead of his re-tes
 - **DO tie a coverage verdict to its source revision, collection directory and complete test invocation.**
   Use partial reruns to diagnose failures; they do not replace full-run coverage. TEST: the reported
   percentage traces to complete collection for the same revision being judged.
+
+## Regression check: prove the diff left existing paths alone
+
+**DO run a regression check on every diff, at every tier, before calling its PR done.** List each
+pre-existing file the diff modifies, renames or removes (`git diff --name-status --diff-filter=MRD
+<base>...HEAD`; added files are exempt). For each file: its hunks, the existing callers each hunk
+reaches (`git grep -n` its changed exports, components, routes, styles and keys), and proof that every
+path outside the feature behaves as on the base. Proof is one of:
+- a test over that path that passes on the base (run it in a base worktree) and on the head;
+- for anything rendered, a base-vs-head screenshot pair of each existing screen the hunk reaches, same
+  data, viewport and state, compared with `python3 ~/.claude/bin/design-diff.py <base.png> <head.png>
+  --out <panel.png>` and by the measured position of its primary controls.
+A changed existing behaviour that the ask wants is stated as INTENDED, naming the ask.
+**DON'T take green unit tests, typecheck or e2e as proof for a rendered path:** none of them measures
+where a button sits. NUMBER: one row per file; every caller, or above 10 callers every caller on a
+distinct screen or route plus the count of the rest.
+
+**DO compare an existing screen rendered in a NEW place against the same screen in its original
+place, by measurement.** Capture both at the same viewport and data; for each primary control record
+`getBoundingClientRect()` top and bottom, its distance to the viewport bottom (pinned or not) and its
+container's scroll height. A difference above 2 CSS px is a finding unless stated INTENDED. Native
+screens use their test frames under § Native simulator suites. Mount the part as its callers do first:
+`references/code-best-practices.md` § Mount a shared part the way its existing callers do.
+
+**DO post the result in the PR body under `## Regression check`:** a table
+`File | Hunks | Existing callers checked | Base-vs-head evidence | Result`, one row per modified
+pre-existing file, Result `PASS` (outside paths unchanged) or `INTENDED: <change>`; then one row per
+newly mounted shared part naming the caller it mirrored, and one measured row per screen reused in a
+new place. A diff modifying no pre-existing file states that with its reason.
+`bin/pr-landing-gate.py` fails the gate when a modified pre-existing file has no row, a row holds
+neither PASS nor INTENDED, or a row records FAIL.
+TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
+base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
+call site while every automated suite passed; a human found it on a walk).
 
 ## Reproduce a reported bug first, then prove the root cause
 

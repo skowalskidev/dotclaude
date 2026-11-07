@@ -29,6 +29,13 @@ file list; state "reviewed N of N changed files" in the report, and treat any ch
 saw as a coverage gap and a finding. (The failure this prevents: sending only the backend/money source
 files of a large diff to the models while the UI, tests and docs go unreviewed.)
 
+**DO run a caller-parity lens in every review, at every tier that reviews:** compare each shared part
+the diff newly mounts against its existing callers (`references/code-best-practices.md` § Mount a
+shared part the way its existing callers do), and trace every modified pre-existing file's hunks to
+their existing callers (`references/testing-strategy.md` § Regression check). A missing wrapper,
+frame, provider or prop, or an unproven outside path, is a finding. TEST: the report names, per newly
+mounted shared part, the caller compared against.
+
 ### Subscription reviewers, in either project boundary
 
 Read `references/parallelization.md` and reconcile the saved setup with the current chat's provider. Codex billing follows

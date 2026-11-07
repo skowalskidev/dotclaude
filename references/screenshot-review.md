@@ -55,6 +55,8 @@ true empty account from filtered zero results and unavailable data. Include cond
 disable UI. Map complete journeys from entry through outcome.
 TEST: every source branch or discovered state maps to a case or a named not-applicable reason; no
 happy-path sample silently replaces broad scope.
+DO add to that scope, at every tier, each existing screen a modified pre-existing file reaches and each
+screen reused in a new place beside its original place: `references/testing-strategy.md` § Regression check.
 
 DO derive layout profiles from existing test/device config and CSS media/container query breakpoints.
 For each breakpoint b capture b−1, b and b+1 CSS pixels, plus supported minimum/maximum sizes; exercise

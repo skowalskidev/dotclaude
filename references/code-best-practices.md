@@ -12,6 +12,24 @@ Reference catalog for engineering-quality standards: code quality (DRY/SRP, reus
 - For any UI work, enumerate every interface element (filters, buttons, controls) and verify each has a working backend handler.
 - Before keeping a mechanism (e.g., polling), investigate whether a better one exists and verify online; if the current one turns out best, keep it — but check first.
 
+### Mount a shared part the way its existing callers do
+
+**DO read every existing call site before mounting a shared component, screen, hook or helper at a NEW
+call site, and copy the mounting contract they share:** the wrappers, frames and providers around it,
+the props passed alongside the ones you pass, the layout context it assumes (a full-height parent, a
+scroll container, safe-area insets, a theme) and the events or callbacks they wire. Find them with
+`git grep -n '<ComponentName\b'` plus its re-exports. NUMBER: read all of them; above 10, read every
+caller passing the same props you pass, and count the rest.
+**DO state any deliberate difference from the callers and why** in the PR's `## Regression check`
+table (`references/testing-strategy.md` § Regression check), one row per newly mounted shared part
+holding `mirrors <path>:<line>` and `difference: none`, or the difference and its reason.
+**DON'T wire a shared part from its own props type alone:** its signature never shows the frame its
+callers wrap it in, so the part renders, type-checks and passes its tests while laid out wrong.
+TEST: for each shared part the diff newly mounts, the PR names the existing caller it mirrored, or the
+stated difference and reason. (e.g. a sign-in screen mounted with a flag prop but without the
+full-height frame every other caller with that prop supplies: its primary buttons floated mid-screen
+instead of pinning to the bottom, and unit, type and e2e checks all passed.)
+
 ### Shell commands
 
 #### Agent-written shell fails fast and loud

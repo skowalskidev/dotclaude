@@ -267,6 +267,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Inventory source branches and real UI states across the declared scope; require empty and full states at every selected supported layout and disclose secondary sampling.",
             "Build the full matrix for a Deep-tier change; capture Light and Standard changes at the scope testing-strategy.md gives their tier and record the skip.",
+            "At every tier, add each existing screen a modified pre-existing file reaches and each screen reused in a new place beside its original to the capture scope, for the regression check.",
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
             "Refresh evidence by default after all current ticket follow-ups, review fixes and required checks finish; honor explicit waivers, reopen pending refresh after new work, and require final-source or unchanged-point reuse proof.",
@@ -403,6 +404,7 @@ CONTRACTS: dict[str, dict] = {
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-eligible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
+            "Fail a body with no Regression check heading, a row recording FAIL, or a modified, renamed or removed file from the PR's fetched file list with no row or no PASS or INTENDED result; a PR modifying no pre-existing file needs a table or a stated reason, and a failed file-list fetch exits 2.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -683,6 +685,7 @@ CONTRACTS: dict[str, dict] = {
             "Stop every watcher, poll, monitor or scheduled wake when its target finishes or its owner hands back; none wakes a finished agent.",
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
             "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
+            "Before mounting a shared part at a new call site, read every existing caller (above 10, every caller passing the same props) and copy its wrappers, frames, providers, props, layout context and events; the PR names the mirrored caller or states the difference and its reason.",
         ],
     },
     "references/connectors-setup.md": {
@@ -967,6 +970,9 @@ CONTRACTS: dict[str, dict] = {
             "Assert exact per-entity outcomes beyond changed page and batch limits; cover applicable eligibility, event-order, fairness, concurrency, lease, retry, ambiguous-provider and idempotency timelines without requiring a full cross-product.",
             "Make mock failures observable outside application catches; drain complete scans under explicit bounds, record reproducible seeds and evidence, and disclose provider races and unsupported runtime semantics.",
             "Reproduce a reported bug on unchanged code under the user's engine, runtime and production-shaped data before the fix, with at least 1 control that passes there; both pass on the fix, else report it unproven.",
+            "Own the regression check, kept at every tier: list each modified, renamed or removed pre-existing file, trace its hunks to existing callers, and prove outside paths with a test passing on base and head or a base-vs-head screenshot pair compared by design-diff and measured control positions; a wanted change is stated INTENDED.",
+            "Compare an existing screen rendered in a new place with its original place by measured control top, bottom, distance to the viewport bottom and container scroll height; above 2 CSS px is a finding unless stated INTENDED.",
+            "Post the regression check under ## Regression check: one row per modified pre-existing file with PASS or INTENDED, one row per newly mounted shared part naming its mirrored caller; green unit, type or e2e suites never prove a rendered path.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Time every new or changed time budget on a read against production, read-only, before release; record the measured figure beside the constant, and a budget under 2x that figure is a finding.",
@@ -1091,6 +1097,7 @@ CONTRACTS: dict[str, dict] = {
             "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
             "Bind every copied value in the diff and its stacked or sibling PRs to its source, and walk every changed state on the real local stack, judging each recorded source criterion from screenshots, requests and rows.",
             "Inspect screenshots at each meaningful step, correlate actions with requests, responses and persisted state, fix observed bugs and rerun affected scenarios; captured images alone never prove the walk.",
+            "The real-stack walk also covers each existing screen a modified pre-existing file reaches and each screen reused in a new place beside its original, feeding the PR's regression check.",
         ],
     },
     "skills/sk/skills/work-does-this-make-sense-to-build/SKILL.md": {
@@ -1164,6 +1171,7 @@ CONTRACTS: dict[str, dict] = {
             "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, and Deep runs every stage as written.",
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
+            "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
             "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head; a Deep PR's matrix runs them.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
@@ -1541,6 +1549,7 @@ CONTRACTS: dict[str, dict] = {
             "can get through what the diff produced.",
             "The journey pass is runnable on its own, so asking to walk a flow does not spend the "
             "multi-model code review to get there.",
+            "Every review runs a caller-parity lens: each newly mounted shared part against its existing callers and each modified pre-existing file's hunks traced to their callers; a missing wrapper, frame, provider or prop is a finding.",
             "A fix round's written rules name every reader of a value they change, and the round ends "
             "with a fresh judge over the files it changed. Run criterion judges beside review lenses "
             "before fixes, then refresh verdicts affected by changed dependencies and resolve new gaps before the heavy gate.",
