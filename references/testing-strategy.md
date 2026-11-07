@@ -474,6 +474,18 @@ he did ahead of you ran against the watched server.
 TEST: before any side-effecting step, the log holds his first request and the provider identities
 match; a step whose expected request is missing halts the run.
 
+**DO order work around a pending human re-walk: fix, then his walk, then the red tape.** When a human
+walk (`/sk:test-copilot`, or Simon re-testing a flow) produced fixes and he will walk again:
+1. Fix, and run the quick local checks (the touched unit tests, the typecheck).
+2. Rebuild the local stack or preview from a fresh seed and hand him the re-walk.
+3. Fix what he finds and repeat 1-3 until a walk passes.
+4. Only then the red tape: verification run videos, push, CI waits, PR body and evidence, the landing gate.
+**DON'T record a video, wait on CI or edit PR evidence before his re-walk passes.** Evidence captured
+ahead of the walk is recaptured after every fix he triggers. A push he needs to open the build (a
+remote preview) is the one exception.
+TEST: in a plan with a pending human re-walk, no video recording, CI wait or PR evidence step is
+ordered before the walk (the fix for videos and CI waits run ahead of his re-test).
+
 ## Layering and coverage arguments
 
 - **Cheapest first.** Pure/offline checks before anything live.

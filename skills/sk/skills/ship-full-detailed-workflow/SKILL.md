@@ -18,6 +18,8 @@ commit-when-done, track-every-task, ask before booting a browser), `living-plan.
 tickets; a fix that belongs to another PR is handed to that owner via
 `/sk:ship-check-merge-readiness`'s cross-owner discipline, never applied across branches.
 
+**With a human re-walk pending, run it first:** `references/testing-strategy.md` § Human-driven sessions ("order work around a pending human re-walk") orders the push, videos and CI waits below after it.
+
 **The stages, in order:**
 
 0. **Establish state, then sync the branch.** The PR number, branch, worktree, base, draft flag,
