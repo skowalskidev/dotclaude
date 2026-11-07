@@ -983,6 +983,7 @@ CONTRACTS: dict[str, dict] = {
             "On a simulator walk the agent performs every relaunch (terminate, launch with the local server address, screenshot) and the tester's step starts from the confirmed screen; never tell him to reopen the app.",
             "A human's default walk starts at the real entry with a fresh account; a state is seeded directly only past 15 minutes of walking and is labelled; Claude loads step 1's address in his starting state first.",
             "Claude runs every later step in its own browser from his state and sends it only when the Expect screen appears; an account he may be signed into is never deleted or reset, and a reset step is one storage-clearing line plus the next URL.",
+            "With a human re-walk pending, order fix, quick local checks, fresh-seed rebuild, his re-walk, then the red tape; no video, CI wait or PR evidence step precedes a passing walk. test-copilot and the ship harness point here and restate none of it.",
             "Each forced test state records the ids it wrote, removes exactly those, reads the count back and states it.",
             "The journey matrix of an account feature includes signing in on a second browser or device with empty storage; device storage never stands in for a server-owned fact.",
             "A pay path is reported safe only with one row per account state that can reach a pay button: the server's precondition read and the production press-to-session rate; presses with no sessions is a finding.",
