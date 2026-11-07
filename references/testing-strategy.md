@@ -536,6 +536,28 @@ match; a step whose expected request is missing halts the run.
   Use partial reruns to diagnose failures; they do not replace full-run coverage. TEST: the reported
   percentage traces to complete collection for the same revision being judged.
 
+## Reproduce a reported bug first, then prove the root cause
+
+**DO reproduce every reported bug on the unchanged code before writing its fix:** one failing test or
+scripted run showing the user's symptom. It is the recorded concrete diagnostic § Defects first
+allows; record its command and output in the plan.
+**DO run that reproduction under the user's real conditions:** their engine and runtime (browser
+engine, OS, app build), production-shaped input sizes and data, and their entry path, read from the
+report, logs or production read-only. Name every condition you could not match.
+**DON'T reproduce on a convenient substitute.** WHY: a substitute can pass on the buggy code (e.g.
+WebKit localStorage refuses a ~2.5M-character value holding one non-Latin-1 character and Chromium
+stores it, so a Chromium-only repro passed on the broken build).
+**DO pair it with at least 1 control:** an input that worked for a real user before the fix, through
+the same test (e.g. the smaller record that opened fine). The repro fails and the control passes on
+the old code; both pass on the fix. That split proves the named cause is the discriminating factor.
+**DO revert the fix locally once and watch the repro fail again, then restore it.**
+**DON'T write the fix before the repro:** a test written to the fix can pass on both versions. When
+the bug will not reproduce under matched conditions, list each condition tried and report the fix
+as unproven, never root-caused.
+TEST: a bug-fix hand-back cites the repro failing and the control passing on the old code under
+named user conditions, and both passing on the fix; a missing control or an unnamed condition gap
+is an unproven root cause.
+
 ## Defects first
 
 **DO default to zero automated tests, typechecks or verification builds during the whole authorized
