@@ -231,8 +231,12 @@ scoped lightweight checks continue while all are held. This is cooperative admis
 ceiling. DON'T create a per-repository gate or nest another lease inside one already held: `run` and
 `acquire` inside a leased run on the same root exit 1 (not 75) and name `stage`, the way in. A
 same-owner 75 names its own holder; act on it (move a server to `stack-acquire`, run the step as a
-`stage`, or wait) instead of retrying blind. TEST: a fourth owner gets exit 75 naming all three holders,
-the same owner asking twice gets exit 75 naming `stage`, and a nested `run` exits 1.
+`stage`, or wait) instead of retrying blind. DO lease only the build of a command that builds then serves
+(e.g. a `web --worker` script): start the server outside the lease, because a `run` that never exits holds
+the lease and the legacy native lock for as long as the server lives, and the same owner's next `run` then
+gets the own-lease message, not a load wait. TEST: a fourth owner gets exit 75 naming all three holders,
+the same owner asking twice gets exit 75 naming `stage` (also when it meets its own lease through the held
+legacy native lock), and a nested `run` exits 1.
 
 ```sh
 python3 ~/.claude/bin/local-capacity.py status

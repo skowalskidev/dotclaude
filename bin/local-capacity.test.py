@@ -1454,6 +1454,24 @@ class PriorityTests(unittest.TestCase):
         with self.assertRaises(gate.Busy):
             gate.run_command(self.root, "holder", None, [sys.executable, "-c", "pass"], wait_seconds=0)
 
+    def test_the_holders_own_second_run_gets_the_own_lease_message_not_the_legacy_one(self):
+        self.hold_bridge()
+        gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
+        with self.assertRaises(gate.Busy) as refused:
+            gate.run_command(self.root, "holder", None, [sys.executable, "-c", "pass"], wait_seconds=0)
+        self.assertIn("This is your own owner's lease", str(refused.exception))
+        self.assertIn("holder=holder", str(refused.exception))
+        self.assertNotIn("older engine", str(refused.exception))
+
+    def test_a_legacy_lock_held_with_no_lease_of_this_owner_keeps_the_legacy_message(self):
+        self.hold_bridge()
+        gate.acquire(self.root, "holder", os.getpid(), None, allow_bridge=True)
+        with mock.patch.object(gate, "other_owner_holds_first_slot", return_value=False):
+            with self.assertRaises(gate.Busy) as refused:
+                gate.run_command(self.root, "stranger", None, [sys.executable, "-c", "pass"], wait_seconds=0)
+        self.assertIn("older engine", str(refused.exception))
+        self.assertNotIn("own owner's lease", str(refused.exception))
+
 
 LAUNCHD = "launchd_sim /Users/x/Library/Developer/CoreSimulator/Devices/%s/data/var/run/launchd_bootstrap.plist"
 RUNTIME = ("/Library/Developer/CoreSimulator/Volumes/iOS_X/Library/Developer/CoreSimulator/Profiles/Runtimes/"

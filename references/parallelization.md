@@ -508,6 +508,11 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   shutdown all` closed another session's simulator, and one that stashed in the stack every worktree
   shares). TEST: every dispatch prompt that boots, kills, resets or sets work aside names an id or a
   path, and none says `all`, `killall` or `git stash`.
+- **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
+  port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
+  signals only those at cleanup. DON'T let it kill by port, name or pattern. TEST: every brief that has
+  the worker boot or stop a process lists the parent's pid files and ports as off limits (the fix for a
+  fix worker that killed the parent's walk web server at cleanup, taking it for its own).
 - **Give every shared thing a slice would create one owner before fanning out.** Shared helper types,
   shared assets and sequential IDs such as migration numbers are created in the START commit or assigned to
   a single slice in the prompts. Two slices that both add one cause a conflict at every merge, or a

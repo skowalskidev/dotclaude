@@ -1234,6 +1234,23 @@ def other_owner_holds_first_slot(root, owner):
         return bool(lease and lease["owner"] != owner)
 
 
+def own_live_lease(root, owner):
+    """The live lease this owner already holds in any heavy slot, else None."""
+    with locked(root):
+        for name in SLOTS:
+            lease = read_state(root, slot=name)
+            if lease and lease["owner"] == owner and pid_start(lease["pid"]) == lease["pid_start"]:
+                return lease
+    return None
+
+
+def own_lease_text(lease):
+    """The one wording for an owner meeting its own lease (heavy slot or the legacy lock it holds)."""
+    return ("heavy slot busy: %s; one owner holds at most one lease. This is your own owner's lease, "
+            "not machine load: a long-lived server or watcher must not hold it (a dev stack takes "
+            "stack-acquire), and a step of the holding run goes through `stage`" % holder_text(lease))
+
+
 def flock_with_grace(fd):
     """Take a legacy flock, polling briefly: another waiter holds it only while checking state."""
     deadline = time.monotonic() + LEGACY_LOCK_GRACE_SECONDS
@@ -1289,7 +1306,8 @@ def legacy_bridge(root, owner=None):
                     os.close(fd)
                     skipped = True
                     continue
-                raise Busy(legacy_holder_text(name)) from exc
+                own = own_live_lease(root, owner) if owner is not None else None
+                raise Busy(own_lease_text(own) if own else legacy_holder_text(name)) from exc
             except OSError as exc:
                 raise GateError("legacy native lock cannot be checked: %s" % exc) from exc
         yield tuple(fds), skipped
@@ -1381,9 +1399,7 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
                              priority_binding=priority_binding(priority) if is_priority else None)
         mine = next((lease for lease in held if lease["owner"] == owner), None)
         if mine:
-            raise Busy("heavy slot busy: %s; one owner holds at most one lease. This is your own owner's lease, "
-                       "not machine load: a long-lived server or watcher must not hold it (a dev stack takes "
-                       "stack-acquire), and a step of the holding run goes through `stage`" % holder_text(mine))
+            raise Busy(own_lease_text(mine))
         if second_slot_only and not states[0]:
             raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
         legacy_lanes = len(bridge_paths(root)) + int((legacy_slot_dir() / "slot.d").exists())
