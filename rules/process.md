@@ -34,7 +34,7 @@ TEST: the verdict names the runtime identifiers it was compared against.
 
 ### Research online BEFORE retrying — don't grind on a brick wall
 DO search online (official docs, GitHub issues) after two failed attempts at the same wall, or first for an
-unfamiliar library or opaque error. Diagnose the root cause over piling on workarounds. Detail:
+unfamiliar library or opaque error. Detail:
 `references/research.md` § Research before retrying.
 
 ### Agent-written shell fails fast and loud
@@ -80,6 +80,8 @@ evidence; name all outstanding work at hand-back. TEST: a tangent cannot remove 
 When a new request lands mid-work, add it to the checklist and keep going — never drop the current task
 to serve it, and never make me label it. Say in one line where it landed: running now in parallel
 (independent) or queued next. Treat it as an interrupt only if it says stop, or changes work in flight.
+DO answer a mid-run question in the turn's final message too; text between tool calls is collapsed.
+TEST: the last message answers every question asked during the turn.
 
 ### Tell the live session your change affects
 DO send one `SendMessage` to each live session (`ListAgents`) your work changes: its files, branch, PR,
@@ -154,11 +156,8 @@ it, and several done → one commit each. Subject/body format + the never-`-m`-a
 green tree.
 
 ### Phased execution — only when I ask for it
-Run-to-completion above is the DEFAULT and stays it. But when I say to work in phases (or to space the
-work out, or to stop after each stage), that overrides it for that task:
-
-Apply `references/planning-and-tracking.md` § Phased execution: show the phases first, stop at each
-boundary, commit per phase.
+Run-to-completion stays the default. When I ask for phases, spacing or a stop after each stage, apply
+`references/planning-and-tracking.md` § Phased execution for that task.
 
 ### Check whether the project declares expected outcomes, before changing a unit
 Many carry a contract registry or acceptance criteria that a green test suite does not enforce on its
