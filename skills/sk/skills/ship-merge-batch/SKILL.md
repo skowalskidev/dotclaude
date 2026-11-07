@@ -20,7 +20,8 @@ The method, the mechanism order and the settings options live in
 4. **Check numbered files** across the set, the base and every other open PR; renumber on the
    original branch, per the reference.
 5. **Batch** through the merge queue or the batch PR, per the reference's order. Open the batch PR
-   through `/sk:ship-pr`.
+   through `/sk:ship-pr`. Run the merge-prep local gate list on the batch head before enqueueing or
+   merging: `references/testing-strategy.md` § Defects first.
 6. **Merge once.** Prefix the one `gh pr merge` with `CLAUDE_ALLOW_PR_MERGE=1`, only after step 1's
    yes covers every PR in the batch and the batch run is green. `hooks/git-commit-guard.py` blocks it
    otherwise.

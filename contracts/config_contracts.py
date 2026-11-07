@@ -950,6 +950,7 @@ CONTRACTS: dict[str, dict] = {
             "Own the Light, Standard and Deep verification tiers: classify from the diff before any check, take the deeper tier when unclear, escalate on an unexpected finding, and record tier, trigger and skipped stages on the PR and gate.",
             "Every tier keeps CI, required hooks, the project gate list, PR feedback handling, read-only production, spend approval and the post-deploy prod check; a Deep trigger always gets the full harness.",
             "Re-read the CI gate list after every base merge or rebase, and run it in one pass over CI's own scope, secret scan included, before the ready-flip that starts CI.",
+            "At merge prep, before a ready-flip, enqueue, merge or deploy, re-derive the list with ci-gate-list.py on the final head and run every row locally, leased; record each mirrored row and each skip reason.",
             "Derive the CI gate list from the workflow files with bin/ci-gate-list.py, one row per pull-request run step; each skipped row, a CI-only container step included, names its reason.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
@@ -1149,6 +1150,7 @@ CONTRACTS: dict[str, dict] = {
                    "master, verify criteria + journeys with a test per verdict, multi-model + security "
                    "review, resolve threads, screenshot, meet the Deploy-TLDR standard, reconcile.",
         "criteria": [
+            "Runs the testing-strategy merge-prep local gate list on the final head before any ready-flip, enqueue or merge it performs.",
             "Defer automated verification until the whole authorized batch and review fixes converge; compose the shared timing, evidence-reuse and failure-rerun policy.",
             "Composes /sk:ship-check-merge-readiness, "
             "/sk:ship-report-and-ensure-correct-user-system-journey, /sk:ship-review, "
@@ -1189,6 +1191,7 @@ CONTRACTS: dict[str, dict] = {
             "Checks numbered files across the set, the base and other open PRs, and renumbers on the "
             "original PR branch.",
             "Points to references/git-pr-deploy.md for the method; does not restate it.",
+            "Runs the testing-strategy merge-prep local gate list on the batch head before enqueueing or merging.",
             "Reports exactly one deploy run and each original PR's merged state.",
         ],
     },
