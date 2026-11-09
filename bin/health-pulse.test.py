@@ -292,6 +292,54 @@ with tempfile.TemporaryDirectory() as tmp:
     expect(sms.get("status") in ("crit", "warn") and "30034" in sms.get("cause", ""),
            f"an unregistered SMS sender failing 6/6 is its own flagged row naming 30034: {sms}")
 
+# CI mode: a restricted Stripe key over HTTPS, Supabase metrics through the read-only token, and
+# keys read from os.environ are still scrubbed from error text.
+with tempfile.TemporaryDirectory() as tmp:
+    rk = "rk_live_" + "Z" * 40
+    os.environ["STRIPE_MONITOR_KEY_TEST"] = rk
+    try:
+        ctx = ctx_for({"stripe": {"keyEnv": "STRIPE_MONITOR_KEY_TEST"},
+                       "supabase": {"ref": "a" * 20, "tokenEnv": "SB_TOKEN_TEST"}}, tmp, {"SB_TOKEN_TEST": "sbp_" + "q" * 40})
+        seen = []
+
+        def fake_http(url, headers, data=None):
+            seen.append((url, headers.get("Authorization", "")))
+            if "api.stripe.com" in url:
+                return {"id": "acct_1", "data": [], "has_more": False}
+            return "supabase_up 1\n"
+
+        ctx.http = fake_http
+        st = hp.Stripe(ctx)
+        st.get("/v1/events", [("types[]", "charge.failed"), ("limit", 100)])
+        expect(st.cli is None and seen[-1][0].startswith("https://api.stripe.com/v1/events?types%5B%5D=charge.failed")
+               and seen[-1][1] == "Bearer " + rk, f"stripe keyEnv reads over HTTPS with the restricted key: {seen[-1:]}")
+        series = hp.Supabase(ctx).prometheus()
+        expect(seen[-1][0].endswith("/analytics/endpoints/metrics") and seen[-1][1].startswith("Bearer sbp_")
+               and "supabase_up" in series, f"metrics without metricsKeyEnv use the token endpoint: {seen[-1:]}")
+        plain = "plainsecretvalue" * 2  # matches no SECRET_PATTERNS shape, so only secret_names() can catch it
+        os.environ["TWILIO_SECRET_TEST"] = plain
+        ctx.monitor["twilio"] = {"keySecretEnv": "TWILIO_SECRET_TEST"}
+        expect(plain not in hp.scrub("boom " + plain, ctx.secrets()), "an os.environ key named by the monitor block is scrubbed")
+    finally:
+        os.environ.pop("STRIPE_MONITOR_KEY_TEST", None)
+        os.environ.pop("TWILIO_SECRET_TEST", None)
+
+# A rate-limited signature read must not crash the whole Supabase probe (seen on 2026-11-09).
+with tempfile.TemporaryDirectory() as tmp:
+    ctx = ctx_for({"supabase": {"ref": "a" * 20, "tokenEnv": "SB"}}, tmp, {"SB": "sbp_" + "q" * 40})
+    sb = hp.Supabase(ctx)
+
+    def flaky_logs(sql, start, end):
+        if "group by sig" in sql:
+            raise hp.ProbeError("HTTP 429 from api.supabase.com: Too Many Requests")
+        return [{src["id"]: 30 for src in hp.LOG_SOURCES}]
+
+    sb.logs = flaky_logs
+    rows = hp.probe_logs(ctx, sb)
+    logs = [r for r in rows if r["id"].startswith("logs-")]
+    expect(logs and all("signatures unavailable" in " ".join(r["detail"]) for r in logs),
+           f"each log row reports its missing signatures instead of crashing: {[r['id'] for r in rows]}")
+
 if FAILS:
     print("FAIL health-pulse:\n- " + "\n- ".join(FAILS))
     sys.exit(1)

@@ -21,8 +21,8 @@ enables:
              low-sample instead of green.
   revenuecat overview metrics against the stored snapshot about a week old.
   stripe     failed-charge share, failed invoices, disputes, events whose webhook delivery failed and
-             disabled endpoints, through the CLI profile the manifest names, after checking the CLI
-             is on the expected account.
+             disabled endpoints, through a restricted key over HTTPS (stripe.keyEnv) or the CLI
+             profile, after checking it reads the expected account.
   twilio     failed or undelivered share per messaging service with top error codes, and debugger
              alerts. Aggregates only: no message body or phone number is read into the report.
   corroborate  pairs of counts from two sources for the same window (e.g. Stripe charges against
@@ -64,6 +64,7 @@ HOME_CLAUDE = Path(os.environ.get("CLAUDE_HOME", Path.home() / ".claude"))
 STATE_DIR = HOME_CLAUDE / "monitor"
 SUPABASE_API = "https://api.supabase.com/v1"
 RC_API = "https://api.revenuecat.com/v2"
+STRIPE_API = "https://api.stripe.com"
 TWILIO_API = "https://api.twilio.com/2010-04-01"
 TWILIO_MONITOR = "https://monitor.twilio.com/v1"
 TIMEOUT = 45
@@ -308,11 +309,20 @@ class Context:
     def secret(self, name):
         value = self.env.get(name) or os.environ.get(name, "")
         if not value:
-            raise ProbeError(f"{name} is not set in the connector key files")
+            raise ProbeError(f"{name} is not set in the connector key files or the environment")
         return value
 
     def secrets(self):
-        return tuple(v for v in self.env.values() if len(v) >= 12)
+        named = [os.environ.get(n, "") for n in self.secret_names()]
+        return tuple(v for v in [*self.env.values(), *named] if len(v) >= 12)
+
+    def secret_names(self):
+        """Every env name the monitor block reads a key from, so scrub() also covers keys from os.environ."""
+        names = []
+        for conf in self.monitor.values():
+            if isinstance(conf, dict):
+                names += [v for k, v in conf.items() if k.endswith("Env") and isinstance(v, str)]
+        return names
 
     def http(self, url, headers, data=None):
         body = json.dumps(data).encode() if data is not None else None
@@ -422,11 +432,19 @@ class Supabase:
         return (data or {}).get("result") or []
 
     def prometheus(self):
-        """One scrape of the project's metrics endpoint as {name: [(labels, value)]}."""
-        key = self.ctx.secret(self.conf.get("metricsKeyEnv", "SUPABASE_SERVICE_KEY"))
-        auth = base64.b64encode(("service_role:" + key).encode()).decode()
-        text = self.ctx.http(f"https://{self.ref}.supabase.co/customer/v1/privileged/metrics",
-                             {"Authorization": "Basic " + auth, "Accept": "text/plain"})
+        """One scrape of the project's metrics endpoint as {name: [(labels, value)]}.
+
+        With `metricsKeyEnv` it scrapes the privileged endpoint with the secret key; without it, the
+        Management API's copy of the same Prometheus text, which a token with Logs Read can read.
+        """
+        if self.conf.get("metricsKeyEnv"):
+            key = self.ctx.secret(self.conf["metricsKeyEnv"])
+            auth = base64.b64encode(("service_role:" + key).encode()).decode()
+            text = self.ctx.http(f"https://{self.ref}.supabase.co/customer/v1/privileged/metrics",
+                                 {"Authorization": "Basic " + auth, "Accept": "text/plain"})
+        else:
+            text = self.ctx.http(f"{SUPABASE_API}/projects/{self.ref}/analytics/endpoints/metrics",
+                                 {**self.headers, "Accept": "text/plain"})
         series = {}
         for line in str(text).splitlines():
             m = re.match(r"^([a-zA-Z_:][a-zA-Z0-9_:]*)(\{[^}]*\})?\s+(\S+)", line)
@@ -781,15 +799,15 @@ def probe_logs(ctx, sb):
             status, why = "warn", "functions are being killed at a CPU, memory or wall-clock limit; " + why
         ctx.values["logs:" + src["id"]] = total
         detail = []
-        for sig, n in merge_signatures([(name_functions(r.get("sig", "")), r.get("n", 0)) for r in rows]):
+        sigs = merge_signatures([(name_functions(r.get("sig", "")), r.get("n", 0)) for r in rows])
+        for sig, n in sigs:
             hint = sqlstate_hint(sig) if src["id"] == "postgres-errors" else None
             detail.append(f"{n:,}× {sig}" + (f" → {hint}" if hint else ""))
         if error:
             detail.append("signatures unavailable: " + error[:160])
         top_share = ""
-        if detail and total:
-            n_top = int(detail[0].split("×", 1)[0].replace(",", ""))
-            top_share = f"{n_top / total * 100:.0f}% are: " + detail[0].split("× ", 1)[1]
+        if sigs and total:  # a failed signature read leaves only its error line, which has no count
+            top_share = f"{sigs[0][1] / total * 100:.0f}% are: " + detail[0].split("× ", 1)[1]
         out.append(check("Errors", "logs-" + src["id"], src["label"], status, now_text, base_text, why, detail,
                          "supabase-logs", top_share[:220]))
     requests = int(now_totals.get("api-5xx__den") or 0)
@@ -1051,16 +1069,25 @@ def probe_revenuecat(ctx):
     return out or [check("Revenue", "rc", "RevenueCat overview", "unknown", why="no metrics returned", source="revenuecat")]
 
 
-# ---------------------------------------------------------------- Stripe (CLI, named profile)
+# ---------------------------------------------------------------- Stripe (restricted key or CLI profile)
 
 class Stripe:
+    """Reads through a restricted key over HTTPS when `keyEnv` is set, else the CLI's named profile."""
+
     def __init__(self, ctx):
         self.ctx, self.conf = ctx, ctx.monitor.get("stripe") or {}
-        self.cli = shutil.which("stripe")
-        if not self.cli:
-            raise ProbeError("stripe CLI not installed")
+        self.key = ctx.secret(self.conf["keyEnv"]) if self.conf.get("keyEnv") else None
+        self.cli = None if self.key else shutil.which("stripe")
+        if not self.key and not self.cli:
+            raise ProbeError("stripe CLI not installed and no stripe.keyEnv set")
 
     def get(self, path, params):
+        if self.key:
+            query = ("?" + urllib.parse.urlencode(list(params))) if params else ""
+            data = self.ctx.http(STRIPE_API + path + query, {"Authorization": "Bearer " + self.key})
+            if isinstance(data, dict) and data.get("error"):
+                raise ProbeError("Stripe error: " + scrub(data["error"].get("message", ""), self.ctx.secrets()))
+            return data
         cmd = [self.cli, "get", path, "--live"]
         if self.conf.get("profile"):
             cmd.append("--project-name=" + self.conf["profile"])

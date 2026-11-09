@@ -82,9 +82,9 @@ project ids. `health-pulse.py --draft` writes the generic part from the manifest
 
 | Key | Holds |
 |---|---|
-| `supabase` | `ref`, `tokenEnv` (management token), `metricsKeyEnv` (service or secret key for the metrics endpoint); `infrastructure`, `logs`, `authUsers` set false to skip |
+| `supabase` | `ref`, `tokenEnv` (management token), `metricsKeyEnv` (optional service or secret key for the privileged metrics endpoint; without it metrics come from the Management API through `tokenEnv`); `infrastructure`, `logs`, `authUsers` set false to skip |
 | `revenuecat` | `projectId`, `keyEnv` (v2 key with `charts_metrics:overview:read`) |
-| `stripe` | `profile` (CLI project name), `account` (the expected `acct_…`, checked first) |
+| `stripe` | `keyEnv` (restricted read-only key, read over HTTPS; wins over the CLI) or `profile` (CLI project name), `account` (the expected `acct_…`, checked first) |
 | `twilio` | env names for the account SID and API key; `messagingServiceSids` to scope a shared account |
 | `metrics` | project SQL rows, below |
 | `corroborate` | `{label, a, b, tolerancePct, minGap, hint}`; `a`/`b` are `stripe:charge.succeeded`, `metric:<id>`, `logs:<id>` or `revenuecat:<id>` |
