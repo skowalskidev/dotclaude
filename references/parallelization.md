@@ -601,6 +601,11 @@ itself with the committed harness.
 DO send fixes as one numbered round to the SAME worker, resumed with its context (Claude Code:
 `SendMessage` to its agent id). Each item cites `file:line` and states the expected result.
 DON'T start a fresh worker for a fix round: it re-reads everything and drops the decisions already made.
+DO keep an isolated worker's worktree until the ask it serves is handed back; remove it at that
+hand-back's cleanup, not on the worker's completion notice. Removing it makes the worker
+un-resumable (the harness refuses `SendMessage` once the worktree is gone), so the next fix round
+needs a fresh worker. TEST: no worktree of a worker whose PR still has open follow-ups is removed
+(the fix for a verifier's worktree deleted on completion, then a gap round that needed a full re-brief).
 DO answer a worker's open question with the recommended option, record it in the plan as a named
 decision or exception, and resume the worker. Ask Simon only for a product or data decision (e.g.
 which font family ships).
