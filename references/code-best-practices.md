@@ -71,6 +71,13 @@ the failing step itself is the last word (the fix for a real-stack script whose 
 printed no PASS line, exited 0 and reported DONE).
 TEST: in a `set -e` script, zero lines of the form `<step> && echo …`; every step's failure path
 names the step and exits non-zero.
+**DON'T end a tool command inside a subdirectory** (`cd site/web && npx vitest …`): the harness keeps
+that directory for the next command, so a later relative path resolves under it. Run a subproject tool
+with `npm --prefix <dir> …` or inside a subshell `(cd <dir> && …)`, and start every multi-step command
+from an absolute path (the fix for a base worktree created under `site/web/.context` and a results move
+that silently did nothing, two commands after a test run that ended in `site/web`).
+TEST: no tool command's last `cd` leaves the session in a subdirectory; every path in the next command
+is absolute or anchored by its own leading `cd`.
 **DON'T put `;` after a `cd` or after any step a later step depends on.** When the `cd` fails, the steps
 after `;` run in whatever directory the shell was already in (the fix for a `git merge --ff-only` that
 ran in another checkout and moved its local main after `cd <missing-dir> && …; git merge …`).
