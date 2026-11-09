@@ -12,18 +12,8 @@ TypeScript), **research the latest-stable version online first** — training-da
 Confirm it exists, is stable (not alpha/RC), and is compatible with the stack and deploy target before
 pinning.
 
-**Encode the versions in the repo so they're reproducible:**
-- **Node:** a `.nvmrc` pinning the exact version (e.g. `24.18.0`) for `nvm use`, plus `engines.node` as
-  a floor (e.g. `>=22`). Keep local dev, `.nvmrc`, and any serverless pin (Firebase
-  `functions/package.json` `engines.node`) consistent.
-- **Toolchain quirks:** a newer tool can need a newer Node than the project's default (e.g. Vitest 4's
-  rolldown needs Node ≥20.12 for `node:util`'s `styleText`) — pin up, document it, tell me to `nvm use`.
-- Other ecosystems pin equivalently (`.python-version`/`pyproject`, `.tool-versions` for asdf/mise,
-  `packageManager`).
-
-When bumping to "latest", apply then **build + test to verify**, and watch peer-dependency ceilings
-(e.g. `firebase-functions@7` peer-requires `firebase-admin <=13`) — pin back what the ecosystem doesn't
-support yet and tell me which and why.
+DO encode the pinned versions in the repo and verify each bump: `references/code-best-practices.md`
+§ Pin versions in the repo.
 
 ## Choose mainstream, widely-adopted tools
 
@@ -42,6 +32,11 @@ security risk, not a recommendation.
   workaround, a config, a technique. Prefer the community-proven answer (heavily upvoted, officially
   documented, or from a high-adoption project) over a clever fix from an obscure or low-star source.
   Read SEVERAL sources before settling, and prefer the vendor's own docs over a blog restating them.
+- **DO research the name before the first new artifact exists** (folder, module, skill, workflow,
+  channel, app, key, ticket title): tally the term each major vendor's own page uses for the category,
+  name from the majority, and record term, tally and links in the plan. Method:
+  `references/code-best-practices.md` § Use the industry's name. TEST: the plan holds the tally with
+  links before the first name appears in a diff.
 
 ## Harden fully — never trade protection against a working app
 
@@ -68,8 +63,7 @@ is META around a project, not part of it: teammates don't need it and the projec
   (keys, tokens, tool config), never in the project tree. Cleanest form: nothing to leak.
 - **If a personal file genuinely must sit in the tree**, ignore it in a NON-committed local layer —
   `.git/info/exclude` (that repo) or the global `core.excludesFile` (`~/.gitignore_global`, all repos) —
-  never the committed `.gitignore`, which teammates see. (Conductor's `.conductor/settings.local.toml`
-  is already handled this way via `.git/info/exclude`.)
+  never the committed `.gitignore`, which teammates see.
 - **Commit the shared behavior, ignore the personal parts** (settings/credentials). Never commit or
   force-add personal/secret files; the global ignore keeps them from being staged and gitleaks/CI catches
   secret content (git commands themselves stay unblocked — see `connectors.md`).
@@ -113,8 +107,7 @@ extraction that leaves each call site re-wiring its own state has not done the j
 - **Read the current setting.** When a setting changes, in-flight and derived behavior must read
   the UPDATED value, not a snapshot taken earlier — and account for race conditions when the
   setting can change while work is running.
-- The model is `~/.zsh-work-codex.zsh` and the `~/.claude` repo: one live location,
-  symlinked/tracked so `git status` is the whole test. Apply the same discipline in code.
+- Worked example: `references/code-best-practices.md` § Single source of truth.
 
 ## Legacy support policy
 - **Never add legacy support** unless explicitly asked for

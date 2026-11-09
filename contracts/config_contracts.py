@@ -513,6 +513,7 @@ CONTRACTS: dict[str, dict] = {
             "Closure is reasonable: once the ask's outcome is delivered and verified to a reasonable level, stop; what only time, a real customer or a future event can confirm is dropped or one short clause, at most 2 optional follow-ups that never withhold the archive line, and no new question at hand-back unless a decision only Simon can make blocks the outcome. Never weakens CI, tests, reachable walkthroughs, security or a requested feature.",
             "Owns the five writing rules. copilot-testing and parallelization point here and do "
             "not restate them.",
+            "When Simon names a thing with a loose term, the first reply of the work states the industry-standard term once with one primary source, before any artifact is named; the method lives in references/code-best-practices.md.",
         ],
     },
     "rules/config-repo.md": {
@@ -565,6 +566,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns the adoption bar that gates any new tool or pack.",
             "Harden-fully: never trade protection for a working app; narrow the guard instead.",
             "Variant indecision never ships: locking in an A/B removes the loser and its toggle in the same change.",
+            "Research-first naming: before the first new artifact name, tally the term each major vendor's own page uses, name from the majority and record term, tally and links in the plan.",
         ],
     },
     "rules/process.md": {
@@ -688,6 +690,8 @@ CONTRACTS: dict[str, dict] = {
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
             "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
             "Before mounting a shared part at a new call site, read every existing caller (above 10, every caller passing the same props) and copy its wrappers, frames, providers, props, layout context and events; the PR names the mirrored caller or states the difference and its reason.",
+            "Owns the industry-naming method: research online, tally at least 4 major vendors' own pages, take the majority, name a split's holdout, mark a name unverified when research is impossible, never one vendor's brand.",
+            "Holds the version-pinning detail (.nvmrc, engines floor, toolchain quirks, peer ceilings); rules/engineering-standards.md keeps the latest-stable default.",
         ],
     },
     "references/connectors-setup.md": {

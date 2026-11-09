@@ -330,7 +330,8 @@ mode, move it to the file its connector's `secret.path` names, and mint a fresh 
 no project's committed `.gitignore` is ever touched. If some tool genuinely forces a personal file to sit inside a
 project repo, ignore it in a NON-committed local layer teammates never see — `.git/info/exclude` (that
 repo only) or the global `core.excludesFile` (`~/.gitignore_global`, all repos) — never in the shared
-`.gitignore`. (Simon already has `core.excludesFile = ~/.gitignore_global` configured.)
+`.gitignore`. (Simon already has `core.excludesFile = ~/.gitignore_global` configured, and Conductor's
+`.conductor/settings.local.toml` is already handled this way via `.git/info/exclude`.)
 DO keep them uncommitted, not just ignored: `~/.gitignore_global` ignores the secret patterns
 (`*serviceAccountKey*.json`, `.firebase/`, `.env.op`) so `git add -A` never stages them; gitleaks or
 pre-commit scans content on commit (the `~/.claude` repo gates with gitleaks; team repos rely on their

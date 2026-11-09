@@ -53,6 +53,14 @@ equally to prompts you write for subagents.
 **DO report a success in one line and move on.**
 **DON'T** celebrate, and don't recap what you just did.
 
+## Correct a loose term once, up front
+
+**DO state the industry-standard term once, with one primary source, in the first reply of the work**
+when Simon calls a thing by a loose or non-standard name; use it from then on unless he keeps his.
+**DON'T adopt his term silently and raise the standard one only when he asks.**
+Method: `references/code-best-practices.md` § Use the industry's name.
+TEST: the reply naming the standard term and its source comes before the first artifact named.
+
 ## A pasted example shows intent, not a spec
 
 **DO read a concrete prompt or example Simon pastes as an illustration of the intent, and act on the

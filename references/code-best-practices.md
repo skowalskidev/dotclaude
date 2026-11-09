@@ -2,6 +2,24 @@
 
 Reference catalog for engineering-quality standards: code quality (DRY/SRP, reuse-before-build), logging/observability/failure handling, UX/UI standards, and scope discipline. Loaded on demand by skills and CLAUDE.md.
 
+## Pin versions in the repo
+
+`rules/engineering-standards.md` § Versions owns the latest-stable default; this section holds the
+pinning detail.
+
+**Encode the versions in the repo so they're reproducible:**
+- **Node:** a `.nvmrc` pinning the exact version (e.g. `24.18.0`) for `nvm use`, plus `engines.node` as
+  a floor (e.g. `>=22`). Keep local dev, `.nvmrc`, and any serverless pin (Firebase
+  `functions/package.json` `engines.node`) consistent.
+- **Toolchain quirks:** a newer tool can need a newer Node than the project's default (e.g. Vitest 4's
+  rolldown needs Node ≥20.12 for `node:util`'s `styleText`) — pin up, document it, tell me to `nvm use`.
+- Other ecosystems pin equivalently (`.python-version`/`pyproject`, `.tool-versions` for asdf/mise,
+  `packageManager`).
+
+When bumping to "latest", apply then **build + test to verify**, and watch peer-dependency ceilings
+(e.g. `firebase-functions@7` peer-requires `firebase-admin <=13`) — pin back what the ecosystem doesn't
+support yet and tell me which and why.
+
 ## Code quality
 
 - Keep everything DRY and SRP. Reuse existing components, utilities, types, and infrastructure before writing anything new; refactor to extract reusable components when warranted.
@@ -159,10 +177,42 @@ equally unambiguous to someone who has not read the code, it wins.
 flat global menu. The group list is data in `contracts/skill_naming.py` and the config suite fails on
 a skill that matches no group.
 
+#### Use the industry's name
+
+`rules/communication.md` owns telling Simon the standard term; `rules/engineering-standards.md` owns
+naming new artifacts with it. This is the method both point at.
+
+**DO research the term online before the first name exists,** never from memory. Read how at least
+4 major vendors in the category name it on their own product or docs pages, plus a vendor-neutral
+reference where one exists (a standards body, a foundation glossary, the field's canonical book).
+Count the vendors using each term and take the majority term.
+**DON'T take one vendor's product brand as the category term, and DON'T coin a name when the field
+already has one.**
+**DO record in the living plan before creating anything:** Simon's term, the chosen term, the tally
+with one link per vendor page, and the date. On a split, say so and name the holdout, e.g. "three of
+four call it X, one calls it Y". If research is impossible (no web access, no vendor names it), record
+the name as unverified and say so in the first reply. With no shared term, name by the intent rule
+above.
+**DO apply the term to every name the work creates:** folders, modules, skills, workflows, branches,
+env vars and keys, ticket titles, and the external registrations (chat channels, source-host apps,
+webhooks, cloud resources). Check the external ones first; each rename there is a manual step outside
+the repo.
+**DO keep Simon's term once he says so,** and record that choice so the next run does not raise it again.
+WHY: a rename after the fact touches the code plus every external app and channel registered under the
+old name. (the fix for an incident-triage agent that watches production and opens fix PRs, built and
+registered everywhere as a "devops bot"; the tally, run only once Simon asked whether the name was
+right, read three of four for "SRE": Microsoft, PagerDuty and Datadog say SRE agent, AWS says DevOps
+agent.)
+TEST: the plan holds the naming tally with links before the first artifact name appears in a diff; a
+hand-off whose new artifacts carry a loose term while a standard one exists fails, unless Simon kept it.
+
 ### Single source of truth — derive, don't duplicate (DRY / SRP)
 
 Owned by **`~/.claude/rules/engineering-standards.md` § "Single source of truth"**, which is always-on
 and so already loaded whenever you are reading this. Not restated here.
+
+Worked example: `~/.zsh-work-codex.zsh` and the `~/.claude` repo are one live location each,
+symlinked/tracked so `git status` is the whole test. Apply the same discipline in code.
 
 That is not tidiness for its own sake. This file used to carry its own copy of that rule, and by
 2026-08-03 the copy had silently lost two of the owner's bullets — "share BEHAVIOUR, not just values"
