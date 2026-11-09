@@ -87,6 +87,16 @@ config repairs. The project-repository restrictions below do not cancel that sco
   and a PR branch push passes it. Stop pushing on my "wait"/"hold". TEST: `git rev-list --count
   @{u}..HEAD` prints 0 right after each commit on such a branch (the fix for a reviewer testing a stale
   draft PR head while seven finished commits sat local).
+- **DO check the pushed range covers every file the change touched, before every push.** List the files
+  the task modified (code, tests, workflows, docs), then read `git diff --stat <remote-tip>..HEAD`
+  (`@{u}..HEAD`, or `origin/<base>..HEAD` on a first push; `git show --stat HEAD` for one commit).
+  One listed file absent from the stat: STOP, commit it, rerun the check, then push.
+  **DO set uncommitted work aside across a rebase with a temporary WIP commit**, then `git reset --soft
+  HEAD~1` after the rebase; when a stash is unavoidable, restore it with `git stash apply --index <sha>`.
+  **DON'T restore with a plain `git stash apply` or `pop` and commit straight after:** it brings modified
+  files back unstaged and only new files staged, so the commit holds the new files alone (the fix for a
+  rebased branch pushed without its core code, workflow and docs changes).
+  TEST: a push whose range omits a file the change modified is stopped before `git push` runs.
 - Apply `references/project-instructions.md` before project docs. When allowed, read the project's CLAUDE.md AND CLAUDE.local.md and relevant plan docs at the start of the task — the
   local file carries machine-local setup, test accounts and secrets-by-reference the committed one omits.
 - Merge/rebase the latest default branch in before working, and re-evaluate the plan against what changed (e.g., redesigns that must now be used).
