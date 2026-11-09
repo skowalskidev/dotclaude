@@ -45,6 +45,14 @@ an `&&` list, where the shell disables errexit, so the next step runs after a fa
 config sync where a rejected commit and a failed staged-list check ran on unnoticed).
 TEST: a multi-step tool command with no `&&` chain and no `bash -c` or script-file wrapper relies on
 `set -e` and broke the rule. Quick check: `set -euo pipefail; false; echo x` prints `x` in the tool.
+**DON'T write a step and its success line as one `&&` list inside a `set -e` script** (`cmd > log
+&& echo PASS`): errexit ignores a failing command anywhere but last in an `&&` or `||` list, so the
+script continues past the failure and ends with every later line printed as if the run passed. Write
+`cmd > log || { echo "FAIL step"; tail -20 log; exit 1; }` or an `if ! cmd; then … exit 1; fi`, so
+the failing step itself is the last word (the fix for a real-stack script whose six failed steps
+printed no PASS line, exited 0 and reported DONE).
+TEST: in a `set -e` script, zero lines of the form `<step> && echo …`; every step's failure path
+names the step and exits non-zero.
 **DON'T put `;` after a `cd` or after any step a later step depends on.** When the `cd` fails, the steps
 after `;` run in whatever directory the shell was already in (the fix for a `git merge --ff-only` that
 ran in another checkout and moved its local main after `cd <missing-dir> && …; git merge …`).
