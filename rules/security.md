@@ -58,9 +58,9 @@ the chat. e.g. to check a key is present, test its path or byte length, never pr
 
 **The mechanical layers that DO run:**
 
-- **`permissions.deny` in `settings.json`** — harness-enforced, no model vote. `Edit`/`Write` on
-  `~/.ssh`, `~/.aws` and `~/.gnupg`: tamper-protection so a run cannot corrupt those directories. It
-  does not block reads (above).
+- **`permissions.deny` in `settings.json`** — harness-enforced, no model vote. `Edit` on
+  `~/.ssh`, `~/.aws` and `~/.gnupg` (an Edit rule covers every file-writing tool, Write included):
+  tamper-protection so a run cannot corrupt those directories. It does not block reads (above).
 - **`hooks/work-resource-guard.sh`** — the work/personal boundary, the guard that does real work:
   it keeps work and personal cloud credentials from crossing.
 - **`hooks/secret-echo-guard.py`** — denies a command that prints a credential value

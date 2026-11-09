@@ -139,8 +139,9 @@ CRITERIA: list[tuple[str, str]] = [
 
     # --- Credential protection ---------------------------------------------------------
     ("secrets-crown-jewel-paths-denied",
-     "settings.json keeps the Edit/Write tamper-denies on the key directories (~/.ssh, ~/.aws, "
-     "~/.gnupg), so a run cannot corrupt them. The Read-blockers were removed as theatre — a secret "
+     "settings.json keeps the Edit tamper-denies on the key directories (~/.ssh, ~/.aws, "
+     "~/.gnupg), so a run cannot corrupt them; an Edit rule covers every file-writing tool, and a "
+     "Write(path) deny is a no-op the harness warns about, so none is kept. The Read-blockers were removed as theatre — a secret "
      "on this machine is reachable by design — so the real control is the provenance rule plus never "
      "echoing a secret value out (rules/security.md). This tamper set may not quietly shrink."),
     ("secrets-retired-guard-leaves-no-dangling-claim",
@@ -401,17 +402,22 @@ def check_structure_one_owner_per_concern() -> None:
 
 def check_secrets_crown_jewel_paths_denied() -> None:
     """Read-blocking was retired as theatre (a secret here is reachable by design). What remains is
-    tamper-protection: Edit/Write on the key directories, so a run cannot corrupt them."""
+    tamper-protection: Edit on the key directories, so a run cannot corrupt them. An Edit rule covers
+    every file-writing tool; a Write(path) deny is not matched by file permission checks (the harness
+    prints a warning on every run), so it must not come back."""
     deny = settings().get("permissions", {}).get("deny", [])
     required = [
         "Edit(~/.ssh/**)", "Edit(~/.aws/**)", "Edit(~/.gnupg/**)",
-        "Write(~/.ssh/**)", "Write(~/.aws/**)", "Write(~/.gnupg/**)",
     ]
     for rule in required:
         check(rule in deny,
-              f"settings.json no longer denies {rule}. The Edit/Write tamper-denies on the key "
+              f"settings.json no longer denies {rule}. The Edit tamper-denies on the key "
               f"directories are the one mechanical credential control kept after the read-blockers "
               f"were removed — they may not quietly shrink.")
+    for rule in deny:
+        check(not rule.startswith("Write("),
+              f"settings.json denies {rule}, which file permission checks never match (only Edit(path) "
+              f"rules are). The Edit rule on the same path already covers Write; remove the no-op.")
 
 
 def check_secrets_retired_guard_leaves_no_dangling_claim() -> None:

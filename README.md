@@ -48,7 +48,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `CLAUDE.md` | Thin **index** for all projects — points at `rules/` + `references/` and the project-boundary rule; the actual rules live in `rules/` |
 | `rules/` | **Always-on** behavioral rules (auto-loaded every session, one concern per file): `security`, `communication`, `copy-quality`, `process`, `engineering-standards`, `ui-conventions` (always-on; `paths:` scoping is ignored at user level), `skills-workflow`, `config-repo`, `connectors`, `self-healing-config`, `living-plan` |
 | `references/` | **On-demand** deep how-to catalogs (zero context cost until read; shared by `CLAUDE.md` + the `sk` skills): `research` (read at the start of every workflow run, not on demand), `contracts-and-outcomes`, `planning-and-tracking`, `parallelization`, `testing-strategy`, `dev-server-hygiene`, `ios-simulator`, `code-best-practices`, `git-pr-deploy`, `api-empirical-iteration`, `browser-debugging`, `connectors-setup`, `production-monitoring`, `project-instructions`, `skill-stack`, `user-journey-review`, `tldr-report-formats` |
-| `settings.json` | Hook wiring + `permissions.deny` (Edit/Write tamper-denies on the key dirs; DENY-only, no `ask` tier, so nothing prompts) |
+| `settings.json` | Hook wiring + `permissions.deny` (Edit tamper-denies on the key dirs, which cover Write too; DENY-only, no `ask` tier, so nothing prompts) |
 | `hooks/intent-ledger.sh` | UserPromptSubmit + PostToolUse (Bash) + Stop — appends every ask verbatim to the worktree's `.context/intent-ledger.md`, and requests a fresh reconciliation after every new ask, plan or pivot, with a bounded stop guard. Full prompts retain trailing requirements; each message reminds the agent to update the gauntlet plan. The only hook that writes into a project, so its refusals are the contract; redirects out of the tracked tree inside `~/.claude`. Also the ship gate: `push` records a pushed non-default branch head, `gate` records its landing-gate result (PASS for a branch with an open PR only when `bin/pr-landing-gate.py` passes), and Stop blocks once per open push set. Kill switch: `CLAUDE_INTENT_LEDGER=off`; silent for a delegated worker (`AGENT_DELEGATED_WORKER=1`) |
 | `hooks/task-intake.sh` | UserPromptSubmit advisory: initializes or reuses the workspace's one plan-backed dashboard and points to skill routing. Existing authorization is sufficient; no tool block, marker or generic confirmation. `CLAUDE_INTAKE_GATE=off` is the kill switch; a delegated worker (`AGENT_DELEGATED_WORKER=1`, set by the `-p` launchers) gets only a boundary notice, never a plan |
 | `hooks/config-contract.test.py` | The config's own acceptance criteria: plain-English outcomes, each backed by a check, with a coverage ratchet |
@@ -432,8 +432,9 @@ background daemon** (deliberately, to avoid idle CPU):
 See `rules/security.md`. The provenance rule there is the primary control, plus one behavioral rule:
 never surface a secret VALUE into the chat, an artifact, or a commit — using a secret (a path passed
 to a tool, a key loaded into a program) stays allowed; the value becoming visible is the line. The
-only mechanical credential layer left is `permissions.deny` in `settings.json` — Edit/Write
-tamper-denies on `~/.ssh`, `~/.aws`, `~/.gnupg`, enforced by the harness with no model vote.
+only mechanical credential layer left is `permissions.deny` in `settings.json` — Edit
+tamper-denies on `~/.ssh`, `~/.aws`, `~/.gnupg` (an Edit rule covers every file-writing tool),
+enforced by the harness with no model vote.
 
 Two read-blockers were removed as theatre: a secret on this machine is reachable by design, so a guard
 that pretends otherwise buys false confidence and friction, nothing else.
