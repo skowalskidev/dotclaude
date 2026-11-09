@@ -706,7 +706,7 @@ CONTRACTS: dict[str, dict] = {
             "Documents the pal route and its home in the work registry root, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
             "Keeps one tested log query per production connector kind, re-tested at first need; after 2 failed log reads a session switches to the provider's own record of the event.",
-            "A copied secret reaches its store through one whitespace-stripped pipe or its file, never an interactive paste, and is verified by one authenticated call or the first real run before done.",
+            "A copied secret is read into a variable, whitespace-stripped, shown only as length and fixed prefix, passes one authenticated call, then is stored; never an interactive paste or untested pipe.",
         ],
     },
     "references/project-instructions.md": {

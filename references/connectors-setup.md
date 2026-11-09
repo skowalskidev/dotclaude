@@ -325,17 +325,20 @@ a tool, never `cat`/`echo` it into the transcript, a message, or a commit.
 mode, move it to the file its connector's `secret.path` names, and mint a fresh one from
 `auth.steps` because the old one was exposed. Do not propose importing it into a vault.
 
-**Hand a copied secret to its store through a whitespace strip.** DO give Simon one command that
-strips whitespace from the clipboard before storing whenever a step has him copy a token or key from
-the terminal or clipboard into a secret store, e.g. a CI subscription token:
-`pbpaste | tr -d '[:space:]' | gh secret set NAME --repo OWNER/REPO`. A multi-line secret (PEM key,
-JSON) goes in from its file instead: `gh secret set NAME --repo OWNER/REPO < <file>`.
-DON'T hand him an interactive paste at the store's prompt: a long token printed across wrapped
-terminal lines picks up line breaks or spaces when copied, and the stored secret fails auth on every run.
-DO verify the stored secret with one cheap authenticated call, or the first real run that consumes
-it, before reporting the step done; read the error text, since a failing action can hide it.
-TEST: a hand-back with a manual paste-into-secret step and no whitespace-stripped command fails; so
-does a secret step reported done with no authenticated call or run behind it.
+**Test a copied secret, then store it.** DO give Simon one command whenever a step has him copy a
+token or key from the terminal or clipboard into a secret store: read the clipboard into a shell
+variable with whitespace stripped, print only its length and its fixed non-secret prefix, test it
+with one cheap authenticated call using that variable, and pipe it into the store only if the test
+succeeds. e.g. a CI subscription token:
+`T="$(pbpaste | tr -d '[:space:]')"; echo "${#T} ${T:0:13}"; CLAUDE_CODE_OAUTH_TOKEN="$T" claude -p "Reply with ok" && printf %s "$T" | gh secret set NAME --repo OWNER/REPO; unset T`.
+A multi-line secret (PEM key, JSON) passes the same test, then goes in from its file:
+`gh secret set NAME --repo OWNER/REPO < <file>`.
+DON'T hand him an interactive paste or an untested pipe: wrapped terminal lines add line breaks, and
+stripping them glues any other clipboard text onto the token, so the stored secret fails auth on every run.
+DO confirm with the first real run that consumes it before reporting the step done; read the error
+text, since a failing action can hide it.
+TEST: a secret handoff with no test-then-store step fails; so does a step reported done with no
+real run behind it.
 
 **Personal files stay OUT of team repos.** Everything above lives outside every project repo (in
 `~/.claude`, `~/.config` or a registry root), so no personal connector artifact lands in a team repo and
