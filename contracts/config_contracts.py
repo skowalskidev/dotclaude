@@ -803,6 +803,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Owns the review-branch push procedure (fetch, merge in remote commits, plain push, one-line sha report) and the gate on every other PR or remote operation.",
+            "Before every push, the pushed range's --stat is compared with every file the change modified and a missing one stops the push; uncommitted work crosses a rebase as a WIP commit or stash apply --index, never a plain apply.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
             "A commit is chained after its checks with &&, never ;, so a failing check stops it.",
             "Reuse recorded cleanup authority; prove the exact tip through refreshed default ancestry, merged-PR-head containment with reachable merge commit, or full content proof before branch -D. Recheck tip and ownership; being fully pushed never substitutes for merge proof.",
