@@ -7,7 +7,10 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      `git-commit-guard` covered `git push` to main/master, but `gh pr merge` contains neither "git"
      nor "push" so it slipped straight through. A general instruction ("merge everything" / "proceed"
      / "continue") is NEVER a yes for a SPECIFIC merge; confirm the PR and verify CI is actually
-     green, or set CLAUDE_ALLOW_PR_MERGE=1 once the user has confirmed THIS merge.
+     green, and it runs only when the user's OWN newest message (hooks/intent-ledger.sh latest-ask)
+     says "merge" unnegated and names the PR's number. There is no override flag: a flag the model
+     sets itself let two PRs merge off a model-written "Merge #N?" answered "1 yes" and off "this is
+     priority, finish it". `gh api` merge/enqueue/auto-merge calls are denied outright.
 
   1. Committing or pushing on the default branch (main / master). rules/process.md: "If on the
      default branch, create a branch first", and feedback_no_master_commits: never commit/push to
@@ -346,6 +349,49 @@ def config_push_problem(repo: str, args: list) -> str:
     return ""
 
 
+# A merge or a default-branch push is authorized by Simon's OWN newest words, never by a flag the
+# model can set (the fix for two PRs merged off "1 yes" to a model-written question and "this is
+# priority, finish it"). hooks/intent-ledger.sh records every prompt verbatim; `latest-ask` reads
+# this session's newest one. No ledger, no ask, or a negated verb denies: the action is irreversible.
+HARNESS_BLOCK_RE = re.compile(r"<(system-reminder|task-notification)>.*?</\1>", re.S)
+NEGATED_RE = re.compile(
+    r"\b(don'?t|do not|never|not|no|stop|hold|wait|without|before)\b[^.\n]{0,40}\b(merg|push)", re.I)
+API_MERGE_RE = re.compile(
+    r"enqueuePullRequest|mergePullRequest|enablePullRequestAutoMerge|/pulls/\d+/merge\b", re.I)
+
+
+def latest_ask(payload: dict) -> str:
+    script = os.path.join(os.path.expanduser("~"), ".claude", "hooks", "intent-ledger.sh")
+    if not os.path.isfile(script):
+        return ""
+    try:
+        p = subprocess.run(["bash", script, "latest-ask"], text=True, capture_output=True, timeout=5,
+                           input=json.dumps({"session_id": payload.get("session_id", ""),
+                                             "cwd": payload.get("cwd", "")}))
+    except Exception:
+        return ""
+    return HARNESS_BLOCK_RE.sub("", p.stdout or "")
+
+
+def pr_number(words: list) -> str:
+    """The PR a `gh pr merge` names: a bare number, `#N` or a /pull/N URL. A branch name or no
+    argument returns "", which the guard denies because the user's words cannot be matched to it."""
+    for w in words[3:]:
+        if w.startswith("-"):
+            continue
+        m = re.fullmatch(r"#?(\d+)", w) or re.search(r"/pull/(\d+)", w)
+        return m.group(1) if m else ""
+    return ""
+
+
+def own_words_allow(ask: str, verb: str, number: str = "") -> bool:
+    """True only when the user's newest message says the verb (merge/push) unnegated and, for a
+    merge, names this PR's number."""
+    if not re.search(rf"\b{verb}\b", ask, re.I) or NEGATED_RE.search(ask):
+        return False
+    return not number or bool(re.search(rf"(?<!\d){number}(?!\d)", ask))
+
+
 def deny(reason: str) -> int:
     print(json.dumps({
         "hookSpecificOutput": {
@@ -399,6 +445,13 @@ def main() -> int:
         is_commit = sub == "commit"
         is_push = sub == "push"
         is_gh_merge = bool(words) and os.path.basename(words[0]) == "gh" and words[1:3] == ["pr", "merge"]
+        is_gh_api = bool(words) and os.path.basename(words[0]) == "gh" and words[1:2] == ["api"]
+        if is_gh_api and API_MERGE_RE.search(command):
+            return deny(
+                "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
+                "Use `gh pr merge <n>`, which runs only on the user's own newest message saying "
+                "\"merge\" and naming the PR."
+            )
         if not (is_commit or is_push or is_gh_merge):
             continue
 
@@ -407,18 +460,16 @@ def main() -> int:
         # a yes for a specific merge, so block unless the user confirmed THIS merge (the flag in the
         # hook's env OR prefixed inline). The deny message is what tells Claude to get that yes.
         if is_gh_merge:
-            allow_merge = os.environ.get("CLAUDE_ALLOW_PR_MERGE") == "1" or bool(
-                re.search(r"\bCLAUDE_ALLOW_PR_MERGE=1\b", masked)
-            )
-            if not allow_merge:
+            number = pr_number(words)
+            ask = latest_ask(payload)
+            if not (number and own_words_allow(ask, "merge", number)):
                 return deny(
-                    "Blocked: `gh pr merge` merges a PR into the remote default branch. A general "
-                    "'merge everything' / 'proceed' / 'continue' is NEVER authorization for a "
-                    "specific merge — get the user's explicit yes naming THIS PR, and verify CI is "
-                    "genuinely green first (`gh pr view <n> --json statusCheckRollup`: every required "
-                    "check SUCCESS, none FAILURE/PENDING — never a truncated summary). Never "
-                    "admin-override a required review; prefer handing the merge to the user. If the "
-                    "user confirmed THIS merge, prefix CLAUDE_ALLOW_PR_MERGE=1."
+                    "Blocked: `gh pr merge` merges a PR into the remote default branch, and it runs "
+                    "only on the user's OWN newest message saying \"merge\" and naming this PR's number"
+                    + (f" (#{number})" if number else " (name the number, not a branch)") + ". "
+                    "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
+                    "is never that. There is no override flag. Stop at a ready, green PR and ask: "
+                    "\"Say 'merge #<n>' to merge it.\""
                 )
 
         # 1. Default-branch protection. The override counts whether the flag is in the hook's OWN env
@@ -427,6 +478,17 @@ def main() -> int:
         # config repo was judged above: its commits pass, and its main pushes need a verified head.
         # A config commit the resolver could not parse keeps its old exemption; a config push never
         # does, so an unverified head reaching main still stops here.
+        # A push to the remote default branch outside the config repo also needs the user's OWN
+        # newest message to say "push": the flag alone is the model's word, not the user's.
+        if is_push and allow_main and not config_scope:
+            branch = current_branch(target_cwd or cwd)
+            target = re.search(r"(?:^|\s|:)(main|master)\b", seg)
+            if (branch in DEFAULT_BRANCHES or target) and not own_words_allow(latest_ask(payload), "push"):
+                return deny(
+                    "Blocked: a push to the remote default branch runs only when the user's OWN "
+                    "newest message says \"push\". A yes to an option you wrote, 'finish it' or "
+                    "'continue' is never that. Ask, and stop."
+                )
         config_commit = is_commit and bool(target_cwd) and is_config_repo(target_cwd)
         if not allow_main and not config_scope and not config_commit:
             branch = current_branch(target_cwd or cwd)

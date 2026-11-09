@@ -37,6 +37,8 @@
 #                                 called by the model — record the landing-gate result for that head;
 #                                 PASS for a branch with an open PR records only when
 #                                 bin/pr-landing-gate.py passes on the fetched PR (exit 1 otherwise)
+#         latest-ask              PreToolUse helper — print this session's newest recorded ask, verbatim
+#                                 (stdin payload: session_id, cwd); prints nothing when none. Read-only.
 #         stop                    Stop — require reconciliation after the newest recorded input, then
 #                                 a gate record for every pushed branch head
 
@@ -82,6 +84,7 @@ REDIRECTED=0
 # state is dangerous or fixable; a hook that talks every turn trains the model to skim the channel
 # task-intake.sh depends on.
 emit_once() {
+  [ "${QUIET:-0}" = "1" ] && return 0
   mkdir -p "$STATE" 2>/dev/null || return 0
   m="$STATE/$SID.$1"
   [ -e "$m" ] && return 0
@@ -628,6 +631,25 @@ BLOCKED, N/A and a light or standard PASS need a reason: the exact blocker, why 
 apply to this push, or the tier's trigger and skipped stages. A gate \
 recorded for an older head does not count once a newer head is pushed. This fires at most once per set of open pushes."
   jq -cn --arg r "$msg" '{decision:"block",reason:$r}'
+  exit 0
+  ;;
+
+latest-ask)
+  # The merge guard (hooks/git-commit-guard.py) asks this for Simon's own newest words, so a merge
+  # is authorized by what he typed, never by a flag the model can set. Same resolution as `submit`,
+  # silent, read-only; no ledger or no ask for this session prints nothing, which the guard denies.
+  QUIET=1
+  resolve || exit 0
+  [ -f "$LEDGER" ] || exit 0
+  awk -v sid="$SID" '
+    index($0, "## ") == 1 && index($0, " · ask · session " sid) > 0 &&
+      substr($0, length($0) - length(sid) + 1) == sid { cap = 1; fence = ""; buf = ""; next }
+    cap && fence == "" && $0 ~ /^`{3,}$/ { fence = $0; next }
+    cap && fence != "" && $0 == fence { cap = 0; last = buf; next }
+    cap && fence != "" { buf = buf $0 "\n"; next }
+    cap && index($0, "## ") == 1 { cap = 0 }
+    END { printf "%s", last }
+  ' "$LEDGER"
   exit 0
   ;;
 

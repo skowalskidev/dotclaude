@@ -1202,8 +1202,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Batches named, green PRs through the merge queue or one merge-commit batch PR, "
                    "watches the single deploy, and reports each original PR's state.",
         "criteria": [
-            "Merges only PRs Simon named in chat, each with a recorded yes; the one gh pr merge carries "
-            "CLAUDE_ALLOW_PR_MERGE=1 only after that.",
+            "Merges only PRs Simon named in chat, each with a recorded yes; the one gh pr merge runs "
+            "only after his newest message says merge and names that PR's number.",
             "Batches only non-draft PRs whose statusCheckRollup is green on the head sha that goes into "
             "the batch; a red PR leaves the batch.",
             "Reads repo settings and never changes them; a settings change goes to Simon as a decision.",
@@ -2097,9 +2097,12 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Claude never commits or pushes on the default branch, never merges a PR into it off a general instruction, and never commits with -m or a heredoc.",
         "purpose": "PreToolUse: blocks a default-branch commit/push, a gh pr merge, and an inline -m/heredoc commit.",
         "criteria": [
-            "Blocks `gh pr merge` (into the remote default branch) unless CLAUDE_ALLOW_PR_MERGE=1 "
-            "(env or inline); a general 'merge everything'/'continue' is never a yes for a specific "
-            "merge, and the deny requires explicit per-PR confirmation plus a CI-green check.",
+            "Blocks `gh pr merge` (into the remote default branch) unless the user's OWN newest "
+            "recorded message (hooks/intent-ledger.sh latest-ask) says merge, unnegated, and names "
+            "that PR's number; no flag the model sets authorizes it, a branch-name target or a "
+            "missing ledger denies, and gh api merge/enqueue/auto-merge calls are denied outright.",
+            "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
+            "AND a newest user message saying push.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
             "hook's env OR prefixed inline on the command. In the ~/.claude config repo and its "
             "worktrees (identified by shared Git storage) a commit passes, and a push to main passes "
@@ -2236,6 +2239,8 @@ CONTRACTS: dict[str, dict] = {
             "ACTIVE is announced only AFTER a record is durably on disk. Every silent refusal is "
             "safe only because of that ordering; without it the model creates the ledger by hand.",
             "Keep full prompts and remind the agent to reconcile each into the gauntlet plan; preserve requirements beyond 6000 characters.",
+            "`latest-ask` prints this session's newest recorded ask verbatim, read-only and silent, so "
+            "hooks/git-commit-guard.py authorizes a merge or default-branch push from Simon's own words.",
             "Combine simultaneous submit notices into one valid hook JSON document for native host parsing.",
             "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",

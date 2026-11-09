@@ -22,9 +22,9 @@ The method, the mechanism order and the settings options live in
 5. **Batch** through the merge queue or the batch PR, per the reference's order. Open the batch PR
    through `/sk:ship-pr`. Run the merge-prep local gate list on the batch head before enqueueing or
    merging: `references/testing-strategy.md` § Defects first.
-6. **Merge once.** Prefix the one `gh pr merge` with `CLAUDE_ALLOW_PR_MERGE=1`, only after step 1's
-   yes covers every PR in the batch and the batch run is green. `hooks/git-commit-guard.py` blocks it
-   otherwise.
+6. **Merge once,** after step 1's yes covers every PR in the batch and the batch run is green.
+   `hooks/git-commit-guard.py` runs `gh pr merge <n>` only when Simon's newest message says "merge"
+   and names `<n>`, so ask him to type "merge #<n>" for the batch PR (or each PR enqueued).
 7. **Watch the one deploy** to completion and run each PR's post-deploy smoke from its Deploy TLDR.
 8. **Report**: the batch PR, the merge sha, the one deploy run and its duration, the migrations it
    applied, each original PR's state, each smoke result, and any PR dropped from the set.

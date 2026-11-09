@@ -32,6 +32,8 @@ MUST_FIRE = [
     ("commit on main", "main", f"{COMMIT} -F msg.txt", "commit on the default branch (main)"),
     ("bare push on main", "main", f"{PUSH}", "push to the default branch (main)"),
     ("gh pr merge", "feature", "gh pr merge 12 --squash", "gh pr merge"),
+    ("a self-set flag is not the user's word", "feature", "CLAUDE_ALLOW_PR_MERGE=1 gh pr merge 12", "OWN newest message"),
+    ("a push flag alone is not the user's word", "feature", f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", "OWN newest message"),
     ("commit -m", "feature", f'{COMMIT} -m "fix: thing"', "-m or a heredoc"),
     ("commit -am", "feature", f'{COMMIT} -am "fix"', "-m or a heredoc"),
     ("commit from a heredoc", "feature", f"{COMMIT} -F - <<'EOF'\nfix: thing\nEOF", "-m or a heredoc"),
@@ -50,10 +52,50 @@ MUST_NOT_FIRE = [
     ("push to the feature branch", "feature", f"{PUSH} -u origin feature"),
     ("commit -F on a feature branch", "feature", f"{COMMIT} -F msg.txt"),
     ("amend no-edit", "feature", f"{COMMIT} --amend --no-edit"),
-    ("confirmed push with the inline override", "feature", f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main"),
-    ("confirmed merge with the inline override", "feature", "CLAUDE_ALLOW_PR_MERGE=1 gh pr merge 12"),
     ("malformed unterminated quote fails open", "feature", f"echo 'oops {PUSH} origin main"),
 ]
+
+
+# The user's OWN newest message authorizes a merge or a default-branch push; nothing the model sets
+# does. (label, the user's newest message, command, denied?) Each ask is recorded the way
+# hooks/intent-ledger.sh `submit` writes it.
+OWN_WORDS = [
+    ("says merge and names the PR", "merge #12", "gh pr merge 12 --squash", False),
+    ("bare number with a URL form", "ok merge 12 now", "gh pr merge https://github.com/o/r/pull/12", False),
+    ("yes to a question the model wrote", "1 yes", "gh pr merge 12", True),
+    ("'finish it' is not a merge", "this is priority finish it", "gh pr merge 12", True),
+    ("names a different PR", "merge 13", "gh pr merge 12", True),
+    ("negated", "don't merge 12 yet", "gh pr merge 12", True),
+    ("a branch name cannot be matched", "merge 12", "gh pr merge feature", True),
+    ("a self-set flag is still not enough", "1 yes", "CLAUDE_ALLOW_PR_MERGE=1 gh pr merge 12", True),
+    ("graphql enqueue is denied outright", "merge 12",
+     "gh api graphql -f query='mutation{enqueuePullRequest(input:{pullRequestId:\"x\"}){clientMutationId}}'", True),
+    ("REST merge is denied outright", "merge 12", "gh api -X PUT repos/o/r/pulls/12/merge", True),
+    ("push to main when the user said push", "push it to main",
+     f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", False),
+    ("push flag but the user said finish it", "finish it",
+     f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", True),
+]
+
+
+def own_words_home(root: Path) -> Path:
+    home = root / "own-home"
+    (home / ".claude" / "hooks").mkdir(parents=True)
+    (home / ".claude" / "hooks" / "intent-ledger.sh").symlink_to(GUARD.parent / "intent-ledger.sh")
+    return home
+
+
+def record_ask(repo_dir: Path, session: str, ask: str) -> None:
+    exclude = Path(git_out(repo_dir, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    if ".context/" not in (exclude.read_text() if exclude.exists() else ""):
+        with exclude.open("a") as f:
+            f.write(".context/\n")
+    ledger = repo_dir / ".context" / "intent-ledger.md"
+    ledger.parent.mkdir(exist_ok=True)
+    with ledger.open("a") as f:
+        f.write(f"\n## 2026-01-01T00:00:00Z · ask · session other\n\n```\nmerge 12 push\n```\n")
+        f.write(f"\n## 2026-01-01T00:00:01Z · ask · session {session}\n\n```\n{ask}\n```\n")
 
 
 def repo(root: Path, name: str, branch: str) -> Path:
@@ -82,8 +124,10 @@ def run_cases(group: str, cases: list, home: Path, failures: list) -> None:
             failures.append(f"{group}: {label}: got {reason[:160]!r}")
 
 
-def run(cwd: Path, command: str, home=None) -> str:
+def run(cwd: Path, command: str, home=None, session="") -> str:
     payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
+    if session:
+        payload["session_id"] = session
     env = clean_env()
     if home is not None:
         env["HOME"] = str(home)
@@ -110,6 +154,21 @@ def main() -> int:
                 passes += 1
             else:
                 failures.append(f"MUST NOT FIRE: {label}: {reason[:90]!r}")
+        own_home = own_words_home(Path(tmp))
+        for i, (label, ask, cmd, denied) in enumerate(OWN_WORDS):
+            where = dirs["main"] if PUSH in cmd else dirs["feature"]
+            session = f"s{i}"
+            record_ask(where, session, ask)
+            reason = run(where, cmd, own_home, session)
+            if bool(reason) == denied:
+                passes += 1
+            else:
+                failures.append(f"OWN WORDS: {label}: got {reason[:160]!r}")
+        reason = run(dirs["feature"], "gh pr merge 12", own_home, "never-recorded")
+        if reason:
+            passes += 1
+        else:
+            failures.append("OWN WORDS: a session with no recorded ask must be denied")
         home = Path(tmp) / "home"
         home.mkdir()
         config = repo(home, ".claude", "main")
@@ -180,7 +239,7 @@ def main() -> int:
             ("config --all push", worktree, f"{PUSH} --all origin", True),
             ("config force to a task branch keeps the old exemption", worktree,
              f"{PUSH} --force origin config-update/repair", False),
-            ("override still works elsewhere", dirs["main"], f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", False),
+            ("a push flag without the user saying push", dirs["main"], f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", True),
         ]
         run_cases("CONFIG LANDING", cases, home, failures)
         passes += len(cases)

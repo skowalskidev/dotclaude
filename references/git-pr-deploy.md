@@ -246,9 +246,14 @@ touches or renumbers a migration: `/sk:ship-pr` § Rewrite the body when the PR 
 Outside the own-config exception (`/sk:claude-config-sync` lands a head verified by
 `bin/config-land-check.py` with no confirmation), **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
-specific irreversible merge. `hooks/git-commit-guard.py` hard-blocks `gh pr merge` and default-branch
-pushes; clear it with `CLAUDE_ALLOW_PR_MERGE=1` (or `CLAUDE_ALLOW_MAIN_COMMIT=1` for a push) only once
-the user has confirmed that exact merge.
+specific irreversible merge. `hooks/git-commit-guard.py` runs `gh pr merge <n>` only when the user's
+OWN newest message (`hooks/intent-ledger.sh latest-ask`) says "merge", unnegated, and names `<n>`; a
+default-branch push needs `CLAUDE_ALLOW_MAIN_COMMIT=1` AND a newest message saying "push". No flag
+the model sets authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
+**DO stop at a ready, green PR and ask "Say 'merge #<n>' to merge it."** DON'T read "finish it",
+"priority", "1 yes" to a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged
+on "1 yes" to a model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").
+TEST: every merge traces to a user message containing "merge" and that PR's number.
 **DON'T treat a yes to an AskUserQuestion option or plan YOU authored as that confirmation, and DON'T
 author an option that pushes/merges a remote default branch in the first place.** The confirmation must
 be the user's OWN unprompted "push"/"merge" for THAT action; offering "push to main" as a pickable
