@@ -325,6 +325,18 @@ a tool, never `cat`/`echo` it into the transcript, a message, or a commit.
 mode, move it to the file its connector's `secret.path` names, and mint a fresh one from
 `auth.steps` because the old one was exposed. Do not propose importing it into a vault.
 
+**Hand a copied secret to its store through a whitespace strip.** DO give Simon one command that
+strips whitespace from the clipboard before storing whenever a step has him copy a token or key from
+the terminal or clipboard into a secret store, e.g. a CI subscription token:
+`pbpaste | tr -d '[:space:]' | gh secret set NAME --repo OWNER/REPO`. A multi-line secret (PEM key,
+JSON) goes in from its file instead: `gh secret set NAME --repo OWNER/REPO < <file>`.
+DON'T hand him an interactive paste at the store's prompt: a long token printed across wrapped
+terminal lines picks up line breaks or spaces when copied, and the stored secret fails auth on every run.
+DO verify the stored secret with one cheap authenticated call, or the first real run that consumes
+it, before reporting the step done; read the error text, since a failing action can hide it.
+TEST: a hand-back with a manual paste-into-secret step and no whitespace-stripped command fails; so
+does a secret step reported done with no authenticated call or run behind it.
+
 **Personal files stay OUT of team repos.** Everything above lives outside every project repo (in
 `~/.claude`, `~/.config` or a registry root), so no personal connector artifact lands in a team repo and
 no project's committed `.gitignore` is ever touched. If some tool genuinely forces a personal file to sit inside a
