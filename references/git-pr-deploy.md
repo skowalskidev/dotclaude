@@ -569,6 +569,12 @@ precondition check, post-step smoke with its expected result, rollback.
 sat on an older approved sender; the safe order, the per-step rollback and the merge-train run were
 only written after the user asked.)
 
+**DO name a `Smoke:` signal only after tracing its writer to the code path production takes for the
+changed behaviour** (grep the writer of the row, log line or field). Prefer the changed side effect
+itself (a paid run no longer starts, a field now set) over an audit row one branch writes.
+TEST: every `Smoke:` signal cites the function that writes it on the path the change affects (the fix
+for a smoke keyed on skip-audit rows only an older reply path wrote, so a 2-hour watch saw nothing).
+
 ## Release preflight before building or uploading
 
 **DO read the provider's current publication state before the first release-only build, archive,
