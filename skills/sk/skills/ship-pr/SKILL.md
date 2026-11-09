@@ -87,3 +87,26 @@ affected on deploy:
 - When adding either TLDR to an EXISTING PR: fetch the current body first, verify it is
   non-empty, prepend programmatically, and write back — preserving every existing
   section exactly.
+
+## Rewrite the body when the PR changes
+
+**DO rewrite every section in `SECTIONS` from the current diff, and re-shoot every screenshot,
+journey clip and verification run against the current base, in the same push batch, unprompted,
+whenever the PR's behaviour or base moves after its body was written:** requested changes land, a
+base merge changes code the PR touches, a migration is renumbered, or scope moves. Re-derive each
+section from `git diff <base>...<head>` and the code at the head, never from the old body. Re-shoot
+under `references/screenshot-review.md` § Refresh after the follow-up batch.
+**DON'T patch the few lines you remember changing.** Every untouched section is a current claim
+about superseded code, and the reviewer cannot tell which lines are still true.
+**DO keep the write safe; the rewrite covers OUR sections' content, never a blind overwrite:**
+1. Fetch the body; STOP on an empty or suspiciously short fetch.
+2. Keep exactly every section whose heading is outside `SECTIONS` and the repo template, and every
+   line a reviewer added (`gh api graphql` on `pullRequest.userContentEdits` lists each editor).
+3. Replace each of our sections in place by heading, then write the body.
+4. Re-fetch, confirm every `SECTIONS` heading is present, and run `pr-landing-gate.py` again before
+   recording the gate.
+TEST: after the push, the Test matrix heading names the head sha (`## Test matrix (head <sha>)`),
+every AFTER capture records that sha and every BEFORE the current base, zero sections describe
+superseded behaviour, every reviewer-added line survives, and the gate ran on the re-fetched body
+(the fix for a PR patched line by line across five rounds of requested changes and two base merges,
+until a full rewrite and fresh screenshots had to be asked for).

@@ -228,6 +228,8 @@ a local command.
    Defects first).
 TEST: the hand-back names the install, the browser download, the applied-migration comparison, the
 `git status` result and the base sha the gate list was refreshed at.
+DO rewrite an open PR's body and re-shoot its evidence after a base merge that changes code it
+touches or renumbers a migration: `/sk:ship-pr` § Rewrite the body when the PR changes.
 
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 

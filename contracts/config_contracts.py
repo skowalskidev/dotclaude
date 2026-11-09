@@ -271,6 +271,7 @@ CONTRACTS: dict[str, dict] = {
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
             "Refresh evidence by default after all current ticket follow-ups, review fixes and required checks finish; honor explicit waivers, reopen pending refresh after new work, and require final-source or unchanged-point reuse proof.",
+            "Re-shoot every point with no reuse proof when a handed-back PR's behaviour or base moves; /sk:ship-pr owns the trigger and the body rewrite.",
             "Run AFTER capture once on the final head, never in the initial verification fan-out; plan early, re-capture only surfaces a later UI change touched; base-branch BEFORE capture and requested interim shots may run early.",
             "Group evidence by point: every case carries a point and a column, the manifest declares the ordered columns, and a platform or size a point lacks shows its status and reason in its cell, never dropped or listed apart.",
             "Record one separate video per affected user-journey scenario (from acceptance criteria and states: the changed step's success case, loading, slow, follow-up during loading, each limit or failure), named and captioned by it; a combined walk never replaces them. Each opens on the real UI just before the trigger with no text slide or title card in the video, and ends 1-2 s after the outcome with no tail; its 1-2 line TLDR (what it shows, expected behaviour) is PR-body text directly above the video; verify by sampled first-UI, action and last frames matching the TLDR; skip only no-UI or no-interaction changes, stated.",
@@ -1538,6 +1539,8 @@ CONTRACTS: dict[str, dict] = {
             "references/tldr-report-formats.md, so a reviewer can judge both the feature and the "
             "mechanism without reading the diff. Same blocks as end-report, so a PR and the report "
             "tell one story.",
+            "Owns the body rewrite: when a PR's behaviour or base moves after its body was written, every SECTIONS section is re-derived from the current diff and every capture re-shot in the same push batch, unprompted.",
+            "The rewrite fetches first, stops on an empty or short fetch, keeps every reviewer-added line and non-SECTIONS section, replaces ours in place by heading, then re-fetches and reruns pr-landing-gate.py.",
         ],
     },
     "skills/sk/skills/ship-review/SKILL.md": {

@@ -37,6 +37,9 @@ captured UI after publication. Finish the new work, then replace stale points on
 unchanged points only with recorded source/fixture equivalence and their original provenance; never
 relabel an old capture as newly captured. Reconcile all visible points against the final diff before
 publishing (e.g. a later color correction invalidates the earlier image of that control).
+DO re-shoot EVERY point against the current base, with no reuse proof, when a handed-back PR's
+behaviour or base moves (requested changes land, a base merge changes code it touches, a migration is
+renumbered, scope moves). The body rewrite and its trigger: `/sk:ship-pr` § Rewrite the body when the PR changes.
 TEST: every current point has final-source capture proof or explicit unchanged-point reuse proof;
 zero points depict a superseded state as the current result.
 

@@ -134,7 +134,8 @@ verified the user + system journey, then handed back with it never posted to the
   above is a visible `##`/`###` heading (rule: `/sk:ship-pr` § The rest of the body). A collapsed
   section fails even when its content loads.
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
-empty or suspiciously short → STOP.
+empty or suspiciously short → STOP. When behaviour or base moved after the body was written, re-derive
+every section and capture under `/sk:ship-pr` § Rewrite the body when the PR changes, then rerun this gate.
 **DO run `~/.claude/bin/pr-landing-gate.py --repo <owner/name> --pr <n>` on every PR in the run and
 post each FAIL row before recording the gate.** It owns the section headings and checks the rows above
 mechanically; PASS is recorded only through it, because `hooks/intent-ledger.sh gate <branch> <sha>
