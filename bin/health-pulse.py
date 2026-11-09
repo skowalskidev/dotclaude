@@ -12,8 +12,9 @@ enables:
              Prometheus endpoint; Postgres cache hit, long-running and slowest queries; service
              health; security and performance advisors; error logs from every log source (API
              gateway, Postgres, Edge Functions, auth, everything else) with the top signatures and a
-             cause hint per Postgres error code; Edge Function limit hits; failed pg_cron runs; new
-             auth users; and what changed (migrations, Edge Function deploys).
+             cause hint per Postgres error code; API gateway and Edge Function p95 latency in the
+             slowest busy hour against the previous window; Edge Function limit hits; failed pg_cron
+             runs; new auth users; and what changed (migrations, Edge Function deploys).
   metrics    project SQL declared in the manifest: rates (conversion, failure share), counts and
              gauges. Rates and counts run for the last --hours and for the same window on each of
              the previous `baselineWeeks` weeks, so weekday seasonality cancels. Rates use a pooled
@@ -23,14 +24,17 @@ enables:
   stripe     failed-charge share, failed invoices, disputes, events whose webhook delivery failed and
              disabled endpoints, through a restricted key over HTTPS (stripe.keyEnv) or the CLI
              profile, after checking it reads the expected account.
+  cloudflare Workers error share and CPU time (p99) per script through the GraphQL Analytics API
+             (cloudflare.accountIdEnv, cloudflare.tokenEnv), against the previous window.
   twilio     failed or undelivered share per messaging service with top error codes, and debugger
              alerts. Aggregates only: no message body or phone number is read into the report.
   corroborate  pairs of counts from two sources for the same window (e.g. Stripe charges against
              the app's payment ledger); a gap past tolerance means a webhook or writer is dropping.
 
-Every call is a read. SQL goes through the Supabase Management API with read_only set, and manifest
-SQL that is not one SELECT or WITH statement is refused. Keys load in-process from the connectors'
-`secret.path` files and are never printed; error text is scrubbed. A probe that cannot run reports
+Every call is a read. SQL goes through the Supabase Management API with read_only set and a statement
+timeout (supabase.queryTimeout, default 15s), and manifest SQL that is not one SELECT or WITH
+statement is refused. Keys load in-process from the connectors' `secret.path` files and are never
+printed; error text is scrubbed. A probe that cannot run reports
 `unknown` with the reason instead of disappearing.
 
 Output: a markdown digest ranked worst first, a check that was green in the previous snapshot is
@@ -65,6 +69,7 @@ STATE_DIR = HOME_CLAUDE / "monitor"
 SUPABASE_API = "https://api.supabase.com/v1"
 RC_API = "https://api.revenuecat.com/v2"
 STRIPE_API = "https://api.stripe.com"
+CLOUDFLARE_GRAPHQL = "https://api.cloudflare.com/client/v4/graphql"
 TWILIO_API = "https://api.twilio.com/2010-04-01"
 TWILIO_MONITOR = "https://monitor.twilio.com/v1"
 TIMEOUT = 45
@@ -95,6 +100,14 @@ DEFAULTS = {
     "slowQueryMs": 1000,
     "slowQueryMinCalls": 100,
     "daysToFullWarn": 21,
+    "latencyWarnRatio": 1.5,     # slowest hour's p95 against the previous 24h p95
+    "latencyCritRatio": 2.0,
+    "latencyWarnMs": 200,        # and at least this much slower, so a 20 ms -> 40 ms blip stays green
+    "latencyCritMs": 500,
+    "latencyMinRequests": 200,   # an hour with fewer requests is too thin to judge
+    "workerCpuWarnRatio": 1.5,
+    "workerCpuCritRatio": 2.0,
+    "workerCpuMinMs": 5,
 }
 # What a Postgres SQLSTATE in the error logs usually means, so a red row carries its likely cause.
 SQLSTATE_HINTS = {
@@ -118,7 +131,7 @@ SQLSTATE_HINTS = {
     "08006": "connection failure",
 }
 # Connector-name prefixes the engine probes; any other data connector is listed for a manual check.
-COVERED = ("supabase", "stripe", "revenuecat", "twilio")
+COVERED = ("supabase", "stripe", "revenuecat", "twilio", "cloudflare")
 NOT_DATA = ("pal", "slack")  # model and messaging tools, not production signal sources
 # Twilio delivery errors the RECIPIENT causes (not on WhatsApp, number gone, landline), per Twilio's
 # own error pages. They are listed but never count as our failure; 30034 (unregistered sender) does.
@@ -414,8 +427,10 @@ class Supabase:
         return self.ctx.http(f"{SUPABASE_API}/projects/{self.ref}{path}{query}", self.headers)
 
     def sql(self, query):
+        """One read-only query, cut off after `queryTimeout` so a slow scan can never load the database."""
+        limit = str(self.conf.get("queryTimeout", "15s"))
         rows = self.ctx.http(f"{SUPABASE_API}/projects/{self.ref}/database/query", self.headers,
-                             {"query": query, "read_only": True})
+                             {"query": f"set local statement_timeout = '{limit}'; {query}", "read_only": True})
         if isinstance(rows, dict) and "result" in rows:
             rows = rows["result"]
         if not isinstance(rows, list):
@@ -679,9 +694,13 @@ def probe_postgres(ctx, sb):
             by_name[name] = (c + calls, t + total)
         top = sorted(((c, t, n) for n, (c, t) in by_name.items()), key=lambda v: -v[1])[:6]
         slow = [v for v in top if v[0] >= cfg["slowQueryMinCalls"] and v[1] / max(v[0], 1) >= cfg["slowQueryMs"]]
+        # Cumulative totals reach back to the last stats reset and keep queries already fixed, so only a
+        # delta against a stored snapshot can raise this row; the first run sets the baseline.
+        status = ("warn" if slow else "ok") if base else "low-sample"
         out.append(check("Capacity", "slow-queries", f"Slowest queries by total DB time ({span})",
-                         "warn" if slow else "ok", f"{len(slow)} averaging ≥ {cfg['slowQueryMs']:g} ms", "",
-                         "frequent slow calls eat the CPU and trigger statement timeouts" if slow else "",
+                         status, f"{len(slow)} averaging ≥ {cfg['slowQueryMs']:g} ms", "",
+                         ("frequent slow calls eat the CPU and trigger statement timeouts" if slow else "")
+                         if base else "baseline starts this run; totals are cumulative until then",
                          [f"{name}: {total / max(calls, 1):,.0f} ms mean × {calls:,.0f} calls = {total / 3.6e6:,.1f} h"
                           for calls, total, name in top], "supabase",
                          (f"{slow[0][2]} averages {slow[0][1] / max(slow[0][0], 1):,.0f} ms over {slow[0][0]:,.0f} calls"
@@ -710,7 +729,10 @@ LOG_SOURCES = [
      "sig": "concat(log_attributes['response.status_code'], ' ', log_attributes['request.method'], ' ', "
             "replaceRegexpAll(log_attributes['request.path'], '[0-9a-f-]{8,}|[0-9]{2,}', ':id'))"},
     {"id": "postgres-errors", "label": "Postgres errors",
-     "where": "source = 'postgres_logs' and severity_text in ('ERROR', 'FATAL', 'PANIC')",
+     # supabase_read_only_user is the monitor's and the MCP's own read-only role; the app never connects
+     # as it, so a mistyped ad hoc query during an investigation is not an app error (found 2026-11-09).
+     "where": "source = 'postgres_logs' and severity_text in ('ERROR', 'FATAL', 'PANIC') "
+              "and log_attributes['parsed.user_name'] != 'supabase_read_only_user'",
      "sig": "concat(severity_text, ' ', log_attributes['parsed.sql_state_code'], ' ', substring(event_message, 1, 150))"},
     {"id": "function-5xx", "label": "Edge Function 5xx", "den": "source = 'function_edge_logs'",
      "where": "source = 'function_edge_logs' and toInt32OrZero(log_attributes['response.status_code']) >= 500",
@@ -818,6 +840,119 @@ def probe_logs(ctx, sb):
     return out
 
 
+LATENCY_SOURCES = [
+    {"id": "api", "label": "API gateway response time (p95)", "source": "edge_logs",
+     "ms": "toFloat64OrZero(log_attributes['response.origin_time'])",
+     "by": "concat(log_attributes['request.method'], ' ', replaceRegexpAll(log_attributes['request.path'], "
+           "'[0-9a-f-]{8,}|[0-9]{2,}', ':id'))"},
+    {"id": "functions", "label": "Edge Function run time (p95)", "source": "function_edge_logs",
+     "ms": "toFloat64OrZero(log_attributes['execution_time_ms'])", "by": "log_attributes['request.pathname']"},
+]
+
+
+def judge_latency(worst, baseline, cfg):
+    if not baseline or worst is None:
+        return "ok", "no baseline yet"
+    ratio, extra = worst / baseline, worst - baseline
+    if ratio >= cfg["latencyCritRatio"] and extra >= cfg["latencyCritMs"]:
+        return "crit", f"{ratio:.1f}x the previous 24h"
+    if ratio >= cfg["latencyWarnRatio"] and extra >= cfg["latencyWarnMs"]:
+        return "warn", f"{ratio:.1f}x the previous 24h"
+    return "ok", f"{ratio:.1f}x the previous 24h"
+
+
+def probe_latency(ctx, sb):
+    """Slowdowns under load: each hour's p95 in the window against the previous window's p95.
+
+    The slowest hour is judged, not the day's average, because a peak-hour slowdown is what users feel
+    and a 24h figure hides it. The busiest hour is shown beside it to tie a slowdown to load.
+    """
+    cur = (ctx.now - dt.timedelta(hours=ctx.hours), ctx.now)
+    prev = (cur[0] - dt.timedelta(hours=ctx.hours), cur[0])
+    cols = ", ".join(f"quantileIf(0.95)({s['ms']}, source = '{s['source']}') as `{s['id']}_p95`, "
+                     f"countIf(source = '{s['source']}') as `{s['id']}_n`" for s in LATENCY_SOURCES)
+    where = "source in (" + ", ".join(f"'{s['source']}'" for s in LATENCY_SOURCES) + ")"
+    hours = sb.logs(f"select toStartOfHour(timestamp) as h, {cols} from logs where {where} group by h order by h", *cur)
+    try:
+        before = (sb.logs(f"select {cols} from logs where {where}", *prev) or [{}])[0]
+    except ProbeError:
+        before = {}
+    out = []
+    for src in LATENCY_SOURCES:
+        sid, minimum = src["id"], ctx.cfg["latencyMinRequests"]
+        full = [(r["h"], float(r.get(f"{sid}_p95") or 0), int(r.get(f"{sid}_n") or 0)) for r in hours]
+        busy = [h for h in full if h[2] >= minimum]
+        baseline = float(before.get(f"{sid}_p95") or 0) or None
+        ctx.values["latency:" + sid] = max((h[1] for h in busy), default=0)
+        if not busy:
+            out.append(check("Latency", f"latency-{sid}", src["label"], "low-sample", "",
+                             why=f"no hour had {minimum} requests", source="supabase-logs"))
+            continue
+        worst, peak = max(busy, key=lambda h: h[1]), max(busy, key=lambda h: h[2])
+        status, why = judge_latency(worst[1], baseline, ctx.cfg)
+        detail = [f"slowest hour {str(worst[0])[11:16]} UTC: p95 {worst[1]:,.0f} ms over {worst[2]:,} requests",
+                  f"busiest hour {str(peak[0])[11:16]} UTC: {peak[2]:,} requests, p95 {peak[1]:,.0f} ms"]
+        if status != "ok":
+            start = dt.datetime.fromisoformat(str(worst[0])).replace(tzinfo=dt.timezone.utc)
+            try:
+                slow = sb.logs(f"select {src['by']} as what, quantile(0.95)({src['ms']}) as p95, count(*) as n from logs "
+                               f"where source = '{src['source']}' group by what having n >= 20 order by p95 desc limit 5",
+                               start, start + dt.timedelta(hours=1))
+                detail += [f"{r['what']}: p95 {float(r['p95']):,.0f} ms over {int(r['n']):,}" for r in slow]
+            except ProbeError as e:
+                detail.append("slowest paths unavailable: " + str(e)[:120])
+        out.append(check("Latency", f"latency-{sid}", src["label"], status, f"{worst[1]:,.0f} ms (slowest hour)",
+                         f"{baseline:,.0f} ms" if baseline else "", why, detail, "supabase-logs"))
+    return out
+
+
+def probe_cloudflare(ctx):
+    """Workers at the edge: error share and CPU time per script, last window against the one before."""
+    conf = ctx.monitor.get("cloudflare") or {}
+    account = ctx.secret(conf.get("accountIdEnv", "CLOUDFLARE_ACCOUNT_ID"))
+    headers = {"Authorization": "Bearer " + ctx.secret(conf.get("tokenEnv", "CLOUDFLARE_MONITOR_TOKEN"))}
+    query = ("query($a: String!, $s: Time!, $e: Time!) { viewer { accounts(filter: {accountTag: $a}) { "
+             "workersInvocationsAdaptive(limit: 200, filter: {datetime_geq: $s, datetime_leq: $e}) { "
+             "sum { requests errors } quantiles { cpuTimeP99 } dimensions { scriptName } } } } }")
+
+    def window(start, end):
+        z = "%Y-%m-%dT%H:%M:%SZ"
+        data = ctx.http(CLOUDFLARE_GRAPHQL, headers, {"query": query, "variables": {
+            "a": account, "s": start.strftime(z), "e": end.strftime(z)}})
+        if data.get("errors"):
+            raise ProbeError("Cloudflare GraphQL: " + scrub("; ".join(e.get("message", "") for e in data["errors"]),
+                                                             ctx.secrets()))
+        accounts = ((data.get("data") or {}).get("viewer") or {}).get("accounts") or [{}]
+        rows = {}
+        for r in accounts[0].get("workersInvocationsAdaptive") or []:
+            name = r["dimensions"]["scriptName"]
+            agg = rows.setdefault(name, {"requests": 0, "errors": 0, "cpu": 0.0})
+            agg["requests"] += int(r["sum"]["requests"])
+            agg["errors"] += int(r["sum"]["errors"])
+            agg["cpu"] = max(agg["cpu"], float(r["quantiles"]["cpuTimeP99"]) / 1000)  # microseconds -> ms
+        return rows
+
+    cur = (ctx.now - dt.timedelta(hours=ctx.hours), ctx.now)
+    now_rows, before = window(*cur), window(cur[0] - dt.timedelta(hours=ctx.hours), cur[0])
+    out = []
+    for name, r in sorted(now_rows.items(), key=lambda kv: -kv[1]["requests"]):
+        b = before.get(name, {"requests": 0, "errors": 0, "cpu": 0.0})
+        status, why = judge_rate(r["errors"], r["requests"], b["errors"], b["requests"], ctx.cfg, better="lower")
+        out.append(check("Errors", f"worker-errors:{name}", f"Cloudflare Worker {name}: error share", status,
+                         fmt_pct(r["errors"], r["requests"]), fmt_pct(b["errors"], b["requests"]), why, source="cloudflare"))
+        ratio = r["cpu"] / b["cpu"] if b["cpu"] else None
+        cpu_status = "ok"
+        if ratio and r["cpu"] >= ctx.cfg["workerCpuMinMs"]:
+            cpu_status = ("crit" if ratio >= ctx.cfg["workerCpuCritRatio"] else
+                          "warn" if ratio >= ctx.cfg["workerCpuWarnRatio"] else "ok")
+        out.append(check("Latency", f"worker-cpu:{name}", f"Cloudflare Worker {name}: CPU time (p99)", cpu_status,
+                         f"{r['cpu']:,.1f} ms", f"{b['cpu']:,.1f} ms" if b["cpu"] else "",
+                         f"{ratio:.1f}x the previous {ctx.hours:g}h" if ratio else "no baseline yet",
+                         [f"{r['requests']:,} requests ({b['requests']:,} before)"], "cloudflare"))
+    return out or [check("Traffic", "workers", "Cloudflare Workers", "unknown", why="no Worker invocations returned",
+                         source="cloudflare")]
+
+
 def probe_supabase(ctx):
     sb = Supabase(ctx)
     out = []
@@ -835,6 +970,7 @@ def probe_supabase(ctx):
     out += guarded("postgres", probe_postgres)
     if sb.conf.get("logs", True):
         out += guarded("logs", probe_logs)
+        out += guarded("latency", probe_latency)
 
     try:
         services = sb.get("/health", services="auth,db,pooler,realtime,rest,storage")
@@ -1296,7 +1432,7 @@ def corroborate(ctx):
 # ---------------------------------------------------------------- orchestration and output
 
 PROBES = {"supabase": probe_supabase, "metrics": probe_metrics, "revenuecat": probe_revenuecat,
-          "stripe": probe_stripe, "twilio": probe_twilio}
+          "stripe": probe_stripe, "twilio": probe_twilio, "cloudflare": probe_cloudflare}
 
 
 def enabled(ctx, only):

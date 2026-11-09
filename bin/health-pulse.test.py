@@ -340,6 +340,66 @@ with tempfile.TemporaryDirectory() as tmp:
     expect(logs and all("signatures unavailable" in " ".join(r["detail"]) for r in logs),
            f"each log row reports its missing signatures instead of crashing: {[r['id'] for r in rows]}")
 
+# Peak-hour slowdowns: the slowest busy hour is judged against the previous window, thin hours are skipped,
+# and every SQL read carries a statement timeout so the sweep cannot load the database.
+with tempfile.TemporaryDirectory() as tmp:
+    ctx = ctx_for({"supabase": {"ref": "a" * 20, "tokenEnv": "SB"}}, tmp, {"SB": "sbp_" + "q" * 40})
+    sb = hp.Supabase(ctx)
+    hours = [{"h": f"2026-11-06T{h:02}:00:00", "api_p95": 240, "api_n": 5000, "functions_p95": 1500, "functions_n": 900}
+             for h in range(24)]
+    hours[14].update(api_p95=900, api_n=12000)            # the peak hour slows the API gateway down
+    hours[3].update(functions_p95=9000, functions_n=40)   # a slow but nearly empty hour must not count
+    asked = []
+
+    def fake_logs(sql, start, end):
+        asked.append(sql)
+        if "group by h" in sql:
+            return hours
+        if "group by what" in sql:
+            return [{"what": "GET /rest/v1/rpc/slow_report", "p95": 2400, "n": 800}]
+        return [{"api_p95": 250, "api_n": 100000, "functions_p95": 1550, "functions_n": 20000}]
+
+    sb.logs = fake_logs
+    rows = {r["id"]: r for r in hp.probe_latency(ctx, sb)}
+    api, fn = rows["latency-api"], rows["latency-functions"]
+    expect(api["status"] == "crit" and "14:00" in api["detail"][0] and "slow_report" in " ".join(api["detail"]),
+           f"a 3.6x slower peak hour is red and names the slowest path: {api}")
+    expect(fn["status"] == "ok", f"a slow hour with 40 requests is too thin to page on: {fn}")
+    sent = []
+    ctx.http = lambda url, headers, data=None: sent.append(data) or [{"one": 1}]
+    sb.sql("select 1")
+    expect(sent and sent[0]["query"].startswith("set local statement_timeout = '15s';") and sent[0]["read_only"],
+           f"every SQL read is read-only with a statement timeout: {sent}")
+
+# Cloudflare Workers: error share and CPU p99 per script against the previous window.
+with tempfile.TemporaryDirectory() as tmp:
+    ctx = ctx_for({"cloudflare": {}}, tmp, {"CLOUDFLARE_ACCOUNT_ID": "acc", "CLOUDFLARE_MONITOR_TOKEN": "cf" * 10})
+    calls = []
+
+    def fake_cf(url, headers, data=None):
+        calls.append(data["variables"])
+        current = len(calls) == 1
+        return {"data": {"viewer": {"accounts": [{"workersInvocationsAdaptive": [
+            {"sum": {"requests": 50000, "errors": 2500 if current else 40}, "quantiles": {"cpuTimeP99": 30000 if current else 9000},
+             "dimensions": {"scriptName": "web"}}]}]}}}
+
+    ctx.http = fake_cf
+    rows = {r["id"]: r for r in hp.probe_cloudflare(ctx)}
+    expect(rows["worker-errors:web"]["status"] == "crit", f"5% errors from 0.08% is red: {rows['worker-errors:web']}")
+    expect(rows["worker-cpu:web"]["status"] == "crit" and rows["worker-cpu:web"]["now"] == "30.0 ms",
+           f"CPU p99 3.3x the day before is red: {rows['worker-cpu:web']}")
+    ctx.http = lambda url, headers, data=None: {"errors": [{"message": "not authorized for that account"}]}
+    try:
+        hp.probe_cloudflare(ctx)
+        FAILS.append("a Cloudflare GraphQL error must surface, not read as healthy")
+    except hp.ProbeError:
+        pass
+
+# The monitor's own ad hoc queries are not app errors (the bot's first investigation found its own typo counted).
+pg = next(src for src in hp.LOG_SOURCES if src["id"] == "postgres-errors")
+expect("supabase_read_only_user" in pg["where"] and "!=" in pg["where"],
+       "Postgres errors exclude the read-only monitoring role")
+
 if FAILS:
     print("FAIL health-pulse:\n- " + "\n- ".join(FAILS))
     sys.exit(1)

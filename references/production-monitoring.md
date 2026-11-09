@@ -22,6 +22,13 @@ at a CPU, memory or wall-clock limit, each with its top merged signatures and a 
 Postgres SQLSTATE (`SQLSTATE_HINTS` in the engine).
 TEST: an `Errors` row exists per log source, or the row says why it could not run.
 
+**DO judge latency by the slowest busy hour, not the day's average.** The engine takes each hour's
+p95 for the API gateway (`response.origin_time`) and Edge Functions (`execution_time_ms`), skips
+hours under `latencyMinRequests`, and compares the slowest against the previous window's p95; a red
+row lists that hour's five slowest paths. With a `cloudflare` block it also reads each Worker's error
+share and CPU p99 against the previous window.
+TEST: the digest has a `Latency` row per source, or a `low-sample` row naming the request floor.
+
 **DO corroborate one fact across two sources wherever two exist.** A payment provider's successful
 charges against the app's payment ledger for the same window; auth users against the app's signup
 table. A gap past tolerance means a webhook or writer is dropping events.
@@ -82,9 +89,10 @@ project ids. `health-pulse.py --draft` writes the generic part from the manifest
 
 | Key | Holds |
 |---|---|
-| `supabase` | `ref`, `tokenEnv` (management token), `metricsKeyEnv` (optional service or secret key for the privileged metrics endpoint; without it metrics come from the Management API through `tokenEnv`); `infrastructure`, `logs`, `authUsers` set false to skip |
+| `supabase` | `ref`, `tokenEnv` (management token), `metricsKeyEnv` (optional service or secret key for the privileged metrics endpoint; without it metrics come from the Management API through `tokenEnv`); `queryTimeout` (statement timeout per SQL read, default `15s`); `infrastructure`, `logs`, `authUsers` set false to skip |
 | `revenuecat` | `projectId`, `keyEnv` (v2 key with `charts_metrics:overview:read`) |
 | `stripe` | `keyEnv` (restricted read-only key, read over HTTPS; wins over the CLI) or `profile` (CLI project name), `account` (the expected `acct_…`, checked first) |
+| `cloudflare` | `accountIdEnv`, `tokenEnv` (API token with Account Analytics read) for Workers error share and CPU p99 |
 | `twilio` | env names for the account SID and API key; `messagingServiceSids` to scope a shared account |
 | `metrics` | project SQL rows, below |
 | `corroborate` | `{label, a, b, tolerancePct, minGap, hint}`; `a`/`b` are `stripe:charge.succeeded`, `metric:<id>`, `logs:<id>` or `revenuecat:<id>` |
@@ -103,7 +111,9 @@ A metric is `{id, label, area, kind, sql, better, lagHours, hint}`:
 
 **DO write each `sql` as one SELECT or WITH with `{start}` and `{end}` as the window bounds.** The
 engine fills them, runs the query through the Management API with `read_only: true` (as
-`supabase_read_only_user`), and refuses any write or session keyword.
+`supabase_read_only_user`, which has no timeout of its own) behind `set local statement_timeout`,
+and refuses any write or session keyword. Postgres errors from that role are left out of the
+`Errors` rows: they are the monitor's own ad hoc queries, not the app's.
 TEST: every metric returns a row in a `--only metrics` run before the block is saved.
 
 ## Triage hints
