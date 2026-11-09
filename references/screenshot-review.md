@@ -402,10 +402,19 @@ DO post one viewport per state by default: the one the change targets, usually m
 other viewport only when its layout visibly differs, with one line saying what differs. DON'T post a
 desktop and mobile pair that show the same thing, and prefer a video over a screenshot for anything
 that changes over time (the fix for a PR body of 25 near-duplicate desktop/mobile images).
+**DO size every image posted to a PR by frame type, in the `<img width>` written after upload:** a single
+mobile or iOS frame `width="300"`, a side-by-side phone pair `width="600"` (two 300 px phones), a desktop
+frame or stacked desktop pair `width="800"`. A Markdown image (`![alt](url)`) renders a 1206 px phone
+capture at the full column width, so no PR body keeps one after the upload step (the fix for a widget
+PR whose 23 phone and gallery frames each filled the reviewer's screen, three days after the 300 px
+rule for mobile frames was written for the offline report).
+TEST: the fetched `body_html` has zero `<img>` without a `width`, every mobile or iOS frame reads 300 (600
+for a pair), and `grep -c '!\[' body.md` over image lines is 0.
 DO post one block per point in the PR description, with a comment only when description embedding
 is unsupported or blocked, all under that top-level `## Screenshots` section: `### <point>`, one line naming what the left (or top)
 and right (or bottom) frames show, then per posted platform a `**Desktop**` / `**Mobile**` / `**iOS**`
-label over its composed image (`<img src="<url>" width="800" alt="<point> <platform> before and after">`),
+label over its composed image as an `<img>` with an explicit width (`<img src="<url>" width="600"
+alt="<point> <platform> before and after">`),
 then the scenario's 1-2 line TLDR (§ Record useful walkthroughs) as plain text, then the composed video
 alone in its own paragraph directly below that TLDR, never inside a collapsed `<details>` (rule:
 `/sk:ship-pr` § The rest of the body). A new surface posts its AFTER frame under

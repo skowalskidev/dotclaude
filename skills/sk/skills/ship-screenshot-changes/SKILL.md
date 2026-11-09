@@ -241,9 +241,11 @@ Apply `rules/connectors.md` before an auth question or an unsupported-capability
    DO use supported Markdown local references for upload: `![label](PATH/TO/IMAGE)` for an image and
    `![](PATH/TO/VIDEO)` alone in its own paragraph for a video. Do not expect `--attach` to rewrite
    raw HTML `<img src="/local/path.png">`; it can leave that broken and append a duplicate upload.
-   After upload, fetch the saved body and map each returned native URL to its point/platform. If
-   width-controlled HTML is needed, replace the Markdown with `<img src="<returned-url>" ...>` only
-   after upload. Remove only uploader-appended duplicates proven by the saved before/after bodies;
+   After upload, fetch the saved body and map each returned native URL to its point/platform, then
+   replace EVERY image's Markdown with `<img src="<returned-url>" width="<300|600|800>" alt="...">`
+   per `references/screenshot-review.md` § PR evidence template (300 for a mobile or iOS frame, 600
+   for a phone pair, 800 for desktop); this step is not optional, a bare Markdown phone image fills
+   the reviewer's screen. Remove only uploader-appended duplicates proven by the saved before/after bodies;
    preserve unrelated text and automation footers. Before completion verify zero local media refs,
    exactly the intended media counts and no duplicate appended media. A video reference within a sentence renders
    as a link. Follow [GitHub's attachment instructions](https://docs.github.com/en/github-cli/github-cli/attaching-files-with-github-cli#embedding-a-video),
