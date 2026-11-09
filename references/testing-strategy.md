@@ -799,6 +799,31 @@ tests section, GitHub-native, on the posting rails `/sk:ship-screenshot-changes`
 coverage and judgments live on the PR, not only in a transcript. Run the same deterministic stage in CI
 to block regressions.
 
+## Agent automations: test the runner contract before launch
+
+**DO prove four things before a CI- or cron-run Claude agent goes live (claude-code-action, or
+`claude -p` inside a job), and again on every change to its skills or workflow:**
+1. **A committed allow-list contract test.** It extracts every command each skill teaches and checks
+   it against that job's `--allowedTools` in a form Claude Code's permission check accepts: one line,
+   no newline, `&&`, `;` or `|`, no unquoted glob, no shell expansion. Fill each placeholder with a
+   probe value holding `?` and `&`.
+2. **A local drive of each skill with the job's exact flags and no secrets:** `claude -p /<skill>
+   --setting-sources project --strict-mcp-config --allowedTools "<job list>" --output-format json`,
+   then read `permission_denials` from the result.
+3. **A trigger-by-actor matrix for every Claude step:** each event that can start it and the actor it
+   runs as, with every bot actor listed in `allowed_bots`. A scheduled run on a merge-queue repo can
+   start as `github-merge-queue`.
+4. **A dispatch-only connector check** that reads each credential once through the agent's own code
+   path and posts nothing, plus a failure alert that reposts a new failure kind at once instead of
+   waiting out the repeat window.
+
+**DON'T widen the allow list to fit a denied command.** Fix the skill's wording or the tool.
+NUMBER: zero `permission_denials` across the local drives before launch.
+TEST: a launch or change hand-back for such an agent cites the contract test, the local drive's denial
+count and the actor matrix. (the fix for an ops agent whose merge-queue actor refusal, a refused
+multi-line vendor query and an evidence gate its own monitor-tuning fixes could never pass each
+surfaced only in live runs.)
+
 ## Failure classes automated tests structurally cannot catch
 
 Worth an explicit check whenever the change touches one:

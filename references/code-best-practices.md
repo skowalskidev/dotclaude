@@ -105,6 +105,12 @@ minutes on usage errors from an empty run id.) The CI wait script lives in `refe
 TEST: every background wait states its condition and timeout, and its first output was read within 2
 minutes of launch.
 
+**DON'T let a "nothing pending" exit pass on an empty set.** A wait for CI checks, jobs or files first
+requires the expected items to exist for the right head or id (e.g. the check count for the head sha is
+above zero), then waits for none pending.
+TEST: a wait loop whose done-condition is "no pending items" also checks the item count. (the fix for
+CI watches that reported done before the PR's checks had registered.)
+
 **DO send a background command's full raw output to a log file and filter only when reading it.** A
 watcher on a queued heavy job also fires on the wrapper's first waiting line and on no new output
 for 5 minutes, not only on terminal states. When a job Simon is waiting on is queued, tell him at the
