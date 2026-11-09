@@ -233,6 +233,16 @@ unsigned runs and passed 2/2 signed).
 TEST: no app-target `xcodebuild test` carries `CODE_SIGNING_ALLOWED=NO`, and a relaunch test that
 fails on the signed-out screen is rerun signed before it is called a product bug.
 
+**DO verify the API origin of every web build a local walk serves, before the first request:** a
+hosted-web worker that serves a shared build directory shows whatever the last build wrote there, so a
+later production-targeted build silently points the walk at production while the native app stays
+local (the fix for a simulator sign-in whose OTP went to production auth for the review test account
+because a web gate had rebuilt `site/web/out` in between). Copy the local-API build to a directory the
+worker alone serves, grep its chunks for the production project reference and refuse to serve on a hit,
+and derive the identity endpoint from the served assets, never from a stored receipt.
+TEST: a preview's worker config names a private assets directory, the served chunks contain zero
+production project references, and the identity response changes when the served assets change.
+
 ## Drive and capture
 
 DO open the simulator GUI yourself for every requested iOS walk, preview or capture: the resolved
