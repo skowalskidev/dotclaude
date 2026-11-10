@@ -424,6 +424,41 @@ class DashboardTests(unittest.TestCase):
             self.assertEqual((state['revision'], state['sections'][1]['status']), (2, 'doing'))
             self.assertTrue(p.read_text().startswith('NARRATIVE\n'))
 
+    def test_add_section_fills_every_required_field_and_keeps_analysis_last(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / '.git').mkdir()
+            plan, _, _ = d.initialize(root)
+            run = lambda *args: subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), 'add-section', str(plan), *args],
+                                               capture_output=True, text=True)
+            cli = run('--id', 'widget-preview', '--title', 'Widget preview', '--summary', 'Preview the widget on the simulator.',
+                      '--next', 'Boot the simulator.', '--criterion', 'Simulator shows the widget.', '--criterion', 'Hold released.')
+            self.assertEqual(cli.returncode, 0, cli.stderr)
+            self.assertIn('ADDED_SECTION=widget-preview', cli.stdout)
+            state = d.read_plan(plan)[2]
+            self.assertEqual(state['revision'], 2)
+            self.assertEqual([s['id'] for s in state['sections']], ['task-intake', 'widget-preview', 'after-run-analysis'])
+            added = state['sections'][1]
+            self.assertEqual((added['status'], added['artifactRevision'], added['judge'], added['next']),
+                             ('todo', 1, {'verdict': 'pending'}, 'Boot the simulator.'))
+            self.assertEqual([(c['id'], c['passed']) for c in added['criteria']],
+                             [('widget-preview-1', False), ('widget-preview-2', False)])
+            self.assertTrue(d.canonical_dashboard_path(plan).read_text().count('widget-preview'))
+            # Omitting criteria still yields one criterion, from the summary, so validate never rejects it.
+            self.assertEqual(d.new_section('x', 'X', 'Summary.', 'Next.')['criteria'][0]['text'], 'Summary.')
+            duplicate = run('--id', 'widget-preview', '--title', 'Again', '--summary', 's', '--next', 'n')
+            self.assertNotEqual(duplicate.returncode, 0)
+            self.assertIn("'widget-preview' already exists", duplicate.stderr)
+            partial = run('--id', 'other', '--title', 'Other')
+            self.assertNotEqual(partial.returncode, 0)
+            self.assertIn('needs --id, --title, --summary and --next', partial.stderr)
+            self.assertEqual(d.read_plan(plan)[2]['revision'], 2)
+            # A hand-written update error points at the command that knows the whole shape.
+            broken = copy.deepcopy(d.read_plan(plan)[2])
+            broken['sections'][1]['status'] = 'active'
+            with self.assertRaisesRegex(ValueError, "Section 'widget-preview': Unknown section status 'active'.*add-section"):
+                d.update(plan, broken, broken['revision'])
+
     def test_modes_preserve_plan_identity_and_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / 'task-plan.md'; s = passed()

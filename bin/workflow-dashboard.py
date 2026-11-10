@@ -97,7 +97,8 @@ def validate(s):
             validate_section(s, section)
         except (ValueError, KeyError, TypeError) as exc:
             # Name the section so a hand-edited block is fixed in one step, not by bisecting the JSON.
-            raise ValueError(f"Section {section['id']!r}: {exc}") from None
+            raise ValueError(f"Section {section['id']!r}: {exc}; a new section with every required "
+                             "field comes from `workflow-dashboard.py add-section`") from None
     if s['phase'] == 'complete':
         require(all(x['status'] == 'done' for x in sections), 'Complete requires every section done')
     return s
@@ -447,6 +448,36 @@ def update(path, replacement, expected):
         block = '```dashboard-state\n' + json.dumps(new, indent=2) + '\n```\n'
         atomic_write(path, content[:match.start()] + block + content[match.end():])
         return new, rendered
+
+
+def new_section(section_id, title, summary, next_step, criteria=None, status='todo'):
+    """One fully-shaped section, so a caller never discovers the required fields one error at a time."""
+    require(isinstance(section_id, str) and re.fullmatch(r'[a-z0-9][a-z0-9-]*', section_id),
+            'Section id must be lowercase letters, digits and hyphens')
+    texts = [text for text in (criteria or []) if isinstance(text, str) and text.strip()] or [summary]
+    return {
+        'id': section_id,
+        'title': title,
+        'summary': summary,
+        'status': status,
+        'artifactRevision': 1,
+        'next': next_step,
+        'criteria': [{'id': f'{section_id}-{index}', 'text': text.strip(), 'passed': False, 'evidence': ''}
+                     for index, text in enumerate(texts, 1)],
+        'judge': {'verdict': 'pending'},
+    }
+
+
+def add_section(path, section):
+    """Insert one new section ahead of the reserved after-run-analysis item and bump the revision."""
+    _, _, state = read_plan(path)
+    require(all(existing['id'] != section['id'] for existing in state['sections']),
+            f"Section id {section['id']!r} already exists; pick another id or update that section")
+    sections = state['sections']
+    position = next((index for index, existing in enumerate(sections) if existing['id'] == 'after-run-analysis'),
+                    len(sections))
+    sections.insert(position, section)
+    return update(path, state, state['revision'])
 
 
 UNLINKED_CAP = 300
@@ -865,11 +896,17 @@ def serve(plan, output, port=APP_PORT):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('validate', 'export', 'serve', 'state', 'update', 'link', 'init', 'stop', 'handoff', 'resolve'))
+    parser.add_argument('command', choices=('validate', 'export', 'serve', 'state', 'update', 'add-section', 'link', 'init',
+                                            'stop', 'handoff', 'resolve'))
     parser.add_argument('plan', type=Path, nargs='?')
     parser.add_argument('--root', type=Path, default=Path.cwd())
-    parser.add_argument('--title', default='Session task')
+    parser.add_argument('--title')
     parser.add_argument('--slug', default='session-task')
+    parser.add_argument('--id', help='add-section: new section id (lowercase, digits, hyphens)')
+    parser.add_argument('--summary', help='add-section: one-sentence summary')
+    parser.add_argument('--next', help='add-section: the next action')
+    parser.add_argument('--criterion', action='append', default=[], help='add-section: acceptance criterion text; repeatable')
+    parser.add_argument('--status', default='todo', help='add-section: initial status (default todo)')
     parser.add_argument('--output', type=Path)
     parser.add_argument('--port', type=int, default=APP_PORT)
     parser.add_argument('--input', type=Path)
@@ -883,7 +920,7 @@ def main():
         if args.command == 'init':
             require(args.plan is None and args.output is None,
                     'init chooses its plan and canonical dashboard paths')
-            plan, output, created = initialize(args.root, args.title, args.slug)
+            plan, output, created = initialize(args.root, args.title or 'Session task', args.slug)
             print('DASHBOARD_STATUS=' + ('created' if created else 'reused'))
             print('PLAN_PATH=' + str(plan))
             print('DASHBOARD_PATH=' + str(output))
@@ -938,6 +975,14 @@ def main():
             require(args.input is not None and args.expect_revision is not None, 'update needs --input and --expect-revision')
             result, rendered = update(args.plan, json.loads(args.input.read_text()), args.expect_revision)
             atomic_write(output, rendered)
+            print('Updated revision', result['revision'])
+        elif args.command == 'add-section':
+            require(all(isinstance(value, str) and value.strip() for value in (args.id, args.title, args.summary, args.next)),
+                    'add-section needs --id, --title, --summary and --next; --criterion TEXT is repeatable and --status defaults to todo')
+            result, rendered = add_section(args.plan, new_section(args.id, args.title.strip(), args.summary.strip(),
+                                                                  args.next.strip(), args.criterion, args.status))
+            atomic_write(output, rendered)
+            print('ADDED_SECTION=' + args.id)
             print('Updated revision', result['revision'])
         elif args.command == 'state':
             print(json.dumps(read_plan(args.plan)[2], indent=2))

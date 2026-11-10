@@ -168,6 +168,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("intake-needs-no-answer-tool", "Intake requires no native or connector AskUserQuestion callback and settings wire only UserPromptSubmit."),
     ("intake-respects-standing-authorization", "Existing authorization proceeds without another generic approval interview."),
     ("intake-stays-quiet-on-follow-ups", "Short acknowledgements and background notifications stay quiet."),
+    ("intake-opens-no-plan-for-peer-or-harness-blocks",
+     "A prompt that is only a <cross-session-message>, <task-notification> or <system-reminder> block opens no "
+     "skeleton plan and emits no routing; a real ask behind a banner still gets its one record."),
     ("intake-reuses-mid-run-plan", "New requests preserve the active plan and do not depend on approval stamps."),
     ("intake-has-an-off-switch", "CLAUDE_INTAKE_GATE=off skips duplicate plan initialization for delegated headless work."),
     ("delegated-worker-leaves-supervisor-record-alone",
@@ -704,9 +707,33 @@ def check_intake_respects_standing_authorization() -> None:
 
 def check_intake_stays_quiet_on_follow_ups() -> None:
     for prompt in ("yes", "go ahead", "option 2", "continue", "lgtm", "2", "sounds good", "ship it", "thanks", "no", "ok", "approved",
-                   "<task-notification>build finished</task-notification>", "System notification - not user input: done"):
+                   "<task-notification>build finished</task-notification>", "System notification - not user input: done",
+                   '<cross-session-message from="uds:/tmp/x.sock" from-name="peer-01" from-mode="bypass">\n'
+                   'FYI from peer-01: config 512b307 landed.\nNo action needed.\n</cross-session-message>',
+                   "<system-reminder>\nYou are operating in a git worktree.\n</system-reminder>\n"):
         check(intake("submit", {"session_id": "contract-quiet", "prompt": prompt}).strip() == "",
               "Intake adds noise to acknowledgement/background event: " + prompt)
+
+
+def check_intake_opens_no_plan_for_peer_or_harness_blocks() -> None:
+    # A prompt that is not Simon's own words (a peer session's FYI, a task notification, a bare banner)
+    # must never create a skeleton plan; three skeletons born from cross-session FYIs each needed a
+    # hand retirement. A real ask behind a banner still gets its one record.
+    root = INTAKE_TEST_DIR / "peer-message-workspace"
+    (root / ".git").mkdir(parents=True, exist_ok=True)
+    sid = {"session_id": "contract-peer", "cwd": str(root)}
+    fyi = ('<cross-session-message from="uds:/tmp/x.sock" from-name="peer-01" from-mode="bypass">\n'
+           'FYI from peer-01: the preview is up on :4747.\n</cross-session-message>')
+    for prompt in (fyi, "<task-notification>\n<task-id>x</task-id>\n<status>completed</status>\n</task-notification>",
+                   "<system-reminder>\nbanner\n</system-reminder>"):
+        check(intake("submit", {**sid, "prompt": prompt}).strip() == "", "A non-user prompt produced routing output.")
+    check(not list((root / ".context").glob("*-plan.md")) if (root / ".context").is_dir() else True,
+          "A non-user prompt opened a skeleton plan.")
+    out = intake("submit", {**sid, "prompt": "<system-reminder>\nbanner\n</system-reminder>\n\nFix the footer color."})
+    check("Session record ready" in out and len(list((root / ".context").glob("*-plan.md"))) == 1,
+          "A real ask behind a banner got no session record.")
+    intake("submit", {**sid, "prompt": fyi})
+    check(len(list((root / ".context").glob("*-plan.md"))) == 1, "A peer FYI opened a second plan beside the record.")
 
 
 def check_intake_reuses_mid_run_plan() -> None:

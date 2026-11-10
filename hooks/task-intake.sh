@@ -25,7 +25,17 @@ SESSION_ID="$(printf '%s' "$SESSION_ID" | tr -cd '[:alnum:]._-')"
 [ -n "$SESSION_ID" ] || exit 0
 PROMPT="$(json_field prompt)"
 [ -n "$PROMPT" ] || exit 0
-LOWER="$(printf '%s' "$PROMPT" | tr '[:upper:]' '[:lower:]')"
+# A prompt that is not Simon's own words opens no plan: a peer session's <cross-session-message> FYI,
+# a <task-notification> completion or a bare <system-reminder> banner is data for the existing record.
+# Strip every such block (the same set hooks/intent-ledger.sh strips); nothing left means the whole
+# prompt was harness output, so skip silently. A real ask behind a banner still initializes.
+STRIPPED="$(printf '%s' "$PROMPT" | /usr/bin/python3 -c 'import re,sys
+text=sys.stdin.read()
+for tag in ("cross-session-message","task-notification","system-reminder"):
+    text=re.sub(r"<"+tag+r"\b[^>]*>.*?</"+tag+r">","",text,flags=re.S|re.I)
+print(text.strip())')"
+[ -n "$STRIPPED" ] || exit 0
+LOWER="$(printf '%s' "$STRIPPED" | tr '[:upper:]' '[:lower:]')"
 if printf '%s' "$LOWER" | grep -qE 'system notification - not user input|<task-notification>|automated background-task event|stop hook feedback'; then exit 0; fi
 if printf '%s' "$LOWER" | grep -qE '^[[:space:]]*(y|n|yes|no|ok|okay|sure|go|go ahead|do it|proceed|continue|carry on|keep going|next|approved?|confirm(ed)?|sounds good|lgtm|ship it|option [0-9]|[0-9]+|thanks|thank you|ty|please do|yep|yeah|nope|correct|right|exactly|both|all|neither|stop|wait|hold on)[[:space:][:punct:]]*$'; then exit 0; fi
 TASK_CWD="$(json_field cwd)"
