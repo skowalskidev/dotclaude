@@ -394,8 +394,11 @@ the journey touches and fix each miss before he starts:
    platform, read read-only from production as aggregates.
 4. Every app and server starts through the project's own launch scripts, never a hand-rolled command
    that drops their environment.
-5. The branch holds the latest head of every PR under test: after `git fetch`, each
-   `git merge-base --is-ancestor "$(gh pr view <n> --json headRefOid -q .headRefOid)" HEAD` exits 0.
+5. The branch holds what will deploy: after `git fetch`, `git merge-base --is-ancestor origin/<default>
+   HEAD` exits 0 (merge the default branch in first when it is behind, so one walk covers the
+   assembled release), and each `git merge-base --is-ancestor "$(gh pr view <n> --json headRefOid -q
+   .headRefOid)" HEAD` exits 0 for every PR under test. (the fix for a walk started on a PR branch 12
+   commits behind main, restarted once Simon asked whether main was merged in.)
 6. The journey's first 3 steps, and the first step that reaches each provider, run end to end in his
    state (a search returns results, a typed date parses, a new account lands on the expected plan).
 **DON'T blank, fake or strip a key, flag or service to save cost or time.** A degraded stack fails like
