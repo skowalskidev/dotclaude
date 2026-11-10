@@ -2,8 +2,9 @@
 
 On-demand catalog. Sole owner of the SHAPE of the human-readable blocks that describe a piece of
 work: what the user goes through, what the system does, what changed on this branch, and, when the change
-is near money, what it does to a payment path, plus the shape of a message to someone else. Read it
-when writing a plan, a ticket, a PR body, an end report, or a message a teammate will read.
+is near money, what it does to a payment path, plus the shape of a message to someone else or one an
+automation posts. Read it when writing a plan, a ticket, a PR body, an end report, or a message a
+teammate will read.
 
 **Boundary.** This file owns the SHAPE — which parts, in what order, and the test each block has to
 pass. `rules/copy-quality.md` owns the WRITING: lead with the answer, the Five Ws completeness check,
@@ -89,6 +90,23 @@ WHY: a teammate reads the notification preview and the first lines; a long messa
 as a long instruction from him.
 TEST: every message to someone else has at most 5 lines and 100 words, or traces to a
 `.context/long-message-ok` quoting Simon's request for length.
+
+## Automated message
+
+The rule and TEST live in `rules/copy-quality.md`. This section holds the shape for a message a bot,
+alert or scheduled job posts. DO copy it; the `[text](url)` links carry every id:
+
+```
+Checkout errors up 4x in the last hour
+
+Card payments fail with a timeout since 14:05. Web only; the iPhone app is fine.
+
+1. [Open the failing function's logs](https://logs.example.test/fn/checkout?window=1h)
+2. [Roll back the 13:58 deploy](https://ci.example.test/runs/123/rollback)
+```
+
+Thread reply: cause, raw evidence (queries, API responses, sample rows), and anything else the
+person reads only after deciding to act.
 
 ## The glance test — what every block must pass
 

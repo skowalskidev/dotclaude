@@ -557,6 +557,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns the em-dash ban, the banned vocabulary, and the Five Ws completeness check.",
             "Exempt list stays exactly CLAUDE.md, AGENTS.md, ABOUT.md and code comments.",
+            "Scope covers messages a bot, alert or scheduled job Claude builds posts; each is a phone TLDR with at most 2 sentences, linked numbered steps, details one level down and no id typed twice.",
         ],
     },
     "rules/engineering-standards.md": {
@@ -802,6 +803,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
+            "Owns worktree config detail: no repository config write from a worktree; one process is sandboxed with git -c or GIT_CONFIG_COUNT.",
             "Owns the review-branch push procedure (fetch, merge in remote commits, plain push, one-line sha report) and the gate on every other PR or remote operation.",
             "Before every push, the pushed range's --stat is compared with every file the change modified and a missing one stops the push; uncommitted work crosses a rebase as a WIP commit or stash apply --index, never a plain apply.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",
@@ -1020,6 +1022,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns shape only. rules/copy-quality.md keeps the writing standard and the Five Ws "
             "check; rules/communication.md keeps where questions go and the human-facing message "
             "rule, with its example and WHYs held here.",
+            "§ Automated message holds the example shape for a bot, alert or scheduled-job message; its rule and TEST stay in rules/copy-quality.md.",
             "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the --check pre-send step for routes the hook cannot see and the one-shot length override.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
             "it does. A silent stop is invisible in the user journey and is the defect this catches.",

@@ -3,9 +3,10 @@
 ## Never write copy that reads as AI-generated
 
 Applies to **everything a human will read**: UI strings, landing/marketing copy, emails, error and
-toast messages, user-facing docs, README, changelog, PR/commit bodies, and anything you draft for me
-to send. Exempt, because they're read by engineers and agents rather than users: code comments, and
-the repo's internal agent/dev docs — specifically `CLAUDE.md`, `AGENTS.md`, and `ABOUT.md`. An em
+toast messages, user-facing docs, README, changelog, PR/commit bodies, anything you draft for me
+to send, and every message a bot, alert or scheduled job you build posts (Slack, chat, email).
+Exempt, because they're read by engineers and agents rather than users: code comments, and the
+repo's internal agent/dev docs — specifically `CLAUDE.md`, `AGENTS.md`, and `ABOUT.md`. An em
 dash in any of those is fine, so don't spend effort stripping them there.
 
 **The em dash (—) is the single biggest tell. Do not use it in prose.** Use a period, a comma, or
@@ -67,3 +68,9 @@ exactly one of them.
 **Give an action path, not a description of the work.** Numbered steps, the actual command, the file
 to open. Prefer a one-line TL;DR, then short bullets, then detail only where it changes what the
 reader does.
+
+**DO make an automated message a TLDR a person acts on from a phone:** headline, at most 2 short
+sentences, numbered steps whose links carry the ids, blank lines between parts, cause and evidence one
+level down (a thread reply). Shape: `references/tldr-report-formats.md` § Automated message.
+TEST: count the parts; no id or API path appears in both text and a link (the fix for an ops bot whose
+alerts ran summary, cause, raw API evidence and action links in one block and typed every id twice).

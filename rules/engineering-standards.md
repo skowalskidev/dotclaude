@@ -61,12 +61,9 @@ is META around a project, not part of it: teammates don't need it and the projec
 (SRP). So it never goes in the team repo.
 - **It lives OUTSIDE the repo** — in `~/.claude` (connector manifests, hooks, skills) or `~/.config`
   (keys, tokens, tool config), never in the project tree. Cleanest form: nothing to leak.
-- **If a personal file genuinely must sit in the tree**, ignore it in a NON-committed local layer —
-  `.git/info/exclude` (that repo) or the global `core.excludesFile` (`~/.gitignore_global`, all repos) —
-  never the committed `.gitignore`, which teammates see.
-- **Commit the shared behavior, ignore the personal parts** (settings/credentials). Never commit or
-  force-add personal/secret files; the global ignore keeps them from being staged and gitleaks/CI catches
-  secret content (git commands themselves stay unblocked — see `connectors.md`).
+- **If a personal file genuinely must sit in the tree**, ignore it in `.git/info/exclude` or
+  `~/.gitignore_global`, never the committed `.gitignore`; **commit only the shared behavior**:
+  `references/connectors-setup.md` § Personal files stay OUT of team repos.
 
 ## Single source of truth — derive, don't duplicate (DRY / SRP)
 
