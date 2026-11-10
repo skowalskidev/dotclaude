@@ -71,6 +71,7 @@ TRACKED_SKILL_PLUGINS = ("sk",)
 
 CRITERIA: list[tuple[str, str]] = [
     ("copilot-walk-is-visible", "Co-pilot walks remain visible and narrated when Claude drives every step; comments become findings and captures follow each action."),
+    ("paced-steps-hand-off-on-done", "Paced steps end on Reply \"done\"; Claude captures the surface, logs and state itself and never asks what the human sees."),
     ("production-compatibility-includes-runtime-gates", "Production verification includes runtime eligibility, current legitimate cohorts and unknown evidence; age and green fixtures cannot clear compatibility gaps."),
     ("pr-feedback-covers-current-revisions", "PR feedback covers every surface and body revision; the landing gate returns late feedback to its single resolver before passing."),
     ("process-inspection-keeps-arguments-private", "Process guidance and orphan reports keep arguments private; cleanup retains uncertain agent workers and preserves framework gates."),
@@ -1654,6 +1655,29 @@ def check_copilot_walk_is_visible() -> None:
         check(phrase in browser, f"Test-browser visibility owner must preserve: {phrase}")
     check('When he says done or "next"' not in walk,
           "Claude-driven captures must not wait for Simon's next signal")
+
+
+def check_paced_steps_hand_off_on_done() -> None:
+    """A paced step ends on Reply "done"; Claude captures the result, never asks what Simon sees."""
+    pacing = (ROOT / "references/human-pacing.md").read_text()
+    skill = (ROOT / "skills/sk/skills/test-copilot/SKILL.md").read_text()
+    for phrase in ('end every step message with the hand-off line `Reply "done".`',
+                   "capture the surface you can reach",
+                   "DON'T ask what they see",
+                   "name in that step the 1 capture"):
+        check(phrase in pacing, f"human-pacing.md must keep the done hand-off rule: {phrase}")
+    sample = skill.split("### 4.2", 1)[1].split("### 4.3", 1)[0]
+    check('> Reply "done".' in sample,
+          "test-copilot's 4.2 sample step must end on the Reply \"done\". hand-off")
+    owner = ROOT / "references/human-pacing.md"
+    for root in ("rules", "references", "skills/sk"):
+        for f in (ROOT / root).rglob("*.md"):
+            if f == owner:
+                continue
+            text = f.read_text(errors="ignore").lower()
+            check("tell me what you see" not in text and "or tell me what" not in text,
+                  f"{f.relative_to(ROOT)} prescribes a 'tell me what you see' hand-off; "
+                  "human-pacing.md owns the done-only hand-off")
 
 
 def check_production_compatibility_includes_runtime_gates() -> None:

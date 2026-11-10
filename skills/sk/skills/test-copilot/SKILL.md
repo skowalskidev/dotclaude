@@ -221,8 +221,9 @@ evidence names 1 capture file Claude took.
 ### 4.2 The pacing contract — the part that must not be got wrong
 
 Pace Simon per `references/human-pacing.md` — overview once, one action per message, a progress count,
-say what you're watching, signal the hand-off, wait, never re-print a step, and read-only on the surface
-he holds (a handed-off web tab is his alone until he replies). It owns those rules and is
+say what you're watching, signal the hand-off, end on `Reply "done".` and capture the result yourself,
+never re-print a step, and read-only on the surface he holds (a handed-off web tab is his alone until he
+replies). It owns those rules and is
 shared with hyperspeed; read it there. The browser-journey shape they take here:
 
 > **Step 4 of 12 · Review queue**
@@ -232,6 +233,8 @@ shared with hyperspeed; read it there. The browser-journey shape they take here:
 > **Then:** press `a`
 >
 > *Watching:* `PATCH /api/prospects/*` and the browser console.
+>
+> Reply "done".
 
 ### 4.3 After each step
 - **Works** → log it, advance. One line. "Works" needs the step's expected request in the log; a UI

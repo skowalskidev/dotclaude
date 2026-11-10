@@ -853,6 +853,7 @@ CONTRACTS: dict[str, dict] = {
             "Every step names the surface the human acts in (a browser tab by title and host).",
             "No edit lands in the tree the human's dev server serves while they walk; a fix is built elsewhere or held and applied at a step boundary after telling them the tab will reload.",
             "A surface handed to the human is theirs alone until they reply: Claude only reads it, and any follow-up action there is announced as its own step first, never run while their step is open.",
+            "Every step ends with Reply \"done\"; Claude captures the surface, logs and state itself and judges the Expect line, never asking what they see; an uncapturable surface names 1 capture.",
             "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
         ],
     },

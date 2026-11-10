@@ -36,7 +36,20 @@ record written after the step message lets the Stop hook reopen the turn, and th
 second message after the step. (the fix for a 7-step walk where 6 steps were followed by "Step N is
 recorded, waiting for you")
 
-**DO wait for their result before the next step, and DON'T advance past a failed one.** Collecting N
+**DO end every step message with the hand-off line `Reply "done".`, and read the result yourself.**
+On "done", capture the surface you can reach (the simulator per `ios-simulator.md`, the walk tab per
+`browser-debugging.md`, the server log, the persisted state), judge it against the step's Expect line,
+then send the next step or report the finding. A comment they volunteer is a finding.
+**DON'T ask what they see, ask them to describe the screen, or ask for a screenshot of a surface you can
+capture.** (the fix for a simulator walk whose every step ended "Reply 'done' or tell me what you see":
+Simon pasted screenshots twice, then asked whether Claude could see it without them)
+On a surface you cannot capture (a physical phone, another person's machine), keep `Reply "done".` and
+name in that step the 1 capture the step's Expect line needs, e.g. "Reply "done" with a screenshot of
+the receipt screen."; never a generic request.
+TEST: every step message ends with `Reply "done".` or that line plus 1 named capture on an uncapturable
+surface; zero step messages contain "what you see", "describe" or an unnamed screenshot request.
+
+**DO wait for "done" before the next step, and DON'T advance past a failed one.** Collecting N
 failures with one root cause means the later steps were never really tested.
 
 **DO keep every edit out of the tree the human's dev server serves while they walk.** Build a fix in a
