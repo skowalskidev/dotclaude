@@ -247,10 +247,11 @@ Outside the own-config exception (`/sk:claude-config-sync` lands a head verified
 `bin/config-land-check.py` with no confirmation), **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
 specific irreversible merge. `hooks/git-commit-guard.py` runs `gh pr merge <n>` only when the user's
-OWN newest message (`hooks/intent-ledger.sh latest-ask`) says "merge", unnegated, and names `<n>`; a
+OWN newest message (`hooks/intent-ledger.sh latest-ask`) says "merge", unnegated, and names `<n>` or
+names no PR at all (then it covers ONE PR per message; "all"/"everything" or other numbers never do); a
 default-branch push needs `CLAUDE_ALLOW_MAIN_COMMIT=1` AND a newest message saying "push". No flag
 the model sets authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
-**DO stop at a ready, green PR and ask "Say 'merge #<n>' to merge it."** DON'T read "finish it",
+**DO stop at a ready, green PR and ask "merge #<n>?"; a plain "merge it" / "merge and deploy" answers it.** DON'T read "finish it",
 "priority", "1 yes" to a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged
 on "1 yes" to a model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").
 TEST: every merge traces to a user message containing "merge" and that PR's number.
