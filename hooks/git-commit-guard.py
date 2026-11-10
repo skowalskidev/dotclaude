@@ -37,6 +37,7 @@ parses the command itself. It fails OPEN on anything malformed: a guard that bre
 switched off.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -386,10 +387,41 @@ def pr_number(words: list) -> str:
 
 def own_words_allow(ask: str, verb: str, number: str = "") -> bool:
     """True only when the user's newest message says the verb (merge/push) unnegated and, for a
-    merge, names this PR's number."""
+    merge, either names this PR's number or names no PR number at all (one PR per message, see
+    unnamed_merge_ok). A message naming OTHER numbers, or "all"/"every"/"everything", never covers
+    an unnamed PR."""
     if not re.search(rf"\b{verb}\b", ask, re.I) or NEGATED_RE.search(ask):
         return False
-    return not number or bool(re.search(rf"(?<!\d){number}(?!\d)", ask))
+    if not number or re.search(rf"(?<!\d){number}(?!\d)", ask):
+        return True
+    return not re.search(r"#?\b\d{2,}\b", ask) and not BULK_RE.search(ask)
+
+
+# "merge and deploy" with no number authorizes ONE merge: the first PR merged on that message is
+# recorded, and a second, different PR on the same message is denied (the fix for a guard so strict
+# it refused Simon's plain "ok merge and deploy" for the one PR in front of him, without reopening
+# the "merge everything" incident that merged 8 PRs).
+BULK_RE = re.compile(r"\b(all|every|everything|each|batch|them)\b", re.I)
+
+
+def unnamed_merge_ok(payload: dict, ask: str, number: str) -> bool:
+    if re.search(rf"(?<!\d){number}(?!\d)", ask):
+        return True
+    state = os.path.join(os.path.expanduser("~"), ".claude", ".intent-ledger")
+    sid = re.sub(r"[^A-Za-z0-9._-]", "", str(payload.get("session_id", ""))) or "unknown"
+    key = hashlib.sha256(ask.encode()).hexdigest()[:16]
+    marker = os.path.join(state, f"{sid}.unnamed-merge.{key}")
+    try:
+        with open(marker) as f:
+            return f.read().strip() == number
+    except FileNotFoundError:
+        try:
+            os.makedirs(state, exist_ok=True)
+            with open(marker, "w") as f:
+                f.write(number)
+            return True
+        except OSError:
+            return False
 
 
 def deny(reason: str) -> int:
@@ -462,10 +494,11 @@ def main() -> int:
         if is_gh_merge:
             number = pr_number(words)
             ask = latest_ask(payload)
-            if not (number and own_words_allow(ask, "merge", number)):
+            if not (number and own_words_allow(ask, "merge", number)
+                    and unnamed_merge_ok(payload, ask, number)):
                 return deny(
                     "Blocked: `gh pr merge` merges a PR into the remote default branch, and it runs "
-                    "only on the user's OWN newest message saying \"merge\" and naming this PR's number"
+                    "only on the user's OWN newest message saying \"merge\" (naming this PR's number, or no number for one PR)"
                     + (f" (#{number})" if number else " (name the number, not a branch)") + ". "
                     "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
                     "is never that. There is no override flag. Stop at a ready, green PR and ask: "

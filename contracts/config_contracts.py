@@ -2102,7 +2102,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Blocks `gh pr merge` (into the remote default branch) unless the user's OWN newest "
             "recorded message (hooks/intent-ledger.sh latest-ask) says merge, unnegated, and names "
-            "that PR's number; no flag the model sets authorizes it, a branch-name target or a "
+            "that PR's number, or names no PR (one merge per message; all/everything or other numbers "
+            "never cover it); no flag the model sets authorizes it, a branch-name target or a "
             "missing ledger denies, and gh api merge/enqueue/auto-merge calls are denied outright.",
             "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
             "AND a newest user message saying push.",
