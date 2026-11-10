@@ -557,6 +557,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Owns the em-dash ban, the banned vocabulary, and the Five Ws completeness check.",
             "Exempt list stays exactly CLAUDE.md, AGENTS.md, ABOUT.md and code comments.",
+            "Scope covers messages a bot, alert or scheduled job Claude builds posts; each is a phone TLDR with at most 2 sentences, linked numbered steps, details one level down and no id typed twice.",
         ],
     },
     "rules/engineering-standards.md": {
@@ -1021,6 +1022,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns shape only. rules/copy-quality.md keeps the writing standard and the Five Ws "
             "check; rules/communication.md keeps where questions go and the human-facing message "
             "rule, with its example and WHYs held here.",
+            "§ Automated message holds the example shape for a bot, alert or scheduled-job message; its rule and TEST stay in rules/copy-quality.md.",
             "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the --check pre-send step for routes the hook cannot see and the one-shot length override.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
             "it does. A silent stop is invisible in the user journey and is the defect this catches.",
