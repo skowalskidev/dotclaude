@@ -802,6 +802,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
+            "Owns worktree config detail: no repository config write from a worktree; one process is sandboxed with git -c or GIT_CONFIG_COUNT.",
             "Owns the review-branch push procedure (fetch, merge in remote commits, plain push, one-line sha report) and the gate on every other PR or remote operation.",
             "Before every push, the pushed range's --stat is compared with every file the change modified and a missing one stops the push; uncommitted work crosses a rebase as a WIP commit or stash apply --index, never a plain apply.",
             "Follows the repo's own merge method; after a squash, rebase or cherry-pick the hand-back names the leftover source branch and its deletion gate result.",

@@ -124,6 +124,26 @@ numbered files in the same directory, then recheck before publishing the reserva
 TEST: a reservation in a PR's 101st file is found; incomplete results never prove a number free
 (the fix for two open PRs both adding migration 197).
 
+## Worktrees share one config
+
+`rules/process.md` § Git worktree discipline holds the rule; this section holds the detail.
+
+DO prefix every path with the worktree's own root. Exploration agents often report the *main* repo's
+absolute paths; using those silently edits the wrong checkout. New npm deps may need a plain
+`npm install` in the worktree.
+
+**DON'T write repository config from a worktree:** `git remote set-url`, `git remote add`, a
+`git config` write, or turning on `extensions.worktreeConfig`. [git-worktree](https://git-scm.com/docs/git-worktree#_configuration_file)
+shares one config file across every checkout, so the write lands in the main checkout and every
+sibling. [git-config](https://git-scm.com/docs/git-config#Documentation/git-config.txt---worktree)
+`--worktree` isolates only when that extension is already on; otherwise it equals `--local`.
+**DO sandbox one process with process-only config:** `git -c <key>=<value> <cmd>`, or for a whole
+script `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=remote.origin.pushurl GIT_CONFIG_VALUE_0=/nonexistent/push-disabled`,
+which fails every push from that process while fetch and the shared config stay untouched.
+TEST: no task runs `git remote set-url` or a `git config` write inside a worktree; `git config --get
+remote.origin.url` in the main checkout is unchanged after the task (the fix for a sandbox setup that
+repointed the shared origin of every checkout).
+
 ## Force-pushing a shared PR branch
 
 Applies to every rewrite push (`--force-with-lease`, `--force`) on a branch another session, workspace

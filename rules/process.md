@@ -186,10 +186,11 @@ through entering the data myself; never report verified past a new input. Detail
 
 ### Git worktree discipline
 In a git worktree (e.g. `.claude/worktrees/<name>/`), **use the worktree path prefix for every file
-operation** (Read/Edit/Write/Bash). Exploration agents often report the *main* repo's absolute paths;
-using those silently edits the wrong checkout. Never write to the main checkout, and **never revert,
-commit, or disturb my uncommitted WIP** in the main repo. New npm deps may need a plain `npm install`
-in the worktree.
+operation** (Read/Edit/Write/Bash). Never write to the main checkout, and **never revert, commit, or
+disturb my uncommitted WIP** in the main repo. **DON'T write repository config from a worktree**:
+every checkout shares it; sandbox with `git -c` or `GIT_CONFIG_COUNT`
+(`references/git-pr-deploy.md` § Worktrees share one config).
+TEST: no task runs `git remote set-url` or a `git config` write inside a worktree.
 
 ### Clean up after yourself — no residual processes or scratch artifacts
 Leave nothing persistent on my machine that I didn't ask for. When a task is done:
