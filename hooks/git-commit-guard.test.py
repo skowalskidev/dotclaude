@@ -71,6 +71,9 @@ OWN_WORDS = [
     ("graphql enqueue is denied outright", "merge 12",
      "gh api graphql -f query='mutation{enqueuePullRequest(input:{pullRequestId:\"x\"}){clientMutationId}}'", True),
     ("REST merge is denied outright", "merge 12", "gh api -X PUT repos/o/r/pulls/12/merge", True),
+    ("plain 'merge and deploy' covers one PR", "ok merge and deploy", "gh pr merge 12", False),
+    ("'merge everything' never covers an unnamed PR", "merge everything", "gh pr merge 12", True),
+    ("a merge naming other numbers excludes this one", "merge 13 and 14", "gh pr merge 12", True),
     ("push to main when the user said push", "push it to main",
      f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", False),
     ("push flag but the user said finish it", "finish it",
@@ -164,6 +167,15 @@ def main() -> int:
                 passes += 1
             else:
                 failures.append(f"OWN WORDS: {label}: got {reason[:160]!r}")
+        # One unnamed merge per message: the same message cannot merge a second, different PR.
+        record_ask(dirs["feature"], "one-per-ask", "merge and deploy")
+        first = run(dirs["feature"], "gh pr merge 21", own_home, "one-per-ask")
+        again = run(dirs["feature"], "gh pr merge 21", own_home, "one-per-ask")
+        second = run(dirs["feature"], "gh pr merge 22", own_home, "one-per-ask")
+        if not first and not again and second:
+            passes += 1
+        else:
+            failures.append(f"OWN WORDS: one unnamed merge per message: {first!r} {again!r} {second!r}")
         reason = run(dirs["feature"], "gh pr merge 12", own_home, "never-recorded")
         if reason:
             passes += 1
