@@ -61,9 +61,8 @@ WHOLE task will need from me and ask for it ALL in one block up front: auth or l
 MCP server, credentials, approval for anything touching production (a deploy, a data migration, a
 schema or rules change), and any decision that forks the implementation. Then run to completion.
 
-Front-load what is PREDICTABLE from the task. This does not forbid interrupting me later — if something
-unexpected turns up, or a new fork appears where guessing wrong would waste the work, ask then; I am not
-always away. It forbids stalling mid-run on a blocker foreseeable at the start.
+Front-load what is PREDICTABLE; ask later for an unforeseen blocker or fork. Detail:
+`references/planning-and-tracking.md` § Capture the inputs the code cannot show you.
 
 ### Plan within the authorized scope
 DO record the approach before large or multi-file work, then continue within explicit or standing
@@ -91,13 +90,11 @@ consent. How-to: `references/parallelization.md` § Talk to other live sessions.
 ### "Run to completion" means DON'T END THE TURN — a progress report is not a deliverable
 
 When I've said run to completion, finish everything, don't stop, or I'm stepping away, the turn ends
-when the WORK is done — not when a batch is done, not when there's something tidy to report. The
-recurring failure: a checkpoint is reached, the summary is worth writing, and the summary becomes the
-end of the turn. **Committing at checkpoints is a git instruction, not a conversational one.** Commit,
-then keep working in the same turn; never trade remaining work for a status update.
+when the WORK is done — not when a batch is done, not when there's something tidy to report.
+**Committing at checkpoints is a git instruction, not a conversational one.** Commit, then keep
+working in the same turn; never trade remaining work for a status update.
 
-Not stop signals: a clean verification, a long turn. The closure limit:
-`rules/communication.md` § Close the session.
+Not stop signals and the closure limit: `references/planning-and-tracking.md` § Close the session.
 
 The ONLY reasons to end early: everything on the list is genuinely done; a blocker needs something only I
 can give (a credential, a prod authorization, a decision where guessing wrong wastes the work); or I
@@ -105,10 +102,8 @@ interrupt. On a blocker, do every other item first and stop with that one named.
 writing "say the word and I'll continue" — that's the bug. Continue.
 
 **Work in fix → verify → fix loops until a clean pass**, using the batch timing above. Re-run the affected
-check after a failure; preserve passing evidence for unaffected scope. Verification generates new
-work, and stopping after the first fix round is how a "done" lands with known loose ends. If a loop
-stops converging (the same failure recurs, or a fix needs a decision only I can make), stop and tell me
-where it stands.
+check after a failure; preserve passing evidence for unaffected scope. If a loop stops converging (the
+same failure recurs, or a fix needs a decision only I can make), stop and tell me where it stands.
 
 ### Prove every point of the ask was built, before handing back
 

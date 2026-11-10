@@ -129,6 +129,11 @@ silently missing.
   lists each prerequisite as found or missing before any estimate (the fix for a "15-minute" payment
   sandbox check proposed twice while the catalog objects it reads did not exist in the account).
 
+- **Front-load what is PREDICTABLE from the task** (moved from `rules/process.md` § Front-load). This
+  does not forbid interrupting Simon later: if something unexpected turns up, or a new fork appears
+  where guessing wrong would waste the work, ask then; he is not always away. It forbids stalling
+  mid-run on a blocker foreseeable at the start.
+
 ## Before building, the ticket is a complete, decision-resolved spec — the builder cannot ask
 
 The thing that builds a ticket is increasingly NOT the session that planned it: a Claude Code cloud
@@ -189,6 +194,10 @@ Owned by `rules/communication.md` § Close the session. Detail:
   tests mean the batch is safe to build on, not that the job is over) and **a long turn** (length is
   not a stopping condition, nor is "a good place to pause"). The stop is the ask's outcome delivered and
   verified to a reasonable level, never an invented check.
+- **A checkpoint is not a stop** (moved from process.md "Run to completion"): the recurring failure
+  is a checkpoint reached, a summary worth writing, and the summary becoming the end of the turn.
+  Verification generates new work, and stopping after the first fix round is how a "done" lands with
+  known loose ends.
 - **Follow-ups**: at most 2, optional, one line, only if they change a decision or fix an evidenced
   problem; otherwise do it now if cheap and in scope, or drop it. The archive line is never withheld
   for an optional follow-up (an open item from the list above is not optional).
