@@ -35,7 +35,7 @@ The recipe, on Apple's own stack (simctl and XCUITest; install nothing):
 | Install and launch | `xcrun simctl install "$UDID" "$APP"`, then `SIMCTL_CHILD_<VAR>=… xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` |
 | Drive | ONE `xcodebuild test-without-building -xctestrun "$XCTESTRUN" -destination id="$UDID" -only-testing:<UITests>/<Walk>/test<Screen> -collect-test-diagnostics never -parallel-testing-enabled NO` per walk, settings passed as `TEST_RUNNER_<VAR>` |
 | Capture | `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; video per Walkthrough recording below |
-| Shut down | `xcrun simctl shutdown "$UDID"` at the end of every simulator step batch and at hand-back, then `release-sim`; keep it booted only when the very next step needs it |
+| Shut down | `xcrun simctl shutdown "$UDID"` at the end of every simulator step batch and at hand-back, then `release-sim`; keep it booted only when the very next step needs it, or a leased hold retains it for Simon (§ Hold for the user, then clean up) |
 
 DO shut down your own booted simulator and `release-sim` at the end of each simulator step batch, unless
 the very next step needs it. DON'T leave one booted with no lease or while the session waits on anything
@@ -291,17 +291,32 @@ around scripted YAML flows and its README names no Xcode version support.
 ## Hold for the user, then clean up
 
 DO shut down the device and release its claim as soon as the task's last capture or walk ends, not at
-the end of the session. Leave ONE device booted at hand-back only when Simon asked to look at it, and
-name its UDID and the exact `xcrun simctl shutdown <UDID>` command in the hand-back. TEST: after
-hand-back, `local-capacity.py status` shows no simulator claim or booted device for this owner unless
-the hand-back names it.
+the end of the session. Leave ONE device booted at hand-back only when Simon asked to look at it, held
+by the leased hold command below, and name its UDID and its stop-file command in the hand-back. TEST:
+after hand-back, `local-capacity.py status` shows this owner on a heavy slot with that simulator, or no
+claim and no booted device for this owner; a booted device with no lease fails.
 
-DO retain an explicitly requested preview at hand-back as the exception to end-of-turn cleanup.
-Keep its runner and capacity lease alive throughout viewing. Default the viewing deadline to the
-earlier of readiness plus 55 minutes or the run deadline minus 5 minutes; reserve that final budget
-for cleanup. If startup consumed the viewing budget, clean up and report no usable hold. Do not extend
-the capacity owner's maximum to create a longer preview. TEST: the receipt has finite absolute start,
-viewing-end and cleanup deadlines, and never promises an indefinite preview.
+DO hold a human-facing preview as ONE leased foreground command that waits on a stop file:
+`python3 ~/.claude/bin/local-capacity.py run --owner <session-id> --simulator <UDID> --wait-min <n>
+--max-min <N> -- bash <hold.sh>`, where `hold.sh` removes the stop file, boots the device, launches the
+app with the backend override, opens the GUI, then loops `sleep 15` until the stop file exists. Enter
+it with the device in Shutdown: admission refuses a target device already booted. Teardown is
+`touch <stop file>`: the hold exits, the runner shuts the device down and releases the lease, then
+`release-sim`.
+DON'T hold a preview with `claim-sim` plus a bare `xcrun simctl boot`, and DON'T boot it from a `run`
+whose command ends before Simon looks: a claim is no lease, so every heavy slot reads "unavailable
+(booted simulator without a lease)" and no other session starts even a browser-only job (the fix for a
+preview booted outside any lease after a leased build had shut its device down).
+DO size `--max-min` to the human session, not to the command: the stated viewing window plus 5 minutes
+for cleanup, no upper cap; default 60 (viewing ends at readiness plus 55 minutes) when Simon named no
+window, and the hours until his named return time when he will look later ("tomorrow morning" from
+17:00 is at least 16 hours, `--max-min 960`). On expiry the runner stops the hold and retains the lease
+(exit 124): the preview is dead and its token must be released by hand (the fix for a 240-minute hold
+that died overnight before Simon opened it). If startup consumed the viewing budget, stop the hold and
+report no usable hold.
+TEST: the receipt names the hold command, an absolute `--max-min` deadline past the stated viewing
+window, the stop-file command, and never promises an indefinite preview; while the device is booted,
+`status` shows the hold's owner on a heavy slot.
 
 DO give Simon a short receipt: owner; device name and UDID; bundle ID and source; GUI and rendered-screen
 proof; backend mode/service identity and ports; start/deadline; log/capture paths; exact stop and restart
