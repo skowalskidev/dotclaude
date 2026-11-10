@@ -296,7 +296,9 @@ by the leased hold command below, and name its UDID and its stop-file command in
 after hand-back, `local-capacity.py status` shows this owner on a heavy slot with that simulator, or no
 claim and no booted device for this owner; a booted device with no lease fails.
 
-DO hold a human-facing preview as ONE leased foreground command that waits on a stop file:
+DO hold a human-facing preview as ONE leased command that waits on a stop file, launched detached
+per `dev-server-hygiene.md` § Waiting on a background job, never as a `run_in_background` task (its
+2-hour cap kills the runner, which shuts the device down mid-walk):
 `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> --simulator <UDID> --wait-min <n>
 --max-min <N> -- bash <hold.sh>`, where `hold.sh` removes the stop file, boots the device, launches the
 app with the backend override, opens the GUI, then loops `sleep 15` until the stop file exists. Enter
@@ -311,8 +313,8 @@ DO size `--max-min` to the human session, not to the command: the stated viewing
 for cleanup, no upper cap; default 60 (viewing ends at readiness plus 55 minutes) when Simon named no
 window, and the hours until his named return time when he will look later ("tomorrow morning" from
 17:00 is at least 16 hours, `--max-min 960`). On expiry the runner stops the hold and retains the lease
-(exit 124): the preview is dead and its token must be released by hand (the fix for a 240-minute hold
-that died overnight before Simon opened it). If startup consumed the viewing budget, stop the hold and
+(exit 124): the preview is dead and its token must be released by hand with the command `status`
+prints for it (the fix for a 240-minute hold that died overnight before Simon opened it). If startup consumed the viewing budget, stop the hold and
 report no usable hold.
 TEST: the receipt names the hold command, an absolute `--max-min` deadline past the stated viewing
 window, the stop-file command, and never promises an indefinite preview; while the device is booted,

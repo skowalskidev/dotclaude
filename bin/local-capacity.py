@@ -732,11 +732,45 @@ def release_sim(root, udid, owner):
             raise Busy("simulator %s has an unverified legacy claim; inspect and migrate it" % udid)
         claims = read_claims(root)
         if claims.get(udid) != owner:
-            raise GateError("simulator claim owner does not match")
+            raise GateError("simulator claim owner does not match" + simulator_lease_text(root, udid))
         if udid in observe_booted():
             raise Busy("simulator %s is still booted; shut it down before releasing its claim" % udid)
         del claims[udid]
         write_claims(root, claims)
+
+
+def orphan_release_hint(root, slot, lease):
+    """The inspected-release command for a lease whose owner is provably gone and whose groups exited,
+    else ''. Simulator leases and acquire-only leases are never auto-released (provably_dead), so this
+    is the only way out once a hold's runner is killed; it names the slot file holding the token and
+    never prints the token itself."""
+    child = lease["child"]
+    if isinstance(child, dict) and "state" in child:
+        return ""
+    groups = ([child["pgid"]] if isinstance(child, dict) and "pgid" in child else []) + \
+        [stage["pgid"] for stage in lease["stages"]]
+    try:
+        if any(group_alive(pgid) for pgid in groups):
+            return ""
+    except OSError:
+        return ""
+    if owner_gone(lease) is None:
+        return ""
+    sim = ("shut down %s if it is booted, then " % lease["simulator"]) if lease["simulator"] else ""
+    reader = "import json,sys;print(json.load(open(sys.argv[1]))['token'])"
+    return ("owner gone; after inspecting it, %srelease it: python3 ~/.claude/bin/local-capacity.py release "
+            "--orphan-inspected --token \"$(python3 -c %s %s)\"" % (sim, shlex.quote(reader),
+                                                                    shlex.quote(str(Path(root) / slot))))
+
+
+def simulator_lease_text(root, udid):
+    """Name the heavy-slot lease holding a simulator, plus its release command when the owner is gone."""
+    slot, lease = find_lease(root, lambda item: item["simulator"] == udid)
+    if not lease:
+        return ""
+    hint = orphan_release_hint(root, slot, lease)
+    return "; it is held by a heavy-slot lease (%s), so release that lease, not the claim%s" % (
+        holder_text(lease), (": " + hint) if hint else "")
 
 
 RECLAIM_COMMAND = "python3 ~/.claude/bin/local-capacity.py reclaim-sim --udid %s"
@@ -785,7 +819,8 @@ def reclaim_sim(root, udid):
             raise GateError("simulator %s has an unverified legacy claim; inspect and migrate it" % udid)
         owner = read_claims(root).get(udid)
         if owner is None:
-            raise GateError("simulator %s has no claim, so no ended owner can be proven; inspect it" % udid)
+            raise GateError("simulator %s has no claim, so no ended owner can be proven; inspect it%s" %
+                            (udid, simulator_lease_text(root, udid)))
         for slot in SLOTS:
             lease = read_state(root, slot=slot)
             if lease and lease["simulator"] == udid:
@@ -2144,7 +2179,9 @@ def main(argv=None):
             owned = {lease["simulator"] for lease in states if lease and lease["simulator"]}
             free_text = "unavailable (booted simulator without a lease)" if set(booted) - owned else "free"
             for number, lease in enumerate(states, 1):
-                print("heavy slot %d of %d: %s" % (number, HEAVY_SLOTS, holder_text(lease) if lease else free_text))
+                hint = orphan_release_hint(root, SLOTS[number - 1], lease) if lease else ""
+                print("heavy slot %d of %d: %s%s" % (number, HEAVY_SLOTS, holder_text(lease) if lease else free_text,
+                                                    "; " + hint if hint else ""))
             if priority:
                 print("priority: " + priority_text(priority))
             legacy_lanes = snapshot["legacy_lanes"]

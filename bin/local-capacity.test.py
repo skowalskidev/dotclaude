@@ -1087,6 +1087,36 @@ class AutoReleaseTests(unittest.TestCase):
         self.assertEqual(gate.reap_dead_leases(self.root), [])
         self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
 
+    def test_dead_simulator_lease_names_its_inspected_release_without_the_token(self):
+        # A hold killed by the tool's background cap leaves a simulator lease that is never auto-released;
+        # status, release-sim and reclaim-sim must all point at the inspected token release (the fix for a
+        # session that had to read the slot file by hand after both sim commands refused).
+        dead = self.exited_group()
+        lease = self.hold(gate.THIRD_SLOT, "sim-holder", dead, "old start", dead, simulator=SIM)
+        hint = gate.orphan_release_hint(self.root, gate.THIRD_SLOT, lease)
+        self.assertIn("release --orphan-inspected --token", hint)
+        self.assertIn(str(self.root / gate.THIRD_SLOT), hint)
+        self.assertIn("shut down %s" % SIM, hint)
+        self.assertNotIn(lease["token"], hint)
+        reader = hint.split('"$(', 1)[1].rsplit(')"', 1)[0]
+        token = subprocess.run(["bash", "-c", reader], capture_output=True, text=True, check=True).stdout.strip()
+        self.assertEqual(token, lease["token"])
+        with mock.patch.object(gate, "legacy_claims", return_value={}):
+            with self.assertRaisesRegex(gate.GateError, "no claim.*release that lease.*--orphan-inspected"):
+                gate.reclaim_sim(self.root, SIM)
+            with self.assertRaisesRegex(gate.GateError, "owner does not match.*release that lease.*--orphan-inspected"):
+                gate.release_sim(self.root, SIM, "sim-holder")
+        gate.release(self.root, token, orphan_inspected=True)
+        self.assertIsNone(gate.read_state(self.root, slot=gate.THIRD_SLOT))
+
+    def test_live_or_running_lease_gets_no_release_hint(self):
+        live = self.hold(gate.LEASE_SLOT, "live", os.getpid(), gate.pid_start(os.getpid()), self.exited_group(),
+                         simulator=SIM)
+        self.assertEqual(gate.orphan_release_hint(self.root, gate.LEASE_SLOT, live), "")
+        running = self.hold(gate.SECOND_SLOT, "running", self.exited_group(), "old start", self.live_group(),
+                            simulator=SIM2)
+        self.assertEqual(gate.orphan_release_hint(self.root, gate.SECOND_SLOT, running), "")
+
     def test_unrecorded_or_pending_group_and_unknown_owner_are_kept(self):
         dead = self.exited_group()
         pending = self.hold(gate.LEASE_SLOT, "pending", dead, "old start", dead)

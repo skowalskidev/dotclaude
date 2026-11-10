@@ -310,7 +310,10 @@ starts no unregistered payload and cannot extend the stage deadline.
 
 DO handle exit 124 in any retry loop around `run`: the lease stays held by design, so the same owner's
 next attempt waits on it until its own limit. Confirm the printed owner PID is dead, release the printed
-token with `--orphan-inspected`, then raise `--max-min` to fit the payload. Give each concurrent queue its
+token with `--orphan-inspected`, then raise `--max-min` to fit the payload. When the runner itself was
+killed and printed nothing, `status` prints the release command for a lease whose owner and command
+groups are gone (it reads the token from the slot file, never echoing it); `release-sim` and
+`reclaim-sim` refuse a leased simulator and name that same command. Give each concurrent queue its
 own `--owner`, and judge a payload by its own output or receipt, not only the lease exit code. TEST: no
 retry loop treats 124 like 75 (the fix for four queues that stalled behind their own retained leases).
 
@@ -688,15 +691,20 @@ background limit killed them.)
 TEST: every wait names a PID, a done-file path or a harness notification; none searches process
 command lines for a string in its own argv.
 
-**DO launch a chain of capacity-gated commands detached when its worst case can exceed 2 hours**,
-the harness cap for a `run_in_background` task. Worst case = steps x `--wait-min` plus runtime.
-Run `nohup <chain> > <log> 2>&1 < /dev/null & disown`, record its PID as owned, have each stage
-write its own receipt, poll the log in bounded foreground waits, and confirm the PID is gone at
-hand-back. **DON'T** run such a chain as a `run_in_background` task: the cap kills it mid-queue and
-the queued steps never start. (the fix for a five-stage gate chain, each step `--wait-min 60`,
-killed at the 2-hour cap under machine contention.)
-TEST: no `run_in_background` task wraps more than one capacity-gated step whose summed `--wait-min`
-reaches 120.
+**DO launch detached any command whose worst case can reach 2 hours**, the harness cap for a
+`run_in_background` task: a chain of capacity-gated steps (steps x `--wait-min` plus runtime) and a
+single `run` whose `--wait-min` plus `--max-min` reaches 120, a human-preview hold included. Start it
+in its own session so the tool's process group cannot take it down, and record the printed PID:
+`python3 -c 'import subprocess,sys; print(subprocess.Popen(sys.argv[2:], stdout=open(sys.argv[1],"w"), stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True).pid)' <log> <command...>`
+(macOS ships no `setsid` binary, so `nohup setsid ...` fails). Have each stage write its own
+receipt, poll the log in bounded foreground waits, and confirm the PID is gone at hand-back.
+**DON'T** run such a command as a `run_in_background` task: the cap kills it mid-queue, or kills a
+hold's runner mid-session, which shuts its simulator down under the person using it and leaves a
+simulator lease that is never auto-released. (the fix for a five-stage gate chain, each step
+`--wait-min 60`, killed at the 2-hour cap under machine contention, and for a `--max-min 120`
+simulator hold killed at the same cap while Simon was mid-sign-up.)
+TEST: no `run_in_background` task wraps a capacity-gated command or chain whose summed `--wait-min`
+plus `--max-min` reaches 120.
 
 ### Where a tool's own listing lies to you
 
