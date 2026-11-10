@@ -25,13 +25,13 @@ SESSION_ID="$(printf '%s' "$SESSION_ID" | tr -cd '[:alnum:]._-')"
 [ -n "$SESSION_ID" ] || exit 0
 PROMPT="$(json_field prompt)"
 [ -n "$PROMPT" ] || exit 0
-# A prompt that is not Simon's own words opens no plan: a peer session's <cross-session-message> FYI,
+# A prompt that is not Simon's own words opens no plan: a peer's <agent-message> or <cross-session-message>,
 # a <task-notification> completion or a bare <system-reminder> banner is data for the existing record.
 # Strip every such block (the same set hooks/intent-ledger.sh strips); nothing left means the whole
 # prompt was harness output, so skip silently. A real ask behind a banner still initializes.
 STRIPPED="$(printf '%s' "$PROMPT" | /usr/bin/python3 -c 'import re,sys
 text=sys.stdin.read()
-for tag in ("cross-session-message","task-notification","system-reminder"):
+for tag in ("agent-message","cross-session-message","task-notification","system-reminder"):
     text=re.sub(r"<"+tag+r"\b[^>]*>.*?</"+tag+r">","",text,flags=re.S|re.I)
 print(text.strip())')"
 [ -n "$STRIPPED" ] || exit 0

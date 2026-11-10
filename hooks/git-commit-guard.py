@@ -354,7 +354,8 @@ def config_push_problem(repo: str, args: list) -> str:
 # model can set (the fix for two PRs merged off "1 yes" to a model-written question and "this is
 # priority, finish it"). hooks/intent-ledger.sh records every prompt verbatim; `latest-ask` reads
 # this session's newest one. No ledger, no ask, or a negated verb denies: the action is irreversible.
-HARNESS_BLOCK_RE = re.compile(r"<(system-reminder|task-notification)>.*?</\1>", re.S)
+HARNESS_BLOCK_RE = re.compile(
+    r"<(system-reminder|task-notification|agent-message|cross-session-message)\b[^>]*>.*?</\1>", re.S | re.I)
 NEGATED_RE = re.compile(
     r"\b(don'?t|do not|never|not|no|stop|hold|wait|without|before)\b[^.\n]{0,40}\b(merg|push)", re.I)
 API_MERGE_RE = re.compile(

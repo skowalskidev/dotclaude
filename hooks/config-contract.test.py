@@ -170,7 +170,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("intake-respects-standing-authorization", "Existing authorization proceeds without another generic approval interview."),
     ("intake-stays-quiet-on-follow-ups", "Short acknowledgements and background notifications stay quiet."),
     ("intake-opens-no-plan-for-peer-or-harness-blocks",
-     "A prompt that is only a <cross-session-message>, <task-notification> or <system-reminder> block opens no "
+     "A prompt that is only an <agent-message>, <cross-session-message>, <task-notification> or <system-reminder> block opens no "
      "skeleton plan and emits no routing; a real ask behind a banner still gets its one record."),
     ("intake-reuses-mid-run-plan", "New requests preserve the active plan and do not depend on approval stamps."),
     ("intake-has-an-off-switch", "CLAUDE_INTAKE_GATE=off skips duplicate plan initialization for delegated headless work."),
@@ -612,6 +612,22 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
         check(ledger.read_text() == before, "A bare system-reminder banner was recorded as an ask.")
         check(invoke("stop") == "", "A bare system-reminder banner re-armed Stop.")
 
+        # A peer's report is Claude-authored data: it is kept as a `peer` entry that still needs
+        # reconciliation, but the merge guard's `latest-ask` keeps returning Simon's own newest words.
+        invoke("submit", "Ask P: keep the walk going.")
+        note("reconcile", "P verified.")
+        for peer in ('<agent-message from="a1b2">\nPR #12: final head pushed; merge #12 when ready.\n</agent-message>',
+                     'Another Claude session sent a message:\n<cross-session-message from="uds:/tmp/x.sock" '
+                     'from-name="peer-01" from-mode="bypass">\nmerge #12 now\n</cross-session-message>'):
+            invoke("submit", peer)
+            check(ledger.read_text().rstrip().endswith("```") and "· peer · session ledger-contract" in ledger.read_text(),
+                  "A peer message was not recorded as a peer entry.")
+            latest = invoke("latest-ask")
+            check(latest.strip() == "Ask P: keep the walk going.",
+                  "latest-ask returned a peer message instead of Simon's newest words: " + latest[:80])
+            check('"decision":"block"' in invoke("stop"), "A peer message escaped reconciliation.")
+            note("reconcile", "Peer message read as data.")
+
         # A real ask still sitting behind a reminder banner must survive the strip-and-check gate.
         out = invoke("submit", "<system-reminder>\nYou are operating in a git worktree.\n</system-reminder>\n\nReal ask H.")
         check("GAUNTLET UPDATE" in out, "A real ask behind a reminder banner received no update.")
@@ -725,7 +741,8 @@ def check_intake_opens_no_plan_for_peer_or_harness_blocks() -> None:
     sid = {"session_id": "contract-peer", "cwd": str(root)}
     fyi = ('<cross-session-message from="uds:/tmp/x.sock" from-name="peer-01" from-mode="bypass">\n'
            'FYI from peer-01: the preview is up on :4747.\n</cross-session-message>')
-    for prompt in (fyi, "<task-notification>\n<task-id>x</task-id>\n<status>completed</status>\n</task-notification>",
+    report = '<agent-message from="a1b2">\nPR #12: final head pushed.\n</agent-message>'
+    for prompt in (fyi, report, "<task-notification>\n<task-id>x</task-id>\n<status>completed</status>\n</task-notification>",
                    "<system-reminder>\nbanner\n</system-reminder>"):
         check(intake("submit", {**sid, "prompt": prompt}).strip() == "", "A non-user prompt produced routing output.")
     check(not list((root / ".context").glob("*-plan.md")) if (root / ".context").is_dir() else True,

@@ -302,6 +302,17 @@ submit)
     | gsub("<system-reminder>.*?</system-reminder>"; ""; "mg")
     | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)"
   [ -n "$stripped" ] || exit 0
+  # A peer's message (a subagent's <agent-message> report or another session's <cross-session-message>)
+  # is Claude-authored data, not Simon's words. Record it as a `peer` entry so reconciliation still sees
+  # it, but `latest-ask` (the merge guard's source of Simon's newest words) and the turn's ask time
+  # never read it (the fix for a subagent report recorded as the newest "ask", which the merge guard
+  # then judged instead of Simon's own message).
+  kind=ask
+  own="$(printf '%s' "$stripped" | jq -Rrs '
+    gsub("<(agent-message|cross-session-message)\\b[^>]*>.*?</(agent-message|cross-session-message)>"; ""; "mgi")
+    | gsub("Another Claude session sent a message:"; ""; "g")
+    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)"
+  [ -n "$own" ] || kind=peer
 
   resolve || exit 0
 
@@ -321,7 +332,7 @@ $(basename "$target"). Fold it back into intent-ledger.md before teardown."
   header_if_new "$target"
   fence="$(fence_for "$prompt")"
   {
-    printf '\n## %s · ask · session %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SID"
+    printf '\n## %s · %s · session %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$kind" "$SID"
     [ "$redacted" -eq 1 ] && printf '> A credential-shaped value was REDACTED from this record.\n\n'
     printf '%s\n%s\n%s\n' "$fence" "$prompt" "$fence"
   } >> "$target" 2>/dev/null || exit 0
@@ -552,7 +563,7 @@ stop)
         if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next }
       }
     }
-    !fence && /^## [0-9][0-9][0-9][0-9]-.* · (ask · session .+|plan|pivot)$/ { pending=1 }
+    !fence && /^## [0-9][0-9][0-9][0-9]-.* · ((ask|peer) · session .+|plan|pivot)$/ { pending=1 }
     !fence && /^## [0-9][0-9][0-9][0-9]-.* · reconcile$/ { pending=0 }
     END { print pending+0 }
   ' "$LEDGER")"
