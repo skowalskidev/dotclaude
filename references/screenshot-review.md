@@ -186,6 +186,7 @@ production is bug-free or dismissing an unverified error as a test artifact.
 
 DO record simulator video with `xcrun simctl io <udid> recordVideo` under the native simulator owner's
 slot rules, only when native capture is explicitly requested; apply the same verify-it-plays check.
+Stop it before any AXe tap (`references/ios-simulator.md` § Drive and capture: a live recording blocks AXe taps).
 Use keyframes and record the missing video capability when the installed tool cannot record; do not
 install a second recorder. Keep traces as optional investigation evidence,
 never call a trace an executable replay. TEST: native opt-in and ownership remain intact, and no recording

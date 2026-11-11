@@ -273,6 +273,15 @@ clients), then `axe tap ... --post-delay 0.5` on one element and take a screensh
 changed. Unchanged: switch to XCUITest at once, no retry. Changed: continue with `describe-ui`
 (read), `tap --label`/`--id`/`type`/`swipe` (act) and `axe screenshot` (capture), re-checking after
 each transition. TEST: no AXe command runs while an `xcodebuild test` on the same UDID is live.
+DO stop every `xcrun simctl io <UDID> recordVideo` on the device (SIGINT) before an AXe tap, and record
+only stretches with no AXe step: a live recording holds the automation session, so `axe tap` fails with
+"Timed out creating the simulator remote automation session" (the fix for a recorded walk whose taps all
+failed and worked the moment the recording stopped).
+DO pass `--tap-style physical` to every `axe tap -x -y` on web content (Safari, an in-app WKWebView):
+the default style prints success and the page receives nothing. `describe-ui` exposes no web element,
+so take each point from a screenshot, pixels divided by the device scale.
+TEST: no AXe tap runs while a `recordVideo` on that UDID is live; every web-content tap carries
+`--tap-style physical`.
 
 DO split a co-pilot walk by the rule in `/sk:test-copilot`: you drive the lead-up and every step that is
 not new, and Simon types only the inputs the change adds, in the GUI window you opened. Screenshot each
@@ -293,12 +302,16 @@ field, `axe type` into it, and screenshot the typed value; a tap's success line 
 number on the clipboard and tells Simon "Cmd+V in Card number" up front. (the fix for a "fill" offered
 for a Stripe card form in iOS Safari: the tap reported success, the field took no focus, `axe type`
 entered nothing, and the clipboard fallback came only after the failed attempt.)
+DO `axe type` each iframe payment field exactly once and screenshot it before the next field: `axe key 42`
+(backspace) and `axe key-combo` never reach the frame, so a wrong digit stays until Simon deletes it.
+Move between those fields with the keyboard toolbar's up/down arrows; a tap on another field while one
+is focused does not always move focus.
 DO hand Simon digits for iOS Safari in the simulator on the clipboard (the host pasteboard syncs, so
 he presses Cmd+V) or tell him to press Cmd+K first for the on-screen keyboard: Mac-keyboard digits
 switched Safari tabs mid-walk and lost the walk tab.
 TEST: the receipt records the typing driver and its typed-value screenshot before step 1, every
-"fill" offer names only field kinds with a typed-value screenshot (an iframe field its own), and no
-step message asks Simon to type into a field the change did not add.
+"fill" offer names only field kinds with a typed-value screenshot (an iframe field its own, one `axe type`
+per field), and no step message asks Simon to type into a field the change did not add.
 
 DON'T hand navigation to Simon because one driver failed; switch driver. A step no driver can reach is
 named in the receipt with the step, never delegated silently.
