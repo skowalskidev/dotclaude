@@ -278,6 +278,20 @@ DO split a co-pilot walk by the rule in `/sk:test-copilot`: you drive the lead-u
 not new, and Simon types only the inputs the change adds, in the GUI window you opened. Screenshot each
 step yourself either way.
 
+DO prove a text-entry driver on the walk device before sending step 1 of any walk, an app or Safari
+walk alike: focus one existing field and type into it with `axe type '<text>' --udid <UDID>` after the
+AXe no-op check, or an XCUITest `typeText`, then screenshot the typed value. Claude types every
+existing field (phone, card, code, name). `osascript` System Events keystrokes are not a driver: macOS
+denies them with error 1002 unless the host app holds an Accessibility grant. When no driver types,
+ask for that one-time grant (System Settings > Privacy & Security > Accessibility > the host app) in
+the walk's opening message, never mid-step. (the fix for three "fill in for me" asks, each answered
+with a clipboard paste after a denied keystroke, while AXe sat installed and untried.)
+DO hand Simon digits for iOS Safari in the simulator on the clipboard (the host pasteboard syncs, so
+he presses Cmd+V) or tell him to press Cmd+K first for the on-screen keyboard: Mac-keyboard digits
+switched Safari tabs mid-walk and lost the walk tab.
+TEST: the receipt records the typing driver and its typed-value screenshot before step 1, and no
+step message asks Simon to type into a field the change did not add.
+
 DON'T hand navigation to Simon because one driver failed; switch driver. A step no driver can reach is
 named in the receipt with the step, never delegated silently.
 
@@ -316,6 +330,10 @@ window, and the hours until his named return time when he will look later ("tomo
 (exit 124): the preview is dead and its token must be released by hand with the command `status`
 prints for it (the fix for a 240-minute hold that died overnight before Simon opened it). If startup consumed the viewing budget, stop the hold and
 report no usable hold.
+DO read the hold's deadline before every message that hands Simon the device (a walk step, a "ready"
+line, a hand-back). With under 30 minutes left, restart the hold sized by the rule above before
+sending; otherwise name the shutdown time in the message. (the fix for "Round 6 is ready" sent 26
+minutes before a 240-minute hold expired, so Simon came back to a shut-down device.)
 TEST: the receipt names the hold command, an absolute `--max-min` deadline past the stated viewing
 window, the stop-file command, and never promises an indefinite preview; while the device is booted,
 `status` shows the hold's owner on a heavy slot.
