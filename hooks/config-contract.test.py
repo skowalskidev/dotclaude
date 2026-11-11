@@ -279,7 +279,8 @@ def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
     # pipe: inherited stdin hung superspeed-dispatch.test.sh until the 120s timeout.
     if "input" not in kw:
         kw.setdefault("stdin", subprocess.DEVNULL)
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=120, **kw)
+    kw.setdefault("timeout", 120)
+    return subprocess.run(cmd, capture_output=True, text=True, **kw)
 
 
 def check(cond: bool, msg: str) -> None:
@@ -1965,7 +1966,9 @@ def check_node24_shell_runtime():
 
 def check_session_performance_and_capacity() -> None:
     for script in ("session-performance.test.py", "local-capacity.test.py"):
-        result = run(["/usr/bin/python3", str(ROOT / "bin" / script)])
+        # These suites drive real lease timing, so a host busy with other sessions' builds stretches
+        # them past the 120 s hang guard (a land check failed on a TimeoutExpired that passed on rerun).
+        result = run(["/usr/bin/python3", str(ROOT / "bin" / script)], timeout=360)
         check(result.returncode == 0, script + ": " + result.stdout + result.stderr)
     rule = (ROOT / "rules/self-healing-config.md").read_text()
     check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
