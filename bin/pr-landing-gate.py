@@ -10,8 +10,8 @@ and the harness name this file instead of restating them. A heading matches with
 punctuation prefix and any case ("## 🚀 Deploy TLDR"), and may carry a suffix after a non-letter
 ("## Test matrix (head abc1234)"). The Test matrix section also holds a Real-environment walk line.
 The Regression check section holds one row per pre-existing file the PR modifies, renames or removes
-(the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED: the method is
-references/testing-strategy.md § Regression check.
+(the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED and a filled cell in the
+table's Base-vs-head evidence column: the method is references/testing-strategy.md § Regression check.
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -48,7 +48,8 @@ NEEDS = {
     "Test matrix": ("a tier named (light, standard or deep) with its trigger; counts for "
                     + ", ".join(MATRIX_COUNTS) + "; a results table; a 'Real-environment walk:' line "
                     "with PASS, a reasoned does-not-apply or a skip line"),
-    "Regression check": "a table row per modified pre-existing file, each with PASS or INTENDED",
+    "Regression check": ("a table with a Base-vs-head evidence column; a row per modified pre-existing file, "
+                         "each with evidence and PASS or INTENDED"),
     "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
     "Deploy safety": "a merge-train result and a rollback, or a reasoned does-not-apply",
     "Screenshots": "an image, or a stated no-eligible-surface reason",
@@ -73,6 +74,8 @@ VIDEO = re.compile(r"<video\s|^\s*https://github\.com/user-attachments/assets/\S
 RUN_LABELS = ("Findings:", "Fixed during review:", "Not covered:", "Sources:")
 # references/testing-strategy.md § Regression check: a row's result, and the file statuses that need a row.
 REGRESSION_OK = re.compile(r"\b(?:PASS|INTENDED)\b")
+# The column holding each row's proof: a base-vs-head test or screenshot comparison, never empty.
+EVIDENCE_COLUMN = re.compile(r"base[- ]vs[- ]head", re.I)
 REGRESSION_BAD = re.compile(r"\b(?:FAIL|REGRESSED)\b")
 PRE_EXISTING = ("modified", "renamed", "removed", "changed")
 COLLAPSED = re.compile(r"<details(?![^>]*\bopen\b)[^>]*>", re.I)
@@ -156,18 +159,30 @@ def check_regression(text, modified):
         return out
     if not has_table(text):
         return out + ["Regression check: no table for the PR's modified pre-existing files"]
-    unlisted, unresolved = [], []
+    cells = lambda row: [c.strip() for c in row.strip().strip("|").split("|")]
+    header = next((cells(r) for r in rows if any(EVIDENCE_COLUMN.search(c) for c in cells(r))), None)
+    column = next((i for i, c in enumerate(header or []) if EVIDENCE_COLUMN.search(c)), None)
+    if column is None:
+        out.append("Regression check: the table has no Base-vs-head evidence column")
+    unlisted, unresolved, unevidenced = [], [], []
     for path in modified:
         hits = [r for r in rows if path in r.replace("`", "")]
         if not hits:
             unlisted.append(path)
-        elif not any(REGRESSION_OK.search(r) for r in hits):
+            continue
+        if not any(REGRESSION_OK.search(r) for r in hits):
             unresolved.append(path)
+        if column is not None and not any(
+            len(cells(r)) > column and cells(r)[column] not in ("", "-", "–", "—") for r in hits
+        ):
+            unevidenced.append(path)
     if unlisted:
         shown = ", ".join(unlisted[:5]) + (f" and {len(unlisted) - 5} more" if len(unlisted) > 5 else "")
         out.append(f"Regression check: no row for {len(unlisted)} modified pre-existing file(s): {shown}")
     if unresolved:
         out.append("Regression check: no PASS or INTENDED result for " + ", ".join(unresolved[:5]))
+    if unevidenced:
+        out.append("Regression check: no base-vs-head evidence for " + ", ".join(unevidenced[:5]))
     return out
 
 
