@@ -241,6 +241,11 @@ now fails on a paragraph that appears in two config files.
 - Ensure all errors land in centralized logging (cloud logs or equivalent) so production bugs are diagnosable without relying on a customer's recollection or reproduction attempts.
 - Surface failures to the end user whenever an automated action fails and needs manual intervention — never fail silently.
 - Implement every failure branch the plan/docs call out (declines, misses, retries) using existing infrastructure unless the plans say otherwise.
+- DO give a decision that falls back on a timeout (which screen a user sees, which offer applies) a wait
+  at least as long as the longest sibling wait on the same path, and cover a cold start: its fallback is
+  a wrong answer, not a degraded one. TEST: each such timeout names its sibling wait and a production
+  cold-start timing (the fix for a 1.5 s read that sent new invitees to the wrong first screen while a
+  sibling read on the same path waited longer).
 
 ## UX/UI
 
