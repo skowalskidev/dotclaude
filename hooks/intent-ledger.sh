@@ -37,8 +37,11 @@
 #                                 called by the model — record the landing-gate result for that head;
 #                                 PASS for a branch with an open PR records only when
 #                                 bin/pr-landing-gate.py passes on the fetched PR (exit 1 otherwise)
-#         latest-ask              PreToolUse helper — print this session's newest recorded ask, verbatim
+#         latest-ask [--since <ts>]
+#                                 PreToolUse helper — print this session's newest recorded ask, verbatim
 #                                 (stdin payload: session_id, cwd); prints nothing when none. Read-only.
+#                                 With --since (UTC, YYYY-MM-DDTHH:MM:SSZ) it prints EVERY ask recorded
+#                                 at or after that second, oldest first, separated by an ASCII RS (\036).
 #         stop                    Stop — require reconciliation after the newest recorded input, then
 #                                 a gate record for every pushed branch head
 
@@ -308,7 +311,7 @@ submit)
   [ -n "$stripped" ] || exit 0
   # A peer's message (a subagent's <agent-message> report or another session's <cross-session-message>)
   # is Claude-authored data, not Simon's words. Record it as a `peer` entry so reconciliation still sees
-  # it, but `latest-ask` (the merge guard's source of Simon's newest words) and the turn's ask time
+  # it, but `latest-ask` (the merge guard's source of Simon's own words) and the turn's ask time
   # never read it (the fix for a subagent report recorded as the newest "ask", which the merge guard
   # then judged instead of Simon's own message).
   kind=ask
@@ -650,20 +653,33 @@ recorded for an older head does not count once a newer head is pushed. This fire
   ;;
 
 latest-ask)
-  # The merge guard (hooks/git-commit-guard.py) asks this for Simon's own newest words, so a merge
-  # is authorized by what he typed, never by a flag the model can set. Same resolution as `submit`,
+  # The merge guard (hooks/git-commit-guard.py) asks this for Simon's own words, so a merge is
+  # authorized by what he typed, never by a flag the model can set. Same resolution as `submit`,
   # silent, read-only; no ledger or no ask for this session prints nothing, which the guard denies.
+  # `--since <ts>` returns every ask from that second on: the guard passes the second the current
+  # turn opened, so a merge ask followed by a queued clarification keeps its authority.
   QUIET=1
+  since=""
+  if [ "${2:-}" = "--since" ]; then
+    since="${3:-}"
+    case "$since" in
+      [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) ;;
+      *) exit 0 ;;
+    esac
+  fi
   resolve || exit 0
   [ -f "$LEDGER" ] || exit 0
-  awk -v sid="$SID" '
+  awk -v sid="$SID" -v since="$since" '
     index($0, "## ") == 1 && index($0, " · ask · session " sid) > 0 &&
-      substr($0, length($0) - length(sid) + 1) == sid { cap = 1; fence = ""; buf = ""; next }
+      substr($0, length($0) - length(sid) + 1) == sid { cap = 1; fence = ""; buf = ""; ts = $2; next }
     cap && fence == "" && $0 ~ /^`{3,}$/ { fence = $0; next }
-    cap && fence != "" && $0 == fence { cap = 0; last = buf; next }
+    cap && fence != "" && $0 == fence {
+      cap = 0; last = buf
+      if (since != "" && (ts "") >= (since "")) { out = out (n++ ? "\036" : "") buf }
+      next }
     cap && fence != "" { buf = buf $0 "\n"; next }
     cap && index($0, "## ") == 1 { cap = 0 }
-    END { printf "%s", last }
+    END { if (since == "") printf "%s", last; else printf "%s", out }
   ' "$LEDGER"
   exit 0
   ;;

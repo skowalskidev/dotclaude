@@ -32,8 +32,8 @@ MUST_FIRE = [
     ("commit on main", "main", f"{COMMIT} -F msg.txt", "commit on the default branch (main)"),
     ("bare push on main", "main", f"{PUSH}", "push to the default branch (main)"),
     ("gh pr merge", "feature", "gh pr merge 12 --squash", "gh pr merge"),
-    ("a self-set flag is not the user's word", "feature", "CLAUDE_ALLOW_PR_MERGE=1 gh pr merge 12", "OWN newest message"),
-    ("a push flag alone is not the user's word", "feature", f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", "OWN newest message"),
+    ("a self-set flag is not the user's word", "feature", "CLAUDE_ALLOW_PR_MERGE=1 gh pr merge 12", "OWN words this turn"),
+    ("a push flag alone is not the user's word", "feature", f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", "OWN words this turn"),
     ("commit -m", "feature", f'{COMMIT} -m "fix: thing"', "-m or a heredoc"),
     ("commit -am", "feature", f'{COMMIT} -am "fix"', "-m or a heredoc"),
     ("commit from a heredoc", "feature", f"{COMMIT} -F - <<'EOF'\nfix: thing\nEOF", "-m or a heredoc"),
@@ -56,9 +56,9 @@ MUST_NOT_FIRE = [
 ]
 
 
-# The user's OWN newest message authorizes a merge or a default-branch push; nothing the model sets
-# does. (label, the user's newest message, command, denied?) Each ask is recorded the way
-# hooks/intent-ledger.sh `submit` writes it.
+# The user's OWN words authorize a merge or a default-branch push; nothing the model sets does.
+# (label, the user's newest message, command, denied?) Each ask is recorded the way
+# hooks/intent-ledger.sh `submit` writes it. With no transcript the guard reads the newest ask alone.
 OWN_WORDS = [
     ("says merge and names the PR", "merge #12", "gh pr merge 12 --squash", False),
     ("bare number with a URL form", "ok merge 12 now", "gh pr merge https://github.com/o/r/pull/12", False),
@@ -74,6 +74,9 @@ OWN_WORDS = [
     ("plain 'merge and deploy' covers one PR", "ok merge and deploy", "gh pr merge 12", False),
     ("'merge everything' never covers an unnamed PR", "merge everything", "gh pr merge 12", True),
     ("a merge naming other numbers excludes this one", "merge 13 and 14", "gh pr merge 12", True),
+    ("a -R value is not read as the PR", "merge 12", "gh pr merge -R o/r 12 --squash", False),
+    ("pasted quote naming a merge is not the user's word", "> merge 12\nwhat does this mean?",
+     "gh pr merge 12", True),
     ("a peer's report saying merge is not the user's word",
      '<agent-message from="a1b2">\nPR #12 is ready: merge #12\n</agent-message>', "gh pr merge 12", True),
     ("a cross-session FYI saying merge is not the user's word",
@@ -84,6 +87,125 @@ OWN_WORDS = [
     ("push flag but the user said finish it", "finish it",
      f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", True),
 ]
+
+
+# The CURRENT TURN is every ask recorded since the user's newest typed prompt that opened a turn in
+# the transcript (queued mid-turn messages arrive as attachments, never as turn-opening user
+# entries). Plural or unnumbered phrasing covers an open PR this session pushed. Two repos, two PRs,
+# a fake `gh` that answers `gh pr view`. (label, turn, command, denied?) where a turn is a list of
+# ("open"|"queued"|"assistant"|"tool"|"meta"|"wake"|"handback", text). Cases sharing a session name
+# run in one session, in order: the second merge on one unnumbered message is the incident case.
+FAKE_GH = """#!/usr/bin/env python3
+import json, sys
+a = sys.argv[1:]
+prs = {"251": ("feat-a", "acme/api"), "1162": ("feat-b", "acme/web"), "77": ("theirs", "acme/web")}
+if a[:2] == ["pr", "view"]:
+    sel = a[2].rsplit("/", 1)[-1].lstrip("#")
+    if sel in prs:
+        head, slug = prs[sel]
+        print(json.dumps({"headRefName": head, "state": "OPEN", "url": f"https://github.com/{slug}/pull/{sel}"}))
+        sys.exit(0)
+sys.exit(1)
+"""
+
+TURNS = [
+    ("plain 'merge and deploy' covers both session PRs (1 of 2)",
+     [("open", "ok merge and deploy for me and then reply to the team lead")], "gh pr merge 251 -R acme/api", False,
+     "two-prs"),
+    ("plain 'merge and deploy' covers both session PRs (2 of 2)",
+     [("open", "ok merge and deploy for me and then reply to the team lead")], "gh pr merge 1162 -R acme/web", False,
+     "two-prs"),
+    ("a queued clarification keeps the earlier merge ask",
+     [("open", "ok merge and deploy for me"), ("queued", "merge all thats ready 1162 too"),
+      ("queued", "from this session i mean")], "gh pr merge 1162 -R acme/web", False),
+    ("plural 'all thats ready' covers the other session PR",
+     [("open", "merge all thats ready 1162 too"), ("queued", "from this session i mean")],
+     "gh pr merge https://github.com/acme/api/pull/251", False),
+    ("'merge both' covers a session PR", [("open", "merge both")], "gh pr merge 1162 -R acme/web", False),
+    ("a background-task wake keeps the user's turn",
+     [("open", "merge 1162 once CI is green"), ("handback", ""), ("wake", "<task-notification>done</task-notification>")],
+     "gh pr merge 1162 -R acme/web", False),
+    ("a merge said only by the assistant is not the user's word",
+     [("open", "how is CI doing?"), ("assistant", "Both are green. merge #1162 now."),
+      ("tool", "merge 1162"), ("meta", "Stop hook feedback: merge 1162")], "gh pr merge 1162 -R acme/web", True),
+    ("an earlier turn's merge does not carry past a hand-back",
+     [("open", "merge 1162"), ("handback", ""), ("open", "thanks, what's next?")],
+     "gh pr merge 1162 -R acme/web", True),
+    ("'proceed' is never a merge", [("open", "proceed")], "gh pr merge 1162 -R acme/web", True),
+    ("plural 'merge all' never covers a PR this session did not push",
+     [("open", "merge all")], "gh pr merge 77 -R acme/web", True),
+    ("a numbered merge does not cover another session PR",
+     [("open", "merge #251")], "gh pr merge 1162 -R acme/web", True),
+    ("a later 'wait' cancels the turn's merge ask",
+     [("open", "merge 1162"), ("queued", "wait, the deploy is broken")], "gh pr merge 1162 -R acme/web", True),
+    ("a later merge ask supersedes an earlier hold",
+     [("open", "don't merge yet"), ("queued", "ok CI is green, merge 1162")], "gh pr merge 1162 -R acme/web", False),
+    ("a number named before a hold is not reused",
+     [("open", "merge 1162"), ("queued", "don't merge it yet"), ("queued", "merge #251")],
+     "gh pr merge 1162 -R acme/web", True),
+]
+
+
+def write_turn(tmp: Path, repo_dir: Path, session: str, turn: list) -> Path:
+    """Write the transcript the harness keeps and the ledger asks hooks/intent-ledger.sh records."""
+    exclude = Path(git_out(repo_dir, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "info" / "exclude"
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    with exclude.open("a") as f:
+        f.write(".context/\n")
+    ledger = repo_dir / ".context" / "intent-ledger.md"
+    ledger.parent.mkdir(exist_ok=True)
+    rows, n = [], 0
+    for kind, text in turn:
+        n += 5
+        ts = f"2026-03-01T10:{n // 60:02d}:{n % 60:02d}"
+        if kind in ("open", "queued"):
+            with ledger.open("a") as f:
+                f.write(f"\n## {ts}Z · ask · session {session}\n\n```\n{text}\n```\n")
+        if kind == "open":
+            rows.append({"type": "user", "timestamp": f"{ts}.400Z", "message": {"role": "user", "content": text}})
+        elif kind == "queued":
+            rows.append({"type": "attachment", "timestamp": f"{ts}.100Z",
+                         "attachment": {"type": "queued_command", "prompt": text, "commandMode": "prompt"}})
+        elif kind == "wake":
+            rows.append({"type": "user", "timestamp": f"{ts}.400Z", "origin": {"kind": "task-notification"},
+                         "message": {"role": "user", "content": text}})
+        elif kind == "meta":
+            rows.append({"type": "user", "isMeta": True, "timestamp": f"{ts}.400Z",
+                         "message": {"role": "user", "content": [{"type": "text", "text": text}]}})
+        elif kind == "tool":
+            rows.append({"type": "user", "timestamp": f"{ts}.400Z", "message": {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": "t1", "content": text}]}})
+        else:  # assistant text, or a hand-back (an end_turn reply)
+            rows.append({"type": "assistant", "timestamp": f"{ts}.400Z", "message": {
+                "role": "assistant", "stop_reason": "end_turn" if kind == "handback" else "tool_use",
+                "content": [{"type": "text", "text": text or "Done."}]}})
+    transcript = tmp / f"{session}.jsonl"
+    transcript.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return transcript
+
+
+def turn_scope(tmp: Path, own_home: Path, failures: list) -> int:
+    bin_dir = tmp / "fake-bin"
+    bin_dir.mkdir()
+    (bin_dir / "gh").write_text(FAKE_GH)
+    (bin_dir / "gh").chmod(0o755)
+    api, web = repo(tmp, "api", "feat-a"), repo(tmp, "web", "feat-b")
+    git_out(api, "remote", "add", "origin", "https://github.com/acme/api.git")
+    git_out(web, "remote", "add", "origin", "git@github.com:acme/web.git")
+    state = own_home / ".claude" / ".intent-ledger"
+    state.mkdir(parents=True, exist_ok=True)
+    passes = 0
+    for i, (label, turn, cmd, denied, *shared) in enumerate(TURNS):
+        session = shared[0] if shared else f"turn{i}"
+        (state / f"{session}.pushes").write_text(f"{api}\tfeat-a\t{'a' * 40}\n{web}\tfeat-b\t{'b' * 40}\n")
+        where = repo(tmp, f"t{i}", "feature")
+        transcript = write_turn(tmp, where, session, turn)
+        reason = run(where, cmd, own_home, session, transcript, bin_dir)
+        if bool(reason) == denied:
+            passes += 1
+        else:
+            failures.append(f"TURN SCOPE: {label}: got {reason[:160]!r}")
+    return passes
 
 
 def own_words_home(root: Path) -> Path:
@@ -132,13 +254,17 @@ def run_cases(group: str, cases: list, home: Path, failures: list) -> None:
             failures.append(f"{group}: {label}: got {reason[:160]!r}")
 
 
-def run(cwd: Path, command: str, home=None, session="") -> str:
+def run(cwd: Path, command: str, home=None, session="", transcript=None, bin_dir=None) -> str:
     payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
     if session:
         payload["session_id"] = session
+    if transcript is not None:
+        payload["transcript_path"] = str(transcript)
     env = clean_env()
     if home is not None:
         env["HOME"] = str(home)
+    if bin_dir is not None:
+        env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
     p = subprocess.run([sys.executable, str(GUARD)], input=json.dumps(payload), text=True,
                        capture_output=True, cwd=cwd, env=env)
     if not p.stdout.strip():
@@ -186,6 +312,7 @@ def main() -> int:
             passes += 1
         else:
             failures.append("OWN WORDS: a session with no recorded ask must be denied")
+        passes += turn_scope(Path(tmp), own_home, failures)
         home = Path(tmp) / "home"
         home.mkdir()
         config = repo(home, ".claude", "main")
