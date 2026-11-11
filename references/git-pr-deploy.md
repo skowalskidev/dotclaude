@@ -267,14 +267,19 @@ Outside the own-config exception (`/sk:claude-config-sync` lands a head verified
 `bin/config-land-check.py` with no confirmation), **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
 specific irreversible merge. `hooks/git-commit-guard.py` runs `gh pr merge <n>` only when the user's
-OWN newest message (`hooks/intent-ledger.sh latest-ask`) says "merge", unnegated, and names `<n>` or
-names no PR at all (then it covers ONE PR per message; "all"/"everything" or other numbers never do); a
-default-branch push needs `CLAUDE_ALLOW_MAIN_COMMIT=1` AND a newest message saying "push". No flag
-the model sets authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
+OWN words this turn (every ask `hooks/intent-ledger.sh latest-ask --since` recorded since his newest
+typed turn-opening prompt, queued mid-turn messages included) say "merge" with no later
+stop/hold/wait, and either name `<n>` anywhere, or cover it as an open PR this session pushed (no PR
+number, or "all"/"both"/"them"), or name no PR at all for ONE other PR per turn. A plural never covers
+a PR this session did not push, and a number names only that PR. A default-branch push needs
+`CLAUDE_ALLOW_MAIN_COMMIT=1` AND the user's words this turn saying "push". No flag the model sets
+authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
 **DO stop at a ready, green PR and ask "merge #<n>?"; a plain "merge it" / "merge and deploy" answers it.** DON'T read "finish it",
 "priority", "1 yes" to a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged
 on "1 yes" to a model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").
-TEST: every merge traces to a user message containing "merge" and that PR's number.
+TEST: every merge traces to a user message this turn containing "merge" and that PR's number, or
+plural/unnumbered wording over PRs this session pushed (the fix for "merge and deploy" covering one
+of two session PRs and a queued "from this session i mean" voiding "merge all that's ready").
 **DON'T treat a yes to an AskUserQuestion option or plan YOU authored as that confirmation, and DON'T
 author an option that pushes/merges a remote default branch in the first place.** The confirmation must
 be the user's OWN unprompted "push"/"merge" for THAT action; offering "push to main" as a pickable

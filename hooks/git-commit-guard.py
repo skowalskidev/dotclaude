@@ -7,10 +7,12 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      `git-commit-guard` covered `git push` to main/master, but `gh pr merge` contains neither "git"
      nor "push" so it slipped straight through. A general instruction ("merge everything" / "proceed"
      / "continue") is NEVER a yes for a SPECIFIC merge; confirm the PR and verify CI is actually
-     green, and it runs only when the user's OWN newest message (hooks/intent-ledger.sh latest-ask)
-     says "merge" unnegated and names the PR's number. There is no override flag: a flag the model
-     sets itself let two PRs merge off a model-written "Merge #N?" answered "1 yes" and off "this is
-     priority, finish it". `gh api` merge/enqueue/auto-merge calls are denied outright.
+     green, and it runs only when the user's OWN words this turn (every ask hooks/intent-ledger.sh
+     recorded since his newest typed turn-opening prompt, queued mid-turn ones included) say "merge"
+     with no later halt, and name the PR's number, or cover it as an open PR this session pushed. There
+     is no override flag: a flag the model sets itself let two PRs merge off a model-written "Merge
+     #N?" answered "1 yes" and off "this is priority, finish it". `gh api` merge/enqueue/auto-merge
+     calls are denied outright.
 
   1. Committing or pushing on the default branch (main / master). rules/process.md: "If on the
      default branch, create a branch first", and feedback_no_master_commits: never commit/push to
@@ -37,6 +39,7 @@ parses the command itself. It fails OPEN on anything malformed: a guard that bre
 switched off.
 """
 
+import datetime
 import hashlib
 import json
 import os
@@ -350,74 +353,190 @@ def config_push_problem(repo: str, args: list) -> str:
     return ""
 
 
-# A merge or a default-branch push is authorized by Simon's OWN newest words, never by a flag the
-# model can set (the fix for two PRs merged off "1 yes" to a model-written question and "this is
-# priority, finish it"). hooks/intent-ledger.sh records every prompt verbatim; `latest-ask` reads
-# this session's newest one. No ledger, no ask, or a negated verb denies: the action is irreversible.
+# A merge or a default-branch push is authorized by Simon's OWN words, never by a flag the model can
+# set (the fix for two PRs merged off "1 yes" to a model-written question and "this is priority,
+# finish it"). hooks/intent-ledger.sh records every prompt verbatim, queued mid-turn ones included.
+# The guard reads every ask of the CURRENT turn: from Simon's newest typed prompt in the transcript
+# that opened a turn (the one after the assistant's last hand-back) to now (the fix for "merge all
+# that's ready 1162 too" losing its authority to a queued "from this session i mean"). No ledger, no
+# ask, or a later halt denies: the action is irreversible.
 HARNESS_BLOCK_RE = re.compile(
     r"<(system-reminder|task-notification|agent-message|cross-session-message)\b[^>]*>.*?</\1>", re.S | re.I)
+# Pasted material inside his message (a fenced block, a `>` quote) is not his instruction.
+QUOTED_RE = re.compile(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$|^[ \t]*>.*$", re.S | re.M)
 NEGATED_RE = re.compile(
     r"\b(don'?t|do not|never|not|no|stop|hold|wait|without|before)\b[^.\n]{0,40}\b(merg|push)", re.I)
+# A later ask that does not repeat the verb but says one of these cancels the earlier authority.
+HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause|don'?t|do not|never)\b", re.I)
+PR_NUMBER_RE = re.compile(r"#?\b\d{2,}\b")
+# Plural phrasing ("merge all that's ready", "merge both", "merge them") covers every open PR this
+# session pushed, never a PR it did not push (the "merge everything" incident merged 8 PRs).
+BULK_RE = re.compile(r"\b(all|both|every|everything|each|batch|them|these|those)\b", re.I)
 API_MERGE_RE = re.compile(
     r"enqueuePullRequest|mergePullRequest|enablePullRequestAutoMerge|/pulls/\d+/merge\b", re.I)
+# `gh pr merge` options that take a value, so the value is never read as the PR selector.
+GH_MERGE_OPTS_WITH_VALUE = {"-R", "--repo", "-t", "--subject", "-b", "--body", "-F", "--body-file",
+                            "-A", "--author-email", "--match-head-commit"}
+STATE_DIR = os.path.join(os.path.expanduser("~"), ".claude", ".intent-ledger")
 
 
-def latest_ask(payload: dict) -> str:
+def session_id(payload: dict) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]", "", str(payload.get("session_id", ""))) or "unknown"
+
+
+def ledger_asks(payload: dict, since: str = "") -> list:
+    """This session's recorded asks: the newest one, or with `since` every ask from that second."""
     script = os.path.join(os.path.expanduser("~"), ".claude", "hooks", "intent-ledger.sh")
     if not os.path.isfile(script):
-        return ""
+        return []
     try:
-        p = subprocess.run(["bash", script, "latest-ask"], text=True, capture_output=True, timeout=5,
+        p = subprocess.run(["bash", script, "latest-ask", *(["--since", since] if since else [])],
+                           text=True, capture_output=True, timeout=5,
                            input=json.dumps({"session_id": payload.get("session_id", ""),
                                              "cwd": payload.get("cwd", "")}))
     except Exception:
+        return []
+    return [a for a in (p.stdout or "").split("\x1e") if a.strip()]
+
+
+def turn_opened_at(path: str) -> str:
+    """The ledger second at which the current turn opened: Simon's newest typed prompt in the
+    transcript, minus one second for clock rounding. A tool result, a skill body or hook feedback
+    (isMeta), a compaction summary, a sidechain and a harness prompt (task notification, origin set)
+    never open a turn. "" when unreadable, which falls back to the newest ask alone."""
+    try:
+        with open(path, "rb") as f:
+            lines = f.read().splitlines()
+    except Exception:
         return ""
-    return HARNESS_BLOCK_RE.sub("", p.stdout or "")
-
-
-def pr_number(words: list) -> str:
-    """The PR a `gh pr merge` names: a bare number, `#N` or a /pull/N URL. A branch name or no
-    argument returns "", which the guard denies because the user's words cannot be matched to it."""
-    for w in words[3:]:
-        if w.startswith("-"):
+    for line in reversed(lines):
+        if b'"user"' not in line:
             continue
-        m = re.fullmatch(r"#?(\d+)", w) or re.search(r"/pull/(\d+)", w)
-        return m.group(1) if m else ""
+        try:
+            e = json.loads(line)
+        except Exception:
+            continue
+        if (not isinstance(e, dict) or e.get("type") != "user" or e.get("isMeta") or e.get("isSidechain")
+                or e.get("isCompactSummary") or e.get("origin")):
+            continue
+        content = (e.get("message") or {}).get("content")
+        if isinstance(content, list):
+            if any(isinstance(x, dict) and x.get("type") == "tool_result" for x in content):
+                continue
+            text = " ".join(str(x.get("text", "")) for x in content if isinstance(x, dict))
+        elif isinstance(content, str):
+            text = content
+        else:
+            continue
+        if not HARNESS_BLOCK_RE.sub("", text).strip():
+            continue
+        try:
+            opened = datetime.datetime.strptime(str(e.get("timestamp", ""))[:19], "%Y-%m-%dT%H:%M:%S")
+        except ValueError:
+            return ""
+        return (opened - datetime.timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     return ""
 
 
-def own_words_allow(ask: str, verb: str, number: str = "") -> bool:
-    """True only when the user's newest message says the verb (merge/push) unnegated and, for a
-    merge, either names this PR's number or names no PR number at all (one PR per message, see
-    unnamed_merge_ok). A message naming OTHER numbers, or "all"/"every"/"everything", never covers
-    an unnamed PR."""
-    if not re.search(rf"\b{verb}\b", ask, re.I) or NEGATED_RE.search(ask):
+def turn_asks(payload: dict) -> list:
+    """Every ask Simon typed this turn, oldest first, with harness blocks and pasted quotes removed."""
+    since = turn_opened_at(str(payload.get("transcript_path") or ""))
+    raw = ledger_asks(payload, since) if since else ledger_asks(payload)[-1:]
+    cleaned = (QUOTED_RE.sub("", HARNESS_BLOCK_RE.sub("", a)).strip() for a in raw)
+    return [a for a in cleaned if a]
+
+
+def authorizing_asks(asks: list, verb: str) -> list:
+    """The turn's asks after its last halt, when one of them says the verb (merge/push). A halt is an
+    ask negating the verb ("don't merge yet") or a later ask saying stop/hold/wait without it."""
+    says = re.compile(rf"\b{verb}\b", re.I)
+    start = 0
+    for i, ask in enumerate(asks):
+        if NEGATED_RE.search(ask) or (not says.search(ask) and HALT_RE.search(ask)):
+            start = i + 1
+    window = asks[start:]
+    return window if any(says.search(a) for a in window) else []
+
+
+def merge_target(words: list) -> tuple:
+    """(selector, number, repo) a `gh pr merge` names: a bare number, `#N` or a /pull/N URL, and the
+    -R/--repo value. A branch name or no argument gives no number, which the guard denies because
+    the user's words cannot be matched to it."""
+    selector, repo, rest = "", "", list(words[3:])
+    while rest:
+        w = rest.pop(0)
+        if w in GH_MERGE_OPTS_WITH_VALUE:
+            value = rest.pop(0) if rest else ""
+            repo = value if w in ("-R", "--repo") else repo
+        elif w.startswith("--repo="):
+            repo = w.split("=", 1)[1]
+        elif not w.startswith("-") and not selector:
+            selector = w
+    m = re.fullmatch(r"#?(\d+)", selector) or re.search(r"/pull/(\d+)", selector)
+    return selector, (m.group(1) if m else ""), repo
+
+
+def github_slug(url: str) -> str:
+    m = re.search(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$", url.strip())
+    return m.group(1).lower() if m else ""
+
+
+def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
+    """True when the PR is open and its head branch is one this session pushed to that repo
+    (hooks/intent-ledger.sh `push` records every non-default branch push in session state)."""
+    try:
+        with open(os.path.join(STATE_DIR, f"{session_id(payload)}.pushes")) as f:
+            pushed = {tuple(l.rstrip("\n").split("\t")[:2]) for l in f if l.count("\t") >= 2}
+    except OSError:
         return False
-    if not number or re.search(rf"(?<!\d){number}(?!\d)", ask):
+    if not pushed or (not repo and "/pull/" not in selector and cwd is None):
+        return False
+    try:
+        p = subprocess.run(["gh", "pr", "view", selector, "--json", "headRefName,state,url",
+                            *(["--repo", repo] if repo else [])],
+                           cwd=cwd or None, capture_output=True, text=True, timeout=15)
+        pr = json.loads(p.stdout) if p.returncode == 0 else {}
+    except Exception:
+        return False
+    slug = (re.search(r"github\.com/([^/]+/[^/]+)/pull/", str(pr.get("url", ""))) or [None, ""])[1].lower()
+    if pr.get("state") != "OPEN" or not slug or not pr.get("headRefName"):
+        return False
+    return any(branch == pr["headRefName"] and github_slug(_git(root, "remote", "get-url", "origin")) == slug
+               for root, branch in pushed)
+
+
+def merge_allowed(payload: dict, words: list, cwd) -> bool:
+    """`gh pr merge` runs when Simon's words this turn say merge after the last halt and either name
+    this PR's number anywhere, or (naming no other PR, or saying all/both/them) cover it as an open PR
+    this session pushed, or name no PR at all (then ONE other PR per turn, see unnamed_merge_ok)."""
+    selector, number, repo = merge_target(words)
+    window = authorizing_asks(turn_asks(payload), "merge")
+    if not number or not window:
+        return False
+    text = "\n".join(window)
+    if re.search(rf"(?<!\d){number}(?!\d)", text):
         return True
-    return not re.search(r"#?\b\d{2,}\b", ask) and not BULK_RE.search(ask)
+    bulk, numbered = bool(BULK_RE.search(text)), bool(PR_NUMBER_RE.search(text))
+    if (bulk or not numbered) and session_pushed_pr(payload, selector, repo, cwd):
+        return True
+    if bulk or numbered:
+        return False
+    return unnamed_merge_ok(payload, window[0], number)
 
 
-# "merge and deploy" with no number authorizes ONE merge: the first PR merged on that message is
-# recorded, and a second, different PR on the same message is denied (the fix for a guard so strict
-# it refused Simon's plain "ok merge and deploy" for the one PR in front of him, without reopening
-# the "merge everything" incident that merged 8 PRs).
-BULK_RE = re.compile(r"\b(all|every|everything|each|batch|them)\b", re.I)
-
-
+# "merge and deploy" with no number authorizes ONE merge of a PR this session did not push: the first
+# such PR merged on that turn is recorded against the turn's first merge ask, and a second, different
+# PR is denied (the fix for a guard so strict it refused Simon's plain "ok merge and deploy" for the
+# one PR in front of him, without reopening the "merge everything" incident that merged 8 PRs).
 def unnamed_merge_ok(payload: dict, ask: str, number: str) -> bool:
-    if re.search(rf"(?<!\d){number}(?!\d)", ask):
-        return True
-    state = os.path.join(os.path.expanduser("~"), ".claude", ".intent-ledger")
-    sid = re.sub(r"[^A-Za-z0-9._-]", "", str(payload.get("session_id", ""))) or "unknown"
     key = hashlib.sha256(ask.encode()).hexdigest()[:16]
-    marker = os.path.join(state, f"{sid}.unnamed-merge.{key}")
+    marker = os.path.join(STATE_DIR, f"{session_id(payload)}.unnamed-merge.{key}")
     try:
         with open(marker) as f:
             return f.read().strip() == number
     except FileNotFoundError:
         try:
-            os.makedirs(state, exist_ok=True)
+            os.makedirs(STATE_DIR, exist_ok=True)
             with open(marker, "w") as f:
                 f.write(number)
             return True
@@ -472,8 +591,13 @@ def main() -> int:
                     "verified with a literal `git -C <path> push origin HEAD:main`. Ask the user only "
                     "for an excluded decision (rules/self-healing-config.md)."
                 )
+    gh_cwd = cwd  # where a `gh pr view` lookup runs; None once a `cd` cannot be resolved statically
     for seg in segments(command):
         words = command_words(seg)
+        if words[:1] == ["cd"]:
+            path = words[1] if len(words) == 2 else ""
+            literal = path and gh_cwd and not any(ch in path for ch in "$`'\"")
+            gh_cwd = os.path.abspath(os.path.join(gh_cwd, os.path.expanduser(path))) if literal else None
         sub = git_subcommand(words)
         is_commit = sub == "commit"
         is_push = sub == "push"
@@ -482,29 +606,29 @@ def main() -> int:
         if is_gh_api and API_MERGE_RE.search(command):
             return deny(
                 "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
-                "Use `gh pr merge <n>`, which runs only on the user's own newest message saying "
-                "\"merge\" and naming the PR."
+                "Use `gh pr merge <n>`, which runs only when the user's own words this turn say "
+                "\"merge\" and cover the PR."
             )
         if not (is_commit or is_push or is_gh_merge):
             continue
 
         # 0. `gh pr merge` merges into the remote default branch — the action that once merged 8 PRs
         # (two on red CI) into master off a general "merge everything". A general instruction is never
-        # a yes for a specific merge, so block unless the user confirmed THIS merge (the flag in the
-        # hook's env OR prefixed inline). The deny message is what tells Claude to get that yes.
-        if is_gh_merge:
-            number = pr_number(words)
-            ask = latest_ask(payload)
-            if not (number and own_words_allow(ask, "merge", number)
-                    and unnamed_merge_ok(payload, ask, number)):
-                return deny(
-                    "Blocked: `gh pr merge` merges a PR into the remote default branch, and it runs "
-                    "only on the user's OWN newest message saying \"merge\" (naming this PR's number, or no number for one PR)"
-                    + (f" (#{number})" if number else " (name the number, not a branch)") + ". "
-                    "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
-                    "is never that. There is no override flag. Stop at a ready, green PR and ask: "
-                    "\"Say 'merge #<n>' to merge it.\""
-                )
+        # a yes for a specific merge, so block unless the user's own words this turn cover THIS
+        # merge. The deny message is what tells Claude to get that yes.
+        if is_gh_merge and not merge_allowed(payload, words, gh_cwd):
+            number = merge_target(words)[1]
+            return deny(
+                "Blocked: `gh pr merge` merges a PR into the remote default branch, and it runs only "
+                "on the user's OWN words this turn (every message since your last hand-back, queued "
+                "ones included) saying \"merge\" with no later stop/hold/wait, and either naming this "
+                "PR's number"
+                + (f" (#{number})" if number else " (name the number, not a branch)") + ", or covering "
+                "it as an open PR this session pushed (no number, or all/both/them), or naming no PR "
+                "for one other PR. A yes to a question you wrote, 'finish it', 'proceed', 'priority' "
+                "or 'continue' is never that. There is no override flag. Stop at a ready, green PR "
+                "and ask: \"Say 'merge #<n>' to merge it.\""
+            )
 
         # 1. Default-branch protection. The override counts whether the flag is in the hook's OWN env
         # OR prefixed inline on the command (`CLAUDE_ALLOW_MAIN_COMMIT=1 git push …`). Claude only
@@ -513,15 +637,15 @@ def main() -> int:
         # A config commit the resolver could not parse keeps its old exemption; a config push never
         # does, so an unverified head reaching main still stops here.
         # A push to the remote default branch outside the config repo also needs the user's OWN
-        # newest message to say "push": the flag alone is the model's word, not the user's.
+        # words this turn to say "push": the flag alone is the model's word, not the user's.
         if is_push and allow_main and not config_scope:
             branch = current_branch(target_cwd or cwd)
             target = re.search(r"(?:^|\s|:)(main|master)\b", seg)
-            if (branch in DEFAULT_BRANCHES or target) and not own_words_allow(latest_ask(payload), "push"):
+            if (branch in DEFAULT_BRANCHES or target) and not authorizing_asks(turn_asks(payload), "push"):
                 return deny(
                     "Blocked: a push to the remote default branch runs only when the user's OWN "
-                    "newest message says \"push\". A yes to an option you wrote, 'finish it' or "
-                    "'continue' is never that. Ask, and stop."
+                    "words this turn say \"push\" with no later stop/hold/wait. A yes to an option "
+                    "you wrote, 'finish it' or 'continue' is never that. Ask, and stop."
                 )
         config_commit = is_commit and bool(target_cwd) and is_config_repo(target_cwd)
         if not allow_main and not config_scope and not config_commit:
