@@ -326,6 +326,7 @@ SCENARIOS: list[dict] = [
 
     # --- Read-only before/after design viewer --------------------------------
     {"phrase": "show me the design options", "expect": "work-ask-reply-in-full-before-after-artifact"},
+    {"phrase": "show me a screenshot of the proposed change", "expect": "work-ask-reply-in-full-before-after-artifact"},
     {"phrase": "give me a before and after design viewer", "expect": "work-ask-reply-in-full-before-after-artifact"},
 
     # --- Terse, decision-only reply mode -------------------------------------------

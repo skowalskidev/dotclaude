@@ -27,6 +27,9 @@ files (§ below).** The same anti-pattern as the dev route above, one level up: 
 TEST: with every server off, opening the file renders it fully. A deliverable that needs a running
 server is not shareable and is not done.
 
+A one-region change proposed in a reply (copy, a notice) takes the fast card in
+`/sk:work-ask-reply-in-full-before-after-artifact` § Fast before/after, not this pipeline.
+
 A change with NO screen — a schema, a prompt harness, a pipeline ordering — has nothing to screenshot;
 diagram the before and after instead. The rule is the medium follows the subject.
 

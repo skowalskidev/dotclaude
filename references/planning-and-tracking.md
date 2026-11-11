@@ -184,6 +184,9 @@ Owned by `rules/communication.md` § Close the session. Detail:
   follow-ups. e.g. two open PRs with CI running on the last push end "Merge #A, then #B; I run the
   smoke and reply to the reporter after deploy", never the archive line. (the fix for a session that
   said the line with CI running and two PRs awaiting merge, then had to be asked what to merge.)
+- **After merge and deploy, production is proven live** before the archive line: the deploy run for
+  the merge sha passed, prod serves the new build, and the changed behaviour passed its read-only
+  smoke (`references/git-pr-deploy.md` § Shipping is not done until the deploy is verified).
 - **Time-only checks**: what only time, a real customer or a future event can confirm is no loose end:
   drop it, or use one short "will show up naturally" clause.
 - **Outstanding work** (process.md "name all outstanding work", living-plan, the Stop-hook reconcile)

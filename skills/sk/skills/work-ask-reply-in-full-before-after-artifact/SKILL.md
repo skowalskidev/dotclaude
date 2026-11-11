@@ -3,10 +3,11 @@ name: work-ask-reply-in-full-before-after-artifact
 description: >
   Explain a confusing reply or compare proposals with compact BEFORE and AFTER cards.
   Show one tradeoff per option with details collapsed; collect choices and comments with
-  one Generate & copy action when the proposal asks for a response. Use for
-  "I don't know what you're talking about", "explain this so I can decide",
-  "show me the design options", "give me a before and after design viewer", or an explicit
-  /sk:work-ask-reply-in-full-before-after-artifact.
+  one Generate & copy action when the proposal asks for a response. Run it unprompted, in the
+  same reply, whenever Claude proposes or recommends a visible change (copy, a notice, a layout
+  tweak). Use for "show me a screenshot of the proposed change", "I don't know what you're
+  talking about", "explain this so I can decide", "show me the design options", "give me a
+  before and after design viewer", or an explicit /sk:work-ask-reply-in-full-before-after-artifact.
 ---
 
 # Explain with proposal cards
@@ -38,6 +39,24 @@ a concrete code/config snippet. Omit previews only for a pure logic or data rule
 surface. Never fabricate a missing capture or draw a stand-in.
 TEST: every card whose option changes or keeps a visible surface carries a desktop and a 390px image
 in before and after; a card with only text for a visible surface fails.
+
+## Fast before/after for a proposed visible change
+
+DO show a proposed or recommended visible change (UI copy, a notice, a layout tweak) as a BEFORE and
+AFTER screenshot card in the SAME reply that proposes it, unprompted. Speed first:
+1. BEFORE: reuse this session's capture of that screen and state when it still shows the current
+   code; otherwise capture the real screen now from the running stack or preview.
+2. AFTER: render the change on that same real page (edit the text or DOM in the test browser with the
+   app's own classes and copy) and capture it at the same viewport, labelled Preview. Use a measured
+   overlay per `/sk:ship-mockup-before-after` only when the state cannot be rendered.
+3. Build one card per § Build the artifact, run `bin/visual-check.py` on it, return it through the
+   session dashboard per § Hand back, and link the AFTER image path in the reply.
+NUMBER: one card per changed region, the two widths above; target under 5 minutes from proposal to
+linked artifact. Keep `mockup-build.py`, storyboards and design boards for a full mockup ask.
+DON'T describe a visible change in words alone, or wait for Simon to ask what it will look like.
+TEST: a reply proposing a visible change links a before/after card built that turn; a words-only
+proposal fails (the fix for a sign-in notice proposed in words across three replies until Simon
+asked for a screenshot).
 
 ## Collect a response
 

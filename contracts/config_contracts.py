@@ -514,6 +514,7 @@ CONTRACTS: dict[str, dict] = {
             "Closure is reasonable: once the ask's outcome is delivered and verified to a reasonable level, stop; what only time, a real customer or a future event can confirm is dropped or one short clause, at most 2 optional follow-ups that never withhold the archive line, and no new question at hand-back unless a decision only Simon can make blocks the outcome. Never weakens CI, tests, reachable walkthroughs, security or a requested feature.",
             "Owns the five writing rules. copilot-testing and parallelization point here and do "
             "not restate them.",
+            "A reply that proposes or recommends a visible change shows it as a before/after screenshot in that same reply, unprompted; the fast method lives in work-ask-reply-in-full-before-after-artifact.",
             "When Simon names a thing with a loose term, the first reply of the work states the industry-standard term once with one primary source, before any artifact is named; the method lives in references/code-best-practices.md.",
         ],
     },
@@ -1997,6 +1998,7 @@ CONTRACTS: dict[str, dict] = {
             "Every card whose option changes or keeps a visible surface carries real desktop and 390px images in before and after; a not-built AFTER is a labelled Preview from app code or a screenshot overlay.",
             "Infer feedback: true for proposals requesting choices or comments; one corner Generate & copy action copies current inputs for chat, with a truthful fallback. Keep pure mockup and board viewers read-only.",
             "Retain complete source and legacy runtime metadata inertly for CLI extraction and deterministic rebuilding; new specs need no control schema.",
+            "Owns the fast before/after for a proposed visible change: in the same reply, unprompted, a reused or fresh real BEFORE capture and an AFTER rendered on the real page (measured overlay as fallback), one card per region, visual-checked and linked; no full mockup pipeline for it.",
         ],
     },
     "skills/sk/skills/work-ask-reply-tldr/SKILL.md": {

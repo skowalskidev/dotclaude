@@ -28,9 +28,8 @@ test on what can be reached); a time-only check is no loose end.
 No new question at hand-back unless only Simon can decide it and it blocks the outcome.
 **DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
 PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply. End with the merge list or the single next
-blocker. After merge and deploy, stop only once production is proven live: the deploy run for the
-merge sha passed, prod serves the new build, and the changed behaviour passed its read-only smoke
-(`references/git-pr-deploy.md` § Shipping is not done until the deploy is verified).
+blocker. After merge and deploy, stop only once production is proven live
+(`references/planning-and-tracking.md` § Close the session).
 TEST: a finished session's last message has the archive line, at most 2 optional follow-ups, and no
 "the next X will confirm", "worth watching" or "keep an eye on" item; no line, or the line with work
 running, an unmerged session PR or an item unverdicted, fails; so does "merged" reported as done
@@ -52,6 +51,10 @@ equally to prompts you write for subagents.
 
 **DO report a success in one line and move on.**
 **DON'T** celebrate, and don't recap what you just did.
+
+**DO show a proposed visible change as a before/after screenshot in the same reply, unprompted.**
+Fast path: `/sk:work-ask-reply-in-full-before-after-artifact`.
+**DON'T** describe it in words alone.
 
 ## Correct a loose term once, up front
 
