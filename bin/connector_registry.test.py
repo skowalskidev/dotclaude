@@ -5,6 +5,7 @@ Every root, identity overlay and repo here is temporary; nothing reads the real 
 """
 import datetime
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -113,6 +114,41 @@ class RegistryTests(unittest.TestCase):
         order, routes, _, _ = self.resolve('db.read')
         self.assertEqual(order, ['read', 'write'])
         self.assertIn('per-write yes', routes[1]['blocker'])
+
+    def test_resolve_prints_each_routes_key_location_and_never_a_value(self):
+        # The fix for a resolve that listed a Linear api route but not the file and variable holding its key.
+        key_file = self.base / 'keys.env'
+        key_file.write_text('TRACKER_KEY_ALPHA=value-that-must-not-print\n')
+        self.provider('work', 'tracker', [
+            {'id': 'api', 'name': 'tracker', 'kind': 'api',
+             'secret': {'path': str(key_file), 'var': 'TRACKER_KEY_ALPHA'}},
+            {'id': 'pair', 'name': 'tracker-b', 'kind': 'api',
+             'secret': {'path': '~/keys/pair.env', 'var': ['PAIR_SID', 'PAIR_SECRET']}},
+            {'id': 'oauth', 'name': 'tracker-mcp', 'kind': 'mcp-http'}])
+        _, routes, _, _ = self.resolve('tracker')
+        self.assertEqual([item['secret'] for item in routes],
+                         [{'path': str(key_file), 'var': ['TRACKER_KEY_ALPHA']},
+                          {'path': '~/keys/pair.env', 'var': ['PAIR_SID', 'PAIR_SECRET']}, None])
+        identity = self.base / 'identity.json'
+        identity.write_text(json.dumps(self.identity))
+        outputs = {}
+        with patch.dict(os.environ, {'CLAUDE_IDENTITY_FILE': str(identity)}), \
+                patch.object(reg, 'origin', return_value=WORK_REMOTE), \
+                patch.object(reg, 'current_claude_account', return_value=''):
+            for flag in ([], ['--json']):
+                with patch('sys.stdout', new_callable=io.StringIO) as out:
+                    self.assertEqual(reg.main(['resolve', 'tracker', '--cwd', str(self.cwd)] + flag), 0)
+                outputs[tuple(flag)] = out.getvalue()
+        self.assertIn('key in ' + str(key_file) + ' as TRACKER_KEY_ALPHA', outputs[()])
+        self.assertIn('key in ~/keys/pair.env as PAIR_SID, PAIR_SECRET', outputs[()])
+        self.assertEqual(json.loads(outputs[('--json',)])['routes'][0]['secret']['var'], ['TRACKER_KEY_ALPHA'])
+        for text in outputs.values():
+            self.assertNotIn('value-that-must-not-print', text)
+
+    def test_secret_var_must_be_a_variable_name_not_a_value(self):
+        self.provider('work', 'tracker', [{'id': 'api', 'name': 'tracker', 'kind': 'api',
+                                           'secret': {'path': '~/k.env', 'var': 'lin_api-abc.123'}}])
+        self.assertIn('secret.var must be variable names', ' '.join(reg.load_all(self.identity)[0]['errors']))
 
     # ---------------------------------------------------------------- scope and boundary
 

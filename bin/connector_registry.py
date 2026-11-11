@@ -34,6 +34,7 @@ import contextlib
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -46,6 +47,7 @@ ROUTE_KEYS = ('id', 'capabilities', 'scope', 'serves', 'requires')  # registry-o
 INDEX = 'index.json'
 HEALTH = 'health.json'
 COOLDOWN_HOURS = 24  # a failed route is skipped for this long unless every other route fails
+VAR_NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')  # a secret.var entry is a variable NAME, never a value
 
 
 class RegistryError(ValueError):
@@ -160,6 +162,29 @@ def validate_provider(record, boundary, file):
             raise RegistryError('route ' + route['id'] + ' has an unknown scope')
         if scope == 'per-project' and not route.get('serves'):
             raise RegistryError('per-project route ' + route['id'] + ' must list the projects it serves')
+        validate_secret(route)
+
+
+def validate_secret(route):
+    """`secret` is {path, var?}: the key file and the variable name(s) holding the key in it."""
+    if 'secret' not in route:
+        return
+    secret = route['secret']
+    if not isinstance(secret, dict) or not isinstance(secret.get('path'), str) or not secret['path']:
+        raise RegistryError('route ' + route['id'] + ' secret needs a "path" string')
+    names = secret.get('var', [])
+    names = [names] if isinstance(names, str) else names
+    if not isinstance(names, list) or not all(isinstance(n, str) and VAR_NAME.match(n) for n in names):
+        raise RegistryError('route ' + route['id'] + ' secret.var must be variable names, never a value')
+
+
+def secret_location(route):
+    """Where a route's key lives, `{path, var: [names]}`, or None. Never reads the file or a value."""
+    secret = route.get('secret')
+    if not isinstance(secret, dict) or not secret.get('path'):
+        return None
+    names = secret.get('var', [])
+    return {'path': secret['path'], 'var': [names] if isinstance(names, str) else list(names)}
 
 
 def load_all(identity=None):
@@ -421,6 +446,7 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
                 'state': state, 'blocker': blocker, 'readOnly': route.get('readOnly'),
                 'gated': route.get('gated'), 'lastSuccess': entry.get('lastSuccess'),
                 'lastFailure': entry.get('lastFailure'), 'recipe': route.get('recipe'),
+                'secret': secret_location(route),
                 'root': str(root['path']),
                 '_key': (bool(blocker), state == 'open', not serves_here,
                          0 if state == 'ok' else 1, route['_order'],
@@ -758,6 +784,9 @@ def run(args):
                 notes.append('declared for another project')
             if item['blocker']:
                 notes.append('BLOCKED: ' + item['blocker'])
+            if item['secret']:
+                notes.append('key in ' + item['secret']['path'] +
+                             (' as ' + ', '.join(item['secret']['var']) if item['secret']['var'] else ''))
             print('%d. %s/%s  [%s %s]  %s' % (item['rank'], item['provider'], item['route'],
                                              item['kind'], item['name'], '; '.join(notes)))
         return 0

@@ -63,7 +63,8 @@
         "your-project"
       ],
       "secret": {
-        "path": "~/path/to/your-project.env"
+        "path": "~/path/to/your-project.env",
+        "var": "CHAT_API_KEY"
       },
       "auth": {
         "how": "A project-scoped read key, chmod 600, outside every repo.",

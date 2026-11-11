@@ -98,6 +98,8 @@ provider name, an exact capability, or a prefix such as `slack`), in this order:
 3. Routes serving this project (shared-account, listed in `serves`, or with a recorded success here)
    before the rest of the boundary.
 4. Proven (`ok`) before untested, then the file's declared preference, then the most recent success.
+Each route line ends with `key in <secret.path> as <secret.var>` when the route declares one (`--json`:
+`secret: {path, var[]}`); load the key from there without printing it.
 DO record the outcome of every attempt, success and failure, with the failure reason. A record whose
 reason names a human-only cause (another login, missing consent) keeps the next session from trying it
 first. TEST: after a failed route, the next `resolve` in the same boundary lists it after every
@@ -154,9 +156,13 @@ Fields:
 - `ephemeral` — torn down after use (materialized key removed).
 - `mcp` — for `mcp-*` kinds, the canonical transport object (stdio: command/args/env;
   http: type+url). `~` in `env` values and `args` is expanded to `$HOME` at provision time.
-- `secret` — `{ path }`: where this connector's key file lives. A DECLARATION, not a fetch instruction.
-  `--check` reports `key-present`/`key-missing` from it, provisioning warns when it is absent, and the
-  key itself is created by hand from `auth.steps`. There is no `from` field and no vault to pull from.
+- `secret` — `{ path, var }`: where this connector's key file lives and, for an env-style file, the
+  variable name holding the key (`var`: one name, or a list when the route needs several, e.g. an SID
+  and a secret). A DECLARATION, not a fetch instruction. `var` is a NAME only; the loader rejects
+  anything that is not a shell identifier. `--check` reports `key-present`/`key-missing` from it,
+  provisioning warns when it is absent, and the key itself is created by hand from `auth.steps`. There
+  is no `from` field and no vault to pull from. DO fill both on every route that reads a key file
+  holding more than one variable. TEST: `resolve` prints `key in <path> as <VAR>` on that route's line.
 - `cli` — `{ name, profile }` for `kind: cli`: the CLI binary and the named profile this project must
   use. The guard reads `profile` so a bare invocation that would fall through to the CLI's own default
   profile is denied by data rather than by a hardcoded name (this is what stops a bare `stripe` in a

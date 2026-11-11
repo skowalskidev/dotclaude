@@ -2354,6 +2354,7 @@ CONTRACTS: dict[str, dict] = {
             "Read only the roots named by connectorRoots (or CLAUDE_CONNECTOR_ROOTS); a route's boundary always equals its root's.",
             "Resolve returns only the session boundary's routes: unblocked first, open circuits last, routes serving the project before others, proven before untested, then declared order.",
             "Never exclude a same-boundary route for scope; record writes health.json under a lock, mode 600, same boundary only.",
+            "Resolve prints each route's key location (secret.path and secret.var names, text and --json) and never reads or prints a value; secret.var accepts identifiers only.",
             "Migration keeps every legacy project and connector field reachable; check-migration fails on any missing value.",
             "Python 3.9 standard library only, so the /usr/bin/python3 guard can import nothing else.",
         ],

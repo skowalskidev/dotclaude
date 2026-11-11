@@ -143,7 +143,8 @@ Suggest a secret manager only if Simon asks for one.
    - Anything that needs the VALUE (creating a profile, minting a key, rotating) is Simon's step:
      give the exact command from the connector's `auth.steps` and wait.
    - **Record it in the registry route** (`<root>/<provider>.json`) so it is remembered on every
-     future worktree: a `secret.path` for a key file, a `cli.profile` for a CLI. The guard reads those,
+     future worktree: a `secret.path` (+ `secret.var`, the variable name inside an env file) for a key
+     file, a `cli.profile` for a CLI. The guard reads those,
      so declaring it is what makes the boundary enforceable rather than remembered.
    - If a secret was exposed (world-readable, committed, or pasted anywhere), recommend ROTATING it —
      tightening the mode does not un-expose what was already readable.
