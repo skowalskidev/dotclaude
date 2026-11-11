@@ -73,6 +73,7 @@ CLOUDFLARE_GRAPHQL = "https://api.cloudflare.com/client/v4/graphql"
 TWILIO_API = "https://api.twilio.com/2010-04-01"
 TWILIO_MONITOR = "https://monitor.twilio.com/v1"
 TIMEOUT = 45
+RETRY_STATUS = {429, 500, 502, 503, 504}  # transient: retried twice before a probe fails
 
 # crit first, so sorting by this ranks the digest worst first.
 RANK = {"crit": 0, "warn": 1, "unknown": 2, "ack": 3, "low-sample": 4, "ok": 5}
@@ -350,8 +351,10 @@ class Context:
                 return json.loads(raw) if raw.strip() and raw.lstrip()[0] in "[{" else raw
             except urllib.error.HTTPError as e:
                 detail = e.read().decode(errors="replace") if e.fp else ""
-                if e.code == 429 and attempt < 2:
-                    time.sleep(5 * (attempt + 1))  # documented rate limits; back off and retry the read
+                if e.code in RETRY_STATUS and attempt < 2:
+                    # a rate limit or a vendor's one-off 5xx; every call here is a read, so retrying is safe
+                    print(f"health-pulse: HTTP {e.code} from {where.netloc}{where.path}, retrying", file=sys.stderr)
+                    time.sleep(5 * (attempt + 1))
                     continue
                 raise ProbeError(f"HTTP {e.code} from {where.netloc}{where.path}: "
                                  f"{scrub(detail, self.secrets())}") from None
