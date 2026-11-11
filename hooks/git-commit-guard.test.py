@@ -98,12 +98,20 @@ OWN_WORDS = [
 FAKE_GH = """#!/usr/bin/env python3
 import json, sys
 a = sys.argv[1:]
-prs = {"251": ("feat-a", "acme/api"), "1162": ("feat-b", "acme/web"), "77": ("theirs", "acme/web")}
+GREEN = [{"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclusion": "SUCCESS"},
+         {"__typename": "StatusContext", "context": "deploy-preview", "state": "SUCCESS"}]
+RED = [{"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclusion": "FAILURE"}]
+PENDING = [{"__typename": "CheckRun", "name": "ci", "status": "IN_PROGRESS", "conclusion": ""}]
+prs = {"251": ("feat-a", "acme/api", GREEN, "MERGEABLE"), "1162": ("feat-b", "acme/web", GREEN, "MERGEABLE"),
+       "77": ("theirs", "acme/web", GREEN, "MERGEABLE"), "1186": ("feat-b", "acme/web", GREEN, "MERGEABLE"),
+       "1190": ("feat-b", "acme/web", RED, "MERGEABLE"), "1191": ("feat-b", "acme/web", PENDING, "MERGEABLE"),
+       "1192": ("feat-b", "acme/web", GREEN, "CONFLICTING"), "1193": ("feat-b", "acme/web", [], "MERGEABLE")}
 if a[:2] == ["pr", "view"]:
     sel = a[2].rsplit("/", 1)[-1].lstrip("#")
     if sel in prs:
-        head, slug = prs[sel]
-        print(json.dumps({"headRefName": head, "state": "OPEN", "url": f"https://github.com/{slug}/pull/{sel}"}))
+        head, slug, checks, mergeable = prs[sel]
+        print(json.dumps({"headRefName": head, "state": "OPEN", "url": f"https://github.com/{slug}/pull/{sel}",
+                          "isDraft": False, "mergeable": mergeable, "statusCheckRollup": checks}))
         sys.exit(0)
 sys.exit(1)
 """
@@ -146,6 +154,76 @@ TURNS = [
 ]
 
 
+# A STANDING conditional merge instruction ("merge ... when they're ready") keeps its authority in
+# later turns of the same session, and is honoured only when the PR is ready at merge time. (label,
+# session history, command, denied?, substring the deny reason must contain). The first case is the
+# incident: the instruction, then unrelated messages about a revoked API key, then CI went green.
+STANDING_ASK = "fix those then merge and deploy all when they're ready if they don't regress anything"
+INCIDENT = [("open", STANDING_ASK), ("queued", "ie cis etc"), ("handback", ""),
+            ("open", "btw did the deploy break this: Alerts: checks are down: the provider rejects every "
+                     "start (user-or-token-not-found). Fix the build pin or key. check in parallel"),
+            ("handback", ""),
+            ("open", "nevermind : a teammate rotated the keys and updated it accordingly"), ("handback", ""),
+            ("wake", "<task-notification>CI watcher: #1186 green</task-notification>")]
+STANDING = [
+    ("standing 'merge all when ready' survives later unrelated messages (the incident)",
+     INCIDENT, "gh pr merge 1186 -R acme/web --squash", False, ""),
+    ("standing instruction, but CI failing", INCIDENT, "gh pr merge 1190 -R acme/web", True, "ci concluded failure"),
+    ("standing instruction, but CI pending", INCIDENT, "gh pr merge 1191 -R acme/web", True, "still in_progress"),
+    ("standing instruction, but not mergeable", INCIDENT, "gh pr merge 1192 -R acme/web", True, "CONFLICTING"),
+    ("standing instruction, but no checks reported", INCIDENT, "gh pr merge 1193 -R acme/web", True,
+     "no CI checks"),
+    ("standing instruction never covers a PR this session did not push",
+     [("open", "merge them all once CI is green"), ("handback", ""), ("open", "thanks")],
+     "gh pr merge 77 -R acme/web", True, ""),
+    ("standing instruction naming a PR covers it", [("open", "merge 77 once CI is green"), ("handback", ""),
+                                                    ("open", "what's the status?")],
+     "gh pr merge 77 -R acme/web", False, ""),
+    ("standing instruction naming another PR does not cover this one",
+     [("open", "merge 77 when it's green"), ("handback", ""), ("open", "ok")], "gh pr merge 1186 -R acme/web",
+     True, ""),
+    ("a later 'hold' cancels a standing instruction",
+     INCIDENT[:3] + [("open", "hold off for now, I want to look first"), ("handback", "")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("a later 'don't deploy' cancels a standing instruction",
+     INCIDENT[:3] + [("open", "actually don't deploy anything tonight"), ("handback", "")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("a later unrelated 'don't' does not cancel it",
+     INCIDENT[:3] + [("open", "don't forget to reply to the team lead"), ("handback", "")],
+     "gh pr merge 1186 -R acme/web", False, ""),
+    ("a newer standing instruction after a hold re-arms",
+     [("open", "don't merge anything yet"), ("handback", ""), ("open", "ok merge all as they're ready"),
+      ("handback", ""), ("open", "how's it going?")], "gh pr merge 1186 -R acme/web", False, ""),
+    ("a non-conditional merge in an earlier turn still does not carry",
+     [("open", "merge 1186"), ("handback", ""), ("open", "thanks, what's next?")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("a conditional merge said only by the assistant is not the user's word",
+     [("open", "fix the tests"), ("assistant", "I'll merge all when they're ready."), ("handback", ""),
+      ("open", "ok")], "gh pr merge 1186 -R acme/web", True, ""),
+    ("another session's standing instruction does not count",
+     [("foreign", "merge all when green"), ("open", "status?")], "gh pr merge 1186 -R acme/web", True, ""),
+    ("a plain 'merge all' stands through later unrelated messages",
+     [("open", "merge all"), ("handback", ""), ("open", "what did the alert say?"), ("handback", ""),
+      ("wake", "<task-notification>CI green</task-notification>")], "gh pr merge 1186 -R acme/web", False, ""),
+    ("'merge them all' stands too, but waits for green",
+     [("open", "merge them all"), ("handback", ""), ("open", "thanks")], "gh pr merge 1191 -R acme/web", True,
+     "still in_progress"),
+    ("'merge all' then 'hold' blocks",
+     [("open", "merge all"), ("handback", ""), ("open", "hold on, something's off"), ("handback", "")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("'merge all' never covers a PR this session did not push",
+     [("open", "merge all"), ("handback", ""), ("open", "ok")], "gh pr merge 77 -R acme/web", True, ""),
+    ("'merge everything' never covers a PR this session did not push",
+     [("open", "merge everything"), ("handback", ""), ("open", "ok")], "gh pr merge 77 -R acme/web", True, ""),
+    ("a question about merging all is not a merge",
+     [("open", "should we merge? all tests pass?"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("'proceed' after a non-conditional ask is still not a merge",
+     [("open", "fix it then tell me"), ("handback", ""), ("open", "proceed")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+]
+
+
 def write_turn(tmp: Path, repo_dir: Path, session: str, turn: list) -> Path:
     """Write the transcript the harness keeps and the ledger asks hooks/intent-ledger.sh records."""
     exclude = Path(git_out(repo_dir, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "info" / "exclude"
@@ -158,9 +236,10 @@ def write_turn(tmp: Path, repo_dir: Path, session: str, turn: list) -> Path:
     for kind, text in turn:
         n += 5
         ts = f"2026-03-01T10:{n // 60:02d}:{n % 60:02d}"
-        if kind in ("open", "queued"):
+        if kind in ("open", "queued", "foreign"):
+            owner = f"{session}-other" if kind == "foreign" else session
             with ledger.open("a") as f:
-                f.write(f"\n## {ts}Z · ask · session {session}\n\n```\n{text}\n```\n")
+                f.write(f"\n## {ts}Z · ask · session {owner}\n\n```\n{text}\n```\n")
         if kind == "open":
             rows.append({"type": "user", "timestamp": f"{ts}.400Z", "message": {"role": "user", "content": text}})
         elif kind == "queued":
@@ -205,6 +284,16 @@ def turn_scope(tmp: Path, own_home: Path, failures: list) -> int:
             passes += 1
         else:
             failures.append(f"TURN SCOPE: {label}: got {reason[:160]!r}")
+    for i, (label, turn, cmd, denied, expect) in enumerate(STANDING):
+        session = f"standing{i}"
+        (state / f"{session}.pushes").write_text(f"{api}\tfeat-a\t{'a' * 40}\n{web}\tfeat-b\t{'b' * 40}\n")
+        where = repo(tmp, f"s{i}", "feature")
+        transcript = write_turn(tmp, where, session, turn)
+        reason = run(where, cmd, own_home, session, transcript, bin_dir)
+        if bool(reason) == denied and (not expect or expect in reason):
+            passes += 1
+        else:
+            failures.append(f"STANDING: {label}: got {reason[-220:]!r}")
     return passes
 
 

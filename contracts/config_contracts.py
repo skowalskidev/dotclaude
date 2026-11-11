@@ -2117,6 +2117,14 @@ CONTRACTS: dict[str, dict] = {
             "name no PR (one other PR per turn). A plural never covers a PR this session did not "
             "push; no flag the model sets authorizes it, a branch-name target, a failed PR lookup or "
             "a missing ledger denies, and gh api merge/enqueue/auto-merge calls are denied outright.",
+            "A standing merge Simon typed earlier in the same session (merge plus a future condition: "
+            "when/once/as/after/if ... ready/green/passes/done, or a plain merge all/them all/both/"
+            "everything) also authorizes `gh pr merge` "
+            "in a later turn, when it names the PR or covers it as an open PR this session pushed, no "
+            "later ask negates merging/pushing/deploying/shipping or says stop/hold/wait/cancel/pause, "
+            "and one read-only gh pr view shows the PR open, not a draft, MERGEABLE, with at least one "
+            "check and every check passed; otherwise it denies and names the failed condition. A "
+            "single-PR merge with no condition (merge #12, merge it) never carries past its turn.",
             "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
             "AND the user's words this turn saying push after its last halt.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "

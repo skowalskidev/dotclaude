@@ -9,7 +9,11 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      / "continue") is NEVER a yes for a SPECIFIC merge; confirm the PR and verify CI is actually
      green, and it runs only when the user's OWN words this turn (every ask hooks/intent-ledger.sh
      recorded since his newest typed turn-opening prompt, queued mid-turn ones included) say "merge"
-     with no later halt, and name the PR's number, or cover it as an open PR this session pushed. There
+     with no later halt, and name the PR's number, or cover it as an open PR this session pushed. A
+     standing CONDITIONAL instruction earlier in the session ("merge and deploy all when they're
+     ready", "merge 12 once CI is green", or a plain "merge all") also covers it, with no later halt,
+     but only while the PR
+     is open, not a draft, mergeable and every check has passed at the moment of the merge. There
      is no override flag: a flag the model sets itself let two PRs merge off a model-written "Merge
      #N?" answered "1 yes" and off "this is priority, finish it". `gh api` merge/enqueue/auto-merge
      calls are denied outright.
@@ -481,6 +485,28 @@ def github_slug(url: str) -> str:
     return m.group(1).lower() if m else ""
 
 
+PR_FIELDS = "headRefName,state,url,isDraft,mergeable,statusCheckRollup"
+_PR_CACHE: dict = {}
+
+
+def pr_view(selector: str, repo: str, cwd) -> dict:
+    """One read-only `gh pr view` per hook run, shared by the ownership and readiness checks, inside
+    the hook's 10 s budget. {} when the PR cannot be resolved, which denies."""
+    if not repo and "/pull/" not in selector and cwd is None:
+        return {}
+    key = (selector, repo, cwd)
+    if key not in _PR_CACHE:
+        try:
+            p = subprocess.run(["gh", "pr", "view", selector, "--json", PR_FIELDS,
+                                *(["--repo", repo] if repo else [])],
+                               cwd=cwd or None, capture_output=True, text=True, timeout=8)
+            pr = json.loads(p.stdout) if p.returncode == 0 else {}
+        except Exception:
+            pr = {}
+        _PR_CACHE[key] = pr if isinstance(pr, dict) else {}
+    return _PR_CACHE[key]
+
+
 def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
     """True when the PR is open and its head branch is one this session pushed to that repo
     (hooks/intent-ledger.sh `push` records every non-default branch push in session state)."""
@@ -489,15 +515,9 @@ def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
             pushed = {tuple(l.rstrip("\n").split("\t")[:2]) for l in f if l.count("\t") >= 2}
     except OSError:
         return False
-    if not pushed or (not repo and "/pull/" not in selector and cwd is None):
+    if not pushed:
         return False
-    try:
-        p = subprocess.run(["gh", "pr", "view", selector, "--json", "headRefName,state,url",
-                            *(["--repo", repo] if repo else [])],
-                           cwd=cwd or None, capture_output=True, text=True, timeout=15)
-        pr = json.loads(p.stdout) if p.returncode == 0 else {}
-    except Exception:
-        return False
+    pr = pr_view(selector, repo, cwd)
     slug = (re.search(r"github\.com/([^/]+/[^/]+)/pull/", str(pr.get("url", ""))) or [None, ""])[1].lower()
     if pr.get("state") != "OPEN" or not slug or not pr.get("headRefName"):
         return False
@@ -505,7 +525,16 @@ def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
                for root, branch in pushed)
 
 
-def merge_allowed(payload: dict, words: list, cwd) -> bool:
+def covers(text: str, number: str, payload: dict, selector: str, repo: str, cwd) -> bool:
+    """Simon's words name this PR's number, or (naming no other PR, or saying all/both/them) cover
+    it as an open PR this session pushed."""
+    if re.search(rf"(?<!\d){number}(?!\d)", text):
+        return True
+    bulk, numbered = bool(BULK_RE.search(text)), bool(PR_NUMBER_RE.search(text))
+    return (bulk or not numbered) and session_pushed_pr(payload, selector, repo, cwd)
+
+
+def turn_merge_allowed(payload: dict, words: list, cwd) -> bool:
     """`gh pr merge` runs when Simon's words this turn say merge after the last halt and either name
     this PR's number anywhere, or (naming no other PR, or saying all/both/them) cover it as an open PR
     this session pushed, or name no PR at all (then ONE other PR per turn, see unnamed_merge_ok)."""
@@ -514,14 +543,99 @@ def merge_allowed(payload: dict, words: list, cwd) -> bool:
     if not number or not window:
         return False
     text = "\n".join(window)
-    if re.search(rf"(?<!\d){number}(?!\d)", text):
+    if covers(text, number, payload, selector, repo, cwd):
         return True
-    bulk, numbered = bool(BULK_RE.search(text)), bool(PR_NUMBER_RE.search(text))
-    if (bulk or not numbered) and session_pushed_pr(payload, selector, repo, cwd):
-        return True
-    if bulk or numbered:
+    if BULK_RE.search(text) or PR_NUMBER_RE.search(text):
         return False
     return unnamed_merge_ok(payload, window[0], number)
+
+
+# A STANDING merge instruction: Simon says, once, to merge when a future condition holds ("fix those
+# then merge and deploy all when they're ready", "merge 12 once CI is green"), or to merge them all
+# ("merge all", "merge them all", "merge everything"), which carries the same implied condition. It
+# keeps its authority across later turns of the SAME session (the ledger is read by session id), so an
+# unrelated later message no longer voids it (the fix for a green PR blocked after a message about a
+# rotated API key arrived between the instruction and CI going green). Its condition is checked,
+# never assumed: the PR must be open, not a draft, mergeable, and report at least one check with
+# every check passed. A plural still covers only open PRs this session pushed.
+CONDITIONAL_RE = re.compile(
+    r"\b(when|whenever|once|as soon as|as|after|if)\s+(?:[\w-]+(?:'\w+)?\s+){0,4}?"
+    r"(ready|green|pass|passes|passed|passing|succeeds?|done|finished|complete[sd]?|clean)\b", re.I)
+# A later message cancels a standing instruction when it negates merging, pushing, deploying or
+# shipping, or says stop/hold/wait/cancel/pause. A bare "don't" about something else does not: the
+# instruction spans many messages, and most of them are about other work.
+STANDING_NEGATED_RE = re.compile(
+    r"\b(don'?t|do not|never|not|no|stop|hold|wait|without)\b[^.\n]{0,40}\b(merg|push|deploy|ship)", re.I)
+STANDING_HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause)\b", re.I)
+# "merge all", "merge them all", "merge both", "merge everything": a merge over the whole set.
+STANDING_BULK_RE = re.compile(r"\bmerge\b[^.\n?]{0,30}?\b(all|everything|every|both|each)\b", re.I)
+PASSED_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
+
+
+def session_asks(payload: dict) -> list:
+    """Every ask Simon typed this session, oldest first, cleaned like turn_asks."""
+    raw = ledger_asks(payload, "1970-01-01T00:00:00Z")
+    cleaned = (QUOTED_RE.sub("", HARNESS_BLOCK_RE.sub("", a)).strip() for a in raw)
+    return [a for a in cleaned if a]
+
+
+def standing_merge_ask(asks: list) -> str:
+    """The session's newest standing merge ask (conditional, or merge-all) with no later halt, or ""."""
+    says = re.compile(r"\bmerge\b", re.I)
+    for i in range(len(asks) - 1, -1, -1):
+        ask = asks[i]
+        standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask)
+        if says.search(ask) and standing and not STANDING_NEGATED_RE.search(ask):
+            later = asks[i + 1:]
+            halted = any(STANDING_NEGATED_RE.search(a) or STANDING_HALT_RE.search(a) for a in later)
+            return "" if halted else ask
+    return ""
+
+
+def pr_not_ready(pr: dict) -> str:
+    """Why the PR fails the standing instruction's condition right now; "" when it is ready."""
+    if not pr:
+        return "the PR lookup failed"
+    if pr.get("state") != "OPEN":
+        return f"the PR is {str(pr.get('state', 'unknown')).lower()}"
+    if pr.get("isDraft"):
+        return "the PR is a draft"
+    if pr.get("mergeable") != "MERGEABLE":
+        return f"mergeable is {pr.get('mergeable') or 'unknown'}"
+    checks = pr.get("statusCheckRollup") or []
+    if not checks:
+        return "no CI checks are reported"
+    for c in checks:
+        name = c.get("name") or c.get("context") or "a check"
+        if "state" in c and "status" not in c:  # a commit status context
+            if c.get("state") != "SUCCESS":
+                return f"{name} is {str(c.get('state')).lower()}"
+        elif c.get("status") != "COMPLETED":
+            return f"{name} is still {str(c.get('status') or 'pending').lower()}"
+        elif c.get("conclusion") not in PASSED_CONCLUSIONS:
+            return f"{name} concluded {str(c.get('conclusion')).lower()}"
+    return ""
+
+
+def standing_merge(payload: dict, words: list, cwd) -> tuple:
+    """(allowed, why_not) under a standing merge instruction. why_not is "" when no
+    standing instruction covers this PR, so the deny message only reports a failed condition."""
+    selector, number, repo = merge_target(words)
+    if not number:
+        return False, ""
+    ask = standing_merge_ask(session_asks(payload))
+    if not ask or not covers(ask, number, payload, selector, repo, cwd):
+        return False, ""
+    why = pr_not_ready(pr_view(selector, repo, cwd))
+    return (not why), why
+
+
+def merge_allowed(payload: dict, words: list, cwd) -> tuple:
+    """(allowed, why_not): this turn's words authorize the merge, or a standing conditional merge
+    instruction from this session does and its condition holds now."""
+    if turn_merge_allowed(payload, words, cwd):
+        return True, ""
+    return standing_merge(payload, words, cwd)
 
 
 # "merge and deploy" with no number authorizes ONE merge of a PR this session did not push: the first
@@ -616,18 +730,27 @@ def main() -> int:
         # (two on red CI) into master off a general "merge everything". A general instruction is never
         # a yes for a specific merge, so block unless the user's own words this turn cover THIS
         # merge. The deny message is what tells Claude to get that yes.
-        if is_gh_merge and not merge_allowed(payload, words, gh_cwd):
+        allowed, why_not = merge_allowed(payload, words, gh_cwd) if is_gh_merge else (True, "")
+        if not allowed:
             number = merge_target(words)[1]
             return deny(
                 "Blocked: `gh pr merge` merges a PR into the remote default branch, and it runs only "
                 "on the user's OWN words this turn (every message since your last hand-back, queued "
-                "ones included) saying \"merge\" with no later stop/hold/wait, and either naming this "
-                "PR's number"
-                + (f" (#{number})" if number else " (name the number, not a branch)") + ", or covering "
+                "ones included) saying \"merge\" with no later stop/hold/wait, and naming this PR's "
+                "number"
+                + (f" (#{number})" if number else " (name the number, not a branch)") + ", covering "
                 "it as an open PR this session pushed (no number, or all/both/them), or naming no PR "
-                "for one other PR. A yes to a question you wrote, 'finish it', 'proceed', 'priority' "
-                "or 'continue' is never that. There is no override flag. Stop at a ready, green PR "
-                "and ask: \"Say 'merge #<n>' to merge it.\""
+                "for one other PR; or on a standing merge an earlier message this session gave "
+                "(\"merge ... when ready / once CI is green\", or \"merge all\") covering it, when no "
+                "later message "
+                "said stop/hold/wait/cancel or not to merge/deploy, and the PR is open, not a draft, "
+                "mergeable and every check passed. A standing instruction lasts for this session "
+                "only. "
+                + (f"A standing instruction covers this PR, but it is not ready: {why_not}. Wait for "
+                   "CI and retry; do not ask the user again. " if why_not else "")
+                + "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
+                "is never that. There is no override flag. Stop at a ready, green PR and ask: "
+                "\"Say 'merge #<n>' to merge it.\""
             )
 
         # 1. Default-branch protection. The override counts whether the flag is in the hook's OWN env
