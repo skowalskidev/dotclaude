@@ -111,7 +111,7 @@ same failure recurs, or a fix needs a decision only I can make), stop and tell m
 ANY repo — this config included — unprompted.** What it proves: `references/planning-and-tracking.md` § The intent ledger.
 **DON'T treat a green gate or a written summary as proof the ask was covered.** A gate proves the code
 runs. A summary proves you can describe it. Neither proves point four of a five-point ask was built.
-TEST: every ask in the ledger has a verdict against it. A missing verdict is a missing feature.
+TEST: every ask clause in the ledger has a verdict against it. A missing verdict is a missing feature.
 
 **DO run `/sk:ship-full-detailed-workflow` at the PR's tier on every open PR the work opened or pushed
 to, before hand-back.** Ship-report proves the journeys; the harness reviews and verifies the pushed PR and lands

@@ -1,6 +1,6 @@
 ---
 name: ship-report-and-ensure-correct-user-system-journey
-description: Hand back one glanceable end report when a piece of work is finished, then make sure the code actually does what we planned. Reports what the user goes through, what the system does under the hood in steps, and what changed on this branch against its base, cross-checking the two journeys and stating every mismatch. Then it finds the plan or ticket the work was validated against and judges whether the post-merge journeys still match the plan: every acceptance criterion gets an independent verdict, then it writes, runs and commits tests for those criteria and the journeys so a passing test is the evidence rather than a reading of the code, each gap gets closed with real code follow-ups committed one per gap, and the journeys are then re-derived from the code and judged again. It loops until they hold. Use for "end report", "what did you build", "summarize what this does", "does this match the plan", "check it against the acceptance criteria", "write tests for the acceptance criteria", "prove it with tests", "close the gaps", or as the last step of substantive work. With no plan or ticket to check against it reports only and asks for one, never inventing criteria or tests. Judging quality is /sk:ship-review; deciding whether to build something at all is /sk:work-does-this-make-sense-to-build.
+description: Hand back one glanceable end report when a piece of work is finished, then make sure the code actually does what we planned. Reports what the user goes through, what the system does under the hood in steps, and what changed on this branch against its base, cross-checking the two journeys and stating every mismatch. Then it finds the plan or ticket the work was validated against and judges whether the post-merge journeys still match the plan: every acceptance criterion gets an independent verdict, then it writes, runs and commits tests for those criteria and the journeys so a passing test is the evidence rather than a reading of the code, each gap gets closed with real code follow-ups committed one per gap, and the journeys are then re-derived from the code and judged again. It loops until they hold. Use for "end report", "what did you build", "summarize what this does", "does this match the plan", "check it against the acceptance criteria", "write tests for the acceptance criteria", "prove it with tests", "close the gaps", "check every ask was addressed", or as the last step of substantive work. It always checks Simon's raw asks clause by clause, so every clause he wrote gets a verdict; with no ask, plan or ticket to check against it reports only and asks for one, never inventing criteria or tests. Judging quality is /sk:ship-review; deciding whether to build something at all is /sk:work-does-this-make-sense-to-build.
 argument-hint: "[optional: the branch, ticket, or plan file to report on and check against]"
 ---
 
@@ -82,22 +82,38 @@ by link, in the output.
    AND the comments, because that is where a build, refute or defer verdict was recorded.
 4. The plan file for this workspace under `~/.claude/plans/`.
 5. The PR body.
-6. The **ratified `plan` section** of `.context/intent-ledger.md`, and only that section. It is what
-   makes a no-ticket task judgeable at all: a plan derived from his prompt and approved is a
-   baseline, and often the only record of what verification changed.
+6. The **ratified `plan` section** of `.context/intent-ledger.md`. A plan derived from his prompt
+   and approved is a baseline, and often the only record of what verification changed.
+7. **Simon's raw asks, split into clauses, always.** Every `ask` entry in the ledger, plus every raw
+   input in the plan's `## Sources` that carries a requirement (a pasted ticket, a Slack request, an
+   attachment's spec). Reuse the plan's clause IDs from `references/workflow-loops.md` § Continuous
+   request reconciliation; split any ask they miss into one clause per requested outcome, scope word,
+   timing or condition ("find others", "flag it when it happens", "tag the author"). Each clause is a
+   criterion, quoted, tagged `ask <timestamp>`.
 
-**Read the ledger's agreed pivots on top, whatever else was found.** A change agreed mid-run lives
-nowhere else, because nobody goes back and edits the ticket.
+**Read the ledger's agreed pivots and the plan's `## Decisions & rationale` on top, whatever else was
+found.** A change agreed mid-run lives nowhere else, because nobody goes back and edits the ticket.
 
-**If none of those exists, stop** — and a ledger holding only asks is none of them. The hook writes
-that file in every worktree from the first prompt, so "a ledger exists" is true always and proves
-nothing. A verbatim ask is what he WANTED; a baseline is what was AGREED, and an unratified ask is
-this phase's own failure mode in his handwriting: it reads as authority and is still a criterion
-nobody approved. Print the report, say plainly that there is no baseline to check against, and ask
-him to name the plan or ticket. Edit nothing, and write no tests. Inventing acceptance criteria and
-then "fixing" code to satisfy them is the worst thing this skill could produce, and it would look
-exactly like a successful run. A test invented the same way is worse still: derived from the code, it
-asserts whatever the code already does, and it reports green forever.
+**A clause Simon wrote is a requirement to check, with no ratification step.** His words are the
+requirement; a plan or ticket that dropped a clause is the defect, not the clause. A question gets
+the verdict Met only with where it was answered. A pasted example, brainstorm or quote stays context
+(`rules/communication.md` § A pasted example shows intent), and a clause he later declined is
+Deliberately dropped citing his Decisions line.
+
+**The invented-criteria guard holds for every criterion the agent DERIVED.** An interpretation that
+narrows or widens a clause, a threshold, an implementation detail or a test case found in none of his
+clauses, a ticket or a ratified plan is no baseline until he ratifies it. Write no test for it and
+change no code toward it. Inventing criteria and then "fixing" code to satisfy them is the worst thing
+this skill could produce, and it would look exactly like a successful run. A test invented the same
+way is worse still: derived from the code, it asserts whatever the code already does, and it reports
+green forever.
+TEST: every clause of every ask has a row in the Phase 3 table, and every row traces to his words, a
+ticket or a ratified plan (the fix for a hand-back that judged a builder brief's two-incident list and
+never checked the ask's "find others" and "when it happens" clauses).
+
+**If none of those exists, stop.** With no ask, plan or ticket, print the report, say plainly that
+there is no baseline to check against, and ask him to name the plan or ticket. Edit nothing, and
+write no tests.
 
 **A part that was deliberately dropped, refuted or deferred is part of the baseline.** It is not a gap
 and it never gets built back. Say who decided it and when, so the verdict is checkable rather than
@@ -127,9 +143,11 @@ Every criterion comes back with one verdict, provisional until Phase 4 puts a te
 | Met | The code does it | `file:line` |
 | Partly met | Some of it does | what is missing, precisely |
 | Not met | Nothing does it | where it should have been |
-| Deliberately dropped | Decided against | who decided, and when |
+| Deliberately dropped | Decided against | who decided, and when; a raw-ask clause needs Simon's own recorded decision |
 | Superseded | Another decision replaced it | what replaced it |
 | Undecidable from code | Needs a run, a service, or Simon | what would settle it, for Phase 4 to try |
+
+An agent's choice to skip one of his clauses is Not met, never Deliberately dropped.
 
 Then run it the other way: **code on this branch that no criterion asked for.** List it with evidence.
 Scope creep is a finding here, not a note for later.
@@ -150,8 +168,9 @@ concrete baseline uncertainty with a targeted check under the shared policy, not
 whole-suite run.
 
 Met, Partly met and Not met each get a test. Deliberately dropped and Superseded never do, because
-testing a dropped part builds it back. Where `/sk:ship-review` Step 5 already wrote one that covers a
-criterion, reuse it and cite its still-valid proof or include it in the scheduled gate: it enumerates
+testing a dropped part builds it back. A clause whose outcome is an answer or a report, not
+behaviour, is evidenced by where the answer was given and gets no test. Where `/sk:ship-review`
+Step 5 already wrote one that covers a criterion, reuse it and cite its still-valid proof or include it in the scheduled gate: it enumerates
 by toggle pathway before the PR, this phase enumerates by acceptance criterion after the work, and
 the overlap is real.
 
@@ -232,8 +251,11 @@ Fix, in this order, each as its own commit with a conventional subject:
 
 1. **Contradicted criteria.** The code was believed to do this and a test says it does not. It is the
    most wrong thing on the list, so it goes first.
-2. **Criteria that are not met or partly met.** This is the point of the phase. The red test Phase 4
-   held goes in the same commit as the fix; its verdict waits for the scheduled passing proof.
+2. **Criteria that are not met or partly met**, every unfulfilled raw-ask clause included: a direct
+   instruction already authorizes its clause, so build it here. A clause blocked by a paid call, a
+   production write, missing access or an open decision goes to Phase 7's questions block by name.
+   This is the point of the phase. The red test Phase 4 held goes in the same commit as the fix;
+   its verdict waits for the scheduled passing proof.
 3. **Journey defects the report flagged** — a silent early stop with no user-visible outcome, a missing
    empty, loading or error state, a dead end. `references/user-journey-review.md` has the standard.
 4. **Scope creep.** Every item gets an ACTION, not a note: remove it in its own commit, or keep it and
@@ -292,18 +314,20 @@ Repeat until it comes back with nothing actionable. Four stop conditions that ar
   list unverified coverage separately.
 - What is left, and why: a decision he owes, a blocker, or something out of scope.
 - **Reconcile the ledger and promote it out**, because the worktree is disposable and it dies there.
-  Append one verdict per recorded ask, tagged with its source, via
+  Append one verdict per clause of each recorded ask, tagged with its source, via
   `~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>`. Then put the reconciliation and the
   plan-vs-sources delta where each part belongs: each source's verdicts on its own ticket, anything
   cross-cutting on the primary (the ticket the branch is named for, else the PR title prefix, else
   the first source) with the rest linked, and a ticket with no verdicts gets no comment. With no
   tickets it goes in the PR body — fetch, edit, verify non-empty, then update, never reconstruct, or
   screenshots added through the GitHub UI are destroyed. Link only tickets this work delivered, since
-  Linear syncs a linked ticket's status from the PR. **Never promote the verbatim asks.**
+  Linear syncs a linked ticket's status from the PR. **Never promote the verbatim asks**: each
+  clause goes out as its ID, a short label and its verdict.
 - **The questions**, in one consolidated block, per `rules/communication.md`. Each one answerable in a
   line, naming the decision and carrying the option you would take, so a "yes" is a complete answer.
-  An ask that was never ratified and never built belongs HERE as a proposal, never in Phase 5's fix
-  list. If there are none, leave the section out rather than manufacturing one.
+  A derived criterion that was never ratified and never built belongs HERE as a proposal, never in
+  Phase 5's fix list. A raw-ask clause not fulfilled appears here by name with its blocker, never
+  silently. If there are none, leave the section out rather than manufacturing one.
 
 ## Rules
 
@@ -318,6 +342,7 @@ Repeat until it comes back with nothing actionable. Four stop conditions that ar
   finding written down first. A judge that can edit the thing it is judging is not a judge.
 - **No baseline, no edits, no tests.** The gate in Phase 2 is what separates closing a real gap from
   inventing work, and a test invented the same way is that failure with a green tick on it. It is the
-  one rule here with no exception.
+  one rule here with no exception. Simon's own clauses are always baseline; what the agent derives
+  from them never is until ratified.
 
 The work to report on and check (branch, ticket, or plan file): $ARGUMENTS
