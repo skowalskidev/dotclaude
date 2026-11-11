@@ -435,7 +435,13 @@ the same gate, and a busy gate defers only the heavy step.
   Put bounded stage timeouts in the foreground command; a boot failure stops before bootstatus or
   the suite. Report exit 75 as a deferred heavy step with the holder and next action. A worker that
   backgrounds a build and returns "still waiting" forces another orchestration round; one run had
-  35 such returns. TEST: each worker returns one final report and no stage waits indefinitely.
+  35 such returns. A worker does not read this file, so copy the rule into every dispatch prompt that
+  runs a check: "Run each check in the foreground, split into stages that each fit the 10-minute Bash
+  timeout (one suite or folder range per call); never use run_in_background; end your turn once, with
+  the final report." (the fix for a merge worker whose prompt lacked it: it backgrounded four suites,
+  one killed at 10 minutes, and sent 8 interim notifications in 40 minutes.)
+  TEST: each worker returns one final report, no stage waits indefinitely, and every dispatch prompt
+  that runs a check carries the quoted line.
 - **DO push a finished fix instead of waiting for a local heavy slot when the branch's CI runs that
   check.** Run the cheap static gates (`testing-strategy.md`), commit, push, read the CI result. Exit 75
   or a lease wait on a suite CI also runs ends that wait. Keep local runs for what CI skips: a draft PR,
