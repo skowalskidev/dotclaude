@@ -42,7 +42,7 @@ tickets; a fix that belongs to another PR is handed to that owner via
    list to chase.
 6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification); re-judge criteria whose evidence or inputs those fixes changed, including dependent readers and configuration. Verify the user + system
    journeys AND every ticket's acceptance criteria against the merged diff, one committed test per
-   verdict, close gaps in fix→verify loops. Light skips it and records one verdict per ask.
+   verdict, close gaps in fix→verify loops. Light skips it and records one verdict per ask clause.
    When it splits into 3-5+ independent tickets, fan the per-ticket verification out — one adversarial verifier per ticket reading the real code against its
    criteria — via a Workflow or `/sk:work-superspeed` / `/sk:work-hyperspeed`
    (`references/parallelization.md`).

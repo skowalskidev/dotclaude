@@ -540,6 +540,8 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   brief before accepting, and send every missing number back as ONE fix round at once.
   TEST: no hand-back is accepted with an unanswered number (the fix for three of four PR workers
   returning without the before captures, trimmed clips or full body rewrite their brief required).
+- **DO quote the raw-ask clauses a brief serves**, per `references/workflow-loops.md` § Continuous
+  request reconciliation, including a brief built from an investigation's findings.
 - **DO write an unverified cause into a brief as a hypothesis plus the check that would confirm it**,
   and have the worker run that check first. DON'T state a suspected root cause as fact: the worker
   builds on it (the fix for a video codec blamed in a brief before playback had been tested).

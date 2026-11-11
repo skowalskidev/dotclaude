@@ -267,9 +267,9 @@ Conductor workspace cannot delete an ask appended since it read the file.
 - `pivot` — one entry per redirection, written when it lands and not later. A pivot reconstructed at
   the end always agrees with what got built, which is exactly what makes it useless as a check on
   what got built. Record what caused it, what it replaced, and which source it changes.
-- `reconcile` — at hand-back, on substantive or multi-step work. One verdict per recorded ask, in
-  ledger order, each tagged with its source, so a skipped ask reads as a gap rather than an absence
-  and no single source can fall out unnoticed. `/sk:ship-report-and-ensure-correct-user-system-journey`
+- `reconcile` — at hand-back, on substantive or multi-step work. One verdict per clause of each
+  recorded ask, in ledger order, each tagged with its source, so a skipped clause reads as a gap rather
+  than an absence and no single source can fall out unnoticed. `/sk:ship-report-and-ensure-correct-user-system-journey`
   writes it at the end of any substantial ask (`rules/process.md` § Prove every point): it walks the user
   journey and the system journey, judges both against the criteria the plan validated, writes a test
   per verdict, and reconciles the worktree's `.context/intent-ledger.md` ask by ask.
@@ -291,8 +291,8 @@ the pushed head, record it with `intent-ledger.sh gate <branch> <sha|HEAD> PASS|
 (BLOCKED, N/A and a light or standard PASS need a reason; tiers: `references/testing-strategy.md`
 § Size the checks to the change). Stop blocks once per set of open pushes; a newer head re-opens it.
 
-**Two shortfalls, two different homes.** An ask that was ratified and not built is a Not-met
-criterion and is closed the way any gap is, by
+**Two shortfalls, two different homes.** A raw-ask clause, or a ratified criterion, that was not
+built is a Not-met criterion and is closed the way any gap is, by
 `/sk:ship-report-and-ensure-correct-user-system-journey`. An ask that never reached the ledger, or a
 ledger nothing consulted, is a config fault: repair it under
 `rules/self-healing-config.md`. Never route the first into a config change or the second into code.
