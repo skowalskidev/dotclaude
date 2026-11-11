@@ -76,8 +76,13 @@ case "$MODE" in note|gate) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
 jf() { printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null; }
 
 SID="$(jf '.session_id' | tr -cd '[:alnum:]._-')"
-# `note` runs from the session's own shell with no payload, so it reads the id from the environment.
-[ -n "$SID" ] || SID="$(printf '%s' "${CLAUDE_CODE_SESSION_ID:-}" | tr -cd '[:alnum:]._-')"
+# `note` and `gate` run from the session's own shell with no payload, so they read the id from the
+# environment. Every other mode takes it from its payload only: a test or tool subprocess inherits the
+# live session's CLAUDE_CODE_SESSION_ID, and reading it there let a temp-repo test re-anchor the live
+# session's record (the fix for a nested-worktree ask that opened a second ledger and hid a standing merge).
+case "$MODE" in note|gate)
+  [ -n "$SID" ] || SID="$(printf '%s' "${CLAUDE_CODE_SESSION_ID:-}" | tr -cd '[:alnum:]._-')" ;;
+esac
 [ -n "$SID" ] || SID="unknown"
 
 LEDGER=""
@@ -136,15 +141,17 @@ resolve() {
   [ -n "$cwd" ] || cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
   [ -d "$cwd" ] || return 1
 
-  root="$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null)" || return 1
+  # One session, one ledger, keyed by session id and anchored where the session started: a shell
+  # that moved anywhere, a nested worktree included, still reads and writes that root's ledger.
+  # bin/session-root.sh owns the rule; task-intake.sh and workflow-dashboard.py ask it too.
+  root=""
+  if [ "$SID" != "unknown" ] && [ -x "$CFG_ROOT/bin/session-root.sh" ]; then
+    root="$("$CFG_ROOT/bin/session-root.sh" "$SID" "$cwd" 2>/dev/null)"
+  fi
+  [ -n "$root" ] && [ -d "$root" ] || root="$cwd"
+  root="$(git -C "$root" rev-parse --show-toplevel 2>/dev/null)" || return 1
   [ -n "$root" ] || return 1                                  # not a git repo: routine, no fix
   root="$(cd -P "$root" 2>/dev/null && pwd -P)" || return 1
-  # One session, one ledger: a shell that moved into a worktree nested under the session's own root
-  # still belongs to that root. bin/session-root.sh owns the rule; task-intake.sh asks it too.
-  if [ "$SID" != "unknown" ] && [ -x "$CFG_ROOT/bin/session-root.sh" ]; then
-    kept="$("$CFG_ROOT/bin/session-root.sh" "$SID" "$cwd" 2>/dev/null)"
-    [ -n "$kept" ] && [ -d "$kept" ] && root="$kept"
-  fi
   [ "$root" = "$(cd -P "$HOME" 2>/dev/null && pwd -P)" ] && return 1   # $HOME is not a project
 
   # The config repo is PUSHED to GitHub, and `git check-ignore` returns 0 for any path inside it

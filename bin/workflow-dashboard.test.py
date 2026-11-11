@@ -17,6 +17,8 @@ import tempfile
 import unittest
 
 DASHBOARD_SCRIPT = Path(__file__).with_name('workflow-dashboard.py').resolve()
+# A CLI run that inherits the live session's id would resolve that session's root and touch its plan.
+os.environ.pop('CLAUDE_CODE_SESSION_ID', None)
 spec = importlib.util.spec_from_file_location('dashboard', DASHBOARD_SCRIPT)
 d = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(d)
@@ -108,6 +110,28 @@ def stop_fake_app(server, thread):
 
 
 class DashboardTests(unittest.TestCase):
+    def test_init_and_link_from_a_nested_worktree_reuse_the_session_plan(self):
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td).resolve()
+            root, nested = base / 'repo', base / 'repo' / '.context' / 'build' / 'wt2'
+            root.mkdir()
+            git = ['git', '-c', 'user.email=t@example.invalid', '-c', 'user.name=t']
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            subprocess.run([*git, '-C', str(root), 'commit', '-q', '--allow-empty', '-m', 'init'], check=True)
+            nested.parent.mkdir(parents=True)
+            subprocess.run(['git', '-C', str(root), 'worktree', 'add', '-q', str(nested), '-b', 'wt2'],
+                           check=True, capture_output=True)
+            env = {**os.environ, 'CLAUDE_CODE_SESSION_ID': 'nested-session', 'CLAUDE_PROJECT_DIR': str(root),
+                   'CLAUDE_SESSION_ROOT_DIR': str(base / 'roots')}
+            outputs = [subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), command, '--root', str(where)],
+                                      capture_output=True, text=True, env=env, cwd=where)
+                       for command, where in (('init', root), ('init', nested), ('link', nested))]
+            for cli in outputs:
+                self.assertEqual(cli.returncode, 0, cli.stderr)
+            self.assertIn('DASHBOARD_STATUS=reused', outputs[1].stdout)
+            self.assertIn('DASHBOARD_PATH=' + str(root / '.context'), outputs[2].stdout)
+            self.assertEqual(list((nested / '.context').glob('*-plan.md')) if (nested / '.context').exists() else [], [])
+
     def test_analysis_lifecycle_is_preserved_and_needs_no_extra_judge(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

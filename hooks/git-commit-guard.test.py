@@ -13,12 +13,18 @@ heredoc bodies masked. Widen it back into a text match and these fail first.
 """
 
 import json
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
 GUARD = Path(__file__).parent / "git-commit-guard.py"
+CFG = GUARD.parent.parent
+# Every hook run gets a throwaway session-root store and never the live session's identity: a guard
+# run inheriting CLAUDE_CODE_SESSION_ID once re-anchored the live session's record to a temp repo.
+SESSION_ROOTS = tempfile.mkdtemp(prefix="guard-test-session-roots-")
 PUSH = "git " + "push"            # assembled so this file's own source is never a test case
 COMMIT = "git " + "commit"
 
@@ -327,8 +333,12 @@ def repo(root: Path, name: str, branch: str) -> Path:
 
 
 def clean_env() -> dict:
-    return {k: v for k, v in __import__("os").environ.items()
-            if k not in ("CLAUDE_ALLOW_MAIN_COMMIT", "CLAUDE_ALLOW_PR_MERGE", "CLAUDE_ALLOW_COMMIT_M")}
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("CLAUDE_ALLOW_MAIN_COMMIT", "CLAUDE_ALLOW_PR_MERGE", "CLAUDE_ALLOW_COMMIT_M",
+                        "CLAUDE_CODE_SESSION_ID", "CLAUDE_PROJECT_DIR", "AGENT_DELEGATED_WORKER",
+                        "CLAUDE_INTENT_LEDGER", "CLAUDE_INTAKE_GATE")}
+    env["CLAUDE_SESSION_ROOT_DIR"] = SESSION_ROOTS
+    return env
 
 
 def git_out(cwd: Path, *args: str) -> str:
@@ -341,6 +351,59 @@ def run_cases(group: str, cases: list, home: Path, failures: list) -> None:
         reason = run(cwd, command, home)
         if bool(reason) != denied:
             failures.append(f"{group}: {label}: got {reason[:160]!r}")
+
+
+def session_anchor(tmp: Path, own_home: Path, failures: list) -> int:
+    """One session, one record: intake from root A, then an ask from a worktree nested under A with the
+    same session id, after a stray same-id call from a since-deleted directory. The ask lands in A's
+    ledger and plan, and the guard run from the nested worktree sees A's standing merge (the fix for a
+    `cd` into a nested worktree that opened a second ledger and falsely blocked a standing merge)."""
+    sid, passes = "anchor-session", 0
+    root = repo(tmp, "anchor-root", "feat-b")
+    git_out(root, "remote", "add", "origin", "git@github.com:acme/web.git")
+    nested = root / ".context" / "build" / "wt2"
+    nested.parent.mkdir(parents=True)
+    git_out(root, "worktree", "add", "-q", str(nested), "-b", "wt2")
+    exclude = Path(git_out(root, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "info" / "exclude"
+    exclude.write_text(".context/\n")
+    stray = repo(tmp, "anchor-stray", "feature")
+    bin_dir = tmp / "fake-bin"  # turn_scope wrote the fake gh
+    env = {**clean_env(), "HOME": str(own_home), "CLAUDE_CONFIG_ROOT": str(CFG), "CLAUDE_PROJECT_DIR": str(root),
+           "PATH": f"{bin_dir}:{os.environ.get('PATH', '')}"}
+
+    def submit(cwd: Path, prompt: str) -> None:
+        payload = json.dumps({"session_id": sid, "cwd": str(cwd), "prompt": prompt})
+        for hook in ("task-intake.sh", "intent-ledger.sh"):
+            subprocess.run(["bash", str(CFG / "hooks" / hook), "submit"], input=payload, text=True,
+                           capture_output=True, cwd=cwd, env=env)
+
+    submit(root, "merge and deploy all when they're ready")
+    subprocess.run(["bash", str(CFG / "bin" / "session-root.sh"), sid, str(stray)], capture_output=True,
+                   env={**env, "CLAUDE_PROJECT_DIR": str(stray)})
+    shutil.rmtree(stray)
+    submit(nested, "investigate the cause of it taking so long")
+    ledger = root / ".context" / "intent-ledger.md"
+    text = ledger.read_text() if ledger.exists() else ""
+    checks = [
+        ("both asks land in the root's ledger", "when they're ready" in text and "taking so long" in text),
+        ("the nested worktree gets no ledger", not (nested / ".context" / "intent-ledger.md").exists()),
+        ("the nested worktree gets no plan", not list((nested / ".context").glob("*-plan.md"))),
+        ("the root keeps one plan", len(list((root / ".context").glob("*-plan.md"))) == 1),
+    ]
+    state = own_home / ".claude" / ".intent-ledger"
+    state.mkdir(parents=True, exist_ok=True)
+    (state / f"{sid}.pushes").write_text(f"{root}\tfeat-b\t{'b' * 40}\n")
+    payload = {"tool_name": "Bash", "session_id": sid, "cwd": str(nested),
+               "tool_input": {"command": "gh pr merge 1186 -R acme/web --auto"}}
+    p = subprocess.run([sys.executable, str(GUARD)], input=json.dumps(payload), text=True,
+                       capture_output=True, cwd=nested, env=env)
+    checks.append(("the guard in the nested worktree sees the root's standing merge", not p.stdout.strip()))
+    for label, ok in checks:
+        if ok:
+            passes += 1
+        else:
+            failures.append(f"SESSION ANCHOR: {label}" + ("" if "guard" not in label else f": {p.stdout[-200:]!r}"))
+    return passes
 
 
 def run(cwd: Path, command: str, home=None, session="", transcript=None, bin_dir=None) -> str:
@@ -402,6 +465,7 @@ def main() -> int:
         else:
             failures.append("OWN WORDS: a session with no recorded ask must be denied")
         passes += turn_scope(Path(tmp), own_home, failures)
+        passes += session_anchor(Path(tmp).resolve(), own_home, failures)
         home = Path(tmp) / "home"
         home.mkdir()
         config = repo(home, ".claude", "main")
@@ -520,6 +584,7 @@ def main() -> int:
         print(f)
     passes -= len([f for f in failures if f.startswith("CONFIG ")])
     print(f"{passes} pass, {len(failures)} fail")
+    shutil.rmtree(SESSION_ROOTS, ignore_errors=True)
     return 1 if failures else 0
 
 

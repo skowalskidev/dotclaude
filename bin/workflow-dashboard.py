@@ -209,6 +209,22 @@ def runtime_receipt_path(plan):
     return plan.with_name(plan.stem.removesuffix('-plan') + '-dashboard.runtime.json')
 
 
+def session_root(root):
+    """The session's anchored root when this runs in a session shell (CLAUDE_CODE_SESSION_ID set), so
+    `init --root .` or `link` from a nested worktree reuses the session's one plan instead of opening
+    a second. bin/session-root.sh owns the rule; `root` unchanged outside a session."""
+    sid = os.environ.get('CLAUDE_CODE_SESSION_ID', '')
+    script = Path(__file__).with_name('session-root.sh')
+    if not sid or not script.is_file():
+        return root
+    try:
+        found = subprocess.run(['bash', str(script), sid, str(Path(root).resolve())],
+                               capture_output=True, text=True, timeout=5).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return root
+    return Path(found) if found and Path(found).is_dir() else root
+
+
 def workspace_root(root):
     root = Path(root).resolve()
     return next((candidate for candidate in (root, *root.parents) if (candidate / '.git').exists()), root)
@@ -917,6 +933,8 @@ def main():
     parser.add_argument('--expect-pid', type=int)
     args = parser.parse_args()
     try:
+        if args.command in ('init', 'link'):
+            args.root = session_root(args.root)
         if args.command == 'init':
             require(args.plan is None and args.output is None,
                     'init chooses its plan and canonical dashboard paths')

@@ -443,6 +443,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon sees truthful task progress and its full durable record through one reusable live and portable viewer.",
         "purpose": "Shared plan discovery, narrative projection, state validation, atomic update and HTML serving engine.",
         "criteria": [
+            "init and link resolve --root through bin/session-root.sh when CLAUDE_CODE_SESSION_ID is set, so a nested-worktree shell reuses the session's one plan.",
             "Project narrative plan sections plus computed artifacts and remaining actions into Session record without storing a duplicate.",
             "Atomically initialize one ordinary plan and canonical dashboard in an empty task workspace; reuse its active record on repeated or concurrent intake.",
             "Seed and retain a deferred after-run analysis item, migrate active plans on intake, and exempt only this reserved artifact-free lifecycle section from independent judgement.",
@@ -2281,9 +2282,10 @@ CONTRACTS: dict[str, dict] = {
             "it with the refusals, the redaction, and planning-and-tracking.md's ban on promoting "
             "verbatim prompts out of the worktree. logs/intent-reconcile.jsonl keeps the ORIGINAL "
             "posture: counts and enums only, never prompt text.",
-            "One ledger per session: resolves its root through bin/session-root.sh, so a shell that "
-            "moved into a worktree nested under the session's root still appends to that root's "
-            "ledger. `note` reads the session id from CLAUDE_CODE_SESSION_ID because it has no payload.",
+            "One ledger per session: resolves its root through bin/session-root.sh before the cwd, so a "
+            "shell that moved anywhere, a nested worktree included, still reads and appends to the "
+            "session's anchored ledger. Only `note` and `gate` read the session id from "
+            "CLAUDE_CODE_SESSION_ID; every other mode takes it from its payload alone.",
             "`note` exits 2 when its source file is the ledger (same inode, any spelling or symlink): "
             "`cat ledger >> ledger` never ends and once grew a ledger to 170 GB. The refusal also "
             "spares the ledger from the `rm -f` of the source.",
@@ -2456,13 +2458,16 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/session-root.sh": {
         "mission": "A session keeps ONE plan and ONE ledger for its whole run, so Simon never finds his asks split across two records.",
-        "purpose": "Remembers the first git root a session resolved and answers it while the shell is "
-                   "in that root or a worktree nested under it.",
+        "purpose": "Keys each session's record root by session id, anchored to the git root the session "
+                   "started in, and answers it for every later cwd.",
         "criteria": [
-            "The single owner of the rule: hooks/task-intake.sh and hooks/intent-ledger.sh both ask "
-            "it and neither re-derives it.",
-            "A shell inside a worktree nested under the remembered root answers the remembered root. "
-            "A shell outside it re-homes the session to the new git root.",
+            "The single owner of the rule: hooks/task-intake.sh, hooks/intent-ledger.sh (and through "
+            "its latest-ask the git-commit-guard ledger lookup) and bin/workflow-dashboard.py init/link "
+            "ask it; none re-derives it.",
+            "The first root is written once and returned for every later cwd, inside or outside it; "
+            "no later call moves it.",
+            "Anchors on CLAUDE_PROJECT_DIR's git root when set, else the first call's cwd; a "
+            "remembered root that no longer exists re-anchors the same way.",
             "A session that STARTS in a nested worktree owns that worktree: the record is per session id.",
             "An empty session id, or a directory outside git, is answered without writing a record.",
             "Strips a session id to letters, digits, dot, underscore and hyphen before using it as a "
@@ -2475,7 +2480,8 @@ CONTRACTS: dict[str, dict] = {
         "mission": "A change to the session-root rule cannot split a session's plan or merge two sessions' records without a failing check.",
         "purpose": "Checks for session-root.sh against a temp repository with a nested worktree.",
         "criteria": [
-            "Asserts the nested-worktree case, the starts-nested case and the re-home case separately.",
+            "Asserts the nested-worktree case, the starts-nested case, the move-outside case and the "
+            "stray-call-from-a-deleted-directory case separately.",
             "Asserts a crafted session id cannot write outside the state directory.",
         ],
     },

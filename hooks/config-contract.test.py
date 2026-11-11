@@ -42,6 +42,10 @@ import subprocess
 import sys
 import tempfile
 import time
+
+# Never act for the live session: a hook or CLI run inheriting its id resolves and writes its records.
+os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+os.environ.pop("CLAUDE_PROJECT_DIR", None)
 from pathlib import Path
 
 # The checkout this file sits in. A worktree then tests its own files, never the live config.
@@ -155,9 +159,10 @@ CRITERIA: list[tuple[str, str]] = [
 
     # --- Shared machine and one record per session --------------------------------------
     ("session-keeps-one-root-in-nested-worktrees",
-     "A session keeps ONE plan and ONE ledger when its shell moves into a worktree nested under its "
-     "own root. Both hooks ask bin/session-root.sh, so a prompt or a note sent from the nested "
-     "worktree lands in the session's root and opens no second record there."),
+     "A session keeps ONE plan and ONE ledger however its shell moves. The record is keyed by session "
+     "id and anchored where the session started: both hooks, the merge guard's ledger lookup and the "
+     "dashboard CLI ask bin/session-root.sh, so a prompt or a note from a nested worktree lands in the "
+     "session's root and opens no second record there."),
     ("native-slot-serializes-native-work-across-sessions",
      "The compatibility frontend uses the shared capacity leases, defers conflicts with exit 75, "
      "and a native project hears the protocol while an idle web project stays silent."),
@@ -820,7 +825,8 @@ def check_session_keeps_one_root_in_nested_worktrees() -> None:
         other = {"cwd": str(nested), "session_id": "root-contract-other",
                  "prompt": "An ask from a session that started in the nested worktree."}
         r = subprocess.run(["bash", str(hook), "submit"], input=json.dumps(other),
-                           text=True, capture_output=True, cwd=nested, env=env)
+                           text=True, capture_output=True, cwd=nested,
+                           env={**env, "CLAUDE_PROJECT_DIR": str(nested)})
         check((nested / ".context" / "intent-ledger.md").exists(),
               "A session that STARTED in the nested worktree lost its own ledger.")
         check("started in the nested worktree" not in ledger.read_text(),
