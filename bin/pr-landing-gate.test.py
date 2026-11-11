@@ -262,6 +262,21 @@ check(gate.check_body(new_only, HTML, 0, []) == [], "A stated no-pre-existing-fi
 check("Regression check" in rows(gate.check_body(new_only, HTML, 0, MODIFIED)),
       "A no-pre-existing-file claim passed while the PR modifies existing files")
 
+# The table carries the base-vs-head evidence the rule names, for every modified file's row.
+two_col = section(PASSING, "Regression check",
+                  "## Regression check\n\n| File | Result |\n|---|---|\n"
+                  "| `src/settings/Limit.tsx` | INTENDED: monthly limit wording |\n"
+                  "| `src/auth/Gate.tsx` | PASS |\n\n")
+check(any("Base-vs-head evidence column" in m for m in gate.check_body(two_col, HTML, 0, MODIFIED)),
+      "A regression table with no evidence column passed")
+blank = PASSING.replace("| buttons 0 px from the viewport bottom on base and head | PASS |", "|  | PASS |")
+check(any("no base-vs-head evidence for" in m and "src/auth/Gate.tsx" in m
+          for m in gate.check_body(blank, HTML, 0, MODIFIED)),
+      "A modified file's row with an empty evidence cell passed")
+dash = PASSING.replace("| buttons 0 px from the viewport bottom on base and head | PASS |", "| - | PASS |")
+check(any("no base-vs-head evidence for" in m for m in gate.check_body(dash, HTML, 0, MODIFIED)),
+      "A modified file's row with a dash for evidence passed")
+
 # Unresolved review threads fail.
 check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
 
