@@ -693,13 +693,17 @@ before reporting done.** "Merged" is not "live".
 3. **Changed behaviour.** Run the PR's Deploy TLDR `Smoke:` line on production. Keep it read-only: no
    production write without Simon's per-write yes (`rules/connectors.md`), no paid call without a yes
    (`rules/spend-approval.md`).
+   When the change launches or switches on a member-facing feature, the smoke also opens its entry
+   point as a signed-in member on each landing screen (`references/user-journey-review.md`); a public
+   endpoint answering is not that proof.
 4. **Verdict.** Report pass or fail with the evidence (run url, build id, smoke output). On a fail,
    report it with the PR's `Rollback:` line and diagnose per step 3 above.
 
 **DO hand Simon only the step that needs a device or account only he has** (e.g. a real phone), after
 running every mechanically checkable step, with that step's expected result.
 TEST: a deploy hand-back cites the deploy run url and conclusion for the merge sha, the live build
-evidence, and the smoke result; a hand-back with only "merged" or "queue green" fails.
+evidence, and the smoke result (one per landing screen for a switch-on); a hand-back with only
+"merged" or "queue green" fails.
 
 The loop exists because the interesting failures only appear here: environment variables that are not
 set, a runtime that differs from local, a build step that drops an asset, a permission that was never

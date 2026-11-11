@@ -57,6 +57,14 @@ and flagged as blocking.**
   from applied-by-hand to applied-by-the-deploy, which made one of the PR's migrations unsafe to ship
   in the same release and its Deploy TLDR wrong. TEST: each merge of the default branch has that diff
   listed, and a changed rule has a verdict against the PR.
+- **DO list every database object the default branch's new migrations create, drop or replace after
+  each merge or rebase onto it** (`git diff --name-only ORIG_HEAD HEAD -- <migrations dir>`, then each
+  statement's target), grep the PR's own migrations for each name, and apply the PR's migrations on top
+  of the default branch locally. A clean text merge proves nothing about a patch that names the old
+  object (an `alter`, a grant, a `::regprocedure` signature). TEST: each merge of the default branch
+  lists the objects its migrations touched and a verdict per hit (the fix for a PR patch addressing a
+  function by a signature the default branch had just replaced; the merge was clean, the deploy would
+  have failed).
 - **Review the ENTIRE assembled diff, exhaustively — every changed file against current master, not
   a sample and not only the files that conflicted.** Take the full `git diff origin/master...HEAD`
   (the whole set, every hunk) and read it the way `/sk:ship-review` reads a change, because the

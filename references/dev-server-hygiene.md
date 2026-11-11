@@ -287,8 +287,8 @@ simulator run included; a stack start takes ordinary admission for every owner. 
 a lagging one-minute average that reads low while the CPU is pegged and high long after, so idle is the
 saturation measure and load only adds a signal while idle confirms it. TEST: load 200 at 57% idle prints
 `GO`; load 200 at 10% idle prints `DEFER`; memory warning or critical with CPU headroom admits. Simulator admission additionally defers when any device is Booted, Booting or
-Shutting Down outside the lease. A failed CPU or load probe is unknown, never permission to
-proceed, and exits 75 like every other deferral. TEST:
+Shutting Down outside the lease. A failed CPU, load or `simctl` probe is unknown, never permission
+to proceed, and exits 75 like every other deferral (the fix for an unreadable `simctl` that exited 1 with no retry). TEST:
 a rejected command has not started and the small work remains runnable.
 
 DO sample CPU and load once per admission attempt; evaluate ordinary and priority decisions

@@ -20,6 +20,12 @@ journey review asks whether the person on the other end can get through it.
 - At every step note four things: what they DO, what they SEE, what they'd THINK, and where they could
   get STUCK. Drop-off happens where cognitive load spikes, where value isn't obvious, or where they
   feel lost.
+- DO check every new entry point (button, pill, banner, menu row) on each screen a member can land on:
+  list the landing screens (first-run result, the main screen, deep links, each platform) and open each
+  as the entry point's audience. A landing screen without it is a finding unless stated intended.
+  TEST: the report has one row per landing screen for each new entry point (the fix for a promotion
+  entry wired into the main screen only, while most new members landed on the first-run result screen;
+  found in production).
 - Enumerate every touchpoint. A step that silently assumes earlier state which was never set up is a
   gap, and it is invisible to anyone who already knows the feature.
 - Before walking a flow that differs per person or per device, apply

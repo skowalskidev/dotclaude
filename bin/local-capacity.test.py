@@ -1219,9 +1219,9 @@ class PriorityTests(unittest.TestCase):
             patch.start()
             self.addCleanup(patch.stop)
 
-    def cli(self, *args, load=0, host=None):
+    def cli(self, *args, load=0, host=None, simctl='{"devices":{}}'):
         self.root.mkdir(mode=0o700, exist_ok=True)
-        (self.root / "booted.json").write_text('{"devices":{}}')
+        (self.root / "booted.json").write_text(simctl)
         (self.root / "pressure.json").write_text(json.dumps({"load": load, "cores": 8}))
         (self.root / "host.json").write_text(json.dumps(host or {}))
         env = dict(os.environ, LOCAL_CAPACITY_SIMCTL_JSON=str(self.root / "booted.json"),
@@ -1229,6 +1229,17 @@ class PriorityTests(unittest.TestCase):
                    LOCAL_CAPACITY_HOST_JSON=str(self.root / "host.json"))
         return subprocess.run([sys.executable, str(SCRIPT), "--root", str(self.root), *args],
                               env=env, capture_output=True, text=True, timeout=20)
+
+    def test_unreadable_simctl_defers_run_with_75_and_never_launches(self):
+        """A failed simulator probe is unknown host state: exit 75 like the CPU probe, never 1 or a launch."""
+        marker = Path(self.tmp.name).resolve() / "started"
+        result = self.cli("run", "--owner", "alpha", "--wait-min", "0", "--",
+                          sys.executable, "-c", "from pathlib import Path; Path(%r).touch()" % str(marker),
+                          host={"idle": 90}, simctl="not json")
+        self.assertEqual(result.returncode, gate.BUSY, result.stderr)
+        self.assertIn("simulator probe failed", result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertIsNone(gate.read_state(self.root))
 
     def hold_bridge(self):
         lock_path = Path(self.tmp.name).resolve() / "old.lock"

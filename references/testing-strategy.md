@@ -620,6 +620,14 @@ container's scroll height. A difference above 2 CSS px is a finding unless state
 screens use their test frames under § Native simulator suites. Mount the part as its callers do first:
 `references/code-best-practices.md` § Mount a shared part the way its existing callers do.
 
+**DO add an independent pay-path pass when the diff touches code a pay path runs through** (paywall,
+onboarding, checkout, a payment webhook, an entitlement grant), at every tier. A reviewer who did not
+write the diff lists every pay path, proves each behaves as on the base with the feature switched off
+by a test passing on base and head, and writes the test for any path without one; each path is a row
+in the table below. TEST: every pay path the diff reaches has a row naming its test (the fix for a
+flag-gated change whose pay-path pass found an unbounded session read holding payers before the paid
+state moved on, under green suites).
+
 **DO post the result in the PR body under `## Regression check`:** a table
 `File | Hunks | Existing callers checked | Base-vs-head evidence | Result`, one row per modified
 pre-existing file, Result `PASS` (outside paths unchanged) or `INTENDED: <change>`; then one row per
