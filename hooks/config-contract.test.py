@@ -1417,6 +1417,23 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         check(stop() == "", "The gate block repeated for an unchanged push set.")
         check(stop(active=True) == "", "The gate block fired twice for one snapshot on a continuation.")
 
+        # The pushed head comes from the remote branch, not from the checkout the hook resolves: a
+        # delegated shell that cd'ed in an earlier call reports the session's cwd, whose HEAD is another
+        # commit (the fix for a push from an agent's worktree recorded as the main checkout's HEAD).
+        bare, other = base / "remote.git", base / "other"
+        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True, capture_output=True)
+        git(repo, "remote", "add", "origin", str(bare))
+        git(repo, "worktree", "add", "-q", "-b", "feature/remote", str(other))
+        pushed = commit(other, "d.txt")
+        git(other, "push", "-q", "origin", "HEAD:feature/remote")
+        before = record_count()
+        push("git push origin HEAD:feature/remote")
+        lines = pushes.read_text().splitlines() if pushes.exists() else []
+        check(record_count() == before + 1 and lines and lines[-1].split("\t")[1:] == ["feature/remote", pushed],
+              "A push resolved from the wrong checkout recorded that checkout's HEAD, not the remote head: "
+              + (lines[-1] if lines else "no record"))
+        gate("feature/remote", pushed, "N/A", "light", "contract fixture")
+
         # Gate rules: PASS records the head; BLOCKED and N/A need a reason; a bad status is refused.
         check(gate("feature/x", "HEAD", "MAYBE").returncode == 2, "An unknown gate status was accepted.")
         check(gate("feature/x", "HEAD", "N/A").returncode == 2, "An N/A gate without a reason was accepted.")

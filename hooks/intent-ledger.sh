@@ -222,7 +222,11 @@ push_branch() { # push_branch ROOT DST — print the pushed branch, or fail when
 record_push() { # record_push ROOT SRC DST
   b="$(push_branch "$1" "$3")" || return 0
   src="${2#+}"; [ -n "$src" ] || src=HEAD
-  sha="$(git -C "$1" rev-parse --verify -q "$src^{commit}" 2>/dev/null)" || return 0
+  # The remote branch is the pushed head. A delegated shell that cd'ed in an earlier call reports the
+  # session's cwd, so a local rev-parse can name another checkout's commit; the local ref is only the
+  # fallback when the remote cannot be read.
+  sha="$(GIT_TERMINAL_PROMPT=0 git -C "$1" ls-remote origin "refs/heads/$b" 2>/dev/null | cut -f1 | head -n 1)"
+  [ -n "$sha" ] || sha="$(git -C "$1" rev-parse --verify -q "$src^{commit}" 2>/dev/null)" || return 0
   printf '%s\t%s\t%s\n' "$1" "$b" "$sha" >> "$PUSHES" 2>/dev/null
 }
 
