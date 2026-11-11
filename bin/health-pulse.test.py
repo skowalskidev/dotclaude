@@ -324,6 +324,46 @@ with tempfile.TemporaryDirectory() as tmp:
         os.environ.pop("STRIPE_MONITOR_KEY_TEST", None)
         os.environ.pop("TWILIO_SECRET_TEST", None)
 
+# A vendor's one-off 5xx is retried like a rate limit; an auth failure or a lasting error is not hidden.
+class _Resp(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _scripted(codes):
+    calls = []
+
+    def urlopen(req, timeout=None):
+        code = codes[min(len(calls), len(codes) - 1)]
+        calls.append(code)
+        if code != 200:
+            raise hp.urllib.error.HTTPError(req.full_url, code, "err", {}, io.BytesIO(b"{}"))
+        return _Resp(b'{"ok": 1}')
+    return urlopen, calls
+
+
+_real_urlopen, _real_sleep = hp.urllib.request.urlopen, hp.time.sleep
+_slept = []
+hp.time.sleep = _slept.append
+try:
+    import contextlib
+    with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()):
+        ctx = ctx_for({}, tmp)
+        for codes, want_ok, want_calls in (([500, 200], True, 2), ([502, 503, 200], True, 3),
+                                           ([500, 500, 500], False, 3), ([401, 200], False, 1)):
+            hp.urllib.request.urlopen, calls = _scripted(codes)
+            try:
+                ok = ctx.http("https://api.example.test/x", {}) == {"ok": 1}
+            except hp.ProbeError:
+                ok = False
+            expect(ok == want_ok and len(calls) == want_calls,
+                   f"HTTP {codes}: ok={ok} after {len(calls)} calls, want ok={want_ok} after {want_calls}")
+finally:
+    hp.urllib.request.urlopen, hp.time.sleep = _real_urlopen, _real_sleep
+
 # A rate-limited signature read must not crash the whole Supabase probe (seen on 2026-11-09).
 with tempfile.TemporaryDirectory() as tmp:
     ctx = ctx_for({"supabase": {"ref": "a" * 20, "tokenEnv": "SB"}}, tmp, {"SB": "sbp_" + "q" * 40})
