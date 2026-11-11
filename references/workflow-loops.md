@@ -720,6 +720,13 @@ unjudgeable`, evidence and the largest actionable gap. Require the implementatio
 unjudgeable comparisons do not pass. Disclose limited blinding when branding identifies a source.
 For an acceptance target, use binary met/not-met checks and record `comparison=acceptance` in the
 judge evidence; never call that a blind A/B win.
+DO state, in the first brief for a heuristic (free-text parsing, matching, ranking), which error
+direction fails a criterion and what input population counts: e.g. a false positive that makes the
+product say something false fails; a false negative that keeps today's behaviour passes; inputs a real
+user would plausibly type. DON'T send an open-ended "find defects" brief for one: each fresh judge
+constructs a newer edge case and the loop never converges. TEST: every heuristic judge brief names its
+failing error direction and input population from round 1 (the fix for a month reader that took seven
+review rounds, five of them on constructed inputs, and passed once the bar was stated).
 DO judge a section built from a design source against its measurement report from § Build from a
 supplied design source: not-met while the report is not PASS, whatever the side-by-side looks like.
 
