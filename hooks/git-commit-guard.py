@@ -10,10 +10,9 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      green, and it runs only when the user's OWN words this turn (every ask hooks/intent-ledger.sh
      recorded since his newest typed turn-opening prompt, queued mid-turn ones included) say "merge"
      with no later halt, and name the PR's number, or cover it as an open PR this session pushed. A
-     standing CONDITIONAL instruction earlier in the session ("merge and deploy all when they're
-     ready", "merge 12 once CI is green", or a plain "merge all") also covers it, with no later halt,
-     but only while the PR
-     is open, not a draft, mergeable and every check has passed at the moment of the merge. There
+     standing instruction earlier in the session ("merge and deploy all when they're ready", "merge
+     12 once CI is green", or a plain "merge all") also covers it, with no later halt, but only while
+     the PR is open, not a draft, mergeable and every check has passed at the moment of the merge. There
      is no override flag: a flag the model sets itself let two PRs merge off a model-written "Merge
      #N?" answered "1 yes" and off "this is priority, finish it". `gh api` merge/enqueue/auto-merge
      calls are denied outright.
@@ -631,8 +630,8 @@ def standing_merge(payload: dict, words: list, cwd) -> tuple:
 
 
 def merge_allowed(payload: dict, words: list, cwd) -> tuple:
-    """(allowed, why_not): this turn's words authorize the merge, or a standing conditional merge
-    instruction from this session does and its condition holds now."""
+    """(allowed, why_not): this turn's words authorize the merge, or a standing merge instruction
+    from this session does and the PR is ready now."""
     if turn_merge_allowed(payload, words, cwd):
         return True, ""
     return standing_merge(payload, words, cwd)
@@ -742,8 +741,7 @@ def main() -> int:
                 "it as an open PR this session pushed (no number, or all/both/them), or naming no PR "
                 "for one other PR; or on a standing merge an earlier message this session gave "
                 "(\"merge ... when ready / once CI is green\", or \"merge all\") covering it, when no "
-                "later message "
-                "said stop/hold/wait/cancel or not to merge/deploy, and the PR is open, not a draft, "
+                "later message said stop/hold/wait/cancel or not to merge/deploy, and the PR is open, not a draft, "
                 "mergeable and every check passed. A standing instruction lasts for this session "
                 "only. "
                 + (f"A standing instruction covers this PR, but it is not ready: {why_not}. Wait for "
