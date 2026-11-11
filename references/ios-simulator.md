@@ -306,6 +306,10 @@ DO `axe type` each iframe payment field exactly once and screenshot it before th
 (backspace) and `axe key-combo` never reach the frame, so a wrong digit stays until Simon deletes it.
 Move between those fields with the keyboard toolbar's up/down arrows; a tap on another field while one
 is focused does not always move focus.
+DO hand Simon an input edit AXe cannot complete (a deletion, a correction, a key that never reaches
+the frame) in the next message after the first failed attempt, naming the field and the exact fix.
+DON'T retry other keys, combos or taps on that input. TEST: no input has a second failed AXe attempt
+before its hand-off (the fix for repeated delete attempts on a payment field AXe keys never reach).
 DO hand Simon digits for iOS Safari in the simulator on the clipboard (the host pasteboard syncs, so
 he presses Cmd+V) or tell him to press Cmd+K first for the on-screen keyboard: Mac-keyboard digits
 switched Safari tabs mid-walk and lost the walk tab.
