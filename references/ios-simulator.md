@@ -286,10 +286,18 @@ denies them with error 1002 unless the host app holds an Accessibility grant. Wh
 ask for that one-time grant (System Settings > Privacy & Security > Accessibility > the host app) in
 the walk's opening message, never mid-step. (the fix for three "fill in for me" asks, each answered
 with a clipboard paste after a denied keystroke, while AXe sat installed and untried.)
+DO prove each cross-origin iframe field separately before offering to fill it: payment fields
+(card number, expiry, CVC in Stripe Elements or any embedded checkout) and captcha frames. Tap the
+field, `axe type` into it, and screenshot the typed value; a tap's success line is not focus, and
+`describe-ui` does not expose these fields. Until that proof exists, the step message puts the card
+number on the clipboard and tells Simon "Cmd+V in Card number" up front. (the fix for a "fill" offered
+for a Stripe card form in iOS Safari: the tap reported success, the field took no focus, `axe type`
+entered nothing, and the clipboard fallback came only after the failed attempt.)
 DO hand Simon digits for iOS Safari in the simulator on the clipboard (the host pasteboard syncs, so
 he presses Cmd+V) or tell him to press Cmd+K first for the on-screen keyboard: Mac-keyboard digits
 switched Safari tabs mid-walk and lost the walk tab.
-TEST: the receipt records the typing driver and its typed-value screenshot before step 1, and no
+TEST: the receipt records the typing driver and its typed-value screenshot before step 1, every
+"fill" offer names only field kinds with a typed-value screenshot (an iframe field its own), and no
 step message asks Simon to type into a field the change did not add.
 
 DON'T hand navigation to Simon because one driver failed; switch driver. A step no driver can reach is
@@ -306,9 +314,14 @@ around scripted YAML flows and its README names no Xcode version support.
 
 DO shut down the device and release its claim as soon as the task's last capture or walk ends, not at
 the end of the session. Leave ONE device booted at hand-back only when Simon asked to look at it, held
-by the leased hold command below, and name its UDID and its stop-file command in the hand-back. TEST:
-after hand-back, `local-capacity.py status` shows this owner on a heavy slot with that simulator, or no
-claim and no booted device for this owner; a booted device with no lease fails.
+by the leased hold command below, and name its UDID and its stop-file command in the hand-back. Each
+walk round's last step is a walk end: touch the hold's stop file then. A pending decision, a possible
+next round or local servers kept up are no reason to hold; the next round starts a fresh hold (one
+took under 3 minutes). TEST: after hand-back, `local-capacity.py status` shows no claim and no booted
+device for this owner, or a hold that traces to Simon's ask to look at the device; a booted device with
+no lease fails. (the fix for a hold kept 2 h 44 min after a walk round's last capture, through two
+hand-backs that asked only questions, on the machine's only simulator slot while a priority session
+waited.)
 
 DO hold a human-facing preview as ONE leased command that waits on a stop file, launched detached
 per `dev-server-hygiene.md` § Waiting on a background job, never as a `run_in_background` task (its
