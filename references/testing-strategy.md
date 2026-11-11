@@ -579,8 +579,9 @@ screens use their test frames under § Native simulator suites. Mount the part a
 pre-existing file, Result `PASS` (outside paths unchanged) or `INTENDED: <change>`; then one row per
 newly mounted shared part naming the caller it mirrored, and one measured row per screen reused in a
 new place. A diff modifying no pre-existing file states that with its reason.
-`bin/pr-landing-gate.py` fails the gate when a modified pre-existing file has no row, a row holds
-neither PASS nor INTENDED, or a row records FAIL.
+`bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
+pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
+INTENDED, or a row records FAIL.
 TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).
