@@ -650,9 +650,13 @@ the old code; both pass on the fix. That split proves the named cause is the dis
 **DON'T write the fix before the repro:** a test written to the fix can pass on both versions. When
 the bug will not reproduce under matched conditions, list each condition tried and report the fix
 as unproven, never root-caused.
+**DO make the repro assert what the user sees, and state that outcome before and after the fix.** A
+fix whose user-visible outcome is the same before and after (the same error, page or message) moved
+a symptom: keep going to the cause the user feels, or name in the hand-back why that outcome stays.
 TEST: a bug-fix hand-back cites the repro failing and the control passing on the old code under
 named user conditions, and both passing on the fix; a missing control or an unnamed condition gap
-is an unproven root cause.
+is an unproven root cause. A before/after table whose user-outcome row reads "same" is not a
+root-cause fix (e.g. a size check aligned with the database while the member still got the 503).
 
 ## Defects first
 
