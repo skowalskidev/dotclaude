@@ -168,6 +168,7 @@ SCENARIOS: list[dict] = [
     {"phrase": "make sure it does what we planned", "expect": "ship-report-and-ensure-correct-user-system-journey"},
     {"phrase": "check it against the acceptance criteria", "expect": "ship-report-and-ensure-correct-user-system-journey"},
     {"phrase": "close the gaps", "expect": "ship-report-and-ensure-correct-user-system-journey"},
+    {"phrase": "check every ask was addressed", "expect": "ship-report-and-ensure-correct-user-system-journey"},
     #
     # ship-check-merge-readiness — assembling a PR + its stack onto current master and driving every
     # open thread to a decisive ship-ready verdict. Distinct phrases (stacked-PR assembly, ship-to-prod-

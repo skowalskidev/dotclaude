@@ -203,6 +203,7 @@ CONTRACTS: dict[str, dict] = {
             "Give every task-bearing session one gauntlet record; capture each new requirement with stable IDs and source references before continuing, without an ordinary-session options interview.",
             "Reconcile every request after tangents, compaction and handoff; continue ready authorized work and retain explicit cancellation decisions and blocked next actions.",
             "State each acceptance criterion as the ask's own routing or scoping clause, quoted near-verbatim from its source message, never a paraphrase that narrows or widens a boundary; flag drift as an interpretation and confirm it before dispatch or verdict.",
+            "Split each ask into clause IDs; keep a complete source log and a when/who/what/why decision log in the plan from intake to hand-back; every brief quotes its clauses, and briefs plus decisions cover every clause of every ask.",
             "Own the same-machine handoff and resume lifecycle as SSOT: a repeatable prepare that stamps a hop-counted manifest, a resolve that maps a pasted dashboard link/html/plan back to its plan, a resume that reuses recorded options, and a manifest that survives normal updates.",
             "Derive the session record, artifact index and remaining-action index from the plan; never create a second task store.",
             "Make link discovery regenerate one canonical offline dashboard, select one active plan over completed history and reject multiple active plans.",
@@ -878,6 +879,7 @@ CONTRACTS: dict[str, dict] = {
             "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
             "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; an unverified cause is written as a hypothesis with its confirming check.",
+            "A brief quotes the raw-ask clauses it serves, per workflow-loops, including a brief built from an investigation's findings.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
             "Never trust a subagent's self-report; verify on disk.",
             "Give each independent deliverable its own isolated worktree worker in parallel; the orchestrator edits no product code, checks head, clean status and owned-file diff on disk, and captures the screen itself.",
@@ -1308,13 +1310,14 @@ CONTRACTS: dict[str, dict] = {
             "Opens with a context line, because Simon reads it cold after days on other work.",
             "States the mismatches between the two journeys explicitly, and says so plainly when "
             "there are none.",
-            "NO BASELINE, NO EDITS AND NO TESTS. With no plan, ticket or acceptance criteria found, "
+            "NO BASELINE, NO EDITS AND NO TESTS. With no ask, plan, ticket or acceptance criteria found, "
             "it reports and asks for one. Inventing criteria and then 'fixing' code to satisfy them "
             "is the worst output it could produce, because it looks exactly like a successful run. "
             "An invented test is that failure with a green tick on it: derived from the code, it "
             "asserts whatever the code already does and reports green forever.",
             "A deliberately dropped, refuted or deferred part is part of the baseline and is never "
             "built back. The verdict names who decided and when.",
+            "Simon's raw-ask clauses are always baseline: every clause gets a verdict, and an unfulfilled one is built or named with its blocker; the invented-criteria guard applies to criteria the agent derives, never to his words.",
             "Consults the living plan (.context/<slug>-plan.md) from "
             "/sk:plan-stable-persistent-dynamic-complete-full-plan as a baseline source when present, per "
             "rules/living-plan.md.",
@@ -1421,6 +1424,7 @@ CONTRACTS: dict[str, dict] = {
             "Preserve planning authorization; use the shared dashboard template and runtime tests, displaying this run's recorded options read-only with no editable selectors or generated start command.",
             "Select current or work-ralph-loop upfront; composed execution reuses confirmed options and has one supervisor owning plan, dashboard and judge.",
             "Detect a handoff first: resume from a pasted dashboard link/html/plan via resolve, reusing the recorded engine and options without a second interview.",
+            "Keep the source log, decision log and clause IDs in the plan from intake to hand-back; every brief quotes the clauses it serves, and step 8 gives every clause of every raw ask a verdict.",
             "Read references/workflow-loops.md at intake on every run and apply its whole shared lifecycle, not only when a stage calls for it.",
             "Run the shared design-source section in references/workflow-loops.md from intake, before any builder is briefed, for any supplied design or pixel-perfect ask; hold each such section at review until its report is PASS, on either engine with the judge off; restate none of the gate.",
             "With the judge on, run the shared judge stage on each built item's revision inside the numbered build stage and route its gaps back to the engine.",
@@ -2117,6 +2121,14 @@ CONTRACTS: dict[str, dict] = {
             "name no PR (one other PR per turn). A plural never covers a PR this session did not "
             "push; no flag the model sets authorizes it, a branch-name target, a failed PR lookup or "
             "a missing ledger denies, and gh api merge/enqueue/auto-merge calls are denied outright.",
+            "A standing merge Simon typed earlier in the same session (merge plus a future condition: "
+            "when/once/as/after/if ... ready/green/passes/done, or a plain merge all/them all/both/"
+            "everything) also authorizes `gh pr merge` "
+            "in a later turn, when it names the PR or covers it as an open PR this session pushed, no "
+            "later ask negates merging/pushing/deploying/shipping or says stop/hold/wait/cancel/pause, "
+            "and one read-only gh pr view shows the PR open, not a draft, MERGEABLE, with at least one "
+            "check and every check passed; otherwise it denies and names the failed condition. A "
+            "single-PR merge with no condition (merge #12, merge it) never carries past its turn.",
             "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
             "AND the user's words this turn saying push after its last halt.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "

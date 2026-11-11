@@ -67,7 +67,10 @@ current, reconcile against it.
   run `workflow-dashboard.py resolve --target`, resume the recorded engine from its `PLAN_PATH`, and
   retain its recorded options without a second interview. Hand off with
   `/sk:work-handoff-prepare-and-pickup` when this session runs low.
-- DO apply Continuous request reconciliation on every turn, including mid-run additions and handoff.
+- DO apply Continuous request reconciliation on every turn, including mid-run additions and handoff:
+  from intake to hand-back the plan keeps the complete source log, the decision log and each ask's
+  clause IDs, and every builder or worker brief quotes the clauses it serves.
+  TEST: a brief built from an investigation still covers every clause of the ask it serves.
 - DO default to current-session execution with the independent judge off. Ask for run options only
   when Ralph, independent judgement or custom loop options are requested; reuse recorded answers.
 - DO reuse the living plan; compose `/sk:plan-stable-persistent-dynamic-complete-full-plan` only when
@@ -113,7 +116,7 @@ current, reconcile against it.
 8. **Prove the ask with the end report** (`/sk:ship-report-and-ensure-correct-user-system-journey`) — the user journey, the system
    journey, the mismatches between them, and what changed on this branch. It then judges those
    journeys against the criteria this plan validated, backs each verdict with a test it writes and
-   commits, closes any gap in code, and reconciles the ledger's asks against what was built, so
+   commits, closes any gap in code, and gives every clause of every raw ask a verdict, so
    step 2's plan and the shipped result are the same thing. Simon should never have to ask for it.
    Its gap fixes land here; its hand-back follows step 9's pass.
 9. Run the relevant suites, and the automated matrix on a Deep-tier change (`references/testing-strategy.md`

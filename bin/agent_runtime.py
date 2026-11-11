@@ -6,7 +6,9 @@ import json
 import os
 from pathlib import Path
 import re
+import select
 import shlex
+import stat
 import subprocess
 import sys
 
@@ -273,6 +275,33 @@ def codex_inference(args):
     return True
 
 
+def close_idle_stdin(args, fd=0, wait=0.5):
+    """Give a tool-shell `exec` an empty stdin when it was handed an open, silent pipe.
+
+    `codex exec` appends piped stdin to its prompt and waits for EOF ("Reading additional input from
+    stdin..."). An agent's tool shell leaves a pipe open that never closes, so the run hangs until a
+    timeout (references/agent-hosts.md). A TTY, a regular file, or a pipe that already has data or EOF
+    is left alone, so `cat notes | codex exec "summarize"` still works.
+    """
+    head = args[:args.index('--')] if '--' in args else args
+    if 'exec' not in head:
+        return False
+    try:
+        mode = os.fstat(fd).st_mode
+    except OSError:
+        return False
+    if not (stat.S_ISFIFO(mode) or stat.S_ISSOCK(mode)):
+        return False
+    if select.select([fd], [], [], wait)[0]:
+        return False
+    empty = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(empty, fd)
+    os.close(empty)
+    print('agent setup: stdin was an idle open pipe; gave exec an empty stdin so it cannot hang',
+          file=sys.stderr)
+    return True
+
+
 def launch():
     try:
         args = sys.argv[1:]
@@ -298,6 +327,7 @@ def launch():
             model_check_lines = ['model check failed unexpectedly: ' + str(error)]
         for line in model_check_lines:
             print('agent setup: ' + line, file=sys.stderr)
+        close_idle_stdin(args)
         os.chdir(cwd)
         os.execve(binary, [binary, *config, *billing, *args], env)
     except (ValueError, OSError, json.JSONDecodeError) as error:

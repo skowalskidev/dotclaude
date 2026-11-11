@@ -278,8 +278,16 @@ authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
 "priority", "1 yes" to a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged
 on "1 yes" to a model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").
 TEST: every merge traces to a user message this turn containing "merge" and that PR's number, or
-plural/unnumbered wording over PRs this session pushed (the fix for "merge and deploy" covering one
+plural/unnumbered wording over PRs this session pushed, or to a standing merge below (the fix for "merge and deploy" covering one
 of two session PRs and a queued "from this session i mean" voiding "merge all that's ready").
+**DO treat a standing merge as the yes for every PR it covers, for the rest of the session:**
+"merge" plus a future condition ("merge and deploy all when they're ready", "merge #12 once CI is
+green") or a plain "merge all" / "merge them all" / "merge everything", which covers only open PRs
+this session pushed. The guard reads every ask this session, honours the newest such ask with no later
+stop/hold/wait/cancel or "don't merge/deploy", and runs the merge only when the PR is open, not a
+draft, mergeable and every check passed. Watch CI and merge each covered PR as it goes green; on a
+"not ready" deny, wait and retry, never re-ask. A single-PR "merge #12" or "merge it" still lasts
+one turn (the fix for a green PR blocked after an unrelated later message followed "merge all when ready").
 **DON'T treat a yes to an AskUserQuestion option or plan YOU authored as that confirmation, and DON'T
 author an option that pushes/merges a remote default branch in the first place.** The confirmation must
 be the user's OWN unprompted "push"/"merge" for THAT action; offering "push to main" as a pickable

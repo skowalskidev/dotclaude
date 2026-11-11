@@ -360,7 +360,7 @@ never with Edit or Write.
   sources   every ticket or source this work is judged against, by link; 'prompt-derived' when none.
   plan      the approach as approved, its delta from those sources, and what ratified it.
   pivot     each redirection, written when it lands, not reconstructed at the end.
-  reconcile at hand-back on substantive work: one verdict per ask, tagged with its source.
+  reconcile at hand-back on substantive work: one verdict per clause of each ask, tagged with its source.
 Mechanics: ~/.claude/references/planning-and-tracking.md. The Stop hook checks for reconciliation
 after the newest recorded input. After a push to a non-default branch, run /sk:ship-full-detailed-workflow
 on it and record the result with

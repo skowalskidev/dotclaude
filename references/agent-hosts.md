@@ -35,7 +35,9 @@ For current-chat provider inheritance and child-model policy, read
 
 DO close stdin on every tool-shell `codex-launch.py exec` run with `</dev/null` and bound it with `timeout`.
 Otherwise it prints "Reading additional input from stdin..." and sits until the timeout (the fix for a
-second-opinion run that lost 540 seconds with no answer). TEST: no agent-run `exec` line omits `</dev/null`.
+second-opinion run that lost 540 seconds with no answer). The launcher backs this up: `close_idle_stdin`
+in `bin/agent_runtime.py` gives `exec` an empty stdin when it was handed an idle open pipe, and leaves a
+TTY, a file or a pipe with data alone. TEST: no agent-run `exec` line omits `</dev/null`.
 
 Set `AGENT_ALLOW_CROSS_PROVIDER=1` on the dispatch when Simon names a GPT/Codex worker from a Claude
 chat (his explicit named-host ask), or for a `codex-app` connector route the resolver lists first

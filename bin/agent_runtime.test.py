@@ -304,6 +304,28 @@ class RuntimeTests(unittest.TestCase):
         runtime.subscription_policy(['--profile', 'review', '-c', 'model="fixture"', 'exec',
                                      '--', '--with-api-key'])
 
+    def test_exec_gets_an_empty_stdin_only_for_an_idle_open_pipe(self):
+        # The fix for a judge run that printed "Reading additional input from stdin..." and hung
+        # 25 minutes in a background tool shell.
+        read, write = os.pipe()
+        try:
+            self.assertFalse(runtime.close_idle_stdin(['mcp', 'list'], fd=read, wait=0))
+            self.assertTrue(runtime.close_idle_stdin(['exec', 'review'], fd=read, wait=0))
+            self.assertEqual(os.read(read, 10), b'')
+        finally:
+            os.close(read)
+            os.close(write)
+        read, write = os.pipe()
+        try:
+            os.write(write, b'notes')
+            self.assertFalse(runtime.close_idle_stdin(['exec', 'summarize'], fd=read, wait=0))
+            self.assertEqual(os.read(read, 10), b'notes')
+        finally:
+            os.close(read)
+            os.close(write)
+        with open(__file__, 'rb') as handle:
+            self.assertFalse(runtime.close_idle_stdin(['exec', 'x'], fd=handle.fileno(), wait=0))
+
     def test_bare_exec_gets_no_injected_model_override(self):
         # Native Codex config now owns a headless `codex exec`'s default model (Simon's own
         # config.toml `model = "..."`), so the launcher must inject no `-c model=...` override of
