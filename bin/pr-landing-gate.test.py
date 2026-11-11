@@ -85,6 +85,14 @@ Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and requ
 | Free | 120 | same as today |
 | Paid | 80 | 0 |
 
+## Value safety
+
+**Happy path:** checkout, webhook and grant files untouched (list in the matrix); payer suites pass on base and head; a returning payer's walk adds 0 requests and 0 error lines.
+**Failure re-enacted:** a member over the old limit searches on web; the walk fails on base and passes on head.
+**Wrong recipient:** only the member's own session reads the limit; a second account's token gets a 403 in `limit_test.ts`.
+**Incident replay:** 12/12 refused members admitted, 12/12 refused for another account (production rows, live definitions).
+**Residual risk:** none found; checked shared phone numbers and family plans.
+
 ## Deploy safety
 
 | Merge train (squash onto main) | Result |
@@ -207,6 +215,29 @@ check(gate.check_body(section(PASSING, "Deploy safety", safety_na), HTML, 0) == 
       "A reasoned deploy-safety N/A failed")
 check("Deploy safety" in rows(gate.check_body(section(PASSING, "Deploy safety", "## Deploy safety\n\nFine.\n\n"),
                                               HTML, 0)), "Deploy safety with no merge train or rollback passed")
+
+# Value safety: required on a deep-tier PR; five labelled lines with evidence, or a reasoned doesn't-apply.
+no_value = section(PASSING, "Value safety", "")
+check(rows(gate.check_body(no_value, HTML, 0)) == {"Value safety"}, "A deep PR with no Value safety section passed")
+standard = no_value.replace("Tier: deep (a member's search limit and its billing plan).",
+                            "Tier: standard (logic inside the search limit feature).")
+check(gate.check_body(standard, HTML, 0) == [], f"A standard PR with no Value safety section failed: "
+      f"{gate.check_body(standard, HTML, 0)}")
+for label in gate.VALUE_LABELS:
+    cut = "\n".join(ln for ln in PASSING.splitlines() if not ln.startswith("**" + label))
+    check(any(label + ":" in m for m in gate.check_body(cut, HTML, 0)), f"Value safety with no {label} line passed")
+failed_value = PASSING.replace("a second account's token gets a 403", "a second account's token FAILED to be refused")
+check(any("records a FAIL" in m for m in gate.check_body(failed_value, HTML, 0)), "A FAIL value-safety line passed")
+uncounted = PASSING.replace("12/12 refused members admitted, 12/12 refused for another account", "all admitted")
+check(any("no N/N count" in m for m in gate.check_body(uncounted, HTML, 0)), "An incident replay with no N/N passed")
+replay_na = PASSING.replace("**Incident replay:** 12/12 refused members admitted, 12/12 refused for another account",
+                            "**Incident replay:** does not apply, the PR fixes no production incident")
+check(gate.check_body(replay_na, HTML, 0) == [], "A reasoned incident-replay N/A failed")
+value_na = section(PASSING, "Value safety",
+                   "## Value safety\n\nDoes not apply: the diff moves no money, credit, entitlement, auth or ownership.\n\n")
+check(gate.check_body(value_na, HTML, 0) == [], "A reasoned value-safety N/A failed")
+check("Value safety" in rows(gate.check_body(section(PASSING, "Value safety", "## Value safety\n\nN/A\n\n"), HTML, 0)),
+      "A bare value-safety N/A passed")
 
 # Screenshots need an image or a stated no-eligible-surface reason.
 none = "## Screenshots\n\nNo eligible frontend surface: the diff changes only server SQL.\n"

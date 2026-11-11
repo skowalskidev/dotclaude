@@ -12,6 +12,8 @@ punctuation prefix and any case ("## 🚀 Deploy TLDR"), and may carry a suffix 
 The Regression check section holds one row per pre-existing file the PR modifies, renames or removes
 (the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED and a filled cell in the
 table's Base-vs-head evidence column: the method is references/testing-strategy.md § Regression check.
+A PR whose Test matrix names the deep tier holds a Value safety section: its five labelled lines, or a
+reasoned does-not-apply (references/testing-strategy.md § Value safety).
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -33,6 +35,7 @@ SECTIONS = {
     "Test matrix": "Test matrix",
     "Regression check": "Regression check",
     "Prod data": "Prod data",
+    "Value safety": "Value safety",
     "Deploy safety": "Deploy safety",
     "Screenshots": "Screenshots",
     "Verification runs": "Verification runs",
@@ -51,6 +54,8 @@ NEEDS = {
     "Regression check": ("a table with a Base-vs-head evidence column; a row per modified pre-existing file, "
                          "each with evidence and PASS or INTENDED"),
     "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
+    "Value safety": ("on a deep-tier PR, the lines Happy path:, Failure re-enacted:, Wrong recipient:, "
+                     "Incident replay: (with N/N) and Residual risk:, or a reasoned does-not-apply"),
     "Deploy safety": "a merge-train result and a rollback, or a reasoned does-not-apply",
     "Screenshots": "an image, or a stated no-eligible-surface reason",
 }
@@ -65,6 +70,9 @@ NO_SURFACE = re.compile(r"no (?:eligible |changed |visible )?(?:frontend |UI |us
 # references/testing-strategy.md § Size the checks to the change: a Light or Standard PR keeps each
 # skipped heading with this line, and its trigger is at least three words.
 TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
+DEEP_TIER = re.compile(r"\btier\b\W{0,3}deep\b|\bdeep\W{0,3}tier\b", re.I)
+# references/testing-strategy.md § Value safety: the labelled lines, in order.
+VALUE_LABELS = ("Happy path", "Failure re-enacted", "Wrong recipient", "Incident replay", "Residual risk")
 TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:light|standard|deep)\b|\b(?:light|standard|deep)\W{0,3}tier\b", re.I)
 # /sk:test-automated-full-matrix's real-environment walk: one line in the Test matrix section.
 WALK = re.compile(r"^.*real[- ]environment walk.*$", re.I | re.M)
@@ -186,6 +194,30 @@ def check_regression(text, modified):
     return out
 
 
+def check_value_safety(text, deep):
+    """Missing-row strings for the Value safety section; required when the Test matrix names the deep tier."""
+    if text is None:
+        return [no_heading("Value safety")] if deep else []
+    if TIER_SKIP.search(text) or (reasoned_na(text) and not any(
+            re.search(r"^[\s|*>-]*" + re.escape(label), text, re.I | re.M) for label in VALUE_LABELS)):
+        return []
+    out = []
+    lines = {}
+    for label in VALUE_LABELS:
+        hit = re.search(r"^[\s|*>-]*" + re.escape(label) + r"\b.*$", text, re.I | re.M)
+        if hit:
+            lines[label] = hit.group(0)
+    absent = [label for label in VALUE_LABELS if label not in lines]
+    if absent:
+        out.append("Value safety: no " + ", ".join(label + ":" for label in absent) + " line")
+    if any(re.search(r"\bFAIL(?:ED|S)?\b", line) for label, line in lines.items() if label != "Residual risk"):
+        out.append("Value safety: a line records a FAIL")
+    replay = lines.get("Incident replay")
+    if replay and not re.search(r"\b\d+\s*/\s*\d+\b", replay) and not reasoned_na(replay):
+        out.append("Value safety: the Incident replay line has no N/N count and no doesn't-apply reason")
+    return out
+
+
 def check_body(body, body_html, unresolved, modified=()):
     """Return one 'row: what is missing' string per failing landing-gate row."""
     missing = []
@@ -241,6 +273,8 @@ def check_body(body, body_html, unresolved, modified=()):
             missing.append("Prod data: no verdict (PASS, FAIL or does not apply)")
         if not has_table(prod) and not reasoned_na(prod):
             missing.append("Prod data: no cohort table and no doesn't-apply reason")
+
+    missing += check_value_safety(found.get("Value safety"), matrix is not None and DEEP_TIER.search(matrix) is not None)
 
     safety = found.get("Deploy safety")
     if safety is None:

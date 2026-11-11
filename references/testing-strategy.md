@@ -19,7 +19,7 @@ rule, skill and gate that runs checks applies it and restates none of it.
 |---|---|---|---|
 | Light | Copy, style or layout on ONE surface; zero logic, data, money, auth, API or shared-component change | The affected unit tests; one BEFORE/AFTER pair of the changed state at the default phone viewport (390×844); the project's gate list; CI; one verdict per ask in the ledger | Full matrix, prod data, deploy-safety merge train, ship-report journey tests, multi-model and security review, videos, multi-width and multi-state captures |
 | Standard | Logic inside one feature, or a style-only change to a shared component (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
-| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, logic in a component or helper used on 2+ surfaces, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, prod data, deploy safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
+| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, logic in a component or helper used on 2+ surfaces, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, prod data, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
 
 **DO take the deeper tier when a trigger is unclear.** WHY: a missed regression costs more than one
 extra pass.
@@ -250,6 +250,52 @@ read-only production access, per-write authorization and per-call spend approval
 production write or a real-provider call authorization. State observed regressions or no regressions
 found within the verified scope, never a zero-regression guarantee. TEST: green fixtures cannot clear
 an UNKNOWN production cohort or an unexecuted activation dependency.
+
+**DO replay every proven production incident case through the new code when the change fixes a
+production failure.** Enumerate the incident cohort from production read-only (the selection query,
+window and count), export each case's records under § Production source fidelity, and capture
+production's live definitions of every database function, trigger and policy the path runs (e.g.
+`pg_get_functiondef` over the read-only route). Load both into a scratch database, apply the diff's
+migrations on top, run the new entry point once per case, and report `N/N` resolved plus each case
+that did not resolve, with its reason.
+**DON'T rest the verdict on a synthetic fixture or the repo's migration files alone.** WHY:
+production's function bodies can differ from the files, and a fixture holds only the shapes its
+author imagined.
+TEST: an incident-fix hand-back names `N/N` against the enumerated cohort and the live-definition
+capture time; a fixture-only replay is UNKNOWN, never a pass.
+
+## Value safety: four answers before a money or access change is handed back
+
+**DO answer all four questions below, unprompted and with evidence, on the final head of every PR
+whose diff can grant, move or revoke value:** money, a charge, credits, an entitlement, an auth or
+session decision, or which person owns a record. Post them under `## Value safety`, one line each
+labelled `Happy path:`, `Failure re-enacted:`, `Wrong recipient:`, `Incident replay:` and
+`Residual risk:`. A Deep PR that moves no value keeps the heading with a reasoned does-not-apply.
+WHY: these are the first questions a reviewer asks of a money change; one left unanswered moves the
+merge onto Simon.
+1. **Happy path.** List every payment, grant and sign-in entry point by file, each marked touched or
+   untouched (`git diff --name-only <base>...HEAD` against `git grep -l` of the checkout, webhook,
+   grant and session handlers). Prove existing payers still pass: their suites on base and head, plus
+   one walk of a returning payer's flow on the real local stack. NUMBER: zero added blocking requests
+   and zero new error or warning lines on the happy path, read from the walk's network and console log.
+2. **Failure re-enacted.** Re-enact the production failure end to end on a real environment, on every
+   platform it occurred on, with the user's own steps (e.g. pay as a guest, leave, come back, sign in):
+   the walk fails on the base and passes on the head, per § Reproduce a reported bug first. A PR fixing
+   no production failure says so on the line.
+3. **Wrong recipient.** Name who can trigger the change (identity, credential, device state) and prove
+   refusal for every other identity: a test where a second account presents the first one's guest,
+   device, token or link and receives nothing. Put each path you cannot close (e.g. a shared device)
+   under `Residual risk:` as a decision for Simon; `none found` names what was checked.
+4. **Incident replay.** Run § Production compatibility gates' incident replay inside
+   `/sk:ship-verify-with-prod-data`, including the other-identity refusal from question 3 per case;
+   the line reads `N/N resolved, N/N refused for another account` plus the cohort.
+**DON'T answer any line from a code reading or wait for Simon to ask:** each cites a test, a walk or
+a replay.
+TEST: a Deep PR's fetched body holds `## Value safety` with all five labels and evidence on each, or a
+reasoned does-not-apply; `bin/pr-landing-gate.py` fails it otherwise. (the fix for a guest-purchase
+linking PR where Simon asked all four by hand; answered, they read: payment paths untouched, web and
+iPhone walks PASS, 32/32 production cases linked, 32/32 other-account attempts refused, shared device
+named as residual risk.)
 
 ## Production source fidelity
 

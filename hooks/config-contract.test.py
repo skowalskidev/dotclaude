@@ -114,6 +114,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("regression-check-runs-on-every-pr",
      "Every PR proves its modified pre-existing files left outside paths alone and names the caller each newly "
      "mounted shared part mirrors; the ship harness, review, matrix and capture scope all invoke that one method."),
+    ("value-safety-answers-four-questions",
+     "A deep PR that moves money, credits, entitlements, auth or ownership answers the happy-path, re-enacted "
+     "failure, wrong-recipient and production incident-replay questions on the PR, and the gate refuses it otherwise."),
     ("matrix-binds-copies-and-walks-real-stack",
      "The matrix binds copied values to their source and walks every changed state on the real local stack, "
      "judged per source criterion; the ship harness runs both on Standard PRs."),
@@ -2079,6 +2082,23 @@ def check_regression_check_runs_on_every_pr() -> None:
           "ship-review's caller-parity lens no longer points at the mounting rule")
     gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
     check('"Regression check": "Regression check"' in gate_src, "The landing gate no longer owns a Regression check row")
+
+
+def check_value_safety_answers_four_questions() -> None:
+    method = " ".join((ROOT / "references/testing-strategy.md").read_text().split())
+    for required in ("## Value safety: four answers before a money or access change is handed back",
+                     "`Happy path:`", "`Failure re-enacted:`", "`Wrong recipient:`", "`Incident replay:`",
+                     "`Residual risk:`", "zero added blocking requests", "on every platform it occurred on",
+                     "receives nothing", "DO replay every proven production incident case",
+                     "production's live definitions", "scratch database", "a fixture-only replay is UNKNOWN"):
+        check(required in method, "Value safety method lost: " + required)
+    for path in ("skills/sk/skills/ship-full-detailed-workflow/SKILL.md",
+                 "skills/sk/skills/ship-verify-with-prod-data/SKILL.md"):
+        text = " ".join((ROOT / path).read_text().split())
+        check("Value safety" in text, f"{path} does not invoke testing-strategy.md § Value safety")
+    gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
+    check('"Value safety": "Value safety"' in gate_src and "check_value_safety" in gate_src,
+          "The landing gate no longer owns a Value safety row")
 
 
 def check_matrix_binds_copies_and_walks_real_stack() -> None:

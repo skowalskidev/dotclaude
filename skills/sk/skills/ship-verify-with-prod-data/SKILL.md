@@ -26,6 +26,8 @@ Apply the compatibility procedure for every changed data figure or runtime eligi
 For runtime gates with no figures, use that procedure through hand-back; the figure/recompute phases
 below apply only to data surfaces. Record N/A only with the traced absence of a stored-data or usage
 dependency, never because no figure is displayed.
+DO run that section's incident replay whenever the change fixes a proven production incident, figure
+or not, and hand its `N/N` line to the PR's `## Value safety` section.
 TEST: admission, validation, authorization and retention changes receive an applicability verdict.
 
 ## Phase 2 · Enumerate EVERY account the surface serves — from the SSOT list

@@ -963,6 +963,7 @@ CONTRACTS: dict[str, dict] = {
             "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
             "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",
             "Separate code verification, activation dependencies and live proof; scope conclusions to captured populations and windows without promising zero regressions.",
+            "Own Value safety: a PR moving money, credits, entitlements, auth or ownership answers happy path, re-enacted failure, wrong recipient with residual risk, and an N/N incident replay over production rows and live definitions.",
             "Own the Light, Standard and Deep verification tiers: classify from the diff before any check, take the deeper tier when unclear, escalate on an unexpected finding, and record tier, trigger and skipped stages on the PR and gate.",
             "Every tier keeps CI, required hooks, the project gate list, PR feedback handling, read-only production, spend approval and the post-deploy prod check; a Deep trigger always gets the full harness.",
             "Re-read the CI gate list after every base merge or rebase, and run it in one pass over CI's own scope, secret scan included, before the ready-flip that starts CI.",
@@ -1186,6 +1187,7 @@ CONTRACTS: dict[str, dict] = {
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
+            "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
             "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head; a Deep PR's matrix runs them.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
@@ -1346,6 +1348,7 @@ CONTRACTS: dict[str, dict] = {
             "Enumerate authoritative accounts and legitimate cohorts, rank recent activity and state coverage gaps; one sampled account cannot prove population-wide compatibility.",
             "Read production through the provisioned read-only path; recompute changed figures from raw source data and independently reconcile figures sharing a source or predicate.",
             "Classify discrepancies as bug, skew, legacy or unknown with dated evidence; legacy requires proof no current legitimate journey depends on the records, not age alone.",
+            "Run the testing-strategy incident replay for every change fixing a proven production incident and hand its N/N line to the PR's Value safety section.",
             "Hands Simon the backfill/recompute command plus deploy order to run on prod himself, "
             "proven first by running the identical script on a seedable dev account and re-reading "
             "until that account reconciles.",
