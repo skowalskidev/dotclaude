@@ -511,7 +511,8 @@ def probe_devices():
                 states[udid.upper()] = state
         return states
     except (OSError, subprocess.TimeoutExpired, UnicodeError, ValueError, KeyError, TypeError) as exc:
-        raise GateError("simulator probe failed; inspect simctl before retrying") from exc
+        # An unreadable simctl is an unknown host state: defer (exit 75) like the CPU probe, never a hard 1.
+        raise ProbeFailed("simulator probe failed; inspect simctl before retrying") from exc
 
 
 def observe_booted():
