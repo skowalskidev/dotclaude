@@ -155,6 +155,14 @@ it with `${=var}`, or pipe a NUL-separated producer into `xargs -0`.
 TEST: no `$VAR` in command position, and no scalar holding several words is expanded as arguments or
 a loop list.
 
+**DO quote a glob-like flag value (`--include='*.ts'`) and give every glob that may match nothing the
+`(N)` qualifier (`x*.md(N)`), or run it in `zsh -c 'setopt null_glob; …'` or `bash -c 'shopt -s
+nullglob; …'`.** zsh's default NOMATCH aborts the whole command line on one empty glob, so no other
+argument is acted on. **DON'T mix a bare possibly-empty glob into a command that also takes literal
+paths;** qualify it or list literal paths only. (the fix for `rm -f /tmp/a.sh /tmp/x*.md`, which deleted nothing.)
+TEST: no unquoted `*`, `?` or `[` in a flag value, and no bare glob without `(N)` or null_glob shares
+a command with literal paths.
+
 **DO apply `references/dev-server-hygiene.md` § Machine-wide capacity to a script that runs leased
 steps:** it owns the exit-75 stop.
 
