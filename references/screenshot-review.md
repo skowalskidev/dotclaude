@@ -43,6 +43,31 @@ renumbered, scope moves). The body rewrite and its trigger: `/sk:ship-pr` § Rew
 TEST: every current point has final-source capture proof or explicit unchanged-point reuse proof;
 zero points depict a superseded state as the current result.
 
+## Visible surfaces, and when none exists
+
+DO count as a visible surface every output a person sees that the diff can change: app screens;
+server-rendered answers (chat replies, emails, SMS, push notifications); team-facing output (Slack or
+bot posts, alerts, admin pages, reports, sweep rows). Trace each changed function to the output it
+feeds before deciding; a server, worker or bot file is a surface when its result reaches a person.
+DO capture BEFORE on the base and AFTER on the head of the REAL output of each changed surface, on
+every PR the ship harness runs on, unprompted: render it through the real code (the app's own chat or
+admin screen on local data or a stub provider; the bot's own formatter called on base and head with
+one input, its exact text or blocks rendered into a local preview page). Caption output built from
+the project's fixtures `replayed from <fixture path>`. Add the per-scenario video and the verification
+run whenever a journey reaches the surface.
+DON'T post a drawn stand-in: a hand-written mock of a message or screen the code did not produce, or a
+text table describing the change. DON'T post to a real channel, send a real message or make a paid
+call to get the capture; those keep their send and spend gates.
+DO write a no-surface line only when nothing a person sees can differ (pure refactor, test-only, CI
+config, metric math whose posted output is identical), under `## Screenshots` and `## Verification runs`:
+`No visible surface: <reason>. Checked outputs: <each output compared, and how>` (e.g. `Checked
+outputs: the Slack post blocks and the sweep row, base vs head on the run fixture: identical`).
+DON'T justify it with "no frontend or UI files changed": that names a file type, not an output.
+TEST: `bin/pr-landing-gate.py` fails a no-surface or does-not-apply line under either heading without
+a `Checked outputs:` clause of 3+ words; a no-surface line on a diff whose server code changes a
+member- or team-visible message fails review (the fix for eight PRs passed with "No eligible frontend
+surface" while two changed the chat's answer and six the bot's Slack posts).
+
 ## Discover the complete matrix
 
 DO build this matrix for a Deep-tier change; capture a Light or Standard change at the scope
@@ -202,8 +227,8 @@ Never a demo, so nothing in it is polished or hidden.
 
 DO post verification runs by default on every PR whose diff changes a user journey: at the Standard
 tier one per changed journey, at the Deep tier one per main journey that passes through a changed
-surface. A Light PR, or a PR with no visible surface, posts none (`references/testing-strategy.md`
-§ Size the checks to the change).
+surface. A Light PR, or a PR with no visible surface under § Visible surfaces, posts none
+(`references/testing-strategy.md` § Size the checks to the change).
 NUMBER: at most 6 runs per PR, ranked by how many users take the journey; name the rest in `Not covered`.
 TEST: `bin/pr-landing-gate.py` fails a PR whose `## Screenshots` posts a video and which has no
 `## Verification runs` section.

@@ -79,9 +79,15 @@ tickets; a fix that belongs to another PR is handed to that owner via
    included, on the final head after stage 3-6 fixes;** its base screenshots reuse stage 7's
    base-branch BEFORE capture. TEST: every PR body holds `## Regression check` with one row per
    modified pre-existing file.
-7. **`/sk:ship-screenshot-changes`** — at the PR's tier, capture changed web surfaces and explicitly requested native
+7. **`/sk:ship-screenshot-changes`** — at the PR's tier, on EVERY PR in the run, unprompted, capture each
+   changed visible surface under `references/screenshot-review.md` § Visible surfaces (screens,
+   server-rendered answers, team-facing bot posts and admin output) and explicitly requested native
    surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images,
-   per-scenario videos and verification runs onto the open PR (GitHub-native). Plan the post from the start of the sweep;
+   per-scenario videos and verification runs onto the open PR (GitHub-native).
+   **DON'T skip this stage because the diff has no frontend file:** a server change to a chat reply or a
+   bot post is a surface; only a no-surface line with its `Checked outputs:` clause skips it.
+   TEST: every PR in the run has images under `## Screenshots` or that line.
+   Plan the post from the start of the sweep;
    capture ONCE, after stages 3-6 fixes are committed and pushed, on the final head, per
    `references/screenshot-review.md` § Refresh after the follow-up batch.
    **DON'T dispatch the AFTER capture in stage 6's fan-out**; only a base-branch BEFORE capture runs early.
@@ -129,7 +135,8 @@ verified the user + system journey, then handed back with it never posted to the
 - Screenshots (stage 7): every surface eligible under stage 7 at the PR's tier has its image on the PR and every affected
   user-journey scenario its own trimmed video and scenario-table row, under `## Screenshots`, with no
   duplicate desktop/mobile pairs (`references/screenshot-review.md`); record native
-  surfaces without explicit opt-in as not run, and identify a diff with no eligible frontend surface.
+  surfaces without explicit opt-in as not run; a diff with no visible surface carries the no-surface
+  line with its `Checked outputs:` clause.
 - Verification runs (stage 7): each main journey the PR's tier names has its final clean run under
   `## Verification runs` (`references/screenshot-review.md` § Verification run videos).
 - Feedback (stage 5): 0 unhandled current comment revisions and 0 unresolved review threads;

@@ -239,9 +239,21 @@ check(gate.check_body(value_na, HTML, 0) == [], "A reasoned value-safety N/A fai
 check("Value safety" in rows(gate.check_body(section(PASSING, "Value safety", "## Value safety\n\nN/A\n\n"), HTML, 0)),
       "A bare value-safety N/A passed")
 
-# Screenshots need an image or a stated no-eligible-surface reason.
-none = "## Screenshots\n\nNo eligible frontend surface: the diff changes only server SQL.\n"
-check(gate.check_body(section(PASSING, "Screenshots", none), HTML, 0) == [], "A stated no-surface reason failed")
+# Screenshots need an image, or a no-visible-surface reason with a Checked outputs clause.
+none = ("## Screenshots\n\nNo visible surface: the diff renames an internal helper. Checked outputs: the chat "
+        "reply text and the Slack post blocks, base vs head on the run fixture: identical.\n")
+check(gate.check_body(section(PASSING, "Screenshots", none), HTML, 0) == [], "A no-surface line with checked outputs failed")
+bold = none.replace("Checked outputs:", "**Checked outputs:**")
+check(gate.check_body(section(PASSING, "Screenshots", bold), HTML, 0) == [], "A bold Checked outputs label failed")
+bare = "## Screenshots\n\nNo eligible frontend surface: the diff changes only server code.\n"
+check(any("Checked outputs" in m for m in gate.check_body(section(PASSING, "Screenshots", bare), HTML, 0)),
+      "A bare no-eligible-frontend-surface line passed")
+na_bare = "## Screenshots\n\nDoes not apply: the change only alters the bot's sweep logic.\n"
+check(any("Checked outputs" in m for m in gate.check_body(section(PASSING, "Screenshots", na_bare), HTML, 0)),
+      "A does-not-apply Screenshots line with no Checked outputs clause passed")
+thin = none.replace("the chat reply text and the Slack post blocks, base vs head on the run fixture: identical.", "none")
+check(any("Checked outputs" in m for m in gate.check_body(section(PASSING, "Screenshots", thin), HTML, 0)),
+      "A one-word Checked outputs clause passed")
 check("Screenshots" in rows(gate.check_body(section(PASSING, "Screenshots", "## Screenshots\n\nSee below.\n"),
                                             HTML, 0)), "Screenshots with no image or reason passed")
 
@@ -269,6 +281,13 @@ no_vid = with_video + "\n" + RUNS.replace(ATTACH + "\n\n", "")
 check(any("no posted video" in m for m in gate.check_body(no_vid, HTML, 0)), "Verification runs with no video passed")
 skipped = with_video + "\n## Verification runs\n\nSkipped (tier standard): no journey changed, only one copy string\n"
 check(gate.check_body(skipped, HTML, 0) == [], "A Verification runs skip line failed")
+runs_none = PASSING + "\n## Verification runs\n\nNo visible surface: no journey reaches the changed helper.\n"
+check(any("Verification runs" in m and "Checked outputs" in m for m in gate.check_body(runs_none, HTML, 0)),
+      "A Verification runs no-surface line with no Checked outputs clause passed")
+runs_checked = runs_none.rstrip("\n") + " Checked outputs: the reply card and the bot post, base vs head: identical.\n"
+check(gate.check_body(runs_checked, HTML, 0) == [], "A Verification runs no-surface line with checked outputs failed")
+na_inside = complete.replace("Not covered: the yearly plan", "Not covered: does not apply to the yearly plan, a paid supplier")
+check(gate.check_body(na_inside, HTML, 0) == [], "A complete Verification runs section mentioning N/A failed")
 
 # Regression check: one row per modified pre-existing file, each PASS or INTENDED, none FAIL.
 MODIFIED = ["src/settings/Limit.tsx", "src/auth/Gate.tsx"]

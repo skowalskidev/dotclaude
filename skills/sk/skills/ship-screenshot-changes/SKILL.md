@@ -1,12 +1,12 @@
 ---
 name: ship-screenshot-changes
-description: Screenshot every changed frontend surface and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, one posted viewport per state (mobile 390×844 by default, desktop only where its layout differs) — with a BEFORE/AFTER pair for every changed surface and journey and a trimmed before/after video per affected user-journey scenario, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change, plus one raw verification run video per main happy path (0 to 100 on seeded success data, zero paid calls) that it reviews frame by frame, fixes and re-records until clean before posting under ## Verification runs. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — refreshes the composed images and playable inline videos in the PR description by default after the full ticket follow-up batch, using a comment only when description embedding is unsupported or blocked (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "refresh screenshots after all ticket follow-ups", "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", "screenshot coverage matrix", "record the happy paths", "happy path videos", or "verification run videos". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
+description: Screenshot every changed visible surface (app screens, server-rendered chat replies and messages, team-facing bot posts and admin pages) and journey as an advanced screenshot review — empty and full states, all conditional screenshot scenarios, responsive screen sizes, one posted viewport per state (mobile 390×844 by default, desktop only where its layout differs) — with a BEFORE/AFTER pair for every changed surface and journey and a trimmed before/after video per affected user-journey scenario, composed through the shared PR evidence template (bin/pr-evidence.py) so captions sit in bands above the UI and callouts circle the change, plus one raw verification run video per main happy path (0 to 100 on seeded success data, zero paid calls) that it reviews frame by frame, fixes and re-records until clean before posting under ## Verification runs. Figures out what changed (git diff), seeds the account into the state the change is meant to be seen in, drives each surface in a real debug browser with realistic example inputs, hands back an offline report with conditions above screenshots and an actionable TLDR table (opened in Finder), and — whenever the branch has an open PR — refreshes the composed images and playable inline videos in the PR description by default after the full ticket follow-up batch, using a comment only when description embedding is unsupported or blocked (GitHub-native: gh --attach or the user-attachments CDN, a git-only detached-ref fallback, never an external host). Use for "refresh screenshots after all ticket follow-ups", "screenshot the changes", "screenshot changes", "doc the new UI", "capture the new screens", "grab screenshots of what changed", "circle the changes", "before and after screenshots of the change", "post the screenshots to the PR", "advanced screenshot review", "all conditional screenshot scenarios", "screenshot coverage matrix", "record the happy paths", "happy path videos", or "verification run videos". Has a JOURNEY mode that captures a user FLOW as an ordered, numbered step sequence (steps derived from the user journey) — also triggers on "screenshot the user flow", "screenshot the user journey", "show the flow steps". Reused by /sk:test-eyeball for its capture + PR-post; test-eyeball adds the bug-hunt loop on top.
 argument-hint: [changed routes or journeys; whole app only when requested]
 ---
 
 # Screenshot the changed surfaces and journeys, before and after
 
-Get every changed frontend surface and journey on screen in a real browser, in the states a user would
+Get every changed visible surface and journey on screen in a real browser, in the states a user would
 actually see them, before and after the change, and hand back one review plus PR evidence that looks the
 same on every PR. No bug-hunting or fix-loop: that is `/sk:test-eyeball`, which reuses THIS skill for the
 capture.
@@ -52,12 +52,14 @@ running session's server.
 
 ## Step 1 — Figure out what changed
 
-`git diff` the branch vs its base. List the exact frontend surfaces and journeys the change touches
-(routes, components, states, inputs). A backend or data change whose output renders on a screen (copy,
-translations, prices, counts) has a surface too: list the screen that shows that output and capture it
-with production-shaped data before and after; "no frontend files changed" is not "no visible surface".
+`git diff` the branch vs its base. List the exact visible surfaces and journeys the change touches
+(routes, components, states, inputs), per `~/.claude/references/screenshot-review.md` § Visible
+surfaces. A backend, data or bot change whose output a person sees (copy, translations, prices,
+counts, a chat reply, an email, a Slack post, an admin row) has a surface too: capture that real output
+on base and head with production-shaped data; "no frontend files changed" is not "no visible surface".
 (the fix for a translation-backend PR first evidenced with a CI table until Simon asked for the
-translated screen.) Then build the case matrix per the reference's § Discover the
+translated screen.) With no surface, write that section's no-surface line with its `Checked outputs:`
+clause instead of capturing. Then build the case matrix per the reference's § Discover the
 complete matrix: empty and full states, every conditional scenario, responsive sizes and complete
 journeys. One case per scenario × viewport × variant, blocked and unrun cases included. Scope to the
 diff unless Simon asks for the whole app.

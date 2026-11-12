@@ -14,6 +14,9 @@ The Regression check section holds one row per pre-existing file the PR modifies
 table's Base-vs-head evidence column: the method is references/testing-strategy.md § Regression check.
 A PR whose Test matrix names the deep tier holds a Value safety section: its five labelled lines, or a
 reasoned does-not-apply (references/testing-strategy.md § Value safety).
+A Screenshots or Verification runs section that posts no evidence and states no visible surface (or a
+does-not-apply) carries a "Checked outputs:" clause naming what was compared on base and head
+(references/screenshot-review.md § Visible surfaces); a bare "No eligible frontend surface" fails.
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -57,8 +60,12 @@ NEEDS = {
     "Value safety": ("on a deep-tier PR, the lines Happy path:, Failure re-enacted:, Wrong recipient:, "
                      "Incident replay: (with N/N) and Residual risk:, or a reasoned does-not-apply"),
     "Deploy safety": "a merge-train result and a rollback, or a reasoned does-not-apply",
-    "Screenshots": "an image, or a stated no-eligible-surface reason",
+    "Screenshots": "an image, or a no-visible-surface reason with a 'Checked outputs:' clause",
 }
+
+
+NO_OUTPUTS = ("{}: a no-surface or does-not-apply line with no 'Checked outputs:' clause naming the "
+              "outputs compared on base and head (chat replies, messages, bot posts, admin pages)")
 
 
 def no_heading(row):
@@ -67,6 +74,8 @@ def no_heading(row):
 DOES_NOT_APPLY = re.compile(r"does(?: not|n['’]t) apply|\bN/A\b", re.I)
 NO_SURFACE = re.compile(r"no (?:eligible |changed |visible )?(?:frontend |UI |user-facing )?surface|"
                         r"no (?:frontend|UI|visible) change", re.I)
+# references/screenshot-review.md § Visible surfaces: a no-surface claim names the outputs it compared.
+CHECKED_OUTPUTS = re.compile(r"checked outputs\W{0,3}:\**\s*\S+(?:\s+\S+){2,}", re.I)
 # references/testing-strategy.md § Size the checks to the change: a Light or Standard PR keeps each
 # skipped heading with this line, and its trigger is at least three words.
 TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
@@ -289,15 +298,22 @@ def check_body(body, body_html, unresolved, modified=()):
     shots = found.get("Screenshots")
     if shots is None:
         missing.append(no_heading("Screenshots"))
-    elif not re.search(r"<img\s|<video\s|!\[[^\]]*\]\(|user-attachments/assets/", shots, re.I) \
-            and not NO_SURFACE.search(shots) and not reasoned_na(shots):
-        missing.append("Screenshots: no image and no stated no-eligible-surface reason")
+    elif not re.search(r"<img\s|<video\s|!\[[^\]]*\]\(|user-attachments/assets/", shots, re.I):
+        if not NO_SURFACE.search(shots) and not reasoned_na(shots):
+            missing.append("Screenshots: no image and no stated no-visible-surface reason")
+        elif not CHECKED_OUTPUTS.search(shots):
+            missing.append(NO_OUTPUTS.format("Screenshots"))
 
     runs = found.get("Verification runs")
     if runs is None:
         if shots is not None and VIDEO.search(shots):
             missing.append("Verification runs: ## Screenshots posts a video but there is no Verification runs heading")
-    elif not (TIER_SKIP.search(runs) or NO_SURFACE.search(runs) or reasoned_na(runs)):
+    elif TIER_SKIP.search(runs):
+        pass
+    elif not VIDEO.search(runs) and (NO_SURFACE.search(runs) or reasoned_na(runs)):
+        if not CHECKED_OUTPUTS.search(runs):
+            missing.append(NO_OUTPUTS.format("Verification runs"))
+    else:
         if not has_table(runs):
             missing.append("Verification runs: no scenario table")
         if not VIDEO.search(runs):

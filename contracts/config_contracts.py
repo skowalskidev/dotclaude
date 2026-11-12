@@ -281,6 +281,8 @@ CONTRACTS: dict[str, dict] = {
             "Keep static, repeated or ambiguous states blocked; differing hashes, cursor blinks and compression noise never prove semantic states. Never lower the scene threshold to pass.",
             "Run playback checks in a browser that decodes the clip (branded Chrome for H.264, or VP9/WebM) after a known-good control clip passes; record channel and version; zero played is a verifier defect.",
             "Record BEFORE on a local or preview build of the base branch, never a production host.",
+            "Count every person-visible output the diff can change as a surface: screens, chat replies, email, SMS, push, bot posts, alerts, admin pages, reports; capture its real base and head output, replays labelled, never a drawn stand-in.",
+            "Allow a no-surface line only when no person-visible output can differ, stating its reason and a 'Checked outputs:' clause; 'no frontend files' is never the reason.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
             "Compose every posted before/after image and video with bin/pr-evidence.py: bands above the UI, outline-only callouts, one block per point; verify image/png and video/mp4 serving, then browser playback decides. Post evidence under a top-level ## Screenshots, never inside a collapsed <details>.",
             "Open ## Screenshots with a Scenario | What happens | Video table, one row per video. Post one viewport per state (the targeted one, usually mobile 390px); add the other only when its layout visibly differs, stated; never a duplicate desktop/mobile pair; prefer video for anything that changes over time.",
@@ -404,7 +406,8 @@ CONTRACTS: dict[str, dict] = {
             "Accept a Light or Standard PR's `Skipped (tier light|standard): <trigger>` line, trigger of three or more words, in place of the matrix, prod-data and deploy-safety legs.",
             "Fail a Test matrix with no Real-environment walk line, or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
-            "Fail Screenshots without an image or a stated no-eligible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
+            "Fail Screenshots without an image or a stated no-visible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
+            "Fail a Screenshots or Verification runs no-surface or doesn't-apply line lacking a 'Checked outputs:' clause of 3+ words, so a bare 'No eligible frontend surface' never passes.",
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
             "Fail a body with no Regression check heading, a row recording FAIL, or a modified, renamed or removed file from the PR's fetched file list with no row or no PASS or INTENDED result; a PR modifying no pre-existing file needs a table or a stated reason, and a failed file-list fetch exits 2.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
@@ -1198,6 +1201,7 @@ CONTRACTS: dict[str, dict] = {
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Plan the screenshot post from the sweep start; dispatch AFTER capture once, after stages 3-6 fixes are committed and pushed, on the final head, never in stage 6's fan-out.",
+            "Run stage 7 on every PR in the run unprompted, capturing each changed visible surface (server-rendered answers and team-facing bot output included); skip it only with a no-surface line carrying 'Checked outputs:'.",
             "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each affected scenario's own trimmed video and scenario-table row, no duplicate desktop/mobile pairs, and report unrequested native surfaces as not run.",
             "Confirm at the landing gate each main journey the PR's tier names has its final clean run under ## Verification runs.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
@@ -1374,6 +1378,7 @@ CONTRACTS: dict[str, dict] = {
             "matrix: empty and full states, conditional scenarios and responsive sizes, seeded with "
             "realistic inputs, saved inside a workspace root; no bug-hunt or fix-loop.",
             "Size the case matrix to the change's tier under testing-strategy.md: a Light change posts one before/after pair at 390x844 with no video and a skip line; Simon's direct ask runs the full review.",
+            "Lists surfaces per screenshot-review.md § Visible surfaces, so a backend, data or bot change whose output a person sees gets a base and head capture of that real output.",
             "Triggers on the former advanced phrases (advanced screenshot review, all conditional "
             "screenshot scenarios, screenshot coverage matrix); hands back the offline report with "
             "conditions above each screenshot and an actionable TLDR table.",
