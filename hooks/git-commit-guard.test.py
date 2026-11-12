@@ -599,6 +599,41 @@ def main() -> int:
                 passes += 1
             else:
                 failures.append(f"LAND CHECK: {label}: rc={result.returncode} {result.stderr[-160:]!r}")
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gcg", Path(__file__).with_name("git-commit-guard.py"))
+    gcg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gcg)
+    halts = ["don't merge yet", "do not merge", "not merging this", "never push", "hold off merging",
+             "wait before you merge", "without merging", "don't push or deploy"]
+    clean = ["not be so strict yes merge", "no regressions, then merge",
+             "ensure no regressions to the happy paths and merge",
+             "1 fix the config to just do it and not be so strict yes merge\n2. other"]
+    for t in halts:
+        for name in ("NEGATED_RE", "STANDING_NEGATED_RE"):
+            if getattr(gcg, name).search(t):
+                passes += 1
+            else:
+                failures.append(f"VERBS: {name} must catch {t!r}")
+    for t in clean:
+        for name in ("NEGATED_RE", "STANDING_NEGATED_RE"):
+            if not getattr(gcg, name).search(t):
+                passes += 1
+            else:
+                failures.append(f"VERBS: {name} must not catch {t!r}")
+    inflected = "this can be merged if prod deploy ready https://github.com/o/r/pull/1198"
+    for label, got in (("merged is an ask", gcg.authorizing_asks([inflected], "merge")),
+                       ("merged is standing", gcg.standing_merge_ask([inflected])),
+                       ("pushed is an ask", gcg.authorizing_asks(["I pushed it, ok"], "push")),
+                       ("merging is an ask", gcg.authorizing_asks(["merging 12 is fine"], "merge")),
+                       ("yes merge after not-be", gcg.authorizing_asks([clean[3]], "merge"))):
+        if got:
+            passes += 1
+        else:
+            failures.append(f"VERBS: {label}")
+    if gcg.authorizing_asks(["don't merge yet", "ok"], "merge"):
+        failures.append("VERBS: halt must still deny")
+    else:
+        passes += 1
     for f in failures:
         print(f)
     passes -= len([f for f in failures if f.startswith("CONFIG ")])

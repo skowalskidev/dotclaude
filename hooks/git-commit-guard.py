@@ -367,8 +367,15 @@ HARNESS_BLOCK_RE = re.compile(
     r"<(system-reminder|task-notification|agent-message|cross-session-message)\b[^>]*>.*?</\1>", re.S | re.I)
 # Pasted material inside his message (a fenced block, a `>` quote) is not his instruction.
 QUOTED_RE = re.compile(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$|^[ \t]*>.*$", re.S | re.M)
+# A negator must GOVERN the verb: at most 2 words between them, and no comma, "yes" or "and" crossing
+# (the fix for "not be so strict yes merge" and "no regressions, then merge" read as "don't merge").
+# stop/hold/wait count only inside the same short clause ("hold off merging", "wait before you merge").
 NEGATED_RE = re.compile(
-    r"\b(don'?t|do not|never|not|no|stop|hold|wait|without|before)\b[^.\n]{0,40}\b(merg|push)", re.I)
+    r"\b(don'?t|do not|never|not|no|without|before)\s+(?:(?!yes\b|and\b)[\w']+\s+){0,2}?(merg|push|deploy|ship)"
+    r"|\b(stop|hold|wait)\b(?:(?!\byes\b|\band\b)[^.,;\n]){0,25}?\b(merg|push|deploy|ship)", re.I)
+# Every verb check accepts its inflections: merge/merged/merges/merging, push/pushed/pushes/pushing
+# (the fix for "this can be merged if prod deploy ready" missing a `\bmerge\b` check).
+VERB_FORMS = {"merge": r"\bmerg(?:e|ed|es|ing)\b", "push": r"\bpush(?:ed|es|ing)?\b"}
 # A later ask that does not repeat the verb but says one of these cancels the earlier authority.
 HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause|don'?t|do not|never)\b", re.I)
 PR_NUMBER_RE = re.compile(r"#?\b\d{2,}\b")
@@ -452,7 +459,7 @@ def turn_asks(payload: dict) -> list:
 def authorizing_asks(asks: list, verb: str) -> list:
     """The turn's asks after its last halt, when one of them says the verb (merge/push). A halt is an
     ask negating the verb ("don't merge yet") or a later ask saying stop/hold/wait without it."""
-    says = re.compile(rf"\b{verb}\b", re.I)
+    says = re.compile(VERB_FORMS[verb], re.I)
     start = 0
     for i, ask in enumerate(asks):
         if NEGATED_RE.search(ask) or (not says.search(ask) and HALT_RE.search(ask)):
@@ -566,11 +573,10 @@ CONDITIONAL_RE = re.compile(
 # A later message cancels a standing instruction when it negates merging, pushing, deploying or
 # shipping, or says stop/hold/wait/cancel/pause. A bare "don't" about something else does not: the
 # instruction spans many messages, and most of them are about other work.
-STANDING_NEGATED_RE = re.compile(
-    r"\b(don'?t|do not|never|not|no|stop|hold|wait|without)\b[^.\n]{0,40}\b(merg|push|deploy|ship)", re.I)
+STANDING_NEGATED_RE = NEGATED_RE
 STANDING_HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause)\b", re.I)
 # "merge all", "merge them all", "merge both", "merge everything": a merge over the whole set.
-STANDING_BULK_RE = re.compile(r"\bmerge\b[^.\n?]{0,30}?\b(all|everything|every|both|each)\b", re.I)
+STANDING_BULK_RE = re.compile(r"\bmerg(?:e|ed|es|ing)\b[^.\n?]{0,30}?\b(all|everything|every|both|each)\b", re.I)
 PASSED_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 
 
@@ -583,7 +589,7 @@ def session_asks(payload: dict) -> list:
 
 def standing_merge_ask(asks: list) -> str:
     """The session's newest standing merge ask (conditional, or merge-all) with no later halt, or ""."""
-    says = re.compile(r"\bmerge\b", re.I)
+    says = re.compile(VERB_FORMS["merge"], re.I)
     for i in range(len(asks) - 1, -1, -1):
         ask = asks[i]
         standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask)
