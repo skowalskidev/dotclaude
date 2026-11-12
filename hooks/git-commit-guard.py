@@ -566,7 +566,11 @@ def turn_merge_allowed(payload: dict, words: list, cwd) -> bool:
 # every check passed. A check is judged by its LATEST run only, as branch protection does: a run
 # superseded by a rerun no longer counts (the fix for a green PR blocked by two cancelled runs of a
 # concurrency-grouped workflow), while a check whose latest run failed still blocks. A plural still
-# covers only open PRs this session pushed.
+# covers only open PRs this session pushed. An explicit merge ask that NAMES a PR number ("merge
+# 1191", "yes merge #1198") is standing for that PR alone until it merges or a later message halts it
+# or says close naming it, with the same readiness check (the fix for a queued merge that GitHub's
+# queue dropped on a CI API 503, whose re-enqueue next turn was denied because "merge 1191" was this
+# turn's ask only).
 CONDITIONAL_RE = re.compile(
     r"\b(when|whenever|once|as soon as|as|after|if)\s+(?:[\w-]+(?:'\w+)?\s+){0,4}?"
     r"(ready|green|pass|passes|passed|passing|succeeds?|done|finished|complete[sd]?|clean)\b", re.I)
@@ -575,6 +579,7 @@ CONDITIONAL_RE = re.compile(
 # instruction spans many messages, and most of them are about other work.
 STANDING_NEGATED_RE = NEGATED_RE
 STANDING_HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause)\b", re.I)
+STANDING_CLOSE_RE = re.compile(r"\b(close|closed|closing|abandon)\b", re.I)
 # "merge all", "merge them all", "merge both", "merge everything": a merge over the whole set.
 STANDING_BULK_RE = re.compile(r"\bmerg(?:e|ed|es|ing)\b[^.\n?]{0,30}?\b(all|everything|every|both|each)\b", re.I)
 PASSED_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
@@ -587,15 +592,18 @@ def session_asks(payload: dict) -> list:
     return [a for a in cleaned if a]
 
 
-def standing_merge_ask(asks: list) -> str:
-    """The session's newest standing merge ask (conditional, or merge-all) with no later halt, or ""."""
+def standing_merge_ask(asks: list, number: str = "") -> str:
+    """The session's newest standing merge ask with no later halt, or "". Standing asks are
+    conditional ones, merge-all ones, and (given `number`) an explicit merge ask that names that PR."""
     says = re.compile(VERB_FORMS["merge"], re.I)
+    named = re.compile(rf"(?<!\d){number}(?!\d)") if number else None
     for i in range(len(asks) - 1, -1, -1):
         ask = asks[i]
-        standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask)
+        standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask) or (named and named.search(ask))
         if says.search(ask) and standing and not STANDING_NEGATED_RE.search(ask):
             later = asks[i + 1:]
-            halted = any(STANDING_NEGATED_RE.search(a) or STANDING_HALT_RE.search(a) for a in later)
+            halted = any(STANDING_NEGATED_RE.search(a) or STANDING_HALT_RE.search(a)
+                         or (named and STANDING_CLOSE_RE.search(a) and named.search(a)) for a in later)
             return "" if halted else ask
     return ""
 
@@ -660,7 +668,8 @@ def standing_merge(payload: dict, words: list, cwd) -> tuple:
     selector, number, repo = merge_target(words)
     if not number:
         return False, ""
-    ask = standing_merge_ask(session_asks(payload))
+    asks = session_asks(payload)
+    ask = standing_merge_ask(asks, number) or standing_merge_ask(asks)
     if not ask or not covers(ask, number, payload, selector, repo, cwd):
         return False, ""
     why = pr_not_ready(pr_view(selector, repo, cwd))
