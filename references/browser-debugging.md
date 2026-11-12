@@ -38,6 +38,17 @@ scripts and saved screenshots.
 WHY: each isolated context shows as its own window, so a tab per step left Simon asking "which tab? there are many open".
 TEST: `list_pages` during the walk shows 1 walk tab per live account plus the tabs you found; after hand-back it shows only the tabs you found, and no Chrome for Testing process you launched is left running.
 
+**Multi-persona walks: you open every persona yourself, each in its own isolated context, in story order.** Owned here; `/sk:test-copilot` points to it.
+**DO open each persona (a sender and a recipient, a host and a guest, an admin and a user) with `new_page` and a distinct `isolatedContext` name per persona** (e.g. `sender`, `friend`), the first actor first, then each next actor opened on the link the previous one produced (the sender's real share link, never a hand-built URL). Give every persona a FRESH account (a new phone or email tail), never one that already exists, and watch console, network and the server or database log for each persona at every step.
+**DON'T hand Simon a URL to open in his own browser, and DON'T ask him to open, clear or manage incognito windows.** A reused signed-in session answers as an existing account (a friend who already had one made the referral 409), and an everyday-browser window cannot be watched. When the change adds no new input, drive every persona's steps yourself (`/sk:test-copilot` 4.1b).
+WHY: one walk lost about an hour to a reused signed-in incognito session and a wrong local URL; isolated contexts share no cookies, so each persona starts signed out.
+TEST: `list_pages` shows one page per persona, each in its own named isolated context, opened first-actor-first; no step message sends Simon a URL; each persona's account row is created during the walk.
+
+**Label every walk tab with its persona as the tab title: `▶ <PERSONA> <phone tail> · <page title>`**, e.g. `▶ SENDER 0107 · Invite` and `▶ FRIEND 0108 · Join`. Owned here; `/sk:test-copilot` points to it.
+**DO set the title right after `new_page`, and keep it across navigations:** pass an `initScript` to `navigate_page` that re-applies the prefix on every load (it wins over the page's own `<title>`, e.g. a `MutationObserver` on `<title>` that rewrites it to the label plus the page title), or re-set `document.title` after each navigation and reload. A bare `document.title = ...` is lost on reload.
+**DO name the tab by that label in every step message** ("the **▶ FRIEND 0108** tab"), with its host.
+TEST: after each `navigate_page` or reload, `list_pages` shows the label prefix on every walk tab, and every step message names its tab by that label.
+
 **Fit the window: an emulated phone viewport must fit the test window's visible content area.** Launch with `--size 1280x900` (or taller), and emulate a viewport no taller than the window height minus 150 px for the browser chrome. Default: `402x750` inside `1280x900`. DON'T emulate 402x874 or 390x844 in a 1280x900 window: the page bottom falls below the visible area and the tester cannot reach it (hit three times in one project's walks).
 `hooks/emulate-viewport-guard.py` denies a taller `emulate` viewport; its `MAX_VIEWPORT_H` owns the cap. For a taller window, relaunch with `--size` and set `CLAUDE_TEST_VIEWPORT_MAX_H` (window height minus the hook's `CHROME_PX`).
 TEST: a screenshot of the window shows the whole emulated viewport, bottom edge included, with no cut-off; `window.innerHeight` from `evaluate_script` is at most the content height.

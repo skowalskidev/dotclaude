@@ -191,6 +191,12 @@ form). (the fix for a walk that sent "Step 1 of 8 · Do: type the search" for a 
 input, which he refused: "i wanted you to test it not me")
 TEST: every step message that asks Simon to act names an input the diff added.
 
+**DO open every persona of a multi-persona walk (sender and friend, host and guest) yourself, first
+actor first, each in its own named isolated context with a fresh account and a persona-labelled tab
+title, per `browser-debugging.md` § The test browser (multi-persona walks and tab labels).** Never send
+Simon a URL to open or ask him to manage incognito windows.
+TEST: a multi-persona walk sends Simon no URL, and every step message names its tab by persona label.
+
 **DO run the web walk visibly per `browser-debugging.md` § The test browser, even when you drive
 every step.** Attach the chrome-devtools MCP to the
 project's test browser (Chrome for Testing), reusing one already running on the project's profile

@@ -70,6 +70,7 @@ CONTRACTS: dict[str, dict] = {
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
             "Cap Docker dev stacks at floor(VM GiB / 3), at least 1 and at most 2, counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
             "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
+            "Never sweep a stack whose lease is held by a live owner or carries a future keep_until marker (stack-acquire --keep-hours or stack-keep, at most 24 hours); only unleased or abandoned stacks are swept.",
             "Use port-registry ownership for idle-stack decisions: live Claude/Codex sessions protect their checkout and physically nested linked worktrees of the same repository; sibling and unrelated repositories remain reclaimable. A failed session or ownership probe stops no stack and never fails the asking command.",
             "Watchdog and status flag, read-only, processes at or above 200% ps CPU aged 120 seconds or more, unleased booted simulators, idle claims and extra Chrome for Testing instances, naming each simulator's owner; they stop nothing.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
@@ -703,6 +704,7 @@ CONTRACTS: dict[str, dict] = {
             "Verify observed native browser transitions and automation overrides; record before/after state and versions, remove overrides that prevent the transition, and label synthetic handler coverage separately from observed browser transitions and live-backend proof.",
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
             "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
+            "Owns multi-persona walks and tab labels: each persona opened by Claude in its own named isolated context, first actor first, fresh accounts, no URL handed to Simon; every walk tab titled '▶ PERSONA tail · page title' and kept across navigations, with step messages naming the tab by that label.",
         ],
     },
     "references/code-best-practices.md": {
@@ -1116,6 +1118,7 @@ CONTRACTS: dict[str, dict] = {
             "Reads the project's testing guide as task data (asking once when project instructions are ignored) and runs the dependency handshake after every stack start or restart; method lives in references.",
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
             "Runs visible web walks per browser-debugging.md, including zero-new-input walks; captures each step after its action or Simon's new input, never asks for pasted screenshots or touches another session's tab.",
+            "Opens every persona of a multi-persona walk itself, first actor first, each in a named isolated context with a fresh account and a persona-labelled tab title; sends Simon no URL. The rules live in browser-debugging.md.",
             "Keeps one walk surface and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
             "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",

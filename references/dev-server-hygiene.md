@@ -601,6 +601,7 @@ index or changed file for 60 minutes (`STACK_IDLE_MIN`). It runs what `supabase 
 report only lists them. A compose stack without that label is reported, never stopped. WHY: Docker
 Desktop's Resource Saver stops the VM only "when no containers are running for a period of time". TEST: a stack with a
 live session or a change in the last 60 minutes is never stopped, and no data volume is removed.
+DO never sweep a stack whose lease is held by a live owner or carries a keep-until marker. A lease whose owner label appears in a live session's working directory protects its stack; set the marker with `stack-acquire --keep-hours <n>` or `local-capacity.py stack-keep --workspace <path> --hours <n>` (at most 24, `STACK_KEEP_MAX_HOURS`) whenever you leave a stack running for Simon's walk-through, because your own session's cwd may be elsewhere. Only an unleased stack, or a lease whose owner is gone and whose marker expired, is swept. WHY: a preview stack left for Simon was stopped by another session's `stack-acquire` sweep an hour before his walk. TEST: a leased stack with a live owner or a future `keep_until` is kept; an unleased idle stack with no live session is stopped.
 DO treat a failed session or ownership probe as every stack active: the sweep prints `idle stacks unknown (...); nothing stopped` and the asking command continues. TEST: a probe failure stops no stack and never fails `stack-acquire`.
 
 DO use `bin/native-slot.sh` only as a compatibility frontend to this same engine. Its `run`, `list`,

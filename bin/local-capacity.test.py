@@ -2416,6 +2416,42 @@ class StackTests(unittest.TestCase):
                                     ["network", "prune", "-f", "--filter", label]])
         self.assertFalse(any("volume" in command for command in commands))
 
+    def idle_with_lease(self, lease):
+        self.running("/w/held")
+        self.host["activity"] = {"/w/held": time.time() - (gate.STACK_IDLE_MIN + 1) * 60}
+        self.host["sessions"] = ["/elsewhere/other-session"]
+        return gate.stack_sweep(True, leases={"/w/held": lease} if lease else {})
+
+    def test_sweep_keeps_a_stack_leased_by_a_live_owner(self):
+        self.host["sessions"] = []
+        self.running("/w/held")
+        self.host["activity"] = {"/w/held": time.time() - (gate.STACK_IDLE_MIN + 1) * 60}
+        self.host["sessions"] = ["/w/owner-live/apps"]
+        lease = {"owner": "owner-live", "created": time.time() - 7200}
+        self.assertEqual(gate.stack_sweep(True, leases={"/w/held": lease}), [])
+        self.calls.assert_not_called()
+
+    def test_sweep_keeps_a_stack_with_a_future_keep_until_marker(self):
+        lease = {"owner": "gone-owner", "created": time.time() - 7200, "keep_until": time.time() + 3600}
+        self.assertEqual(self.idle_with_lease(lease), [])
+        self.calls.assert_not_called()
+
+    def test_sweep_stops_an_unleased_stack_and_one_with_an_expired_marker_and_dead_owner(self):
+        self.assertIn("stopped idle stack held", self.idle_with_lease(None)[0])
+        lease = {"owner": "gone-owner", "created": time.time() - 7200, "keep_until": time.time() - 60}
+        self.assertIn("stopped idle stack held", self.idle_with_lease(lease)[0])
+
+    def test_stack_keep_sets_the_marker_and_acquire_can_set_it(self):
+        gate.stack_acquire(self.root, "alpha", "/w/a")
+        gate.stack_keep(self.root, "/w/a", 2)
+        self.assertGreater(gate.read_stack_leases(self.root)["/w/a"]["keep_until"], time.time() + 3000)
+        gate.stack_acquire(self.root, "beta", "/w/b", keep_hours=1)
+        self.assertIn("keep_until", gate.read_stack_leases(self.root)["/w/b"])
+        with self.assertRaises(gate.GateError):
+            gate.stack_keep(self.root, "/w/none", 1)
+        with self.assertRaises(gate.GateError):
+            gate.stack_keep(self.root, "/w/a", gate.STACK_KEEP_MAX_HOURS + 1)
+
     def test_sweep_without_apply_only_reports_and_compose_stacks_are_never_stopped(self):
         old = time.time() - (gate.STACK_IDLE_MIN + 1) * 60
         self.running("/w/idle")

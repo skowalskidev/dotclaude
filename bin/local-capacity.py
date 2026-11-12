@@ -60,6 +60,7 @@ MAX_TEST_BROWSERS = 1  # watchdog: more Chrome for Testing instances than this i
 STACK_GIB_EACH = 3  # Docker VM memory budgeted per local dev stack
 STACK_CEILING = 2  # most local dev stacks at once, whatever the VM size
 STACK_IDLE_MIN = 60  # a stack with no live session and no change for this long is idle
+STACK_KEEP_MAX_HOURS = 24  # longest keep-until marker a stack owner may set
 STACK_START_GRACE_MIN = 15  # a stack lease counts this long before its containers appear
 PRIORITY_DEFAULT_MIN = 60
 PRIORITY_MAX_MIN = 180
@@ -1100,8 +1101,21 @@ def session_owns_workspace(workspace, cwds):
         raise GateError("workspace ownership probe failed; idle stacks are unknown") from exc
 
 
-def idle_stacks(stacks, exclude=None):
+def stack_lease_holds(lease, workspace, now=None):
+    """True when a stack lease protects its stack from the idle sweep: a keep-until marker still in the
+    future (the owner handed the stack to Simon), or an owner whose session is live. Raises GateError
+    when liveness is unresolved, which the caller treats as every stack active."""
+    if not lease:
+        return False
+    if lease.get("keep_until", 0) > (time.time() if now is None else now):
+        return True
+    return owner_session_live(lease["owner"], workspace)
+
+
+def idle_stacks(stacks, exclude=None, leases=None):
     """(Supabase stacks with no live session in their workspace and no change for STACK_IDLE_MIN, unknown).
+
+    A stack whose lease is held by a live owner, or carries a future keep_until marker, is never idle.
 
     A failed session or ownership probe counts every stack as active: it returns no stack and the probe
     error, so a sweep stops nothing and the command that asked for the sweep still proceeds."""
@@ -1113,6 +1127,8 @@ def idle_stacks(stacks, exclude=None):
         cwds = live_session_cwds()
         for workspace, stack in candidates:
             if session_owns_workspace(workspace, cwds):
+                continue
+            if stack_lease_holds((leases or {}).get(workspace), workspace):
                 continue
             quiet = (time.time() - workspace_activity(workspace)) / 60
             if quiet >= STACK_IDLE_MIN:
@@ -1132,8 +1148,8 @@ def stop_stack(project):
     docker_json_lines(["network", "prune", "-f", "--filter", label])
 
 
-def stack_sweep(apply, exclude=None):
-    idle, unknown = idle_stacks(observe_stacks(), exclude)
+def stack_sweep(apply, exclude=None, leases=None):
+    idle, unknown = idle_stacks(observe_stacks(), exclude, leases)
     if unknown:
         return ["idle stacks unknown (%s); nothing stopped" % unknown]
     lines = []
@@ -1163,9 +1179,11 @@ def read_stack_leases(root):
         if len(raw) > 16384 or not isinstance(leases, dict):
             raise ValueError("invalid stack leases")
         for workspace, lease in leases.items():
-            if (not Path(workspace).is_absolute() or not isinstance(lease, dict) or set(lease) != {"owner", "created"} or
+            if (not Path(workspace).is_absolute() or not isinstance(lease, dict) or
+                    set(lease) not in ({"owner", "created"}, {"owner", "created", "keep_until"}) or
                     not isinstance(lease["owner"], str) or not OWNER.fullmatch(lease["owner"]) or
-                    type(lease["created"]) not in (int, float)):
+                    type(lease["created"]) not in (int, float) or
+                    type(lease.get("keep_until", 0)) not in (int, float)):
                 raise ValueError("invalid stack lease")
         return leases
     except (ValueError, UnicodeError, TypeError) as exc:
@@ -1194,12 +1212,13 @@ def stacks_in_use(leases, running):
     return use
 
 
-def stack_acquire(root, owner, workspace):
+def stack_acquire(root, owner, workspace, keep_hours=None):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if not Path(workspace).is_absolute() or ".." in Path(workspace).parts:
         raise GateError("--workspace must be an absolute path without '..'")
-    swept = stack_sweep(True, exclude=workspace)
+    secure_root(root)
+    swept = stack_sweep(True, exclude=workspace, leases=read_stack_leases(root))
     running = observe_stacks()
     if workspace not in running:
         admission_guard("stack start")
@@ -1214,8 +1233,24 @@ def stack_acquire(root, owner, workspace):
                            "one stops" % (len(others), ceiling, "; ".join("%s (%s)" % item for item in sorted(others.items()))))
         leases = {ws: lease for ws, lease in leases.items() if ws in stacks_in_use(leases, running)}
         leases[workspace] = {"owner": owner, "created": time.time()}
+        if keep_hours is not None:
+            if not math.isfinite(keep_hours) or not 0 < keep_hours <= STACK_KEEP_MAX_HOURS:
+                raise GateError("--keep-hours must be above 0 and at most %d" % STACK_KEEP_MAX_HOURS)
+            leases[workspace]["keep_until"] = time.time() + keep_hours * 3600
         write_stack_leases(root, leases)
     return swept
+
+
+def stack_keep(root, workspace, hours):
+    """Mark a leased stack as handed to Simon: the idle sweep leaves it alone until `hours` from now."""
+    if not math.isfinite(hours) or not 0 < hours <= STACK_KEEP_MAX_HOURS:
+        raise GateError("--hours must be above 0 and at most %d" % STACK_KEEP_MAX_HOURS)
+    with locked(root):
+        leases = read_stack_leases(root)
+        if workspace not in leases:
+            raise GateError("no stack lease for %s; run stack-acquire first" % workspace)
+        leases[workspace]["keep_until"] = time.time() + hours * 3600
+        write_stack_leases(root, leases)
 
 
 def stack_release(root, workspace):
@@ -2096,7 +2131,7 @@ def print_stacks(leases):
         len(use), max_stacks(vm_gib), "unknown" if vm_gib is None else "%.1f" % vm_gib,
         (": " + "; ".join("%s (%s)" % item for item in sorted(use.items()))) if use else ""))
     try:
-        for line in stack_sweep(False):
+        for line in stack_sweep(False, leases=leases):
             print(line)
     except GateError as exc:
         print("dev stacks: %s" % exc)
@@ -2112,6 +2147,11 @@ def main(argv=None):
     stack_parser = sub.add_parser("stack-acquire", help="lease a local Docker dev stack before starting it")
     stack_parser.add_argument("--owner", required=True)
     stack_parser.add_argument("--workspace", required=True)
+    stack_parser.add_argument("--keep-hours", type=float,
+                              help="hand the stack to Simon: the idle sweep skips it for this many hours")
+    keep_parser = sub.add_parser("stack-keep", help="keep a leased stack from the idle sweep for N hours")
+    keep_parser.add_argument("--workspace", required=True)
+    keep_parser.add_argument("--hours", required=True, type=float)
     unstack_parser = sub.add_parser("stack-release", help="drop this workspace's stack lease after stopping it")
     unstack_parser.add_argument("--workspace", required=True)
     sweep_parser = sub.add_parser("stack-sweep", help="list idle stacks; --apply stops them, keeping data volumes")
@@ -2211,20 +2251,23 @@ def main(argv=None):
             reap_dead_leases(root)
             lines = [line for line in watchdog_lines(root) if line != "watchdog: clear"]
             try:
-                lines += stack_sweep(False)
+                lines += stack_sweep(False, leases=read_stack_leases(root))
             except GateError as exc:
                 lines.append("watchdog: %s" % exc)
             for line in lines:
                 print(line)
         elif args.action == "stack-acquire":
-            for line in stack_acquire(root, args.owner, args.workspace):
+            for line in stack_acquire(root, args.owner, args.workspace, args.keep_hours):
                 print(line)
             print("stack lease held for %s" % args.workspace)
+        elif args.action == "stack-keep":
+            stack_keep(root, args.workspace, args.hours)
+            print("stack kept from the idle sweep for %g hours" % args.hours)
         elif args.action == "stack-release":
             stack_release(root, args.workspace)
             print("stack lease released")
         elif args.action == "stack-sweep":
-            for line in stack_sweep(args.apply) or ["no idle stacks"]:
+            for line in stack_sweep(args.apply, leases=read_stack_leases(root)) or ["no idle stacks"]:
                 print(line)
         elif args.action == "acquire":
             refuse_nested_lease(root)
