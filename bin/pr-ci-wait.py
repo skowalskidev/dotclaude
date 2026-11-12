@@ -26,6 +26,7 @@ EXIT_OK, EXIT_FAILED, EXIT_USAGE, EXIT_CONFLICT, EXIT_NO_RUN, EXIT_HEAD_MOVED, E
 TRANSIENT_RE = re.compile(r"HTTP 5\d\d|\b50[0234]\b|Bad Gateway|Service Unavailable|Gateway Time-?out|"
                           r"timed out|connection reset|EOF", re.I)
 GH_ATTEMPTS = 4
+SHA_RE = re.compile(r"[0-9a-f]{7,40}")
 
 _spec = importlib.util.spec_from_file_location(
     "git_commit_guard", Path(__file__).resolve().parent.parent / "hooks" / "git-commit-guard.py")
@@ -126,7 +127,8 @@ def parse_args(argv: list) -> argparse.Namespace:
                     "5 the PR head moved off --sha; 6 --timeout-min reached with checks still pending.")
     ap.add_argument("--repo", required=True, help="owner/name")
     ap.add_argument("--pr", required=True, type=int, help="pull request number")
-    ap.add_argument("--sha", help="head commit to wait on; default: the PR's current head")
+    ap.add_argument("--sha", help="head commit to wait on, full or abbreviated (7-40 hex characters); "
+                                  "default: the PR's current head")
     ap.add_argument("--require", action="append", default=[], metavar="CHECK",
                     help="a check name that must appear before the wait can pass (repeatable); use a "
                          "required job that starts at push time, so a fast side workflow cannot pass early")
@@ -138,7 +140,16 @@ def parse_args(argv: list) -> argparse.Namespace:
     args = ap.parse_args(argv)
     if "/" not in args.repo:
         ap.error("--repo must be owner/name")
+    if args.sha is not None:
+        args.sha = args.sha.strip().lower()
+        if not SHA_RE.fullmatch(args.sha):
+            ap.error(f"--sha must be a commit id of 7-40 hex characters, got {args.sha!r}")
     return args
+
+
+def same_commit(sha: str, head: str) -> bool:
+    """True when --sha (full, or an abbreviated prefix) names the PR head commit."""
+    return head.lower().startswith(sha)
 
 
 def wait(args: argparse.Namespace) -> int:
@@ -159,9 +170,14 @@ def wait(args: argparse.Namespace) -> int:
             if not sha:
                 print(f"PR #{args.pr} reported no head commit", file=sys.stderr)
                 return EXIT_USAGE
-        if head and head != sha:
+        if head and not same_commit(sha, head):
             print(f"HEAD MOVED: PR #{args.pr} head is {head[:12]}, not {sha[:12]}; wait on the new head.")
             return EXIT_HEAD_MOVED
+        if len(sha) < 40:
+            if not head:
+                print(f"PR #{args.pr} reported no head commit to expand --sha {sha} against", file=sys.stderr)
+                return EXIT_USAGE
+            sha = head  # every read below needs the full id: gh run list --commit matches no prefix
         runs = latest_runs(read_runs(args.repo, sha))
         checks = latest_checks(pr.get("statusCheckRollup") or [])
         now = time.monotonic()

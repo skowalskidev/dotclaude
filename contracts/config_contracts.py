@@ -390,6 +390,7 @@ CONTRACTS: dict[str, dict] = {
             "Pass only after every check and every newest run per workflow is terminal on two consecutive polls and each --require check exists; judge checks through latest_checks imported from hooks/git-commit-guard.py.",
             "Print one line with the sha, counts by state and failing check names; exit 0 when all succeeded, skipped or neutral, 1 on any other conclusion, 5 when the head moved off --sha, 6 on its own --timeout-min (default 50).",
             "Retry a transient gh 5xx or network error up to 4 attempts; any other gh failure exits 2.",
+            "Accept --sha as 7-40 hex characters (exit 2 otherwise); an abbreviated --sha that prefixes the PR head is not a move, and every later read uses the full head sha.",
             "Python 3.9+, standard library only; keep bin/pr-ci-wait.test.py passing under /usr/bin/python3.",
         ],
     },
