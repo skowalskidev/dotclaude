@@ -381,6 +381,18 @@ CONTRACTS: dict[str, dict] = {
             "Python 3.9+, standard library plus the system ruby for YAML; keep bin/ci-gate-list.test.py passing under /usr/bin/python3.",
         ],
     },
+    "bin/pr-ci-wait.py": {
+        "mission": "Simon never waits on CI that will not start, because a CI wait after a push names a conflicting PR or a missing run at once instead of reading no checks as done.",
+        "purpose": "Waits on a pull request's CI for one head sha and exits with a distinct code per outcome.",
+        "criteria": [
+            "Exit 3 printing CONFLICTING and the merge-the-base-in instruction when mergeable is CONFLICTING or mergeStateStatus is DIRTY, at any poll.",
+            "Exit 4 with the merge state when no workflow run and no check exists for the head sha within --start-min (default 10); an empty check list never passes.",
+            "Pass only after every check and every newest run per workflow is terminal on two consecutive polls and each --require check exists; judge checks through latest_checks imported from hooks/git-commit-guard.py.",
+            "Print one line with the sha, counts by state and failing check names; exit 0 when all succeeded, skipped or neutral, 1 on any other conclusion, 5 when the head moved off --sha, 6 on its own --timeout-min (default 50).",
+            "Retry a transient gh 5xx or network error up to 4 attempts; any other gh failure exits 2.",
+            "Python 3.9+, standard library only; keep bin/pr-ci-wait.test.py passing under /usr/bin/python3.",
+        ],
+    },
     "bin/health-pulse.py": {
         "mission": "Simon sees each morning which production signal broke or degraded, with evidence, without opening five dashboards or touching prod data.",
         "purpose": "Runs every read-only probe a project's monitor block enables and prints a digest ranked worst first, plus a dated snapshot.",
@@ -836,8 +848,8 @@ CONTRACTS: dict[str, dict] = {
             "Before changing an external value shipped clients read, grep the clients for hard-coded checks; on a hit, a release accepting the new value, or a new key keeping the old live, ships first.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
-            "A CI wait resolves its run id from the head sha's check runs, never by branch or workflow listing, and exits non-zero on an empty id, failed run, unknown state or timeout.",
-            "After an authorized push or ready-flip, read the PR's merge state and confirm within a minute a CI run for the head sha is in progress; no run is a failure to investigate, and a run queued behind a superseded one is cancelled. Run the repo's ordering checks before pushing a base merge.",
+            "Every CI wait after a push runs bin/pr-ci-wait.py with --require naming a required job that starts at push time, and acts on its exit code: 3 merges the base in and pushes, never a rerun, cancel or empty commit.",
+            "Within a minute of a ready-flip, confirm a CI run for the head sha is in progress and cancel a run it is queued behind. Run the repo's ordering checks before pushing a base merge.",
             "Owns the shared-branch force-push rule: check for a competing sweep before a ship or rebase sweep, pin --force-with-lease to the SHA this session last fetched or pushed (never one read from the remote in the push step), and stop when git log <pinned>..origin/<branch> lists a commit this session did not write.",
             "After merging the base: reinstall dependencies, re-download test browsers, compare applied migrations with the files by name and number, and read git status for tool-rewritten files before the next commit.",
             "Require timestamped current provider identity and version/channel eligibility before release packaging; unknown eligibility stops archives/uploads, not independent local work. Reuse applicable fresh provider evidence without requiring duplicate access.",

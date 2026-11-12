@@ -113,6 +113,8 @@ CRITERIA: list[tuple[str, str]] = [
      "The daily pulse only reads, never prints a key, flags a tanking paywall arm, a dropped webhook and a jump in failures, and keeps noise green."),
     ("ci-gate-list-counts-every-pr-run-step",
      "The local CI gate list is derived from the workflow files: every pull-request run step counted, container needs marked, an empty list never passes."),
+    ("pr-ci-wait-refuses-quiet-states",
+     "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
     ("regression-check-runs-on-every-pr",
@@ -2054,6 +2056,16 @@ def check_ci_gate_list_counts_every_pr_run_step() -> None:
     check(result.returncode == 0, "CI gate list regression: " + result.stdout + result.stderr)
     check("bin/ci-gate-list.py" in (ROOT / "references/testing-strategy.md").read_text(),
           "references/testing-strategy.md does not point at bin/ci-gate-list.py for the gate list")
+
+
+def check_pr_ci_wait_refuses_quiet_states() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "pr-ci-wait.test.py")])
+    check(result.returncode == 0, "PR CI wait regression: " + result.stdout + result.stderr)
+    for path in ("references/git-pr-deploy.md", "references/code-best-practices.md"):
+        check("bin/pr-ci-wait.py" in (ROOT / path).read_text(),
+              f"{path} does not point at bin/pr-ci-wait.py for PR CI waits")
+    check("for _ in $(seq 1 10)" not in (ROOT / "references/git-pr-deploy.md").read_text(),
+          "references/git-pr-deploy.md still carries the hand-written CI wait loop")
 
 
 def check_pr_landing_gate_refuses_missing_rows() -> None:

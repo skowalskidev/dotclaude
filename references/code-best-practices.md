@@ -102,8 +102,8 @@ carries the problem. Keep the loop's summed waits at least 5 minutes under the b
 hours for a `run_in_background` Bash task): the cap kills the loop with no verdict. Read the first
 interim output within 2 minutes of launch and at every check-in.
 **DON'T leave a background wait unread until it finishes.** (the fix for a CI wait that spun 30
-minutes on usage errors from an empty run id.) The CI wait script lives in `references/git-pr-deploy.md`
-§ After a push.
+minutes on usage errors from an empty run id.) Wait on PR CI with `bin/pr-ci-wait.py`
+(`references/git-pr-deploy.md` § After a push).
 TEST: every background wait states its condition and a timeout below the tool's cap, ends with its own
 timeout verdict, and its first output was read within 2 minutes of launch.
 
@@ -139,14 +139,14 @@ checks <n> || true) | grep -q pending  # exit 8 means pending`. (the fix for a C
 still pending.)
 **DON'T treat an all-complete rollup as a finished CI wait.** Right after a push the rollup lists only
 the checks registered so far, so a fast side workflow can complete it while the required workflow is
-still queued. Wait on the head sha's required run with `references/git-pr-deploy.md`'s recipe. (the fix
+still queued. `bin/pr-ci-wait.py --require <job>` holds the wait until that required job appears. (the fix
 for a watcher that reported green on 3 checks while the deploy workflow had not started.)
 TEST: no loop or `if` condition under pipefail pipes a status-coded command without a guard or a
 field read.
 
 **DO judge a CI rollup by the newest entry per check identity (workflow + name), and count an entry
 with an empty status or conclusion as pending.** `latest_checks` in `hooks/git-commit-guard.py` is the
-reference behaviour. **DON'T fail a wait on a CANCELLED entry with a newer run of the same check:** a
+reference behaviour; `bin/pr-ci-wait.py` imports it, so a PR CI wait needs no watcher of its own. **DON'T fail a wait on a CANCELLED entry with a newer run of the same check:** a
 concurrency group cancels the old run when an edit to the PR starts a new one.
 **DO exit with its own code (e.g. 3, printing `CONFLICTING`) when `gh pr view <n> --json mergeable`
 reads `CONFLICTING`.** GitHub starts no `pull_request` workflow on a conflicting PR, so the wait never

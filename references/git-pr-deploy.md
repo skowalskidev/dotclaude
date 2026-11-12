@@ -192,58 +192,22 @@ fixture token and an i18n coverage gate the base had added, both with local comm
 
 Applies once a push is authorized (Simon asked, or a `sk:ship-*` flow that pushes is running).
 
-**DO read the PR's merge state and the CI runs for the pushed commit after every push:**
-`gh pr view <n> --json mergeable,mergeStateStatus` and `gh run list --commit <sha>`. Expect
-`MERGEABLE` and one run for that sha within 5 minutes. DON'T read "no checks" as a quiet state: a
-PR that conflicts with its base starts no run. When CI has not started within 10 minutes (no run for
-the head sha, or a run `queued` with no jobs), read `mergeStateStatus` first; `DIRTY` means merge the
-base in and push. DON'T `gh run cancel`, `gh run rerun` or push an empty commit at a `DIRTY` PR: none
-starts a run. Do the same within 1 minute of any state change that
-should start CI (marking a PR ready): confirm a run for the head commit is `in_progress`, and cancel
-(`gh run cancel <id>`) an older run it is queued behind. TEST: each push records the merge state and a run
-id for its sha, or the named reason there is none; every cancel, rerun or empty commit at a stalled run
-follows a recorded non-`DIRTY` state (the fix for CI that never started, or sat queued with no jobs while
-reruns and an empty commit did nothing, because the PR conflicted with main, and for required checks left at "waiting for status" for ten minutes behind
-a superseded run).
-
-**DO resolve the run id a CI wait polls from the head sha's check runs**, which works for any branch
-and event, then wait under `references/code-best-practices.md` § Agent-written shell:
-
-```sh
-set -euo pipefail
-SHA=$(gh pr view "$PR" --json headRefOid -q .headRefOid)
-JOB=<a required job that starts at push time, e.g. preflight; not a roll-up gated on other jobs>
-RUN=""
-for _ in $(seq 1 10); do  # the job registers a few seconds to minutes after the push
-  RUN=$(gh api "repos/$O/$R/commits/$SHA/check-runs?per_page=100" --jq '[.check_runs[]
-    | select(.app.slug == "github-actions") | select(.name == "'"$JOB"'") | (.details_url // "")
-    | capture("/runs/(?<id>[0-9]+)").id] | unique | first // empty')
-  [ -n "$RUN" ] && break
-  sleep 30
-done
-[ -n "$RUN" ] || { echo "no $JOB run for $SHA after 5 min" >&2; exit 1; }
-deadline=$(( $(date +%s) + 1800 ))
-while :; do
-  st=$(gh run view "$RUN" --json status,conclusion -q '.status + "/" + .conclusion')
-  case "$st" in
-    completed/success) break ;;
-    completed/*) echo "run $RUN ended $st" >&2; exit 1 ;;
-    queued/*|in_progress/*|waiting/*|pending/*|requested/*) ;;
-    *) echo "run $RUN in unexpected state '$st'" >&2; exit 1 ;;
-  esac
-  [ "$(date +%s)" -lt "$deadline" ] || { echo "timeout after 30 min: run $RUN is $st" >&2; exit 1; }
-  sleep 30
-done
-```
-
-**DO filter by a required check's job name.** An unfiltered first run is often a fast side workflow
-(PR metadata, dependabot) that finishes before the required workflow registers, so the wait reports
-green early. Pick a job with no `needs:`: a roll-up job that waits on others registers only
-when they finish, after the lookup's 5 minutes, so the wait aborts with no run id.
-**DON'T resolve it with `gh run list --branch` or `--workflow`.** A branch, event or workflow-name
-mismatch returns nothing, and every later `gh run view` fails on the empty id.
-TEST: a CI wait's run id traces to the head sha, and the wait exits non-zero on an empty id, a failed
-run, an unknown state or its timeout.
+**DO wait on PR CI after every push only through `~/.claude/bin/pr-ci-wait.py --repo <owner/name> --pr <n>
+--sha <pushed sha> --require <job>`**, in the background with its default 50-minute timeout. Expect
+exit 0 and one `PASSED <sha>: N checks (...)` line. Name for `--require` a required job with no
+`needs:` that starts at push time (e.g. `preflight`), so a fast side workflow cannot pass the wait early.
+**DO act on its exit code before anything else:** 3 (`CONFLICTING`) means merge the base in and push;
+4 (no run for the sha in 10 minutes) means read the printed merge state and the workflow triggers;
+1 means read every failed job's log at once (§ above); 5 means wait on the new head.
+**DON'T write an ad-hoc `gh pr checks` or `gh run list` loop, and DON'T `gh run rerun`, `gh run cancel`
+or push an empty commit at a conflicting PR:** "no checks reported" ends such a loop at once, and
+GitHub starts no `pull_request` run on a conflicting PR, so none of them starts CI.
+**DO confirm within 1 minute of marking a PR ready that a run for the head sha is `in_progress`**, and
+`gh run cancel <id>` an older run it is queued behind.
+TEST: every CI wait after a push is a `bin/pr-ci-wait.py` call with its exit code recorded, and no
+rerun, cancel or empty commit follows an exit 3 (the fix for an ad-hoc loop that read a conflicting
+PR's "no checks reported" as done, then an empty commit that started nothing, twice; and for required
+checks left at "waiting for status" for ten minutes behind a superseded run).
 
 **DO run the repo's own ordering and migration checks before pushing a merge of the base** (the CI gate
 list from `references/testing-strategy.md` § Defects first; e.g. a rule that a new migration is numbered
