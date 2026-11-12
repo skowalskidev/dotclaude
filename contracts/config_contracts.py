@@ -720,6 +720,7 @@ CONTRACTS: dict[str, dict] = {
             "Keeps one tested log query per production connector kind, re-tested at first need; after 2 failed log reads a session switches to the provider's own record of the event.",
             "A copied secret is read into a variable, whitespace-stripped, shown only as length and fixed prefix, passes one authenticated call, then is stored; never an interactive paste or untested pipe.",
             "Documents hybrid secrets: a vault-pointer route beside the local one, exact Vault names, both stores tried in resolve order, values read only through run, names discovered only, and no model-API key behind a pointer.",
+            "A live registry root changes reader-first: the engine change is active on main, then a copy passes the live engine's validate before it replaces the live files.",
         ],
     },
     "references/project-instructions.md": {
@@ -2386,6 +2387,7 @@ CONTRACTS: dict[str, dict] = {
             "Resolve prints each route's key location (secret.path and secret.var names, text and --json) and never reads or prints a value; secret.var accepts identifiers only.",
             "A route secret is local {path, var} or a vault pointer {store, via, project, name, env}; resolve ranks local before vault unless storeOrder flips it, and blocks a pointer whose via route is undeclared.",
             "run hands a local or vault key only to the child process's environment; errors carry the status, never the token or the value.",
+            "validate DIR exits 1 unless this engine reads every file of a candidate root, so a record shape is staged and checked by the live engine before it reaches a live root.",
             "Migration keeps every legacy project and connector field reachable; check-migration fails on any missing value.",
             "Python 3.9 standard library only, so the /usr/bin/python3 guard can import nothing else.",
         ],

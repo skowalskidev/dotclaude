@@ -32,6 +32,7 @@ Usage:
   connector_registry.py record PROVIDER ROUTE ok|fail [--reason TEXT] [--by WHO] [--cwd DIR]
   connector_registry.py run PROVIDER ROUTE [--cwd DIR] -- CMD...   CMD with the route's key in its env
   connector_registry.py list [--json]                 every provider, capability and route, per root
+  connector_registry.py validate DIR                   exit 1 unless THIS engine reads every file in a candidate root
   connector_registry.py migrate --from DIR [--write] [--provider-map JSON]
   connector_registry.py check-migration --from DIR    every legacy manifest field is reachable here
 """
@@ -238,6 +239,29 @@ def store_rank(route, record):
     """0 for the provider's first store in `storeOrder` (local unless it says otherwise)."""
     store = (secret_location(route) or {}).get('store', 'local')
     return list(record.get('storeOrder', STORES)).index(store)
+
+
+def validate_root(path):
+    """Errors (empty = pass) this engine raises on a candidate root: staged copy before the live one."""
+    path = expand(path)
+    try:
+        boundary = json.loads((path / INDEX).read_text()).get('boundary')
+    except (OSError, ValueError) as exc:
+        return [str(path / INDEX) + ': ' + str(exc)]
+    if boundary not in BOUNDARIES:
+        return [str(path / INDEX) + ': boundary must be one of ' + ', '.join(BOUNDARIES)]
+    try:
+        root = load_root(boundary, path)
+    except RegistryError as exc:
+        return [str(exc)]
+    errors = list(root['errors'])
+    for provider, record in root['providers'].items():
+        for route in record.get('routes', []):
+            secret = secret_location(route)
+            if secret and secret['store'] == 'vault' and vault_reader(root, secret) is None:
+                errors.append(provider + '/' + route['id'] + ': vault pointer via ' + secret['via'] +
+                              ' names no local-key route in this root')
+    return errors
 
 
 def load_all(identity=None):
@@ -888,6 +912,8 @@ def main(argv=None):
     cmd.add_argument('child', nargs=argparse.REMAINDER, help='-- then the command to run')
     cmd = sub.add_parser('list')
     cmd.add_argument('--json', action='store_true')
+    cmd = sub.add_parser('validate')
+    cmd.add_argument('root')
     for name in ('migrate', 'check-migration'):
         cmd = sub.add_parser(name)
         cmd.add_argument('--from', dest='source', required=True)
@@ -966,6 +992,12 @@ def run(args):
     if args.command == 'run':
         child = args.child[1:] if args.child[:1] == ['--'] else args.child
         return run_with_key(args.provider, args.route, child, args.cwd)
+    if args.command == 'validate':
+        errors = validate_root(args.root)
+        for error in errors:
+            print('UNREADABLE ' + error)
+        print(('PASS' if not errors else 'FAIL') + ': ' + str(args.root))
+        return 1 if errors else 0
     if args.command == 'list':
         rows = []
         for root in load_all():

@@ -85,6 +85,13 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
   one. Provisioning never adds a server somewhere new; the resolver still ranks every route.
 - `health.json` — written only by `record`, `chmod 600`, under a lock with an atomic replace.
 
+DO change a live root reader-first: land and activate any engine change the new records need on
+`~/.claude` main, write the changed files into a COPY of the root, and run the LIVE engine over the copy,
+`python3 ~/.claude/bin/connector_registry.py validate <copy>` (expect `PASS`), before moving them in.
+DON'T write a record shape the live engine does not read yet into a live root: one unreadable file makes
+`resolve` and both launchers fail for every session (the fix for vault pointers written before their
+reader was live). TEST: every live-root change follows a `validate` PASS from the live checkout.
+
 ## Resolve, try, record
 
 ```

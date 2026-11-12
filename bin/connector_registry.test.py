@@ -291,6 +291,22 @@ class RegistryTests(unittest.TestCase):
         self.assertIn('one variable name the consumer reads per vault name',
                       ' '.join(reg.load_all(self.identity)[0]['errors']))
 
+    def test_validate_gates_a_staged_root_before_it_replaces_the_live_one(self):
+        # The fix for vault pointers written to the live root before the engine that reads them was
+        # active: every launch then failed on "secret needs a path string". Reader before data.
+        self.vault_setup()
+        with patch('sys.stdout', new_callable=io.StringIO) as out:
+            self.assertEqual(reg.main(['validate', str(self.roots['work'])]), 0)
+        self.assertIn('PASS', out.getvalue())
+        record = json.loads((self.roots['work'] / 'billing.json').read_text())
+        record['routes'][0]['secret']['store'] = 'cloud-kms'  # a kind this engine cannot read
+        (self.roots['work'] / 'billing.json').write_text(json.dumps(record))
+        with patch('sys.stdout', new_callable=io.StringIO) as out:
+            self.assertEqual(reg.main(['validate', str(self.roots['work'])]), 1)
+        self.assertIn('store must be one of', out.getvalue())
+        self.vault_setup(via='vaultdb/missing')
+        self.assertTrue(any('names no local-key route' in e for e in reg.validate_root(self.roots['work'])))
+
     # ---------------------------------------------------------------- scope and boundary
 
     def test_another_projects_key_is_ranked_after_but_never_excluded(self):
