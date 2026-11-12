@@ -98,12 +98,14 @@ TEST: no loop body uses a lookup result that was not checked non-empty first.
 
 **DO give every background wait or poll an exit condition, a timeout, and a non-zero exit printing the
 last state it saw on timeout or on any state it does not recognise.** The completion notification then
-carries the problem. Read the first interim output within 2 minutes of launch and at every check-in.
+carries the problem. Keep the loop's summed waits at least 5 minutes under the background tool's cap (2
+hours for a `run_in_background` Bash task): the cap kills the loop with no verdict. Read the first
+interim output within 2 minutes of launch and at every check-in.
 **DON'T leave a background wait unread until it finishes.** (the fix for a CI wait that spun 30
 minutes on usage errors from an empty run id.) The CI wait script lives in `references/git-pr-deploy.md`
 § After a push.
-TEST: every background wait states its condition and timeout, and its first output was read within 2
-minutes of launch.
+TEST: every background wait states its condition and a timeout below the tool's cap, ends with its own
+timeout verdict, and its first output was read within 2 minutes of launch.
 
 **DON'T let a "nothing pending" exit pass on an empty set.** A wait for CI checks, jobs or files first
 requires the expected items to exist for the right head or id (e.g. the check count for the head sha is
@@ -130,9 +132,10 @@ TEST: at hand-back, no background task or wake you started outlives the job it w
 **DO read a poll's state from a field when the command's exit code encodes a status.** Under `set -o
 pipefail`, `gh pr checks` (8 while checks are pending), `grep -q` (1 on no match) and `diff` (1 when files
 differ) turn "still running" into "done" inside a loop or `if` condition. Poll a JSON field instead, e.g.
-`gh pr view <n> --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.status // "COMPLETED")
-!= "COMPLETED")] | length'`, or guard the command with an inline reason: `(gh pr checks <n> || true) |
-grep -q pending  # exit 8 means pending`. (the fix for a CI wait that reported done with 15 checks
+`gh pr view <n> --json statusCheckRollup --jq '[.statusCheckRollup[] | select(if .__typename ==
+"StatusContext" then .state == "PENDING" or .state == "EXPECTED" else .status != "COMPLETED" or
+(.conclusion // "") == "" end)] | length'`, or guard the command with an inline reason: `(gh pr
+checks <n> || true) | grep -q pending  # exit 8 means pending`. (the fix for a CI wait that reported done with 15 checks
 still pending.)
 **DON'T treat an all-complete rollup as a finished CI wait.** Right after a push the rollup lists only
 the checks registered so far, so a fast side workflow can complete it while the required workflow is
@@ -140,6 +143,17 @@ still queued. Wait on the head sha's required run with `references/git-pr-deploy
 for a watcher that reported green on 3 checks while the deploy workflow had not started.)
 TEST: no loop or `if` condition under pipefail pipes a status-coded command without a guard or a
 field read.
+
+**DO judge a CI rollup by the newest entry per check identity (workflow + name), and count an entry
+with an empty status or conclusion as pending.** `latest_checks` in `hooks/git-commit-guard.py` is the
+reference behaviour. **DON'T fail a wait on a CANCELLED entry with a newer run of the same check:** a
+concurrency group cancels the old run when an edit to the PR starts a new one.
+**DO exit with its own code (e.g. 3, printing `CONFLICTING`) when `gh pr view <n> --json mergeable`
+reads `CONFLICTING`.** GitHub starts no `pull_request` workflow on a conflicting PR, so the wait never
+ends on its own.
+TEST: a CI or merge watcher dedupes by workflow + name before judging, reads an empty conclusion as
+pending, and has a separate exit branch for `CONFLICTING` (the fix for a watcher that failed a PR on a
+cancelled run whose rerun had passed).
 
 **DO brace every variable that a colon follows: `"${src}:${dst}"`, never `"$src:refs/..."`.** zsh reads an
 unbraced `$var:` plus a letter (`:r`, `:h`, `:t`, `:e`, `:a`, `:l`, `:u` and more) as a history modifier,
