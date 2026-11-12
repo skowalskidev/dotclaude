@@ -238,15 +238,17 @@ specific irreversible merge. `hooks/git-commit-guard.py` runs `gh pr merge <n>` 
 OWN words this turn (every ask `hooks/intent-ledger.sh latest-ask --since` recorded since his newest
 typed turn-opening prompt, queued mid-turn messages included) say "merge" with no later
 stop/hold/wait, and either name `<n>` anywhere, or cover it as an open PR this session pushed (no PR
-number, or "all"/"both"/"them"), or name no PR at all for ONE other PR per turn. A plural never covers
-a PR this session did not push, and a number names only that PR. A default-branch push needs
+number, or "all"/"both"/"them"), or name no PR at all for ONE other PR per turn. A plural covers a PR
+this session did not push only when the hand-back he is answering lists it on its `Merge list:` line
+(the fix for "merge and deploy both" refused for a stack's base PR another session pushed), and a
+number names only that PR. A default-branch push needs
 `CLAUDE_ALLOW_MAIN_COMMIT=1` AND the user's words this turn saying "push". No flag the model sets
 authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
 **DO stop at a ready, green PR and ask "merge #<n>?"; a plain "merge it" / "merge and deploy" answers it.** DON'T read "finish it",
 "priority", "1 yes" to a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged
 on "1 yes" to a model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").
 TEST: every merge traces to a user message this turn containing "merge" and that PR's number, or
-plural/unnumbered wording over PRs this session pushed, or to a standing merge below (the fix for "merge and deploy" covering one
+plural/unnumbered wording over PRs this session pushed or the answered hand-back's merge list, or to a standing merge below (the fix for "merge and deploy" covering one
 of two session PRs and a queued "from this session i mean" voiding "merge all that's ready").
 **DO treat a standing merge as the yes for every PR it covers, for the rest of the session:**
 "merge" plus a future condition ("merge and deploy all when they're ready", "merge #12 once CI is

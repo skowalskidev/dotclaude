@@ -141,6 +141,16 @@ sys.exit(1)
 """
 
 TURNS = [
+    ("'merge and deploy both' covers another session's PR the hand-back's merge list named",
+     [("handback", "Action needed: merge.\n\nMerge list: #77, then #1186."), ("open", "merge and deploy both")],
+     "gh pr merge 77 -R acme/web", False),
+    ("'merge both' does not cover another session's PR the merge list left out",
+     [("handback", "Merge list: #1186."), ("open", "merge and deploy both")], "gh pr merge 77 -R acme/web", True),
+    ("a merge list in an older hand-back does not carry over to a later 'merge both'",
+     [("handback", "Merge list: #77."), ("open", "ok"), ("handback", "Done."), ("open", "merge both")],
+     "gh pr merge 77 -R acme/web", True),
+    ("naming one PR from the merge list does not merge the rest of it",
+     [("handback", "Merge list: #77, then #1186."), ("open", "merge 1186")], "gh pr merge 77 -R acme/web", True),
     ("plain 'merge and deploy' covers both session PRs (1 of 2)",
      [("open", "ok merge and deploy for me and then reply to the team lead")], "gh pr merge 251 -R acme/api", False,
      "two-prs"),
