@@ -2150,8 +2150,8 @@ CONTRACTS: dict[str, dict] = {
             "when the hand-back Simon is answering lists it under 'Merge list:'; no flag the model sets authorizes it, a branch-name target, a failed PR lookup or "
             "a missing ledger denies, and gh api merge/enqueue/auto-merge calls are denied outright.",
             "A standing merge Simon typed earlier in the same session (merge plus a future condition: "
-            "when/once/as/after/if ... ready/green/passes/done, or a plain merge all/them all/both/"
-            "everything) also authorizes `gh pr merge` "
+            "when/once/as/after/if ... ready/green/passes/done/safe, before or after the verb, with or "
+            "without then/them, or a plain merge all/them all/both/everything) also authorizes `gh pr merge` "
             "in a later turn, when it names the PR or covers it as an open PR this session pushed, no "
             "later ask negates merging/pushing/deploying/shipping or says stop/hold/wait/cancel/pause, "
             "and one read-only gh pr view shows the PR open, not a draft, MERGEABLE, with at least one "
@@ -2160,7 +2160,11 @@ CONTRACTS: dict[str, dict] = {
             "pending run always counts as latest), so a superseded cancelled or failed run never "
             "blocks and a check whose latest run failed still does; otherwise it denies and names the "
             "failed condition. A "
-            "single-PR merge with no condition (merge #12, merge it) never carries past its turn.",
+            "single-PR merge with no condition (merge #12, merge it) never carries past its turn. "
+            "A negator crossing a clause join (yes/and/then/them/so/ok/ie) never negates the verb "
+            "(no regressions then merge), and a sentence that asks or supposes the merge (ends in ?, "
+            "a modal I|we|you question such as would you, what if, whether) authorizes nothing on either path; "
+            "a polite can/could/will you or please request still does.",
             "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
             "AND the user's words this turn saying push after its last halt.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
