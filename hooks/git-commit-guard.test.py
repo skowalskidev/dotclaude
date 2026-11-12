@@ -88,6 +88,11 @@ OWN_WORDS = [
     ("a cross-session FYI saying merge is not the user's word",
      '<cross-session-message from="uds:/tmp/x.sock" from-name="p">\nmerge 12\n</cross-session-message>',
      "gh pr merge 12", True),
+    ("a question about merging is not a merge", "should I merge 12?", "gh pr merge 12", True),
+    ("'would you merge?' is not a merge", "would you merge 12?", "gh pr merge 12", True),
+    ("a bare 'merge 12?' is a question", "merge 12?", "gh pr merge 12", True),
+    ("a polite request is still a merge", "can you merge 12?", "gh pr merge 12", False),
+    ("a question then an instruction merges", "should I merge 12? yes merge it", "gh pr merge 12", False),
     ("push to main when the user said push", "push it to main",
      f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", False),
     ("push flag but the user said finish it", "finish it",
@@ -184,6 +189,7 @@ INCIDENT = [("open", STANDING_ASK), ("queued", "ie cis etc"), ("handback", ""),
             ("handback", ""),
             ("open", "nevermind : a teammate rotated the keys and updated it accordingly"), ("handback", ""),
             ("wake", "<task-notification>CI watcher: #1186 green</task-notification>")]
+CONDITION_FIRST = "when it's ready and safe for prod ie no regressions then merge and deploy"
 STANDING = [
     ("standing 'merge all when ready' survives later unrelated messages (the incident)",
      INCIDENT, "gh pr merge 1186 -R acme/web --squash", False, ""),
@@ -261,6 +267,52 @@ STANDING = [
     ("a question about merging all is not a merge",
      [("open", "should we merge? all tests pass?"), ("handback", ""), ("open", "ok")],
      "gh pr merge 1186 -R acme/web", True, ""),
+    # Clause order: a condition before the verb is as standing as one after it (the fix for Simon's
+    # exact sentence blocked because the condition came first and "no regressions" read as a halt).
+    ("condition first, 'then merge and deploy' (the incident sentence)",
+     [("open", CONDITION_FIRST), ("handback", ""), ("open", "how is CI?")],
+     "gh pr merge 1186 -R acme/web --squash --auto", False, ""),
+    ("condition first still waits for green", [("open", CONDITION_FIRST), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1191 -R acme/web --squash --auto", True, "still in_progress"),
+    ("condition first, no 'then'", [("open", "if it's safe merge it"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", False, ""),
+    ("condition first, 'them' typo for then",
+     [("open", "once it's green them merge and deploy"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", False, ""),
+    ("'after CI is green, merge them' covers a session PR",
+     [("open", "after CI is green, merge them"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", False, ""),
+    ("'merge it when it's done' stands", [("open", "merge it when it's done"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", False, ""),
+    ("condition first, then a later 'hold' blocks",
+     [("open", CONDITION_FIRST), ("handback", ""), ("open", "hold, I want to check prod first")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("condition first, then a later \"don't merge\" blocks",
+     [("open", CONDITION_FIRST), ("handback", ""), ("open", "actually don't merge it")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("a negated conditional is not standing",
+     [("open", "when it's ready don't merge, I'll do it"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("'should I merge when it's ready?' is a question",
+     [("open", "should I merge when it's ready?"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("'would you merge it once CI is green?' is a question",
+     [("open", "would you merge it once CI is green?"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("'what if we merge once it's green' is a hypothetical",
+     [("open", "what if we merge once it's green"), ("handback", ""), ("open", "ok")],
+     "gh pr merge 1186 -R acme/web", True, ""),
+    ("'yes' to a conditional merge question the assistant wrote is not a merge",
+     [("open", "fix the tests"), ("assistant", "Merge #1186 once CI is green?"), ("handback", ""),
+      ("open", "yes")], "gh pr merge 1186 -R acme/web", True, ""),
+    ("'proceed' to the assistant's merge question is not a merge",
+     [("open", "fix the tests"), ("assistant", "Shall I merge when it's ready?"), ("handback", ""),
+      ("open", "proceed")], "gh pr merge 1186 -R acme/web", True, ""),
+    ("'continue, finish it, this is priority' is not a merge",
+     [("open", "fix the tests"), ("assistant", "Want me to merge when green?"), ("handback", ""),
+      ("open", "continue, finish it, this is priority")], "gh pr merge 1186 -R acme/web", True, ""),
+    ("another session's condition-first instruction does not count",
+     [("foreign", CONDITION_FIRST), ("open", "status?")], "gh pr merge 1186 -R acme/web", True, ""),
     ("'proceed' after a non-conditional ask is still not a merge",
      [("open", "fix it then tell me"), ("handback", ""), ("open", "proceed")],
      "gh pr merge 1186 -R acme/web", True, ""),
@@ -622,10 +674,12 @@ def main() -> int:
     gcg = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(gcg)
     halts = ["don't merge yet", "do not merge", "not merging this", "never push", "hold off merging",
-             "wait before you merge", "without merging", "don't push or deploy"]
+             "wait before you merge", "without merging", "don't push or deploy", "no merging tonight",
+             "no more merges", "don't merge them"]
     clean = ["not be so strict yes merge", "no regressions, then merge",
              "ensure no regressions to the happy paths and merge",
-             "1 fix the config to just do it and not be so strict yes merge\n2. other"]
+             "1 fix the config to just do it and not be so strict yes merge\n2. other",
+             "no regressions then merge", "no regressions them merge"]
     for t in halts:
         for name in ("NEGATED_RE", "STANDING_NEGATED_RE"):
             if getattr(gcg, name).search(t):

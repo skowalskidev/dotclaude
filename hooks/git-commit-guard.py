@@ -11,7 +11,8 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      recorded since his newest typed turn-opening prompt, queued mid-turn ones included) say "merge"
      with no later halt, and name the PR's number, or cover it as an open PR this session pushed. A
      standing instruction earlier in the session ("merge and deploy all when they're ready", "merge
-     12 once CI is green", or a plain "merge all") also covers it, with no later halt, but only while
+     12 once CI is green", "when it's safe then merge", or a plain "merge all"; never a question)
+     also covers it, with no later halt, but only while
      the PR is open, not a draft, mergeable and every check has passed at the moment of the merge. There
      is no override flag: a flag the model sets itself let two PRs merge off a model-written "Merge
      #N?" answered "1 yes" and off "this is priority, finish it". `gh api` merge/enqueue/auto-merge
@@ -367,12 +368,38 @@ HARNESS_BLOCK_RE = re.compile(
     r"<(system-reminder|task-notification|agent-message|cross-session-message)\b[^>]*>.*?</\1>", re.S | re.I)
 # Pasted material inside his message (a fenced block, a `>` quote) is not his instruction.
 QUOTED_RE = re.compile(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$|^[ \t]*>.*$", re.S | re.M)
-# A negator must GOVERN the verb: at most 2 words between them, and no comma, "yes" or "and" crossing
-# (the fix for "not be so strict yes merge" and "no regressions, then merge" read as "don't merge").
+# A negator must GOVERN the verb: at most 2 words between them, and no comma or clause-joining word
+# crossing: yes, and, then (or its typo "them"), so, ok, ie (the fix for "not be so strict yes merge",
+# "no regressions, then merge" and "safe for prod ie no regressions then merge and deploy" read as
+# "don't merge": a negator inside the condition clause negates the condition, not the verb).
 # stop/hold/wait count only inside the same short clause ("hold off merging", "wait before you merge").
+CLAUSE_JOIN = r"(?:yes|and|then|them|so|ok|okay|ie)\b"
 NEGATED_RE = re.compile(
-    r"\b(don'?t|do not|never|not|no|without|before)\s+(?:(?!yes\b|and\b)[\w']+\s+){0,2}?(merg|push|deploy|ship)"
-    r"|\b(stop|hold|wait)\b(?:(?!\byes\b|\band\b)[^.,;\n]){0,25}?\b(merg|push|deploy|ship)", re.I)
+    r"\b(don'?t|do not|never|not|no|without|before)\s+(?:(?!" + CLAUSE_JOIN + r")[\w']+\s+){0,2}?"
+    r"(merg|push|deploy|ship)"
+    r"|\b(stop|hold|wait)\b(?:(?!\b" + CLAUSE_JOIN + r")[^.,;\n]){0,25}?\b(merg|push|deploy|ship)", re.I)
+# A question or a hypothetical about the verb is not an instruction to do it: a sentence saying the
+# verb that ends in "?" ("merge 12?"), or that asks should/would/shall/might I|we|you ..., what if,
+# whether, do you think, is it ok/safe to ... ("should I merge when it's ready?", "would you merge?").
+# A polite request ("can/could/will you merge 12?", "please merge") stays an instruction.
+HYPOTHETICAL_RE = re.compile(
+    r"\b(should|would|shall|might)\s+(i|we|you|it|this|that|they|claude)\b|\bwhat\s+if\b|\bwhether\b"
+    r"|\b(do|did)\s+you\s+think\b|\b(is|are)\s+(it|this|that|they)\s+(ok|okay|safe|fine|wise|worth)\s+to\b", re.I)
+POLITE_REQUEST_RE = re.compile(r"\b(can|could|will)\s+you\b|\bplease\b", re.I)
+SENTENCE_RE = re.compile(r"[^.!?\n]+[.!?]*")
+
+
+def instructs(ask: str, verb: str) -> bool:
+    """True when some sentence of the ask says the verb as an instruction, not a question or a
+    hypothetical (the fix for "should I merge when it's ready?" read as a standing merge)."""
+    says = re.compile(VERB_FORMS[verb], re.I)
+    for sentence in SENTENCE_RE.findall(ask):
+        if not says.search(sentence) or HYPOTHETICAL_RE.search(sentence):
+            continue
+        if sentence.rstrip().endswith("?") and not POLITE_REQUEST_RE.search(sentence):
+            continue
+        return True
+    return False
 # Every verb check accepts its inflections: merge/merged/merges/merging, push/pushed/pushes/pushing
 # (the fix for "this can be merged if prod deploy ready" missing a `\bmerge\b` check).
 VERB_FORMS = {"merge": r"\bmerg(?:e|ed|es|ing)\b", "push": r"\bpush(?:ed|es|ing)?\b"}
@@ -465,7 +492,7 @@ def authorizing_asks(asks: list, verb: str) -> list:
         if NEGATED_RE.search(ask) or (not says.search(ask) and HALT_RE.search(ask)):
             start = i + 1
     window = asks[start:]
-    return window if any(says.search(a) for a in window) else []
+    return window if any(instructs(a, verb) for a in window) else []
 
 
 def merge_target(words: list) -> tuple:
@@ -570,10 +597,14 @@ def turn_merge_allowed(payload: dict, words: list, cwd) -> bool:
 # 1191", "yes merge #1198") is standing for that PR alone until it merges or a later message halts it
 # or says close naming it, with the same readiness check (the fix for a queued merge that GitHub's
 # queue dropped on a CI API 503, whose re-enqueue next turn was denied because "merge 1191" was this
-# turn's ask only).
+# turn's ask only). The condition may come before or after the verb, with or without "then" (or its
+# typo "them"): "merge it when it's green", "once green then merge", "if it's safe merge it", "when
+# it's ready and safe for prod ie no regressions then merge and deploy" (the fix for that last one
+# blocked because its condition came first and its "no regressions" was read as "don't merge").
 CONDITIONAL_RE = re.compile(
     r"\b(when|whenever|once|as soon as|as|after|if)\s+(?:[\w-]+(?:'\w+)?\s+){0,4}?"
-    r"(ready|green|pass|passes|passed|passing|succeeds?|done|finished|complete[sd]?|clean)\b", re.I)
+    r"(ready|green|pass|passes|passed|passing|succeeds?|done|finished|complete[sd]?|clean|safe|stable"
+    r"|approved)\b", re.I)
 # A later message cancels a standing instruction when it negates merging, pushing, deploying or
 # shipping, or says stop/hold/wait/cancel/pause. A bare "don't" about something else does not: the
 # instruction spans many messages, and most of them are about other work.
@@ -595,12 +626,11 @@ def session_asks(payload: dict) -> list:
 def standing_merge_ask(asks: list, number: str = "") -> str:
     """The session's newest standing merge ask with no later halt, or "". Standing asks are
     conditional ones, merge-all ones, and (given `number`) an explicit merge ask that names that PR."""
-    says = re.compile(VERB_FORMS["merge"], re.I)
     named = re.compile(rf"(?<!\d){number}(?!\d)") if number else None
     for i in range(len(asks) - 1, -1, -1):
         ask = asks[i]
         standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask) or (named and named.search(ask))
-        if says.search(ask) and standing and not STANDING_NEGATED_RE.search(ask):
+        if instructs(ask, "merge") and standing and not STANDING_NEGATED_RE.search(ask):
             later = asks[i + 1:]
             halted = any(STANDING_NEGATED_RE.search(a) or STANDING_HALT_RE.search(a)
                          or (named and STANDING_CLOSE_RE.search(a) and named.search(a)) for a in later)
@@ -787,7 +817,7 @@ def main() -> int:
                 + (f" (#{number})" if number else " (name the number, not a branch)") + ", covering "
                 "it as an open PR this session pushed (no number, or all/both/them), or naming no PR "
                 "for one other PR; or on a standing merge an earlier message this session gave "
-                "(\"merge ... when ready / once CI is green\", or \"merge all\") covering it, when no "
+                "(\"merge ... when ready\", \"once CI is green then merge\", or \"merge all\"; never a question) covering it, when no "
                 "later message said stop/hold/wait/cancel or not to merge/deploy, and the PR is open, not a draft, "
                 "mergeable and every check passed. A standing instruction lasts for this session "
                 "only. "
