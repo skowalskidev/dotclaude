@@ -2,43 +2,41 @@
 
 ## Answer first: action line, issue bullets, one question block at the end
 
-Every human-facing message: chat replies, Slack/DMs, emails, PR comments, anything sent for Simon.
-Example, WHYs and pre-send check: `references/tldr-report-formats.md` §§ Human-facing messages,
-Message for someone else.
-**DO make line 1 `Action needed: <what>` or `No action needed`, then one bullet per distinct issue or
-outcome, then ONE end block (`Questions` or `Your call`) holding every question and each required
-action as a numbered step naming the exact thing.** Use AskUserQuestion for a fork.
-**DO write a message for anyone but Simon, or a draft he sends as himself, with its ask on line 1, at
-most 5 lines in all and no preamble; detail only on request.**
+Every message sent for Simon. Example, WHYs, pre-send check: `references/tldr-report-formats.md`.
+**DO make line 1 `Action needed: <the exact thing>` whenever ANYTHING waits on Simon (a test, a merge
+word, a decision, a login, a reply), even on a status-only message and even if an earlier message
+asked: repeat it. `No action needed` only when nothing at all waits on him. With several, line 1 reads
+`Action needed (2): <first>`; then one bullet per distinct issue or outcome, then ONE end block
+(`Questions` or `Your call`) with each ask as a numbered step naming the exact thing and its
+link, URL or command.** Use AskUserQuestion for a fork. **DO label an item waiting on Claude or CI
+`nothing needed from you`.** DON'T leave a pending ask only in a trailing status list.
+**DO write a message for anyone but Simon, or a draft he sends as himself: ask on line 1, at most
+5 lines, no preamble.**
 NUMBER: per message, however many parts it answers: at most 5 bullets and 5 steps, each one line of
 at most 20 words.
 **DON'T** write prose paragraphs, background that does not change the action, a preamble, a recap, a
 closing summary, a mid-body question or an empty questions block.
-TEST: line 1 is `Action needed: …` or `No action needed`; at most 5 one-line bullets and 5 steps of
-at most 20 words; a message for someone else has at most 5 lines.
+TEST: line 1 is `Action needed: …` or `No action needed`; a body naming a pending item on Simon
+("say merge", "your retest", "your call", "after your") under `No action needed` fails; each pending
+ask is a numbered step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for
+someone else has at most 5 lines.
 
 ## Close the session: finish it, say it can be archived, stop
 
 **DO finish everything the ask needs yourself, including checks you can run, then end with one line:
 "You can archive this session: everything here is done."** Detail, open-work list:
 `references/planning-and-tracking.md` § Close the session.
-**DO stop once the outcome is delivered and reasonably verified** (CI green, deployed, a smoke
-test on what can be reached); a time-only check is no loose end.
+**DO stop once the outcome is delivered and verified; a time-only check is no loose end.**
 **DO offer a follow-up ONLY if it would change a decision or fix an evidenced problem.** At most 2, one optional line; never withhold the archive line.
-No new question at hand-back unless only Simon can decide it and it blocks the outcome.
 **DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
-PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply. End with the merge list or the single next
-blocker. After merge and deploy, stop only once production is proven live
+PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply. End with `Action needed` and its numbered asks. After merge and deploy, stop only once production is proven live
 (`references/planning-and-tracking.md` § Close the session).
-TEST: a finished session's last message has the archive line, at most 2 optional follow-ups, and no
-"the next X will confirm", "worth watching" or "keep an eye on" item; no line, or the line with work
-running, an unmerged session PR or an item unverdicted, fails; so does "merged" reported as done
-with no prod evidence.
+TEST: a finished session's last message has the archive line and at most 2 optional follow-ups;
+the line with work running, an unmerged PR or an item unverdicted fails (full list:
+`references/tldr-report-formats.md` § Close-session TEST).
 
 ## Five rules for anything you write
 
-They govern CONTENT. Format and question placement stay governed by the section above. They apply
-equally to prompts you write for subagents.
 
 **DO state the expected result.** "Run X, expect Y."
 **DON'T** write an instruction with no stated outcome.
