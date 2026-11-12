@@ -556,7 +556,10 @@ def turn_merge_allowed(payload: dict, words: list, cwd) -> bool:
 # unrelated later message no longer voids it (the fix for a green PR blocked after a message about a
 # rotated API key arrived between the instruction and CI going green). Its condition is checked,
 # never assumed: the PR must be open, not a draft, mergeable, and report at least one check with
-# every check passed. A plural still covers only open PRs this session pushed.
+# every check passed. A check is judged by its LATEST run only, as branch protection does: a run
+# superseded by a rerun no longer counts (the fix for a green PR blocked by two cancelled runs of a
+# concurrency-grouped workflow), while a check whose latest run failed still blocks. A plural still
+# covers only open PRs this session pushed.
 CONDITIONAL_RE = re.compile(
     r"\b(when|whenever|once|as soon as|as|after|if)\s+(?:[\w-]+(?:'\w+)?\s+){0,4}?"
     r"(ready|green|pass|passes|passed|passing|succeeds?|done|finished|complete[sd]?|clean)\b", re.I)
@@ -591,6 +594,35 @@ def standing_merge_ask(asks: list) -> str:
     return ""
 
 
+def _check_time(c: dict) -> str:
+    """completedAt, else startedAt, as an ISO string; "" when neither is set (gh reports an unset
+    time as 0001-01-01)."""
+    for field in ("completedAt", "startedAt"):
+        t = str(c.get(field) or "")
+        if t and not t.startswith("0001-"):
+            return t
+    return ""
+
+
+def latest_checks(rollup: list) -> list:
+    """The newest entry per check identity (a CheckRun's workflowName + name, a StatusContext's
+    context), by completedAt, else startedAt, else list order. Branch protection reads only the
+    latest run per check, so a superseded run never decides readiness. A pending entry always ranks
+    newest: an unfinished run has not been superseded, and a queued rerun may carry no time yet."""
+    latest: dict = {}
+    for i, c in enumerate(c for c in rollup if isinstance(c, dict)):
+        if "state" in c and "status" not in c:
+            key = ("status", c.get("context") or c.get("name") or "")
+            pending = c.get("state") in ("PENDING", "EXPECTED")
+        else:
+            key = ("run", c.get("workflowName") or "", c.get("name") or "")
+            pending = c.get("status") != "COMPLETED"
+        rank = (pending, _check_time(c), i)
+        if key not in latest or rank >= latest[key][0]:
+            latest[key] = (rank, c)
+    return [c for _, c in latest.values()]
+
+
 def pr_not_ready(pr: dict) -> str:
     """Why the PR fails the standing instruction's condition right now; "" when it is ready."""
     if not pr:
@@ -601,7 +633,7 @@ def pr_not_ready(pr: dict) -> str:
         return "the PR is a draft"
     if pr.get("mergeable") != "MERGEABLE":
         return f"mergeable is {pr.get('mergeable') or 'unknown'}"
-    checks = pr.get("statusCheckRollup") or []
+    checks = latest_checks(pr.get("statusCheckRollup") or [])
     if not checks:
         return "no CI checks are reported"
     for c in checks:

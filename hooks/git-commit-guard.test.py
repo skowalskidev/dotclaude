@@ -108,10 +108,23 @@ GREEN = [{"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclu
          {"__typename": "StatusContext", "context": "deploy-preview", "state": "SUCCESS"}]
 RED = [{"__typename": "CheckRun", "name": "ci", "status": "COMPLETED", "conclusion": "FAILURE"}]
 PENDING = [{"__typename": "CheckRun", "name": "ci", "status": "IN_PROGRESS", "conclusion": ""}]
+def run(name, conclusion, done, status="COMPLETED"):
+    return {"__typename": "CheckRun", "name": name, "workflowName": "PR title", "status": status,
+            "conclusion": conclusion, "startedAt": done[:-3] + "00Z", "completedAt": done}
+# A concurrency group cancels each earlier run of the same check; only the latest run counts, as in
+# branch protection. List order is deliberately not time order, so the timestamps decide.
+SUPERSEDED = [run("issue ID", "SUCCESS", "2026-03-01T10:09:30Z"), run("issue ID", "CANCELLED", "2026-03-01T10:05:30Z"),
+              run("issue ID", "CANCELLED", "2026-03-01T10:07:30Z"), GREEN[0]]
+REGRESSED = [run("issue ID", "FAILURE", "2026-03-01T10:09:30Z"), run("issue ID", "SUCCESS", "2026-03-01T10:05:30Z"),
+             GREEN[0]]
+RERUNNING = [run("issue ID", "SUCCESS", "2026-03-01T10:05:30Z"),
+             dict(run("issue ID", "", "0001-01-01T00:00:00Z", "QUEUED"), startedAt="0001-01-01T00:00:00Z"), GREEN[0]]
 prs = {"251": ("feat-a", "acme/api", GREEN, "MERGEABLE"), "1162": ("feat-b", "acme/web", GREEN, "MERGEABLE"),
        "77": ("theirs", "acme/web", GREEN, "MERGEABLE"), "1186": ("feat-b", "acme/web", GREEN, "MERGEABLE"),
        "1190": ("feat-b", "acme/web", RED, "MERGEABLE"), "1191": ("feat-b", "acme/web", PENDING, "MERGEABLE"),
-       "1192": ("feat-b", "acme/web", GREEN, "CONFLICTING"), "1193": ("feat-b", "acme/web", [], "MERGEABLE")}
+       "1192": ("feat-b", "acme/web", GREEN, "CONFLICTING"), "1193": ("feat-b", "acme/web", [], "MERGEABLE"),
+       "1185": ("feat-b", "acme/web", SUPERSEDED, "MERGEABLE"), "1194": ("feat-b", "acme/web", REGRESSED, "MERGEABLE"),
+       "1195": ("feat-b", "acme/web", RERUNNING, "MERGEABLE")}
 if a[:2] == ["pr", "view"]:
     sel = a[2].rsplit("/", 1)[-1].lstrip("#")
     if sel in prs:
@@ -179,6 +192,12 @@ STANDING = [
     ("standing instruction, but not mergeable", INCIDENT, "gh pr merge 1192 -R acme/web", True, "CONFLICTING"),
     ("standing instruction, but no checks reported", INCIDENT, "gh pr merge 1193 -R acme/web", True,
      "no CI checks"),
+    ("standing instruction, cancelled runs superseded by a green rerun are ready",
+     INCIDENT, "gh pr merge 1185 -R acme/web --auto", False, ""),
+    ("standing instruction, but the latest run of a once-green check failed",
+     INCIDENT, "gh pr merge 1194 -R acme/web", True, "issue ID concluded failure"),
+    ("standing instruction, but a green check is rerunning", INCIDENT, "gh pr merge 1195 -R acme/web", True,
+     "issue ID is still queued"),
     ("standing instruction never covers a PR this session did not push",
      [("open", "merge them all once CI is green"), ("handback", ""), ("open", "thanks")],
      "gh pr merge 77 -R acme/web", True, ""),
