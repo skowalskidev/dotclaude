@@ -40,8 +40,9 @@ in `bin/agent_runtime.py` gives `exec` an empty stdin when it was handed an idle
 TTY, a file or a pipe with data alone. TEST: no agent-run `exec` line omits `</dev/null`.
 
 Set `AGENT_ALLOW_CROSS_PROVIDER=1` on the dispatch when Simon names a GPT/Codex worker from a Claude
-chat (his explicit named-host ask), or for a `codex-app` connector route the resolver lists first
-(his standing instruction, `references/connectors-setup.md`). It lets `bin/agent_setup.py` run the one cross-provider worker that
+chat (his explicit named-host ask), for a `codex-app` connector route the resolver lists first
+(his standing instruction, `references/connectors-setup.md`), or for the read-only judge of
+`references/research.md` § Independent judges (his standing instruction, 2026-11-12). It lets `bin/agent_setup.py` run the one cross-provider worker that
 otherwise fails closed with "no cross-provider worker or reviewer is allowed". The ChatGPT subscription
 billing is unaffected, and the guard's default block stays for every switch Simon did not ask for.
 Record the real Claude `orchestrator_model` and add `"worker_provider": "openai"` to the spec; never put an

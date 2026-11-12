@@ -1,8 +1,8 @@
 # Spend approval: paid calls always, free allowances past a cap
 
 **DO get an explicit per-call "yes" before ANY billable operation** (paid render, credit-consuming
-API call, metered request). Name it and its rough cost, then WAIT. One yes is ONE call, never a
-batch, sweep or retry loop.
+API call, metered request; a subscription run is none). Name it and its rough cost, then WAIT. One
+yes is ONE call, never a batch, sweep or retry loop.
 **DO treat Simon's direct ask to run billable work with a bound** ("a bit", "a few", "under $5")
 as the yes for the smallest set meeting it: name the calls and rough cost, then run them with no
 second confirmation. Never exceed the bound or retry past it.

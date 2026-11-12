@@ -48,7 +48,8 @@ Project databases, cloud accounts and other service credentials still follow Ste
    saved workflow. Check the active authentication method before starting a headless Claude reviewer.
 2. Run a separate fresh adversarial pass on the first pass's top findings using the same setup.
    For OpenAI, use `~/.claude/bin/codex-launch.py -p "<findings and diff review brief>" --model <saved-openai-model> --sandbox read-only`.
-   Verify every finding against the source before accepting it.
+   Verify every finding against the source before accepting it. A finding that moves money, access
+   or data also goes before `references/research.md` § Independent judges, one judge per provider.
 3. **When a fix round would follow, run independent lenses IN PARALLEL before fixing anything**:
    the correctness pass, a cross-layer parity lens (every value two layers derive or decode) and a
    money/data lens, each over the whole diff, each told to report ALL findings. Hand every lens the

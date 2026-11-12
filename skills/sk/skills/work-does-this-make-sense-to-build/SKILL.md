@@ -127,6 +127,9 @@ argue for building it. For a BUILD, argue for dropping it. If the counter-case s
 was not ready. Say in one line what the best counter-argument was and why it did not win, so he can
 judge the reasoning rather than take the answer on trust.
 
+**DO put every part's verdict and every data reading it rests on before the two-provider judge panel**
+(`references/research.md` § Independent judges), and list each judge's position under the verdict.
+
 ## Step 8 · Verdicts, and the line between a fact and a decision
 
 One per part:

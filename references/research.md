@@ -45,6 +45,39 @@ Whenever I'm making a factual claim about someone else's product (a comparison t
   convert better, and an unbeatable-looking table is the one readers go and disprove.
 
 
+## Independent judges for every evidence-based call
+
+`rules/process.md` points here. Simon's standing instruction (2026-11-12): every decision and every
+reading of source data gets judges from both model providers, without him asking.
+
+DEFAULT: put a call before the panel when it moves money, access or data, or it is a verdict Simon
+acts on: a build/refute verdict, a figure read from production data, a payment or attribution
+reading, a security finding, an accept/refute of review feedback that changes stored or sent data.
+NUMBER: at least 2 judges besides the author, one per provider: a fresh Claude subagent and OpenAI
+through Codex on the ChatGPT subscription. A lookup with one primary-source answer (a version, a
+flag, a file path) needs none.
+DO give each judge the raw evidence: the question, the query output, the source rows or files, and
+the primary-source links. DON'T give a judge the author's conclusion or another judge's answer before
+it has written its own.
+DO launch the OpenAI judge read-only from a Claude chat, with the brief on stdin:
+`AGENT_ALLOW_CROSS_PROVIDER=1 timeout 900 ~/.claude/bin/codex-launch.py -p --sandbox read-only < <brief file>`.
+From an OpenAI chat the Claude judge runs through `~/.claude/bin/claude-launch.py -p` with the same
+variable. Never use pal, an API key or any metered route for a judge.
+DO have each judge state, per decision and per source: its call, the evidence row or link it rests
+on, and the best-practice or most widely adopted approach, verified from the vendor's or standard's
+own page (§ Source order). Then reconcile: give every judge the others' positions once, settle each
+disagreement against the data and the primary source, never by majority alone, and re-query the
+source when the judges read it differently.
+DO record in the deliverable, per call: each judge's position, the agreed call, and any disagreement
+left open with its evidence.
+If a judge's subscription, quota or login is unavailable, run the rest, label the call
+`one-provider` and name the missing judge; never fall back to an API route.
+TEST: every money, access or data call in a hand-back lists two judges besides the author, one per
+provider, each with its own position and evidence, or a `one-provider` label naming the missing one.
+WHY: a judge from the author's own model family favours the author's reading
+([Panickssery et al. 2024](https://arxiv.org/abs/2404.13076)); a panel of judges from different
+model families beats one judge and shows less intra-model bias ([Verga et al. 2024](https://arxiv.org/abs/2404.18796)).
+
 ## Attributing behaviour to an outsider
 
 DO compare the evidence's own identifiers with our runtime before answering "is this ours?" or

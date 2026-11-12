@@ -77,6 +77,9 @@ fields or records that a new gate requires. Age alone cannot clear a regression.
 necessary activity or dependency evidence is missing; carry it as an unverified gap.
 TEST: each discrepancy is bug / skew / legacy / unknown with dated evidence; a legacy verdict proves
 no current dependency, and a migration is proposed only after confirming the missing source fields.
+DO judge each classification and each production reading with `references/research.md` § Independent
+judges, and corroborate figures through every resolved route, local keys and Vault pointers alike
+(`references/connectors-setup.md` § Hybrid secrets).
 
 ## Phase 5 · Supply the backfill/recompute — the USER runs it on prod
 

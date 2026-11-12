@@ -300,7 +300,9 @@ completion when applicable, and one delivery receipt or an explicit unresolved o
 
 ## Model-API keys (`pal`)
 
-DEFAULT: workers and reviews run on the Claude or Codex subscription. The one API route is the `pal` MCP,
+DEFAULT: workers, reviews and the cross-provider judges of `references/research.md` § Independent
+judges run on the Claude or Codex subscription; a subscription run is not a model-API call and not
+billable (`rules/spend-approval.md`). The one API route is the `pal` MCP,
 with a key of the repo's own boundary and Simon's per-call yes (`rules/spend-approval.md`). Codex's own
 inference never takes an API key (`bin/agent_runtime.py`); Codex reaches `pal` the way Claude does, as an
 MCP server inside its boundary. Shell calls to api.openai.com or generativelanguage.googleapis.com

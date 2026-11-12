@@ -9,8 +9,8 @@ Keep delegated roles on the current chat provider. Route GPT design discovery, m
 judgement to the Fable tier; route every implementation edit, UI included, to the mid tier resolved
 live at dispatch. The top tier orchestrates on either provider; Fable designs.
 Reconcile stale plans. Do not re-ask a known provider or switch after a model/auth failure. Switch
-only for Simon's named-host ask or the GPT design route. Use subscriptions: `references/agent-hosts.md`.
-Routing and tiers: `references/parallelization.md`.
+only for Simon's named-host ask, the GPT design route or judges (below). Use subscriptions:
+`references/agent-hosts.md`. Routing and tiers: `references/parallelization.md`.
 TEST: implementation resolves to `mid`/`small`, never `top`/`design`; GPT design uses Fable with no
 OpenAI or API fallback. Verify every delegated result on disk.
 
@@ -31,6 +31,8 @@ DO apply `references/research.md` § Claims about third parties to every factual
 product (comparison, pricing, "they don't support X"). TEST: each such claim cites the vendor's own page.
 DO apply its § Attributing behaviour to an outsider before calling traffic or a failure external.
 TEST: the verdict names the runtime identifiers it was compared against.
+DO send each money, access or data call, and each verdict Simon acts on, to its § Independent judges.
+TEST: each judge's position is listed.
 
 ### Research online BEFORE retrying — don't grind on a brick wall
 DO search online (official docs, GitHub issues) after two failed attempts at the same wall, or first for an

@@ -552,7 +552,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "No paid balance is drawn down without Simon's explicit per-call yes, and a free allowance keeps most of its calls for later verification.",
         "purpose": "Billable/metered spend requires per-call approval; a free or trial allowance is a capped budget.",
         "criteria": [
-            "Get an explicit per-call yes before every billable operation; one yes is not a batch.",
+            "Get an explicit per-call yes before every billable operation; one yes is not a batch. A Claude or Codex subscription run is not billable; pal and model APIs are.",
             "Simon's own direct, bounded request to run billable work is the yes for the smallest set meeting the bound: name calls and cost, run without re-asking, never exceed or retry past it.",
             "A diagnose/fix/test task is never license to spend; free calls within the allowance cap only until approved.",
             "No bisection or retry loop that fires paid calls until one succeeds.",
@@ -587,7 +587,8 @@ CONTRACTS: dict[str, dict] = {
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
             "Size every check to the change's tier through testing-strategy.md, which owns the tiers; the ship harness runs on every open PR at that tier.",
             "Keep native compile checks and relevant backend payment, auth and data tests; preserve required hooks and CI without bypassing them to impose batch timing.",
-            "Keep every role on the actual chat provider except GPT design work on the Fable tier; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
+            "Keep every role on the actual chat provider except GPT design work on the Fable tier and the read-only cross-provider judge; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
+            "Keeps an always-on line sending every money, access or data call, and every verdict Simon acts on, to 2+ judges besides the author, one per provider; references/research.md holds the panel.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "A branch backing an open PR or shared for review gets each finished commit pushed to its own remote branch (fetch and merge first, never rebase or force), so the remote never trails local; every other PR or remote operation, and any default-branch push, stays gated, and a branch with no remote PR stays commit-only.",
@@ -957,6 +958,7 @@ CONTRACTS: dict[str, dict] = {
             "A staked recommendation is corroborated against an unstaked source before use.",
             "An external or not-ours verdict names the runtime identifiers it was compared against.",
             "Holds the third-party claim rules: primary sources, every vendor surface before a negative, dated arithmetic, no competitor hyperlink, concede an honest loss.",
+            "Owns the independent-judge panel: 2+ judges besides the author, one per provider on subscriptions only, raw evidence without the author's call, own positions before reconciling against data and primary sources, each position recorded.",
         ],
     },
     "references/skill-stack.md": {

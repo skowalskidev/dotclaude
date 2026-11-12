@@ -18,7 +18,10 @@ classify approved visual UI implementation and every other code or file edit as 
 it on OpenAI. The dispatcher sets
 `AGENT_ALLOW_CROSS_PROVIDER=1` only for that Claude launch and unsets Claude API variables, so an
 unavailable Fable run stops instead of falling back to OpenAI or API billing. Do not use this exception
-in a Claude-orchestrated workflow. For any other provider switch, require Simon's explicit in-chat ask
+in a Claude-orchestrated workflow. The second standing exception is the judge panel
+(`references/research.md` § Independent judges): its one read-only judge on the other provider runs
+with `AGENT_ALLOW_CROSS_PROVIDER=1` on the subscription; implementation workers keep the inherited
+provider. For any other provider switch, require Simon's explicit in-chat ask
 for a named host (e.g. "use the OpenAI top tier" from a Claude chat), never self-initiate. On that named-host ask,
 set `AGENT_ALLOW_CROSS_PROVIDER=1` and `"worker_provider"` (the named provider) on the dispatch, keeping the real
 `orchestrator_model`, so `bin/agent_setup.py` runs the cross-provider

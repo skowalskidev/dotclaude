@@ -42,6 +42,8 @@ claim (url + type + conflict-of-interest flag).
 ## Step 4 · Adversarially verify and corroborate
 DO give every load-bearing claim a second independent pass (pipeline the verify stage after each finder):
 attempt to refute it, and require a second non-conflicted corroborating source.
+DO run the ranked recommendation and each data reading through `research.md` § Independent judges;
+the TLDR names each judge's position.
 DO discount a source in proportion to its stake (`research.md` § "Who benefits if you act on this?"): a
 vendor is authoritative on how its own product behaves and biased on whether to use its category. A claim
 that survives only on a conflicted vendor with no corroboration does not ship — say that plainly rather
