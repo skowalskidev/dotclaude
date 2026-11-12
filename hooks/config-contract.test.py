@@ -265,6 +265,11 @@ CRITERIA: list[tuple[str, str]] = [
     ("metrics-criticality-tags-name-real-parts",
      "Every part tagged safety or stub in part_criticality.py names a real file, so a renamed or "
      "removed part cannot leave a stale tag that silently exempts the wrong thing from the dead bar."),
+    ("suite-timeout-scales-with-host-load",
+     "The suite's default child timeout is 120 s on an idle host, scales with 1-minute load per CPU "
+     "above 1, and stops at 600 s; an explicit per-call timeout wins. The timeout catches a hung "
+     "child; a fixed 120 s also failed a healthy guard test while other sessions' builds held the "
+     "load at 40-63, and that false failure cost a full land-check rerun."),
     ("metrics-inventory-matches-contract-coverage",
      "The metrics aggregator derives its parts list from config_contracts.py, never a hardcoded "
      "copy, so a part added via /sk:claude-config-update is scored automatically. Parity with the "
@@ -284,12 +289,39 @@ def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8", errors="replace")
 
 
+RUN_TIMEOUT_BASE_S = 120
+RUN_TIMEOUT_CAP_S = 600
+
+
+def load_scaled_timeout(load1: float, cpus: int | None) -> int:
+    """The default child timeout: 120 s, times 1-minute load per CPU when that exceeds 1, capped at 600 s.
+
+    The timeout exists to catch a HUNG child, not a slow one. A fixed 120 s read a healthy
+    git-commit-guard.test.py as a failure at load 40-63 on a shared host (82 s at load 16), and the
+    false failure cost a full land-check rerun.
+    """
+    return int(min(RUN_TIMEOUT_CAP_S, RUN_TIMEOUT_BASE_S * max(1.0, load1 / max(1, cpus or 1))))
+
+
+def _host_load1() -> float:
+    try:
+        return os.getloadavg()[0]
+    except OSError:
+        return 0.0
+
+
+# Computed once per suite run, so every check in the run shares one budget.
+RUN_TIMEOUT_S = load_scaled_timeout(_host_load1(), os.cpu_count())
+
+
 def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
     # A child test that reads stdin (a stub doing `$(cat)`) must see EOF, not the caller's open
-    # pipe: inherited stdin hung superspeed-dispatch.test.sh until the 120s timeout.
+    # pipe: inherited stdin hung superspeed-dispatch.test.sh until the default timeout. The default
+    # scales with host load (load_scaled_timeout) so it still catches a hang without failing a slow
+    # child; an explicit per-call timeout is kept as given.
     if "input" not in kw:
         kw.setdefault("stdin", subprocess.DEVNULL)
-    kw.setdefault("timeout", 120)
+    kw.setdefault("timeout", RUN_TIMEOUT_S)
     return subprocess.run(cmd, capture_output=True, text=True, **kw)
 
 
@@ -1992,9 +2024,9 @@ def check_node24_shell_runtime():
 
 def check_session_performance_and_capacity() -> None:
     for script in ("session-performance.test.py", "local-capacity.test.py"):
-        # These suites drive real lease timing, so a host busy with other sessions' builds stretches
-        # them past the 120 s hang guard (a land check failed on a TimeoutExpired that passed on rerun).
-        result = run(["/usr/bin/python3", str(ROOT / "bin" / script)], timeout=360)
+        # These suites drive real lease timing, so they keep a 360 s floor over the load-scaled
+        # default (a land check failed on a TimeoutExpired that passed on rerun).
+        result = run(["/usr/bin/python3", str(ROOT / "bin" / script)], timeout=max(360, RUN_TIMEOUT_S))
         check(result.returncode == 0, script + ": " + result.stdout + result.stderr)
     rule = (ROOT / "rules/self-healing-config.md").read_text()
     check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
@@ -2313,6 +2345,26 @@ def check_process_inspection_keeps_arguments_private() -> None:
         check(result.returncode == 0 and signals.read_text() == previous_signals
               and "No eligible framework families" in result.stdout and sentinel not in result.stdout + result.stderr,
               "Agent-only inventory must exit without any signal or escalation")
+
+
+def check_suite_timeout_scales_with_host_load() -> None:
+    for load1, cpus, want in ((0.5, 8, 120), (8.0, 8, 120), (16.0, 8, 240), (63.0, 8, 600),
+                              (3.0, 1, 360), (2.0, None, 240), (2.0, 0, 240)):
+        got = load_scaled_timeout(load1, cpus)
+        check(got == want, f"load_scaled_timeout({load1}, {cpus}) returned {got}, expected {want}")
+    global RUN_TIMEOUT_S
+    saved = RUN_TIMEOUT_S
+    try:
+        RUN_TIMEOUT_S = 0.2
+        try:
+            run(["sleep", "1"])
+            check(False, "run() ignored RUN_TIMEOUT_S: a child past the default timeout did not raise TimeoutExpired")
+        except subprocess.TimeoutExpired:
+            pass
+        result = run(["sleep", "0.5"], timeout=10)
+        check(result.returncode == 0, "run() overrode an explicit per-call timeout with the default")
+    finally:
+        RUN_TIMEOUT_S = saved
 
 
 def main() -> int:
