@@ -29,9 +29,16 @@ restate: research before the second retry.
 ## Claims about third parties
 
 `rules/process.md` points here. Whenever I'm making a factual claim about someone else's product (a
-comparison table, pricing, "they don't support X"), the claim has to be defensible:
-Whenever I'm making a factual claim about someone else's product (a comparison table, pricing,
-"they don't support X"), the claim has to be defensible:
+comparison table, pricing, "they don't support X"), the claim has to be defensible.
+DO verify a claim about how a vendor's product behaves against the vendor's own page BEFORE building
+on it, whoever made it: Simon, a teammate, a Slack thread, a message posted by a bot or another app,
+a prior agent or an earlier session. A relayed claim is a candidate, never a design premise. When the
+vendor's page is silent, label the premise unverified in the plan and ask the vendor's support or
+test it free before a commit depends on it.
+TEST: every vendor-behaviour premise a commit or plan rests on cites the vendor page it was checked
+against, or carries an `unverified` label. (the fix for a Slack thread claim that saved payment
+dispute drafts stop the vendor's automatic dispute submission; it became a commit's premise, the
+vendor's docs and support refuted it, and the commit was reverted.)
 - **Primary sources only.** The vendor's own pages. The blogs that dominate these search results are
   affiliate content recycling each other and are not citable.
 - **Check ALL of their surfaces before asserting a negative** — pricing page, docs, help centre, FAQ
@@ -63,6 +70,14 @@ DO launch the OpenAI judge read-only from a Claude chat, with the brief on stdin
 `AGENT_ALLOW_CROSS_PROVIDER=1 timeout 900 ~/.claude/bin/codex-launch.py -p --sandbox read-only < <brief file>`.
 From an OpenAI chat the Claude judge runs through `~/.claude/bin/claude-launch.py -p` with the same
 variable. Never use pal, an API key or any metered route for a judge.
+DO detect a judge's completion by its process exiting, then read its verdict ONLY from its final
+message: the `-p` stdout (which prints only the final message, after exit) or, for a raw
+`codex-launch.py exec`, the file passed to `-o <file>` (`--output-last-message`), one file per judge.
+DON'T wait by grepping a judge's streamed transcript for `VERDICT:`, `tokens used` or any other marker:
+a judge that reads an earlier judge's file echoes that verdict into its own transcript.
+TEST: every judge verdict in a hand-back traces to a final-message file or `-p` output read after
+that judge's process exited. (the fix for three early wake-ups that read a quoted older verdict as the
+new one.)
 DO have each judge state, per decision and per source: its call, the evidence row or link it rests
 on, and the best-practice or most widely adopted approach, verified from the vendor's or standard's
 own page (§ Source order). Then reconcile: give every judge the others' positions once, settle each
