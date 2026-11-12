@@ -390,6 +390,7 @@ CONTRACTS: dict[str, dict] = {
             "Pass only after every check and every newest run per workflow is terminal on two consecutive polls and each --require check exists; judge checks through latest_checks imported from hooks/git-commit-guard.py.",
             "Print one line with the sha, counts by state and failing check names; exit 0 when all succeeded, skipped or neutral, 1 on any other conclusion, 5 when the head moved off --sha, 6 on its own --timeout-min (default 50).",
             "Retry a transient gh 5xx or network error up to 4 attempts; any other gh failure exits 2.",
+            "--once reads the PR and its checks a single time through the same helpers: 1 when any check failed or was cancelled (even with others running), else 6 while a check, run or --require check is pending, 4 with no run, 3 conflicting, 5 head moved, 0 all green.",
             "Python 3.9+, standard library only; keep bin/pr-ci-wait.test.py passing under /usr/bin/python3.",
         ],
     },
@@ -1214,6 +1215,7 @@ CONTRACTS: dict[str, dict] = {
             "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, and Deep runs every stage as written.",
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
+            "Require every CI check on the recorded head green at the landing gate; a check failing by design is a finding to fix in that PR, never a PASS reason.",
             "Invoke every stage the tier requires as its own skill before recording the gate, even when an external blocker makes it BLOCKED; every gate reason and hand-back names each unrun stage as 'Not run: <stage>, <stage>' or states 'All stages ran', so a BLOCKED or PASS never hides an unrun stage.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
             "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
@@ -2335,7 +2337,9 @@ CONTRACTS: dict[str, dict] = {
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
             "never counts.",
             "`gate PASS` for a branch with an open PR on a GitHub origin records only when bin/pr-landing-gate.py "
-            "exits 0, else exits 1 printing the missing rows; a failed PR lookup refuses PASS. BLOCKED, N/A, "
+            "exits 0 and bin/pr-ci-wait.py --once exits 0 for the gate's full sha, else exits 1 printing the "
+            "missing rows or the failing, pending or moved-head CI line; a sha that does not resolve to a full "
+            "commit and a failed PR or CI lookup refuse PASS, whatever the reason text says. BLOCKED, N/A, "
             "no open PR and non-GitHub origins are unchanged.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "

@@ -8,6 +8,9 @@ merging the base in). It refuses the two quiet states an ad-hoc loop reads as do
     lasts forever. Exit 3 at once with the instruction to merge the base in and push.
   * no workflow run for the head sha yet: "no checks" is never done. Exit 4 after --start-min.
 
+--once reads the PR and its checks a single time and exits with the same codes, 6 meaning a check is
+still pending: the CI-green leg of `hooks/intent-ledger.sh gate PASS`.
+
 Checks are judged by the newest entry per check identity (latest_checks in
 hooks/git-commit-guard.py, imported, not copied), so a cancelled run superseded by a rerun never
 fails the wait. Standard library only; needs gh.
@@ -23,6 +26,7 @@ import time
 from pathlib import Path
 
 EXIT_OK, EXIT_FAILED, EXIT_USAGE, EXIT_CONFLICT, EXIT_NO_RUN, EXIT_HEAD_MOVED, EXIT_TIMEOUT = 0, 1, 2, 3, 4, 5, 6
+EXIT_PENDING = EXIT_TIMEOUT  # --once: a check is still running, the same state a wait times out in
 TRANSIENT_RE = re.compile(r"HTTP 5\d\d|\b50[0234]\b|Bad Gateway|Service Unavailable|Gateway Time-?out|"
                           r"timed out|connection reset|EOF", re.I)
 GH_ATTEMPTS = 4
@@ -123,7 +127,8 @@ def parse_args(argv: list) -> argparse.Namespace:
                     "0 every check succeeded or was skipped; 1 a check failed or was cancelled; "
                     "2 bad arguments or a gh failure after retries; 3 the PR conflicts with its base "
                     "(merge the base in and push); 4 no workflow run for the head sha within --start-min; "
-                    "5 the PR head moved off --sha; 6 --timeout-min reached with checks still pending.")
+                    "5 the PR head moved off --sha; 6 --timeout-min reached with checks still pending "
+                    "(with --once: a check still pending).")
     ap.add_argument("--repo", required=True, help="owner/name")
     ap.add_argument("--pr", required=True, type=int, help="pull request number")
     ap.add_argument("--sha", help="head commit to wait on; default: the PR's current head")
@@ -135,10 +140,26 @@ def parse_args(argv: list) -> argparse.Namespace:
     ap.add_argument("--start-min", type=float, default=10.0,
                     help="how long to wait for the first workflow run for the sha, default 10")
     ap.add_argument("--poll-sec", type=float, default=30.0, help="seconds between polls, default 30")
+    ap.add_argument("--once", action="store_true",
+                    help="read the PR and its checks once and exit, without waiting; a failed check exits 1 "
+                         "even while others still run, and a pass needs no second poll")
     args = ap.parse_args(argv)
     if "/" not in args.repo:
         ap.error("--repo must be owner/name")
     return args
+
+
+def read_once_verdict(sha: str, checks: list, missing: list, pending: bool) -> int:
+    """--once: a failed check wins over a pending one, so the gate names what to fix first."""
+    if any(check_state(c) not in PASSED_CONCLUSIONS | {"PENDING"} for c in checks):
+        print("FAILED " + summary(sha, checks))
+        return EXIT_FAILED
+    if pending or missing:
+        print("PENDING " + summary(sha, checks)
+              + (f"; required check not seen: {', '.join(missing)}" if missing else ""))
+        return EXIT_PENDING
+    print("PASSED " + summary(sha, checks))
+    return EXIT_OK
 
 
 def wait(args: argparse.Namespace) -> int:
@@ -167,8 +188,9 @@ def wait(args: argparse.Namespace) -> int:
         now = time.monotonic()
         missing: list = []
         if not runs and not checks:
-            if now >= start_deadline:
-                print(f"NO RUN: no workflow run for {sha[:12]} after {args.start_min:g} min; "
+            if args.once or now >= start_deadline:
+                waited = "" if args.once else f" after {args.start_min:g} min"
+                print(f"NO RUN: no workflow run for {sha[:12]}{waited}; "
                       f"PR #{args.pr} {merge_state(pr)}. Read the merge state and the workflow triggers "
                       f"before any rerun or empty commit.")
                 return EXIT_NO_RUN
@@ -177,6 +199,8 @@ def wait(args: argparse.Namespace) -> int:
             missing = [n for n in args.require if n not in names]
             pending_runs = [r for r in runs if str(r.get("status") or "").lower() != "completed"]
             pending = [c for c in checks if check_state(c) == "PENDING"]
+            if args.once:
+                return read_once_verdict(sha, checks, missing, bool(pending_runs or pending or not checks))
             if checks and not missing and not pending_runs and not pending:
                 clean_polls += 1
                 failing = [c for c in checks if check_state(c) not in PASSED_CONCLUSIONS]

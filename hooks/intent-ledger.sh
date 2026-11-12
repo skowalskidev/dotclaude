@@ -38,7 +38,9 @@
 #                                 a standard or deep PASS/BLOCKED reason holds "All stages ran" or
 #                                 "Not run: <stage>, <stage>" (exit 2 otherwise);
 #                                 PASS for a branch with an open PR records only when
-#                                 bin/pr-landing-gate.py passes on the fetched PR (exit 1 otherwise)
+#                                 bin/pr-landing-gate.py passes on the fetched PR and
+#                                 bin/pr-ci-wait.py --once finds every check green on <sha>
+#                                 (exit 1 otherwise)
 #         latest-ask [--since <ts>]
 #                                 PreToolUse helper — print this session's newest recorded ask, verbatim
 #                                 (stdin payload: session_id, cwd); prints nothing when none. Read-only.
@@ -242,9 +244,10 @@ record_push() { # record_push ROOT SRC DST
   printf '%s\t%s\t%s\n' "$1" "$b" "$sha" >> "$PUSHES" 2>/dev/null
 }
 
-# landing_check BRANCH — 0 when the branch has no open PR on a GitHub origin, or when
-# bin/pr-landing-gate.py passes on that PR. Otherwise prints the missing rows and fails, so `gate PASS`
-# records nothing. A PR that cannot be looked up or fetched fails: a fetch failure never passes.
+# landing_check BRANCH SHA — 0 when the branch has no open PR on a GitHub origin, or when
+# bin/pr-landing-gate.py passes on that PR AND bin/pr-ci-wait.py --once finds every check on SHA
+# succeeded or skipped. Otherwise prints why and fails, so `gate PASS` records nothing. A PR that
+# cannot be looked up or fetched fails: a fetch failure never passes. No reason text bypasses red CI.
 landing_check() {
   url="$(git remote get-url origin 2>/dev/null)" || return 0
   repo="$(printf '%s' "$url" | sed -nE 's#^(https://([^@/]+@)?|ssh://git@|git@)github\.com[:/]([^/]+/[^/]+)$#\3#p')"
@@ -259,12 +262,28 @@ landing_check() {
     return 1; }
   num="$(printf '%s' "$prs" | jq -r '.[0].number // empty' 2>/dev/null)"
   [ -n "$num" ] || return 0                                   # no open PR: unchanged behaviour
-  out="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" 2>&1)" && {
-    printf '%s\n' "$out"; return 0; }
-  printf '%s\n' "$out" >&2
-  echo "gate: PASS refused for $1: $repo#$num fails the landing gate above. Post each missing \
+  out="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" 2>&1)" || {
+    printf '%s\n' "$out" >&2
+    echo "gate: PASS refused for $1: $repo#$num fails the landing gate above. Post each missing \
 row to the PR body, then rerun gate PASS; or record BLOCKED with the blocker." >&2
-  return 1
+    return 1; }
+  printf '%s\n' "$out"
+  if [ "${#2}" -ne 40 ]; then # gh run list --commit matches only a full sha
+    echo "gate: PASS refused for $1: $2 does not resolve to a full commit here; fetch the branch and \
+rerun gate PASS with its sha or HEAD." >&2
+    return 1
+  fi
+  ci="$(python3 "$CFG_ROOT/bin/pr-ci-wait.py" --repo "$repo" --pr "$num" --sha "$2" --once 2>&1)"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf '%s\n' "$ci" >&2
+    echo "gate: PASS refused for $1: CI on $repo#$num at ${2:0:12} is not all green (pr-ci-wait exit $rc). \
+Fix the failing check in this PR, or wait for the pending one, then rerun gate PASS; a check failing \
+\"by design\" is a finding, never a PASS. Otherwise record BLOCKED with the blocker." >&2
+    return 1
+  fi
+  printf '%s\n' "$ci"
+  return 0
 }
 
 gate_pairs() { # branch and sha of every recorded gate, outside prompt fences
@@ -545,7 +564,7 @@ gate)
   sha="$(git rev-parse --verify -q "$ref^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$ref" | tr '[:upper:]' '[:lower:]')"
   case "$sha" in *[!0-9a-f]*|"") echo "gate: cannot resolve $ref to a commit" >&2; exit 2 ;; esac
   [ "${#sha}" -ge 7 ] || { echo "gate: sha needs 7+ characters" >&2; exit 2; }
-  if [ "$status" = PASS ]; then landing_check "$branch" || exit 1; fi
+  if [ "$status" = PASS ]; then landing_check "$branch" "$sha" || exit 1; fi
   resolve || { echo "gate: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
   acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"

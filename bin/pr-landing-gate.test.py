@@ -335,6 +335,8 @@ check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved
 STUB = """#!/bin/sh
 case "$1 $2" in
   "pr list") f=prlist.json ;;
+  "pr view") f=prview.json ;;
+  "run list") f=runs.json ;;
   "api graphql") f=threads.json ;;
   "api "*/files) f=files.txt ;;
   api*) f=pull.json ;;
@@ -345,9 +347,21 @@ cat "$GH_STUB/$f"
 """
 
 
-def serve(stub, body, html=HTML, unresolved=0, prs=(7,), files=("src/auth/Gate.tsx",)):
-    for name in ("prlist.json", "pull.json", "threads.json", "files.txt"):
+def serve(stub, body, html=HTML, unresolved=0, prs=(7,), files=("src/auth/Gate.tsx",), head=None,
+          ci=("SUCCESS",)):
+    """ci: one conclusion per check on `head` (PENDING = still running); head None serves no PR view."""
+    for name in ("prlist.json", "pull.json", "threads.json", "files.txt", "prview.json", "runs.json"):
         (stub / name).unlink(missing_ok=True)
+    if head is not None:
+        rollup = [{"__typename": "CheckRun", "name": f"check{i}", "workflowName": "ci",
+                   "status": "IN_PROGRESS" if c == "PENDING" else "COMPLETED",
+                   "conclusion": "" if c == "PENDING" else c, "startedAt": "2026-11-12T10:00:00Z",
+                   "completedAt": "2026-11-12T10:00:00Z"} for i, c in enumerate(ci)]
+        (stub / "prview.json").write_text(json.dumps({"mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN",
+                                                      "headRefOid": head, "statusCheckRollup": rollup}))
+        (stub / "runs.json").write_text(json.dumps([{"databaseId": 1, "workflowName": "ci", "name": "ci",
+                                                     "status": "in_progress" if "PENDING" in ci else "completed",
+                                                     "conclusion": ""}]))
     if prs is not None:
         (stub / "prlist.json").write_text(json.dumps([{"number": n, "url": f"https://example.test/{n}"} for n in prs]))
     if body is not None:
@@ -425,10 +439,32 @@ with tempfile.TemporaryDirectory() as tmp:
     r = hook_gate("feature/x", "HEAD", "PASS")
     check(r.returncode == 1 and "gh pr list failed" in r.stderr and len(gate_lines()) == 1,
           f"A failed PR lookup did not refuse PASS: {r.returncode} {r.stderr}")
+    # CI on the gate's head: every check green, or PASS records nothing whatever the reason says.
+    head = git("rev-parse", "HEAD")
+    serve(stub, PASSING, head=head, ci=("SUCCESS", "FAILURE"))
+    r = hook_gate("feature/x", "HEAD", "PASS", "deep", "All stages ran; the failing check fails by design")
+    check(r.returncode == 1 and "FAILED" in r.stderr and "ci / check1" in r.stderr and "not all green" in r.stderr
+          and len(gate_lines()) == 1, f"gate PASS recorded over a failing CI check: {r.returncode} {r.stderr}")
+    serve(stub, PASSING, head=head, ci=("SUCCESS", "PENDING"))
+    r = hook_gate("feature/x", "HEAD", "PASS")
+    check(r.returncode == 1 and "PENDING" in r.stderr and "exit 6" in r.stderr and len(gate_lines()) == 1,
+          f"gate PASS recorded over a pending CI check: {r.returncode} {r.stderr}")
+    serve(stub, PASSING, head="b" * 40)
+    r = hook_gate("feature/x", "HEAD", "PASS")
+    check(r.returncode == 1 and "HEAD MOVED" in r.stderr and len(gate_lines()) == 1,
+          f"gate PASS recorded for a sha that is not the PR head: {r.returncode} {r.stderr}")
     serve(stub, PASSING)
     r = hook_gate("feature/x", "HEAD", "PASS")
-    check(r.returncode == 0 and "pr-landing-gate: PASS" in r.stdout and gate_lines()[-1].endswith(" PASS "),
-          f"gate PASS over a passing PR did not record: {r.returncode} {r.stdout}{r.stderr}")
+    check(r.returncode == 1 and "not all green" in r.stderr and len(gate_lines()) == 1,
+          f"gate PASS recorded when the CI read failed: {r.returncode} {r.stderr}")
+    serve(stub, PASSING, head=head)
+    r = hook_gate("feature/x", head[:9], "PASS")
+    check(r.returncode == 0 and "pr-landing-gate: PASS" in r.stdout and "PASSED" in r.stdout
+          and gate_lines()[-1] == f"gate: feature/x {head} PASS ",
+          f"gate PASS over a passing PR with green CI did not record the full sha: {r.returncode} {r.stdout}{r.stderr}")
+    r = hook_gate("feature/x", "0123abcd", "PASS")
+    check(r.returncode == 1 and "full commit" in r.stderr and len(gate_lines()) == 2,
+          f"gate PASS accepted a sha that does not resolve locally: {r.returncode} {r.stderr}")
     serve(stub, None, prs=())
     r = hook_gate("feature/x", "HEAD", "PASS")
     check(r.returncode == 0 and len(gate_lines()) == 3, f"gate PASS with no open PR changed behaviour: {r.stderr}")

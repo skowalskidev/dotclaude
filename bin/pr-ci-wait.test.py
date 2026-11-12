@@ -46,7 +46,12 @@ def runs(*statuses):
                      "name": f"wf{i}"} for i, s in enumerate(statuses)]}
 
 
+CASES = 0
+
+
 def run_case(name, scenario, args, want_rc, want_text):
+    global CASES
+    CASES += 1
     with tempfile.TemporaryDirectory() as d:
         stub = Path(d) / "gh"
         stub.write_text(STUB)
@@ -97,9 +102,35 @@ def main() -> int:
              ["--require", "preflight", "--timeout-min", "0.002"], 6, "required check not seen: preflight")
     run_case("a head that moved off --sha exits 5",
              {"pr": [pr(green, head="b" * 40)]}, ["--sha", SHA], 5, "HEAD MOVED")
+    # --once: one read, no wait. The stub's second response would differ, so a second poll shows.
+    run_case("--once all green exits 0 on a single read",
+             {"pr": [pr(green), pr([check("test", conclusion="FAILURE")])], "runs": [runs("completed")]},
+             ["--once"], 0, "PASSED")
+    run_case("--once a failed check exits 1 and names it, even with another still running",
+             {"pr": [pr([check("preflight", status="IN_PROGRESS"), check("test", conclusion="FAILURE")])],
+              "runs": [runs("in_progress")]}, ["--once"], 1, "failing: ci / test")
+    run_case("--once a cancelled check exits 1",
+             {"pr": [pr([check("test", conclusion="CANCELLED")])], "runs": [runs("completed")]},
+             ["--once"], 1, "failing: ci / test")
+    run_case("--once a pending check exits 6 without waiting",
+             {"pr": [pr([check("test", status="IN_PROGRESS")]), pr(green)], "runs": [runs("in_progress")]},
+             ["--once"], 6, "PENDING")
+    run_case("--once a run started but no check reported yet exits 6",
+             {"pr": [pr([])], "runs": [runs("in_progress")]}, ["--once"], 6, "PENDING")
+    run_case("--once a missing required check exits 6",
+             {"pr": [pr([check("meta")])], "runs": [runs("completed")]},
+             ["--once", "--require", "preflight"], 6, "required check not seen: preflight")
+    run_case("--once no run for the sha exits 4 at once",
+             {"pr": [pr([])], "runs": [{"out": []}]}, ["--once"], 4, "NO RUN")
+    run_case("--once a head that moved off --sha exits 5",
+             {"pr": [pr(green, head="b" * 40)]}, ["--once", "--sha", SHA], 5, "HEAD MOVED")
+    run_case("--once a conflicting PR exits 3",
+             {"pr": [pr(green, mergeable="CONFLICTING", state="DIRTY")]}, ["--once"], 3, "CONFLICTING")
+    run_case("--once a gh failure exits 2",
+             {"pr": [{"rc": 1, "err": "HTTP 404: Not Found"}]}, ["--once"], 2, "404")
     for f in FAILS:
         print("FAIL", f)
-    print(f"pr-ci-wait: {13 - len(FAILS)}/13 cases pass")
+    print(f"pr-ci-wait: {CASES - len(FAILS)}/{CASES} cases pass")
     return 1 if FAILS else 0
 
 

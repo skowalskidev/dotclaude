@@ -149,6 +149,10 @@ verified the user + system journey, then handed back with it never posted to the
   `## Verification runs` (`references/screenshot-review.md` § Verification run videos).
 - Feedback (stage 5): 0 unhandled current comment revisions and 0 unresolved review threads;
   every actionable finding has a verdict and reply, with no outstanding blocking decision.
+- CI (every stage): every check on the recorded head succeeded or was skipped; `gate PASS` reads it
+  through `bin/pr-ci-wait.py --once` and refuses red, pending or a moved head. A check failing "by
+  design" (e.g. one accepting only PRs on the default branch, failing a stacked PR) is a finding to fix
+  in this PR, never a PASS reason.
 - TLDR (stage 8): the body opens with the before/after TLDR and a Do line.
 - Deploy-TLDR (stage 8): it follows the TLDR, each production step carrying its check, smoke
   and rollback.
