@@ -78,6 +78,15 @@ a judge that reads an earlier judge's file echoes that verdict into its own tran
 TEST: every judge verdict in a hand-back traces to a final-message file or `-p` output read after
 that judge's process exited. (the fix for three early wake-ups that read a quoted older verdict as the
 new one.)
+DO state the blocking bar in every code-verdict brief from round 1: BLOCKING is a regression against
+the base or a defect in code the change adds with a realistic trigger; behaviour the base already has,
+or a case with no realistic trigger, is NON-BLOCKING and goes to a follow-up ticket or the PR's
+residual-risk line. Have the judge label each finding and put only BLOCKING ones on its VERDICT line.
+DO stop the fix-and-rejudge loop when the same finding survives two consecutive rounds, and name the
+residual in the PR (the same stop rule `/sk:ship-report-and-ensure-correct-user-system-journey` applies to its fix rounds).
+TEST: every code-judge brief in the run defines BLOCKING before round 1, and no PR runs a third round
+on a repeated finding. (the fix for a monitor hotfix that took 7 judge rounds: rounds 4-7 escalated to
+pre-existing and pathological cases until the bar was added at round 6.)
 DO have each judge state, per decision and per source: its call, the evidence row or link it rests
 on, and the best-practice or most widely adopted approach, verified from the vendor's or standard's
 own page (§ Source order). Then reconcile: give every judge the others' positions once, settle each
