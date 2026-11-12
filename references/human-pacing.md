@@ -58,12 +58,20 @@ reload and which step to redo. DON'T let a delegated worker commit into the serv
 server hot-reloads the open tab and drops the state they built up. (the fix for a fix that landed mid-step
 and reset the human's in-progress form twice)
 
-**DO treat the surface you handed over as theirs alone until they reply.** Read it only (screenshot,
-DOM, console, network, logs). Announce any action you take there as its own numbered step first. DON'T
-drive it while their step is open: two drivers in one live tab replay each other's actions. (the fix
-for a walk where Claude tapped X and typed a phrase after "done", mid-step, and the screen opened twice)
+**DO treat the surface you handed over as theirs alone until they explicitly release it.** Release is
+"done", "your turn", "you do it", "stop" or "I'm out", nothing weaker. DO answer a question, an
+ambiguous or partial message or a status line in chat and touch nothing: no navigation, reload,
+recording stop, served-code swap or dev-server restart. Read it only (screenshot, DOM, console,
+network, logs). Announce any action you take there as its own numbered step first. DON'T read any
+reply as release, and DON'T drive it while their step is open: two drivers in one live tab replay
+each other's actions. (the fix for a walk where "look let me pass" was read as quitting: Claude
+stopped the recording, swapped the preview commit and reloaded the tab mid-step)
+
+**DO queue every code refresh until the walk ends or the human releases it.** The served tree includes
+the preview's checked-out commit and its server process, for the whole walk.
 
 TEST: at any moment the human has exactly ONE action in front of them, a count of where they are, and a
 clear signal it is their turn — and the full plan is in the file, not the chat. A step message is the
-turn's last message. No file in the served tree changes between a step's hand-off and its result, and no
-click, keystroke or navigation from Claude lands on their surface in that window.
+turn's last message. No file in the served tree, checked-out preview commit or server process changes while a walk is
+open, and no click, keystroke, reload or navigation from Claude lands on their surface until an
+explicit release; a question from them gets a chat answer and zero surface actions.
