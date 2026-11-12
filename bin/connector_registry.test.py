@@ -127,8 +127,9 @@ class RegistryTests(unittest.TestCase):
             {'id': 'oauth', 'name': 'tracker-mcp', 'kind': 'mcp-http'}])
         _, routes, _, _ = self.resolve('tracker')
         self.assertEqual([item['secret'] for item in routes],
-                         [{'path': str(key_file), 'var': ['TRACKER_KEY_ALPHA']},
-                          {'path': '~/keys/pair.env', 'var': ['PAIR_SID', 'PAIR_SECRET']}, None])
+                         [{'store': 'local', 'path': str(key_file), 'var': ['TRACKER_KEY_ALPHA']},
+                          {'store': 'local', 'path': '~/keys/pair.env', 'var': ['PAIR_SID', 'PAIR_SECRET']},
+                          None])
         identity = self.base / 'identity.json'
         identity.write_text(json.dumps(self.identity))
         outputs = {}
@@ -149,6 +150,146 @@ class RegistryTests(unittest.TestCase):
         self.provider('work', 'tracker', [{'id': 'api', 'name': 'tracker', 'kind': 'api',
                                            'secret': {'path': '~/k.env', 'var': 'lin_api-abc.123'}}])
         self.assertIn('secret.var must be variable names', ' '.join(reg.load_all(self.identity)[0]['errors']))
+
+    # ---------------------------------------------------------------- hybrid keys: local files + vault pointers
+
+    def vault_setup(self, store_order=None, via='vaultdb/vault'):
+        key_file = self.base / 'shared.env'
+        key_file.write_text('MGMT_TOKEN=mgmt-token-must-not-print\nBILLING_KEY="local-value-must-not-print"\n')
+        self.provider('work', 'vaultdb', [{'id': 'vault', 'name': 'vaultdb-vault', 'kind': 'api',
+                                           'secret': {'path': str(key_file), 'var': 'MGMT_TOKEN'}}],
+                      capabilities=['vaultdb.read'])
+        record = {'provider': 'billing', 'scope': 'shared-account', 'capabilities': ['billing.read'],
+                  'routes': [{'id': 'billing-vault', 'name': 'billing-vault', 'kind': 'api',
+                              'secret': {'store': 'vault', 'via': via, 'project': 'proj-ref',
+                                         'name': "Billing key ", 'env': 'BILLING_KEY'}},
+                             {'id': 'billing-local', 'name': 'billing', 'kind': 'api',
+                              'secret': {'path': str(key_file), 'var': 'BILLING_KEY'}}]}
+        if store_order:
+            record['storeOrder'] = store_order
+        (self.roots['work'] / 'billing.json').write_text(json.dumps(record))
+        return key_file
+
+    def test_vault_pointer_holds_names_only_and_rejects_a_mixed_or_incomplete_record(self):
+        bad = [({'store': 'vault', 'project': 'p', 'name': 'n', 'env': 'N'}, 'needs "via"'),
+               ({'store': 'vault', 'via': 'db/vault', 'name': 'n', 'env': 'N'}, 'vault "project"'),
+               ({'store': 'vault', 'via': 'db/vault', 'project': 'p', 'name': 'n', 'env': 'sk-live 1'},
+                'needs "env"'),
+               ({'store': 'vault', 'via': 'db/vault', 'project': 'p', 'name': 'n', 'env': 'N',
+                 'path': '~/k.env'}, 'vault pointer'),
+               ({'store': 'cloud', 'path': '~/k.env'}, 'store must be one of')]
+        for secret, message in bad:
+            self.provider('work', 'tracker', [{'id': 'api', 'name': 'tracker', 'kind': 'api', 'secret': secret}])
+            self.assertIn(message, ' '.join(reg.load_all(self.identity)[0]['errors']), secret)
+        self.provider('work', 'tracker', [{'id': 'api', 'name': 'tracker'}])
+        (self.roots['work'] / 'tracker.json').write_text(json.dumps(
+            {'provider': 'tracker', 'scope': 'shared-account', 'storeOrder': ['vault'], 'routes': []}))
+        self.assertIn('storeOrder must list', ' '.join(reg.load_all(self.identity)[0]['errors']))
+
+    def test_resolve_lists_the_local_key_before_the_vault_pointer_unless_the_provider_flips_it(self):
+        self.vault_setup()
+        order, routes, _, _ = self.resolve('billing')
+        self.assertEqual(order, ['billing-local', 'billing-vault'])
+        self.assertEqual(routes[1]['secret'], {'store': 'vault', 'via': 'vaultdb/vault', 'project': 'proj-ref',
+                                               'name': 'Billing key ', 'env': 'BILLING_KEY'})
+        self.assertEqual(routes[1]['blocker'], '')
+        self.vault_setup(store_order=['vault', 'local'])
+        self.assertEqual(self.resolve('billing')[0], ['billing-vault', 'billing-local'])
+
+    def test_a_failed_local_key_falls_back_to_the_vault_pointer(self):
+        self.vault_setup()
+        self.health('work', {'billing/billing-local': {'lastFailure': {'at': stamp(1), 'reason': 'revoked'}}})
+        self.assertEqual(self.resolve('billing')[0], ['billing-vault', 'billing-local'])
+
+    def test_vault_pointer_through_an_undeclared_route_is_blocked(self):
+        self.vault_setup(via='vaultdb/missing')
+        order, routes, _, _ = self.resolve('billing')
+        self.assertEqual(order, ['billing-local', 'billing-vault'])
+        self.assertIn('names no local-key route', routes[1]['blocker'])
+
+    def test_resolve_prints_the_vault_name_and_its_run_command_never_a_value(self):
+        self.vault_setup()
+        identity = self.base / 'identity.json'
+        identity.write_text(json.dumps(self.identity))
+        with patch.dict(os.environ, {'CLAUDE_IDENTITY_FILE': str(identity)}), \
+                patch.object(reg, 'origin', return_value=WORK_REMOTE), \
+                patch.object(reg, 'current_claude_account', return_value=''), \
+                patch('sys.stdout', new_callable=io.StringIO) as out:
+            self.assertEqual(reg.main(['resolve', 'billing', '--cwd', str(self.cwd)]), 0)
+        text = out.getvalue()
+        self.assertIn('key in Supabase Vault proj-ref as "Billing key " via vaultdb/vault', text)
+        self.assertIn('connector_registry.py run billing billing-vault -- <cmd reading $BILLING_KEY>', text)
+        self.assertNotIn('must-not-print', text)
+
+    def run_child(self, route, expected, opener=None):
+        """The real child process exits 0 only when it received the expected key in its environment."""
+        identity = self.base / 'identity.json'
+        identity.write_text(json.dumps(self.identity))
+        child = [os.sys.executable, '-c', 'import os, sys; sys.exit(0 if os.environ.get("BILLING_KEY") == '
+                 + repr(expected) + ' else 3)']
+        with patch.dict(os.environ, {'CLAUDE_IDENTITY_FILE': str(identity)}), \
+                patch.object(reg, 'origin', return_value=WORK_REMOTE):
+            return reg.run_with_key('billing', route, child, self.cwd, opener=opener)
+
+    def test_run_loads_a_local_key_into_the_child_only(self):
+        self.vault_setup()
+        self.assertEqual(self.run_child('billing-local', 'local-value-must-not-print'), 0)
+        self.assertNotIn('BILLING_KEY', os.environ)
+
+    def test_run_reads_a_vault_pointer_through_its_route_and_quotes_the_name(self):
+        self.vault_setup()
+        (self.roots['work'] / 'billing.json').write_text((self.roots['work'] / 'billing.json').read_text()
+                                                         .replace('Billing key ', "Bob's key "))
+        seen = {}
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        def opener(request, timeout):
+            seen['url'] = request.full_url
+            seen['auth'] = request.headers['Authorization']
+            seen['query'] = json.loads(request.data)['query']
+            return Response(json.dumps([{'name': "Bob's key ", 'decrypted_secret': 'vault-value-must-not-print'}]).encode())
+
+        self.assertEqual(self.run_child('billing-vault', 'vault-value-must-not-print', opener=opener), 0)
+        self.assertEqual(seen['url'], reg.VAULT_API + 'proj-ref/database/query')
+        self.assertEqual(seen['auth'], 'Bearer mgmt-token-must-not-print')
+        self.assertIn("where name in ('Bob''s key ')", seen['query'])
+
+    def test_vault_read_errors_carry_neither_token_nor_value(self):
+        def missing(request, timeout):
+            raise reg.urllib.error.HTTPError(request.full_url, 401, 'Unauthorized', {}, None)
+        secret = {'store': 'vault', 'via': 'a/b', 'project': 'p', 'name': 'n', 'env': 'N'}
+        with self.assertRaises(reg.RegistryError) as caught:
+            reg.read_vault(secret, 'mgmt-token-must-not-print', opener=missing)
+        self.assertEqual(str(caught.exception), 'vault read for "n" failed: HTTP 401')
+
+    def test_a_multi_key_vault_pointer_returns_every_variable_or_names_the_missing_one(self):
+        secret = {'store': 'vault', 'via': 'a/b', 'project': 'p', 'name': ['Sid', 'Token'],
+                  'env': ['ACCOUNT_SID', 'AUTH_TOKEN']}
+
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        rows = [{'name': 'Sid', 'decrypted_secret': 'sid-value'}, {'name': 'Token', 'decrypted_secret': 'tok-value'}]
+        got = reg.read_vault(secret, 't', opener=lambda request, timeout: Response(json.dumps(rows).encode()))
+        self.assertEqual(got, {'ACCOUNT_SID': 'sid-value', 'AUTH_TOKEN': 'tok-value'})
+        with self.assertRaises(reg.RegistryError) as caught:
+            reg.read_vault(secret, 't', opener=lambda request, timeout: Response(json.dumps(rows[:1]).encode()))
+        self.assertEqual(str(caught.exception), 'no Vault secret named "Token" in project p')
+        self.assertNotIn('sid-value', str(caught.exception))
+        self.provider('work', 'tracker', [{'id': 'api', 'name': 'tracker', 'kind': 'api',
+                                           'secret': {**secret, 'env': ['ACCOUNT_SID']}}])
+        self.assertIn('one variable name the consumer reads per vault name',
+                      ' '.join(reg.load_all(self.identity)[0]['errors']))
 
     # ---------------------------------------------------------------- scope and boundary
 

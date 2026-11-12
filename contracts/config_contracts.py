@@ -545,6 +545,7 @@ CONTRACTS: dict[str, dict] = {
             "Prod is read-only by default; a write is enabled per-request and torn down after.",
             "Per-project detail stays in the local registry roots, never hard-coded here; a fallback never leaves the session boundary or skips a per-message or per-write gate.",
             "A model API is reached only through pal, with a key from the repo's own boundary and the per-call yes; a repo's own billable test harness Simon asked to run uses its own path; shell model-API calls stay denied and the subscription stays the default.",
+            "Use both local key files and Supabase Vault pointers, falling back between them, loading either only through connector_registry.py run and never printing a value; no new secret manager unprompted.",
         ],
     },
     "rules/spend-approval.md": {
@@ -717,6 +718,7 @@ CONTRACTS: dict[str, dict] = {
             "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
             "Keeps one tested log query per production connector kind, re-tested at first need; after 2 failed log reads a session switches to the provider's own record of the event.",
             "A copied secret is read into a variable, whitespace-stripped, shown only as length and fixed prefix, passes one authenticated call, then is stored; never an interactive paste or untested pipe.",
+            "Documents hybrid secrets: a vault-pointer route beside the local one, exact Vault names, both stores tried in resolve order, values read only through run, names discovered only, and no model-API key behind a pointer.",
         ],
     },
     "references/project-instructions.md": {
@@ -2380,6 +2382,8 @@ CONTRACTS: dict[str, dict] = {
             "Resolve returns only the session boundary's routes: unblocked first, open circuits last, routes serving the project before others, proven before untested, then declared order.",
             "Never exclude a same-boundary route for scope; record writes health.json under a lock, mode 600, same boundary only.",
             "Resolve prints each route's key location (secret.path and secret.var names, text and --json) and never reads or prints a value; secret.var accepts identifiers only.",
+            "A route secret is local {path, var} or a vault pointer {store, via, project, name, env}; resolve ranks local before vault unless storeOrder flips it, and blocks a pointer whose via route is undeclared.",
+            "run hands a local or vault key only to the child process's environment; errors carry the status, never the token or the value.",
             "Migration keeps every legacy project and connector field reachable; check-migration fails on any missing value.",
             "Python 3.9 standard library only, so the /usr/bin/python3 guard can import nothing else.",
         ],

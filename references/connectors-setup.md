@@ -15,15 +15,16 @@ one, or debugging the provisioner/guard.
   folder beside the org key directory, and one in the personal-projects folder).
   `CLAUDE_CONNECTOR_ROOTS="work=/a,personal=/b"` overrides both for tests. `~/.claude/connectors/`
   holds only the public `*.example` templates.
-- **Secrets never live in the registry.** Records carry only paths. Real secrets live in AWS Secrets
-  Manager (work runtime) or machine-local files outside every repo, at each route's `secret.path`:
-  `~/.config/**`, or an org key directory (a shared `.env` plus one `<project>.env` per project, each
-  repo's `.env` a symlink to its project file).
-- **No vault, by design.** The engine fetches nothing. A key is minted on demand from its route's
-  own `auth.steps`, kept `chmod 600`, and regenerated when needed — the provider's IAM is the source of
-  truth, so there is no second copy to rotate, sync or leak. Don't propose adding a secret manager
-  unless Simon asks. A plaintext secret on disk → fix scope + file mode (least-privilege key, `600`,
-  outside the repo, rotate if exposed), never "move it into 1Password".
+- **Secrets never live in the registry.** Records carry only paths and names. Real secrets live in AWS
+  Secrets Manager (work runtime), machine-local files outside every repo at each route's `secret.path`
+  (`~/.config/**`, or an org key directory: a shared `.env` plus one `<project>.env` per project, each
+  repo's `.env` a symlink to its project file), or the project's own Supabase Vault, reached through a
+  vault pointer (§ Hybrid secrets).
+- **No new secret manager.** `resolve` fetches nothing. A local key is minted on demand from its
+  route's own `auth.steps`, kept `chmod 600`, and regenerated when needed. A key the project already
+  keeps in its Supabase Vault is read in place through its pointer, never copied to disk. Don't propose
+  adding another secret manager unless Simon asks. A plaintext secret on disk → fix scope + file mode
+  (least-privilege key, `600`, outside the repo, rotate if exposed), never "move it into 1Password".
 
 Use `references/agent-hosts.md` for native Codex configuration. Both hosts consume the same loader;
 Claude uses native local registration, while the Codex launcher reads the current definitions before
@@ -48,7 +49,11 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
   and half-open states ([Azure circuit breaker pattern](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)).
   Health lives in `health.json`, apart from the records, as Claude Code keeps its needs-auth cache apart
   from its config.
-- **Rejected:** a secret vault (no-vault policy above); one monolithic registry file (every outcome
+- **A pointer to an external store, never the value:** Kubernetes External Secrets names the store
+  (`secretStoreRef`) and the remote key (`remoteRef.key`) and fetches the value at use
+  ([ExternalSecret API](https://external-secrets.io/latest/api/externalsecret/)). A vault pointer is
+  that shape: `store`, `via`, `project`, `name`.
+- **Rejected:** a new secret manager (policy above); one monolithic registry file (every outcome
   rewrites every record, and concurrent sessions collide); per-project copies of a shared account (the
   four drifting copies of one Twilio key this replaced).
 
@@ -98,8 +103,14 @@ provider name, an exact capability, or a prefix such as `slack`), in this order:
 3. Routes serving this project (shared-account, listed in `serves`, or with a recorded success here)
    before the rest of the boundary.
 4. Proven (`ok`) before untested, then the file's declared preference, then the most recent success.
-Each route line ends with `key in <secret.path> as <secret.var>` when the route declares one (`--json`:
-`secret: {path, var[]}`); load the key from there without printing it.
+Within the same serving rank, local-key routes rank before vault pointers unless the provider's
+`storeOrder` is `["vault", "local"]`.
+Each route line ends with `key in <secret.path> as <secret.var>`, or for a vault pointer
+`key in Supabase Vault <project> as "<name>" via <provider/route>; load: connector_registry.py run ...`
+(`--json`: `secret: {store, path, var[]}` or `secret: {store, via, project, name, env}`). Load a key
+without printing it, through `connector_registry.py run <provider> <route> -- <cmd>` (§ Hybrid secrets).
+DO put the resolver output, the route record and this reference IN a delegated subagent's prompt (the
+fix for a subagent that guessed "emulator-first" past a provisioned MCP and sign-in bridge).
 DO record the outcome of every attempt, success and failure, with the failure reason. A record whose
 reason names a human-only cause (another login, missing consent) keeps the next session from trying it
 first. TEST: after a failed route, the next `resolve` in the same boundary lists it after every
@@ -156,13 +167,16 @@ Fields:
 - `ephemeral` — torn down after use (materialized key removed).
 - `mcp` — for `mcp-*` kinds, the canonical transport object (stdio: command/args/env;
   http: type+url). `~` in `env` values and `args` is expanded to `$HOME` at provision time.
-- `secret` — `{ path, var }`: where this connector's key file lives and, for an env-style file, the
-  variable name holding the key (`var`: one name, or a list when the route needs several, e.g. an SID
-  and a secret). A DECLARATION, not a fetch instruction. `var` is a NAME only; the loader rejects
-  anything that is not a shell identifier. `--check` reports `key-present`/`key-missing` from it,
-  provisioning warns when it is absent, and the key itself is created by hand from `auth.steps`. There
-  is no `from` field and no vault to pull from. DO fill both on every route that reads a key file
-  holding more than one variable. TEST: `resolve` prints `key in <path> as <VAR>` on that route's line.
+- `secret` — hybrid, one of two stores (§ Hybrid secrets). **Local** (`store` omitted or `"local"`):
+  `{ path, var }`, where this connector's key file lives and, for an env-style file, the variable name
+  holding the key (`var`: one name, or a list when the route needs several, e.g. an SID and a secret).
+  `var` is a NAME only; the loader rejects anything that is not a shell identifier. `--check` reports
+  `key-present`/`key-missing` from it, provisioning warns when it is absent, and the key itself is
+  created by hand from `auth.steps`. DO fill both on every route that reads a key file holding more than
+  one variable. TEST: `resolve` prints `key in <path> as <VAR>` on that route's line. **Vault**:
+  `{ "store": "vault", "via": "<provider>/<route>", "project": "<project ref>", "name": "<Vault secret
+  name>", "env": "<VAR the consumer reads>" }`; `name` and `env` may be equal-length lists for a key
+  that comes in parts (an account SID and a token). `--check` reports `vault-pointer`.
 - `cli` — `{ name, profile }` for `kind: cli`: the CLI binary and the named profile this project must
   use. The guard reads `profile` so a bare invocation that would fall through to the CLI's own default
   profile is denied by data rather than by a hardcoded name (this is what stops a bare `stripe` in a
@@ -305,6 +319,28 @@ TEST: `mcp__pal__version` passes in a work repo and is denied in a personal repo
 model-API call anywhere; `connectors-provision.sh --host codex --check` lists `pal mcp-stdio` in a work
 repo and no `pal` in a personal one.
 
+## Hybrid secrets: local key files and Supabase Vault pointers
+
+A project's Supabase Vault holds the production keys of the data sources and suppliers its functions
+call (billing, subscriptions, ads, messaging, supplier APIs), so it reaches sources no local file holds.
+DO declare each such key as its own route whose `secret` is a vault pointer, beside any local-key route
+for the same provider, with a distinct `name` (e.g. `<provider>-vault`). `via` names the local-key route
+that reads the vault (a management-API token route), `name` is the exact Vault secret name, trailing
+spaces included, and `env` is the variable the consumer reads.
+DO use both stores: try the routes in `resolve` order (local first by default), and on a failure
+`record` it and take the vault pointer, or the local key, in the same turn.
+DO read a key only through `python3 ~/.claude/bin/connector_registry.py run <provider> <route> -- <cmd>`:
+it loads a local key from its file, or a vault value through the `via` route's token and the Supabase
+management API query endpoint, into the child's environment only. The command reads `$<env>`.
+DON'T print, log, write to disk or commit a value, and don't paste one into a command line; test
+presence by length inside the child (`${#VAR}`). A Vault write or rotation is a prod write
+(`rules/connectors.md` § Prod / live safety).
+DO discover Vault secret NAMES only, through the vault route: `select name from vault.secrets`.
+DON'T route a model-API key (OpenAI, Gemini, Anthropic, xAI) through a vault pointer; § Model-API keys
+owns that path. Note in the root's `index.json` `notes` that the Vault holds the data sources' keys.
+TEST: `resolve <provider>` lists both the local and the vault route with their key locations; the
+`run` output and transcript carry no value.
+
 ## Secret homes (never committed, never in `~/.claude`)
 
 DO keep work runtime secrets in AWS Secrets Manager, loaded by `apps/api` `dogfood()` at startup;
@@ -321,6 +357,7 @@ platform's own store).
 | Stripe CLI profiles | `~/.config/stripe/config.toml` — `work-sandbox`, `work-prod`, `personal` |
 | Personal API keys (incl. `LINEAR_API_KEY`) | `~/.config/personal-keys.env`, chmod 600 |
 | Per-project runtime keys (personal) | that project's gitignored `.env.local`, chmod 600, symlinked into worktrees |
+| Supplier and data-source production keys a project's functions use (work) | that project's Supabase Vault, read in place through a vault-pointer route |
 
 Claude may read `~/.config/firebase-keys/**` and the other credential paths — the read-blockers were
 removed as theatre (`rules/security.md`), since a secret here is reachable by design. The control is
@@ -386,11 +423,14 @@ own CI). DON'T commit or force-add a personal or secret file past `.gitignore`; 
 
 ## Prod-write pathway (separate, on-demand, confirmed, ephemeral)
 
-Prod is read-only by default (`firebase-prod`, IAM viewer SA). A write goes through a SEPARATE
+Prod is read-only by default (`firebase-prod`, IAM viewer SA; the Stripe production CLI profile, a
+restricted read-only key). A Vault-held live key can be full-access, so its vault-pointer route stays
+GET-only unless Simon asks for that exact write. A write goes through a SEPARATE
 `firebase-prod-write` record (`readOnly:false, gated:true, enabledOnDemand:true, ephemeral:true`):
 `/sk:setup-connectors enable-prod-write firebase` mints the write key from GCP IAM, Simon confirms the
 exact write, the one write is made, then the pathway is disabled and the key is deleted both on disk
-and in IAM. Same pattern for Stripe live.
+and in IAM. Same pattern for Stripe live: `/sk:setup-connectors enable-prod-write <platform>`, then
+Simon confirms the exact change.
 
 ### A schema change in production (a migration)
 

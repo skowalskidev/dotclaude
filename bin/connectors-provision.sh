@@ -8,10 +8,10 @@
 # `claude mcp list` / no network for the registration check). Designed to be safe in a hook: never
 # exits non-zero, never blocks.
 #
-# It does NOT fetch secrets. There is no secret store in this setup: a route's `secret.path` is a
-# DECLARATION of where its key lives so --check can report presence, and the key is created by hand from
-# that route's own `auth.steps` (e.g. `gcloud iam service-accounts keys create`). GCP/Stripe/Firebase
-# IAM is the source of truth, and a key is regenerated on demand rather than mirrored into a vault.
+# It does NOT fetch secrets. A local route's `secret.path` is a DECLARATION of where its key lives so
+# --check can report presence, and the key is created by hand from that route's own `auth.steps` (e.g.
+# `gcloud iam service-accounts keys create`). A `secret.store: vault` route points at a Supabase Vault
+# secret by name; --check reports it as `vault-pointer`, and `connector_registry.py run` reads it at use.
 #
 # Usage:
 #   connectors-provision.sh [DIR]           provision the project at DIR (default: $PWD)
@@ -114,7 +114,11 @@ check_line() {
   env="$(printf '%s' "$c" | jq -r '.env // ""')"
   ond="$(printf '%s' "$c" | jq -r '.enabledOnDemand // false')"
   spath="$(printf '%s' "$c" | jq -r '.secret.path // ""')"
+  store="$(printf '%s' "$c" | jq -r '.secret.store // "local"')"
   status="unknown"
+  case "$kind" in
+    *) [ "$store" = vault ] && { printf '%s\t%s\t%s\t%s%s\n' "$name" "$kind" "$env" "vault-pointer" "$2"; return; } ;;
+  esac
   case "$kind" in
     mcp-*) if [ "$ond" = "true" ]; then status="on-demand"; elif is_registered "$name"; then status="registered"; else status="missing"; fi ;;
     api|service-key) if [ -n "$spath" ] && [ -f "$(expand_tilde "$spath")" ]; then status="key-present"; else status="key-missing"; fi ;;

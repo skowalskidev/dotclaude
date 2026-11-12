@@ -88,7 +88,8 @@ top of that, in this order, because the cheap sources kill the most tickets:
 3. **Any connector that can corroborate**, when it is relevant to the claim: the billing provider for
    a revenue claim, the telephony or messaging provider for a delivery claim, logs and traces for a
    frequency or latency claim, the issue tracker for whether this was already decided. Same read-only
-   rule, same work/personal boundary.
+   rule, same work/personal boundary. Resolve every route for each source, local keys and Vault
+   pointers alike (`references/connectors-setup.md` § Hybrid secrets).
 4. **The other side of a cross-repo contract.** When the premise depends on how a service in another
    repo behaves, READ THAT SERVICE'S SOURCE. Never infer its semantics from the types on this side —
    an assumption about what a remote endpoint does with an omitted field is a premise, not a fact,

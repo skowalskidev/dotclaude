@@ -14,6 +14,11 @@ A route is a connector record (the fields references/connectors-setup.md documen
 optional `capabilities`, `scope` (shared-account | per-project), `serves` (projects it is known to
 serve) and optional `requires` ({"claudeAccount": <email or identity-overlay key>}).
 
+A route's `secret` is hybrid: `store: local` (the default) names a key file and variable names,
+`store: vault` names a Supabase Vault secret, the local-key route that reads it (`via`), the
+project and the variable the consumer expects. A provider's `storeOrder` ranks the two (local
+first by default). The value is never in a record, and `run` hands it only to the child process.
+
 Readers (connectors-provision.sh, work-resource-guard.sh, session-connectors.sh, agent_runtime.py,
 health-pulse.py) all go through this module, so there is one parser and one boundary rule.
 
@@ -25,6 +30,7 @@ Usage:
   connector_registry.py cli-profile CLI [--cwd DIR]   the profile this project pins for a CLI
   connector_registry.py resolve CAPABILITY [--cwd DIR] [--claude-account EMAIL] [--json]
   connector_registry.py record PROVIDER ROUTE ok|fail [--reason TEXT] [--by WHO] [--cwd DIR]
+  connector_registry.py run PROVIDER ROUTE [--cwd DIR] -- CMD...   CMD with the route's key in its env
   connector_registry.py list [--json]                 every provider, capability and route, per root
   connector_registry.py migrate --from DIR [--write] [--provider-map JSON]
   connector_registry.py check-migration --from DIR    every legacy manifest field is reachable here
@@ -38,6 +44,8 @@ import re
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 CLAUDE_HOME = Path(os.environ.get('CLAUDE_HOME', str(Path.home() / '.claude')))
@@ -48,6 +56,9 @@ INDEX = 'index.json'
 HEALTH = 'health.json'
 COOLDOWN_HOURS = 24  # a failed route is skipped for this long unless every other route fails
 VAR_NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')  # a secret.var entry is a variable NAME, never a value
+STORES = ('local', 'vault')  # where a route's key lives: a local key file, or a Supabase Vault pointer
+VIA = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.@-]+$')  # provider/route of the route that reads the vault
+VAULT_API = os.environ.get('CLAUDE_VAULT_API', 'https://api.supabase.com/v1/projects/')
 
 
 class RegistryError(ValueError):
@@ -163,28 +174,70 @@ def validate_provider(record, boundary, file):
         if scope == 'per-project' and not route.get('serves'):
             raise RegistryError('per-project route ' + route['id'] + ' must list the projects it serves')
         validate_secret(route)
+    order = record.get('storeOrder', list(STORES))
+    if not isinstance(order, list) or sorted(order) != sorted(STORES):
+        raise RegistryError('storeOrder must list ' + ' and '.join(STORES) + ' once each')
 
 
 def validate_secret(route):
-    """`secret` is {path, var?}: the key file and the variable name(s) holding the key in it."""
+    """`secret` is local {path, var?} (the key file and the variable names in it) or a vault pointer
+    {store: vault, via, project, name, env}. Both hold names and paths only, never a value."""
     if 'secret' not in route:
         return
     secret = route['secret']
-    if not isinstance(secret, dict) or not isinstance(secret.get('path'), str) or not secret['path']:
-        raise RegistryError('route ' + route['id'] + ' secret needs a "path" string')
+    where = 'route ' + route['id'] + ' secret'
+    if not isinstance(secret, dict) or secret.get('store', 'local') not in STORES:
+        raise RegistryError(where + ' store must be one of ' + ', '.join(STORES))
+    if secret.get('store') == 'vault':
+        if not isinstance(secret.get('via'), str) or not VIA.match(secret['via']):
+            raise RegistryError(where + ' needs "via": the provider/route that reads the vault')
+        if not isinstance(secret.get('project'), str) or not secret['project'].strip():
+            raise RegistryError(where + ' needs a vault "project" string')
+        names, envs = as_list(secret.get('name')), as_list(secret.get('env'))
+        if not names or not all(isinstance(n, str) and n.strip() for n in names):
+            raise RegistryError(where + ' needs a vault "name" string (or a list of them)')
+        if len(envs) != len(names) or not all(isinstance(e, str) and VAR_NAME.match(e) for e in envs):
+            raise RegistryError(where + ' needs "env": one variable name the consumer reads per vault name')
+        if 'path' in secret or 'var' in secret:
+            raise RegistryError(where + ' is a vault pointer; a local path or var belongs on its own route')
+        return
+    if not isinstance(secret.get('path'), str) or not secret['path']:
+        raise RegistryError(where + ' needs a "path" string')
     names = secret.get('var', [])
     names = [names] if isinstance(names, str) else names
     if not isinstance(names, list) or not all(isinstance(n, str) and VAR_NAME.match(n) for n in names):
-        raise RegistryError('route ' + route['id'] + ' secret.var must be variable names, never a value')
+        raise RegistryError(where + '.var must be variable names, never a value')
+
+
+def as_list(value):
+    return value if isinstance(value, list) else ([] if value is None else [value])
+
+
+def vault_pairs(secret):
+    """[(vault name, variable)] of a vault pointer; `name` and `env` are one string or equal lists."""
+    return list(zip(as_list(secret['name']), as_list(secret['env'])))
 
 
 def secret_location(route):
-    """Where a route's key lives, `{path, var: [names]}`, or None. Never reads the file or a value."""
+    """Where a route's key lives, or None. Never reads the file, the vault or a value.
+
+    local: {store, path, var: [names]}; vault: {store, via, project, name, env}.
+    """
     secret = route.get('secret')
-    if not isinstance(secret, dict) or not secret.get('path'):
+    if not isinstance(secret, dict):
+        return None
+    if secret.get('store') == 'vault':
+        return {key: secret[key] for key in ('store', 'via', 'project', 'name', 'env')}
+    if not secret.get('path'):
         return None
     names = secret.get('var', [])
-    return {'path': secret['path'], 'var': [names] if isinstance(names, str) else list(names)}
+    return {'store': 'local', 'path': secret['path'], 'var': [names] if isinstance(names, str) else list(names)}
+
+
+def store_rank(route, record):
+    """0 for the provider's first store in `storeOrder` (local unless it says otherwise)."""
+    store = (secret_location(route) or {}).get('store', 'local')
+    return list(record.get('storeOrder', STORES)).index(store)
 
 
 def load_all(identity=None):
@@ -204,6 +257,7 @@ def flat_routes(root):
             item['capabilities'] = list(route.get('capabilities') or record.get('capabilities') or [provider])
             item['serves'] = list(route.get('serves', []))
             item['_order'] = order
+            item['_store'] = store_rank(route, record)
             out.append(item)
     return out
 
@@ -439,6 +493,9 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
                 blocker = 'needs the Claude CLI signed in as ' + wanted + ' (human step: /login)'
             elif route.get('enabledOnDemand'):
                 blocker = 'on-demand pathway: enable it and get the per-write yes first'
+            secret = secret_location(route)
+            if not blocker and secret and secret['store'] == 'vault' and vault_reader(root, secret) is None:
+                blocker = 'vault pointer via ' + secret['via'] + ' names no local-key route in this boundary'
             last_ok = parse_time(success.get('at', '')) if success else None
             out.append({
                 'provider': route['provider'], 'route': route['route'], 'name': route['name'],
@@ -446,9 +503,9 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
                 'state': state, 'blocker': blocker, 'readOnly': route.get('readOnly'),
                 'gated': route.get('gated'), 'lastSuccess': entry.get('lastSuccess'),
                 'lastFailure': entry.get('lastFailure'), 'recipe': route.get('recipe'),
-                'secret': secret_location(route),
+                'secret': secret,
                 'root': str(root['path']),
-                '_key': (bool(blocker), state == 'open', not serves_here,
+                '_key': (bool(blocker), state == 'open', not serves_here, route['_store'],
                          0 if state == 'ok' else 1, route['_order'],
                          -(last_ok.timestamp() if last_ok else 0), route['provider']),
             })
@@ -457,6 +514,106 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
         item['rank'] = rank
         del item['_key']
     return out, boundary, project
+
+
+# ---------------------------------------------------------------------------- key loading (run)
+
+def vault_reader(root, secret):
+    """The local-key route a vault pointer reads through, from the same root, or None."""
+    provider, _, route_id = secret['via'].partition('/')
+    record = root['providers'].get(provider) or {}
+    route = next((item for item in record.get('routes', []) if item['id'] == route_id), None)
+    location = secret_location(route) if route else None
+    return route if location and location['store'] == 'local' and location['var'] else None
+
+
+def read_env_file(path, names):
+    """{name: value} for the named KEY=VALUE lines of a key file. Values stay in memory only."""
+    values = {}
+    for line in expand(path).read_text().splitlines():
+        line = line.strip()
+        if line.startswith('export '):
+            line = line[len('export '):].lstrip()
+        key, sep, value = line.partition('=')
+        if sep and key.strip() in names:
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
+                value = value[1:-1]
+            values[key.strip()] = value
+    missing = [name for name in names if not values.get(name)]
+    if missing:
+        raise RegistryError('key file ' + str(path) + ' has no value for ' + ', '.join(missing))
+    return values
+
+
+def sql_literal(text):
+    return "'" + text.replace("'", "''") + "'"
+
+
+def read_vault(secret, token, opener=None):
+    """{variable: value} for a vault pointer, through the Supabase management API query endpoint.
+    Raises with the status only: neither the token nor a value ever reaches an error message."""
+    pairs = vault_pairs(secret)
+    label = ', '.join(json.dumps(name) for name, _ in pairs)
+    query = ('select name, decrypted_secret from vault.decrypted_secrets where name in (' +
+             ', '.join(sql_literal(name) for name, _ in pairs) + ')')
+    request = urllib.request.Request(
+        VAULT_API + secret['project'] + '/database/query', method='POST',
+        data=json.dumps({'query': query}).encode(),
+        headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
+    try:
+        with (opener or urllib.request.urlopen)(request, timeout=30) as response:
+            rows = json.loads(response.read().decode())
+    except urllib.error.HTTPError as exc:
+        raise RegistryError('vault read for ' + label + ' failed: HTTP ' + str(exc.code)) from None
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise RegistryError('vault read for ' + label + ' failed: ' + type(exc).__name__) from None
+    found = {row.get('name'): row.get('decrypted_secret') for row in rows
+             if isinstance(row, dict)} if isinstance(rows, list) else {}
+    missing = [name for name, _ in pairs if not isinstance(found.get(name), str) or not found[name]]
+    if missing:
+        raise RegistryError('no Vault secret named ' + ', '.join(json.dumps(n) for n in missing) +
+                            ' in project ' + secret['project'])
+    return {env: found[name] for name, env in pairs}
+
+
+def route_env(provider, route_id, cwd, remote=None, identity=None, opener=None):
+    """{variable: value} a route's consumer needs, from its key file or its vault pointer."""
+    identity = read_identity() if identity is None else identity
+    roots = load_all(identity)
+    remote = origin(cwd) if remote is None else remote
+    try:
+        _, _, boundary = select(cwd, remote=remote, identity=identity, roots=roots, strict=False)
+    except RegistryError:
+        boundary = session_boundary(remote, identity)
+    root = next((item for item in roots if item['boundary'] == boundary and provider in item['providers']), None)
+    if root is None:
+        raise RegistryError('no ' + boundary + ' provider named ' + provider)
+    route = next((item for item in root['providers'][provider].get('routes', []) if item['id'] == route_id), None)
+    if route is None:
+        raise RegistryError('provider ' + provider + ' has no route ' + route_id)
+    secret = secret_location(route)
+    if secret is None:
+        raise RegistryError('route ' + provider + '/' + route_id + ' declares no key')
+    if secret['store'] == 'local':
+        if not secret['var']:
+            raise RegistryError('route ' + provider + '/' + route_id + ' names a key file but no variable; '
+                                'pass its path to the tool instead')
+        return read_env_file(secret['path'], secret['var'])
+    reader = vault_reader(root, secret)
+    if reader is None:
+        raise RegistryError('vault pointer via ' + secret['via'] + ' names no local-key route in this boundary')
+    location = secret_location(reader)
+    token = read_env_file(location['path'], location['var'][:1])[location['var'][0]]
+    return read_vault(secret, token, opener=opener)
+
+
+def run_with_key(provider, route_id, command, cwd, opener=None):
+    """Run COMMAND with the route's key in its environment; return its exit code. Prints no value."""
+    if not command:
+        raise RegistryError('run needs a command after --')
+    env = {**os.environ, **route_env(provider, route_id, cwd, opener=opener)}
+    return subprocess.run(command, env=env, cwd=str(cwd)).returncode
 
 
 def record(provider, route_id, outcome, cwd, reason='', by='', remote=None, identity=None, at=None):
@@ -724,6 +881,11 @@ def main(argv=None):
     cmd.add_argument('--reason', default='')
     cmd.add_argument('--by', default='')
     cmd.add_argument('--cwd', default=os.getcwd())
+    cmd = sub.add_parser('run')
+    cmd.add_argument('provider')
+    cmd.add_argument('route')
+    cmd.add_argument('--cwd', default=os.getcwd())
+    cmd.add_argument('child', nargs=argparse.REMAINDER, help='-- then the command to run')
     cmd = sub.add_parser('list')
     cmd.add_argument('--json', action='store_true')
     for name in ('migrate', 'check-migration'):
@@ -784,9 +946,16 @@ def run(args):
                 notes.append('declared for another project')
             if item['blocker']:
                 notes.append('BLOCKED: ' + item['blocker'])
-            if item['secret']:
-                notes.append('key in ' + item['secret']['path'] +
-                             (' as ' + ', '.join(item['secret']['var']) if item['secret']['var'] else ''))
+            secret = item['secret']
+            if secret and secret['store'] == 'vault':
+                pairs = vault_pairs(secret)
+                notes.append('key in Supabase Vault ' + secret['project'] + ' as ' +
+                             ', '.join(json.dumps(name) for name, _ in pairs) + ' via ' + secret['via'] +
+                             '; load: connector_registry.py run ' + item['provider'] + ' ' + item['route'] +
+                             ' -- <cmd reading ' + ' '.join('$' + env for _, env in pairs) + '>')
+            elif secret:
+                notes.append('key in ' + secret['path'] +
+                             (' as ' + ', '.join(secret['var']) if secret['var'] else ''))
             print('%d. %s/%s  [%s %s]  %s' % (item['rank'], item['provider'], item['route'],
                                              item['kind'], item['name'], '; '.join(notes)))
         return 0
@@ -794,6 +963,9 @@ def run(args):
         note = record(args.provider, args.route, args.outcome, args.cwd, reason=args.reason, by=args.by)
         print('recorded ' + args.outcome + ' for ' + args.provider + '/' + args.route + ' at ' + note['at'])
         return 0
+    if args.command == 'run':
+        child = args.child[1:] if args.child[:1] == ['--'] else args.child
+        return run_with_key(args.provider, args.route, child, args.cwd)
     if args.command == 'list':
         rows = []
         for root in load_all():

@@ -23,7 +23,7 @@ the registry carries his standing authorization to use it (the fix for asking to
 recorded OpenAI Slack route worked). `serves` only ranks a route: a route declared for another project
 of the same boundary is still tried, after the ones that serve this project.
 **Delegating it? Put the resolver output, route record and reference IN the subagent's prompt**
-(the fix for a subagent that guessed "emulator-first" past a provisioned MCP and sign-in bridge).
+(catalog § Resolve, try, record).
 TEST: every service step traces to a resolved route, every attempt has a recorded outcome, and an
 auth question names each route tried and its failure.
 
@@ -64,9 +64,8 @@ Work = the repo's `git origin` matches your work org (workOrgMatch in your ident
 resources. The resolver returns only the session boundary's root; a fallback never leaves it.
 - **Credentials:** keep each in its home from `references/connectors-setup.md` § Secret homes (work
   runtime secrets via AWS `dogfood()`, never a hand-added worktree `.env`; others `chmod 600` outside
-  every repo at the route's `secret.path`).
-- **No secret-manager vault; propose one only if I ask.** Key handling and the plaintext-on-disk fix:
-  `references/connectors-setup.md` § No vault.
+  every repo at the route's `secret.path`, or Supabase Vault via a pointer). **Use both, falling back
+  between them, via `connector_registry.py run`** (catalog § Hybrid secrets).
 - **Model APIs go through `pal` only,** inside its boundary and with Simon's per-call yes; DON'T call
   OpenAI or Gemini from the shell. Detail and TEST: `references/connectors-setup.md` § Model-API keys.
 - **Never** commit a secret, and never write one into `~/.claude` (a pushed git repo). The
@@ -78,12 +77,11 @@ resources. The resolver returns only the session boundary's root; a fallback nev
 
 ## Prod / live safety (never write unless I ask for that specific write)
 
-Prod is READ-ONLY by default (`firebase-prod` uses an IAM viewer key; Stripe production a restricted
-read-only key). Never attempt a prod/live write unless I explicitly ask for that exact change. When a
-task needs one, surface it up front: the write pathway is SEPARATE — enabled on demand, confirmed per
-write, torn down after (`/sk:setup-connectors enable-prod-write <platform>`, then I confirm the exact
-change). No prod data is touched until both happen. A fallback route inherits the same gate: a gated
-send or write still needs its per-message or per-write yes on every route.
+Prod is READ-ONLY by default, whatever a route's key could do (catalog § Prod-write pathway). Never
+attempt a prod/live write unless I explicitly ask for that exact change. When a task needs one, surface
+it up front: the write pathway is SEPARATE — enabled on demand, confirmed per write, torn down after.
+No prod data is touched until both happen. A fallback route inherits the same gate: a gated send or
+write still needs its per-message or per-write yes on every route.
 
 ## Registry convention (one loader, one file per provider)
 
