@@ -22,6 +22,8 @@ counts = json.load(open(state_path)) if os.path.exists(state_path) else {}
 n = counts.get(kind, 0)
 counts[kind] = n + 1
 json.dump(counts, open(state_path, "w"))
+with open(os.environ["STUB_SCENARIO"] + ".calls", "a") as f:
+    f.write(json.dumps(sys.argv[1:]) + "\n")
 seq = scenario.get(kind) or [{"rc": 1, "err": "unexpected gh call: " + " ".join(sys.argv[1:])}]
 r = seq[min(n, len(seq) - 1)]
 if "out" in r:
@@ -49,7 +51,7 @@ def runs(*statuses):
 CASES = 0
 
 
-def run_case(name, scenario, args, want_rc, want_text):
+def run_case(name, scenario, args, want_rc, want_text, want_run_sha=None):
     global CASES
     CASES += 1
     with tempfile.TemporaryDirectory() as d:
@@ -65,6 +67,12 @@ def run_case(name, scenario, args, want_rc, want_text):
         out = p.stdout + p.stderr
         if p.returncode != want_rc or want_text not in out:
             FAILS.append(f"{name}: rc={p.returncode} (want {want_rc}), want '{want_text}' in:\n{out}")
+        if want_run_sha:
+            calls_path = Path(str(sc) + ".calls")
+            calls = [json.loads(line) for line in calls_path.read_text().splitlines()] if calls_path.exists() else []
+            shas = [c[c.index("--commit") + 1] for c in calls if c[:2] == ["run", "list"]]
+            if not shas or any(s != want_run_sha for s in shas):
+                FAILS.append(f"{name}: gh run list --commit got {shas}, want only {want_run_sha}")
 
 
 def main() -> int:
@@ -102,6 +110,16 @@ def main() -> int:
              ["--require", "preflight", "--timeout-min", "0.002"], 6, "required check not seen: preflight")
     run_case("a head that moved off --sha exits 5",
              {"pr": [pr(green, head="b" * 40)]}, ["--sha", SHA], 5, "HEAD MOVED")
+    head = "91ae5c6c1e96" + "0" * 28
+    run_case("an abbreviated --sha that prefixes the head passes and reads runs by the full sha",
+             {"pr": [pr(green, head=head)], "runs": [runs("completed")]}, ["--sha", "91AE5C6C1"], 0,
+             "PASSED 91ae5c6c1e96", want_run_sha=head)
+    run_case("an abbreviated --sha that does not prefix the head exits 5",
+             {"pr": [pr(green, head=head)]}, ["--sha", "91ae5c6c2"], 5, "HEAD MOVED")
+    run_case("a non-hex --sha is a usage error before any gh call",
+             {}, ["--sha", "main"], 2, "7-40 hex characters")
+    run_case("a --sha shorter than 7 characters is a usage error",
+             {}, ["--sha", "91ae5c"], 2, "7-40 hex characters")
     # --once: one read, no wait. The stub's second response would differ, so a second poll shows.
     run_case("--once all green exits 0 on a single read",
              {"pr": [pr(green), pr([check("test", conclusion="FAILURE")])], "runs": [runs("completed")]},

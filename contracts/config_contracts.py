@@ -390,6 +390,7 @@ CONTRACTS: dict[str, dict] = {
             "Pass only after every check and every newest run per workflow is terminal on two consecutive polls and each --require check exists; judge checks through latest_checks imported from hooks/git-commit-guard.py.",
             "Print one line with the sha, counts by state and failing check names; exit 0 when all succeeded, skipped or neutral, 1 on any other conclusion, 5 when the head moved off --sha, 6 on its own --timeout-min (default 50).",
             "Retry a transient gh 5xx or network error up to 4 attempts; any other gh failure exits 2.",
+            "Accept --sha as 7-40 hex characters (exit 2 otherwise); an abbreviated --sha that prefixes the PR head is not a move, and every later read uses the full head sha.",
             "--once reads the PR and its checks a single time through the same helpers: 1 when any check failed or was cancelled (even with others running), else 6 while a check, run or --require check is pending, 4 with no run, 3 conflicting, 5 head moved, 0 all green.",
             "Python 3.9+, standard library only; keep bin/pr-ci-wait.test.py passing under /usr/bin/python3.",
         ],
@@ -2337,9 +2338,9 @@ CONTRACTS: dict[str, dict] = {
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
             "never counts.",
             "`gate PASS` for a branch with an open PR on a GitHub origin records only when bin/pr-landing-gate.py "
-            "exits 0 and bin/pr-ci-wait.py --once exits 0 for the gate's full sha, else exits 1 printing the "
-            "missing rows or the failing, pending or moved-head CI line; a sha that does not resolve to a full "
-            "commit and a failed PR or CI lookup refuse PASS, whatever the reason text says. BLOCKED, N/A, "
+            "exits 0 and bin/pr-ci-wait.py --once exits 0 for the gate's sha (resolved to the full id when local), "
+            "else exits 1 printing the missing rows or the failing, pending or moved-head CI line; a failed PR "
+            "or CI lookup refuses PASS, whatever the reason text says. BLOCKED, N/A, "
             "no open PR and non-GitHub origins are unchanged.",
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "

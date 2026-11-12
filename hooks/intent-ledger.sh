@@ -268,11 +268,7 @@ landing_check() {
 row to the PR body, then rerun gate PASS; or record BLOCKED with the blocker." >&2
     return 1; }
   printf '%s\n' "$out"
-  if [ "${#2}" -ne 40 ]; then # gh run list --commit matches only a full sha
-    echo "gate: PASS refused for $1: $2 does not resolve to a full commit here; fetch the branch and \
-rerun gate PASS with its sha or HEAD." >&2
-    return 1
-  fi
+  # SHA is the full id when this checkout has the commit; pr-ci-wait also matches a 7+ hex prefix.
   ci="$(python3 "$CFG_ROOT/bin/pr-ci-wait.py" --repo "$repo" --pr "$num" --sha "$2" --once 2>&1)"
   rc=$?
   if [ "$rc" -ne 0 ]; then

@@ -463,8 +463,8 @@ with tempfile.TemporaryDirectory() as tmp:
           and gate_lines()[-1] == f"gate: feature/x {head} PASS ",
           f"gate PASS over a passing PR with green CI did not record the full sha: {r.returncode} {r.stdout}{r.stderr}")
     r = hook_gate("feature/x", "0123abcd", "PASS")
-    check(r.returncode == 1 and "full commit" in r.stderr and len(gate_lines()) == 2,
-          f"gate PASS accepted a sha that does not resolve locally: {r.returncode} {r.stderr}")
+    check(r.returncode == 1 and "HEAD MOVED" in r.stderr and len(gate_lines()) == 2,
+          f"gate PASS accepted a short sha that is not the PR head: {r.returncode} {r.stderr}")
     serve(stub, None, prs=())
     r = hook_gate("feature/x", "HEAD", "PASS")
     check(r.returncode == 0 and len(gate_lines()) == 3, f"gate PASS with no open PR changed behaviour: {r.stderr}")
