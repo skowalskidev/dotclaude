@@ -9,7 +9,8 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      / "continue") is NEVER a yes for a SPECIFIC merge; confirm the PR and verify CI is actually
      green, and it runs only when the user's OWN words this turn (every ask hooks/intent-ledger.sh
      recorded since his newest typed turn-opening prompt, queued mid-turn ones included) say "merge"
-     with no later halt, and name the PR's number, or cover it as an open PR this session pushed. A
+     with no later halt, and name the PR's number, or cover it as an open PR this session pushed, or
+     say all/both/them in answer to a hand-back whose "Merge list:" line names it. A
      standing instruction earlier in the session ("merge and deploy all when they're ready", "merge
      12 once CI is green", or a plain "merge all") also covers it, with no later halt, but only while
      the PR is open, not a draft, mergeable and every check has passed at the moment of the merge. There
@@ -409,36 +410,49 @@ def ledger_asks(payload: dict, since: str = "") -> list:
     return [a for a in (p.stdout or "").split("\x1e") if a.strip()]
 
 
-def turn_opened_at(path: str) -> str:
-    """The ledger second at which the current turn opened: Simon's newest typed prompt in the
-    transcript, minus one second for clock rounding. A tool result, a skill body or hook feedback
-    (isMeta), a compaction summary, a sidechain and a harness prompt (task notification, origin set)
-    never open a turn. "" when unreadable, which falls back to the newest ask alone."""
+def _transcript(path: str) -> list:
     try:
         with open(path, "rb") as f:
-            lines = f.read().splitlines()
+            return f.read().splitlines()
     except Exception:
-        return ""
-    for line in reversed(lines):
+        return []
+
+
+def _entry(line: bytes):
+    try:
+        e = json.loads(line)
+    except Exception:
+        return None
+    return e if isinstance(e, dict) else None
+
+
+def _typed_prompt(e: dict) -> bool:
+    """A prompt Simon typed. A tool result, a skill body or hook feedback (isMeta), a compaction
+    summary, a sidechain and a harness prompt (task notification, origin set) are not."""
+    if (e.get("type") != "user" or e.get("isMeta") or e.get("isSidechain")
+            or e.get("isCompactSummary") or e.get("origin")):
+        return False
+    content = (e.get("message") or {}).get("content")
+    if isinstance(content, list):
+        if any(isinstance(x, dict) and x.get("type") == "tool_result" for x in content):
+            return False
+        text = " ".join(str(x.get("text", "")) for x in content if isinstance(x, dict))
+    elif isinstance(content, str):
+        text = content
+    else:
+        return False
+    return bool(HARNESS_BLOCK_RE.sub("", text).strip())
+
+
+def turn_opened_at(path: str) -> str:
+    """The ledger second at which the current turn opened: Simon's newest typed prompt in the
+    transcript, minus one second for clock rounding. "" when unreadable, which falls back to the
+    newest ask alone."""
+    for line in reversed(_transcript(path)):
         if b'"user"' not in line:
             continue
-        try:
-            e = json.loads(line)
-        except Exception:
-            continue
-        if (not isinstance(e, dict) or e.get("type") != "user" or e.get("isMeta") or e.get("isSidechain")
-                or e.get("isCompactSummary") or e.get("origin")):
-            continue
-        content = (e.get("message") or {}).get("content")
-        if isinstance(content, list):
-            if any(isinstance(x, dict) and x.get("type") == "tool_result" for x in content):
-                continue
-            text = " ".join(str(x.get("text", "")) for x in content if isinstance(x, dict))
-        elif isinstance(content, str):
-            text = content
-        else:
-            continue
-        if not HARNESS_BLOCK_RE.sub("", text).strip():
+        e = _entry(line)
+        if not e or not _typed_prompt(e):
             continue
         try:
             opened = datetime.datetime.strptime(str(e.get("timestamp", ""))[:19], "%Y-%m-%dT%H:%M:%S")
@@ -446,6 +460,32 @@ def turn_opened_at(path: str) -> str:
             return ""
         return (opened - datetime.timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
     return ""
+
+
+# The hand-back's own list of what Simon is to merge ("Merge list: #1204, then #1208"), which
+# rules/communication.md has every hand-back with open PRs end on.
+MERGE_LIST_RE = re.compile(r"^[\s>*_`-]*merge list\b[^\n]*", re.I | re.M)
+
+
+def handed_back_merge_list(path: str) -> set:
+    """The PR numbers in the merge list of the hand-back Simon is answering: the newest end_turn
+    reply before his newest typed prompt. Empty when that reply lists none, so an older list never
+    carries over."""
+    seen_prompt = False
+    for line in reversed(_transcript(path)):
+        e = _entry(line)
+        if not e:
+            continue
+        if not seen_prompt:
+            seen_prompt = _typed_prompt(e)
+            continue
+        message = e.get("message") or {}
+        if e.get("type") != "assistant" or message.get("stop_reason") != "end_turn":
+            continue
+        text = " ".join(str(x.get("text", "")) for x in message.get("content") or [] if isinstance(x, dict))
+        found = MERGE_LIST_RE.search(text)
+        return set(re.findall(r"#(\d{2,})\b", found.group(0))) if found else set()
+    return set()
 
 
 def turn_asks(payload: dict) -> list:
@@ -533,10 +573,14 @@ def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
 
 def covers(text: str, number: str, payload: dict, selector: str, repo: str, cwd) -> bool:
     """Simon's words name this PR's number, or (naming no other PR, or saying all/both/them) cover
-    it as an open PR this session pushed."""
+    it as an open PR this session pushed, or say all/both/them in answer to a hand-back whose merge
+    list names it (the fix for "merge and deploy both" refused for the base PR of a stack another
+    session pushed, which the hand-back had listed for him to merge)."""
     if re.search(rf"(?<!\d){number}(?!\d)", text):
         return True
     bulk, numbered = bool(BULK_RE.search(text)), bool(PR_NUMBER_RE.search(text))
+    if bulk and number in handed_back_merge_list(str(payload.get("transcript_path") or "")):
+        return True
     return (bulk or not numbered) and session_pushed_pr(payload, selector, repo, cwd)
 
 
@@ -785,7 +829,8 @@ def main() -> int:
                 "ones included) saying \"merge\" with no later stop/hold/wait, and naming this PR's "
                 "number"
                 + (f" (#{number})" if number else " (name the number, not a branch)") + ", covering "
-                "it as an open PR this session pushed (no number, or all/both/them), or naming no PR "
+                "it as an open PR this session pushed (no number, or all/both/them), saying all/both/them to a "
+                "hand-back whose Merge list names it, or naming no PR "
                 "for one other PR; or on a standing merge an earlier message this session gave "
                 "(\"merge ... when ready / once CI is green\", or \"merge all\") covering it, when no "
                 "later message said stop/hold/wait/cancel or not to merge/deploy, and the PR is open, not a draft, "
