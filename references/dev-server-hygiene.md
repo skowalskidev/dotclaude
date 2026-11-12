@@ -678,6 +678,18 @@ a name match alone proves neither ownership nor abandonment. Preserve other live
 TEST: zero argument/environment values in inspection output; every stopped PID has current
 ownership evidence or passes the existing orphan-cleanup gate.
 
+**DO treat a process a subagent started as that subagent's until its final task notification
+arrives**, even when it sits under this session's own lease or port lane. Read the subagent's latest
+task notification before signalling: "waiting on its own background work", or no final notification
+yet, means the owner is alive, whatever `ListAgents` shows. A lease holder equal to this session's id
+proves the session owns the lease, never that the work ended.
+**DON'T stop it because `ListAgents` lists the subagent as completed**; that listing ignores
+background work the subagent still waits on. When unsure, `SendMessage` the subagent to stop its own
+work and wait for its final notification. (the fix for a leased final media check, 45 minutes into
+its capacity wait, stopped as leftover and forced to rerun.)
+TEST: zero signals to a subagent-started process before that subagent's final notification or its
+own reply that it stopped the work.
+
 ### Waiting on a background job
 
 **DO wait on a handle the job owns:** `wait $pid` in the same shell that launched it, a `kill -0 $pid`
