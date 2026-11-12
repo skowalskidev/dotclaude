@@ -82,6 +82,9 @@ is absolute or anchored by its own leading `cd`.
 after `;` run in whatever directory the shell was already in (the fix for a `git merge --ff-only` that
 ran in another checkout and moved its local main after `cd <missing-dir> && …; git merge …`).
 TEST: zero `;` after a `cd`, a lookup or a build in the command.
+**DON'T test liveness with `kill -0` or split a pid list with an unquoted `$pids` in the agent's shell:** the
+sandbox hides live pids from `kill -0`, and zsh does not word-split. Stop and verify processes per
+`references/dev-server-hygiene.md` § Stopping from the agent's shell (`ps -p`, sandbox off, `${=pids}`).
 
 **DO let a lookup, `cd`, cleanup or release step fail loudly.** Silence one (`>/dev/null 2>&1 || true`)
 only when its failure is harmless, and say why in an inline comment.

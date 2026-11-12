@@ -53,6 +53,19 @@ TEST: after each `navigate_page` or reload, `list_pages` shows the label prefix 
 `hooks/emulate-viewport-guard.py` denies a taller `emulate` viewport; its `MAX_VIEWPORT_H` owns the cap. For a taller window, relaunch with `--size` and set `CLAUDE_TEST_VIEWPORT_MAX_H` (window height minus the hook's `CHROME_PX`).
 TEST: a screenshot of the window shows the whole emulated viewport, bottom edge included, with no cut-off; `window.innerHeight` from `evaluate_script` is at most the content height.
 
+**Before you hand a live UI tab to Simon, prove it is interactive on the exact host he will use.** Run it
+after every change to the serving worktree (checkout, re-applied patch), server restart or config change
+(a framework config can block the tunnel or LAN host as a cross-origin dev origin).
+**DO, on that exact URL (tunnel, LAN or localhost as he will type it), check all three:** the framework
+hydrated (e.g. React props on a primary control via `evaluate_script`), one primary control responds to
+`click` with a visible change, and `list_console_messages` shows no blocked-origin or HMR websocket error.
+**DON'T hand over a tab that merely rendered:** a page can paint server HTML and never hydrate, so taps do nothing.
+On any failure fix the config or host allowlist, restart, and re-run all three.
+TEST: each hand-over cites the host checked, the hydration signal, the control that responded and a clean
+console; a hand-off after a restart with no such check broke the rule (the fix for a preview whose dev
+server blocked the tunnel host after a config revert: rendered, never hydrated, HMR 502). The same
+check is the first row of `references/screenshot-review.md` § Hand-off check for a live URL.
+
 **Setup:** launch the test browser as a SEPARATE instance with its OWN `--user-data-dir`, never your everyday profile:
 `~/.claude/bin/test-browser.sh launch [--port 9222] [--profile "$HOME/.chrome-<project>-debug"] [--size WxH] <url>`. It exits 0 when the port is open (reusing a Chrome for Testing already there), 5 when the port belongs to another browser (pick another `--port`), 4 when no build is cached (`npx playwright install chromium`). The dedicated profile is what makes the port open reliably: passing `--remote-debugging-port` while a Chrome is ALREADY running on that profile just hands the flag to the running instance (it owns the profile's singleton lock), which never opens the port — `DevToolsActivePort` is never written, nothing binds 9222, and the MCP fails with "Could not connect". So poll until `curl -s http://127.0.0.1:9222/json/version` succeeds before attaching. A dedicated profile starts logged OUT, so sign in ONCE in that window; it persists the session across runs. The MCP attaches to that instance.
 

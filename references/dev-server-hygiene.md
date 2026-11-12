@@ -167,6 +167,17 @@ wrapper dies, and the actual server **grandchild survives** and keeps squatting 
   started after the stop (the fix for a restart whose old launcher had already respawned a server with
   the old settings).
 
+### Stopping from the agent's shell: signal outside the sandbox, verify with `ps`
+**DO run every `kill` from the agent's Bash tool with the sandbox off (`dangerouslyDisableSandbox: true`)
+and verify with `ps -p <pid>` or `pgrep`, never `kill -0`.** Inside the sandbox `kill -TERM` silently does
+nothing and `kill -0` exits non-zero for a live process, so "kill -0 fails, so it is gone" reports a
+live process as stopped. **DO split a pid list in zsh (the agent's shell) with `${=pids}` or a `for p in
+$(...)` loop;** an unquoted `$pids` is one word there (`kill: illegal pid: "6863 6864 ..."`).
+The authoritative check stays the port or `pgrep` listing (§ Track what you started).
+TEST: a stop step signals with the sandbox off, lists survivors with `ps -p`/`pgrep` and reports zero
+before "gone"; no `kill -0` appears as a liveness check (the fix for 21 live processes reported gone
+after a sandboxed `kill -0` loop). Shell gotchas: `references/code-best-practices.md` § Agent-written shell.
+
 ## Signal and trap discipline (hard-won specifics)
 
 - Register cleanup on **EXIT only**; have signal handlers exit explicitly. The naive

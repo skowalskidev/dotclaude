@@ -704,6 +704,7 @@ CONTRACTS: dict[str, dict] = {
             "Verify observed native browser transitions and automation overrides; record before/after state and versions, remove overrides that prevent the transition, and label synthetic handler coverage separately from observed browser transitions and live-backend proof.",
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
             "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
+            "Owns the live-tab hand-over check: before handing a live UI tab to Simon, and after any worktree, server or config change, verify on the exact host he will use that the framework hydrated, a primary control responds and the console shows no blocked-origin or HMR error.",
             "Owns multi-persona walks and tab labels: each persona opened by Claude in its own named isolated context, first actor first, fresh accounts, no URL handed to Simon; every walk tab titled '▶ PERSONA tail · page title' and kept across navigations, with step messages naming the tab by that label.",
         ],
     },
@@ -783,6 +784,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Apply the shared verification timing policy; resource admission never creates a per-file or per-worker test obligation.",
             "Classify one bounded browser inspection or focused smoke check separately from heavy batches; run it through ordinary supervised admission, which reads CPU only. Keep full builds, suites, stacks, ownership, connector and spend boundaries on their existing paths.",
+            "Stops processes from the agent's shell with the sandbox off, verifies with ps -p or pgrep never kill -0, and splits zsh pid lists with ${=pids}; code-best-practices.md points here.",
             "Track and stop every started process; retain explicitly requested previews only through their bounded owned lifecycle. Verify identity before trusting logs.",
             "Route iOS simulator execution to references/ios-simulator.md without duplicating its preflight, preview evidence or recovery procedure.",
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
