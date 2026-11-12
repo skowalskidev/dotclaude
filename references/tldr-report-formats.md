@@ -34,7 +34,7 @@ Your call
 ```
 
 WHY, one per rule:
-- Line 1 action verdict: Simon reads the first line and decides; the reader acts on line one or the
+- Line 1 action verdict (a status-only reply under `No action needed` while a click-through or merge word waited sat idle until he asked "are you stuck?"): Simon reads the first line and decides; the reader acts on line one or the
   reply failed. Nuance he did not ask for buries the line he needed.
 - No prose paragraph: reams of prose are not thoroughness; they bury the one line the reader needed.
 - One end question block (clarification, decision, confirmation, "want me to also…"): a question
@@ -241,3 +241,14 @@ testing?"; the diff already answers it.
 
 TEST: a change that reaches a payment path hands back this line and table, and a row exists for every
 entry the diff changed (the fix for a hand-back that left the paywall question for Simon to ask).
+
+## Close-session TEST (moved from `rules/communication.md`)
+
+A finished session's last message has the archive line, at most 2 optional follow-ups, and no
+"the next X will confirm", "worth watching" or "keep an eye on" item. No line, or the line with work
+running, an unmerged session PR or an item unverdicted, fails; so does "merged" reported as done
+with no prod evidence.
+
+Also moved from the close-session rule: stop once CI is green, deployed and a smoke on what can be
+reached passed; ask no new question at hand-back unless only Simon can decide it and it blocks the
+outcome. The five writing rules govern content and apply equally to subagent prompts.
