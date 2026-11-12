@@ -46,6 +46,7 @@ equally to prompts you write for subagents.
 **DO name the real thing** — the URL, the button label, the command, the flag, the file.
 **DON'T** write "the relevant page" or "the appropriate config".
 
+**DO rest a sent "never" or "same day" claim on complete reads:** `references/code-best-practices.md` § Claims from complete reads.
 **DO get mechanically anything you can get mechanically.**
 **DON'T** ask him to paste a log, a version, or a file you can read yourself.
 

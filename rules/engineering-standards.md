@@ -142,6 +142,4 @@ When building ANY interface where a user deletes / removes / clears their own co
 - **Exceptions where a hard delete IS appropriate:** account deletion / GDPR "delete my data" /
   legal erasure requests, and purging genuinely transient scratch/temp data. When unsure whether
   something qualifies as an exception, ask me first.
-- This complements the Legacy-support policy (no dead code): an archived record is **live data
-  with an archived flag**, not a legacy schema — the reading code still uses the one current
-  shape and simply filters on `archived`. No read-time fallbacks, no second shape.
+- Archived records and the legacy policy: `references/code-best-practices.md` § Single source of truth.

@@ -181,13 +181,20 @@ a command with literal paths.
 steps:** it owns the exit-75 stop.
 
 
-**DO make every data collector an agent writes record each read's status, and treat a failed, refused
-or partial read (HTTP error, permission denied, truncated page, capped pagination) as UNKNOWN, never as an
-empty result.** **DON'T** default a failed read to `[]` or `0`; an absence claim ("no complaint on file",
-"no cancellation request") needs a read that succeeded over the whole scope.
-TEST: the collector's output names every failed or partial read, and no finding of absence rests on one
-(the fix for a dispute-evidence gatherer whose failed reads became empty lists and nearly produced "no
-support contact" statements).
+### Claims from complete reads
+
+**DO rest every absence or timing claim on reads that succeeded over its whole scope: in a data
+collector an agent writes, and in every statement Claude sends or submits (dispute evidence, a reply to
+a customer or teammate, a PR claim).** Record each read's status; a failed, refused or partial read
+(HTTP error, permission denied, truncated page, capped pagination, an inbox no connector reaches, a
+second-hand summary) is UNKNOWN, never empty. Name the channels a claim covers ("in the app, by text
+or on a support call"), or drop the claim. Compare a timing claim's two messages by their own timestamps.
+**DON'T** default a failed read to `[]` or `0`, and **DON'T** write "never asked", "the only
+cancellation" or "replied that day" past an unread channel.
+TEST: the output names every failed or partial read, and each absence or timing claim lists its
+channels and rests on no UNKNOWN read (the fix for dispute evidence filed as "never asked us for a
+refund" while the support inbox was unread, and "we replied that day" about a reply sent before the
+request; a gatherer whose failed reads became empty lists had nearly done the same).
 ### Naming — the reader must not have to open the implementation
 
 Applies to anything someone else reads to decide what a thing does: variables, functions, files,
@@ -242,6 +249,10 @@ TEST: the plan holds the naming tally with links before the first artifact name 
 hand-off whose new artifacts carry a loose term while a standard one exists fails, unless Simon kept it.
 
 ### Single source of truth — derive, don't duplicate (DRY / SRP)
+
+**An archived record is live data with an archived flag, not a legacy schema** (the soft-archive rule in
+`rules/engineering-standards.md`, read with its legacy policy of no dead code): the reading code keeps the
+one current shape and filters on `archived`. No read-time fallbacks, no second shape.
 
 Owned by **`~/.claude/rules/engineering-standards.md` § "Single source of truth"**, which is always-on
 and so already loaded whenever you are reading this. Not restated here.
