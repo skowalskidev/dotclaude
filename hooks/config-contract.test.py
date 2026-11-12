@@ -1426,6 +1426,8 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         check('"decision":"block"' in out.replace(" ", ""), "A pushed branch with no gate record did not block Stop.")
         check("feature/x" in reason and "/sk:ship-full-detailed-workflow" in reason and "intent-ledger.sh gate" in reason,
               "The block did not name the branch, the harness and the record command: " + reason[:300])
+        check('"All stages ran"' in reason and '"Not run: <stage>, <stage>"' in reason,
+              "The block did not tell the agent the stage statement a standard or deep gate needs.")
         check(stop() == "", "The gate block repeated for an unchanged push set.")
         check(stop(active=True) == "", "The gate block fired twice for one snapshot on a continuation.")
 
@@ -1457,9 +1459,22 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         check(stop() == "", "A gate record for the pushed head did not clear Stop.")
         check(gate("feature/x", "HEAD", "PASS", "Light", "one-cell style; skipped: matrix, prod data").returncode == 0,
               "A light PASS with a reason was not recorded.")
-        check(gate("feature/x", "HEAD", "PASS", "deep").returncode == 0, "A deep PASS was not recorded.")
+        # A standard or deep PASS or BLOCKED names its unrun stages, so none hides behind the status.
+        check(gate("feature/x", "HEAD", "PASS", "deep").returncode == 2,
+              "A deep PASS with no stage statement was accepted.")
+        check(gate("feature/x", "HEAD", "BLOCKED", "deep", "base PR not merged").returncode == 2,
+              "A deep BLOCKED naming only its external blocker was accepted (the unrun-stage hole).")
+        check(gate("feature/x", "HEAD", "PASS", "standard", "copy change; skipped: matrix").returncode == 2,
+              "A standard PASS without 'Not run:' or 'All stages ran' was accepted.")
+        check(gate("feature/x", "HEAD", "BLOCKED", "deep", "base PR not merged; Not run: x").returncode == 0,
+              "A deep BLOCKED naming its unrun stage was not recorded.")
+        check(gate("feature/x", "HEAD", "N/A", "deep", "docs-only push").returncode == 0,
+              "A deep N/A was held to the stage statement.")
+        check(gate("feature/x", "HEAD", "PASS", "deep", "All stages ran").returncode == 0,
+              "A deep PASS stating all stages ran was not recorded.")
         tiered = (repo / ".context" / "intent-ledger.md").read_text()
-        check("PASS light one-cell style; skipped: matrix, prod data" in tiered and " PASS deep\n" in tiered,
+        check("PASS light one-cell style; skipped: matrix, prod data" in tiered
+              and " PASS deep All stages ran\n" in tiered and "BLOCKED deep base PR not merged; Not run: x" in tiered,
               "A tiered gate entry did not carry its tier and reason.")
 
         # A newer head re-opens the gate: a record for the older sha no longer counts.

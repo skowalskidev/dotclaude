@@ -1212,6 +1212,7 @@ CONTRACTS: dict[str, dict] = {
             "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, and Deep runs every stage as written.",
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
+            "Invoke every stage the tier requires as its own skill before recording the gate, even when an external blocker makes it BLOCKED; every gate reason and hand-back names each unrun stage as 'Not run: <stage>, <stage>' or states 'All stages ran', so a BLOCKED or PASS never hides an unrun stage.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
             "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
             "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head; a Deep PR's matrix runs them.",
@@ -2321,7 +2322,9 @@ CONTRACTS: dict[str, dict] = {
             "PostToolUse `push` records the repo, branch and head of a successful `git push` to a non-default "
             "branch in session state, and records nothing for main or master, a delete, tags, a repo inside "
             "the config repo, or a delegated worker. `gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]` "
-            "appends the result to the ledger (BLOCKED, N/A and a light or standard PASS need a reason). Stop blocks once per set of "
+            "appends the result to the ledger (BLOCKED, N/A and a light or standard PASS need a reason; a standard or deep "
+            "PASS or BLOCKED is refused with exit 2 unless its reason holds 'All stages ran' or 'Not run:', while N/A and light "
+            "keep their own rules). Stop blocks once per set of "
             "open pushes, also on a stop_hook_active continuation, until each branch's newest pushed head has "
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
             "never counts.",

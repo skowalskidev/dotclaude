@@ -103,6 +103,14 @@ tickets; a fix that belongs to another PR is handed to that owner via
    `~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]`;
    a Light or Standard PASS carries its trigger and skipped stages. The Stop hook blocks a pushed branch
    head with no record, and a newer push re-opens it.
+   **DO invoke every stage the tier requires as its own skill on the recorded head before recording,
+   even when an external blocker already makes the result BLOCKED.** **DO name, in every gate reason
+   and every hand-back, each stage not invoked as its own skill on that head, as `Not run: <stage>,
+   <stage>`, or state `All stages ran`;** the gate refuses a Standard or Deep PASS or BLOCKED holding
+   neither. **DON'T let a BLOCKED result stand in for an unrun stage:** the blocker and the unrun
+   stages are separate facts. TEST: every gate record and hand-back for the run holds `All stages ran`
+   or a `Not run:` list matching the stages actually skipped (the fix for a Deep BLOCKED naming only an
+   unmerged base PR while merge readiness, the full matrix and ship-report never ran).
 
 **Running the stages on a multi-layer PR:** fix rounds follow `references/parallelization.md` §
 "Parallelize verification, not just agents": the contract page first, every layer in one batch, the
