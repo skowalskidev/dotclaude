@@ -120,6 +120,18 @@ was checked next to the claim. (the fix for a "scraper" on a hosting network tha
 runners, found only after a block for it failed that same CI.)
 TEST: an "external" or "not ours" verdict names the runtime identifiers it was compared against.
 
+## Read a metric's writer before calling its movement a fault
+
+DO read the code that writes a metric's rows, and that code's merge history (`git log -S '<reason
+code>'`, the linked decision record), before calling a rise or drop a fault or deriving a figure
+from those rows. Confirm two things: whether the reason code records a designed limit, and what one
+row means (one per event, per search, or only the first refusal).
+DON'T post a "real rise" verdict, or a count derived from log rows, until both are confirmed.
+TEST: every fault verdict on a metric names the writer's file and the commit that introduced its
+reason code. (the fix for a refusal "rise" called a fault in a team channel that was a designed
+per-search limit, and an unchecked-cell count understated about 25x because the writer logs only
+the first refusal.)
+
 ## Who benefits if you act on this?
 
 Ask it of every source before repeating what it says. Discount the source in proportion to its stake
