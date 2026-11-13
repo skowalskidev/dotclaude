@@ -732,6 +732,17 @@ def main() -> int:
             passes += 1
         else:
             failures.append(f"VERBS: {label}")
+    # The fix for "when ready merge and deploy both" cancelled by a later question that said "wait".
+    standing = "when ready merge and deploy both"
+    cases =[(t, True) for t in ("wait", "hold", "ok wait", "please hold off merging",
+                                 "we should wait before merging", "stop, don't deploy", "wait on #1229")]
+    cases += [(t, False) for t in ("so will this work while we wait for appstoreconnect review?",
+                                   "the bot will wait for the deploy", "I'll pause the ads tomorrow")]
+    for later, halts in cases:
+        if bool(gcg.standing_merge_ask([standing, later])) != halts:
+            passes += 1
+        else:
+            failures.append(f"VERBS: standing merge after {later!r} must {'halt' if halts else 'stand'}")
     if gcg.authorizing_asks(["don't merge yet", "ok"], "merge"):
         failures.append("VERBS: halt must still deny")
     else:

@@ -276,6 +276,12 @@ now fails on a paragraph that appears in two config files.
 - Handle version/compatibility requirements (e.g., minimum API version) at the connection-verification stage and tell the user exactly what's wrong; pin third-party API versions explicitly so payload shapes match SDK types.
 - Ensure all errors land in centralized logging (cloud logs or equivalent) so production bugs are diagnosable without relying on a customer's recollection or reproduction attempts.
 - Surface failures to the end user whenever an automated action fails and needs manual intervention — never fail silently.
+- DO write five guarantees into the plan's acceptance criteria before building instrumentation
+  (telemetry, analytics or log calls on a user path), each with its own test: zero added user-facing
+  latency (fire-and-forget, never awaited on the path), never throws into or blocks its caller, fails
+  without surfacing to the user while logging its own failure, never creates or changes app state, and
+  stops entirely behind a kill switch. TEST: the plan lists all five and the matrix has a passing row
+  for each (the fix for pay-path telemetry whose guarantees held only because the prompt named them).
 - Implement every failure branch the plan/docs call out (declines, misses, retries) using existing infrastructure unless the plans say otherwise.
 - DO give a decision that falls back on a timeout (which screen a user sees, which offer applies) a wait
   at least as long as the longest sibling wait on the same path, and cover a cold start: its fallback is
