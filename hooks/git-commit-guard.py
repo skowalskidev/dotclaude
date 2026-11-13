@@ -582,7 +582,8 @@ def pr_view(selector: str, repo: str, cwd) -> dict:
 
 def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
     """True when the PR is open and its head branch is one this session pushed to that repo
-    (hooks/intent-ledger.sh `push` records every non-default branch push in session state)."""
+    (hooks/intent-ledger.sh `push` records every non-default branch push in session state), read from
+    the push's own checkout, or from the current checkout once that worktree is gone."""
     try:
         with open(os.path.join(STATE_DIR, f"{session_id(payload)}.pushes")) as f:
             pushed = {tuple(l.rstrip("\n").split("\t")[:2]) for l in f if l.count("\t") >= 2}
@@ -594,7 +595,12 @@ def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
     slug = (re.search(r"github\.com/([^/]+/[^/]+)/pull/", str(pr.get("url", ""))) or [None, ""])[1].lower()
     if pr.get("state") != "OPEN" or not slug or not pr.get("headRefName"):
         return False
-    return any(branch == pr["headRefName"] and github_slug(_git(root, "remote", "get-url", "origin")) == slug
+    # A worktree removed after its push (task cleanup) has no remote to read: its push still counts
+    # through the current checkout's origin, so the branch must match in the same repository (the fix
+    # for "merge the ready ones" refused once the PRs' temporary worktrees were cleaned up).
+    here = github_slug(_git(str(cwd or ""), "remote", "get-url", "origin"))
+    return any(branch == pr["headRefName"]
+               and (github_slug(_git(root, "remote", "get-url", "origin")) if os.path.isdir(root) else here) == slug
                for root, branch in pushed)
 
 

@@ -395,6 +395,20 @@ def turn_scope(tmp: Path, own_home: Path, failures: list) -> int:
             passes += 1
         else:
             failures.append(f"TURN SCOPE: {label}: got {reason[:160]!r}")
+    gone = tmp / "removed-worktree"
+    for label, origin, denied in (
+            ("a push from a removed worktree still counts in the same repo", "git@github.com:acme/web.git", False),
+            ("a push from a removed worktree never counts in another repo", "https://github.com/acme/api.git", True)):
+        session = f"gone{int(denied)}"
+        (state / f"{session}.pushes").write_text(f"{gone}\tfeat-b\t{'b' * 40}\n")
+        where = repo(tmp, f"g{int(denied)}", "feature")
+        git_out(where, "remote", "add", "origin", origin)
+        transcript = write_turn(tmp, where, session, [("open", "merge the ready ones")])
+        reason = run(where, "gh pr merge 1162 -R acme/web", own_home, session, transcript, bin_dir)
+        if bool(reason) == denied:
+            passes += 1
+        else:
+            failures.append(f"TURN SCOPE: {label}: got {reason[:160]!r}")
     for i, (label, turn, cmd, denied, expect) in enumerate(STANDING):
         session = f"standing{i}"
         (state / f"{session}.pushes").write_text(f"{api}\tfeat-a\t{'a' * 40}\n{web}\tfeat-b\t{'b' * 40}\n")
