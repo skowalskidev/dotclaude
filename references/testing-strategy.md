@@ -60,6 +60,15 @@ separate lists, fix the bugs, and run another round until one finds zero new bug
 TEST: the hand-back lists each round with its new-bug count, and the last round's count is 0. (the fix
 for pay-path telemetry where two code reviews and green unit suites missed 5 missing data points and
 10 bugs that a connector gap hunt and two scenario rounds found.)
+**DO finish every Deep discovery stage before the first ready push, then batch their fixes:** the gap
+hunt, scenario rounds to a clean round, `/sk:ship-verify-with-prod-data`, `/sk:test-automated-full-matrix`,
+one whole-diff review, and a scan for app-wide code that intercepts the new traffic or data (request
+guards, support or preview modes, e2e stubs and fixtures, admin counters). Fix every finding in one
+batch, pass the local gate list once, then start CI under `references/git-pr-deploy.md` § CI runs once.
+**DON'T mark a Deep PR ready and run discovery against it,** where each finding restarts CI.
+TEST: on a Deep PR, every discovery stage's evidence predates the first CI run. (the fix for a telemetry
+PR whose stages each found defects after it went ready: about 20 commits and 12 CI runs, plus an e2e
+failure from a support banner that counted the new beacon.)
 
 ## The suite must never spend money
 
@@ -323,6 +332,10 @@ Read `~/.claude/rules/connectors.md` and `~/.claude/references/connectors-setup.
 project from git origin and the matching manifest before accessing production. Record the selected
 source account/environment and read-only credential identity without exposing credential values.
 Run production reads in a separate exporter process using the provisioned read-only credential.
+DO list the scheduled jobs that read the same vendor (an hourly monitor, a nightly sync) before adding
+or running a production read, and run yours outside their window when they share a rate budget.
+TEST: each production read run names the shared budgets checked and the window it avoided (the fix for
+a post-deploy smoke at :28 that collided with an hourly monitor's sweep and blinded 6 checks).
 Export the raw records the changed code reads, including dependent records and pagination; record
 omissions explicitly. Store the snapshot privately outside tracked files with restrictive permissions.
 

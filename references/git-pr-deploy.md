@@ -172,8 +172,8 @@ drops a commit authored by another session, broke the rule.
 **DO keep a work PR in draft, with its CI off, through development and every review round.** Push
 each finished commit to the draft branch for review as `rules/process.md` already directs. Mark it
 ready (`gh pr ready <n>`), which starts CI, only at merge prep: the work harness reached stage 10 or
-Simon asked to merge, the base is merged in, and the gate list passed locally in one pass on the head
-being marked
+Simon asked to merge, the base is merged in, a Deep change has finished `references/testing-strategy.md`
+§ Deep-tier discovery rounds, and the gate list passed locally in one pass on the head being marked
 (`references/testing-strategy.md` § Defects first). The same local pass on the final head precedes
 a merge-queue enqueue, a `gh pr merge` and a deploy.
 **DON'T fix CI or mark a PR ready mid-development to see what CI says.** CI fixes belong to merge prep.
@@ -662,7 +662,8 @@ before reporting done.** "Merged" is not "live".
    to match the merge commit or the changed file.
 3. **Changed behaviour.** Run the PR's Deploy TLDR `Smoke:` line on production. Keep it read-only: no
    production write without Simon's per-write yes (`rules/connectors.md`), no paid call without a yes
-   (`rules/spend-approval.md`).
+   (`rules/spend-approval.md`), outside every shared vendor rate window (`references/testing-strategy.md`
+   § Production source fidelity).
    When the change launches or switches on a member-facing feature, the smoke also opens its entry
    point as a signed-in member on each landing screen (`references/user-journey-review.md`); a public
    endpoint answering is not that proof.
