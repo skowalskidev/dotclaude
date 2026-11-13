@@ -119,6 +119,13 @@ DON'T build on the attribution until one identifier matches or every runtime was
 was checked next to the claim. (the fix for a "scraper" on a hosting network that was our CI's
 runners, found only after a block for it failed that same CI.)
 TEST: an "external" or "not ours" verdict names the runtime identifiers it was compared against.
+DO count the other live sessions on this machine as one of our runtimes when a shared limit or
+resource fails (a 429, a lock, a quota, a port): run `ListAgents`, and `SendMessage` each live session
+on the same project once to ask whether it used that endpoint or resource in the incident window.
+Then fold the answers into the cause and the fix. DON'T wait for a peer to volunteer it.
+TEST: a shared-limit diagnosis names which live sessions were asked and what each said. (the fix for
+a monitor throttle diagnosed as the monitor alone, while another session's prod reads overlapped
+its window.)
 
 ## Read a metric's writer before calling its movement a fault
 
