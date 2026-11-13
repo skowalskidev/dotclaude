@@ -70,6 +70,11 @@ DO launch the OpenAI judge read-only from a Claude chat, with the brief on stdin
 `AGENT_ALLOW_CROSS_PROVIDER=1 timeout 900 ~/.claude/bin/codex-launch.py -p --sandbox read-only < <brief file>`.
 From an OpenAI chat the Claude judge runs through `~/.claude/bin/claude-launch.py -p` with the same
 variable. Never use pal, an API key or any metered route for a judge.
+DO pin a code judge to the change: pass the change's own checkout with `-C <worktree path>` (Codex
+`--cd`) and name its head sha in the brief, telling the judge to confirm `git rev-parse HEAD` first.
+DON'T let the judge inherit the launching shell's directory. TEST: every code verdict names the sha
+it read, and that sha is the head under review (the fix for three PR reviews whose first judge round
+read a stale checkout and reported the change as absent).
 DO detect a judge's completion by its process exiting, then read its verdict ONLY from its final
 message: the `-p` stdout (which prints only the final message, after exit) or, for a raw
 `codex-launch.py exec`, the file passed to `-o <file>` (`--output-last-message`), one file per judge.
