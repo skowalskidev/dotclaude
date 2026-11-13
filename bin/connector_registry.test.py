@@ -291,6 +291,39 @@ class RegistryTests(unittest.TestCase):
         self.assertIn('one variable name the consumer reads per vault name',
                       ' '.join(reg.load_all(self.identity)[0]['errors']))
 
+    def test_secret_values_reach_the_child_stripped_and_a_blank_one_is_named_never_printed(self):
+        # The fix for a Vault value ending in a newline: the child's HTTP header failed and its error
+        # echoed most of the key. Every loader strips surrounding whitespace before the child env.
+        class Response(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+        secret = {'store': 'vault', 'via': 'a/b', 'project': 'p', 'name': ['A', 'B', 'C'], 'env': ['A', 'B', 'C']}
+        rows = [{'name': 'A', 'decrypted_secret': 'a-value\n'}, {'name': 'B', 'decrypted_secret': 'b-value\r\n'},
+                {'name': 'C', 'decrypted_secret': ' c-value '}]
+        got = reg.read_vault(secret, 't', opener=lambda request, timeout: Response(json.dumps(rows).encode()))
+        self.assertEqual(got, {'A': 'a-value', 'B': 'b-value', 'C': 'c-value'})
+        key_file = self.base / 'ws.env'
+        key_file.write_text('A=a-value \r\nB="b-value\t"\nC=" c-value "\n')
+        self.assertEqual(reg.read_env_file(key_file, ['A', 'B', 'C']),
+                         {'A': 'a-value', 'B': 'b-value', 'C': 'c-value'})
+        out, err = io.StringIO(), io.StringIO()
+        blank = [{'name': 'A', 'decrypted_secret': 'a-value-must-not-print'}, {'name': 'B', 'decrypted_secret': '\n'},
+                 {'name': 'C', 'decrypted_secret': 'c-value-must-not-print'}]
+        with patch('sys.stdout', out), patch('sys.stderr', err), self.assertRaises(reg.RegistryError) as caught:
+            reg.read_vault(secret, 'tok-must-not-print',
+                           opener=lambda request, timeout: Response(json.dumps(blank).encode()))
+        self.assertEqual(str(caught.exception), 'no Vault secret named "B" in project p')
+        for printed in (str(caught.exception), out.getvalue(), err.getvalue()):
+            self.assertNotIn('must-not-print', printed)
+        self.vault_setup()
+        (self.base / 'shared.env').write_text('MGMT_TOKEN=mgmt-token-must-not-print\n'
+                                              'BILLING_KEY="local-value-must-not-print "\r\n')
+        self.assertEqual(self.run_child('billing-local', 'local-value-must-not-print'), 0)
+
     def test_validate_gates_a_staged_root_before_it_replaces_the_live_one(self):
         # The fix for vault pointers written to the live root before the engine that reads them was
         # active: every launch then failed on "secret needs a path string". Reader before data.

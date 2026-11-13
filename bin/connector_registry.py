@@ -563,7 +563,7 @@ def read_env_file(path, names):
             value = value.strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in '"\'':
                 value = value[1:-1]
-            values[key.strip()] = value
+            values[key.strip()] = value.strip()
     missing = [name for name in names if not values.get(name)]
     if missing:
         raise RegistryError('key file ' + str(path) + ' has no value for ' + ', '.join(missing))
@@ -592,8 +592,10 @@ def read_vault(secret, token, opener=None):
         raise RegistryError('vault read for ' + label + ' failed: HTTP ' + str(exc.code)) from None
     except (urllib.error.URLError, OSError, ValueError) as exc:
         raise RegistryError('vault read for ' + label + ' failed: ' + type(exc).__name__) from None
-    found = {row.get('name'): row.get('decrypted_secret') for row in rows
-             if isinstance(row, dict)} if isinstance(rows, list) else {}
+    # A stored value ending in a newline breaks the child's HTTP header, and its error can echo the key.
+    found = {row.get('name'): row['decrypted_secret'].strip() for row in rows
+             if isinstance(row, dict) and isinstance(row.get('decrypted_secret'), str)} \
+        if isinstance(rows, list) else {}
     missing = [name for name, _ in pairs if not isinstance(found.get(name), str) or not found[name]]
     if missing:
         raise RegistryError('no Vault secret named ' + ', '.join(json.dumps(n) for n in missing) +
