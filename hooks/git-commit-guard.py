@@ -656,10 +656,20 @@ CONDITIONAL_RE = re.compile(
     r"(ready|green|pass|passes|passed|passing|succeeds?|done|finished|complete[sd]?|clean|safe|stable"
     r"|approved)\b", re.I)
 # A later message cancels a standing instruction when it negates merging, pushing, deploying or
-# shipping, or says stop/hold/wait/cancel/pause. A bare "don't" about something else does not: the
-# instruction spans many messages, and most of them are about other work.
+# shipping, or says stop/hold/wait/cancel/pause AS AN ORDER: at the start of the message or a clause,
+# after please/ok/and/but/now/just, in a message of three words or fewer, or within four words of
+# merge/push/deploy/ship/it/them/a PR number. A halt word a subject or subordinator describes ("while
+# we wait", "the bot will wait", "I'll pause") is not an order, even near a merge word. A bare "don't"
+# about something else does not halt either: the instruction spans many messages, and most of them
+# are about other work (the fix for "when ready merge and deploy both" cancelled by a later question,
+# "so will this work while we wait for appstoreconnect review?").
 STANDING_NEGATED_RE = NEGATED_RE
 STANDING_HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause)\b", re.I)
+HALT_ORDER_RE = re.compile(r"(?:^|[.,;:!?\n]|\b(?:please|pls|ok|okay|and|but|now|just|then|hey)\b)[\s,]*"
+                           r"\b(stop|hold|wait|cancel|pause)\b", re.I)
+HALT_TARGET_RE = re.compile(r"\b(?:merg\w*|push\w*|deploy\w*|ship\w*|it|them|pr)\b|#?\b\d{2,}\b", re.I)
+HALT_DESCRIBED_RE = re.compile(r"(?:\b(?:while|until|till|as|when|once|if|because|since)\s+(?:[\w'’]+\s+){0,2}"
+                               r"|\b(?:will|would|i[’']?ll|i[’']?d|i[’']?m|we|they|it|he|she|can[’']?t)\s+)$", re.I)
 STANDING_CLOSE_RE = re.compile(r"\b(close|closed|closing|abandon)\b", re.I)
 # "merge all", "merge them all", "merge both", "merge everything": a merge over the whole set.
 STANDING_BULK_RE = re.compile(r"\bmerg(?:e|ed|es|ing)\b[^.\n?]{0,30}?\b(all|everything|every|both|each)\b", re.I)
@@ -673,6 +683,21 @@ def session_asks(payload: dict) -> list:
     return [a for a in cleaned if a]
 
 
+def halts_standing(ask: str) -> bool:
+    """True when a later message cancels a standing merge: it negates the verb, or orders a halt."""
+    if STANDING_HALT_RE.search(ask) and len(re.findall(r"[\w'’#]+", ask)) <= 3:
+        return True
+    if HALT_ORDER_RE.search(ask):
+        return True
+    for m in STANDING_HALT_RE.finditer(ask):
+        before = re.search(r"(?:[\w'’#]+\W+){0,4}$", ask[:m.start()]).group(0)
+        after = re.match(r"(?:\W+[\w'’#]+){0,4}", ask[m.end():]).group(0)
+        if not HALT_DESCRIBED_RE.search(ask[:m.start()]) and HALT_TARGET_RE.search(before + " " + after):
+            return True
+    return any(not (STANDING_HALT_RE.match(m.group(0)) and HALT_DESCRIBED_RE.search(ask[:m.start()]))
+               for m in STANDING_NEGATED_RE.finditer(ask))
+
+
 def standing_merge_ask(asks: list, number: str = "") -> str:
     """The session's newest standing merge ask with no later halt, or "". Standing asks are
     conditional ones, merge-all ones, and (given `number`) an explicit merge ask that names that PR."""
@@ -682,8 +707,8 @@ def standing_merge_ask(asks: list, number: str = "") -> str:
         standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask) or (named and named.search(ask))
         if instructs(ask, "merge") and standing and not STANDING_NEGATED_RE.search(ask):
             later = asks[i + 1:]
-            halted = any(STANDING_NEGATED_RE.search(a) or STANDING_HALT_RE.search(a)
-                         or (named and STANDING_CLOSE_RE.search(a) and named.search(a)) for a in later)
+            halted = any(halts_standing(a) or (named and STANDING_CLOSE_RE.search(a) and named.search(a))
+                         for a in later)
             return "" if halted else ask
     return ""
 
