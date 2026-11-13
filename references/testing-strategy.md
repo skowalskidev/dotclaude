@@ -19,7 +19,7 @@ rule, skill and gate that runs checks applies it and restates none of it.
 |---|---|---|---|
 | Light | Copy, style or layout on ONE surface; zero logic, data, money, auth, API or shared-component change | The affected unit tests; one BEFORE/AFTER pair of the changed state at the default phone viewport (390×844); the project's gate list; CI; one verdict per ask clause in the ledger | Full matrix, prod data, deploy-safety merge train, ship-report journey tests, multi-model and security review, videos, multi-width and multi-state captures |
 | Standard | Logic inside one feature, or a style-only change to a shared component (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
-| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, logic in a component or helper used on 2+ surfaces, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, prod data, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
+| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, logic in a component or helper used on 2+ surfaces, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, prod data, § Deep-tier discovery rounds, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
 
 **DO take the deeper tier when a trigger is unclear.** WHY: a missed regression costs more than one
 extra pass.
@@ -41,6 +41,25 @@ line per skipped stage; a diff holding any Deep trigger shows the full harness's
 is the fix for centring a wrapped word in one table cell, which ran a matrix, prod-data checks and
 multi-width captures; Deep is the fix for a price label on shared paywall code, where the full pass
 found a trial showing $0.00/mo.)
+
+## Deep-tier discovery rounds
+
+**DO run a read-only gap hunt on a Deep change that records, reports or attributes data** (telemetry,
+analytics, a ledger, attribution): resolve every connector holding its own view of the same events
+(production database, payment processor, app-store billing, ad platform) per `rules/connectors.md`,
+read each over one window, and list each data point a question about the feature needs that the change
+still does not capture. TEST: the hand-back names every connector read, or its access gap, and the
+missing data points found or `none`.
+**DO run scenario rounds on every Deep change with a user path:** pick the 10 scenarios the user cares
+most about across the axes the change touches (new or returning account, device, payment outcome and
+retry, return from a hosted page, each live arm, native bridge, embedded browser, a failing or offline
+dependency, § Local time-driven simulations clock cases, a shared device). Drive each through the real
+client, real server and an isolated local database. Report each round's BUGS and OPPORTUNITIES as two
+separate lists, fix the bugs, and run another round until one finds zero new bugs.
+**DON'T stop after a round that found bugs, or count a unit suite or code review as a round.**
+TEST: the hand-back lists each round with its new-bug count, and the last round's count is 0. (the fix
+for pay-path telemetry where two code reviews and green unit suites missed 5 missing data points and
+10 bugs that a connector gap hunt and two scenario rounds found.)
 
 ## The suite must never spend money
 
