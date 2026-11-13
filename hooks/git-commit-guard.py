@@ -407,9 +407,9 @@ VERB_FORMS = {"merge": r"\bmerg(?:e|ed|es|ing)\b", "push": r"\bpush(?:ed|es|ing)
 # A later ask that does not repeat the verb but says one of these cancels the earlier authority.
 HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause|don'?t|do not|never)\b", re.I)
 PR_NUMBER_RE = re.compile(r"#?\b\d{2,}\b")
-# Plural phrasing ("merge all that's ready", "merge both", "merge them") covers every open PR this
+# Plural phrasing ("merge all that's ready", "merge both", "merge them", "the ready ones") covers every open PR this
 # session pushed, never a PR it did not push (the "merge everything" incident merged 8 PRs).
-BULK_RE = re.compile(r"\b(all|both|every|everything|each|batch|them|these|those)\b", re.I)
+BULK_RE = re.compile(r"\b(all|both|every|everything|each|batch|them|these|those|ones)\b", re.I)
 API_MERGE_RE = re.compile(
     r"enqueuePullRequest|mergePullRequest|enablePullRequestAutoMerge|/pulls/\d+/merge\b", re.I)
 # `gh pr merge` options that take a value, so the value is never read as the PR selector.
