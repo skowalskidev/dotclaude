@@ -17,6 +17,12 @@ reasoned does-not-apply (references/testing-strategy.md § Value safety).
 A Screenshots or Verification runs section that posts no evidence and states no visible surface (or a
 does-not-apply) carries a "Checked outputs:" clause naming what was compared on base and head
 (references/screenshot-review.md § Visible surfaces); a bare "No eligible frontend surface" fails.
+In a repo that ships a native app (a top-level ios/ or android/ directory), a PR that changes any other
+runtime file (a server, database, Worker or hosted web file the installed builds call or load) holds,
+in Deploy safety, the installed-version table, one `Old build <version> against the new backend: PASS`
+line per walked version or an `Installed builds: not reached, <why>` line, and a `Waits for the new
+build:` line (references/git-pr-deploy.md § Deploy safety check 4). An `Old build ... BLOCKED` line is
+recorded but fails the gate: an unwalked installed build is never a pass.
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -59,7 +65,10 @@ NEEDS = {
     "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
     "Value safety": ("on a deep-tier PR, the lines Happy path:, Failure re-enacted:, Wrong recipient:, "
                      "Incident replay: (with N/N) and Residual risk:, or a reasoned does-not-apply"),
-    "Deploy safety": "a merge-train result and a rollback, or a reasoned does-not-apply",
+    "Deploy safety": ("a merge-train result and a rollback, or a reasoned does-not-apply; in a repo with a "
+                      "native app, when the PR changes a file its installed builds call or load: a version "
+                      "| share table, 'Old build <version> against the new backend: PASS' per version or "
+                      "'Installed builds: not reached, <why>', and 'Waits for the new build: <list or none>'"),
     "Screenshots": "an image, or a no-visible-surface reason with a 'Checked outputs:' clause",
 }
 
@@ -227,7 +236,47 @@ def check_value_safety(text, deep):
     return out
 
 
-def check_body(body, body_html, unresolved, modified=()):
+# references/git-pr-deploy.md § Deploy safety check 4: a native app's installed builds call the backend.
+NATIVE_DIRS = ("ios", "android")
+# A file no installed build runs or loads: tests, docs, CI config and the native apps themselves.
+NOT_SERVED = re.compile(r"(^|/)(tests?|e2e|__tests__|docs|dev-docs|\.github)/|[._-](test|spec)\.[a-z]+$|"
+                        r"_test\.[a-z]+$|\.md$")
+VERSION_TABLE = re.compile(r"^\s*\|[^\n]*\bversion\b[^\n]*\|[^\n]*\b(share|installs)\b", re.I | re.M)
+OLD_BUILD = re.compile(r"Old build \S+(?: \(\d+\))? against the new backend: (PASS|BLOCKED)\b(.*)", re.I)
+NOT_REACHED = re.compile(r"Installed builds: not reached,\s*\S+(?:\s+\S+){2,}", re.I)
+WAITS = re.compile(r"Waits for the new build:\s*\S", re.I)
+
+
+def reaches_installed_builds(changed, root_dirs):
+    """Whether a PR changes a file the installed native builds call or load."""
+    natives = [d for d in NATIVE_DIRS if d in root_dirs]
+    if not natives:
+        return False
+    return any(not f.startswith(tuple(d + "/" for d in natives)) and not NOT_SERVED.search(f)
+               for f in changed)
+
+
+def check_installed_builds(safety):
+    """Missing-row strings for the installed-build lines in Deploy safety (check 4)."""
+    text = safety or ""
+    missing = []
+    if not VERSION_TABLE.search(text):
+        missing.append("Deploy safety: no installed-version table (| version | share |) for the native app")
+    lines = OLD_BUILD.findall(text)
+    if not lines and not NOT_REACHED.search(text):
+        missing.append("Deploy safety: no 'Old build <version> against the new backend: PASS' line and no "
+                       "'Installed builds: not reached, <why>' line")
+    for verdict, rest in lines:
+        if verdict.upper() == "BLOCKED":
+            missing.append("Deploy safety: an installed build was not walked (BLOCKED" + rest.rstrip()[:120]
+                           + "); record the gate BLOCKED, never PASS")
+    if not WAITS.search(text):
+        missing.append("Deploy safety: no 'Waits for the new build:' line (the behaviours gated on the new "
+                       "build, or none)")
+    return missing
+
+
+def check_body(body, body_html, unresolved, modified=(), installed=False):
     """Return one 'row: what is missing' string per failing landing-gate row."""
     missing = []
     found, order = sections(body)
@@ -294,6 +343,8 @@ def check_body(body, body_html, unresolved, modified=()):
             missing.append("Deploy safety: no merge-train result and no doesn't-apply reason")
         if not re.search(r"roll ?back", safety, re.I) and not na:
             missing.append("Deploy safety: no rollback and no doesn't-apply reason")
+    if installed:
+        missing += check_installed_builds(safety)
 
     shots = found.get("Screenshots")
     if shots is None:
@@ -362,7 +413,10 @@ def fetch(repo, pr):
     statuses = "|".join(PRE_EXISTING)
     files = gh_lines("api", f"repos/{repo}/pulls/{pr}/files", "--paginate",
                      "--jq", f'.[] | select(.status | test("^({statuses})$")) | .filename')
-    return data.get("body") or "", data.get("body_html") or "", unresolved, files
+    changed = gh_lines("api", f"repos/{repo}/pulls/{pr}/files", "--paginate", "--jq", ".[].filename")
+    roots = gh_lines("api", f"repos/{repo}/contents", "--jq", '.[] | select(.type == "dir") | .name')
+    installed = reaches_installed_builds(changed, roots)
+    return data.get("body") or "", data.get("body_html") or "", unresolved, files, installed
 
 
 def main():
@@ -374,7 +428,7 @@ def main():
         print(f"pr-landing-gate: usage: --repo must be owner/name, got {args.repo}", file=sys.stderr)
         return 2
     try:
-        body, body_html, unresolved, modified = fetch(args.repo, args.pr)
+        body, body_html, unresolved, modified, installed = fetch(args.repo, args.pr)
     except (RuntimeError, KeyError, TypeError, ValueError) as err:
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: {err}", file=sys.stderr)
         return 2
@@ -382,7 +436,7 @@ def main():
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: body empty or under 200 chars",
               file=sys.stderr)
         return 2
-    missing = check_body(body, body_html, unresolved, modified)
+    missing = check_body(body, body_html, unresolved, modified, installed)
     for row in missing:
         print(f"pr-landing-gate: FAIL {args.repo}#{args.pr} {row}")
     if missing:

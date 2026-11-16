@@ -327,6 +327,36 @@ dash = PASSING.replace("| buttons 0 px from the viewport bottom on base and head
 check(any("no base-vs-head evidence for" in m for m in gate.check_body(dash, HTML, 0, MODIFIED)),
       "A modified file's row with a dash for evidence passed")
 
+# Installed native builds (references/git-pr-deploy.md § Deploy safety check 4).
+check(gate.reaches_installed_builds(["site/web/app/page.tsx"], ["ios", "site"]),
+      "A hosted web file in a repo with an iOS app was not seen as reaching installed builds")
+check(not gate.reaches_installed_builds(["ios/App.swift", "site/web/a.test.tsx", "docs/x.md",
+                                         ".github/workflows/ci.yml"], ["ios", "site"]),
+      "Native, test, doc or CI files alone were seen as reaching installed builds")
+check(not gate.reaches_installed_builds(["src/api.ts"], ["src"]), "A repo with no native app was gated")
+INSTALLED = """
+| Version | Share (30 days) |
+|---|---|
+| 1.4.9 (115) | 52.6% |
+
+Old build 1.4.9 (115) against the new backend: PASS (runs/old-1.4.9)
+Waits for the new build: none
+"""
+with_installed = PASSING.replace("## Screenshots", INSTALLED + "\n## Screenshots", 1)
+check(gate.check_body(with_installed, HTML, 0, (), True) == [],
+      f"Installed-build lines failed: {gate.check_body(with_installed, HTML, 0, (), True)}")
+bare_installed = gate.check_body(PASSING, HTML, 0, (), True)
+check(len([m for m in bare_installed if m.startswith("Deploy safety:")]) == 3,
+      f"Missing installed-build lines did not name all three: {bare_installed}")
+check(gate.check_body(PASSING, HTML, 0, (), False) == [], "The installed check ran for a PR that reaches no build")
+blocked = with_installed.replace("against the new backend: PASS (runs/old-1.4.9)",
+                                 "against the new backend: BLOCKED, release commit unknown")
+check(any("not walked" in m for m in gate.check_body(blocked, HTML, 0, (), True)),
+      "A BLOCKED old-build walk passed the gate")
+unreached = with_installed.replace("Old build 1.4.9 (115) against the new backend: PASS (runs/old-1.4.9)",
+                                   "Installed builds: not reached, the diff only changes the admin site")
+check(gate.check_body(unreached, HTML, 0, (), True) == [], "A reasoned not-reached line failed")
+
 # Unresolved review threads fail.
 check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
 
@@ -339,6 +369,7 @@ case "$1 $2" in
   "run list") f=runs.json ;;
   "api graphql") f=threads.json ;;
   "api "*/files) f=files.txt ;;
+  "api "*/contents) f=contents.txt ;;
   api*) f=pull.json ;;
   *) exit 1 ;;
 esac
@@ -348,9 +379,10 @@ cat "$GH_STUB/$f"
 
 
 def serve(stub, body, html=HTML, unresolved=0, prs=(7,), files=("src/auth/Gate.tsx",), head=None,
-          ci=("SUCCESS",)):
+          ci=("SUCCESS",), roots=("src",)):
     """ci: one conclusion per check on `head` (PENDING = still running); head None serves no PR view."""
-    for name in ("prlist.json", "pull.json", "threads.json", "files.txt", "prview.json", "runs.json"):
+    for name in ("prlist.json", "pull.json", "threads.json", "files.txt", "prview.json", "runs.json",
+                 "contents.txt"):
         (stub / name).unlink(missing_ok=True)
     if head is not None:
         rollup = [{"__typename": "CheckRun", "name": f"check{i}", "workflowName": "ci",
@@ -368,6 +400,7 @@ def serve(stub, body, html=HTML, unresolved=0, prs=(7,), files=("src/auth/Gate.t
         (stub / "pull.json").write_text(json.dumps({"body": body, "body_html": html}))
     if files is not None:
         (stub / "files.txt").write_text("".join(f + "\n" for f in files))
+    (stub / "contents.txt").write_text("".join(d + "\n" for d in roots))
     nodes = [{"isResolved": False}] * unresolved + [{"isResolved": True}]
     (stub / "threads.json").write_text(json.dumps({"data": {"repository": {"pullRequest": {"reviewThreads": {
         "nodes": nodes, "pageInfo": {"hasNextPage": False, "endCursor": None}}}}}}))
@@ -472,6 +505,15 @@ with tempfile.TemporaryDirectory() as tmp:
     serve(stub, None, prs=None)
     r = hook_gate("feature/x", "HEAD", "PASS")
     check(r.returncode == 0 and len(gate_lines()) == 4, f"gate PASS on a non-GitHub origin changed behaviour: {r.stderr}")
+
+    # The CLI reads the repo's top-level folders: a hosted web change in a repo with an iOS app needs the lines.
+    serve(stub, PASSING, files=("src/auth/Gate.tsx",), roots=("ios", "src"))
+    r = cli()
+    check(r.returncode == 1 and "no installed-version table" in r.stdout,
+          f"CLI passed a native-app PR with no installed-build lines: {r.returncode} {r.stdout}")
+    serve(stub, with_installed, files=("src/auth/Gate.tsx",), roots=("ios", "src"))
+    r = cli()
+    check(r.returncode == 0, f"CLI failed a native-app PR with its installed-build lines: {r.stdout}{r.stderr}")
 
 if FAILS:
     print("pr-landing-gate.test: FAIL\n  " + "\n  ".join(FAILS))

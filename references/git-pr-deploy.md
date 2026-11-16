@@ -628,6 +628,11 @@ be made additive; a forced update blocks people mid-task and is the last resort.
 - `Waits for the new build:` each behaviour old builds must not get yet and the signal gating it, or `none`.
 **DO order the Deploy TLDR backend first, then the app build's release;** never release an app build
 that needs a backend change not yet live.
+**`bin/pr-landing-gate.py` enforces these lines:** in a repo with a top-level `ios/` or `android/`
+directory, a PR that changes any other runtime file fails the gate without the version table, an
+old-build line per version (or the not-reached line) and the waits-for line, and an
+`Old build <version> against the new backend: BLOCKED, <why>` line fails it too, so the harness
+records the gate BLOCKED rather than PASS.
 TEST: every PR touching a surface a shipped build calls carries the version table, one PASS line per
 walked version or a not-reached reason, the waits-for list and a backend-first Deploy TLDR; a removed,
 renamed or newly required field an in-use build relies on is a finding fixed before hand-back.
@@ -648,6 +653,13 @@ response properties are backward-compatible),
 updates block the app until installed).
 
 ## Release preflight before building or uploading
+
+**DO tag the exact commit of every store upload before it leaves the machine:** `git tag
+<platform>-<marketing version>-<build number>` (e.g. `ios-1.4.11-119`) on the commit the archive was
+built from, then `git push origin <tag>`. The old-build walk (`references/testing-strategy.md` § Old
+app builds against the new backend) builds each installed version from its tag; without one the walk
+is BLOCKED. TEST: every build number in the store's live and phased versions has a pushed tag.
+
 
 **DO read the provider's current publication state before the first release-only build, archive,
 package or export in each release attempt.** Apply `rules/connectors.md` to resolve the provisioned
