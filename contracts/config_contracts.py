@@ -605,6 +605,7 @@ CONTRACTS: dict[str, dict] = {
             "Variant indecision never ships: locking in an A/B removes the loser and its toggle in the same change.",
             "Research-first naming: before the first new artifact name, tally the term each major vendor's own page uses, name from the majority and record term, tally and links in the plan.",
             "Payment paths: a refusal names one of four reasons (double charge, wrong price, wrong payer, already holds); offer-picking rules and our own failed reads fail open; transient failures retry quietly in one layer through one shared owner with a whole-request idempotency key.",
+            "Legacy policy treats installed native app builds as deployed code and points to git-pr-deploy.md Deploy safety for them and for transitional reads, without restating the procedure.",
         ],
     },
     "rules/process.md": {
@@ -838,6 +839,7 @@ CONTRACTS: dict[str, dict] = {
             "Run GUI discovery and the capacity status before any native launch, a repo script included; a script that assumes one GUI layout is fixed, not worked around in the invocation.",
             "Launch through the project's own launch script when one exists; a bare simctl launch passes every option and variable the project's configuration declares.",
             "Claude opens the simulator GUI itself and navigates and captures every screenshot, with XCUITest as the proven default and AXe only after a recorded changed-screen check (its Xcode 27 tap no-op is dated, root cause unclaimed); Simon is never asked to open the simulator or tap, and the receipt records the driver.",
+            "Install an old release from its shipped commit after uninstall and keychain reset, reading backend override names from that commit; the receipt names commit, installed version and override names.",
             "Every xcodebuild test of the app target (unit tests included, since the host app's startup calls the network) and every simctl launch passes the project's backend override explicitly (SIMCTL_CHILD_ or TEST_RUNNER_ variables, never the scheme), using a closed loopback port when no local stack runs; a UI test refuses a non-loopback URL; against a local stack, see the app's first request in the local log before any sign-in, and wipe prior app state with uninstall plus keychain reset on the owned device.",
             "Keep one foreground lease through fail-fast stages and viewing; separate process launch, simulator-screen evidence and desktop GUI evidence, reporting permission gaps without changing permissions.",
             "An interactive preview is ready only with a window screencapture showing the device screen within 60 seconds of boot readiness; otherwise it is reported not visible with simctl captures, and a delegated worker returns that capture path.",
@@ -869,6 +871,7 @@ CONTRACTS: dict[str, dict] = {
             "Require complete paginated PR/file inventories with stable base/head SHAs and matching file counts, or complete verified Git diffs, before reserving sequential numbers; API failures, caps and moving refs never prove availability.",
             "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
             "Before changing an external value shipped clients read, grep the clients for hard-coded checks; on a hit, a release accepting the new value, or a new key keeping the old live, ships first.",
+            "Owns installed app builds: at every tier, each app version still in use is a client until the new one runs on 50% of active installs; changes stay additive and gated on the new client's signal, deploy backend first, and the PR records versions, old-build PASS lines and waits-for list.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
             "Every CI wait after a push runs bin/pr-ci-wait.py with --require naming a required job that starts at push time, and acts on its exit code: 3 merges the base in and pushes, never a rerun, cancel or empty commit.",
@@ -1010,7 +1013,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, the pre-merge end-to-end walk on a local stack, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
+        "purpose": "Test structure, the pre-merge end-to-end walk on a local stack, the old app build walk against the new backend, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
             "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
             "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",
@@ -1026,6 +1029,7 @@ CONTRACTS: dict[str, dict] = {
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
             "Fix final-gate failures and rerun affected checks; broaden only when changed inputs invalidate coverage, and never count partial or skipped scope as a full pass.",
             "Own the pre-merge end-to-end walk: for every Standard or Deep change to a user flow or its backend, web or iPhone, run every suite the diff reaches, walk each changed journey on its real client against a hermetic local stack (local database or emulators, payment sandbox, stubbed paid and third-party providers), loop fix and rerun to a clean run with zero base-to-head regressions, and hand back a per-journey pass table with suite counts; zero production writes and zero paid calls.",
+            "Own the old-build walk: build each in-use old release from its shipped commit, walk its main journeys against base and head local backends, and pass only with zero head-only 4xx/5xx and matching screens; no source is a blocker, never PASS.",
             "Run iPhone/iOS simulator runtime tests, UI tests, the XCUITest journey walk and screen captures by default for every change the iPhone app reaches, against the local backend; skip only when the diff reaches no native screen or Simon says skip, with the reason recorded. Keep native compile checks and backend payment, auth and data tests; a compile never stands in for a runtime pass.",
             "Judge test design before final execution; fan out preparation and judgments, deduplicate suite runs, and report native runtime coverage skipped only with an allowed reason.",
             "Keep production export credentials outside the preview runtime; reject production destinations before creating write-capable clients and verify the refusal offline.",
@@ -1255,6 +1259,7 @@ CONTRACTS: dict[str, dict] = {
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
             "Run references/git-pr-deploy.md § Deploy safety on every Deep PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
+            "Run Deploy safety check 4 (installed app builds) on every PR at every tier whose diff a shipped native build calls or renders; the PR shows old-build PASS lines or a not-reached reason.",
             "Compose the stage-5 resolver at the final fresh-fetch gate; return new or edited unhandled feedback to resolution and affected verification before PASS, including feedback outside threads.",
             "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
             "prod-data verdict, the deploy-safety results (each on every Deep PR, a skip line otherwise), the tier line, the screenshots, zero collapsed <details> (each one open) in the fetched body_html, resolved threads, the "

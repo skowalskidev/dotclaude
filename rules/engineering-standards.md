@@ -123,9 +123,9 @@ extraction that leaves each call site re-wiring its own state has not done the j
   old data up to the new format** — and run it (or hand it off with clear deploy-order
   instructions). Never leave the codebase reading the old shape: no deprecated fields, no
   read-time fallbacks, no dead code kept "for old data." The migration is what lets the
-  new code be the ONLY path. If a zero-downtime migration genuinely needs a transitional
-  read (expand→migrate→contract across a deploy), say so explicitly and schedule the
-  contract step; the end state still has zero legacy/dead code.
+  new code be the ONLY path. A transitional read: `references/git-pr-deploy.md` § Deploy safety.
+- **Installed app builds are deployed code: keep the backend compatible until the new build is live,
+  then contract** (same section).
 - **Lock in ONE variant the moment it's picked; never ship the A/B toggle.** A toggle, flag, persisted
   setting, two live paths, or mockup options all count. Build the chosen one (undecided → STOP and ask
   me). The instant it ships — chosen, defaulted, or dev-panel-picked and merged — hardcode it and delete

@@ -826,6 +826,35 @@ acceptance tests pass; dependencies replaced by test doubles),
 [Stripe testing](https://docs.stripe.com/testing),
 [XCUIApplication](https://developer.apple.com/documentation/xcuiautomation/xcuiapplication) (launchArguments, launchEnvironment).
 
+## Old app builds against the new backend
+
+**DO run each in-use old app build against the PR head's backend before the PR is called ready, at
+every tier, whenever `references/git-pr-deploy.md` § Deploy safety check 4 applies, in five steps:**
+1. **Pick the builds.** The store's current live version always, plus every other version holding at
+   least 10% of active installs in that check's version table.
+2. **Build the old app.** Check out the commit that version shipped from (its release tag, or the commit
+   its build number maps to) in its own `git worktree`, build it for the Simulator or emulator (a
+   desktop app: the released binary) and install it on an owned device (`references/ios-simulator.md`
+   for iOS). DON'T stand in the PR branch's build with its version string edited: it sends the new
+   request shapes.
+3. **Two runs, same steps.** Walk the old build's main journeys (sign-in, the home screen and every
+   journey whose backend the diff touches) once against the local stack at the base branch and once at
+   the PR head, same seed and steps, backend override per `references/ios-simulator.md` § Local backend
+   safety.
+4. **Compare.** PASS = zero 4xx/5xx in the head run's API log that the base run lacks, and every head
+   screenshot matching its base pair (design-diff or measured control positions; per-run values such as
+   timestamps excluded). A difference is a compatibility break, fixed in the backend; only a
+   server-rendered change the PR names INTENDED for old builds passes.
+5. **Record** `Old build <version> against the new backend: PASS`, with the run logs and screenshot
+   pairs, in the PR's `## Deploy safety` section.
+NUMBER: stop and report after 3 fix cycles on the same break (§ Pre-merge end-to-end on a local stack).
+**DON'T substitute a walk of the new build, a code read or a contract test for this run:** the new
+build sends the new shapes, so it cannot show what an old build breaks on.
+**DO record a blocker, never PASS, when the old build's source cannot be found or built.** The walk
+touches zero production rows and makes zero paid calls, as in § Pre-merge end-to-end on a local stack.
+TEST: every PR check 4 applies to holds one PASS line per picked version with base and head run logs
+and screenshot pairs, or a named blocker; a head-only 4xx/5xx or changed screen is never PASS.
+
 ## Native simulator suites
 
 **DO run iPhone/iOS simulator runtime tests, UI tests and screen captures by default for every change
@@ -835,7 +864,8 @@ end-to-end on a local stack and the captures the screenshot stage needs, all aga
 (`references/ios-simulator.md` § Local backend safety). Keep the native compile and backend payment,
 auth and data tests in the final gate. Capture every native screen a supplied design source covers,
 with its frame-assertion classes. Skip native runtime work only when the diff reaches no native screen
-(record `native: not reached, <why>`) or Simon says to skip it.
+(record `native: not reached, <why>`) or Simon says to skip it. A backend change a shipped build calls
+also runs § Old app builds against the new backend.
 **DON'T infer a runtime pass from a compile, or skip the simulator because nobody asked for it.**
 TEST: a diff the iPhone app reaches shows per-class executed, passed, failed and skipped counts and the
 walk's pass-table rows, or a recorded not-reached or Simon-skip reason; no native run reaches

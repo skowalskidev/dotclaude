@@ -483,14 +483,15 @@ branch and any post-merge unique work remain protected, and every scoped ref has
 
 - Keep a running list of everything that must be applied at deploy time — prod configs, indexes, rules, functions, env vars — so nothing is missed when shipping.
 
-## Deploy safety — merge train, migration order, live-traffic cutover
+## Deploy safety — merge train, migration order, live-traffic cutover, installed app builds
 
 Owned here; `/sk:ship-full-detailed-workflow` runs it on every PR before hand-back. Proves that
 merging and deploying the set, in the intended order, causes no regression and no outage. Each PR's
 green CI proves only that PR against its own base.
 
-**DO run three checks per PR and post each result on the PR**, recording a named doesn't-apply
-reason for a part the diff does not touch (no migration, no traffic move).
+**DO run four checks per PR and post each result on the PR**, recording a named doesn't-apply
+reason for a part the diff does not touch (no migration, no traffic move, no surface a shipped app
+build calls). Check 4 runs at every tier, Light included.
 
 ### 1. Merge train
 
@@ -523,6 +524,9 @@ result; a conflict or red suite is fixed before hand-back, never reported as a c
    contract in a later release (`rules/engineering-standards.md` § Legacy support policy). A drop,
    rename, new NOT NULL without a default, tightened constraint or policy, or changed function
    signature that live code reads splits into releases; the contract step is a later-release ticket.
+   If a zero-downtime migration genuinely needs a transitional read (expand→migrate→contract across a
+   deploy), say so explicitly and schedule the contract step; the end state still has zero legacy or
+   dead code. "Live code" includes every installed app build in check 4's version table.
 4. **Backfill reach.** Count, read-only against production through the provisioned path
    (`rules/connectors.md`), the rows each backfill or data migration changes, by class, and record the
    query and the counts.
@@ -588,6 +592,60 @@ changed behaviour** (grep the writer of the row, log line or field). Prefer the 
 itself (a paid run no longer starts, a field now set) over an audit row one branch writes.
 TEST: every `Smoke:` signal cites the function that writes it on the path the change affects (the fix
 for a smoke keyed on skip-audit rows only an older reply path wrote, so a 2-hour watch saw nothing).
+
+### 4. Installed app builds
+
+Applies to every PR whose diff changes a server route, API, database function or policy, hosted web
+page or shared contract (schema, enum, remote config value) that a shipped native app build (iOS,
+Android, desktop) calls or renders. The backend goes live at merge; the matching app build reaches
+users days later through store review and a phased rollout, and some users never update.
+
+**DO treat every app version still in use as a client of the new backend, from deploy until the new
+version runs on at least 50% of active installs.** Read each version's share of the last 30 days'
+active installs read-only from the project's own version telemetry (e.g. a per-install `app_version`
+column); with none, take the store's current live version. Record the table: version, share, query.
+
+**DO keep the change backward compatible with every version in that table** (expand and contract):
+1. **Additive only.** Add fields, values and endpoints. Never remove, rename or retype a field an old
+   build sends or reads, or change its meaning or default.
+2. **Tolerate old requests.** Accept every request shape an old build sends; never make a field required
+   that an old build omits, and never tighten a validation, enum or limit it reaches.
+3. **Gate on the new client's signal.** Switch new behaviour on a value only the new build sends (its
+   app version or a capability field in the request), never on the deploy date; old builds keep
+   today's behaviour.
+4. **Contract later.** Remove old support in a later release, once old versions fall below 5% of active
+   installs or a minimum-supported-version gate (forced update) covers them; that step is a ticket.
+**DON'T reach for a new API version or a forced update first.** A version is for a break that cannot
+be made additive; a forced update blocks people mid-task and is the last resort.
+
+**DO walk the old build against the new backend before the PR is called ready**, per
+`references/testing-strategy.md` § Old app builds against the new backend.
+
+**DO record in the PR's `## Deploy safety` section, unprompted:**
+- the version table;
+- `Old build <version> against the new backend: PASS` per walked version with its evidence path, or
+  `Installed builds: not reached, <why>`;
+- `Waits for the new build:` each behaviour old builds must not get yet and the signal gating it, or `none`.
+**DO order the Deploy TLDR backend first, then the app build's release;** never release an app build
+that needs a backend change not yet live.
+TEST: every PR touching a surface a shipped build calls carries the version table, one PASS line per
+walked version or a not-reached reason, the waits-for list and a backend-first Deploy TLDR; a removed,
+renamed or newly required field an in-use build relies on is a finding fixed before hand-back.
+Sources (checked 2026-11-16). Term tally, "backward compatible": Google AIP-180, Stripe, Fowler (3);
+"expand and contract" / "parallel change": Fowler. Store rollout: "phased release" (Apple), "staged
+rollout" (Google Play), "immediate update" (Android in-app updates).
+[AIP-180 Backwards compatibility](https://google.aip.dev/180) ("New required fields must not be added";
+"Changing the default value is considered breaking"),
+[Stripe API versioning](https://docs.stripe.com/api-versions) (new optional request parameters and new
+response properties are backward-compatible),
+[Parallel change](https://martinfowler.com/bliki/ParallelChange.html),
+[Tolerant reader](https://martinfowler.com/bliki/TolerantReader.html),
+[Apple phased release](https://developer.apple.com/help/app-store-connect/update-your-app/release-a-version-update-in-phases)
+(1% to 100% of automatic-update users over 7 days; anyone can update manually),
+[Google Play staged rollout](https://support.google.com/googleplay/android-developer/answer/6346149)
+(the percentage "won't increase automatically"),
+[Android in-app updates](https://developer.android.com/guide/playcore/in-app-updates) (immediate
+updates block the app until installed).
 
 ## Release preflight before building or uploading
 

@@ -72,6 +72,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    **DON'T treat each PR's green CI as proof the set merges and deploys safely.** TEST: every Deep PR in
    the run shows the merge-train result, migration verdict and cutover table at the landing gate
    without Simon asking.
+   **DO run that section's check 4, installed app builds, on EVERY PR at every tier whose diff changes a
+   surface a shipped native build calls or renders.** TEST: such a PR's `## Deploy safety` holds an
+   `Old build <version> against the new backend: PASS` line or a not-reached reason.
    **DO run `/sk:test-automated-full-matrix`'s copy binding and real-environment walk on every Standard
    PR too, after stage 3-6 fixes, on the final head;** a Deep PR's matrix runs them. The walk follows
    `references/testing-strategy.md` § Pre-merge end-to-end on a local stack, looped to a clean run. TEST: every
@@ -146,7 +149,7 @@ verified the user + system journey, then handed back with it never posted to the
   incident-replay and residual-risk lines, each with its evidence, or a reasoned does-not-apply.
 - Deploy safety (stage 6), on every Deep PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
-  per part.
+  per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines.
 - Regression check (stage 6), on every PR: one row per modified pre-existing file with PASS or
   INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors.
 - Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard

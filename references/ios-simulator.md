@@ -244,6 +244,17 @@ and derive the identity endpoint from the served assets, never from a stored rec
 TEST: a preview's worker config names a private assets directory, the served chunks contain zero
 production project references, and the identity response changes when the served assets change.
 
+## Install an old release build
+
+DO build the old release that `references/testing-strategy.md` § Old app builds against the new backend
+walks from its own worktree at the shipped commit, with the project's recipe, and install it on the
+owned `agent` device after § Local backend safety step 4's uninstall and keychain reset.
+DO read the backend override variable names from that commit's source, not the PR head's: an older
+build can read an older name, and an unset override sends it to production.
+TEST: the run receipt names the shipped commit, the installed version matching the picked one
+(`plutil -extract CFBundleShortVersionString raw "$(xcrun simctl get_app_container "$UDID" "$BUNDLE_ID")/Info.plist"`)
+and the override names read from that commit.
+
 ## Drive and capture
 
 DO open the simulator GUI yourself for every requested iOS walk, preview or capture: the resolved

@@ -12,7 +12,8 @@ on a diff overnight. It is DISTINCT from `/sk:test-copilot` (the human-driven jo
 THIS for its machine pass, then adds the human judgment on top.
 
 **Read `~/.claude/references/testing-strategy.md` § The full automated test matrix, § Defects first,
-§ Local time-driven simulations, § Pre-merge end-to-end on a local stack and § Native simulator suites.** Apply their batch timing, evidence
+§ Local time-driven simulations, § Pre-merge end-to-end on a local stack, § Old app builds against the
+new backend and § Native simulator suites.** Apply their batch timing, evidence
 reuse, simulation assessment, local-stack walk and default native simulator runs to this flow.
 TEST: a diff the iPhone app reaches gets native runtime/UI evidence or a reason that section allows.
 
