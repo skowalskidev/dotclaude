@@ -730,8 +730,12 @@ hold's runner mid-session, which shuts its simulator down under the person using
 simulator lease that is never auto-released. (the fix for a five-stage gate chain, each step
 `--wait-min 60`, killed at the 2-hour cap under machine contention, and for a `--max-min 120`
 simulator hold killed at the same cap while Simon was mid-sign-up.)
+**DO set every shorter `run_in_background` task's `timeout` to at least its summed `--wait-min` plus
+`--max-min` plus runtime, in milliseconds.** The tool default is 30 minutes, and a lower timeout kills
+the run while it still waits for admission, so it never starts. (the fix for a simulator test run
+started with a 60-minute timeout and `--wait-min 60 --max-min 30`, killed unrun in the queue.)
 TEST: no `run_in_background` task wraps a capacity-gated command or chain whose summed `--wait-min`
-plus `--max-min` reaches 120.
+plus `--max-min` reaches 120, and none sets a `timeout` below that sum.
 
 ### Where a tool's own listing lies to you
 

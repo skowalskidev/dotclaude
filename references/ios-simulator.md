@@ -339,6 +339,13 @@ names a capture file you took; an AXe step has a recorded changed-screen check.
 Rejected as the default, rechecked 2026-10-15: Maestro (mobile-dev-inc/Maestro, 16k stars) is built
 around scripted YAML flows and its README names no Xcode version support.
 
+DO read the app's logs for a step after it ends: record the start time, then run
+`xcrun simctl spawn <UDID> log show --start "<YYYY-MM-DD HH:MM:SS>" --predicate '<subsystem and category>' --style compact`.
+DON'T capture with `log stream ... > file` and kill the stream: redirected output is block-buffered, so
+the killed stream drops its unflushed tail and the file reads as a run that logged nothing. (the fix
+for a launch benchmark whose first round captured zero of the timing lines the app had logged.)
+TEST: every log-based measurement reads `log show` output, or a stream that ended on its own.
+
 ## Hold for the user, then clean up
 
 DO shut down the device and release its claim as soon as the task's last capture or walk ends, not at
