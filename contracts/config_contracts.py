@@ -324,7 +324,8 @@ CONTRACTS: dict[str, dict] = {
             "Navigate like a design tool: phone iframes take no pointer events, so wheel, drag and keys work over every phone; open on the whole board when it fits at 35% or more, otherwise on the first section filling the view; a section click zooms that section to fill the view; double-click zooms to a phone; Safari pinch and capped ctrl+wheel zoom; late frame loads never move a view the reviewer already changed.",
             "Put the per-frame reset inside a first-declared cascade layer (@layer board-reset), so project CSS outranks it whether layered (Tailwind v4 utilities) or not; an unlayered reset wipes every layered padding and margin.",
             "check <board.html> <outdir> runs bin/visual-check.py over fit, 100% and flattened states at 1440x900, expects the title and every shown frame title, and fails a blank or cut phone frame in the flattened state.",
-            "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip, each image, the font and capture html embedded once, a byte-identical rebuild, the reset is layered, phones never swallow gestures, wheel/drag/keys/section navigation works in Chromium, check passes the example and fails a blank and a cut frame (skipped without Node Playwright).",
+            "Estimate the flattened board size from the spec (within 3% of Chromium's measured page); build and check print a WARNING on stderr naming the size, the widest long flow row and the fix (split into several boards, flow rows of about FLOW_ROW_CHUNK = 10) when it passes node_playwright.BUDGET_PIXELS, and check passes the same fix to visual-check as --split-hint.",
+            "Keep bin/design-board.test.py passing: two frames, a pick badge, both hooks, self-contained, round-trip, each image, the font and capture html embedded once, a byte-identical rebuild, the reset is layered, phones never swallow gestures, wheel/drag/keys/section navigation works in Chromium, check passes the example and fails a blank and a cut frame (skipped without Node Playwright), and an oversized 23-section board with a 45-frame flow row warns on build and check.",
         ],
     },
     "bin/presentation_build.py": {
@@ -442,8 +443,9 @@ CONTRACTS: dict[str, dict] = {
             "Wait for every --wait-for selector to be attached and visible after load and again after each state's JavaScript, within --wait-timeout (default 30000 ms); a selector that never appears fails that row with 'wait-for timed out: <css>' and skips its region checks, without crashing the run.",
             "Serve every --route GLOB=FILE fixture before navigation, content type from the extension (.json is application/json), unmatched requests pass through; exit 2 before any browser starts when the file is missing or the value is not GLOB=FILE.",
             "Open every row with reducedMotion \"reduce\", so a page whose entrance animations respect prefers-reduced-motion is captured in its settled state, never mid-fade.",
-            "Python 3.9+, standard library only; run the browser through Node Playwright resolved as bin/mockup-shots.py resolves it.",
-            "Keep bin/visual-check.test.py passing: --route with a missing file exits 2, --wait-for and --wait-timeout parse, and (with Node Playwright) a client-rendered page fails without them and passes with --route and --wait-for, and a tall page whose later region screenshots scroll earlier regions above the viewport passes.",
+            "Fail a row whose full page is over node_playwright.SCREENSHOT_MAX_PIXELS, or that Chromium cannot capture or decode, with 'full page WxH px (N Mpx) ...: <--split-hint>' instead of a browser error; keep a viewport PNG and still run that row's region checks.",
+            "Python 3.9+, standard library only; run the browser through Node Playwright found by bin/node_playwright.py, and exit 2 listing every searched place when none is found.",
+            "Keep bin/visual-check.test.py passing: --route with a missing file exits 2, --wait-for and --wait-timeout parse, and (with Node Playwright) a client-rendered page fails without them and passes with --route and --wait-for, and a tall page whose later region screenshots scroll earlier regions above the viewport passes, a 30000x20000 px page fails with its size and the split hint, and the Playwright lookup finds a sibling worktree's install.",
         ],
     },
     "bin/mockup-shots.py": {
@@ -454,7 +456,18 @@ CONTRACTS: dict[str, dict] = {
             "Write exactly one PNG per variant x persona x state, named <variant>-<persona>-<state>.png at the persona's w x h, plus shell.png; --filter SUBSTR keeps only matching capture names.",
             "Post mockup:goto-state for the state and wait 1500 ms for entrance animations before each screenshot.",
             "Print every page error with its capture name and exit 1 when any occurred; exit 2 when the browser runtime or the arguments are unusable.",
-            "Python 3.9+, standard library only; run the browser through Node Playwright resolved from MOCKUP_SHOTS_NODE_MODULES, NODE_PATH, the global npm root, ./node_modules or ~/.claude/node_modules.",
+            "Python 3.9+, standard library only; run the browser through Node Playwright found by bin/node_playwright.py, and exit 2 listing every searched place when none is found.",
+        ],
+    },
+    "bin/node_playwright.py": {
+        "mission": "A visual check runs on the first try in any checkout, and a page too large to screenshot fails with its size and the fix, never an opaque browser error.",
+        "purpose": "One home for the Node Playwright lookup and the largest page one Chromium screenshot holds, shared by visual-check, mockup-shots and design-board.",
+        "criteria": [
+            "Search in order: MOCKUP_SHOTS_NODE_MODULES, NODE_PATH, node_modules in the current directory and its parents, beside every tracked package.json of the current git repo, npm root -g, the same package dirs in the repo's other worktrees (at most 60 dirs), ~/.claude/node_modules; accept playwright, playwright-core or @playwright/test; install nothing.",
+            "On a miss, print a message starting 'SETUP: Node Playwright not found' that lists each searched group with its dirs and names the fix (npm install in a checkout that lists playwright, or MOCKUP_SHOTS_NODE_MODULES).",
+            "LAUNCH_JS tries each found copy until Chromium launches and exits 2 listing every copy's launch error.",
+            "SCREENSHOT_MAX_PIXELS is an area measured in Chromium (527 Mpx passed, 536 Mpx failed; 66000 px tall passed), never a per-side cap; BUDGET_PIXELS (250 Mpx) is the builders' warning line. Verify the lookup in bin/visual-check.test.py.",
+            "Python 3.9+, standard library only.",
         ],
     },
     "bin/workflow-dashboard.py": {

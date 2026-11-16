@@ -509,6 +509,13 @@ last. DON'T group by step with the variants side by side, because the reviewer t
 on every frame and cannot follow one flow. (the fix for a 3-direction by 7-screen quiz board grouped by step)
 TEST: in a flow board every section holds one variant, frames run in step order, and no row wraps.
 
+DO chunk a single long flow (many states, no variants) into balanced rows of about 10 frames and split
+the sections across several boards, so each flattened page stays under the one-screenshot budget
+(`bin/node_playwright.py` BUDGET_PIXELS). Variant flows keep one variant per unwrapped row. The page is
+as wide as its widest row, so one long row multiplies every section's area. TEST: `design-board.py
+build` prints no `WARNING: the flattened board` line. (the fix for a 206-frame board with a 45-frame
+row whose flattened check failed with a browser decode error)
+
 DO generate hero art through the subscription image path in `references/agent-hosts.md` § Image
 generation, one scene per frame with the product's mascot or brand object as the reference image,
 portrait, no text in the image, a calm lower third for UI. DON'T use a paid API or stock photos the

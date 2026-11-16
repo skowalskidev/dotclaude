@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """design-board.py self-test: the example spec builds, round-trips, carries the measurement hooks, and
-stores each embedded payload once with a byte-identical extract -> build, `check` passes the example while failing a board whose phone frame renders blank or sits cut by an overflow-hidden ancestor (skipped without Node Playwright)."""
+stores each embedded payload once with a byte-identical extract -> build, `check` passes the example while failing a board whose phone frame renders blank or sits cut by an overflow-hidden ancestor (skipped without Node Playwright),
+and the flattened-size estimate warns on a board too large for one screenshot, naming its long flow row and the split fix (matched to Chromium's measured size when Node Playwright is available)."""
 import base64
 import importlib.util
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -26,7 +28,7 @@ def run(*args: str) -> str:
 
 
 NAV_PROBE = r"""
-const { chromium } = require(process.env.PW_ROOT + '/playwright');
+const { chromium } = require(process.env.PW_PKG);
 (async () => {
   const b = await chromium.launch();
   try {
@@ -63,17 +65,84 @@ const { chromium } = require(process.env.PW_ROOT + '/playwright');
 """
 
 
+FLAT_PROBE = r"""
+const { chromium } = require(process.env.PW_PKG);
+(async () => {
+  const b = await chromium.launch();
+  try {
+    const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+    await p.goto('file://' + process.argv[2]); await p.waitForTimeout(500);
+    console.log(JSON.stringify(await p.evaluate(() => { window.__flatten(); const d = document.documentElement; return [d.scrollWidth, d.scrollHeight]; })));
+  } finally { await b.close(); }
+})();
+"""
+
+
+def frames(prefix: str, n: int) -> list:
+    return [{"id": f"{prefix}{i}", "label": "L", "title": f"{prefix} {i}", "hypothesis": "h", "note": "n",
+             "html": "<p>x</p>"} for i in range(n)]
+
+
+def size_checks(tool, tmp: str) -> dict:
+    """The flattened-size estimate, the build warning, and the split hint check passes on (estimate vs Chromium when available)."""
+    import contextlib
+    import io
+    import node_playwright
+    checks = {}
+    small = {"title": "s", "phone": {"w": 414, "h": 896}, "sections": [
+        {"title": "grid", "lead": "wraps", "frames": frames("g", 10)},
+        {"title": "flow", "lead": "one row", "flow": True, "frames": frames("f", 5)}]}
+    # The shape that failed: one 45-frame flow row makes every one of 23 sections that wide.
+    big = {"title": "b", "phone": {"w": 414, "h": 896},
+           "sections": [{"title": f"s{i}", "lead": "l", "flow": True, "frames": frames(f"s{i}-", 8)} for i in range(22)]
+           + [{"title": "long flow", "lead": "l", "flow": True, "frames": frames("long", 45)}]}
+    checks["example fits one screenshot (no warning)"] = tool.size_warnings(json.loads(run("example"))) == []
+    w, h, widest = tool.flat_size(big)
+    warned = tool.size_warnings(big)
+    checks["oversized board estimate is over the budget"] = w * h > node_playwright.BUDGET_PIXELS and widest == 22
+    checks["warning names the size, the long flow row and the fix"] = (
+        len(warned) == 1 and f"{w}x{h} px" in warned[0] and '"long flow" with 45 frames' in warned[0]
+        and f"rows of about {tool.FLOW_ROW_CHUNK}" in warned[0] and "several boards" in warned[0])
+    big_spec, big_out = pathlib.Path(tmp, "big.json"), pathlib.Path(tmp, "big.html")
+    big_spec.write_text(json.dumps(big))
+    built = subprocess.run([sys.executable, str(TOOL), "build", str(big_spec), str(big_out)], capture_output=True, text=True)
+    checks["build warns on stderr and still writes the board"] = built.returncode == 0 and "WARNING: the flattened board" in built.stderr and big_out.is_file()
+    calls = []
+    real_run = tool.subprocess.run
+    tool.subprocess.run = lambda args, **kw: calls.append(args) or subprocess.CompletedProcess(args, 0)
+    try:
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            tool.check(big_out, pathlib.Path(tmp, "unused"))
+    finally:
+        tool.subprocess.run = real_run
+    args = calls[0] if calls else []
+    checks["check passes the board split hint to visual-check"] = "--split-hint" in args and args[args.index("--split-hint") + 1] == tool.SPLIT_HINT
+    checks["check prints the size warning first"] = "WARNING: the flattened board" in err.getvalue()
+    found, _ = node_playwright.find()
+    if found:
+        small_out = pathlib.Path(tmp, "small.html")
+        small_out.write_text(tool.build(small))
+        script = pathlib.Path(tmp, "flat.cjs")
+        script.write_text(FLAT_PROBE)
+        for name, spec, out in (("small", small, small_out), ("oversized", big, big_out)):
+            res = subprocess.run(["node", str(script), str(out)], capture_output=True, text=True, env={**os.environ, "PW_PKG": found[0]})
+            mw, mh = json.loads(res.stdout) if res.returncode == 0 else (0, 0)
+            ew, eh, _ = tool.flat_size(spec)
+            checks[f"estimate within 3% of the measured flattened {name} board"] = abs(ew - mw) <= 0.03 * mw and abs(eh - mh) <= 0.03 * mh
+    return checks
+
+
 def navigation_probe(board: pathlib.Path, tmp: str):
     """Drive the built board in Chromium; None when Node Playwright is unavailable (same skip as check)."""
-    import os
-    roots = [os.environ.get("MOCKUP_SHOTS_NODE_MODULES", ""), str(pathlib.Path.home() / ".claude/node_modules")]
-    root = next((r for r in roots if r and pathlib.Path(r, "playwright").is_dir()), None)
-    if not root:
+    import node_playwright
+    found, _ = node_playwright.find()
+    if not found:
         return None
     script = pathlib.Path(tmp, "nav.cjs")
     script.write_text(NAV_PROBE)
     res = subprocess.run(["node", str(script), str(board.resolve())], capture_output=True, text=True,
-                         env={**os.environ, "PW_ROOT": root})
+                         env={**os.environ, "PW_PKG": found[0]})
     return json.loads(res.stdout) if res.returncode == 0 else {"wheel": False, "drag": False, "keys": False, "section": False}
 
 
@@ -156,6 +225,7 @@ def main() -> int:
                 checks["section click fits that section"] = nav["section"]
                 for case, passed in nav.get("horizontal", {"probe": False}).items():
                     checks["overflow measurement: " + case] = passed
+        checks.update(size_checks(load_tool(), tmp))
         bad = [k for k, ok in checks.items() if not ok]
         for k, ok in checks.items():
             print(("PASS " if ok else "FAIL ") + k)

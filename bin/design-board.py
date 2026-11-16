@@ -42,6 +42,12 @@ dependencies; Python 3.9+ (Pillow optional, for image frames).
 title per shown frame in the page text, and, in the flattened state, every phone frame and frame title
 fully visible (not cut by an ancestor) with ink in each phone.
 It prints the pass table and writes the screenshots to <outdir>; hand the table over with the board.
+
+One full-page screenshot holds a limited area (bin/node_playwright.py), and the flattened board is one rectangle as
+wide as its widest row, so one long flow row multiplies every section's area. `build` and `check` estimate the
+flattened size from the spec and warn on stderr when it passes node_playwright.BUDGET_PIXELS; the flat row of
+`check` then fails with the measured size and the fix: split the board into several boards and break flow rows
+longer than FLOW_ROW_CHUNK frames into rows of about that many.
 """
 import base64
 import copy
@@ -52,11 +58,20 @@ import json
 import pathlib
 import subprocess
 import sys
+from node_playwright import BUDGET_PIXELS, SCREENSHOT_MAX_PIXELS
 from presentation_build import ASSET_RE, ASSET_TOKEN, compose, extract as extract_spec
 
 HERE = pathlib.Path(__file__).resolve().parent
 TEMPLATE = HERE / "design-board.html"
 SPEC_TAG = '<script type="application/json" id="spec">'
+FLOW_ROW_CHUNK = 10
+# Flattened layout of bin/design-board.html, measured in Chromium: canvas padding 40 per side, export title 28 + 24,
+# section border 2 + padding 80 wide and 159 tall with title and lead, max width 1824 (border-box) unless flow,
+# 40 below each section, frames 56 apart in a row and 44 between rows, each frame the phone plus 127 of text.
+CANVAS_PAD, TITLE_H, SECTION_PAD_W, SECTION_PAD_H, SECTION_MAX_W, SECTION_GAP = 80, 52, 82, 159, 1824, 40
+COL_GAP, ROW_GAP, FRAME_TEXT_H = 56, 44, 127
+SPLIT_HINT = (f"split the board into several boards, and break flow rows longer than {FLOW_ROW_CHUNK} frames "
+              f"into rows of about {FLOW_ROW_CHUNK} (design-board.py build prints the estimate)")
 
 
 def data_uri(path: str, mime: str) -> str:
@@ -122,6 +137,41 @@ def build(spec: dict) -> str:
     return compose("board", spec, adapter, content='<div id="canvas"><h1 class="board-export-title">' + esc(spec.get("title", "Design board")) + '</h1>' + sections + '</div>', title=spec.get("title", "Design board"))
 
 
+def flat_size(spec: dict) -> tuple:
+    """Estimated (width, height, widest section index) of the flattened board; text that wraps adds a little height."""
+    phone = {"w": 393, "h": 852, **spec.get("phone", {})}
+    frame_h = phone["h"] + FRAME_TEXT_H
+    widths, height = [], CANVAS_PAD + TITLE_H
+    for section in spec.get("sections", []):
+        n = sum(1 for f in section.get("frames", []) if not f.get("hidden"))
+        row = SECTION_PAD_W + n * phone["w"] + max(0, n - 1) * COL_GAP
+        if section.get("flow"):
+            rows = 1 if n else 0
+        else:
+            row = min(SECTION_MAX_W, row)
+            per_row = max(1, (SECTION_MAX_W - SECTION_PAD_W + COL_GAP) // (phone["w"] + COL_GAP))
+            rows = -(-n // per_row)
+        widths.append(row)
+        height += SECTION_PAD_H + rows * frame_h + max(0, rows - 1) * ROW_GAP + SECTION_GAP
+    widest = max(range(len(widths)), key=widths.__getitem__) if widths else -1
+    return (max(widths, default=0) + CANVAS_PAD, height, widest)
+
+
+def size_warnings(spec: dict) -> list:
+    """Plain warnings when the flattened board will not fit one full-page screenshot."""
+    w, h, widest = flat_size(spec)
+    if w * h <= BUDGET_PIXELS:
+        return []
+    section = spec["sections"][widest]
+    shown = sum(1 for f in section.get("frames", []) if not f.get("hidden"))
+    driver = (f' Widest row: "{section.get("title", "")}" with {shown} frames on one flow row.'
+              if section.get("flow") and shown > FLOW_ROW_CHUNK else "")
+    return [f"WARNING: the flattened board is about {w}x{h} px ({w * h // 10**6} Mpx), over the "
+            f"{BUDGET_PIXELS // 10**6} Mpx budget for one full-page screenshot (Chromium fails at about "
+            f"{SCREENSHOT_MAX_PIXELS // 10**6} Mpx, some builds lower), so the flat row of `check` can fail.{driver} "
+            f"Fix: {SPLIT_HINT}; at least {-(-(w * h) // BUDGET_PIXELS)} boards at this layout."]
+
+
 def extract(page: str) -> dict:
     return extract_spec(page)
 
@@ -164,7 +214,10 @@ def check(board: pathlib.Path, outdir: pathlib.Path) -> int:
             "--viewport", "1440x900",
             "--state", "zoom100=document.getElementById('one').click()",
             "--state", "flat=window.__flatten();if(window.__measure().some(f=>f.overflow>0||f.cut.length))throw Error('capture cut by overflow')",
-            "--region", ".screen[data-frame]", "--visible", ".ftitle", "--regions-in", "flat"]
+            "--region", ".screen[data-frame]", "--visible", ".ftitle", "--regions-in", "flat",
+            "--split-hint", SPLIT_HINT]
+    for warning in size_warnings(spec):
+        print(warning, file=sys.stderr)
     shown = [f for s in spec.get("sections", []) for f in s.get("frames", []) if not f.get("hidden")]
     for text in [spec.get("title", ""), *[f.get("title", "") for f in shown]]:
         if text:
@@ -181,6 +234,8 @@ def main(argv: list) -> int:
         out = pathlib.Path(argv[2])
         out.write_text(build(spec))
         print(f"{out} {out.stat().st_size // 1024} KB")
+        for warning in size_warnings(spec):
+            print(warning, file=sys.stderr)
         return 0
     if len(argv) == 3 and argv[0] == "extract":
         pathlib.Path(argv[2]).write_text(json.dumps(extract(pathlib.Path(argv[1]).read_text()), indent=2))

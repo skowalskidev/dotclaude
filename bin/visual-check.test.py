@@ -2,8 +2,9 @@
 """visual-check.py self-test: --route with a missing file exits 2, --wait-for and --wait-timeout parse, a client-rendered
 page that fetches its data after load fails without them and passes with --route and --wait-for, and a tall page whose later
 region screenshots scroll earlier regions above the viewport still passes, and Chromium's media preload abort is not a
-failed request while a missing media file and an aborted non-media request still fail (browser part skipped without Node
-Playwright; the media part without ffmpeg)."""
+failed request while a missing media file and an aborted non-media request still fail, a page over the one-screenshot
+area fails with its size and the split hint, and the Playwright lookup finds a sibling worktree's install and lists every
+place searched on a miss (browser part skipped without Node Playwright; the media part without ffmpeg)."""
 import functools
 import http.server
 import collections
@@ -17,6 +18,9 @@ import sys
 import tempfile
 import threading
 import zlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+import node_playwright  # noqa: E402
 
 HERE = pathlib.Path(__file__).resolve().parent
 TOOL = HERE / "visual-check.py"
@@ -131,7 +135,7 @@ process.exit(Object.values(results).every(Boolean) ? 0 : 1);
 } finally {}
 ''')
     job = root / 'ink-job.json'
-    job.write_text(json.dumps(dict(outdir=str(root), cases=cases)))
+    job.write_text(json.dumps(dict(outdir=str(root), cases=cases, playwright=node_playwright.find()[0])))
     result = subprocess.run(['node', str(script), str(job)], capture_output=True, text=True, timeout=90)
     if result.returncode:
         print(result.stdout + result.stderr)
@@ -139,10 +143,54 @@ process.exit(Object.values(results).every(Boolean) ? 0 : 1);
     return json.loads(result.stdout.strip().splitlines()[-1])
 
 
+def discovery_checks(root) -> dict:
+    """Playwright lookup without a browser: a sibling worktree's install is found, the current directory's wins, and a
+    miss lists every place searched."""
+    checks = {}
+    git = lambda *a, cwd: subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.invalid", *a],
+                                         cwd=cwd, check=True, capture_output=True)
+    main_wt, sibling = root / "repo", root / "repo-sibling"
+    (main_wt / "web").mkdir(parents=True)
+    (main_wt / "web" / "package.json").write_text("{}")
+    git("init", "-q", cwd=main_wt)
+    git("add", "-A", cwd=main_wt)
+    git("commit", "-qm", "init", cwd=main_wt)
+    git("worktree", "add", "-q", str(sibling), cwd=main_wt)
+    pkg = sibling / "web" / "node_modules" / "playwright"
+    pkg.mkdir(parents=True)
+    (pkg / "package.json").write_text("{}")
+    env = {"HOME": str(root / "home")}
+    real_npm = node_playwright._npm_root
+    node_playwright._npm_root = lambda: []
+    try:
+        found, _ = node_playwright.find(main_wt / "web", env)
+        checks["finds Playwright installed in a sibling worktree"] = found[:1] == [str(pkg.resolve())]
+        local = main_wt / "web" / "node_modules" / "playwright-core"
+        local.mkdir(parents=True)
+        (local / "package.json").write_text("{}")
+        found, _ = node_playwright.find(main_wt / "web", env)
+        checks["the current directory's install comes first"] = found[:1] == [str(local.resolve())]
+        explicit = root / "explicit" / "playwright"
+        explicit.mkdir(parents=True)
+        (explicit / "package.json").write_text("{}")
+        found, _ = node_playwright.find(main_wt / "web", {**env, "MOCKUP_SHOTS_NODE_MODULES": str(root / "explicit")})
+        checks["MOCKUP_SHOTS_NODE_MODULES comes first"] = found[:1] == [str(explicit)]
+        (root / "outside").mkdir()
+        found, groups = node_playwright.find(root / "outside", env)
+        msg = node_playwright.not_found_message(groups)
+        checks["a miss lists every place searched and the fix"] = (
+            found == [] and msg.startswith(node_playwright.NOT_FOUND) and "current directory and parents" in msg
+            and "not in a git repo" in msg and "MOCKUP_SHOTS_NODE_MODULES" in msg and "npm install" in msg)
+    finally:
+        node_playwright._npm_root = real_npm
+    return checks
+
+
 def main() -> int:
     checks = {}
     with tempfile.TemporaryDirectory() as tmp:
         root = pathlib.Path(tmp)
+        checks.update(discovery_checks(root / "discovery"))
         (root / "index.html").write_text(PAGE)
         (root / "data.json").write_text('{"label": "loaded"}')
         usage = run(str(root / "index.html"), "--out", str(root / "o1"), "--route", "**/data.json=missing.json", cwd=tmp)
@@ -162,7 +210,7 @@ def main() -> int:
         try:
             base = ["--region", "#done", "--expect", "loaded"]
             gap = run(url, "--out", str(root / "o3"), *base, cwd=tmp)
-            if gap.returncode == 2 and "SETUP: node 'playwright' not found" in gap.stderr:
+            if gap.returncode == 2 and node_playwright.NOT_FOUND in gap.stderr:
                 print("SKIP browser checks (Node Playwright unavailable): " + gap.stderr.strip())
             else:
                 checks.update(ink_checks(root))
@@ -184,6 +232,16 @@ def main() -> int:
                 huge.write_text('<style>body{margin:0;height:100259px;background:#777}</style>')
                 blank = run(str(huge), '--out', str(root / 'huge-blank'), '--viewport', '16x200', cwd=tmp)
                 checks['canvas-limit height without ink fails the page gate'] = blank.returncode == 1 and 'page blank' in blank.stdout
+                # Over the one-screenshot area: fails fast with the size and the fix, keeps a viewport PNG, still checks regions.
+                oversized = root / "oversized.html"
+                oversized.write_text("<style>body{margin:0}div{width:30000px;height:20000px;"
+                                     "background:repeating-linear-gradient(90deg,#c33 0 20px,#36c 20px 40px)}</style><div id=big></div>")
+                over = run(str(oversized), "--out", str(root / "o-over"), "--visible", "#big", cwd=tmp)
+                checks["an oversized page fails with its size and the default split hint"] = (
+                    over.returncode == 1 and "full page 30000x20000 px (600 Mpx) is over the 527 Mpx one-screenshot limit: split it into smaller pages" in over.stdout
+                    and (root / "o-over" / "1440x900-default.png").is_file() and "| 1 |" in over.stdout)
+                hinted = run(str(oversized), "--out", str(root / "o-over2"), "--split-hint", "split the board", cwd=tmp)
+                checks["--split-hint names the caller's fix"] = hinted.returncode == 1 and "one-screenshot limit: split the board" in hinted.stdout
                 (site / "blob.bin").write_bytes(b"\0" * 3_000_000)
                 (site / "aborted.html").write_text(ABORTED_FETCH)
                 aborted = run(url + "aborted.html", "--out", str(root / "o-aborted"), cwd=tmp)

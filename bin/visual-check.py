@@ -23,12 +23,19 @@ Usage:
         [--wait-timeout 30000]     --wait-for timeout in ms; a timeout fails that row ("wait-for timed out: CSS")
         [--route GLOB=FILE]...     serve FILE (path relative to the cwd) for every request whose URL matches GLOB,
                                    before navigation; use to give a local page a fixture for its API route
+        [--split-hint TEXT]        the fix named when a full page is too large for one screenshot
+                                   (default "split it into smaller pages")
+
+A full page over node_playwright.SCREENSHOT_MAX_PIXELS (an area, about 527 Mpx), or one Chromium fails to capture
+or decode, fails its row with the page size and the split hint instead of a browser error; the row's PNG is then
+the viewport only, and its region checks still run.
 
 Output: DIR/<viewport>-<state>.png per row, DIR/pass-table.md, the same table on stdout.
 Exit code: 0 every row passes, 1 any row fails, 2 usage or browser-runtime error.
 
-Python 3.9+, standard library only. Browser work runs in Node Playwright, resolved from
-MOCKUP_SHOTS_NODE_MODULES, NODE_PATH, the global npm root, ./node_modules or ~/.claude/node_modules.
+Python 3.9+, standard library only. Browser work runs in Node Playwright, found by bin/node_playwright.py
+(explicit env, the current repo and its other worktrees, the global npm root, ~/.claude); when none is found it
+exits 2 and lists every place it looked.
 """
 import argparse
 import json
@@ -38,28 +45,20 @@ import sys
 import tempfile
 from pathlib import Path
 
+import node_playwright
+from node_playwright import LAUNCH_JS
+
 SETTLE_MS = 800
 MAX_ROWS = 24
 
 NODE_RUNNER = r"""
 import { createRequire } from "node:module";
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
-import { execSync } from "node:child_process";
 import { join } from "node:path";
 const job = JSON.parse(readFileSync(process.argv[2], "utf8"));
-const roots = [];
-if (process.env.MOCKUP_SHOTS_NODE_MODULES) roots.push(process.env.MOCKUP_SHOTS_NODE_MODULES);
-for (const p of (process.env.NODE_PATH || "").split(":")) if (p) roots.push(p);
-try { roots.push(execSync("npm root -g", { encoding: "utf8" }).trim()); } catch {}
-roots.push(join(process.cwd(), "node_modules"), join(process.env.HOME || "", ".claude", "node_modules"));
-let chromium = null;
-for (const r of roots) for (const pkg of ["playwright", "playwright-core"]) {
-  if (chromium) break;
-  try { chromium = createRequire(join(r, "_"))(pkg).chromium; } catch {}
-}
-if (!chromium) { console.error("SETUP: node 'playwright' not found. Set MOCKUP_SHOTS_NODE_MODULES to a node_modules dir containing it."); process.exit(2); }
+""" + LAUNCH_JS + r"""
 mkdirSync(job.outdir, { recursive: true });
-const browser = await chromium.launch();
+const browser = await launchChromium(job.playwright);
 try {
 const probe = await browser.newPage();
 // Ink share of a PNG: pixels differing from the most common colour by more than 8 on any channel, after an inset.
@@ -167,10 +166,27 @@ for (const vp of job.viewports) for (const st of job.states) {
     await page.waitForTimeout(job.settleMs);
     if (st.js) { await page.evaluate(st.js); await waitAll(); await page.waitForTimeout(job.settleMs); }
     const file = join(job.outdir, `${vp}-${st.name}.png`);
-    const png = await page.screenshot({ path: file, fullPage: true });
+    // One screenshot holds at most job.maxPixels; past it Chromium fails to capture or the PNG fails to decode,
+    // so name the page size and the fix instead of passing on a browser error.
+    const [pw, ph] = await page.evaluate(() => {
+      const d = document.documentElement, b = document.body || d;
+      return [Math.max(d.scrollWidth, b.scrollWidth), Math.max(d.scrollHeight, b.scrollHeight)];
+    });
+    const tooBig = (why) => `full page ${pw}x${ph} px (${Math.round(pw * ph / 1e6)} Mpx) ${why}: ${job.splitHint}`;
     row.file = file;
-    row.ink = await ink(png, 0);
-    if (row.ink < job.minInk) row.problems.push(`page blank (ink ${(row.ink * 100).toFixed(3)}%)`);
+    if (pw * ph > job.maxPixels) {
+      row.problems.push(tooBig(`is over the ${Math.round(job.maxPixels / 1e6)} Mpx one-screenshot limit`));
+      row.ink = await ink(await page.screenshot({ path: file }), 0);
+    } else {
+      try {
+        row.ink = await ink(await page.screenshot({ path: file, fullPage: true }), 0);
+        if (row.ink < job.minInk) row.problems.push(`page blank (ink ${(row.ink * 100).toFixed(3)}%)`);
+      } catch (e) {
+        const why = String(e.message).split("\n")[0];
+        if (!/Unable to capture screenshot|EncodingError|cannot be decoded/.test(why)) throw e;
+        row.problems.push(tooBig(`could not be captured or decoded (${why})`));
+      }
+    }
     let text = "";
     for (const f of page.frames()) { try { text += "\n" + await f.evaluate(() => document.body ? document.body.innerText : ""); } catch {} }
     row.expectMissing = job.expect.filter((s) => !text.includes(s));
@@ -261,6 +277,7 @@ def main(argv: list) -> int:
     ap.add_argument("--wait-for", action="append", default=[])
     ap.add_argument("--wait-timeout", type=int, default=30000)
     ap.add_argument("--route", action="append", default=[])
+    ap.add_argument("--split-hint", default="split it into smaller pages")
     a = ap.parse_args(argv)
     states = [{"name": "default", "js": ""}]
     for s in a.state:
@@ -299,7 +316,13 @@ def main(argv: list) -> int:
         "waitFor": a.wait_for,
         "waitTimeout": a.wait_timeout,
         "routes": routes,
+        "maxPixels": node_playwright.SCREENSHOT_MAX_PIXELS,
+        "splitHint": a.split_hint,
     }
+    job["playwright"], searched = node_playwright.find()
+    if not job["playwright"]:
+        print(node_playwright.not_found_message(searched), file=sys.stderr)
+        return 2
     with tempfile.TemporaryDirectory() as tmp:
         job_path, run_path = Path(tmp) / "job.json", Path(tmp) / "run.mjs"
         job_path.write_text(json.dumps(job), encoding="utf-8")

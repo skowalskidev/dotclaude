@@ -14,8 +14,9 @@ Exit code: 0 clean, 1 when any page error occurred or a capture names an asset i
 lacks, 2 on a usage or setup error.
 
 Python 3.9+, standard library only. Playwright for Python is not assumed: the browser work
-runs in Node Playwright (resolved from NODE_PATH, the global npm root, ./node_modules,
-~/.claude/node_modules, or MOCKUP_SHOTS_NODE_MODULES), with the spec extracted here.
+runs in Node Playwright, found by bin/node_playwright.py (explicit env, the current repo and its
+other worktrees, the global npm root, ~/.claude), with the spec extracted here. When none is found
+it exits 2 and lists every place it looked.
 """
 import json
 import subprocess
@@ -23,6 +24,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+import node_playwright
+from node_playwright import LAUNCH_JS
 from presentation_build import extract, missing_assets, resolve_assets
 
 SETTLE_MS = 1500
@@ -30,21 +33,11 @@ SETTLE_MS = 1500
 NODE_RUNNER = r"""
 import { createRequire } from "node:module";
 import { readFileSync, mkdirSync } from "node:fs";
-import { execSync } from "node:child_process";
 import { join } from "node:path";
 const job = JSON.parse(readFileSync(process.argv[2], "utf8"));
-const roots = [];
-if (process.env.MOCKUP_SHOTS_NODE_MODULES) roots.push(process.env.MOCKUP_SHOTS_NODE_MODULES);
-for (const p of (process.env.NODE_PATH || "").split(":")) if (p) roots.push(p);
-try { roots.push(execSync("npm root -g", { encoding: "utf8" }).trim()); } catch {}
-roots.push(join(process.cwd(), "node_modules"), join(process.env.HOME || "", ".claude", "node_modules"));
-let chromium = null;
-for (const r of roots) {
-  try { chromium = createRequire(join(r, "_"))("playwright").chromium; if (chromium) break; } catch {}
-}
-if (!chromium) { console.error("SETUP: node 'playwright' not found. Set MOCKUP_SHOTS_NODE_MODULES to a node_modules dir containing it."); process.exit(2); }
+""" + LAUNCH_JS + r"""
 mkdirSync(job.outdir, { recursive: true });
-const browser = await chromium.launch();
+const browser = await launchChromium(job.playwright);
 const errors = [];
 const shell = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 shell.on("pageerror", (e) => errors.push("shell: " + e.message));
@@ -116,6 +109,10 @@ def main(argv):
         print(f"not a file: {mockup}", file=sys.stderr)
         return 2
     job = build_job(extract_spec(mockup), mockup, outdir, needle)
+    job["playwright"], searched = node_playwright.find()
+    if not job["playwright"]:
+        print(node_playwright.not_found_message(searched), file=sys.stderr)
+        return 2
     with tempfile.TemporaryDirectory() as tmp:
         job_path = Path(tmp) / "job.json"
         run_path = Path(tmp) / "run.mjs"
