@@ -2269,6 +2269,26 @@ CONTRACTS: dict[str, dict] = {
             "hooks/secret-echo-guard.test.py pins both directions.",
         ],
     },
+    "hooks/process-kill-guard.py": {
+        "mission": "A session or delegated worker stopping its own work never signals another live session's processes.",
+        "purpose": "PreToolUse: denies a pattern kill (pkill, killall, pgrep fed to kill, kill -1) that selects by name or a shared command line.",
+        "criteria": [
+            "Denies pkill with a path-free pattern or without -f, pkill -f naming a shared ~/.claude/bin "
+            "tool or a system install path, pkill by user/group/terminal alone, killall with a target, "
+            "pgrep with an unscoped pattern piped or substituted into kill, and kill -1.",
+            "Allows kill <pid>, kill -- -<pgid>, pkill by pid (-F, -P, -g, -s), and pkill -f scoped to the "
+            "caller's own path: a non-shared shell variable (pkill -f \"$TMP\", which "
+            "bin/superspeed-dispatch.test.sh uses) or a literal path of two or more segments.",
+            "Judges what the shell runs through hooks/secret-echo-guard.py's parser: sh/bash -c, eval, sudo, "
+            "env and timeout prefixes, $(...), &&, ;, || and pipes; a quoted string or heredoc naming a "
+            "command never fires.",
+            "The deny reason names kill-by-own-pid, the tool's own release, references/dev-server-hygiene.md "
+            "§ Private process inspection and the override.",
+            "Overridable with CLAUDE_ALLOW_PATTERN_KILL=1 (environment or inline prefix on that command) "
+            "for a case Simon named; fails open on a malformed payload.",
+            "hooks/process-kill-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
         "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",

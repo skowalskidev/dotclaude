@@ -98,6 +98,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("secret-echo-guard-denies-printed-credentials-both-ways",
      "A Bash command that prints a credential value is denied, awkward variants included, while a consumed value, a help verb and text that names a command all pass."),
+    ("process-kill-guard-denies-pattern-kills-both-ways",
+     "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
     ("outbound-message-guard-caps-messages-to-others",
      "A Slack or Gmail send or draft over the 5-line TLDR cap is denied, while a short message, a read, a canvas, the one-shot override and the --check CLI behave as documented."),
     ("agent-setups-preserve-provider-choice",
@@ -1229,7 +1231,8 @@ def check_routing_hooks_fire_for_the_tools_they_target() -> None:
             check(hook_name in fired, f"{case['tool']}: `decides` names {hook_name}, which does not fire.")
             payload = json.dumps({"hook_event_name": case["event"], "tool_name": case["tool"],
                                   "tool_input": case.get("tool_input", {})})
-            env = {k: v for k, v in os.environ.items() if k != "CLAUDE_TEST_VIEWPORT_MAX_H"}
+            env = {k: v for k, v in os.environ.items()
+                   if k not in ("CLAUDE_TEST_VIEWPORT_MAX_H", "CLAUDE_ALLOW_PATTERN_KILL")}
             result = subprocess.run([str(ROOT / "hooks" / hook_name)], input=payload, text=True,
                                     capture_output=True, timeout=20, env=env)
             try:
@@ -1587,6 +1590,16 @@ def check_secret_echo_guard_denies_printed_credentials_both_ways() -> None:
     result = run(["python3", str(ROOT / "hooks/secret-echo-guard.test.py")])
     check(result.returncode == 0,
           f"Secret-echo guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_process_kill_guard_denies_pattern_kills_both_ways() -> None:
+    settings_cmds = [h.get("command", "") for g in settings().get("hooks", {}).get("PreToolUse", [])
+                     if g.get("matcher") == "Bash" for h in g.get("hooks", [])]
+    check(any(c.endswith("hooks/process-kill-guard.py") for c in settings_cmds),
+          "settings.json must wire hooks/process-kill-guard.py on the Bash PreToolUse matcher.")
+    result = run(["python3", str(ROOT / "hooks/process-kill-guard.test.py")])
+    check(result.returncode == 0,
+          f"Process-kill guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_outbound_message_guard_caps_messages_to_others() -> None:

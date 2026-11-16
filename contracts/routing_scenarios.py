@@ -367,7 +367,24 @@ SCENARIOS: list[dict] = [
 HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Bash",
      "expect": ["work-resource-guard.sh",
-                "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py"]},
+                "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py",
+                "process-kill-guard.py"]},
+    # The process-kill guard: a pattern kill that can signal other sessions' processes is denied;
+    # a kill by pid or a pkill -f scoped to the caller's own path passes
+    # (references/dev-server-hygiene.md § Private process inspection).
+    *({"event": "PreToolUse", "tool": "Bash",
+       "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
+                  "secret-echo-guard.py", "process-kill-guard.py"],
+       "tool_input": {"command": command}, "decides": {"process-kill-guard.py": decision}}
+      for command, decision in (
+          ('pkill -f "local-capacity.py run"', "deny"),
+          ("pkill node", "deny"),
+          ("killall node", "deny"),
+          ("bash -c 'pkill -f vitest'", "deny"),
+          ("cd /tmp && sudo pkill -f vitest", "deny"),
+          ('pkill -f "$TMP" 2>/dev/null', "allow"),
+          ("kill 12345", "allow"),
+      )),
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},
     # chrome-devtools tools fire the mcp__.* work guard (emulate also its viewport guard, below);

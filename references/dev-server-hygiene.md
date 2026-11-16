@@ -686,6 +686,9 @@ When exact arguments are required for an existing ownership check, capture them 
 checker and emit only the match verdict and safe metadata; never weaken that check to a name match.
 Before signalling, verify the launch receipt, start time, parent/group and cwd against this task;
 a name match alone proves neither ownership nor abandonment. Preserve other live sessions.
+Signal by pid (`kill <pid>`, `$!`) or the tool's own release; `hooks/process-kill-guard.py` denies a
+pattern kill (`pkill node`, `pkill -f vitest`, a shared lease wrapper's command line, `killall`) unless
+scoped to your own path.
 TEST: zero argument/environment values in inspection output; every stopped PID has current
 ownership evidence or passes the existing orphan-cleanup gate.
 

@@ -30,7 +30,8 @@ WHAT IT ALLOWS (USING a value is fine; only an unconsumed print is denied):
 It parses the command (quotes, `$(...)`, backticks, pipelines, `sh -c`, `eval`, command prefixes)
 instead of matching raw text, so awkward spacing, an absolute path, `&&` chains and `sh -c '...'`
 are judged by what the shell would RUN. Fails OPEN on anything malformed or unparsed: a guard that
-breaks the session gets switched off. No override variable: if the user wants a value printed they run
+breaks the session gets switched off. hooks/process-kill-guard.py reuses parse, effective and
+shell_body, so keep their signatures. No override variable: if the user wants a value printed they run
 the command in their own terminal.
 """
 
