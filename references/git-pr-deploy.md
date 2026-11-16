@@ -273,6 +273,16 @@ per-check conclusions (`gh pr view <n> --json statusCheckRollup`): every require
 FAILURE/PENDING/incomplete.
 **DON'T trust a truncated summary.** A `SKIPPED:3,SUCC…` glance hid a `test-unit-serverless FAILURE`
 and the red PR merged; a merge on red CI breaks the default branch for everyone.
+**DO re-read three facts per PR on the SAME turn as any merge or readiness claim** ("you can merge",
+"ready to deploy", "nothing will break"): `gh pr view <n> --json mergeable,mergeStateStatus,headRefOid`
+reads `MERGEABLE`; `bin/pr-ci-wait.py --repo <owner/name> --pr <n> --once` exits 0 on that head; and
+after `git fetch origin`, `git rev-list --count <headRefOid>..origin/<default>` is 0, or every
+default-branch commit the head lacks was checked against the repo's ordering gates (e.g. a base
+migration timestamped after the PR's, so the deploy refuses the PR's older one).
+**DON'T answer from a read made on an earlier turn:** the default branch moves and a PR goes
+`CONFLICTING` with no push of its own. Any fact not re-read this turn is UNKNOWN, and the claim names it.
+TEST: each readiness claim cites the three reads, all made this turn (the fix for "nothing will
+break" said from a 3-day-old read while one PR conflicted and the base carried newer migrations).
 
 **DO re-verify the ASSEMBLED result when several PRs touching the same file merge together.** Each
 PR's own CI is green against its base, not against the others: a textual auto-merge can duplicate a
