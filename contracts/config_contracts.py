@@ -718,6 +718,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
             "CI and merge watchers judge the newest run per check, read an empty conclusion as pending, exit distinctly on CONFLICTING and end with their own verdict inside the background tool's cap.",
             "Glob-like flag values are quoted, and a zsh glob that may match nothing carries (N) or runs under null_glob, so one empty glob never aborts a command with literal paths.",
+            "A loop over multi-word items runs inside bash -c or splits an array, never set -- on a zsh scalar; macOS sed alternation uses one -e per alternative or -E, never \\| in a basic regex.",
             "Before mounting a shared part at a new call site, read every existing caller (above 10, every caller passing the same props) and copy its wrappers, frames, providers, props, layout context and events; the PR names the mirrored caller or states the difference and its reason.",
             "Owns the industry-naming method: research online, tally at least 4 major vendors' own pages, take the majority, name a split's holdout, mark a name unverified when research is impossible, never one vendor's brand.",
             "Holds the version-pinning detail (.nvmrc, engines floor, toolchain quirks, peer ceilings); rules/engineering-standards.md keeps the latest-stable default.",

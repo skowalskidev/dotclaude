@@ -165,12 +165,19 @@ even inside double quotes, and rewrites the value with no error. This hits git r
 `${c:r}efs/...` and git rejected with `src refspec <sha>efs/... does not match any`).
 TEST: no `$name:` without braces in the command.
 
-**DON'T keep a command or a word list in a scalar variable.** zsh does not word-split an unquoted `$var`:
-`L="lockf -k …"; $L xcodebuild` exits 127, `sed -i … $files` receives the whole list as one path, and
-`for p in $ids` runs once. Write the command out or use a function; hold a list in an array, expand
-it with `${=var}`, or pipe a NUL-separated producer into `xargs -0`.
-TEST: no `$VAR` in command position, and no scalar holding several words is expanded as arguments or
-a loop list.
+**DON'T keep a command or a word list in a scalar variable, or split one with `set -- $var`.** zsh does
+not word-split an unquoted `$var`: `L="lockf -k …"; $L xcodebuild` exits 127, `sed -i … $files`
+receives the whole list as one path, `for p in $ids` runs once, and `for pair in "a b" "c d"; do set --
+$pair` sets `$1` to the whole pair and `$2` to nothing. Write the command out or use a function; hold a
+list in an array, expand it with `${=var}`, or pipe a NUL-separated producer into `xargs -0`. Run a loop
+over multi-word items inside `bash -c '…'` (the fix for a rename loop whose `git mv` never ran).
+TEST: no `$VAR` in command position, and no scalar holding several words is expanded as arguments, a
+loop list or a `set --` list outside `bash -c`.
+
+**DO give macOS `sed` one `-e` per alternative, or `-E` with a bare `|`:** `sed -i '' -e '/a/d' -e
+'/b/d'`. BSD `sed` reads `\|` in a basic regex as a literal pipe, so `sed -i '' '/a\|b/d'` deletes
+nothing and exits 0 (the fix for a manifest regen whose stale lines survived).
+TEST: zero `\|` in a `sed` pattern meant as alternation.
 
 **DO quote a glob-like flag value (`--include='*.ts'`) and give every glob that may match nothing the
 `(N)` qualifier (`x*.md(N)`), or run it in `zsh -c 'setopt null_glob; …'` or `bash -c 'shopt -s
