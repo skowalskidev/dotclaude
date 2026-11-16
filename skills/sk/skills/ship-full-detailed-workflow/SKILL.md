@@ -111,6 +111,16 @@ tickets; a fix that belongs to another PR is handed to that owner via
    stages are separate facts. TEST: every gate record and hand-back for the run holds `All stages ran`
    or a `Not run:` list matching the stages actually skipped (the fix for a Deep BLOCKED naming only an
    unmerged base PR while merge readiness, the full matrix and ship-report never ran).
+   **DO record a Standard or Deep PASS only with `All stages ran`;** a `Not run:` list means BLOCKED,
+   and a stage the tier itself skips goes in the tier's skip line (`skipped: <stages>`), never under
+   `Not run:`. The gate refuses a PASS holding `Not run:` or "ran on an earlier head".
+   **DO rerun every remaining required stage on the new head, unprompted, before hand-back, after any
+   new push or merge of the base into the branch:** a stage's result counts only for the head it ran
+   on. Reuse proof only where `rules/process.md` § Fan out verification allows it, and invoke each
+   rerun stage as its own skill. **DON'T hand back offering to run them,** or with a PASS for an older
+   head. TEST: every Standard or Deep PASS at hand-back names the final pushed head and holds
+   `All stages ran` with no `Not run:` (the fix for PASS records reading "Not run: merge readiness,
+   ship-report, screenshots (ran on earlier heads)" until Simon typed the harness command himself).
 
 **Running the stages on a multi-layer PR:** fix rounds follow `references/parallelization.md` §
 "Parallelize verification, not just agents": the contract page first, every layer in one batch, the

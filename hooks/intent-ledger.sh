@@ -35,8 +35,9 @@
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
 #         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]
 #                                 called by the model — record the landing-gate result for that head;
-#                                 a standard or deep PASS/BLOCKED reason holds "All stages ran" or
-#                                 "Not run: <stage>, <stage>" (exit 2 otherwise);
+#                                 a standard or deep BLOCKED reason holds "All stages ran" or
+#                                 "Not run: <stage>, <stage>"; a standard or deep PASS reason holds
+#                                 "All stages ran" and no "Not run:" list (exit 2 otherwise);
 #                                 PASS for a branch with an open PR records only when
 #                                 bin/pr-landing-gate.py passes on the fetched PR and
 #                                 bin/pr-ci-wait.py --once finds every check green on <sha>
@@ -389,7 +390,7 @@ Mechanics: ~/.claude/references/planning-and-tracking.md. The Stop hook checks f
 after the newest recorded input. After a push to a non-default branch, run /sk:ship-full-detailed-workflow
 on it and record the result with
   ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
-(a standard or deep reason holds \"All stages ran\" or \"Not run: <stage>, <stage>\")
+(a standard or deep PASS holds \"All stages ran\"; a BLOCKED holds it or \"Not run: <stage>, <stage>\")
 or Stop blocks once for the missing gate."
   jq -cn --arg c "GAUNTLET UPDATE: read the new ask in $target and the existing living plan. Apply \
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
@@ -549,6 +550,18 @@ gate)
   if [ "$status" = PASS ] && [ -z "$reason" ] && { [ "$tier" = light ] || [ "$tier" = standard ]; }; then
     echo "gate: a $tier PASS needs a reason: its trigger and the stages it skipped" >&2; exit 2
   fi
+  # A standard or deep PASS means every stage the tier requires ran as its own skill on this head.
+  # "Not run:" lists required stages, so it belongs to BLOCKED only; a stage the tier itself skips
+  # goes in the tier's skip line ("skipped: <stages>"), never under "Not run:".
+  if { [ "$tier" = standard ] || [ "$tier" = deep ]; } && [ "$status" = PASS ]; then
+    lower="$(printf '%s' "$reason" | tr '[:upper:]' '[:lower:]')"
+    case "$lower" in *"not run:"*|*"ran on earlier head"*|*"ran on an earlier head"*|*"ran on an older head"*)
+      echo "gate: a $tier PASS refused: its reason lists stages that did not run on this head. Invoke \
+each one as its own skill on this head (/sk:ship-full-detailed-workflow), then record PASS with \
+\"All stages ran\"; or record BLOCKED with the \"Not run:\" list. A stage the tier skips goes \
+in \"skipped: <stages>\", not \"Not run:\"." >&2; exit 2 ;;
+    esac
+  fi
   # A standard or deep result names every stage not invoked as its own skill on this head, so an
   # unrun stage cannot hide behind BLOCKED or PASS. N/A and light keep their own reason rules.
   if { [ "$tier" = standard ] || [ "$tier" = deep ]; } && [ "$status" != N/A ]; then
@@ -678,9 +691,10 @@ Before finishing, run /sk:ship-full-detailed-workflow on each at its tier (refer
 Size the checks to the change; rules/process.md, Prove every point of the ask was built), then record it:
   ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
 BLOCKED, N/A and a light or standard PASS need a reason: the exact blocker, why the harness does not \
-apply to this push, or the tier's trigger and skipped stages. A standard or deep PASS or BLOCKED \
+apply to this push, or the tier's trigger and skipped stages. A standard or deep BLOCKED \
 reason holds \"All stages ran\" or \"Not run: <stage>, <stage>\" naming each stage not invoked as its own \
-skill on that head; run every stage the tier requires first, even when an external blocker makes it BLOCKED. A gate \
+skill on that head; a standard or deep PASS holds \"All stages ran\" and is refused with any \"Not run:\" list. \
+Run every stage the tier requires first, on the newest head, unprompted, even when an external blocker makes it BLOCKED. A gate \
 recorded for an older head does not count once a newer head is pushed. This fires at most once per set of open pushes."
   jq -cn --arg r "$msg" '{decision:"block",reason:$r}'
   exit 0

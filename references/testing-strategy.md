@@ -32,7 +32,9 @@ below a trigger present in the diff, name that trigger once and run what he name
 **DO record the tier, its trigger and every skipped stage, in one line each,** in the PR body's
 `## Test matrix` section (each skipped section's heading stays, holding `Skipped (tier light): <trigger>`)
 and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`;
-a Standard or Deep reason names them as `Not run: <stages>` or states `All stages ran`.
+a Standard or Deep BLOCKED reason names its unrun required stages as `Not run: <stages>` or states
+`All stages ran`; a Standard or Deep PASS states `All stages ran` and the gate refuses one with a
+`Not run:` list (a tier-skipped stage goes in the `skipped:` line, never under `Not run:`).
 **DON'T skip a stage silently, or drop the gates every tier keeps:** CI and required hooks, the gate
 list in § Defects first, § Regression check, PR feedback handling, the Deploy TLDR, read-only production, spend approval
 (`rules/spend-approval.md`) and `references/git-pr-deploy.md` § Prod check after every production deploy.

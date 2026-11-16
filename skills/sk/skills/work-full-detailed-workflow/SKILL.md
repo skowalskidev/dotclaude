@@ -130,7 +130,9 @@ current, reconcile against it.
     run opened or pushed to, before hand-back, without Simon asking. Hand it steps 7-9's evidence for
     the same head; it reruns only what later fixes changed. Record each PR's landing-gate result with
     `hooks/intent-ledger.sh gate`. End state: the PR is ready for review, CI is green on its head, the
-    landing gate is PASS and the hand-back names it for Simon to merge; merge stays his ask. Record N/A
+    landing gate is PASS and the hand-back names it for Simon to merge; merge stays his ask. After any
+    later push or base merge, rerun the harness's remaining required stages on the new head, unprompted,
+    before hand-back; never offer to run them. Record N/A
     only when the run changed no tracked file; a local-only commit is never a finished change task.
     When another supervisor composes this skill per ask or slice, return the result and leave this
     stage to that supervisor, recorded as N/A naming it. Once Simon merges, watch the deploy through

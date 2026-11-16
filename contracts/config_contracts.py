@@ -1224,6 +1224,7 @@ CONTRACTS: dict[str, dict] = {
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
             "Require every CI check on the recorded head green at the landing gate; a check failing by design is a finding to fix in that PR, never a PASS reason.",
             "Invoke every stage the tier requires as its own skill before recording the gate, even when an external blocker makes it BLOCKED; every gate reason and hand-back names each unrun stage as 'Not run: <stage>, <stage>' or states 'All stages ran', so a BLOCKED or PASS never hides an unrun stage.",
+            "Record a Standard or Deep PASS only with 'All stages ran', never with a 'Not run:' list or a stage that ran on an earlier head; after any new push or base merge, rerun every remaining required stage on the new head unprompted before hand-back and never offer to run them.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
             "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
             "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head; a Deep PR's matrix runs them.",
@@ -2338,7 +2339,8 @@ CONTRACTS: dict[str, dict] = {
             "branch in session state, and records nothing for main or master, a delete, tags, a repo inside "
             "the config repo, or a delegated worker. `gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]` "
             "appends the result to the ledger (BLOCKED, N/A and a light or standard PASS need a reason; a standard or deep "
-            "PASS or BLOCKED is refused with exit 2 unless its reason holds 'All stages ran' or 'Not run:', while N/A and light "
+            "PASS or BLOCKED is refused with exit 2 unless its reason holds 'All stages ran' or 'Not run:', a standard or deep PASS "
+            "is refused with exit 2 when its reason holds 'Not run:' or names a stage run on an earlier head, while N/A and light "
             "keep their own rules). Stop blocks once per set of "
             "open pushes, also on a stop_hook_active continuation, until each branch's newest pushed head has "
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "

@@ -1504,6 +1504,22 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "A deep N/A was held to the stage statement.")
         check(gate("feature/x", "HEAD", "PASS", "deep", "All stages ran").returncode == 0,
               "A deep PASS stating all stages ran was not recorded.")
+        # A standard or deep PASS lists no unrun required stage: "Not run:" is BLOCKED's list, and a
+        # stage the tier skips goes in its skip line (the fix for a Deep PASS reading "Not run:
+        # merge readiness, ship-report, screenshots (ran on earlier heads)").
+        for tier, reason in (("deep", "Not run: sk:ship-check-merge-readiness, sk:ship-screenshot-changes (ran on earlier heads)"),
+                             ("deep", "All stages ran; Not run: sk:ship-report-and-ensure-correct-user-system-journey"),
+                             ("standard", "one feature; skipped: full matrix; not run: sk:ship-review"),
+                             ("deep", "All stages ran (screenshots ran on an earlier head)")):
+            r = gate("feature/x", "HEAD", "PASS", tier, reason)
+            check(r.returncode == 2 and "PASS refused" in r.stderr,
+                  "A %s PASS listing an unrun required stage was accepted: %s" % (tier, reason))
+        check(gate("feature/x", "HEAD", "PASS", "standard",
+                   "one feature; All stages ran; skipped: full matrix, multi-model review").returncode == 0,
+              "A standard PASS with all stages ran and the tier's skip line was not recorded.")
+        check(gate("feature/x", "HEAD", "BLOCKED", "deep",
+                   "CI red; Not run: sk:ship-check-merge-readiness, sk:ship-screenshot-changes").returncode == 0,
+              "A deep BLOCKED with a Not run list was not recorded.")
         tiered = (repo / ".context" / "intent-ledger.md").read_text()
         check("PASS light one-cell style; skipped: matrix, prod data" in tiered
               and " PASS deep All stages ran\n" in tiered and "BLOCKED deep base PR not merged; Not run: x" in tiered,
