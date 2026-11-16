@@ -5,10 +5,14 @@
 Every message sent for Simon. Example, WHYs, pre-send check: `references/tldr-report-formats.md`.
 **DO make line 1 `Action needed: <the exact thing>` whenever ANYTHING waits on Simon (a test, a merge
 word, a decision, a login, a reply), even on a status-only message and even if an earlier message
-asked: repeat it. `No action needed` only when nothing at all waits on him. With several, line 1 reads
+asked: repeat it in every reply to Simon. `No action needed` only when nothing at all waits on him. With several, line 1 reads
 `Action needed (2): <first>`; then one bullet per distinct issue or outcome, then ONE end block
 (`Questions` or `Your call`) with each ask as a numbered step naming the exact thing and its
-link, URL or command.** Use AskUserQuestion for a fork. **DO label an item waiting on Claude or CI
+link, URL or command.** Use AskUserQuestion for a fork. **DO answer a turn started by a background event (task notification, monitor expiry, Stop-hook
+feedback) with no new outcome, decision or ask with nothing, or one line naming the new fact.**
+**DON'T re-print the unchanged block there;** it returns on Simon's message, a changed ask or a real
+outcome. The plan and ledger keep the ask.
+**DO label an item waiting on Claude or CI
 `nothing needed from you`.** DON'T leave a pending ask only in a trailing status list.
 **DO write a message for anyone but Simon, or a draft he sends as himself: ask on line 1, at most
 5 lines, no preamble.**
@@ -16,7 +20,8 @@ NUMBER: per message, however many parts it answers: at most 5 bullets and 5 step
 at most 20 words.
 **DON'T** write prose paragraphs, background that does not change the action, a preamble, a recap, a
 closing summary, a mid-body question or an empty questions block.
-TEST: line 1 is `Action needed: …` or `No action needed`; a body naming a pending item on Simon
+TEST: two assistant messages with no Simon message between never carry the same block (the fix for 7
+repeats on idle notifications); line 1 is `Action needed: …` or `No action needed`; a body naming a pending item on Simon
 ("say merge", "your retest", "your call", "after your") under `No action needed` fails; each pending
 ask is a numbered step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for
 someone else has at most 5 lines.
@@ -31,12 +36,9 @@ someone else has at most 5 lines.
 **DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
 PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply. End with `Action needed` and its numbered asks. After merge and deploy, stop only once production is proven live
 (`references/planning-and-tracking.md` § Close the session).
-TEST: a finished session's last message has the archive line and at most 2 optional follow-ups;
-the line with work running, an unmerged PR or an item unverdicted fails (full list:
-`references/tldr-report-formats.md` § Close-session TEST).
+TEST: `references/tldr-report-formats.md` § Close-session TEST.
 
 ## Five rules for anything you write
-
 
 **DO state the expected result.** "Run X, expect Y."
 **DON'T** write an instruction with no stated outcome.
@@ -46,11 +48,8 @@ the line with work running, an unmerged PR or an item unverdicted fails (full li
 
 **DO rest a sent "never", "same day" or "ready to merge" claim on complete reads:** `references/code-best-practices.md` § Claims from complete reads.
 
-**DO get mechanically anything you can get mechanically.**
-**DON'T** ask him to paste a log, a version, or a file you can read yourself.
-
-**DO report a success in one line and move on.**
-**DON'T** celebrate, and don't recap what you just did.
+**DO get mechanically what you can** (a log, a version, a file) and **report a success in one line.**
+**DON'T** ask him to paste what you can read, celebrate or recap.
 
 **DO show a proposed visible change as a before/after screenshot in the same reply, unprompted.**
 Fast path: `/sk:work-ask-reply-in-full-before-after-artifact`.
@@ -61,13 +60,8 @@ Fast path: `/sk:work-ask-reply-in-full-before-after-artifact`.
 **DO state the industry-standard term once, with one primary source, in the first reply of the work**
 when Simon calls a thing by a loose or non-standard name; use it from then on unless he keeps his.
 **DON'T adopt his term silently and raise the standard one only when he asks.**
-Method: `references/code-best-practices.md` § Use the industry's name.
-TEST: the reply naming the standard term and its source comes before the first artifact named.
+Method: `references/code-best-practices.md` § Use the industry's name. TEST: its reply precedes the first artifact.
 
 ## A pasted example shows intent, not a spec
 
-**DO read a concrete prompt or example Simon pastes as an illustration of the intent, and act on the
-rule behind it — not the example's specifics.**
-**DON'T build the example verbatim, and DON'T ask him to confirm its specifics.**
-TEST: a reply that treats a value from his example as a literal requirement, or asks him to confirm
-one, broke the rule.
+**DO act on the rule behind a pasted example, never its specifics.** TEST: `references/tldr-report-formats.md` § Pasted example.

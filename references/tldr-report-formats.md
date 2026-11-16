@@ -242,6 +242,16 @@ testing?"; the diff already answers it.
 TEST: a change that reaches a payment path hands back this line and table, and a row exists for every
 entry the diff changed (the fix for a hand-back that left the paywall question for Simon to ask).
 
+## Background-event turns
+
+A task notification, an expiring monitor and a Stop-hook feedback turn start a turn Simon did not write.
+When it brings no new outcome, decision or ask, the reply is empty or one line naming the new fact. The
+full block returns on his next message, a changed ask, or a real outcome (verdict, merge, failure). The
+pending ask stays in the plan and ledger, and the last message after his own turn carries it. A Stop-hook
+reconcile turn records the ledger note and sends no restatement. TEST: two assistant messages with no
+Simon message between never carry the same `Your call` block (the fix for 7 copies of one merge ask sent
+on idle agent pings and monitor expiries).
+
 ## Close-session TEST (moved from `rules/communication.md`)
 
 A finished session's last message has the archive line, at most 2 optional follow-ups, and no
@@ -252,3 +262,11 @@ with no prod evidence.
 Also moved from the close-session rule: stop once CI is green, deployed and a smoke on what can be
 reached passed; ask no new question at hand-back unless only Simon can decide it and it blocks the
 outcome. The five writing rules govern content and apply equally to subagent prompts.
+
+## Pasted example (moved from `rules/communication.md`)
+
+**DO read a concrete prompt or example Simon pastes as an illustration of the intent, and act on the
+rule behind it — not the example's specifics.**
+**DON'T build the example verbatim, and DON'T ask him to confirm its specifics.**
+TEST: a reply that treats a value from his example as a literal requirement, or asks him to confirm
+one, broke the rule.
