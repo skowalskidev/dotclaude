@@ -198,6 +198,9 @@ TEST: the output names every failed or partial read, and each absence or timing 
 channels and rests on no UNKNOWN read (the fix for dispute evidence filed as "never asked us for a
 refund" while the support inbox was unread, and "we replied that day" about a reply sent before the
 request; a gatherer whose failed reads became empty lists had nearly done the same).
+**DO treat a merge or deploy-readiness claim as a timing claim:** re-read its PR state on the same turn,
+per `references/git-pr-deploy.md` § Merging to the default branch.
+
 ### Naming — the reader must not have to open the implementation
 
 Applies to anything someone else reads to decide what a thing does: variables, functions, files,
