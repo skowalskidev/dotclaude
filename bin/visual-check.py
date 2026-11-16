@@ -28,7 +28,10 @@ Usage:
 
 A full page over node_playwright.SCREENSHOT_MAX_PIXELS (an area, about 527 Mpx), or one Chromium fails to capture
 or decode, fails its row with the page size and the split hint instead of a browser error; the row's PNG is then
-the viewport only, and its region checks still run.
+the viewport only, and its region checks still run. Under that area Chromium can still return a full-size PNG painted
+only partway down, with no error; a flat bottom band at least a viewport (and 1024 px) tall is re-captured in clipped tiles,
+and the tiled PNG replaces it when it shows content lower down, noted in the row's result. If the re-capture fails, the
+row gets a warning note naming the flat band and the split hint; neither note fails a row.
 
 Output: DIR/<viewport>-<state>.png per row, DIR/pass-table.md, the same table on stdout.
 Exit code: 0 every row passes, 1 any row fails, 2 usage or browser-runtime error.
@@ -53,8 +56,10 @@ MAX_ROWS = 24
 
 NODE_RUNNER = r"""
 import { createRequire } from "node:module";
-import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { readFileSync, mkdirSync, writeFileSync, openSync, writeSync, closeSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { createDeflate, inflateSync } from "node:zlib";
+import { once } from "node:events";
 const job = JSON.parse(readFileSync(process.argv[2], "utf8"));
 """ + LAUNCH_JS + r"""
 mkdirSync(job.outdir, { recursive: true });
@@ -62,7 +67,8 @@ const browser = await launchChromium(job.playwright);
 try {
 const probe = await browser.newPage();
 // Ink share of a PNG: pixels differing from the most common colour by more than 8 on any channel, after an inset.
-async function ink(png, inset) {
+// flatFrom is the first row of the bottom band whose every pixel is within 8 of the bottom-right pixel (height when none).
+async function inkScan(png, inset) {
   return await probe.evaluate(async ([b64, inset]) => {
     const img = new Image();
     img.src = "data:image/png;base64," + b64;
@@ -76,6 +82,9 @@ async function ink(png, inset) {
     const c = document.createElement("canvas"); c.width = Math.min(tile, cw); c.height = Math.min(tile, ch);
     const g = c.getContext("2d");
     if (!g) throw new Error("ink canvas context unavailable");
+    g.drawImage(img, x0 + cw - 1, y0 + ch - 1, 1, 1, 0, 0, 1, 1);
+    const [rr, rg, rb] = g.getImageData(0, 0, 1, 1).data;
+    let lastVaried = -1;
     const counts = new Map();
     for (let ty = 0; ty < ch; ty += tile) for (let tx = 0; tx < cw; tx += tile) {
       const tw = Math.min(tile, cw - tx), th = Math.min(tile, ch - ty);
@@ -86,6 +95,7 @@ async function ink(png, inset) {
       for (let y = 0; y < th; y++) for (let x = 0; x < tw; x++) {
         const i = (y * tw + x) * 4, pos = (ty + y) * cw + tx + x;
         const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+        if (ty + y > lastVaried && (Math.abs(d[i] - rr) > 8 || Math.abs(d[i + 1] - rg) > 8 || Math.abs(d[i + 2] - rb) > 8)) lastVaried = ty + y;
         const entry = counts.get(k);
         if (entry) { entry.n++; entry.first = Math.min(entry.first, pos); }
         else counts.set(k, { n: 1, first: pos });
@@ -99,8 +109,92 @@ async function ink(png, inset) {
     const mr = mode >> 16, mg = (mode >> 8) & 255, mb = mode & 255;
     let diff = 0;
     for (const [k, entry] of counts) if (Math.abs((k >> 16) - mr) > 8 || Math.abs(((k >> 8) & 255) - mg) > 8 || Math.abs((k & 255) - mb) > 8) diff += entry.n;
-    return diff / (cw * ch);
+    return { share: diff / (cw * ch), flatFrom: lastVaried + 1, height: ch };
   }, [png.toString("base64"), inset]);
+}
+async function ink(png, inset) { return (await inkScan(png, inset)).share; }
+// PNG plumbing for a tiled capture: 8-bit, non-interlaced, as Chromium writes it.
+const PNG_SIG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+const CRC = new Int32Array(256).map((_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c; });
+function pngChunk(fd, kind, data) {
+  const head = Buffer.alloc(8), tail = Buffer.alloc(4);
+  head.writeUInt32BE(data.length); head.write(kind, 4, "latin1");
+  let c = -1;
+  for (const b of [head.subarray(4), data]) for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 255] ^ (c >>> 8);
+  tail.writeUInt32BE((c ^ -1) >>> 0);
+  writeSync(fd, head); writeSync(fd, data); writeSync(fd, tail);
+}
+function pngParts(buf) {
+  const idat = [];
+  let head = null;
+  for (let i = 8; i + 8 <= buf.length;) {
+    const n = buf.readUInt32BE(i), kind = buf.toString("latin1", i + 4, i + 8);
+    if (kind === "IHDR") head = buf.subarray(i + 8, i + 21);
+    else if (kind === "IDAT") idat.push(buf.subarray(i + 8, i + 8 + n));
+    i += 12 + n;
+  }
+  if (!head) throw new Error("tile is not a PNG");
+  return { w: head.readUInt32BE(0), h: head.readUInt32BE(4), depth: head[8], ct: head[9], il: head[12], head, raw: inflateSync(Buffer.concat(idat)) };
+}
+// Capture the full page as clipped tiles of `rows` rows and join their scanlines into one PNG at `file`, without decoding
+// pixels: a scanline is filtered only against the row above it inside its own tile, so each tile's first row is rewritten
+// unfiltered. Returns the tile count.
+async function captureTiles(page, file, w, h, rows) {
+  const fd = openSync(file, "w"), deflate = createDeflate();
+  let ct = null, n = 0;
+  try {
+    for (let y = 0; y < h; y += rows) {
+      const th = Math.min(rows, h - y);
+      const t = pngParts(await page.screenshot({ fullPage: true, clip: { x: 0, y, width: w, height: th } }));
+      const bpp = { 0: 1, 2: 3, 4: 2, 6: 4 }[t.ct];
+      if (t.w !== w || t.h !== th || t.depth !== 8 || t.il !== 0 || !bpp || (ct !== null && t.ct !== ct)) {
+        throw new Error(`tile at y=${y} came back ${t.w}x${t.h}, depth ${t.depth}, colour type ${t.ct}, interlace ${t.il}`);
+      }
+      if (ct === null) {
+        ct = t.ct;
+        const ihdr = Buffer.from(t.head);
+        ihdr.writeUInt32BE(h, 4);
+        writeSync(fd, PNG_SIG);
+        pngChunk(fd, "IHDR", ihdr);
+        deflate.on("data", (c) => pngChunk(fd, "IDAT", c));
+      }
+      const f = t.raw[0], row = t.raw.subarray(1, 1 + w * bpp);
+      // With no row above, Sub and Paeth predict from the left pixel, Average from half of it, Up from zero.
+      if (f === 1 || f === 4) for (let x = bpp; x < row.length; x++) row[x] = (row[x] + row[x - bpp]) & 255;
+      else if (f === 3) for (let x = bpp; x < row.length; x++) row[x] = (row[x] + (row[x - bpp] >> 1)) & 255;
+      t.raw[0] = 0;
+      if (!deflate.write(t.raw)) await once(deflate, "drain");
+      n++;
+    }
+    const done = once(deflate, "end");
+    deflate.end();
+    await done;
+    pngChunk(fd, "IEND", Buffer.alloc(0));
+  } finally { closeSync(fd); }
+  return n;
+}
+// Chromium can return a full-page PNG at the right size whose lower part is one flat colour, with no error, while the page
+// has content there (a 3866x83332 page came back painted to about y=32500). A flat bottom band at least a viewport tall
+// (and 1024 px) is therefore re-captured in tiles of at most TILE_PIXELS; the tiled PNG replaces the one-shot PNG only when
+// it shows content lower down, so a page that really ends in empty space keeps its PNG and gets no note.
+const TILE_PIXELS = 32e6;
+async function fullPageShot(page, file, viewportH, splitHint, tileRows) {
+  const shot = await page.screenshot({ path: file, fullPage: true });
+  const scan = await inkScan(shot, 0), w = shot.readUInt32BE(16), h = shot.readUInt32BE(20);
+  if (h - scan.flatFrom < Math.max(viewportH, 1024)) return { scan, note: "" };
+  const tiled = file.replace(/\.png$/, "") + ".tiled.png";
+  const rows = tileRows || Math.max(256, Math.min(8192, Math.floor(TILE_PIXELS / w)));
+  try {
+    const n = await captureTiles(page, tiled, w, h, rows);
+    const again = await inkScan(readFileSync(tiled), 0);
+    if (again.flatFrom <= scan.flatFrom + 64) { rmSync(tiled); return { scan, note: "" }; }
+    renameSync(tiled, file);
+    return { scan: again, note: `Chromium cut the full-page capture at y=${scan.flatFrom} of ${h} px; the PNG and page ink come from ${n} tiles` };
+  } catch (e) {
+    rmSync(tiled, { force: true });
+    return { scan, note: `warning: the full-page PNG is one flat colour from y=${scan.flatFrom} to ${h} px and the tiled re-capture failed `
+      + `(${String(e.message).split("\n")[0]}); if the page has content there, the PNG and page ink cover only the top (region checks still ran). Fix: ${splitHint}` };
+  }
 }
 // Why an element is not fully visible, or "" when it is: size, hiding, document bounds, clipping ancestors, own clipped content.
 // getBoundingClientRect is viewport-relative: compare it to document bounds only after adding the window scroll offset,
@@ -128,7 +222,7 @@ const clipped = (el) => {
 };
 const rows = [];
 for (const vp of job.viewports) for (const st of job.states) {
-  const row = { viewport: vp, state: st.name, problems: [], regions: 0, clipped: 0, minRegionInk: null, ink: 0, expectMissing: [] };
+  const row = { viewport: vp, state: st.name, problems: [], notes: [], regions: 0, clipped: 0, minRegionInk: null, ink: 0, expectMissing: [] };
   const [w, h] = vp.split("x").map(Number);
   // reducedMotion: entrance animations finish at once, so a screenshot never catches a mid-fade frame.
   const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1, reducedMotion: "reduce" });
@@ -179,7 +273,9 @@ for (const vp of job.viewports) for (const st of job.states) {
       row.ink = await ink(await page.screenshot({ path: file }), 0);
     } else {
       try {
-        row.ink = await ink(await page.screenshot({ path: file, fullPage: true }), 0);
+        const shot = await fullPageShot(page, file, h, job.splitHint);
+        row.ink = shot.scan.share;
+        if (shot.note) row.notes.push(shot.note);
         if (row.ink < job.minInk) row.problems.push(`page blank (ink ${(row.ink * 100).toFixed(3)}%)`);
       } catch (e) {
         const why = String(e.message).split("\n")[0];
@@ -259,6 +355,8 @@ def table(rows: list, out: Path) -> str:
     for r in rows:
         mn = "-" if r["minRegionInk"] is None else f"{r['minRegionInk'] * 100:.2f}%"
         res = "PASS" if not r["problems"] else "FAIL: " + "; ".join(r["problems"])
+        if r.get("notes"):
+            res += "; note: " + "; ".join(r["notes"])
         lines.append(f"| {r['viewport']} | {r['state']} | {r['ink'] * 100:.2f}% | {r['regions']} | {r['clipped']} | {mn} | {res} |")
     return "\n".join(lines)
 
