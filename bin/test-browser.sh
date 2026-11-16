@@ -16,9 +16,13 @@
 #     --profile DIR  user-data-dir (default ~/.chrome-for-testing-debug; sign-in persists across runs)
 #     --size WxH     window size, e.g. 390x844 for a phone, 1280x800 for desktop
 #     --pos X,Y      window position, so several viewport windows sit side by side
+#   test-browser.sh stop [--port N] [--profile DIR]
+#                                              stop the Chrome for Testing that owns the port, then wait for it to close
 #
-# Exit codes: 0 ok · 2 usage · 4 no Chrome for Testing installed (run: npx playwright install chromium)
-#             · 5 the port answers but is not Chrome for Testing · 6 launched but the port never opened
+# Exit codes: 0 ok (stop: also when nothing listens) · 2 usage
+#             · 4 no Chrome for Testing installed (run: npx playwright install chromium)
+#             · 5 the port answers but is not Chrome for Testing (stop: or not on --profile); nothing is signalled
+#             · 6 launched but the port never opened · 7 stop signalled but the port stayed open
 set -euo pipefail
 
 root="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/Library/Caches/ms-playwright}"
@@ -80,5 +84,41 @@ case "$cmd" in
     echo "test-browser: launched but port $port never opened; see $profile/launch.log" >&2
     exit 6
     ;;
-  *) echo "usage: test-browser.sh path | launch [--port N] [--profile DIR] [--size WxH] [--pos X,Y] [url]" >&2; exit 2 ;;
+  stop)
+    shift
+    port=9222; profile=""
+    while [ $# -gt 0 ]; do
+      case "$1" in
+        --port) port="$2"; shift 2 ;;
+        --profile) profile="$2"; shift 2 ;;
+        *) echo "test-browser: unknown stop argument $1" >&2; exit 2 ;;
+      esac
+    done
+    # The listener on the debugging port is the browser's main process; its exit takes every helper with it.
+    pid="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
+    if [ -z "$pid" ]; then
+      echo "test-browser: nothing listens on port $port"
+      exit 0
+    fi
+    command="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+    if ! printf '%s' "$command" | grep -q 'Google Chrome for Testing'; then
+      echo "test-browser: port $port belongs to another program; not stopping it." >&2
+      exit 5
+    fi
+    if [ -n "$profile" ] && ! printf '%s' "$command" | grep -qF -- "--user-data-dir=$profile"; then
+      echo "test-browser: Chrome for Testing on port $port uses another profile; not stopping it." >&2
+      exit 5
+    fi
+    kill "$pid"
+    for _ in $(seq 1 20); do
+      if ! lsof -nP -iTCP:"$port" -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo "test-browser: stopped Chrome for Testing on port $port"
+        exit 0
+      fi
+      sleep 0.5
+    done
+    echo "test-browser: signalled pid $pid but port $port is still open" >&2
+    exit 7
+    ;;
+  *) echo "usage: test-browser.sh path | launch [--port N] [--profile DIR] [--size WxH] [--pos X,Y] [url] | stop [--port N] [--profile DIR]" >&2; exit 2 ;;
 esac
