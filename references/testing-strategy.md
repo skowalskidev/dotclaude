@@ -1032,6 +1032,14 @@ Worth an explicit check whenever the change touches one:
   must leave alone. TEST: the caught-list and the pass-list each hold cases the builder did not
   author. (the fix for a model-output guard whose own tests were green while it missed 14 of 20
   indirect phrasings a judge wrote.)
+- **A UI test that scrolls to act proves less than a person sees.** An e2e runner's click scrolls the
+  target into view first (Playwright's actionability checks), so a button that a sticky bar, a raised
+  card or an overlay covers at the person's own scroll position still passes. DO assert, before each
+  tap a person makes, that the control is the element at its own centre
+  (`document.elementFromPoint`) at the scroll position the screen leaves it, and pair the suite with
+  one real walk of the changed journey. TEST: each tapped control in a changed screen's e2e has that
+  assertion. (the fix for a coach-mark screen whose raised card covered Continue: the e2e was green,
+  the local walk could not tap it.)
 
 ## Project specifics live in the project — read its own docs FIRST (self-healing)
 - Apply `references/project-instructions.md` before the project-doc discovery below. When project instructions are ignored, derive commands from source, executable config and CI.
