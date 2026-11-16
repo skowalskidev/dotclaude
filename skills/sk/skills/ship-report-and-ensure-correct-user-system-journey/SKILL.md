@@ -238,7 +238,8 @@ Rules for this phase:
   send the criterion back to Undecidable with the flake named. A retry or a longer timeout is
   gate-weakening under another name.
 - **Distinguish undecidable evidence from policy-excluded coverage.** Native runtime/UI cases
-  without opt-in remain unverified with that reason. Within authorized execution scope, Undecidable
+  skipped for a reason `references/testing-strategy.md` § Native simulator suites allows remain
+  unverified with that reason. Within authorized execution scope, Undecidable
   means Simon's judgement, an unavailable credential or platform, a billable call the suite must not
   make, or real elapsed time with no collapse gate. Anything else is a test not yet written.
 - **Never install test infrastructure.** Tests go where the project already puts them, in the runner

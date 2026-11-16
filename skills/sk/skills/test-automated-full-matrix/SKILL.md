@@ -1,6 +1,6 @@
 ---
 name: test-automated-full-matrix
-description: Exhaustively test a finished diff or PR AUTONOMOUSLY — no human in the loop, safe to leave running overnight. Enumerates every feature the diff added (git diff + the plan's acceptance criteria + the Linear tickets), then holds each to TWO stages: Stage 1 traditional deterministic tests (unit/integration/e2e, happy path AND all edge cases, writing the missing ones), and Stage 2 Claude-as-judge reasoning (reads the real inputs/outputs + trajectory, judges against the feature's intent + acceptance criteria and whether a user would find it sensible — even when Stage 1 is green). Produces a coverage+judgment MATRIX, saves it, and posts it to the PR's tests section. The SSOT home for automated full testing: /sk:test-copilot's machine pass, /sk:ship-full-detailed-workflow and /sk:work-full-detailed-workflow all run it rather than restating it. Fans out in parallel for scale. Use for "run the full automated test matrix", "test this diff/PR exhaustively", "test X overnight unattended", "automated coverage + judge posted to the PR".
+description: Exhaustively test a finished diff or PR AUTONOMOUSLY — no human in the loop, safe to leave running overnight. Enumerates every feature the diff added (git diff + the plan's acceptance criteria + the Linear tickets), then holds each to TWO stages: Stage 1 traditional deterministic tests (unit/integration/e2e, happy path AND all edge cases, writing the missing ones), and Stage 2 Claude-as-judge reasoning (reads the real inputs/outputs + trajectory, judges against the feature's intent + acceptance criteria and whether a user would find it sensible — even when Stage 1 is green). Produces a coverage+judgment MATRIX, saves it, and posts it to the PR's tests section. The SSOT home for automated full testing: /sk:test-copilot's machine pass, /sk:ship-full-detailed-workflow and /sk:work-full-detailed-workflow all run it rather than restating it. Fans out in parallel for scale. Use for "run the full automated test matrix", "e2e test on the simulator with a simulated backend", "test this diff/PR exhaustively", "test X overnight unattended", "automated coverage + judge posted to the PR".
 argument-hint: "[PR number / branch / diff to test]"
 ---
 
@@ -12,9 +12,9 @@ on a diff overnight. It is DISTINCT from `/sk:test-copilot` (the human-driven jo
 THIS for its machine pass, then adds the human judgment on top.
 
 **Read `~/.claude/references/testing-strategy.md` § The full automated test matrix, § Defects first,
-§ Local time-driven simulations and § Native simulator suites.** Apply their batch timing, evidence
-reuse, simulation assessment and native opt-in to this flow.
-TEST: invoking this skill alone does not authorize native runtime/UI tests or screenshot capture.
+§ Local time-driven simulations, § Pre-merge end-to-end on a local stack and § Native simulator suites.** Apply their batch timing, evidence
+reuse, simulation assessment, local-stack walk and default native simulator runs to this flow.
+TEST: a diff the iPhone app reaches gets native runtime/UI evidence or a reason that section allows.
 
 DO run it from a harness only on a Deep-tier change, per `references/testing-strategy.md` § Size the
 checks to the change; Simon's direct ask runs it at any tier. TEST: a harness run on a Light or Standard
@@ -37,8 +37,9 @@ PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
    run for copy, examples and constants restating what another file computes (a static page quoting
    generated text, a constant typed twice), then derive each from its source or add a test comparing it
    to the source's real output. TEST: every such copy derives or has a binding test.
-   **DO walk every changed screen and state autonomously on the real local stack, when one exists,** on
-   the final head with seeded test data and paid providers stubbed: screenshot each state beside its
+   **DO walk every changed screen and state autonomously on its real client (browser, or the iOS
+   Simulator for a native screen) against the local stack,** on the final head with seeded test data
+   and paid providers stubbed: screenshot each state beside its
    base BEFORE; record each request (method, URL, headers, body, response) and the persisted rows,
    then open every downstream surface reading them. **DO inspect the screenshots at each meaningful
    step yourself**, and correlate each action with its requests, responses and persisted state before
@@ -49,13 +50,13 @@ PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
    (`references/testing-strategy.md` § Regression check).
    Redact token and cookie values; walk captures are diagnostics. Fix observed bugs and rerun affected
    scenarios. **DON'T count green suites or captured-but-uninspected images as this evidence.** TEST: the matrix holds a
-   `Real-environment walk:` line with one verdict per source, or a named no-local-stack reason (the fix
-   for a static page's example text left stale by a stacked PR: suites, reviews and screenshots passed,
-   and only a real-stack walk found it).
+   `Real-environment walk:` line with the pass table and one verdict per source, backend mode `local`
+   or `stubbed client` (the fix for a static page's example text left stale by a stacked PR: suites,
+   reviews and screenshots passed, and only a real-stack walk found it).
 4. **Assemble the matrix, save + post.** Save it under the run's `.context/`; POST it to the PR's tests
    section GitHub-native, on `/sk:ship-screenshot-changes` Step 5's posting rails.
 5. **Autonomous to the end.** No human step. Mark unreachable rendered interactions NEEDS-DRIVING and
-   hand them to `/sk:test-copilot`; mark unrequested native runtime/UI cases SKIPPED with the reason.
+   hand them to `/sk:test-copilot`; mark native runtime/UI cases SKIPPED only with an allowed reason.
    Report COVERED, GAP, NEEDS-DRIVING and SKIPPED counts and evidence. Never call unrun coverage green.
 
 Extra context for this run (if any): $ARGUMENTS

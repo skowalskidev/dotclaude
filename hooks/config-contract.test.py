@@ -124,7 +124,7 @@ CRITERIA: list[tuple[str, str]] = [
      "A deep PR that moves money, credits, entitlements, auth or ownership answers the happy-path, re-enacted "
      "failure, wrong-recipient and production incident-replay questions on the PR, and the gate refuses it otherwise."),
     ("matrix-binds-copies-and-walks-real-stack",
-     "The matrix binds copied values to their source and walks every changed state on the real local stack, "
+     "The matrix binds copied values to their source and walks every changed state on its real client against the local stack, "
      "judged per source criterion; the ship harness runs both on Standard PRs."),
     ("design-diff-measures-changed-regions",
      "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
@@ -2186,7 +2186,7 @@ def check_matrix_binds_copies_and_walks_real_stack() -> None:
     matrix = (ROOT / "skills/sk/skills/test-automated-full-matrix/SKILL.md").read_text()
     flat = " ".join(matrix.split())
     for required in ("DO bind every copied value to its source", "every stacked or sibling PR",
-                     "DO walk every changed screen and state autonomously on the real local stack",
+                     "DO walk every changed screen and state autonomously on its real client", "against the local stack",
                      "base BEFORE", "(method, URL, headers, body, response)", "every downstream surface",
                      "one verdict citing that evidence", "DON'T count green suites", "Redact token and cookie values",
                      "`Real-environment walk:`", "inspect the screenshots at each meaningful step yourself",

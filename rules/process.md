@@ -17,9 +17,9 @@ OpenAI or API fallback. Verify every delegated result on disk.
 ### Fan out verification, and only rebuild what changed
 DO defer tests/typechecks/builds across the whole batch and review fixes; allow concrete diagnostics
 or explicit requests. Keep hooks/CI. Verify once at convergence; reuse proof, rerun affected coverage.
-Keep native compile/backend checks; native runtime/UI/screenshots are opt-in.
-DO size every check to the change's tier first: `references/testing-strategy.md` §§ Size the checks to
-the change, Defects first and Native simulator suites.
+DO size each check to the change's tier, then walk each changed journey e2e on a local stack, iOS
+Simulator included, before PR-ready: `references/testing-strategy.md` §§ Size the checks to the
+change, Defects first, Pre-merge end-to-end on a local stack and Native simulator suites.
 DO keep a work PR draft until merge prep: `references/git-pr-deploy.md` § CI runs once, at merge prep.
 DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push. Name
 the real blocker in every status. DO launch every ready stage at once on a priority ask.
@@ -172,7 +172,7 @@ or the built mockup, board, dashboard, report, image, PR media) and check every
 state he can switch to,** at most 24 variant x viewport x toggle rows: not blank (ink above 0.05%), key
 strings present, key elements fully visible (cut by no overflow-hidden or scroll ancestor), one
 screenshot per distinct view type viewed. On any failure fix and re-run the WHOLE check until every row
-passes; hand off with the pass table and screenshots path. iOS runtime checks keep their opt-in.
+passes; hand off with the pass table and screenshots path.
 Tool: `references/screenshot-review.md` § Hand-off check. DO apply § Refresh after the follow-up batch
 by default for UI ticket work.
 **DON'T count another file's render, one state, a DOM string or non-white pixels as the check** (a board opened

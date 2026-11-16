@@ -1,14 +1,15 @@
 # iOS simulator playbook
 
-DO use this playbook for an explicitly requested simulator preview, native runtime test or simulator
-recovery. Compose `references/testing-strategy.md` and `references/dev-server-hygiene.md`; retain their
-opt-in, signing, capacity, stage-deadline, worker-limit and cleanup policies. Boot headless by
+DO use this playbook for every simulator run: the default native tests and journey walks of
+`references/testing-strategy.md` § Native simulator suites, a preview, or simulator recovery. Compose
+that file and `references/dev-server-hygiene.md`; retain their native scope, signing, capacity,
+stage-deadline, worker-limit and cleanup policies. Boot headless by
 default: `xcrun simctl boot` opens no window. Open the GUI only when Simon asked to look (an interactive
 preview, or a co-pilot walk where he types); headless test success does not fulfill that request.
 Read this file before booting for ANY native step, a co-pilot walk or screenshot capture included.
 Run ONE device machine-wide: the capacity owner's `MAX_BOOTED_SIMULATORS` refuses a second.
 Use ONE persistent warmed device named `agent` for every task: find it, never create a fresh one (§ One warmed agent device).
-TEST: the run records the requested activity and its evidence separately from skipped native work.
+TEST: the run records each native activity and its evidence separately from skipped native work and its reason.
 
 ## Use the project's one proven recipe
 
@@ -166,9 +167,9 @@ DO run these stages in order, with explicit UDID and fail-fast exit handling. Wr
 | Launch | The project's own launch script when it has one (read it first, per step 3); else `xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` with every option and `SIMCTL_CHILD_` variable the project's declared configuration passes, the backend override included (see Local backend safety below) |
 | GUI (visible preview, walk or capture) | Open the resolved path inside the lease after boot readiness, select the owned UDID and verify no unrelated device started |
 | Ready | Verify backend identity and the requested app/test readiness signal; preserve startup logs and errors. TEST: the app's first request appears in the owned local API log before any sign-in or other write |
-| Drive (requested walk, preview or capture) | Navigate and capture per Drive and capture below; Simon is never asked to open the GUI or tap |
-| Capture (requested UI/preview/capture only) | The driver's own screenshot (a UI test's `app.screenshot()` written to a host folder), or `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; inspect the image for the intended app and state |
-| Test or hold | Run the requested scoped checks, or retain the owned preview until its stated deadline |
+| Drive (journey walk, preview or capture) | Navigate and capture per Drive and capture below; Simon is never asked to open the GUI or tap |
+| Capture (journey walk, preview or capture only) | The driver's own screenshot (a UI test's `app.screenshot()` written to a host folder), or `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; inspect the image for the intended app and state |
+| Test or hold | Run the scoped checks, or retain the owned preview until its stated deadline |
 | Cleanup | Stop exact owned service groups, shut down the owned UDID and verify Shutdown before claim release |
 
 DO open `"$sim_gui"` with `open "$sim_gui"` only inside the admitted lifecycle after the owned device
@@ -177,7 +178,7 @@ options; verify the selected device and actual device list. A GUI can auto-boot 
 preflight discovery must stay read-only. If a foreign device starts, stop progression and report it;
 do not claim or shut down that unrelated device automatically.
 
-DO distinguish three proofs for requested UI/preview/capture: process launch, simulator framebuffer
+DO distinguish three proofs for a journey walk, preview or capture: process launch, simulator framebuffer
 and desktop GUI. Skip GUI and capture for headless runtime tests unless separately requested. Install success
 and a process PID prove neither screen readiness nor a usable preview. Inspect the simulator capture
 for the requested screen; it proves the device rendered, not that the window Simon looks at shows it.
@@ -434,7 +435,7 @@ those policies here. TEST: this playbook composes one capacity owner and one tes
 
 ## Walkthrough recording
 
-DO record explicitly requested simulator walkthroughs with the installed `simctl io <owned-UDID>
+DO record each simulator walkthrough the screenshot stage needs with the installed `simctl io <owned-UDID>
 recordVideo --codec=h264` capability (the installed default is hevc) inside the existing admitted lifecycle. Confirm its help before invocation,
 wait for `Recording started`, replay the reset journey, then send SIGINT to the owned recorder and
 await its exit before shutdown or lease release. Inspect the finalized video from first to last state.
