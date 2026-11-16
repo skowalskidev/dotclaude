@@ -54,6 +54,15 @@ is needed.
   without breaking a real flow, say so plainly — what's still open, why, and what closing it would cost.
   Don't quietly leave it, and don't quietly break the app.
 
+## Payment paths let people pay and recover
+
+**DO refuse a payment only for a double charge, a wrong price, a wrong payer or selling what they
+already hold;** an offer-picking rule or our own failed read fails open to the regular price and logs.
+**DO retry network, 408, 429 and 5xx failures quietly behind the pay button** (jittered backoff, ~10 s
+per tap, one layer, whole-request idempotency key), through one shared retry owner and one
+refusal-to-message map. TEST: each refusal names its reason; no door has its own retry copy.
+How: `references/code-best-practices.md` § Payment paths.
+
 ## Personal / meta tooling is not a project artifact — keep it out of the shared repo
 
 My personal dev-tooling config — connectors, personal MCP servers, debug helpers, editor/tool settings —
@@ -92,19 +101,17 @@ extraction that leaves each call site re-wiring its own state has not done the j
   retry, undo, a keyboard handler — is extracted to one shared owner the moment it appears a SECOND
   time. When extracting, port the most COMPLETE existing implementation's edge cases into that owner,
   never the newest copy's: a reimplementation silently drops the details that made the original
-  correct, and nothing fails loudly (e.g. an autosave copied without its flush-on-unmount quietly
-  loses whatever was typed in the last debounce window). When asked to share one convenience, check
+  correct, and nothing fails loudly. When asked to share one convenience, check
   the same surfaces for the others they each half-implement — they cluster.
 - **A new guard belongs on every path that needs it, in the same change.** SSOT governs ADDITIONS,
   not just extractions: after adding a rule, check, constraint or validation to one path, grep for the
   sibling paths doing the same job and either fix them too or say why they're exempt — better still,
   put it in the shared owner both paths already read. A guard living on one path only is a defect the
-  other paths keep reproducing (e.g. a content rule added to one generation path while a second path
-  feeding the same output carries none).
+  other paths keep reproducing.
 - **Read the current setting.** When a setting changes, in-flight and derived behavior must read
   the UPDATED value, not a snapshot taken earlier — and account for race conditions when the
   setting can change while work is running.
-- Worked example: `references/code-best-practices.md` § Single source of truth.
+- Worked examples: `references/code-best-practices.md` § Single source of truth.
 
 ## Legacy support policy
 - **Never add legacy support** unless explicitly asked for
@@ -124,8 +131,7 @@ extraction that leaves each call site re-wiring its own state has not done the j
   me). The instant it ships — chosen, defaulted, or dev-panel-picked and merged — hardcode it and delete
   every loser AND the selection mechanism (toggle, branch, dead CSS/storage, persisted setting + its
   strip-migration, loser-only test) in THAT change, never a later pass. TEST: a grep for the switch or
-  any dropped variant returns only the kept value. (e.g. a persisted dev-panel A/B for a mobile wordmark
-  shipped live and flickered on SSR hydration.)
+  any dropped variant returns only the kept value.
 
 ## Data deletion — soft-archive, never hard-delete (default for user-facing deletes)
 
@@ -134,12 +140,9 @@ When building ANY interface where a user deletes / removes / clears their own co
 **soft archive**, not a hard delete — this is the default unless I say otherwise:
 - Set an `archived: true` (+ an `archivedAt` timestamp) flag on the record and **filter it out
   of the user's views**. The user experiences it as deleted; the data stays in the datastore.
-- **Why:** we want to keep the record of what users created and then chose to remove — for
-  analytics, recovery, and understanding behavior. A hard delete throws that signal away, and
-  it's unrecoverable. Retaining it (invisibly to the user) costs almost nothing.
 - Apply this to every new delete/remove affordance you build, including the backend route
   behind it (the route sets the archived flag; it does not call a real delete).
 - **Exceptions where a hard delete IS appropriate:** account deletion / GDPR "delete my data" /
   legal erasure requests, and purging genuinely transient scratch/temp data. When unsure whether
   something qualifies as an exception, ask me first.
-- Archived records and the legacy policy: `references/code-best-practices.md` § Single source of truth.
+- Why, archived records and the legacy policy: `references/code-best-practices.md` § Single source of truth.

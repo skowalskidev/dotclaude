@@ -273,6 +273,17 @@ and so already loaded whenever you are reading this. Not restated here.
 Worked example: `~/.zsh-work-codex.zsh` and the `~/.claude` repo are one live location each,
 symlinked/tracked so `git status` is the whole test. Apply the same discipline in code.
 
+Examples moved here from the rule (each still binding):
+- Share behaviour: an autosave copied without its flush-on-unmount quietly loses whatever was typed in
+  the last debounce window.
+- A new guard on every path: a content rule added to one generation path while a second path feeding
+  the same output carries none.
+- Lock in one variant: a persisted dev-panel A/B for a mobile wordmark shipped live and flickered on SSR
+  hydration.
+- Soft archive, why: we keep the record of what users created and then chose to remove, for analytics,
+  recovery and understanding behaviour. A hard delete throws that signal away and is unrecoverable;
+  retaining it invisibly costs almost nothing.
+
 That is not tidiness for its own sake. This file used to carry its own copy of that rule, and by
 2026-08-03 the copy had silently lost two of the owner's bullets — "share BEHAVIOUR, not just values"
 and "a new guard belongs on every path that needs it". Anyone reading the copy got a weaker rule than
@@ -298,6 +309,44 @@ now fails on a paragraph that appears in two config files.
   a wrong answer, not a degraded one. TEST: each such timeout names its sibling wait and a production
   cold-start timing (the fix for a 1.5 s read that sent new invitees to the wrong first screen while a
   sibling read on the same path waited longer).
+
+## Payment paths
+
+Owned by `rules/engineering-standards.md` § Payment paths let people pay and recover. The method:
+
+- **Refusals.** Name the reason each refusal protects: double charge, wrong price, wrong payer, already
+  holds. A check that protects money or identity blocks when it fails, as a passing failure the client
+  retries (503); a check that only selects an offer, trial or discount fails open to the regular price
+  and logs the miss. When the sellable terms differ from the shown ones, answer a re-quote code
+  (e.g. `price_changed`) and make the quote read the SAME eligibility rule as the checkout, so the two
+  cannot disagree. An already-subscribed buyer is routed to manage or upgrade, never sold twice.
+- **Retries.** Retry network errors, 408, 429 and 5xx; never another 4xx. 3-4 attempts, waits about
+  0.5/1/2 s with jitter, each attempt min(5 s, time left), an overall deadline near 10 s (NN/g's
+  attention limit). Honour `Retry-After` when sent. Retry in the client only; the server answers a
+  passing failure and never loops on the payment provider itself. A failed read is never cached as the
+  answer.
+- **Idempotency.** Each create carries a key derived from the whole request body (a digest) plus its
+  scope, so a retry gets the first answer and a changed request gets a new object; clear earlier open
+  sessions before creating, so one buyer never holds two payable sessions. A provider's "key in use"
+  answer is a passing failure; a "same key, different parameters" refusal means the key was too coarse.
+- **UX.** During a quiet retry the button keeps its spinner with an accessible label; after the
+  deadline show one plain retry line, keep the chosen plan and offer on screen, and keep the same key on
+  the next tap.
+- **One owner.** A shared client wrapper holds the schedule and the refusal-to-message table; a door
+  with its own loop or message mapping is a defect to route through the owner.
+
+Sources: [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests),
+[Stripe low-level errors](https://docs.stripe.com/error-low-level),
+[stripe-node retry source](https://github.com/stripe/stripe-node/blob/master/src/RequestSender.ts),
+[AWS backoff and jitter](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/),
+[AWS REL05-BP01](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/rel_mitigate_interaction_failure_graceful_degradation.html),
+[Google SRE, cascading failures](https://sre.google/sre-book/addressing-cascading-failures/),
+[Azure transient faults](https://learn.microsoft.com/en-us/azure/architecture/best-practices/transient-faults),
+[NN/g response times](https://www.nngroup.com/articles/response-times-3-important-limits/),
+[Stripe, limit subscriptions](https://docs.stripe.com/payments/checkout/limit-subscriptions.md).
+e.g. a sign-up wallet whose two concurrent creates shared one coarse key answered 502 and lost every
+buyer who hit it, while a quote that crashed with a 500 dropped a valid offer instead of being asked
+again.
 
 ## UX/UI
 

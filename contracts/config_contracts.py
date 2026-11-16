@@ -585,12 +585,13 @@ CONTRACTS: dict[str, dict] = {
     },
     "rules/engineering-standards.md": {
         "mission": "A change lands on current, mainstream, single-sourced foundations, so the next change is cheap rather than archaeological.",
-        "purpose": "Versioning, mainstream tool choice, SSOT, legacy policy, soft-archive.",
+        "purpose": "Versioning, mainstream tool choice, SSOT, payment paths, legacy policy, soft-archive.",
         "criteria": [
             "Owns the adoption bar that gates any new tool or pack.",
             "Harden-fully: never trade protection for a working app; narrow the guard instead.",
             "Variant indecision never ships: locking in an A/B removes the loser and its toggle in the same change.",
             "Research-first naming: before the first new artifact name, tally the term each major vendor's own page uses, name from the majority and record term, tally and links in the plan.",
+            "Payment paths: a refusal names one of four reasons (double charge, wrong price, wrong payer, already holds); offer-picking rules and our own failed reads fail open; transient failures retry quietly in one layer through one shared owner with a whole-request idempotency key.",
         ],
     },
     "rules/process.md": {
@@ -722,6 +723,7 @@ CONTRACTS: dict[str, dict] = {
             "Before mounting a shared part at a new call site, read every existing caller (above 10, every caller passing the same props) and copy its wrappers, frames, providers, props, layout context and events; the PR names the mirrored caller or states the difference and its reason.",
             "Owns the industry-naming method: research online, tally at least 4 major vendors' own pages, take the majority, name a split's holdout, mark a name unverified when research is impossible, never one vendor's brand.",
             "Holds the version-pinning detail (.nvmrc, engines floor, toolchain quirks, peer ceilings); rules/engineering-standards.md keeps the latest-stable default.",
+            "Holds the payment-path method (refusal reasons, fail-open rule, retry statuses and timings, idempotency, retry UX, one owner) with primary sources; rules/engineering-standards.md keeps the always-on line.",
         ],
     },
     "references/connectors-setup.md": {
