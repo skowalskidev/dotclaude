@@ -3,7 +3,9 @@
 page that fetches its data after load fails without them and passes with --route and --wait-for, and a tall page whose later
 region screenshots scroll earlier regions above the viewport still passes, and Chromium's media preload abort is not a
 failed request while a missing media file and an aborted non-media request still fail, a page over the one-screenshot
-area fails with its size and the split hint, and the Playwright lookup finds a sibling worktree's install and lists every
+area fails with its size and the split hint, a full-page capture Chromium cut short (flat colour below some row while the
+page continues) is re-captured in tiles whose joined PNG matches a one-shot capture pixel for pixel, a page that really ends
+in empty space keeps its PNG with no note, a failed re-capture becomes a warning note, and the Playwright lookup finds a sibling worktree's install and lists every
 place searched on a miss (browser part skipped without Node Playwright; the media part without ffmpeg)."""
 import functools
 import http.server
@@ -107,11 +109,10 @@ def ink_checks(root):
              reference_ink(37, small, value))
     # A reused canvas must clear the prior tile before drawing transparent pixels.
     case('transparent tile reset', 13, [(white*13, 1024), (bytes(4)*13, 1024)], 0, .5)
-    prefix = runpy.run_path(str(TOOL))['NODE_RUNNER'].split('// Why an element', 1)[0]
     # The runner opens `try {` around its browser work before `ink`; the cut leaves exactly that block open.
-    open_blocks = prefix.count('{') - prefix.count('}')
-    if open_blocks != 1:
-        print(f'runner prefix leaves {open_blocks} open blocks, expected its one try block; update this test')
+    prefix = runner_prefix()
+    if prefix is None:
+        print('runner prefix does not end inside its one try block; update this test')
         return {'pixel metric regressions': False}
     script = root / 'ink-tests.mjs'
     script.write_text(prefix + r'''
@@ -141,6 +142,105 @@ process.exit(Object.values(results).every(Boolean) ? 0 : 1);
         print(result.stdout + result.stderr)
         return {'pixel metric regressions': False}
     return json.loads(result.stdout.strip().splitlines()[-1])
+
+
+def runner_prefix():
+    """NODE_RUNNER up to its row loop: the helpers, inside the runner's one open try block."""
+    prefix = runpy.run_path(str(TOOL))['NODE_RUNNER'].split('// Why an element', 1)[0]
+    return prefix if prefix.count('{') - prefix.count('}') == 1 else None
+
+
+def png_valid(path):
+    """Every chunk CRC holds and IDAT inflates to exactly height x (1 + width x bytes per pixel)."""
+    data, i, idat, head = path.read_bytes(), 8, b'', None
+    while i < len(data):
+        n, kind = struct.unpack('!I', data[i:i + 4])[0], data[i + 4:i + 8]
+        body = data[i + 8:i + 8 + n]
+        if struct.unpack('!I', data[i + 8 + n:i + 12 + n])[0] != zlib.crc32(kind + body):
+            return False
+        head = body if kind == b'IHDR' else head
+        idat += body if kind == b'IDAT' else b''
+        i += 12 + n
+    w, h, _, ct = struct.unpack('!2I2B', head[:10])
+    return len(zlib.decompress(idat)) == h * (1 + w * {0: 1, 2: 3, 4: 2, 6: 4}[ct])
+
+
+def truncation_checks(root):
+    """A cut capture is detected and re-captured in tiles; a real empty bottom and a failed re-capture are told apart."""
+    prefix = runner_prefix()
+    if prefix is None:
+        print('runner prefix does not end inside its one try block; update this test')
+        return {'truncated capture checks': False}
+    root.mkdir()
+    grey, red = bytes((243, 243, 243, 255)), bytes((204, 51, 51, 255))
+    # What Chromium returned for the cut board: full size, content only near the top, one flat colour below.
+    write_png(root / 'cut.png', 400, [(red * 400, 40), (grey * 400, 360)] * 15 + [(grey * 400, 14000)])
+    stripes = 'background:repeating-linear-gradient(180deg,#c33 0 40px,#f3f3f3 40px 400px)'
+    (root / 'full.html').write_text(f'<style>body{{margin:0}}div{{width:400px;height:20000px;{stripes}}}</style><div></div>')
+    (root / 'empty-end.html').write_text(f'<style>body{{margin:0;background:#f3f3f3}}div{{width:400px;height:6000px;{stripes}}}'
+                                         'i{display:block;height:14000px}</style><div></div><i></i>')
+    (root / 'diagonal.html').write_text('<style>body{margin:0}div{width:300px;height:5000px;background:repeating-linear-gradient('
+                                        '45deg,#c33 0 13px,#36c 13px 29px,#fff 29px 31px)}</style><div>text</div>')
+    script = root / 'truncation.mjs'
+    script.write_text(prefix + r'''
+const { readdirSync } = await import("node:fs");
+const decode = (buf) => {
+  const t = pngParts(buf), bpp = { 0: 1, 2: 3, 4: 2, 6: 4 }[t.ct], stride = t.w * bpp, out = Buffer.alloc(t.h * stride);
+  for (let y = 0; y < t.h; y++) {
+    const f = t.raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x++) {
+      const a = x >= bpp ? out[y * stride + x - bpp] : 0, b = y ? out[(y - 1) * stride + x] : 0;
+      const c = x >= bpp && y ? out[(y - 1) * stride + x - bpp] : 0, p = a + b - c;
+      const pred = [0, a, b, (a + b) >> 1, Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - b) <= Math.abs(p - c) ? b : c][f];
+      out[y * stride + x] = (t.raw[y * (stride + 1) + 1 + x] + pred) & 255;
+    }
+  }
+  return { w: t.w, h: t.h, ct: t.ct, px: out };
+};
+const results = {};
+const open = async (name, w) => { const p = await browser.newPage({ viewport: { width: w, height: 900 }, deviceScaleFactor: 1 }); await p.goto("file://" + join(job.root, name)); return p; };
+const fake = (p, clipFails) => { const real = p.screenshot.bind(p); p.screenshot = async (o) => {
+  if (o.clip) { if (clipFails) throw new Error("tile capture refused"); return real(o); }
+  const cut = readFileSync(join(job.root, "cut.png")); writeFileSync(o.path, cut); return cut; }; return p; };
+try {
+  let p = await open("diagonal.html", 300);
+  const one = decode(await p.screenshot({ fullPage: true }));
+  const n = await captureTiles(p, join(job.root, "joined.png"), 300, 5000, 777);
+  const joined = decode(readFileSync(join(job.root, "joined.png")));
+  results["tiles join into the one-shot capture pixel for pixel"] = n === 7 && joined.w === 300 && joined.h === 5000 && joined.ct === one.ct && joined.px.equals(one.px);
+  await p.close();
+  p = fake(await open("full.html", 400), false);
+  let out = join(job.root, "cut-shot.png"), r = await fullPageShot(p, out, 900, "HINT");
+  let again = decode(readFileSync(out));
+  results["a cut capture is re-captured in tiles and noted"] = r.note.startsWith("Chromium cut the full-page capture at y=5640 of 20000 px")
+    && r.scan.flatFrom === 19640 && again.h === 20000 && again.w === 400;
+  results["re-capture leaves no tiled scratch file"] = !readdirSync(job.root).some((f) => f.endsWith(".tiled.png"));
+  await p.close();
+  p = await open("empty-end.html", 400);
+  out = join(job.root, "empty-end-shot.png"); r = await fullPageShot(p, out, 900, "HINT");
+  results["a page that ends in empty space keeps its PNG with no note"] = r.note === "" && r.scan.flatFrom === 5640
+    && !readdirSync(job.root).some((f) => f.endsWith(".tiled.png"));
+  await p.close();
+  p = fake(await open("full.html", 400), true);
+  out = join(job.root, "refused-shot.png"); r = await fullPageShot(p, out, 900, "HINT");
+  results["a failed re-capture is a warning naming the band and the fix"] = r.note.startsWith("warning: the full-page PNG is one flat colour from y=5640 to 20000 px")
+    && r.note.includes("tile capture refused") && r.note.endsWith("Fix: HINT") && readFileSync(out).equals(readFileSync(join(job.root, "cut.png")))
+    && !readdirSync(job.root).some((f) => f.endsWith(".tiled.png"));
+  await p.close();
+} finally { await browser.close(); }
+console.log(JSON.stringify(results));
+} finally {}
+''')
+    job = root / 'truncation-job.json'
+    job.write_text(json.dumps(dict(outdir=str(root), root=str(root), playwright=node_playwright.find()[0])))
+    result = subprocess.run(['node', str(script), str(job)], capture_output=True, text=True, timeout=180)
+    try:
+        checks = json.loads(result.stdout.strip().splitlines()[-1])
+    except (IndexError, ValueError):
+        print(result.stdout + result.stderr)
+        return {'truncated capture checks': False}
+    checks['the joined PNG has valid chunks and exact scanline data'] = png_valid(root / 'joined.png')
+    return checks
 
 
 def discovery_checks(root) -> dict:
@@ -214,6 +314,7 @@ def main() -> int:
                 print("SKIP browser checks (Node Playwright unavailable): " + gap.stderr.strip())
             else:
                 checks.update(ink_checks(root))
+                checks.update(truncation_checks(root / "truncation"))
                 checks["fails without --route and --wait-for"] = gap.returncode == 1
                 ok = run(url, "--out", str(root / "o4"), "--route", "**/data.json=fixture.json", "--wait-for", "#done", *base, cwd=tmp)
                 checks["passes with --route and --wait-for"] = ok.returncode == 0 and "| PASS" in ok.stdout

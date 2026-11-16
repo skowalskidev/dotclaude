@@ -26,6 +26,8 @@ NOT_FOUND = "SETUP: Node Playwright not found"
 # 21256x24800 px (527 Mpx) passed, 21256x25200 px (536 Mpx) failed with "Unable to capture screenshot".
 # The limit is the area, not a side: 66000 px tall and 33000 px wide pages passed. Other Chromium builds fail
 # lower (a flattened board of about 450 Mpx failed to decode), so builders warn at BUDGET_PIXELS.
+# Under the limit Chromium can still return a full-size PNG painted only partway, with no error: a 3866x83332 page
+# (322 Mpx) came back painted to about y=32500. bin/visual-check.py detects the flat bottom band and re-captures in tiles.
 SCREENSHOT_MAX_PIXELS = 527_000_000
 BUDGET_PIXELS = 250_000_000
 
