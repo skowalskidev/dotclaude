@@ -171,7 +171,7 @@ evidence directory in Finder (macOS: `open "<abs path>"`) so Simon can flip thro
 DO apply the reference's § Refresh after the follow-up batch before final capture and publication.
 When the branch has an OPEN PR (`gh pr view --json number,url,isDraft`), publish screenshots, journey
 videos and verification runs by default unless Simon explicitly waives them. Do not ask again. No open PR means the local
-hand-back is the destination. Preserve the shared native opt-in rule.
+hand-back is the destination. Apply the shared native simulator default.
 
 DO embed the complete current evidence in the **PR description first**, in one bounded
 `<!-- sk:screenshot-changes -->` / `<!-- /sk:screenshot-changes -->` section. Read the fresh description,

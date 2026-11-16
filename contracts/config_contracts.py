@@ -601,7 +601,7 @@ CONTRACTS: dict[str, dict] = {
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
             "Size every check to the change's tier through testing-strategy.md, which owns the tiers; the ship harness runs on every open PR at that tier.",
-            "Keep native compile checks and relevant backend payment, auth and data tests; preserve required hooks and CI without bypassing them to impose batch timing.",
+            "Preserve required hooks and CI without bypassing them to impose batch timing; native compile and backend payment, auth and data tests live in testing-strategy.md.",
             "Keep every role on the actual chat provider except GPT design work on the Fable tier and the read-only cross-provider judge; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
             "Keeps an always-on line sending every money, access or data call, and every verdict Simon acts on, to 2+ judges besides the author, one per provider; references/research.md holds the panel.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
@@ -613,7 +613,7 @@ CONTRACTS: dict[str, dict] = {
             "A mid-run message is QUEUED, never an interrupt, and Simon never has to label it.",
             "New UI is seeded up to, never through: he types the new inputs himself.",
             "Route UI ticket work to the screenshot reference's default final-batch refresh lifecycle, including explicit waivers and current-source evidence.",
-            "Keep web UI verification as the existing default; require explicit opt-in for iPhone/iOS simulator runtime tests, UI tests and native screenshots, never inferred from all-tests or full-matrix requests.",
+            "Point every change to a user flow or its backend at testing-strategy.md's pre-merge end-to-end walk on a local stack, iOS Simulator included, before PR-ready; web UI and native simulator verification are both default-on.",
             "Before handing over ANY visual artifact (UI, mockup or board, dashboard, report, stitched image, PR media), open the exact artifact in its entry state, check every switchable state for blank and clipped content, view the screenshots, loop fix then re-check until clean, and hand over the pass table.",
             "A build of a supplied design source runs the measured match in references/workflow-loops.md and hands off its PASS report; an eye comparison never passes it.",
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; the rule lives in references/browser-debugging.md and is pointed at, not restated.",
@@ -807,10 +807,10 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "references/ios-simulator.md": {
-        "mission": "Simon receives the requested simulator preview or test evidence without stale artifacts, unowned devices or leaked services.",
+        "mission": "Simon receives each simulator preview, test run or journey walk's evidence without stale artifacts, unowned devices or leaked services.",
         "purpose": "Shared iOS simulator preflight, execution, preview hand-back and recovery playbook.",
         "criteria": [
-            "Compose existing capacity and testing owners; preserve native opt-in, worker limits, stage deadlines and runtime signing policy without duplicating them.",
+            "Compose existing capacity and testing owners; serve every simulator run, default native tests and journey walks included, and preserve worker limits, stage deadlines and runtime signing policy without duplicating them.",
             "Run simulator work through the project's one recorded recipe (build once, one headless device, launch with documented environment, XCUITest to a named screen, screenshot, shut down) with its measured duration; without one, a spike of at most 20 minutes creates it first.",
             "Stop after one failed boot, install or launch and report it; reuse the built app and xctestrun; at most one boot per device per task; every xcodebuild test passes -collect-test-diagnostics never.",
             "Boot headless; open the GUI only when Simon asked to look. Shut down and release the claim at the end of every simulator step batch and at hand-back unless the very next step needs the device; never leave one booted with no lease; a device left booted for Simon is named with its shutdown command.",
@@ -995,7 +995,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
+        "purpose": "Test structure, the pre-merge end-to-end walk on a local stack, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
             "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
             "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",
@@ -1010,8 +1010,9 @@ CONTRACTS: dict[str, dict] = {
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
             "Fix final-gate failures and rerun affected checks; broaden only when changed inputs invalidate coverage, and never count partial or skipped scope as a full pass.",
-            "Require explicit native opt-in for iPhone/iOS simulator runtime tests, UI tests and screenshots; generic all-tests or full-matrix requests do not qualify. Keep compile-only native checks and backend payment, auth and data tests.",
-            "Judge test design before final execution; fan out preparation and judgments, deduplicate suite runs, and report unrequested native runtime coverage as skipped.",
+            "Own the pre-merge end-to-end walk: for every Standard or Deep change to a user flow or its backend, web or iPhone, run every suite the diff reaches, walk each changed journey on its real client against a hermetic local stack (local database or emulators, payment sandbox, stubbed paid and third-party providers), loop fix and rerun to a clean run with zero base-to-head regressions, and hand back a per-journey pass table with suite counts; zero production writes and zero paid calls.",
+            "Run iPhone/iOS simulator runtime tests, UI tests, the XCUITest journey walk and screen captures by default for every change the iPhone app reaches, against the local backend; skip only when the diff reaches no native screen or Simon says skip, with the reason recorded. Keep native compile checks and backend payment, auth and data tests; a compile never stands in for a runtime pass.",
+            "Judge test design before final execution; fan out preparation and judgments, deduplicate suite runs, and report native runtime coverage skipped only with an allowed reason.",
             "Keep production export credentials outside the preview runtime; reject production destinations before creating write-capable clients and verify the refusal offline.",
             "Preserve source dates and record persisted-source or recomputed mode; require complete inputs for post-refresh claims and verify API and visible values against the selected mode.",
             "Retain the requested local preview with a working URL and scoped stop/restart commands; stop exporters and unrelated workers.",
@@ -1027,10 +1028,10 @@ CONTRACTS: dict[str, dict] = {
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Time every new or changed time budget on a read against production, read-only, before release; record the measured figure beside the constant, and a budget under 2x that figure is a finding.",
             "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
-            "After explicit native opt-in, prove required platform services with the runtime app, signing and simulator configuration before the suite; isolate defaults, authentication, singletons and host state.",
+            "Before a native runtime suite, prove required platform services with the runtime app, signing and simulator configuration; isolate defaults, authentication, singletons and host state.",
             "Route simulator execution to references/ios-simulator.md; unsigned compile evidence cannot prove Keychain runtime behavior. Use project-supported signing and existing entitlements without weakening product authentication or requiring signing for every test.",
             "A full native suite waits for the bounded runner to finish and verifies its exit, final result and expected test scope; a nested suite line or timed-out runner cannot establish green.",
-            "Redirect a run expected to exceed 5 minutes to a log file and read the file; rerun native failures by class and run the full suite once at convergence; ask for the native capture opt-in at intake when a design source covers native screens.",
+            "Redirect a run expected to exceed 5 minutes to a log file and read the file; rerun native failures by class and run the full suite once at convergence; capture every native screen a supplied design source covers, with its frame-assertion classes, by default.",
             "List the project's CI gate commands at intake, run each gate under 2 minutes once on the untouched branch, and run the whole list before the first push; never learn a gate from a failed CI run.",
             "Report executed, passed, failed and skipped counts per test class; zero executed is not run, never a pass.",
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
@@ -1044,7 +1045,7 @@ CONTRACTS: dict[str, dict] = {
             "Each forced test state records the ids it wrote, removes exactly those, reads the count back and states it.",
             "The journey matrix of an account feature includes signing in on a second browser or device with empty storage; device storage never stands in for a server-owned fact.",
             "A pay path is reported safe only with one row per account state that can reach a pay button: the server's precondition read and the production press-to-session rate; presses with no sessions is a finding.",
-            "Exercise real-client recovery at final verification within the platform opt-in policy; verify visible, operable recovery at the smallest viewport and largest text, or report native runtime coverage skipped.",
+            "Exercise real-client recovery at final verification, native screens included; verify visible, operable recovery at the smallest viewport and largest text, or record the skip reason.",
             "Resolve project-instruction policy first. When allowed, discover test commands in CLAUDE.md, then CLAUDE.local.md, then a playbook if present; when ignored, use source and executable config.",
             "An unprepared checkout's failures are not a test baseline. The project's one-time "
             "setup runs FIRST, however late in the work the run happens, because an uninstalled "
@@ -1143,12 +1144,12 @@ CONTRACTS: dict[str, dict] = {
             "Enumerates EVERY feature in the diff (git diff + plan criteria + Linear) as a matrix row; "
             "a feature with no row is a hole. Covers the whole diff, never samples down.",
             "Prepare deterministic coverage and independently judge every feature before final execution; the coordinator deduplicates suites, reuses valid proof and runs uncovered checks under the shared policy.",
-            "Report covered, gap, needs-driving and skipped counts; generic matrix invocation never opts into native runtime, UI tests or screenshots, and unrun cases never count as covered.",
+            "Report covered, gap, needs-driving and skipped counts; a diff the iPhone app reaches gets default native runtime/UI evidence or an allowed skip reason, and unrun cases never count as covered.",
             "The METHOD lives in references/testing-strategy.md; this skill points at it and does not "
             "restate it. Fans out via /sk:work-hyperspeed.",
             "Include simulation applicability and evidence for each feature under testing-strategy.md; required but unrun cases remain explicit gaps or skips, never N/A or covered.",
             "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
-            "Bind every copied value in the diff and its stacked or sibling PRs to its source, and walk every changed state on the real local stack, judging each recorded source criterion from screenshots, requests and rows.",
+            "Bind every copied value in the diff and its stacked or sibling PRs to its source, and walk every changed state on its real client (browser, or the iOS Simulator for a native screen) against the local stack, judging each recorded source criterion from screenshots, requests and rows; the Real-environment walk line carries the pass table and backend mode.",
             "Inspect screenshots at each meaningful step, correlate actions with requests, responses and persisted state, fix observed bugs and rerun affected scenarios; captured images alone never prove the walk.",
             "The real-stack walk also covers each existing screen a modified pre-existing file reaches and each screen reused in a new place beside its original, feeding the PR's regression check.",
         ],
@@ -1229,12 +1230,12 @@ CONTRACTS: dict[str, dict] = {
             "Record a Standard or Deep PASS only with 'All stages ran', never with a 'Not run:' list or a stage that ran on an earlier head; after any new push or base merge, rerun every remaining required stage on the new head unprompted before hand-back and never offer to run them.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
             "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
-            "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head; a Deep PR's matrix runs them.",
+            "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head, under testing-strategy.md's pre-merge end-to-end walk looped to a clean run; a Deep PR's matrix runs them.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
             "Consume the full matrix's simulation assessments at stage 6 and verify its evidence, concrete N/A reasons and unrun-case verdicts are on the fetched PR at the landing gate.",
             "Plan the screenshot post from the sweep start; dispatch AFTER capture once, after stages 3-6 fixes are committed and pushed, on the final head, never in stage 6's fan-out.",
             "Run stage 7 on every PR in the run unprompted, capturing each changed visible surface (server-rendered answers and team-facing bot output included); skip it only with a no-surface line carrying 'Checked outputs:'.",
-            "Apply the shared native opt-in policy to screenshots; post eligible web and explicitly requested native captures with each affected scenario's own trimmed video and scenario-table row, no duplicate desktop/mobile pairs, and report unrequested native surfaces as not run.",
+            "Apply the shared native simulator default to screenshots; post eligible web and native captures with each affected scenario's own trimmed video and scenario-table row, no duplicate desktop/mobile pairs, and report a native surface as not run only with an allowed reason.",
             "Confirm at the landing gate each main journey the PR's tier names has its final clean run under ## Verification runs.",
             "Pushes the PR's own branch to origin to sync it and never writes master; runs safely on "
             "several branches at once, each writing only its own branch and its own PR + tickets.",
@@ -1272,7 +1273,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Assembles a PR and its stack onto current master, resolves every review thread to "
                    "fix / refute / follow-up, and reaches a ship-to-prod-as-is verdict.",
         "criteria": [
-            "Include thread fixes before the final batch gate, reuse valid evidence, and apply shared native opt-in and affected-check retry rules without disabling required hooks.",
+            "Include thread fixes before the final batch gate, reuse valid evidence, and apply the shared native simulator default and affected-check retry rules without disabling required hooks.",
             "Checks what master changed in the data the PR reads (tables, enums, stored values), with a read-only production group-by, because a merged sibling can change it with no file conflict.",
             "Every open review thread ends fixed, refuted with code reasoning, or ticketed — never an "
             "open 'your call'; a claim is verified against the current code before being trusted.",
@@ -1338,7 +1339,7 @@ CONTRACTS: dict[str, dict] = {
                    "writes and commits, then closes the gaps between them, looping until the "
                    "journeys hold.",
         "criteria": [
-            "Use existing baseline evidence, diagnose specific uncertainty only, and schedule final execution after all gap fixes; preserve native opt-in and evidence-reuse requirements.",
+            "Use existing baseline evidence, diagnose specific uncertainty only, and schedule final execution after all gap fixes; preserve the native simulator default and evidence-reuse requirements.",
             "Reads references/tldr-report-formats.md for the three shapes; owns orchestration only.",
             "Reports on a branch against its base OR on uncommitted work in progress, says which, "
             "and keeps the two separate when both exist. Merging them hides which half is safe.",
@@ -1607,7 +1608,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent reviewers and a cold user-journey pass catch defects before the PR opens without API billing Simon did not ask for.",
         "purpose": "Subscription-backed pre-PR review plus the user-journey pass, work/personal aware.",
         "criteria": [
-            "Schedule review-fix tests, typechecks and pathway coverage under the shared batch policy; native runtime and screenshots still require explicit opt-in.",
+            "Schedule review-fix tests, typechecks and pathway coverage under the shared batch policy; native runtime and screenshots follow the shared simulator default.",
             "Use the selected subscription setup for every review pass and preserve project service boundaries. Run a model-API review only through pal, when Simon asks for it by name, with a key from the repo's own boundary, and never for Codex.",
             "Carries the journey pass as a step, reading references/user-journey-review.md rather "
             "than restating it. The reviewers judge the diff; only that pass judges whether a person "

@@ -73,7 +73,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    the run shows the merge-train result, migration verdict and cutover table at the landing gate
    without Simon asking.
    **DO run `/sk:test-automated-full-matrix`'s copy binding and real-environment walk on every Standard
-   PR too, after stage 3-6 fixes, on the final head;** a Deep PR's matrix runs them. TEST: every
+   PR too, after stage 3-6 fixes, on the final head;** a Deep PR's matrix runs them. The walk follows
+   `references/testing-strategy.md` § Pre-merge end-to-end on a local stack, looped to a clean run. TEST: every
    Standard and Deep PR's Test matrix section holds its `Real-environment walk:` line.
    **DO run `references/testing-strategy.md` § Regression check on EVERY PR at every tier, Light
    included, on the final head after stage 3-6 fixes;** its base screenshots reuse stage 7's
@@ -81,8 +82,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    modified pre-existing file.
 7. **`/sk:ship-screenshot-changes`** — at the PR's tier, on EVERY PR in the run, unprompted, capture each
    changed visible surface under `references/screenshot-review.md` § Visible surfaces (screens,
-   server-rendered answers, team-facing bot posts and admin output) and explicitly requested native
-   surfaces under `references/testing-strategy.md` § Native simulator suites. Post captured images,
+   server-rendered answers, team-facing bot posts and admin output) and native surfaces, captured on
+   the iOS Simulator by default under `references/testing-strategy.md` § Native simulator suites. Post captured images,
    per-scenario videos and verification runs onto the open PR (GitHub-native).
    **DON'T skip this stage because the diff has no frontend file:** a server change to a chat reply or a
    bot post is a surface; only a no-surface line with its `Checked outputs:` clause skips it.
@@ -152,8 +153,8 @@ verified the user + system journey, then handed back with it never posted to the
   PR's `Skipped (tier <tier>): <trigger>` line under each matrix, prod-data and deploy-safety heading it skipped.
 - Screenshots (stage 7): every surface eligible under stage 7 at the PR's tier has its image on the PR and every affected
   user-journey scenario its own trimmed video and scenario-table row, under `## Screenshots`, with no
-  duplicate desktop/mobile pairs (`references/screenshot-review.md`); record native
-  surfaces without explicit opt-in as not run; a diff with no visible surface carries the no-surface
+  duplicate desktop/mobile pairs (`references/screenshot-review.md`); record a native
+  surface as not run only with a reason that section allows; a diff with no visible surface carries the no-surface
   line with its `Checked outputs:` clause.
 - Verification runs (stage 7): each main journey the PR's tier names has its final clean run under
   `## Verification runs` (`references/screenshot-review.md` § Verification run videos).

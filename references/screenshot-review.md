@@ -2,8 +2,8 @@
 
 DO produce one private, offline review for the declared scope, using the existing installed capture
 stack. Read `references/browser-debugging.md`, `references/testing-strategy.md`, and
-`references/user-journey-review.md`; apply `references/ios-simulator.md` only for explicitly requested
-native capture. Follow those owners for connectors, auth, source fidelity, ports and device lifecycle.
+`references/user-journey-review.md`; apply `references/ios-simulator.md` to every native capture, a
+default under `references/testing-strategy.md` § Native simulator suites. Follow those owners for connectors, auth, source fidelity, ports and device lifecycle.
 DON'T install a second framework, alter app DOM to add captions, or replace independent tests with images.
 TEST: each capture identifies its source and real UI state, and captions exist only in the report or
 in the § PR evidence template bands.
@@ -210,11 +210,11 @@ TEST: the caveat identifies the demonstrated state and its evidence-backed scope
 production is bug-free or dismissing an unverified error as a test artifact.
 
 DO record simulator video with `xcrun simctl io <udid> recordVideo` under the native simulator owner's
-slot rules, only when native capture is explicitly requested; apply the same verify-it-plays check.
+slot rules for every native journey the stage records; apply the same verify-it-plays check.
 Stop it before any AXe tap (`references/ios-simulator.md` § Drive and capture: a live recording blocks AXe taps).
 Use keyframes and record the missing video capability when the installed tool cannot record; do not
 install a second recorder. Keep traces as optional investigation evidence,
-never call a trace an executable replay. TEST: native opt-in and ownership remain intact, and no recording
+never call a trace an executable replay. TEST: native scope and ownership remain intact, and no recording
 process survives hand-back.
 
 ## Verification run videos

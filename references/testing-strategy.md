@@ -18,8 +18,8 @@ rule, skill and gate that runs checks applies it and restates none of it.
 | Tier | Trigger | Runs | Skips |
 |---|---|---|---|
 | Light | Copy, style or layout on ONE surface; zero logic, data, money, auth, API or shared-component change | The affected unit tests; one BEFORE/AFTER pair of the changed state at the default phone viewport (390×844); the project's gate list; CI; one verdict per ask clause in the ledger | Full matrix, prod data, deploy-safety merge train, ship-report journey tests, multi-model and security review, videos, multi-width and multi-state captures |
-| Standard | Logic inside one feature, or a style-only change to a shared component (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
-| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, logic in a component or helper used on 2+ surfaces, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, prod data, § Deep-tier discovery rounds, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
+| Standard | Logic inside one feature, or a style-only change to a shared component (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, § Pre-merge end-to-end on a local stack for each changed journey, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
+| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, logic in a component or helper used on 2+ surfaces, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, § Pre-merge end-to-end on a local stack, prod data, § Deep-tier discovery rounds, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
 
 **DO take the deeper tier when a trigger is unclear.** WHY: a missed regression costs more than one
 extra pass.
@@ -584,8 +584,8 @@ ordered before the walk (the fix for videos and CI waits run ahead of his re-tes
 - **Default scenario matrix for any user-facing feature:** happy path, error state, empty state,
   loading state, auth-guard behaviour, validation and boundary cases. DO exercise failure and recovery
   in the real client at final verification, at the smallest supported viewport and largest supported text,
-  subject to § Native simulator suites. TEST: record visible recovery evidence or an explicit native
-  runtime skip; unexecuted cases are never green.
+  native screens included under § Native simulator suites. TEST: record visible recovery evidence or a
+  recorded skip reason; unexecuted cases are never green.
 - **DO run diff-scoped static audits (complexity, dead code, duplication) at the final gate before
   whole suites or builds.** Fix audit findings with the affected audit alone; carry its passing evidence
   into the gate. TEST: a passing audit is not rerun unless its inputs changed.
@@ -778,26 +778,75 @@ suite only when a source, dependency, configuration or environment change invali
 TEST: no routine mid-batch run, no duplicate final suite from a later workflow stage, and every rerun
 names its failure or invalidated inputs. Every completion claim links the full relevant evidence.
 
+## Pre-merge end-to-end on a local stack
+
+**DO prove every change to a user-visible flow or its backend end to end before its PR is called
+ready, web and iPhone alike, at the Standard and Deep tiers (a Light change keeps its real-client
+BEFORE/AFTER pair), in four steps:**
+1. **Suites.** Run every automated suite the diff reaches (unit, integration, e2e), whole for each
+   touched package, locally at the final batch gate; § Defects first owns timing and evidence reuse.
+2. **Journey walk.** Walk each changed user journey start to finish on its real client: the browser
+   through the project's e2e runner (e.g. Playwright) for web, the iOS Simulator through an XCUITest
+   walk under § Native simulator suites for the iPhone app. Point the client at a hermetic local
+   stack: the local database or emulators, the payment provider's sandbox or test mode, and a stub for
+   every paid or third-party provider. The walk touches zero production rows and makes zero billable calls.
+3. **Loop.** Fix each failure and rerun the affected checks, then rerun steps 1 and 2 once on the
+   converged head. A test passing on the base and failing on the head is a regression, fixed before
+   hand-back (§ Regression check); a failure the change did not cause follows § Defects first.
+4. **Evidence.** Hand back a pass table, one row per journey x client, `Journey | Client | Backend
+   mode | Steps | Result | Evidence path`, and each suite's executed, passed, failed and skipped
+   counts on base and head. On a PR it sits under the `Real-environment walk:` line of `## Test matrix`.
+NUMBER: stop and report after 3 fix cycles on the same failure (`rules/process.md` fix → verify loops).
+**DON'T call a PR ready, or hand back, with a changed journey proven only by unit tests, a compile, a
+code read or a plan to check after deploy.** WHY: a gap found in production costs a release, a fix and
+a second live verification; the same gap on a local stack costs one loop.
+**DO name a step the local stack cannot reach** (a real app-store purchase, a third-party login with no
+sandbox) as `not run: <what it needs>`, walk every step around it, and add a § Test gates route when
+that takes under a minute. With no local stack, stub the network at the client (Playwright
+`page.route`, a UI test `launchEnvironment` pointing at a stub server) and record the mode as
+`stubbed client`. A capacity wait (exit 75) is a wait, never a skip.
+This section adds no production read or write and no paid call: read-only production,
+`rules/spend-approval.md` and the capacity lease hold throughout.
+TEST: every Standard or Deep PR touching a user flow or its backend shows one pass-table row per
+changed journey on its real client, backend mode `local` or `stubbed client`, a clean final run, and
+base-vs-head suite counts with zero new failures (the fix for changes released before an end-to-end
+walk, then fixed and verified live).
+Sources (checked 2026-11-16). Term tally, "end-to-end test": Fowler, Google Testing Blog, Playwright
+and Kent C. Dodds (4); "acceptance test": DORA (1); "UI test": Apple (1). Environment: emulator
+(Firebase), local development (Supabase), sandbox (Stripe), test doubles (Fowler, DORA), network mocks
+(Playwright). [Practical Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html)
+("Avoid integrating with the real production system in your automated tests"),
+[DORA test automation](https://dora.dev/capabilities/test-automation/) (no "dev complete" until
+acceptance tests pass; dependencies replaced by test doubles),
+[Just Say No to More End-to-End Tests](https://testing.googleblog.com/2015/04/just-say-no-to-more-end-to-end-tests.html),
+[Testing Trophy](https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications),
+[Playwright best practices](https://playwright.dev/docs/best-practices) ("Only test what you control"),
+[Firebase Emulator Suite](https://firebase.google.com/docs/emulator-suite),
+[Supabase local development](https://supabase.com/docs/guides/local-development),
+[Stripe testing](https://docs.stripe.com/testing),
+[XCUIApplication](https://developer.apple.com/documentation/xcuiautomation/xcuiapplication) (launchArguments, launchEnvironment).
+
 ## Native simulator suites
 
-**DO default iPhone/iOS simulator runtime tests, UI tests and screenshot capture to SKIPPED unless Simon
-explicitly requests that native activity.** “All tests”, a full automated matrix or a generic UI change
-is not opt-in. Do not boot a simulator, launch the app or capture native screenshots to complete an
-unrequested check. Keep compile-only native checks for native changes and backend payment, auth and data
-tests in the final gate. Record unrun runtime/UI cases and their reason separately from passing checks;
-never infer a runtime pass from a compile. TEST: each native runtime/UI/capture run cites Simon's request,
-and a default native batch completes with compile/backend evidence and honest runtime skips.
-DO ask for the opt-in at intake, in the front-loaded question block, when a supplied design source covers
-native screens; a grant covers scoped captures and the frame-assertion test classes of those screens,
-never the runtime suite. TEST: no
-builder of a native screen is briefed blind for want of an unasked opt-in.
+**DO run iPhone/iOS simulator runtime tests, UI tests and screen captures by default for every change
+the iPhone app reaches:** native source, or a backend, API or shared web change a native screen calls or
+renders. Run the touched native unit and UI test classes, the XCUITest journey walk of § Pre-merge
+end-to-end on a local stack and the captures the screenshot stage needs, all against the local backend
+(`references/ios-simulator.md` § Local backend safety). Keep the native compile and backend payment,
+auth and data tests in the final gate. Capture every native screen a supplied design source covers,
+with its frame-assertion classes. Skip native runtime work only when the diff reaches no native screen
+(record `native: not reached, <why>`) or Simon says to skip it.
+**DON'T infer a runtime pass from a compile, or skip the simulator because nobody asked for it.**
+TEST: a diff the iPhone app reaches shows per-class executed, passed, failed and skipped counts and the
+walk's pass-table rows, or a recorded not-reached or Simon-skip reason; no native run reaches
+production or makes a paid call.
 
 DO apply `references/dev-server-hygiene.md` § Machine-wide capacity before booting a simulator or
 starting native verification. Retain the lease across tool calls until the owned device is shut down.
 TEST: a compile command exiting does not release a still-running simulator's capacity.
 
-DO use `references/ios-simulator.md` for simulator execution. Apply the following runtime procedure
-only after that opt-in.
+DO use `references/ios-simulator.md` for every simulator run and apply the following runtime procedure
+to each.
 
 **DO distinguish compile-only artifacts from runtime-test artifacts.** Before a full native suite,
 run one scoped fixture for each required platform service with the same app, signing and simulator
@@ -858,7 +907,7 @@ missing regression test to detect the broken behavior; keep execution pending un
 At the final batch gate, run each distinct relevant suite once, cheapest first, or attach matching
 passing evidence under § Defects first. A suite shared by several rows runs once for all those rows.
 Mark an unreachable rendered interaction NEEDS-DRIVING and hand it to `/sk:test-copilot`; mark unrequested
-native runtime/UI cases SKIPPED under § Native simulator suites. Keep code under observation real;
+native runtime/UI cases SKIPPED only with a reason § Native simulator suites allows. Keep code under observation real;
 provider fakes prove only the behavior and contract they model.
 
 **Stage 2 — the selected setup's judge, before final execution.** Stage numbers identify coverage and

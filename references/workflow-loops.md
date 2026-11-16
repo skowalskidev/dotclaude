@@ -397,8 +397,8 @@ path of its boards' target images, and the fidelity gate below as the acceptance
 DON'T brief a builder to write UI it cannot see, or leave capture to the orchestrator at the end.
 Dispatch, on-disk checks, fix rounds and the per-PR code review follow `references/parallelization.md`
 § One isolated worker per deliverable.
-For native screens, ask for the capture opt-in in the intake question block
-(`references/testing-strategy.md` § Native simulator suites) and name it in the brief.
+For native screens, brief the builder to capture on the iOS Simulator, a default under
+`references/testing-strategy.md` § Native simulator suites.
 
 DO run the fidelity gate per slice, before its test gate: the builder runs it until it passes, and the
 supervisor re-runs the same committed commands before accepting the hand-back. Measure the production
@@ -449,8 +449,8 @@ differing-pixel ratios with the target, capture and difference image paths, the 
 of rows, passed, failed, missing, extra, unmeasured and excepted. PASS is zero failed, missing, extra and
 unmeasured rows and frames within threshold. Name every exception in the hand-back reply. DON'T write
 "matches the design" on a whole-screen side-by-side read by eye, green tests, or a report with an
-unmeasured row; a row nobody measured is reported `unmeasured` with what it needs (an opt-in, a harness
-state).
+unmeasured row; a row nobody measured is reported `unmeasured` with what it needs (a
+harness state, a device).
 
 DO put the evidence on each PR: before (the board, or the current screen) | after composites in the PR
 body, and one PR comment holding the measured results table and the design-diff panels, uploaded with
