@@ -1028,7 +1028,7 @@ CONTRACTS: dict[str, dict] = {
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Time every new or changed time budget on a read against production, read-only, before release; record the measured figure beside the constant, and a budget under 2x that figure is a finding.",
             "Tie every coverage verdict to the source revision, collection directory and complete test invocation; partial reruns diagnose failures without replacing full-run coverage.",
-            "Before a native runtime suite, prove required platform services with the runtime app, signing and simulator configuration before the suite; isolate defaults, authentication, singletons and host state.",
+            "Before a native runtime suite, prove required platform services with the runtime app, signing and simulator configuration; isolate defaults, authentication, singletons and host state.",
             "Route simulator execution to references/ios-simulator.md; unsigned compile evidence cannot prove Keychain runtime behavior. Use project-supported signing and existing entitlements without weakening product authentication or requiring signing for every test.",
             "A full native suite waits for the bounded runner to finish and verifies its exit, final result and expected test scope; a nested suite line or timed-out runner cannot establish green.",
             "Redirect a run expected to exceed 5 minutes to a log file and read the file; rerun native failures by class and run the full suite once at convergence; capture every native screen a supplied design source covers, with its frame-assertion classes, by default.",
