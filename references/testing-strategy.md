@@ -790,6 +790,10 @@ BEFORE/AFTER pair), in four steps:**
    walk under § Native simulator suites for the iPhone app. Point the client at a hermetic local
    stack: the local database or emulators, the payment provider's sandbox or test mode, and a stub for
    every paid or third-party provider. The walk touches zero production rows and makes zero billable calls.
+   DO point the client there by construction, web or native: a build setting over a per-launch one,
+   every launch and relaunch through one wrapper that refuses to start without the local backend, its
+   first request seen on the local host before the first step, and a stop on any production request
+   with the rows listed read-only for Simon (`references/ios-simulator.md` § Local backend safety).
 3. **Loop.** Fix each failure and rerun the affected checks, then rerun steps 1 and 2 once on the
    converged head. A test passing on the base and failing on the head is a regression, fixed before
    hand-back (§ Regression check); a failure the change did not cause follows § Defects first.
@@ -810,7 +814,8 @@ This section adds no production read or write and no paid call: read-only produc
 TEST: every Standard or Deep PR touching a user flow or its backend shows one pass-table row per
 changed journey on its real client, backend mode `local` or `stubbed client`, a clean final run, and
 base-vs-head suite counts with zero new failures (the fix for changes released before an end-to-end
-walk, then fixed and verified live).
+walk, then fixed and verified live); each walk transcript shows the host check before its first step
+and no launch outside the wrapper.
 Sources (checked 2026-11-16). Term tally, "end-to-end test": Fowler, Google Testing Blog, Playwright
 and Kent C. Dodds (4); "acceptance test": DORA (1); "UI test": Apple (1). Environment: emulator
 (Firebase), local development (Supabase), sandbox (Stripe), test doubles (Fowler, DORA), network mocks

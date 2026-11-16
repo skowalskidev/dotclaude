@@ -164,9 +164,9 @@ DO run these stages in order, with explicit UDID and fail-fast exit handling. Wr
 | Boot | `xcrun simctl boot "$UDID"`, headless; enter only with the claimed device in Shutdown |
 | Wait | `xcrun simctl bootstatus "$UDID"`; use installed help, omit `-b` because it can initiate a new boot |
 | Install | `xcrun simctl install "$UDID" "$APP"`; confirm artifact and bundle identifier |
-| Launch | The project's own launch script when it has one (read it first, per step 3); else `xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` with every option and `SIMCTL_CHILD_` variable the project's declared configuration passes, the backend override included (see Local backend safety below) |
+| Launch | The one launch wrapper from Local backend safety below, for this launch and every relaunch: the project's own launch script when it has one (read it first, per step 3); else a run wrapper calling `xcrun simctl launch --terminate-running-process "$UDID" "$BUNDLE_ID"` with every option and `SIMCTL_CHILD_` variable the project's declared configuration passes, the backend override included |
 | GUI (visible preview, walk or capture) | Open the resolved path inside the lease after boot readiness, select the owned UDID and verify no unrelated device started |
-| Ready | Verify backend identity and the requested app/test readiness signal; preserve startup logs and errors. TEST: the app's first request appears in the owned local API log before any sign-in or other write |
+| Ready | Verify backend identity and the requested app/test readiness signal; preserve startup logs and errors. TEST: the app's first request appears on the local host before the first screen is driven, after every launch |
 | Drive (journey walk, preview or capture) | Navigate and capture per Drive and capture below; Simon is never asked to open the GUI or tap |
 | Capture (journey walk, preview or capture only) | The driver's own screenshot (a UI test's `app.screenshot()` written to a host folder), or `xcrun simctl io "$UDID" screenshot "$CAPTURE"`; inspect the image for the intended app and state |
 | Test or hold | Run the scoped checks, or retain the owned preview until its stated deadline |
@@ -205,26 +205,44 @@ host's startup made network calls. A run given a closed loopback port logged
 `nw_endpoint_flow_failed ... 127.0.0.1:9`, so the unguarded runs before it reached the default
 backend, production for a Debug build (2026-10-16).
 
-DO apply the next block to EVERY `xcodebuild test` of the app target, unit or UI, and to every
-`simctl launch`. When no local stack runs, point the override at a closed loopback port such as
-`http://127.0.0.1:9`, so startup calls fail harmlessly instead of reaching production. Steps 3 and 4
-need a running local stack and apply to launches and UI tests that sign in. Before ANY launch or test:
+DO point the client at the local stack BY CONSTRUCTION, so no launch, relaunch or test can fall back
+to production. Apply the next block to EVERY `xcodebuild test` of the app target, unit or UI, and to
+every `simctl launch` and relaunch. When no local stack runs, point the override at a closed loopback
+port such as `http://127.0.0.1:9`, so startup calls fail harmlessly instead of reaching production.
+Steps 4 and 5 need a running local stack and apply to every launch of a walk. Before ANY launch or test:
 
-1. **Pass the override explicitly.** Read the project's declared override variables, then set each as
-   `SIMCTL_CHILD_<VAR>` for `simctl launch`, or as `TEST_RUNNER_<VAR>` in the `xcodebuild` environment
-   (xcodebuild hands `TEST_RUNNER_`-prefixed variables to the test host process), and for a UI test
-   copy it into `app.launchEnvironment` before `launch()`. DON'T rely on the scheme.
-2. **Make the UI test refuse a non-local URL.** The test reads the URL it was given and fails before
-   launching unless the host is loopback (`localhost`, `127.0.0.1`, `::1`).
-3. **Prove the backend before any sign-in.** Tail the owned local API log and wait for the app's first
-   request there. No request seen: stop before any sign-in, because the app is on another backend.
-4. **Wipe earlier app state on the owned device:** `xcrun simctl uninstall "$UDID" "$BUNDLE_ID"` then
+1. **Build the local backend in.** DO build with a configuration whose compiled-in backend is the
+   local stack (e.g. a `Local` build configuration that sets the API URL in its `.xcconfig` or
+   Info.plist) when the project has one, over any per-launch variable. A scheme counts only when it
+   selects that build configuration; its launch environment does not (see above). With no such
+   configuration, use step 2; adding one is a project change outside the walk.
+2. **Launch only through one wrapper.** When an environment variable or launch argument carries the
+   override, run every launch and relaunch (first launch, terminate and relaunch, cold start,
+   reinstall) through ONE wrapper: the project's launch script, or one written for the run. It sets
+   each declared override as `SIMCTL_CHILD_<VAR>` for `simctl launch`, or as `TEST_RUNNER_<VAR>` in
+   the `xcodebuild` environment (xcodebuild hands `TEST_RUNNER_`-prefixed variables to the test host
+   process), and exits non-zero before launching when one is unset or its host is not loopback
+   (`localhost`, `127.0.0.1`, `::1`). A UI test copies the override into `app.launchEnvironment`,
+   fails before `launch()` on a non-loopback URL, and relaunches that same `XCUIApplication`.
+   DON'T type a bare `xcrun simctl launch` mid-walk, even for one relaunch: it starts without the
+   override (the fix for a walk relaunch that ran 8 seconds against production and wrote 11 rows).
+3. **Wipe earlier app state on the owned device:** `xcrun simctl uninstall "$UDID" "$BUNDLE_ID"` then
    `xcrun simctl keychain "$UDID" reset`, so a stored session or token from a prior run cannot skip
    the check or leak across backends.
+4. **Prove the host before the first screen, after every launch.** Before driving the first screen,
+   and before the next step after each relaunch, see the app's first request reach the local host in
+   the owned local API log, a proxy log, or the app's debug screen naming its backend. Record that
+   line in the walk transcript. None within 30 seconds of launch: stop before any tap, sign-in or write.
+5. **Stop on any production request.** When a walk shows a request to a production host, terminate the
+   app (`xcrun simctl terminate "$UDID" "$BUNDLE_ID"`) and end the walk. List every row written in
+   that window read-only (by device id, account and time window) and report the list to Simon as a
+   production write that needs his decision. DON'T delete or edit those rows yourself: removing them
+   is a production write too, and needs his per-write yes.
 
-TEST: no `xcodebuild test` of the app target runs without a loopback backend override in its
-`TEST_RUNNER_` environment, no sign-in or write happens before the app's first request is seen in the
-local log, and the UI test asserts a loopback URL before it launches the app.
+TEST: a walk transcript shows the host check before its first step and after every relaunch, and no
+launch outside the wrapper; no `xcodebuild test` of the app target runs without a loopback backend
+override in its `TEST_RUNNER_` environment; the UI test asserts a loopback URL before it launches the
+app; a production request ends the walk with a read-only row list sent to Simon and zero deletes.
 
 DO build every simulator test signed, with Xcode's default ad-hoc "Sign to Run Locally".
 DON'T pass `CODE_SIGNING_ALLOWED=NO` to an `xcodebuild` test of the app target: the unsigned app loses
@@ -248,7 +266,7 @@ production project references, and the identity response changes when the served
 
 DO build the old release that `references/testing-strategy.md` § Old app builds against the new backend
 walks from its own worktree at the shipped commit, with the project's recipe, and install it on the
-owned `agent` device after § Local backend safety step 4's uninstall and keychain reset.
+owned `agent` device after § Local backend safety's uninstall and keychain reset.
 DO read the backend override variable names from that commit's source, not the PR head's: an older
 build can read an older name, and an unset override sends it to production.
 TEST: the run receipt names the shipped commit, the installed version matching the picked one
