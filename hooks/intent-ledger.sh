@@ -669,7 +669,9 @@ Apply rules/self-healing-config.md; the after-run analysis is triggered separate
 Record evidence for completed work and the next action for every real blocker or pause (not hypothetical checks; see rules/communication.md Close the session). An unapproved \
 proposal remains recorded, not permission to implement. When nothing is left, end the final message with \
 the archive line from rules/communication.md; with CI running, a session PR awaiting Simon's merge or a \
-promised smoke or reply open, end with the merge list instead. This fires at most once per ledger snapshot." \
+promised smoke or reply open, end with the merge list instead. When this turn began from a background \
+notification or this hook and brings no new outcome, decision or ask, write nothing or one line naming \
+the new fact: rules/communication.md forbids re-printing an unchanged block. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'
   exit 0
   }
