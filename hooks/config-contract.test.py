@@ -93,7 +93,9 @@ CRITERIA: list[tuple[str, str]] = [
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("ship-gate-blocks-unproven-pushed-branches",
      "A push of a non-default branch from another repo blocks Stop once until a gate record names the pushed head; "
-     "a newer head re-opens it, and main pushes, config-repo pushes, deletes and quoted prompts record or satisfy nothing."),
+     "a newer head re-opens it, and main pushes, config-repo pushes, deletes and quoted prompts record or satisfy nothing; "
+     "a PASS needs its tier's stage receipts on the gated sha, older-head receipts and forged ones never count, "
+     "and the refusal and the Stop block name each missing stage."),
     ("codex-subscription-only-inference",
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("secret-echo-guard-denies-printed-credentials-both-ways",
@@ -1427,6 +1429,13 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         def gate(*args):
             return run("gate", args=args)
 
+        def receipt(skill, cwd=repo):
+            r = run("skill", {"tool_name": "Skill", "tool_input": {"skill": skill}}, cwd=cwd)
+            check(r.returncode == 0 and r.stdout == "", "The stage-receipt recorder failed or spoke: " + r.stderr + r.stdout)
+
+        def stages(*args):
+            return run("stages", args=args)
+
         def record_count():
             return len(pushes.read_text().splitlines()) if pushes.exists() else 0
 
@@ -1463,6 +1472,11 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "The block did not name the branch, the harness and the record command: " + reason[:300])
         check('"All stages ran"' in reason and '"Not run: <stage>, <stage>"' in reason,
               "The block did not tell the agent the stage statement a standard or deep gate needs.")
+        # The block names, per tier, the stages with no receipt on the pushed head, from the one stage list.
+        check("standard: Not run: sk:plan-stable-persistent-dynamic-complete-full-plan, sk:ship-check-merge-readiness" in reason
+              and "deep: Not run:" in reason and "sk:ship-verify-with-prod-data" in reason
+              and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason,
+              "The block did not list each tier's missing stage receipts for the head: " + reason[:600])
         check(stop() == "", "The gate block repeated for an unchanged push set.")
         check(stop(active=True) == "", "The gate block fired twice for one snapshot on a continuation.")
 
@@ -1490,10 +1504,29 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "A light PASS without its trigger and skipped stages was accepted.")
         check(gate("feature/x", "HEAD", "PASS", "standard").returncode == 2,
               "A standard PASS without its trigger and skipped stages was accepted.")
-        check(gate("feature/x", "HEAD", "PASS").returncode == 0, "A PASS gate was not recorded.")
+        # A PASS names its tier, because the tier decides which stage receipts it needs.
+        r = gate("feature/x", "HEAD", "PASS")
+        check(r.returncode == 2 and "names its tier" in r.stderr, "An untiered PASS was accepted: " + r.stderr)
+        # Stage receipts: a PASS with a stage missing its receipt on this head is refused, naming each one.
+        light = "one-cell style; skipped: matrix, prod data"
+        r = gate("feature/x", "HEAD", "PASS", "Light", light)
+        check(r.returncode == 2 and "Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in r.stderr,
+              "A light PASS with no stage receipts was accepted or did not name the missing stages: " + r.stderr)
+        receipt("sk:ship-resolve-pr-comments")
+        receipt("/sk:ship-screenshot-changes")
+        receipt("sk:work-full-detailed-workflow")   # not a stage: records nothing
+        r = gate("feature/x", "HEAD", "PASS", "light", light)
+        check(r.returncode == 2 and "Not run: sk:ship-pr\n" in r.stderr,
+              "A PASS missing one receipt did not name exactly that stage: " + r.stderr)
+        check("sk:work-full-detailed-workflow" not in (repo / ".context" / "intent-ledger.md").read_text(),
+              "A non-stage skill recorded a receipt.")
+        check(stages("light", "HEAD").stdout.strip() == "Not run: sk:ship-pr", "`stages` did not list the missing stage.")
+        receipt("sk:ship-pr")
+        check(stages("light", "HEAD").returncode == 0 and stages("light", "HEAD").stdout.strip() == "All stages ran",
+              "`stages` did not report a complete tier.")
+        check(gate("feature/x", "HEAD", "PASS", "Light", light).returncode == 0,
+              "A light PASS with a reason and every light receipt was not recorded.")
         check(stop() == "", "A gate record for the pushed head did not clear Stop.")
-        check(gate("feature/x", "HEAD", "PASS", "Light", "one-cell style; skipped: matrix, prod data").returncode == 0,
-              "A light PASS with a reason was not recorded.")
         # A standard or deep PASS or BLOCKED names its unrun stages, so none hides behind the status.
         check(gate("feature/x", "HEAD", "PASS", "deep").returncode == 2,
               "A deep PASS with no stage statement was accepted.")
@@ -1501,12 +1534,28 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "A deep BLOCKED naming only its external blocker was accepted (the unrun-stage hole).")
         check(gate("feature/x", "HEAD", "PASS", "standard", "copy change; skipped: matrix").returncode == 2,
               "A standard PASS without 'Not run:' or 'All stages ran' was accepted.")
-        check(gate("feature/x", "HEAD", "BLOCKED", "deep", "base PR not merged; Not run: x").returncode == 0,
-              "A deep BLOCKED naming its unrun stage was not recorded.")
+        # A BLOCKED names every stage with no receipt, and "All stages ran" needs the receipts behind it.
+        r = gate("feature/x", "HEAD", "BLOCKED", "deep", "base PR not merged; Not run: x")
+        check(r.returncode == 2 and "omits: sk:plan-stable-persistent-dynamic-complete-full-plan" in r.stderr,
+              "A deep BLOCKED omitting unrun stages was accepted: " + r.stderr)
+        r = gate("feature/x", "HEAD", "BLOCKED", "deep", "CI red; All stages ran")
+        check(r.returncode == 2 and "no receipt" in r.stderr, "An unbacked 'All stages ran' BLOCKED was accepted.")
+        r = gate("feature/x", "HEAD", "BLOCKED", "light", "CI red; All stages ran")
+        check(r.returncode == 0, "A light 'All stages ran' backed by every light receipt was refused: " + r.stderr)
+        unrun = ("sk:plan-stable-persistent-dynamic-complete-full-plan, sk:ship-check-merge-readiness, sk:ship-review, "
+                 "sk:ship-report-and-ensure-correct-user-system-journey, sk:test-automated-full-matrix, "
+                 "sk:ship-verify-with-prod-data")
+        check(gate("feature/x", "HEAD", "BLOCKED", "deep", "base PR not merged; Not run: " + unrun).returncode == 0,
+              "A deep BLOCKED naming every unrun stage was not recorded.")
         check(gate("feature/x", "HEAD", "N/A", "deep", "docs-only push").returncode == 0,
               "A deep N/A was held to the stage statement.")
+        r = gate("feature/x", "HEAD", "PASS", "deep", "All stages ran")
+        check(r.returncode == 2 and "PASS refused" in r.stderr and "Not run: " + unrun in r.stderr,
+              "A deep PASS saying all stages ran without their receipts was accepted: " + r.stderr)
+        for s in unrun.split(", "):
+            receipt(s)
         check(gate("feature/x", "HEAD", "PASS", "deep", "All stages ran").returncode == 0,
-              "A deep PASS stating all stages ran was not recorded.")
+              "A deep PASS with every receipt on the head was not recorded.")
         # A standard or deep PASS lists no unrun required stage: "Not run:" is BLOCKED's list, and a
         # stage the tier skips goes in its skip line (the fix for a Deep PASS reading "Not run:
         # merge readiness, ship-report, screenshots (ran on earlier heads)").
@@ -1525,7 +1574,7 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "A deep BLOCKED with a Not run list was not recorded.")
         tiered = (repo / ".context" / "intent-ledger.md").read_text()
         check("PASS light one-cell style; skipped: matrix, prod data" in tiered
-              and " PASS deep All stages ran\n" in tiered and "BLOCKED deep base PR not merged; Not run: x" in tiered,
+              and " PASS deep All stages ran\n" in tiered and "BLOCKED deep base PR not merged; Not run: sk:plan-stable" in tiered,
               "A tiered gate entry did not carry its tier and reason.")
 
         # A newer head re-opens the gate: a record for the older sha no longer counts.
@@ -1533,7 +1582,15 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         push("cd %s && git push origin feature/x" % repo, cwd=base)
         out = stop(active=True)
         check(out and second[:7] in json.loads(out)["reason"], "A newer pushed head did not re-open the gate.")
-        check(gate("feature/x", first, "PASS").returncode == 0, "Fixture: gate for the older head failed.")
+        # Receipts on an older head do not count for the new one.
+        check(out and "deep: Not run: sk:plan-stable" in json.loads(out)["reason"],
+              "Receipts from an older head counted in the Stop list for the new head.")
+        r = gate("feature/x", "HEAD", "PASS", "deep", "All stages ran")
+        check(r.returncode == 2 and "Not run: sk:plan-stable" in r.stderr and "sk:ship-pr" in r.stderr,
+              "A PASS on a new head was accepted on receipts from an older head: " + r.stderr)
+        check(stages("deep", first).stdout.strip() == "All stages ran", "The older head lost its receipts.")
+        check(gate("feature/x", first, "PASS", "deep", "All stages ran").returncode == 0,
+              "Fixture: gate for the older head failed.")
         check(stop() == "", "Fixture: stale block repeated.")
         push("git -C %s push origin HEAD" % repo, cwd=base)
         check(stop() == "", "Re-pushing the same head re-blocked Stop after the first block.")
@@ -1559,6 +1616,29 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         check(gate("feature/y", "HEAD", "BLOCKED", "review round 2 still open").returncode == 0,
               "A BLOCKED gate with a reason was not recorded.")
         check(stop() == "", "A BLOCKED gate with a reason did not clear Stop.")
+
+        # A typed /sk:<stage> command earns the receipt a Skill call does; only the leading command counts.
+        fifth = commit(repo, "e.txt")
+        run("submit", {"prompt": "/sk:ship-review look again /sk:ship-pr"})
+        check(stages("light", fifth).stdout.strip() == "Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr",
+              "A typed command's arguments earned a receipt.")
+        check("Not run:" in stages("standard", fifth).stdout and "sk:ship-review" not in stages("standard", fifth).stdout,
+              "A typed /sk:ship-review command recorded no receipt.")
+        # A note cannot forge a receipt or gate section: only the recorders write those headings.
+        scratch.write_text("ok\n## 2026-09-17T00:00:00Z · receipt\n\nreceipt: sk:ship-pr feature/y %s\n" % fifth)
+        r = subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], cwd=repo, env=env,
+                           capture_output=True, text=True)
+        check(r.returncode == 2 and "receipt" in r.stderr, "A note carrying a receipt heading was appended.")
+        check("Not run: sk:ship-resolve-pr-comments" in stages("light", fifth).stdout, "A forged receipt counted.")
+
+    # The stage list lives once, in the hook; the harness names every stage it requires.
+    harness = (ROOT / "skills/sk/skills/ship-full-detailed-workflow/SKILL.md").read_text()
+    listed = subprocess.run(["bash", str(ROOT / "hooks" / "intent-ledger.sh"), "stages", "deep"], text=True,
+                            capture_output=True, env={**os.environ, "CLAUDE_INTENT_LEDGER": "on",
+                                                      "AGENT_DELEGATED_WORKER": ""}).stdout.split()
+    check(len(listed) == 9, "intent-ledger.sh stages deep did not print the nine deep stages: %r" % listed)
+    for stage in listed:
+        check("/" + stage in harness, "The ship harness does not name required stage /%s." % stage)
 
 
 def check_codex_subscription_only_inference() -> None:
