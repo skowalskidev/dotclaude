@@ -40,7 +40,8 @@ tickets; a fix that belongs to another PR is handed to that owner via
    rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
 3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out; fix the confirmed findings. Standard runs one pass; Light skips it.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
-   dial or allowlist relaxation, or an injection surface.
+   dial or allowlist relaxation, or an injection surface. A worker runs it on its own worktree's diff and continues to stage 5
+   (`references/parallelization.md`, the worker-skill-sequence line).
 5. **`/sk:ship-resolve-pr-comments`** — drive EVERY actionable PR comment to a verdict across all feedback surfaces; never hand back a
    list to chase.
 6. **`/sk:ship-report-and-ensure-correct-user-system-journey`** — the spine, run ONCE on the reviewed and fixed code (stages 3-5 find and fix defects first, per `rules/process.md` § Fan out verification); re-judge criteria whose evidence or inputs those fixes changed, including dependent readers and configuration. Verify the user + system
