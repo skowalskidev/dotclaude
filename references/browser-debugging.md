@@ -12,6 +12,11 @@ Playwright run also qualifies.
 **DON'T open, attach to, or drive Simon's everyday Chrome, with any profile or isolated context.** He
 cannot tell which window is his, and he clicks in the wrong one. (the fix for a co-pilot walk opened in
 his own Chrome window)
+**DO open any preview Simon asks to try ("put it up", "click around", "let me test it") in the test
+browser yourself, with a fresh `--profile` directory, the device viewport he named, at the journey's
+first screen, hydration checked (below); a URL for his own device is a second line, never the hand-over.**
+A reused host keeps localStorage from earlier walks on other stacks. (the fix for a phone-preview URL he
+opened in his own Chrome, where stale storage for that host showed two screens the build never draws)
 **DO seed a state he is to see or click inside the test browser and hold it open: 1 window per viewport
 he needs**, sized with `--size` (e.g. 390x844 phone, 1280x800 desktop) and placed with `--pos`. For a
 scripted scenario, a headed Playwright run with `headless: false` and no `channel` that walks to the

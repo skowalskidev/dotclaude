@@ -185,6 +185,9 @@ visible overlap/overflow/cutoff, or a design build with no PASS report broke the
 **Seed the backend, hand me the frontend.** For new UI, seed only what the UI can't create and walk me
 through entering the data myself; never report verified past a new input. Detail:
 `references/screenshot-review.md` § Seed the backend, hand me the frontend.
+**DO open any preview Simon asks to try in the test browser yourself, unprompted; a URL is never the
+hand-over:** `references/browser-debugging.md` § The test browser. TEST: the hand-back names the open
+test window and its start screen.
 
 ### Git worktree discipline
 In a git worktree (e.g. `.claude/worktrees/<name>/`), **use the worktree path prefix for every file
