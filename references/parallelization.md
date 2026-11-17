@@ -524,6 +524,13 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   `intent-ledger.sh stages <tier> <pr-head-sha>` and reports `All stages ran` or the `Not run:` list.
   TEST: the gate accepts a PASS on the worker's head, and refuses one on a sha with no receipt (the fix
   for five PRs refused PASS after every stage had run).
+- **DO tell a worker that runs several skills in a row to treat each skill's printed report, the
+  built-in `/security-review` included, as one stage's result and go on to the next stage; its turn ends
+  only with the final report the brief asks for.** **DO point a built-in review at the worker's own
+  checkout:** it reads the session's directory, so the worker passes `git -C <worktree> diff
+  <base>...HEAD` as the diff under review. TEST: no worker returns a lone stage report while stages
+  remain, and every security-review verdict names the worktree head it read (the fix for two ship
+  workers that stopped after `/security-review`, which had reviewed the coordinator's branch).
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
   signals only those at cleanup. DON'T let it kill by port, name or pattern. TEST: every brief that has
