@@ -744,6 +744,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns the industry-naming method: research online, tally at least 4 major vendors' own pages, take the majority, name a split's holdout, mark a name unverified when research is impossible, never one vendor's brand.",
             "Holds the version-pinning detail (.nvmrc, engines floor, toolchain quirks, peer ceilings); rules/engineering-standards.md keeps the latest-stable default.",
             "Holds the payment-path method (refusal reasons, fail-open rule, retry statuses and timings, idempotency, retry UX, one owner) with primary sources; rules/engineering-standards.md keeps the always-on line.",
+            "A paywall starts its quote or session read on open through the shared retry owner and renders priced, tappable buttons at once; a spinner appears only on the button when a tap beats the read, never a page-level loader.",
             "A new or replacement screen reuses the existing component whose style fits, or is composed from the same shared parts as the screen it replaces or sits beside, proven by a design-diff panel against that sibling in the Regression check.",
         ],
     },

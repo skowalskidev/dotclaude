@@ -344,6 +344,12 @@ Owned by `rules/engineering-standards.md` § Payment paths let people pay and re
 - **UX.** During a quiet retry the button keeps its spinner with an accessible label; after the
   deadline show one plain retry line, keep the chosen plan and offer on screen, and keep the same key on
   the next tap.
+- **Prefetch.** Start the quote or checkout-session read when the paywall opens, in the background
+  through the same retry owner; render the plan, price and buttons at once, never a page-level loader.
+  A buyer sees a spinner only on the button, and only when the tap arrives before the read settles.
+  TEST: a paywall opened on a slow or failing first read shows its priced, tappable buttons with no
+  page loader, and a tap during the read shows the button spinner then opens checkout (the fix for a
+  paywall that showed an error before the offer loaded, where Simon asked for load-behind-the-button).
 - **One owner.** A shared client wrapper holds the schedule and the refusal-to-message table; a door
   with its own loop or message mapping is a defect to route through the owner.
 
