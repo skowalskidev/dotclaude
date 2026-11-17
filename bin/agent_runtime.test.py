@@ -589,6 +589,15 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(result['tool_input']['command'], 'true')
         self.assertEqual(runtime.adapted_payloads({'tool_name': 'spawn_agent'})[0]['tool_name'], 'Agent')
 
+    def test_skill_file_read_maps_to_the_skill_event(self):
+        values = runtime.adapted_payloads({'tool_name': 'exec_command', 'tool_input': {'cmd':
+                 'sed -n 1,200p ~/.agents/skills/sk/skills/ship-review/SKILL.md && '
+                 'cat ~/.claude/skills/sk/skills/ship-review/SKILL.md'}})
+        self.assertEqual([v['tool_name'] for v in values], ['Bash', 'Skill'])
+        self.assertEqual(values[1]['tool_input'], {'skill': 'sk:ship-review'})
+        self.assertEqual(len(runtime.adapted_payloads({'tool_name': 'exec_command',
+                                                       'tool_input': {'cmd': 'ls skills/sk'}})), 1)
+
     def test_hook_routing_reads_settings_live(self):
         marker = self.base / 'hook-ran.json'
         handler = self.stub_hook({'hookSpecificOutput': {'additionalContext': 'first'}}, marker=marker)

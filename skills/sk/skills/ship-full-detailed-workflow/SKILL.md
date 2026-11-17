@@ -111,7 +111,13 @@ tickets; a fix that belongs to another PR is handed to that owner via
    a Light or Standard PASS carries its trigger and skipped stages. The Stop hook blocks a pushed branch
    head with no record, and a newer push re-opens it.
    **DO invoke every stage the tier requires as its own skill on the recorded head before recording,
-   even when an external blocker already makes the result BLOCKED.** **DO name, in every gate reason
+   even when an external blocker already makes the result BLOCKED.** Each Skill-tool run of a stage
+   records a receipt for the HEAD of the session's working directory, so run it from the PR's
+   checkout at that head. Every PASS names its tier, and the gate refuses it with
+   `Not run: <stage>, ...` until each stage that tier requires has a receipt on the recorded sha;
+   "All stages ran" in any record needs the same receipts. Run
+   `~/.claude/hooks/intent-ledger.sh stages <tier> HEAD` before recording and invoke every stage it
+   lists, unprompted; the hook's stage list is the one home of which stages each tier requires. **DO name, in every gate reason
    and every hand-back, each stage not invoked as its own skill on that head, as `Not run: <stage>,
    <stage>`, or state `All stages ran`;** the gate refuses a Standard or Deep PASS or BLOCKED holding
    neither. **DON'T let a BLOCKED result stand in for an unrun stage:** the blocker and the unrun

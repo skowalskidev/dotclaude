@@ -302,7 +302,12 @@ the pushed head, record it with `intent-ledger.sh gate <branch> <sha|HEAD> PASS|
 (BLOCKED, N/A and a light or standard PASS need a reason; a standard or deep BLOCKED reason
 holds `All stages ran` or `Not run: <stage>, <stage>`, a standard or deep PASS holds `All stages ran`
 and no `Not run:` list; tiers: `references/testing-strategy.md`
-§ Size the checks to the change). Stop blocks once per set of open pushes; a newer head re-opens it.
+§ Size the checks to the change). Every PASS names its tier and needs a stage receipt on the gated
+sha for each stage that tier requires: `intent-ledger.sh skill` (PostToolUse on the Skill tool, a
+typed `/sk:<stage>` prompt, or a Codex read of the stage's SKILL.md) records one for the cwd repo's
+HEAD, and `intent-ledger.sh stages <tier> HEAD` prints `All stages ran` or the `Not run:` list. The
+hook's stage list is the one home of which stages each tier requires. Stop blocks once per set of
+open pushes, naming each tier's missing stages; a newer head re-opens it.
 
 **Two shortfalls, two different homes.** A raw-ask clause, or a ratified criterion, that was not
 built is a Not-met criterion and is closed the way any gap is, by
