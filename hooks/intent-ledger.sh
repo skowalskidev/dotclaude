@@ -30,14 +30,30 @@
 # the pushed head. The written rule is primary; this is the mechanical backstop for a push that
 # skipped it.
 #
-# Modes:  submit                  UserPromptSubmit — append the ask verbatim
+# STAGE RECEIPTS (the harness's "every stage ran as its own skill on this head", made mechanical)
+# Each invocation of a ship stage skill (Skill tool, a typed /sk:<stage> prompt, or a Codex read of
+# its SKILL.md mapped by bin/agent_runtime.py) appends `receipt: <skill> <branch> <head>` to the
+# ledger, head = HEAD of the session's cwd repo. `gate PASS` refuses unless the tier's every stage
+# has a receipt on the gated sha; a receipt on an older head never counts. The list below is the
+# one home of which stages each tier requires.
+#
+# Modes:  submit                  UserPromptSubmit — append the ask verbatim (and a receipt for a
+#                                 typed /sk:<stage> command)
 #         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
+#         skill                   PostToolUse (Skill) — record a stage receipt for the cwd repo's HEAD
+#         stages <tier> [sha|HEAD]
+#                                 read-only — print the tier's required stage skills; with a sha,
+#                                 print "All stages ran" (exit 0) or "Not run: <stage>, ..." (exit 1)
 #         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]
 #                                 called by the model — record the landing-gate result for that head;
+#                                 a PASS names its tier and every stage that tier requires has a
+#                                 receipt on <sha>, else exit 2 printing "Not run: <stage>, ...";
 #                                 a standard or deep BLOCKED reason holds "All stages ran" or
-#                                 "Not run: <stage>, <stage>"; a standard or deep PASS reason holds
-#                                 "All stages ran" and no "Not run:" list (exit 2 otherwise);
+#                                 "Not run: <stage>, <stage>" naming every stage with no receipt;
+#                                 "All stages ran" at any tier needs the receipts; a standard or
+#                                 deep PASS reason holds "All stages ran" and no "Not run:" list
+#                                 (exit 2 otherwise);
 #                                 PASS for a branch with an open PR records only when
 #                                 bin/pr-landing-gate.py passes on the fetched PR and
 #                                 bin/pr-ci-wait.py --once finds every check green on <sha>
@@ -75,7 +91,7 @@ CRED_RE='(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]
 command -v jq >/dev/null 2>&1 || exit 0
 
 INPUT=""
-case "$MODE" in note|gate) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
+case "$MODE" in note|gate|stages) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
 [ -n "$INPUT" ] || INPUT='{}'
 
 jf() { printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null; }
@@ -85,7 +101,7 @@ SID="$(jf '.session_id' | tr -cd '[:alnum:]._-')"
 # environment. Every other mode takes it from its payload only: a test or tool subprocess inherits the
 # live session's CLAUDE_CODE_SESSION_ID, and reading it there let a temp-repo test re-anchor the live
 # session's record (the fix for a nested-worktree ask that opened a second ledger and hid a standing merge).
-case "$MODE" in note|gate)
+case "$MODE" in note|gate|stages)
   [ -n "$SID" ] || SID="$(printf '%s' "${CLAUDE_CODE_SESSION_ID:-}" | tr -cd '[:alnum:]._-')" ;;
 esac
 [ -n "$SID" ] || SID="unknown"
@@ -283,16 +299,70 @@ Fix the failing check in this PR, or wait for the pending one, then rerun gate P
   return 0
 }
 
-gate_pairs() { # branch and sha of every recorded gate, outside prompt fences
-  awk '
+section_lines() { # section_lines KIND FILE — every line under a "## <ts> · KIND" heading, outside prompt fences
+  awk -v kind="$1" '
     { line=$0; sub(/^ */, "", line)
       if (line ~ /^(```|~~~)/) { mark=substr(line,1,1); match(line, "^" mark "+"); width=RLENGTH
         tail=substr(line,width+1)
         if (!fence) { fence=width; delimiter=mark; next }
         if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }
-    !fence && /^## [0-9][0-9][0-9][0-9]-/ { ingate = ($0 ~ / · gate$/) }
-    !fence && ingate && /^gate: [^ ]+ [0-9a-f]+ (PASS|BLOCKED|N\/A)( |$)/ { print $2, $3 }
-  ' "$1"
+    !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ (" · " kind "$")); next }
+    !fence && insec { print }
+  ' "$2"
+}
+
+gate_pairs() { # branch and sha of every recorded gate, outside prompt fences
+  section_lines gate "$1" | awk '/^gate: [^ ]+ [0-9a-f]+ (PASS|BLOCKED|N\/A)( |$)/ { print $2, $3 }'
+}
+
+# The stage skills each tier requires on the recorded head: the ONE home of this list. The gate, the
+# Stop message, `stages` and the receipt recorder read it; skills/sk/skills/ship-full-detailed-workflow
+# runs the stages and references/testing-strategy.md § Size the checks to the change sizes them.
+# Conditional legs (/security-review, test-eyeball, test-copilot) are not required stages.
+STAGES_LIGHT="sk:ship-resolve-pr-comments sk:ship-screenshot-changes sk:ship-pr"
+STAGES_STANDARD="sk:plan-stable-persistent-dynamic-complete-full-plan sk:ship-check-merge-readiness \
+sk:ship-review sk:ship-resolve-pr-comments sk:ship-report-and-ensure-correct-user-system-journey \
+sk:ship-screenshot-changes sk:ship-pr"
+STAGES_DEEP="$STAGES_STANDARD sk:test-automated-full-matrix sk:ship-verify-with-prod-data"
+
+tier_stages() {
+  case "$1" in light) echo "$STAGES_LIGHT" ;; standard) echo "$STAGES_STANDARD" ;; deep) echo "$STAGES_DEEP" ;; esac
+}
+
+stage_name() { # stage_name NAME — print the canonical stage skill for a Skill name or typed command, or fail
+  n="$(printf '%s' "$1" | tr -d '[:space:]')"; n="${n#/}"
+  case "$n" in *:*) ;; *) n="sk:$n" ;; esac
+  case " $STAGES_DEEP " in *" $n "*) printf '%s' "$n"; return 0 ;; esac
+  return 1
+}
+
+receipt_pairs() { # skill and head of every recorded receipt, outside prompt fences
+  section_lines receipt "$1" | awk '/^receipt: sk:[a-z0-9-]+ [^ ]+ [0-9a-f]+$/ && length($4) >= 7 { print $2, $4 }'
+}
+
+# missing_stages TIER SHA — the tier's stages with no receipt on SHA, comma-separated; needs LEDGER.
+missing_stages() {
+  have=""; [ -f "$LEDGER" ] && have="$(receipt_pairs "$LEDGER")"
+  miss=""
+  for s in $(tier_stages "$1"); do
+    ok=0
+    while read -r rs rh; do
+      [ -n "$rs" ] || continue
+      if [ "$rs" = "$s" ] && sha_match "$rh" "$2"; then ok=1; break; fi
+    done <<HAVE
+$have
+HAVE
+    [ "$ok" -eq 1 ] || miss="${miss:+$miss, }$s"
+  done
+  printf '%s' "$miss"
+}
+
+# receipt_record SKILL DIR — print the ledger entry for SKILL run on DIR's HEAD; the caller holds the lock.
+receipt_record() {
+  [ -d "$2" ] || return 1
+  head="$(git -C "$2" rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null)" || return 1
+  br="$(git -C "$2" symbolic-ref -q --short HEAD 2>/dev/null)"; [ -n "$br" ] || br="(detached)"
+  printf '\n## %s · receipt\n\nreceipt: %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$br" "$head"
 }
 
 # Print "root<TAB>branch<TAB>sha" for each pushed branch head that has no gate record.
@@ -369,6 +439,18 @@ $(basename "$target"). Fold it back into intent-ledger.md before teardown."
     printf '%s\n%s\n%s\n' "$fence" "$prompt" "$fence"
   } >> "$target" 2>/dev/null || exit 0
 
+  # A typed /sk:<stage> command runs that stage skill, so it earns the receipt a Skill tool call does.
+  # Only the leading command counts; the rest of the line is its arguments.
+  if [ "$kind" = ask ] && [ "$target" = "$LEDGER" ]; then
+    typed="$(printf '%s\n' "$stripped" | awk 'NR == 1 { print $1 }')"
+    case "$typed" in /*)
+      if st="$(stage_name "$typed")"; then
+        rcwd="$(jf '.cwd')"; [ -n "$rcwd" ] || rcwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+        receipt_record "$st" "$rcwd" >> "$LEDGER" 2>/dev/null
+      fi ;;
+    esac
+  fi
+
   [ "$redacted" -eq 1 ] && emit_once redacted "INTENT LEDGER: a credential-shaped value was redacted \
 from a recorded prompt. Never re-paste it into a PR body, ticket, commit or log."
   [ "$REDIRECTED" -eq 1 ] && emit_once redirect "INTENT LEDGER: this worktree is inside the ~/.claude \
@@ -391,7 +473,9 @@ after the newest recorded input. After a push to a non-default branch, run /sk:s
 on it and record the result with
   ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
 (a standard or deep PASS holds \"All stages ran\"; a BLOCKED holds it or \"Not run: <stage>, <stage>\")
-or Stop blocks once for the missing gate."
+or Stop blocks once for the missing gate. A PASS names its tier and needs a receipt on that head for
+every stage the tier requires; each Skill-tool run of a stage records one for the cwd repo's HEAD.
+  ~/.claude/hooks/intent-ledger.sh stages <tier> HEAD   lists the stages still missing there."
   jq -cn --arg c "GAUNTLET UPDATE: read the new ask in $target and the existing living plan. Apply \
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
 every added requirement, preserve unfinished items and the return point, then refresh the dashboard. \
@@ -427,6 +511,12 @@ note)
       echo "note: refusing: $src is a living plan or dashboard, and note deletes its source. Write the note to a scratch file and pass that." >&2
       exit 2 ;;
   esac
+  # Gate and receipt entries are written only by `gate` and the receipt recorder. A note carrying
+  # their heading would open such a section and forge a record the ship gate trusts.
+  if grep -qE '^## [0-9]{4}-.* · (gate|receipt)$' "$src" 2>/dev/null; then
+    echo "note: refusing: $src holds a '## <time> · gate' or '· receipt' heading, which only the gate and the stage-receipt recorder write. Reword that line." >&2
+    exit 2
+  fi
   acquire "$LEDGER" || { echo "note: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
   { printf '\n## %s · %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$kind"; cat "$src"; printf '\n'; } \
@@ -535,6 +625,36 @@ push)
   exit 0
   ;;
 
+skill)
+  # PostToolUse for Skill: runs only after the skill loaded. A ship stage skill earns a receipt for
+  # the HEAD of the session's cwd repo; every other skill records nothing. Silent either way.
+  [ "$(jf '.tool_name')" = "Skill" ] || exit 0
+  st="$(stage_name "$(jf '.tool_input.skill')")" || exit 0
+  rcwd="$(jf '.cwd')"; [ -n "$rcwd" ] || rcwd="${CLAUDE_PROJECT_DIR:-$PWD}"
+  rec="$(receipt_record "$st" "$rcwd")" || exit 0
+  resolve || exit 0
+  acquire "$LEDGER" || exit 0
+  header_if_new "$LEDGER"
+  printf '%s\n' "$rec" >> "$LEDGER" 2>/dev/null
+  exit 0
+  ;;
+
+stages)
+  tier="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
+  case "$tier" in light|standard|deep) ;; *)
+    echo "stages: usage: stages <light|standard|deep> [sha|HEAD]" >&2; exit 2 ;;
+  esac
+  [ -n "${3:-}" ] || { tier_stages "$tier"; exit 0; }
+  sha="$(git rev-parse --verify -q "$3^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$3" | tr '[:upper:]' '[:lower:]')"
+  case "$sha" in *[!0-9a-f]*|"") echo "stages: cannot resolve $3 to a commit" >&2; exit 2 ;; esac
+  QUIET=1
+  resolve || { echo "stages: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
+  miss="$(missing_stages "$tier" "$sha")"
+  if [ -n "$miss" ]; then echo "Not run: $miss"; exit 1; fi
+  echo "All stages ran"
+  exit 0
+  ;;
+
 gate)
   branch="${2:-}"; ref="${3:-}"; status="$(printf '%s' "${4:-}" | tr '[:lower:]' '[:upper:]')"
   # Optional tier (references/testing-strategy.md, Size the checks to the change). A light or
@@ -546,6 +666,11 @@ gate)
   if [ -z "$branch" ] || [ -z "$ref" ]; then echo "$usage" >&2; exit 2; fi
   if [ "$status" != PASS ] && [ -z "$reason" ]; then
     echo "gate: $status needs a reason (the blocker, or why the harness does not apply)" >&2; exit 2
+  fi
+  # A PASS names its tier, because the tier decides which stage receipts it needs; an untiered PASS
+  # would skip that check.
+  if [ "$status" = PASS ] && [ -z "$tier" ]; then
+    echo "gate: a PASS names its tier (light|standard|deep), which decides the stage receipts it needs" >&2; exit 2
   fi
   if [ "$status" = PASS ] && [ -z "$reason" ] && { [ "$tier" = light ] || [ "$tier" = standard ]; }; then
     echo "gate: a $tier PASS needs a reason: its trigger and the stages it skipped" >&2; exit 2
@@ -569,12 +694,44 @@ in \"skipped: <stages>\", not \"Not run:\"." >&2; exit 2 ;;
       echo "gate: a $tier $status reason needs \"All stages ran\" or \"Not run: <stage>, <stage>\"" >&2; exit 2 ;;
     esac
   fi
-  [ -n "$tier" ] && reason="$tier${reason:+ $reason}"
   sha="$(git rev-parse --verify -q "$ref^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$ref" | tr '[:upper:]' '[:lower:]')"
   case "$sha" in *[!0-9a-f]*|"") echo "gate: cannot resolve $ref to a commit" >&2; exit 2 ;; esac
   [ "${#sha}" -ge 7 ] || { echo "gate: sha needs 7+ characters" >&2; exit 2; }
-  if [ "$status" = PASS ]; then landing_check "$branch" "$sha" || exit 1; fi
   resolve || { echo "gate: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
+  # Stage receipts on this exact head back the stage statement, so neither a PASS nor "All stages ran"
+  # rests on reason text alone. A receipt on an older head never counts.
+  if [ -n "$tier" ] && [ "$status" != N/A ]; then
+    miss="$(missing_stages "$tier" "$sha")"
+    fix="Invoke each with the Skill tool (e.g. Skill sk:ship-review) while the session's working \
+directory is the checkout at ${sha:0:7}; each run records a receipt for that head. Check with
+  ~/.claude/hooks/intent-ledger.sh stages $tier ${sha:0:7}"
+    if [ -n "$miss" ] && [ "$status" = PASS ]; then
+      echo "gate: a $tier PASS refused for $branch at ${sha:0:7}: these required stages have no receipt on this head.
+Not run: $miss
+$fix
+then rerun gate PASS; or record BLOCKED with that \"Not run:\" list." >&2; exit 2
+    fi
+    if [ -n "$miss" ]; then
+      case "$reason" in *"All stages ran"*)
+        echo "gate: a $tier $status reason says \"All stages ran\" but these stages have no receipt on ${sha:0:7}.
+Not run: $miss
+$fix
+or replace \"All stages ran\" with that \"Not run:\" list." >&2; exit 2 ;;
+      esac
+      if [ "$tier" = standard ] || [ "$tier" = deep ]; then
+        unnamed=""
+        for s in $(printf '%s' "$miss" | tr ',' ' '); do
+          printf '%s' "$reason" | grep -qE "(^|[^a-z0-9-])$s([^a-z0-9-]|\$)" || unnamed="${unnamed:+$unnamed, }$s"
+        done
+        if [ -n "$unnamed" ]; then
+          echo "gate: a $tier $status reason names every stage with no receipt on ${sha:0:7}; it omits: $unnamed
+Use \"Not run: $miss\"." >&2; exit 2
+        fi
+      fi
+    fi
+  fi
+  [ -n "$tier" ] && reason="$tier${reason:+ $reason}"
+  if [ "$status" = PASS ]; then landing_check "$branch" "$sha" || exit 1; fi
   acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
   {
@@ -686,16 +843,26 @@ the new fact: rules/communication.md forbids re-printing an unchanged block. Thi
   gsnap="$(printf '%s' "$open" | cksum)"
   [ "$(cat "$STATE/$SID.shipgate" 2>/dev/null)" = "$gsnap" ] && exit 0
   printf '%s\n' "$gsnap" > "$STATE/$SID.shipgate" 2>/dev/null || exit 0
-  list="$(printf '%s\n' "$open" | awk -F'\t' '{ printf "  %s (%s) at %s\n", $2, $1, substr($3,1,7) }')"
+  # Each head's missing stages come from its receipts, per tier, so the agent invokes exactly those.
+  list="$(printf '%s\n' "$open" | while IFS="$(printf '\t')" read -r oroot obranch osha; do
+    printf '  %s (%s) at %s\n' "$obranch" "$oroot" "${osha:0:7}"
+    for t in light standard deep; do
+      m="$(missing_stages "$t" "$osha")"
+      printf '    %s: %s\n' "$t" "${m:+Not run: $m}"
+    done | sed 's/: $/: All stages ran/'
+  done)"
   msg="This session pushed these branches and recorded no ship-gate result for the pushed head:
 $list
 Before finishing, run /sk:ship-full-detailed-workflow on each at its tier (references/testing-strategy.md, \
-Size the checks to the change; rules/process.md, Prove every point of the ask was built), then record it:
+Size the checks to the change; rules/process.md, Prove every point of the ask was built): invoke each \
+stage listed under that tier above with the Skill tool, from the checkout at that head (each run records \
+its receipt; a receipt on an older head does not count), then record it:
   ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
 BLOCKED, N/A and a light or standard PASS need a reason: the exact blocker, why the harness does not \
 apply to this push, or the tier's trigger and skipped stages. A standard or deep BLOCKED \
 reason holds \"All stages ran\" or \"Not run: <stage>, <stage>\" naming each stage not invoked as its own \
 skill on that head; a standard or deep PASS holds \"All stages ran\" and is refused with any \"Not run:\" list. \
+A PASS names its tier and is refused while any stage that tier requires has no receipt on the head. \
 Run every stage the tier requires first, on the newest head, unprompted, even when an external blocker makes it BLOCKED. A gate \
 recorded for an older head does not count once a newer head is pushed. This fires at most once per set of open pushes."
   jq -cn --arg r "$msg" '{decision:"block",reason:$r}'

@@ -134,6 +134,7 @@ CONTRACTS: dict[str, dict] = {
             "Block cached API authentication and CLI billing overrides; strip inherited API environment and pin the native subscription endpoint without modifying credentials.",
             "Disable on-demand connectors and retired registry-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
+            "Map a shell read of skills/sk/skills/<name>/SKILL.md to an extra Skill event for sk:<name>, so a Codex run of a ship stage records the same stage receipt as Claude's Skill tool.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
             "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
             "Leave a headless `codex exec` that names no model on the native Codex config model with no injected default; leave an explicit caller model and the interactive TUI untouched.",
@@ -1251,6 +1252,7 @@ CONTRACTS: dict[str, dict] = {
             "Require every CI check on the recorded head green at the landing gate; a check failing by design is a finding to fix in that PR, never a PASS reason.",
             "Invoke every stage the tier requires as its own skill before recording the gate, even when an external blocker makes it BLOCKED; every gate reason and hand-back names each unrun stage as 'Not run: <stage>, <stage>' or states 'All stages ran', so a BLOCKED or PASS never hides an unrun stage.",
             "Record a Standard or Deep PASS only with 'All stages ran', never with a 'Not run:' list or a stage that ran on an earlier head; after any new push or base merge, rerun every remaining required stage on the new head unprompted before hand-back and never offer to run them.",
+            "Name every stage hooks/intent-ledger.sh requires for any tier as /sk:<stage>; run intent-ledger.sh stages <tier> HEAD before recording and invoke each listed stage with the Skill tool from the checkout at that head, because the gate refuses a PASS, and any 'All stages ran', without a receipt on the recorded sha for each stage the tier requires.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
             "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
             "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head, under testing-strategy.md's pre-merge end-to-end walk looped to a clean run; a Deep PR's matrix runs them.",
@@ -2402,6 +2404,15 @@ CONTRACTS: dict[str, dict] = {
             "open pushes, also on a stop_hook_active continuation, until each branch's newest pushed head has "
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
             "never counts.",
+            "Stage receipts: the hook's STAGES_LIGHT/STANDARD/DEEP list is the one home of the stage skills each tier "
+            "requires. PostToolUse `skill` (Skill tool), a typed leading /sk:<stage> prompt, and a Codex read of a stage "
+            "SKILL.md mapped by bin/agent_runtime.py append `receipt: <skill> <branch> <head>` for the HEAD of the cwd "
+            "repo; any other skill records nothing. `gate PASS` names its tier (an untiered PASS exits 2) and exits 2 "
+            "printing 'Not run: <stage>, ...' while a required stage has no receipt on the gated sha; a receipt on an "
+            "older head never counts. 'All stages ran' in any record needs the same receipts, and a standard or deep "
+            "BLOCKED names every stage without one. Receipts are read fence-aware, and `note` refuses a source carrying "
+            "a gate or receipt heading, so neither can be forged. Stop's ship-gate block lists each tier's missing "
+            "stages per pushed head; `stages <tier> [sha]` prints the list or the missing ones, read-only.",
             "`gate PASS` for a branch with an open PR on a GitHub origin records only when bin/pr-landing-gate.py "
             "exits 0 and bin/pr-ci-wait.py --once exits 0 for the gate's sha (resolved to the full id when local), "
             "else exits 1 printing the missing rows or the failing, pending or moved-head CI line; a failed PR "

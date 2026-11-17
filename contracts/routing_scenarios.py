@@ -436,6 +436,10 @@ HOOK_ROUTING: list[dict] = [
     {"event": "PostToolUse", "tool": "Edit", "expect": []},
     # A Bash call can be a push; the ship-gate recorder watches it, and no other tool.
     {"event": "PostToolUse", "tool": "Bash", "expect": ["intent-ledger.sh"]},
+    # A Skill call can be a ship stage; the stage-receipt recorder watches it. A tool whose name only
+    # contains "Skill" must not fire it.
+    {"event": "PostToolUse", "tool": "Skill", "expect": ["intent-ledger.sh"]},
+    {"event": "PostToolUse", "tool": "mcp__x__SkillSearch", "expect": []},
     {"event": "SessionEnd", "tool": None, "expect": ["retro-trigger-log.sh", "config-metrics-log.sh"]},
     # Matcher-less like SessionStart, so every UserPromptSubmit hook fires on every prompt.
     {"event": "UserPromptSubmit", "tool": None,

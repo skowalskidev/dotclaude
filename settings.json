@@ -117,6 +117,16 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/intent-ledger.sh skill",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "Stop": [

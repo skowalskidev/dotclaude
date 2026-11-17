@@ -383,6 +383,11 @@ def adapted_payloads(payload):
     data = payload.get('tool_input', {})
     if tool == 'exec_command':
         result['tool_input'] = dict(data, command=data.get('cmd', data.get('command', '')))
+        # Codex has no Skill tool: it runs a skill by reading its SKILL.md. Map each own-skill read to
+        # the Skill event too, so hooks/intent-ledger.sh records the same stage receipt on both hosts.
+        names = re.findall(r'skills/sk/skills/([a-z0-9-]+)/SKILL\.md', result['tool_input']['command'])
+        return [result] + [dict(payload, tool_name='Skill', tool_input={'skill': 'sk:' + name})
+                           for name in dict.fromkeys(names)]
     if tool == 'apply_patch':
         patch = data.get('command', data.get('patch', '')) if isinstance(data, dict) else data
         paths = re.findall(r'^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$', patch, re.M)

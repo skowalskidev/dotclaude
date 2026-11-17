@@ -459,17 +459,27 @@ with tempfile.TemporaryDirectory() as tmp:
     def hook_gate(*args):
         return subprocess.run(["bash", str(HOOK), "gate", *args], text=True, capture_output=True, cwd=repo, env=env)
 
+    # Every stage receipt on the fixture head, so these cases exercise the landing gate and CI legs.
+    listed = subprocess.run(["bash", str(HOOK), "stages", "deep"], text=True, capture_output=True, cwd=repo,
+                            env=env).stdout.split()
+    check(len(listed) == 9, f"intent-ledger.sh stages deep did not list the deep stages: {listed}")
+    for stage in listed:
+        subprocess.run(["bash", str(HOOK), "skill"], text=True, capture_output=True, cwd=repo, env=env,
+                       input=json.dumps({"cwd": str(repo), "session_id": "landing-gate-test", "tool_name": "Skill",
+                                         "tool_input": {"skill": stage}}))
+    LIGHT = ("light", "fixture; skipped: matrix")
+
     def gate_lines():
         return [ln for ln in ledger.read_text().splitlines() if ln.startswith("gate: ")] if ledger.exists() else []
 
     serve(stub, summary_only)
-    r = hook_gate("feature/x", "HEAD", "PASS")
+    r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 1 and "Test matrix" in r.stderr and "PASS refused" in r.stderr and gate_lines() == [],
           f"gate PASS recorded over a failing PR: {r.returncode} {r.stderr}")
     r = hook_gate("feature/x", "HEAD", "BLOCKED", "matrix not posted yet")
     check(r.returncode == 0 and len(gate_lines()) == 1, f"gate BLOCKED changed behaviour: {r.returncode} {r.stderr}")
     serve(stub, None, prs=None)
-    r = hook_gate("feature/x", "HEAD", "PASS")
+    r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 1 and "gh pr list failed" in r.stderr and len(gate_lines()) == 1,
           f"A failed PR lookup did not refuse PASS: {r.returncode} {r.stderr}")
     # CI on the gate's head: every check green, or PASS records nothing whatever the reason says.
@@ -479,31 +489,31 @@ with tempfile.TemporaryDirectory() as tmp:
     check(r.returncode == 1 and "FAILED" in r.stderr and "ci / check1" in r.stderr and "not all green" in r.stderr
           and len(gate_lines()) == 1, f"gate PASS recorded over a failing CI check: {r.returncode} {r.stderr}")
     serve(stub, PASSING, head=head, ci=("SUCCESS", "PENDING"))
-    r = hook_gate("feature/x", "HEAD", "PASS")
+    r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 1 and "PENDING" in r.stderr and "exit 6" in r.stderr and len(gate_lines()) == 1,
           f"gate PASS recorded over a pending CI check: {r.returncode} {r.stderr}")
     serve(stub, PASSING, head="b" * 40)
-    r = hook_gate("feature/x", "HEAD", "PASS")
+    r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 1 and "HEAD MOVED" in r.stderr and len(gate_lines()) == 1,
           f"gate PASS recorded for a sha that is not the PR head: {r.returncode} {r.stderr}")
     serve(stub, PASSING)
-    r = hook_gate("feature/x", "HEAD", "PASS")
+    r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 1 and "not all green" in r.stderr and len(gate_lines()) == 1,
           f"gate PASS recorded when the CI read failed: {r.returncode} {r.stderr}")
     serve(stub, PASSING, head=head)
-    r = hook_gate("feature/x", head[:9], "PASS")
+    r = hook_gate("feature/x", head[:9], "PASS", *LIGHT)
     check(r.returncode == 0 and "pr-landing-gate: PASS" in r.stdout and "PASSED" in r.stdout
-          and gate_lines()[-1] == f"gate: feature/x {head} PASS ",
+          and gate_lines()[-1] == f"gate: feature/x {head} PASS light fixture; skipped: matrix",
           f"gate PASS over a passing PR with green CI did not record the full sha: {r.returncode} {r.stdout}{r.stderr}")
-    r = hook_gate("feature/x", "0123abcd", "PASS")
-    check(r.returncode == 1 and "HEAD MOVED" in r.stderr and len(gate_lines()) == 2,
-          f"gate PASS accepted a short sha that is not the PR head: {r.returncode} {r.stderr}")
+    r = hook_gate("feature/x", "0123abcd", "PASS", *LIGHT)
+    check(r.returncode == 2 and "Not run:" in r.stderr and len(gate_lines()) == 2,
+          f"gate PASS accepted a short sha with no stage receipts: {r.returncode} {r.stderr}")
     serve(stub, None, prs=())
-    r = hook_gate("feature/x", "HEAD", "PASS")
+    r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 0 and len(gate_lines()) == 3, f"gate PASS with no open PR changed behaviour: {r.stderr}")
     git("remote", "set-url", "origin", "https://example.test/o/r.git")
     serve(stub, None, prs=None)
-    r = hook_gate("feature/x", "HEAD", "PASS")
+    r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 0 and len(gate_lines()) == 4, f"gate PASS on a non-GitHub origin changed behaviour: {r.stderr}")
 
     # The CLI reads the repo's top-level folders: a hosted web change in a repo with an iOS app needs the lines.
