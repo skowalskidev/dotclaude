@@ -54,6 +54,8 @@ credentials and customer data out of shared reports. Link sanitized local eviden
 
 ## Finish without waiting
 
+DO link the local report in the hand-back. Analysis and its verification never start another audit.
+
 DO invoke `/sk:claude-config-self-optimize-analysis-after-run` after the task and cleanup. Read this
 session's evidence only; run `superspeed-analyse.py` only for an actual superspeed run directory.
 Limit an ordinary session's analysis to the existing record and two bounded snapshots; do not start

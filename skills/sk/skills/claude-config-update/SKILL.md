@@ -171,6 +171,11 @@ than duplicate it.
   entry on the branch's concern into the SAME `config-update/<slug>` branch as a further commit, rerun
   Step 6b and show the new diff. DON'T land a branch while an `open` entry on its concern sits
   outside it.
+- **DO hold the repair while the task check that exposed it is still failing or its cause is
+  unknown:** record the lesson, fix and verify the task first, then draft and land with the known
+  cause. Repair at once only a config defect that blocks the task's fix itself. TEST: no repair lands
+  while a check it cites is red (the fix for two repairs landed mid-run on a PR whose CI was still red
+  with an unknown cause).
 - **DO draft a follow-up branch unprompted when a lesson on a landed concern arrives**, sharpening the
   landed lines, and name it in a gate block. One concern costs Simon one request.
 

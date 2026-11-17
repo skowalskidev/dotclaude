@@ -797,8 +797,19 @@ CI job step it mirrored, by helper row, with its result, names every step not ru
 reason, and its row count equals the helper's `TOTAL`; no CI run on the pull request, first or later,
 fails on a gate that has a local command (the fix for five gates found one push at a time, for
 review-fix pushes that reran one gate and failed CI on another, for a secret-scan false positive on a
-test fixture token caught only by CI, and for a hand-picked list that passed while CI's design job
-failed on its i18n coverage script).
+test fixture token caught only by CI, for a hand-picked list that passed while CI's design job
+failed on its i18n coverage script, and for fix workers' pushes that ran a repo-wide duplicate scan and
+skipped the scripts group, so CI failed on the PR's own duplicate test and a migration's reset scan).
+
+**DO diagnose a red CI run on a head by rerunning only its failed specs, locally, on that same head
+first** (e.g. `--repeat-each=5` on the failing e2e specs against the build already made). Build and run
+the base only when the head fails; a head that passes every repeat is a load flake, recorded by name,
+and the failed CI job is rerun. DON'T rerun locally a gate CI already passed on that sha, or start the
+full local gate list to diagnose one red job: the full list runs before a push of a NEW head.
+NUMBER: the first local diagnostic step after a red CI run is the failed job's specs, within 15
+minutes of reading the log. TEST: no diagnosis rebuilds the base, reruns CI-passed gates or runs the
+full suite before the failed specs ran on the head (the fix for a two-hour serial re-run of CI-passed
+gates before one flaky browser spec ran once; it then passed 150 of 150).
 
 **DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
 PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant

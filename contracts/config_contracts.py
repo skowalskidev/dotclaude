@@ -669,6 +669,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Turns a config part that underperformed, or was never invoked, into a durable "
                    "fix at its root under scoped standing authorization.",
         "criteria": [
+            "A config repair lands only after the task check it cites is fixed and verified green; the lesson is recorded meanwhile, except a defect blocking the fix itself.",
             "Automatically repair evidence-backed own-config defects, validate, merge, push, activate and clean up under rules/self-healing-config.md; ask only outside its scope.",
             "Run bounded analysis automatically at each task hand-back and retain its local report; the active session owns repairs while delegated participants return evidence.",
             "Event-driven. No cron, no periodic scan, no scheduled sweep.",
@@ -1038,6 +1039,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "The suite proves the thing works and spends nothing doing it.",
         "purpose": "Test structure, the pre-merge end-to-end walk on a local stack, the old app build walk against the new backend, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
+            "A red CI run on a head is diagnosed by rerunning only its failed specs on that head first; the base is built only when the head fails, and CI-passed gates are not rerun.",
             "A change to a verdict several doors read carries one agreement test driving every door on the same fixture, failing when any two disagree.",
             "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
             "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",

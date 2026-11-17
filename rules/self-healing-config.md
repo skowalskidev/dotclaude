@@ -24,15 +24,15 @@ question is presented for a validated in-scope change.
 ## Automatic triggers
 
 1. **A config part underperformed.** Inspect the responsible rule, reference, skill, hook, manifest or
-   runtime and fix the owning source rather than adding a reminder elsewhere.
+   runtime and fix the owning source rather than adding a reminder elsewhere. Land it only after the
+   task check it cites is green: `/sk:claude-config-update` § Lessons that arrive before the fix.
 2. **The right part was never invoked.** Compare the task and intent ledger with installed routing.
    Repair a missed trigger at its description or routing source; do not blame task memory.
 3. **Every task reaches hand-back.** Queue the audit at intake, run it after task verification, and
    record fixes or a no-finding result. Missing evidence is an explicit gap, not a fabricated lesson.
 
 DO use the bounded evidence already collected. A one-off without a durable config cause is a
-no-change result. Generalize the mechanism, keeping one illustrative case; do not narrow a skill to
-one incident. Analysis and its verification do not recursively start another audit.
+no-change result. Generalize per `rules/process.md` § Fix the CLASS of failure.
 
 ## Finish the repair
 
@@ -51,5 +51,5 @@ force a push, discard user work, or report a capacity-deferred check as passed.
 TEST: every finding is fixed and synced, no change is justified, or one exact blocker is retained.
 
 DO report the outcome using the existing communication rules: what changed, verification and any
-remaining blocker. Link the local report. For project-specific lessons, use the project's policy;
+remaining blocker. For project-specific lessons, use the project's policy;
 this standing config authorization does not grant new remote or production actions in that project.
