@@ -25,16 +25,8 @@ every skill is invoked as `/<plugin>:<skill>` and **typing the prefix in the sla
 **Name a new skill `<group>-<what-it-does>`** (group first, so typing it narrows the menu). Groups live
 in `contracts/skill_naming.py`.
 
-Rules (verified against the official Claude Code docs):
-- New personal skills go in `~/.claude/skills/sk/skills/<name>/SKILL.md`. Never put my skills loose in
-  `~/.claude/skills/` or `~/.claude/commands/`.
-- **Work-only skills go in `~/.claude/work/sk-work/skills/<name>/`** (`skills/sk-work` symlinks
-  to it). `work/` is untracked, so a work skill is never committed, synced, or backed up.
-- Grouping subfolders in `~/.claude/skills/` are NOT supported (nested discovery only works for
-  project `.claude/skills/`) — always use the plugin-folder pattern above.
-- Creating a NEW top-level folder in `~/.claude/skills/` requires restarting Claude Code — sessions
-  started before the folder existed will never see it (start a fresh session/chat); edits to
-  existing SKILL.md files are picked up live.
+Where a new skill lives (plugin folders, the untracked `work/` home, restart needs): `references/skill-stack.md`
+§ Where my own skills live.
 
 ### [sk] / [sk-work] — my own skills (not enumerated here)
 Not listed — a hardcoded list goes stale. Names + descriptions surface at runtime (see "Use one of my

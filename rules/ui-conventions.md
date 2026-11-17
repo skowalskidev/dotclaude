@@ -39,3 +39,9 @@ step replaces the body.
 TEST: a title+subtitle region has NO subtitle, or one naming a cost/data/wrong-choice consequence.
 Count blocks before/after — no drop means you compressed, not deleted. e.g. the app-wide sweep kept
 only the billing, consent, dry-run and upload-limit subtitles.
+
+### Illustrations are generated images, not hand-drawn SVG
+**DO make every new illustration or scene a generated raster from the Codex subscription image
+tool** (`references/agent-hosts.md` § Image generation, no spend). Hand-written SVG stays for icons,
+logos and simple shapes.
+TEST: no new illustration in the diff is a hand-authored `<svg>` path drawing.

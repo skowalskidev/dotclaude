@@ -7,7 +7,8 @@ worker (`AGENT_DELEGATED_WORKER=1`) writes none of it and returns results.
 prompt, then fill its skeleton from the actual request and existing authorization.**
 On EVERY user message, hook or skill or neither, read the plan and record new asks and decisions
 first. Preserve unfinished work. Apply `references/workflow-loops.md` § Continuous request reconciliation.
-Default to current execution, judge off, without re-locking authorized work.
+Default to current execution, judge off (on for a design-match ask, `references/workflow-loops.md`),
+without re-locking authorized work.
 Refresh the dashboard after every transition across ALL workstreams. Absorb per-task plans into it.
 
 Details: `references/planning-and-tracking.md`, `rules/process.md`.
