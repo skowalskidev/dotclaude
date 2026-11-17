@@ -28,6 +28,8 @@ below apply only to data surfaces. Record N/A only with the traced absence of a 
 dependency, never because no figure is displayed.
 DO run that section's incident replay whenever the change fixes a proven production incident, figure
 or not, and hand its `N/N` line to the PR's `## Value safety` section.
+DO run that section's sibling symptom sweep on every fix PR, at every tier from Standard up, and fold
+each in-scope symptom into the PR at its root before calling it ready.
 TEST: admission, validation, authorization and retention changes receive an applicability verdict.
 
 ## Phase 2 · Enumerate EVERY account the surface serves — from the SSOT list

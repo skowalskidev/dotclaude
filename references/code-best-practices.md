@@ -48,6 +48,18 @@ stated difference and reason. (e.g. a sign-in screen mounted with a flag prop bu
 full-height frame every other caller with that prop supplies: its primary buttons floated mid-screen
 instead of pinning to the bottom, and unit, type and e2e checks all passed.)
 
+**DO build a new or replacement screen from the existing one, unprompted:** a new state of a flow (an
+ended, refused or fallback screen), a variant at another price or plan, or a screen that replaces
+another. Reuse the existing screen or component whose style fits, passing the new copy or price as
+props; when none fits, compose the new one from the same shared parts (frame, header, card, buttons,
+tokens) as the screen it replaces or sits beside. Prove the match with a `bin/design-diff.py` panel
+of the new screen against its sibling at the same viewport, in one `## Regression check` row naming
+the sibling.
+**DON'T hand-build a one-off screen with its own layout and styles when a sibling exists.** TEST: every
+new screen in the diff names the existing component it reuses or the sibling it was composed to match
+(the fix for new ended-offer and regular-price paywalls Simon had to ask to restyle like the existing
+paywalls).
+
 ### Shell commands
 
 #### Agent-written shell fails fast and loud

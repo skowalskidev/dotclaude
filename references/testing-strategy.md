@@ -295,6 +295,31 @@ author imagined.
 TEST: an incident-fix hand-back names `N/N` against the enumerated cohort and the live-definition
 capture time; a fixture-only replay is UNKNOWN, never a pass.
 
+**DO sweep production for every sibling symptom of the same flow before a fix PR is called ready,**
+unprompted, inside `/sk:ship-verify-with-prod-data`. This is `rules/process.md` § Fix the CLASS of
+failure applied to production evidence: the reported case is one symptom of the flow, not its scope.
+1. Name the flow the PR touches end to end (e.g. a checkout fix covers every pay door: paywall,
+   wallet sheet, hosted page, member upgrade pages) and every outcome in it that is not success:
+   refusals, error codes, drops between steps, client-side errors, retries, timeouts.
+2. Read production read-only for each, since the last deploy of that flow and at least 7 days back:
+   function and server logs (the newest log fields included, re-read the logging code for fields added
+   since the PR started), the flow's tables and the payment provider's own records. Count each by
+   reason with its denominator, per § Production source fidelity.
+3. Give each symptom one verdict: `fixed by this PR` (name the test), `in scope, not fixed`, `correct
+   behaviour` (the refusal reason it protects, per `rules/engineering-standards.md` § Payment paths) or
+   `other owner` (ticket and owner).
+4. Fold every `in scope, not fixed` symptom into the same PR at its root, through the one shared owner
+   of that behaviour (`rules/engineering-standards.md` § Single source of truth), never a per-door
+   patch. Research the mainstream practice from primary sources first (`references/research.md`), then
+   loop fix, re-read production evidence, research the residual, fix, until every symptom holds a verdict
+   other than `in scope, not fixed`.
+Post the table `Symptom | Count / denominator | Window | Verdict | Evidence` under `## Prod data`.
+**DON'T call a fix PR ready from the reported case alone, or from logs read before the last deploy.**
+TEST: a fix PR's `## Prod data` holds one row per non-success outcome of its flow in the window, each
+with a verdict, and zero `in scope, not fixed` rows (the fix for a checkout PR where Simon asked for the
+log sweep; it found wallet setup errors, an in-sheet retry refused and a stale-guest refusal, all
+folded in through the shared retry owner).
+
 ## Value safety: four answers before a money or access change is handed back
 
 **DO answer all four questions below, unprompted and with evidence, on the final head of every PR
@@ -659,9 +684,22 @@ screens use their test frames under § Native simulator suites. Mount the part a
 onboarding, checkout, a payment webhook, an entitlement grant), at every tier. A reviewer who did not
 write the diff lists every pay path, proves each behaves as on the base with the feature switched off
 by a test passing on base and head, and writes the test for any path without one; each path is a row
-in the table below. TEST: every pay path the diff reaches has a row naming its test (the fix for a
-flag-gated change whose pay-path pass found an unbounded session read holding payers before the paid
-state moved on, under green suites).
+in the table below. A pay path is an entry crossed with each account state that reaches it: a new
+buyer (guest, signed-up free), a trial, a paid member upgrading or changing plan, a lapsed or cancelled
+member resuming, and an already-paid member. Walk the happy path to paid for each on base and head,
+unprompted. A new fallback, ended or error screen also gets the negative case: every valid state on the
+happy path never renders it (e.g. a live offer never shows "this offer has ended").
+TEST: every pay path the diff reaches has a row naming its test, upgrade and resume paths included (the
+fix for a flag-gated change whose pay-path pass found an unbounded session read holding payers before
+the paid state moved on, under green suites; and for a PR where Simon asked three times whether happy,
+upgrade and resume paths were safe).
+
+**DO prove a change to WHICH results or offers are shown keeps every good one the base showed,**
+unprompted: a fallback that fills an empty state, a ranking or eligibility change. Replay a
+production-shaped input set (recent real requests, read-only) on base and head and count each output
+as kept, new or lost. NUMBER: zero lost good outputs, or each loss stated INTENDED with its ask; every
+new output judged sensible by an independent judge (`references/research.md` § Independent judges).
+TEST: the PR's `## Regression check` holds the `kept / new / lost` counts with the input window.
 
 **DO post the result in the PR body under `## Regression check`:** a table
 `File | Hunks | Existing callers checked | Base-vs-head evidence | Result`, one row per modified

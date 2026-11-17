@@ -72,6 +72,17 @@ been built, some has been made irrelevant by other work, and some was always wro
 
 - **Read the real code for each one before scheduling it**, and give a verdict per ticket: still
   needed as written · partly done (say which part) · already solved elsewhere · obsolete.
+- **DO re-verify an existing PR or ticket against today's base AND today's production data,
+  unprompted, before any more work on it:** when a session resumes it, the base moved since its last
+  push, or a deploy landed in its area. Read the problem's production signal read-only over a recent
+  window since the last deploy (the refusal, error or empty result it fixes, counted with its
+  denominator; `/sk:ship-verify-with-prod-data` owns the reads), and say whether real users reach the
+  state or only tests and seeded data do. Then give the verdict above per part, list what the PR still
+  adds over the current base, and cut any part the base now delivers from the PR in the same batch.
+  DON'T keep building, re-shooting or shipping a PR before this verdict exists. TEST: every resumed PR
+  or ticket has a dated verdict with the production count it rests on, and the PR holds no part the
+  base already delivers (the fix for a PR Simon had to ask four times whether it was still needed after
+  main moved).
 - **Say what changed** that makes an obsolete one obsolete. A verdict with no evidence is a guess,
   and the guess is what reintroduces work someone already deleted.
 - **Check work already underway before scheduling it.** `git fetch`, then search every branch and

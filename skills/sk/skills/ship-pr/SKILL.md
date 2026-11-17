@@ -1,6 +1,6 @@
 ---
 name: ship-pr
-description: Simon's PR-authoring standard — every PR body STARTS with a before/after TLDR and a Do line, then a human-readable Deploy TLDR (imperative, do-only numbered steps covering cross-repo order, build prerequisites, deploy commands, and the post-deploy smoke). Apply whenever creating a PR or finalizing one for review, in any repo.
+description: Simon's PR-authoring standard — every PR body STARTS with a Change | Before | After | Why TLDR (biggest impact first) and a Do line, shown again in the chat hand-back, then a human-readable Deploy TLDR (imperative, do-only numbered steps covering cross-repo order, build prerequisites, deploy commands, and the post-deploy smoke). Apply whenever creating a PR or finalizing one for review, in any repo.
 argument-hint: [optional PR number or "draft body" context]
 ---
 
@@ -93,7 +93,10 @@ affected on deploy:
 **DO rewrite every section in `SECTIONS` from the current diff, and re-shoot every screenshot,
 journey clip and verification run against the current base, in the same push batch, unprompted,
 whenever the PR's behaviour or base moves after its body was written:** requested changes land, a
-base merge changes code the PR touches, a migration is renumbered, or scope moves. Re-derive each
+base merge changes code the PR touches, a migration is renumbered, or scope moves. **A base merge that
+changes what any captured surface shows counts, even when no file the PR touches changed** (a new
+banner, copy or layout from main lands in every AFTER shot). Check it with `git diff <old base>...<new
+base> --stat` against the surfaces in `## Screenshots`. Re-derive each
 section from `git diff <base>...<head>` and the code at the head, never from the old body. Re-shoot
 under `references/screenshot-review.md` § Refresh after the follow-up batch.
 **DON'T patch the few lines you remember changing.** Every untouched section is a current claim
@@ -109,4 +112,6 @@ TEST: after the push, the Test matrix heading names the head sha (`## Test matri
 every AFTER capture records that sha and every BEFORE the current base, zero sections describe
 superseded behaviour, every reviewer-added line survives, and the gate ran on the re-fetched body
 (the fix for a PR patched line by line across five rounds of requested changes and two base merges,
-until a full rewrite and fresh screenshots had to be asked for).
+until a full rewrite and fresh screenshots had to be asked for, twice more after this rule landed).
+`bin/pr-landing-gate.py` backs it: the gate fails a `## Test matrix` heading whose sha is not the
+PR's current head, so a stale body cannot record PASS.

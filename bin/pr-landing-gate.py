@@ -8,7 +8,10 @@ GraphQL), then checks the rows /sk:ship-full-detailed-workflow § Landing gate l
 is the ONE home of the PR body's section headings: /sk:ship-pr, references/tldr-report-formats.md
 and the harness name this file instead of restating them. A heading matches with any emoji or
 punctuation prefix and any case ("## 🚀 Deploy TLDR"), and may carry a suffix after a non-letter
-("## Test matrix (head abc1234)"). The Test matrix section also holds a Real-environment walk line.
+("## Test matrix (head abc1234)"). The Test matrix heading names the PR's current head sha, so a body
+written for an earlier head fails (/sk:ship-pr § Rewrite the body when the PR changes). The TLDR table
+header names Before, After and Why, in that order. The Test matrix section also holds a Real-environment
+walk line.
 The Regression check section holds one row per pre-existing file the PR modifies, renames or removes
 (the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED and a filled cell in the
 table's Base-vs-head evidence column: the method is references/testing-strategy.md § Regression check.
@@ -53,7 +56,7 @@ MATRIX_COUNTS = ("COVERED", "GAP", "NEEDS-DRIVING", "SKIPPED")
 # What each section must hold, printed with a missing heading so one gate run names every requirement
 # instead of revealing them one rewrite at a time. Keep in step with the checks in check_body.
 NEEDS = {
-    "TLDR": "first heading; a | | Before | After | table; a **Do:** line",
+    "TLDR": "first heading; a | Change | Before | After | Why | table, biggest impact first; a **Do:** line",
     "Deploy TLDR": "the next heading after the TLDR; numbered deploy steps",
     "User journey": "what the user goes through",
     "System journey": "what the system does, in steps",
@@ -102,6 +105,10 @@ RUN_LABELS = ("Findings:", "Fixed during review:", "Not covered:", "Sources:")
 REGRESSION_OK = re.compile(r"\b(?:PASS|INTENDED)\b")
 # The column holding each row's proof: a base-vs-head test or screenshot comparison, never empty.
 EVIDENCE_COLUMN = re.compile(r"base[- ]vs[- ]head", re.I)
+# references/tldr-report-formats.md § Before/after TLDR: the table header names Before, After and Why, in order.
+TLDR_HEADER = re.compile(r"^\s*\|[^\n]*\bBefore\b[^\n]*\|[^\n]*\bAfter\b[^\n]*\|[^\n]*\bWhy\b[^\n]*\|", re.M | re.I)
+# /sk:ship-pr § Rewrite the body when the PR changes: the Test matrix heading names the head it describes.
+HEAD_NAMED = re.compile(r"\bhead\W{0,3}([0-9a-f]{7,40})\b", re.I)
 REGRESSION_BAD = re.compile(r"\b(?:FAIL|REGRESSED)\b")
 PRE_EXISTING = ("modified", "renamed", "removed", "changed")
 COLLAPSED = re.compile(r"<details(?![^>]*\bopen\b)[^>]*>", re.I)
@@ -276,8 +283,25 @@ def check_installed_builds(safety):
     return missing
 
 
-def check_body(body, body_html, unresolved, modified=(), installed=False):
-    """Return one 'row: what is missing' string per failing landing-gate row."""
+def check_matrix_head(order, head):
+    """Missing-row strings when the Test matrix heading does not name the PR's current head sha."""
+    title = next((text for _, text, _ in order if matches(text, SECTIONS["Test matrix"])), "")
+    named = HEAD_NAMED.search(title)
+    if not named:
+        return [f"Test matrix: the heading names no head sha; write '## Test matrix (head {head[:9]})'"]
+    if not head.lower().startswith(named.group(1).lower()):
+        return [f"Test matrix: the heading names head {named.group(1)} but the PR head is {head[:9]}; "
+                "rewrite the body from the current diff and re-shoot (/sk:ship-pr § Rewrite the body "
+                "when the PR changes)"]
+    return []
+
+
+def check_body(body, body_html, unresolved, modified=(), installed=False, head=None):
+    """Return one 'row: what is missing' string per failing landing-gate row.
+
+    head: the PR's current head sha. When given, the Test matrix heading must name it
+    ("## Test matrix (head <sha>)"), so a body written for an earlier head fails.
+    """
     missing = []
     found, order = sections(body)
     heads = [text for _, text, _ in order]
@@ -287,9 +311,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False):
     if not tldr_first:
         missing.append(f"TLDR: the body's first heading is not a TLDR heading (needs: {NEEDS['TLDR']})")
     else:
-        if not re.search(r"^\s*\|[^\n]*\bBefore\b[^\n]*\|[^\n]*\bAfter\b[^\n]*\|", tldr, re.M | re.I) \
-                or not has_table(tldr):
-            missing.append("TLDR: no | | Before | After | table")
+        if not TLDR_HEADER.search(tldr) or not has_table(tldr):
+            missing.append("TLDR: no | Change | Before | After | Why | table (Why is the last column)")
         if not re.search(r"^\s*\*\*Do:\*\*", tldr, re.M):
             missing.append("TLDR: no **Do:** line")
     if "Deploy TLDR" not in found:
@@ -320,6 +343,9 @@ def check_body(body, body_html, unresolved, modified=(), installed=False):
             missing.append("Test matrix: the Real-environment walk records a FAIL")
         elif not any(re.search(r"\bPASS\b", w) or reasoned_na(w) or TIER_SKIP.search(w) for w in walk):
             missing.append("Test matrix: the Real-environment walk has no PASS, doesn't-apply reason or skip line")
+
+    if matrix is not None and head:
+        missing += check_matrix_head(order, head)
 
     missing += check_regression(found.get("Regression check"), list(modified or ()))
 
@@ -416,7 +442,8 @@ def fetch(repo, pr):
     changed = gh_lines("api", f"repos/{repo}/pulls/{pr}/files", "--paginate", "--jq", ".[].filename")
     roots = gh_lines("api", f"repos/{repo}/contents", "--jq", '.[] | select(.type == "dir") | .name')
     installed = reaches_installed_builds(changed, roots)
-    return data.get("body") or "", data.get("body_html") or "", unresolved, files, installed
+    head = (data.get("head") or {}).get("sha") or ""
+    return data.get("body") or "", data.get("body_html") or "", unresolved, files, installed, head
 
 
 def main():
@@ -428,7 +455,7 @@ def main():
         print(f"pr-landing-gate: usage: --repo must be owner/name, got {args.repo}", file=sys.stderr)
         return 2
     try:
-        body, body_html, unresolved, modified, installed = fetch(args.repo, args.pr)
+        body, body_html, unresolved, modified, installed, head = fetch(args.repo, args.pr)
     except (RuntimeError, KeyError, TypeError, ValueError) as err:
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: {err}", file=sys.stderr)
         return 2
@@ -436,7 +463,7 @@ def main():
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: body empty or under 200 chars",
               file=sys.stderr)
         return 2
-    missing = check_body(body, body_html, unresolved, modified, installed)
+    missing = check_body(body, body_html, unresolved, modified, installed, head)
     for row in missing:
         print(f"pr-landing-gate: FAIL {args.repo}#{args.pr} {row}")
     if missing:

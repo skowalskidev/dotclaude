@@ -297,6 +297,7 @@ CONTRACTS: dict[str, dict] = {
             "Record at screencast size equal to the viewport from a reset seed, drive every control a human uses, wait only on elements that appear after the event, keep the caption to one 80-character line, log every 400-plus response labelled app or third-party, save a screenshot, recent requests and the browser log on any harness failure, and reproduce a flake with logged requests before fixing it.",
             "Review each take by contact sheet and full-resolution step frames, fix in-scope app findings in code with a failing-first test and one commit each, re-record the whole run until zero findings; stop at 3 attempts or a product decision.",
             "Post only the final clean run under ## Verification runs after an independent fresh-context review: table, Findings: none, Fixed during review with shas, Not covered and Sources lines.",
+            "Every captured state is captioned with its production reach (entry and recent count) or a test-only reason; a capture of a state no happy path reaches is traced to real users before it is posted.",
         ],
     },
     "bin/pr-evidence.py": {
@@ -417,7 +418,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Own the PR body's section headings in SECTIONS; /sk:ship-pr, references/tldr-report-formats.md and the ship harness name this file instead of restating them.",
             "Match a heading with any emoji or punctuation prefix and any case; ignore headings inside code fences; a summary row under another heading never counts.",
-            "Fail when the first heading is not TLDR with a Before/After table and **Do:** line, or the Deploy TLDR does not follow it, or either journey heading is missing.",
+            "Fail when the first heading is not TLDR with a table whose header names Before, After and Why in that order and a **Do:** line, or the Deploy TLDR does not follow it, or either journey heading is missing.",
+            "When the fetched PR carries a head sha, fail a Test matrix heading that names no head sha or names one the PR head does not start with, so a body written for an earlier head never passes.",
             "Fail a Test matrix that names no tier, or with no results table or no number beside each of COVERED, GAP, NEEDS-DRIVING and SKIPPED.",
             "Accept a Light or Standard PR's `Skipped (tier light|standard): <trigger>` line, trigger of three or more words, in place of the matrix, prod-data and deploy-safety legs.",
             "Fail a Test matrix with no Real-environment walk line, or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
@@ -741,6 +743,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns the industry-naming method: research online, tally at least 4 major vendors' own pages, take the majority, name a split's holdout, mark a name unverified when research is impossible, never one vendor's brand.",
             "Holds the version-pinning detail (.nvmrc, engines floor, toolchain quirks, peer ceilings); rules/engineering-standards.md keeps the latest-stable default.",
             "Holds the payment-path method (refusal reasons, fail-open rule, retry statuses and timings, idempotency, retry UX, one owner) with primary sources; rules/engineering-standards.md keeps the always-on line.",
+            "A new or replacement screen reuses the existing component whose style fits, or is composed from the same shared parts as the screen it replaces or sits beside, proven by a design-diff panel against that sibling in the Regression check.",
         ],
     },
     "references/connectors-setup.md": {
@@ -954,6 +957,7 @@ CONTRACTS: dict[str, dict] = {
             "— auto next-round, durable repairs routed through the scoped repair policy); superspeed and hyperspeed point to "
             "it, not restate it.",
             "Reuse shared dependency build caches for needed setup or permitted verification; never share node_modules across worktrees. Keep project build recipes in allowed project guidance.",
+            "Every money, access or data fix commit a worker lands, and every round of review-fix commits, gets an adversarial reviewer from the other model provider on that commit range, looping until a round returns zero high or medium findings, with the judges' two-round stop rule for a repeated finding.",
         ],
     },
     "references/planning-and-tracking.md": {
@@ -981,6 +985,7 @@ CONTRACTS: dict[str, dict] = {
             "Before a ticket goes to a build, every decision it depends on is resolved INTO the ticket "
             "(the option chosen plus a one-line why) and every requirement is present, so a builder that "
             "cannot ask — a cloud session, a parallel part, a teammate — misses nothing and guesses nothing.",
+            "A resumed PR or ticket, or one whose base moved or whose area got a deploy, is re-verified against today's base and today's production signal, real users versus test-only states, before more work; the PR is cut to what it still adds over the base.",
         ],
     },
     "references/production-monitoring.md": {
@@ -1074,6 +1079,8 @@ CONTRACTS: dict[str, dict] = {
             "setup runs FIRST, however late in the work the run happens, because an uninstalled "
             "tree fails exactly like broken code and recording that as the starting state silently "
             "blocks every verdict that depends on it.",
+            "A fix PR sweeps production read-only for every non-success outcome of the flow it touches, since the last deploy and with the newest log fields, gives each a verdict (fixed by this PR, in scope not fixed, correct, other owner), folds every in-scope one in at the root through one shared owner after primary-source research, and posts the Symptom table under ## Prod data.",
+            "The pay-path pass covers every entry crossed with each account state that reaches it (new buyer, trial, upgrade or plan change, lapsed or cancelled resume, already paid) on base and head, plus the negative case that a valid state never renders a new fallback screen; a change to which results or offers are shown replays production-shaped inputs on base and head and reports kept, new and lost counts with zero unintended losses.",
         ],
     },
     "references/tldr-report-formats.md": {
@@ -1096,9 +1103,13 @@ CONTRACTS: dict[str, dict] = {
             "and something the reader can act on at the end.",
             "A change that touches or opens a payment path hands back Block 4 unasked: the payment "
             "files changed (or `none`) and a row per paywall entry with what follows paying and its one check, plus a row per account state with its precondition and production press-to-session rate.",
-            "Every PR body opens with the before/after TLDR: 3-5 table rows with the changed value "
-            "bold, then one **Do:** line naming the action and the fact that makes it safe or risky; "
-            "under 60 words, no prose.",
+            "Every PR body opens with the before/after TLDR: a Change | Before | After | Why table, one "
+            "numbered row per changed behaviour against the current base, biggest impact first with real "
+            "production counts where known, human words, the changed value bold and Why last; then one "
+            "**Do:** line naming the action and the fact that makes it safe or risky; cells of at most "
+            "25 words, no prose.",
+            "Every chat hand-back of a PR or finished change prints the same table unprompted, straight "
+            "after line 1, matching the PR's TLDR.",
         ],
     },
     "references/user-journey-review.md": {
@@ -1425,6 +1436,7 @@ CONTRACTS: dict[str, dict] = {
             "Composes /sk:ship-screenshot-changes and feeds "
             "/sk:ship-report-and-ensure-correct-user-system-journey a real-data verdict; does not "
             "restate them.",
+            "Phase 1 runs the sibling symptom sweep from references/testing-strategy.md § Production compatibility gates on every fix PR and folds each in-scope symptom into the PR at its root.",
         ],
     },
     "skills/sk/skills/ship-screenshot-changes/SKILL.md": {
@@ -1616,7 +1628,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "A reviewer sees what changed and what to do from the PR's first block, and can deploy the change from the body alone, in the right order, without asking.",
         "purpose": "PR bodies that open with a before/after TLDR, then a deploy TLDR.",
         "criteria": [
-            "The body opens with ## TLDR: a Before/After table of 3-5 rows and a **Do:** line, shape owned by references/tldr-report-formats.md; the Deploy TLDR follows it, before any template section.",
+            "The body opens with ## TLDR: a Change | Before | After | Why table ordered biggest impact first and a **Do:** line, shape owned by references/tldr-report-formats.md; the Deploy TLDR follows it, before any template section.",
             "Name bin/pr-landing-gate.py as the one home of the body's section headings and run it on the fetched PR.",
             "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero collapsed <details>: every <details> carries open, as GitHub's own attached-video wrapper does.",
             "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
@@ -1624,7 +1636,7 @@ CONTRACTS: dict[str, dict] = {
             "references/tldr-report-formats.md, so a reviewer can judge both the feature and the "
             "mechanism without reading the diff. Same blocks as end-report, so a PR and the report "
             "tell one story.",
-            "Owns the body rewrite: when a PR's behaviour or base moves after its body was written, every SECTIONS section is re-derived from the current diff and every capture re-shot in the same push batch, unprompted.",
+            "Owns the body rewrite: when a PR's behaviour or base moves after its body was written, a base merge that changes what any captured surface shows included, every SECTIONS section is re-derived from the current diff and every capture re-shot in the same push batch, unprompted; the Test matrix heading names the head it describes and the landing gate fails a stale one.",
             "The rewrite fetches first, stops on an empty or short fetch, keeps every reviewer-added line and non-SECTIONS section, replaces ours in place by heading, then re-fetches and reruns pr-landing-gate.py.",
         ],
     },

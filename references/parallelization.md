@@ -632,6 +632,17 @@ the builder as one commit with a regression test that fails without the fix.
 TEST: each deliverable has a review whose brief carries no builder narrative, and each verified
 finding maps to one commit plus its test (in one run these reviewers found 7 and 5 real bugs after
 every test was green).
+**DO re-review every fix commit a worker lands on money, access or data code, unprompted, before
+calling it done: the first fix, and again each round of commits answering the review.** Brief an
+adversarial reviewer of the other model provider (`references/research.md` § Independent judges, its
+launch line, head pinning and blocking bar) with the fix commit's range only, told to break it, and
+to rate each finding high, medium or low. A fix round is a new diff that no one has read yet.
+NUMBER: loop until a round returns zero high or medium findings; that section's two-round stop rule
+still ends a repeated finding, named as residual risk in the PR.
+TEST: every money, access or data fix commit in the run, review-fix commits included, has a reviewer
+verdict naming its sha, and the last round holds zero high or medium findings (the fix for a pay-retry
+owner whose review found 5 medium defects in a worker's fix, and whose follow-up fix then needed a
+second review that found a door outside the shared schedule).
 
 ## An agent you called "read-only" is not read-only unless you took its tools away
 Calling a fan-out an "audit" does not restrict it. Agents inherit write tools, and one of them will

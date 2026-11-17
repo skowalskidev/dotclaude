@@ -85,6 +85,13 @@ TEST: every source branch or discovered state maps to a case or a named not-appl
 happy-path sample silently replaces broad scope.
 DO add to that scope, at every tier, each existing screen a modified pre-existing file reaches and each
 screen reused in a new place beside its original place: `references/testing-strategy.md` § Regression check.
+DO caption every captured state with how a real user reaches it and how often: the entry that leads
+there and its production count over a recent window (read-only), or `test-only: <why it is shown>`.
+When a capture shows a state no happy path reaches (e.g. "you're already a member"
+after a paid tap), stop and trace whether real users reach it before posting; a real one is a defect
+for this PR, a seeded one is re-captured from the state a user actually meets.
+TEST: every posted scenario names its production reach or a `test-only:` reason (the fix for walkthrough
+videos whose odd states Simon had to ask about three times: real, test-only, or a regression).
 
 DO derive layout profiles from existing test/device config and CSS media/container query breakpoints.
 For each breakpoint b capture b−1, b and b+1 CSS pixels, plus supported minimum/maximum sizes; exercise

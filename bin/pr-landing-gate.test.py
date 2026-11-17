@@ -29,10 +29,10 @@ def check(ok, msg):
 
 PASSING = """## TLDR
 
-| | Before | After |
-|---|---|---|
-| Paid-plan searches | 50 a week | **200 a month** |
-| Free plan | 5 a week | unchanged |
+| Change (biggest impact first) | Before | After | Why |
+|---|---|---|---|
+| 1. Paid-plan searches | 50 a week | **200 a month** | Members ran out mid-week |
+| 2. Free plan | 5 a week | unchanged | Out of scope |
 
 **Do:** merge. The migration applies itself; no current member is refused.
 
@@ -174,8 +174,21 @@ no_tldr = PASSING[PASSING.index("## 🚀 Deploy TLDR"):]
 check("TLDR" in rows(gate.check_body(no_tldr, HTML, 0)), "A body with no TLDR passed the TLDR row")
 check(any("Do:" in m for m in gate.check_body(PASSING.replace("**Do:** merge", "Merge"), HTML, 0)),
       "A TLDR with no **Do:** line passed")
-check(any("Before" in m for m in gate.check_body(PASSING.replace("| | Before | After |", "| | Old | New |"), HTML, 0)),
+check(any("Before" in m for m in gate.check_body(PASSING.replace("| Before | After | Why |", "| Old | New | Reason |"), HTML, 0)),
       "A TLDR with no Before/After table passed")
+check(any("Why" in m for m in gate.check_body(PASSING.replace("| Before | After | Why |", "| Before | After | Notes |"), HTML, 0)),
+      "A TLDR table with no Why column passed")
+
+# The Test matrix heading names the PR's current head; a body written for an earlier head fails
+# (/sk:ship-pr § Rewrite the body when the PR changes).
+HEAD = "abc1234def5678900000000000000000000000000"
+stamped = PASSING.replace("## Test matrix\n", "## Test matrix (head abc1234)\n", 1)
+check(gate.check_body(stamped, HTML, 0, head=HEAD) == [], "A body naming the current head failed")
+check(any("PR head is" in m for m in gate.check_body(stamped, HTML, 0, head="fff" + HEAD[3:])),
+      "A body naming an earlier head passed")
+check(any("names no head sha" in m for m in gate.check_body(PASSING, HTML, 0, head=HEAD)),
+      "A Test matrix heading with no head sha passed when the PR head is known")
+check(gate.check_body(PASSING, HTML, 0) == [], "The head check fired with no PR head given")
 
 # One run names every requirement: a missing heading lists what its section must hold, and the
 # independent checks inside a present section all report together (the fix for a PR body that took
@@ -188,7 +201,7 @@ matrix_need = next((m for m in gate.check_body(tldr_only, HTML, 0) if m.startswi
 check(all(k in matrix_need for k in ("tier", "COVERED", "Real-environment walk")),
       f"The missing Test matrix line did not name the tier, counts and walk: {matrix_need}")
 check(set(gate.SECTIONS) - {"Verification runs"} <= set(gate.NEEDS), "A gated section has no NEEDS entry")
-both = PASSING.replace("**Do:** merge", "Merge").replace("| | Before | After |", "| | Old | New |")
+both = PASSING.replace("**Do:** merge", "Merge").replace("| Before | After | Why |", "| Old | New | Reason |")
 tldr_rows = [m for m in gate.check_body(both, HTML, 0) if m.startswith("TLDR")]
 check(len(tldr_rows) == 2, f"A TLDR missing both its table and Do line did not report both: {tldr_rows}")
 bare_prod = section(PASSING, "Prod data", "## Prod data\n\nChecked the accounts.\n\n")
@@ -425,6 +438,14 @@ with tempfile.TemporaryDirectory() as tmp:
     serve(stub, PASSING)
     r = cli()
     check(r.returncode == 0 and r.stdout.startswith("pr-landing-gate: PASS"), f"CLI pass: {r.returncode} {r.stdout}{r.stderr}")
+    serve(stub, stamped)
+    (stub / "pull.json").write_text(json.dumps({"body": stamped, "body_html": HTML, "head": {"sha": "fff" + HEAD[3:]}}))
+    r = cli()
+    check(r.returncode == 1 and "PR head is fff1234de" in r.stdout,
+          f"CLI did not fail a body written for an earlier head: {r.returncode} {r.stdout}{r.stderr}")
+    (stub / "pull.json").write_text(json.dumps({"body": stamped, "body_html": HTML, "head": {"sha": HEAD}}))
+    r = cli()
+    check(r.returncode == 0, f"CLI failed a body naming the current head: {r.returncode} {r.stdout}{r.stderr}")
     serve(stub, summary_only)
     r = cli()
     check(r.returncode == 1 and "FAIL example-org/example-repo#7 Test matrix" in r.stdout,

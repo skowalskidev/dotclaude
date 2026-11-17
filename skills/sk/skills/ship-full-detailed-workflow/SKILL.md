@@ -24,7 +24,10 @@ tickets; a fix that belongs to another PR is handed to that owner via
 
 0. **Establish state, then sync the branch.** The PR number, branch, worktree, base, draft flag,
    behind/ahead master; the authoritative ticket list from the PR body; the full diff surface
-   (`git diff <base>...HEAD`). PUSH the PR's own branch to origin so it is current — CI, the review,
+   (`git diff <base>...HEAD`). When this run resumes the PR, the base moved since its last push, or a
+   deploy landed in its area, re-verify it is still needed first, per `references/planning-and-tracking.md`
+   § A pre-existing ticket is a claim about the past, and cut what the base now delivers.
+   PUSH the PR's own branch to origin so it is current — CI, the review,
    and merge-readiness all read the pushed state. NEVER push, merge into, or otherwise write master.
    Leave a draft PR in draft: `references/git-pr-deploy.md` § CI runs once, at merge prep.
    **DO classify each PR's tier here, per `references/testing-strategy.md` § Size the checks to the
@@ -167,7 +170,7 @@ verified the user + system journey, then handed back with it never posted to the
   through `bin/pr-ci-wait.py --once` and refuses red, pending or a moved head. A check failing "by
   design" (e.g. one accepting only PRs on the default branch, failing a stacked PR) is a finding to fix
   in this PR, never a PASS reason.
-- TLDR (stage 8): the body opens with the before/after TLDR and a Do line.
+- TLDR (stage 8): the body opens with the Change | Before | After | Why TLDR, biggest impact first, and a Do line; the hand-back prints the same table.
 - Deploy-TLDR (stage 8): it follows the TLDR, each production step carrying its check, smoke
   and rollback.
 - Visible sections (every stage): the fetched `body_html` holds zero collapsed `<details>`: each

@@ -55,7 +55,8 @@ what shipped.
   Block 2 part 3.
 
 Then write it: one **context line** that lets him re-enter cold (what this is, which branch or ticket,
-what state it is in), followed by **User journey** (Block 1), **System journey** (Block 2),
+what state it is in), then the **Change | Before | After | Why** table (§ Before/after TLDR, biggest
+impact first, the same rows as the PR's `## TLDR`), followed by **User journey** (Block 1), **System journey** (Block 2),
 **Mismatches**, **Changes on this branch** (Block 3).
 
 State verification honestly per `rules/process.md`. A report that reads as finished when a step was

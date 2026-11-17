@@ -126,30 +126,40 @@ failed. Each one has to answer, at a glance: what is this about, what is happeni
 ## Before/after TLDR
 
 **DO open every PR body with `## TLDR`, above `## 🚀 Deploy TLDR`, holding exactly two parts:**
-1. A `| | Before | After |` table, 3-5 rows, one per thing a user or the system sees or does
-   differently. The row label names the real thing; each cell is a few words; the changed value is
-   **bold**; a neighbour a reader might assume moved reads `unchanged`.
+1. A `| Change (biggest impact first) | Before | After | Why |` table, one numbered row per
+   behaviour a user or the system shows or does differently against the CURRENT base (a behaviour
+   the base already delivers is no row). Order rows by impact: people or money affected first, using
+   the real production count where one is known (e.g. "10 people in 10 days, none bought"). Write
+   each cell as a person would say it: the screen, the words they see, what they can do, no code
+   names. The changed value is **bold**; a neighbour a reader might assume moved reads `unchanged`.
+   `Why` is last: the one-line reason the new behaviour is right.
 2. One line starting `**Do:**`, after a blank line (GitHub folds an unseparated line into the
    table): the reader's action (merge, review a named file, decide a named question) plus the one
    fact that makes it safe or risky.
 
-**DON'T add a prose paragraph, an intro line, or a row restating a section below.** Under 60 words
-total, table pipes excluded.
+**DON'T add a prose paragraph, an intro line, or a row restating a section below.** NUMBER: each
+cell at most 25 words; above 15 rows, fold the lowest-impact ones into one last `Smaller fixes` row.
 WHY: Simon opens a PR and decides from this block alone; every section below is detail on demand.
 
+**DO print the same table, unprompted, in the chat hand-back of every PR or change,** straight after
+line 1 (`rules/communication.md` § Answer first), re-derived from the final head: the table is
+not a bullet and does not count against the 5-bullet cap. **DON'T wait for "give me the before and
+after".** TEST: every hand-back naming a PR or a finished change carries the table, and its rows match
+the PR's `## TLDR` (the fix for a 14-row change table Simon had to ask for by name).
+
 ```
-| | Before | After |
-|---|---|---|
-| Paid-plan searches (server cap) | 50 a week | **200 a month** |
-| Counter resets | every Monday | **on the account's start day** |
-| Free plan | 5 a week | unchanged |
+| Change (biggest impact first) | Before | After | Why |
+|---|---|---|---|
+| 1. Paid-plan searches (server cap) | 50 a week; 30 members hit it last month | **200 a month** | Members on long trips ran out mid-week |
+| 2. Counter resets | every Monday | **on the account's start day** | One period per member, matching the bill |
+| 3. Free plan | 5 a week | unchanged | Out of scope |
 
 **Do:** merge. The migration applies itself; no current member is refused.
 ```
 
-TEST: the fetched PR body's first heading is `## TLDR`, it holds a Before/After table of 3-5 rows and
-a `**Do:**` line, and nothing else before `## 🚀 Deploy TLDR`. `bin/pr-landing-gate.py` checks this
-and owns the heading names.
+TEST: the fetched PR body's first heading is `## TLDR`, it holds a table whose header names Before,
+After and Why in that order, and a `**Do:**` line, and nothing else before `## 🚀 Deploy TLDR`.
+`bin/pr-landing-gate.py` checks this and owns the heading names.
 
 ## Block 1 · User journey
 
