@@ -190,6 +190,17 @@ Owned by `rules/communication.md` § Close the session. Detail:
   - an open PR or branch this session produced that still needs Simon's merge or deploy;
   - a promised follow-up: a deploy smoke, a reply to a reporter, or a decision awaiting his answer
     that blocks shipped value.
+- **Unresolved findings block the line too.** Before it, list every item the session found or created
+  that is unresolved: a ticket it created or adopted not Done or Canceled, a defect it found and neither
+  fixed nor ticketed, a residual risk or follow-up check it promised. One row each: link, status, one
+  line on what it is, and a disposition: **worked now** in this session, **deferred** with Simon's own
+  words quoted, or **owned** by a named person who was told (message sent). Filing a ticket starts
+  tracking and is never a disposition. Build the list from the plan, the ledger notes and the tickets
+  the session's tool calls created (every `issueCreate`), not from memory. With any row lacking a
+  disposition, work it now or end with `Action needed` naming the deferral Simon must give. e.g. three
+  Backlog tickets and one un-ticketed button defect under "everything here is done" would have been
+  buried among hundreds of tickets. (the fix for a session that gave the archive line with three
+  self-created Backlog tickets and an unticketed defect.)
 - **When the only remaining step is Simon's own merge or deploy, end with the merge list and no
   archive line:** each PR to merge, in order, and that this session holds the post-deploy smoke and
   follow-ups. e.g. two open PRs with CI running on the last push end "Merge #A, then #B; I run the
