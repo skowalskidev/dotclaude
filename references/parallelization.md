@@ -517,6 +517,13 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   shutdown all` closed another session's simulator, and one that stashed in the stack every worktree
   shares). TEST: every dispatch prompt that boots, kills, resets or sets work aside names an id or a
   path, and none says `all`, `killall` or `git stash`.
+- **DO tell a worker that ships a PR from its own worktree to record each ship stage's receipt on that
+  checkout: after every stage skill it runs `~/.claude/hooks/intent-ledger.sh receipt <stage skill>
+  <worktree path>`** (the Skill hook records against the session's cwd HEAD, which a worker cannot move,
+  so its receipts otherwise land on the coordinator's checkout and the gate refuses PASS). It then runs
+  `intent-ledger.sh stages <tier> <pr-head-sha>` and reports `All stages ran` or the `Not run:` list.
+  TEST: the gate accepts a PASS on the worker's head, and refuses one on a sha with no receipt (the fix
+  for five PRs refused PASS after every stage had run).
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
   signals only those at cleanup. DON'T let it kill by port, name or pattern. TEST: every brief that has
