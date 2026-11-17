@@ -530,13 +530,14 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   was not invoked, however closely the work matched it. TEST: every receipt in the ledger follows a
   Skill call of that stage in the worker's transcript on that head (the fix for a worker that
   receipted three ship stages it did by hand, then reported the receipts overstated what ran).
-- **DO tell a worker that runs several skills in a row to treat each skill's printed report, the
-  built-in `/security-review` included, as one stage's result and go on to the next stage; its turn ends
-  only with the final report the brief asks for.** **DO point a built-in review at the worker's own
-  checkout:** it reads the session's directory, so the worker passes `git -C <worktree> diff
-  <base>...HEAD` as the diff under review. TEST: no worker returns a lone stage report while stages
-  remain, and every security-review verdict names the worktree head it read (the fix for two ship
-  workers that stopped after `/security-review`, which had reviewed the coordinator's branch).
+- **DO tell a worker that runs several skills in a row to treat each skill's printed report as one
+  stage's result and go on to the next stage; its turn ends only with the final report the brief asks
+  for.** **DON'T list the built-in `/security-review` in that brief:** its report-only closing
+  instruction ends the worker's turn whatever the brief says, so the orchestrator runs it on the
+  worker's pushed head per `/sk:ship-full-detailed-workflow` stage 4. TEST: no worker returns a lone
+  stage report while stages remain, and no multi-stage worker brief lists `/security-review` (the fix
+  for five ship workers that ended their turn after the built-in review's report, two after the
+  earlier reference line).
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
   signals only those at cleanup. DON'T let it kill by port, name or pattern. TEST: every brief that has

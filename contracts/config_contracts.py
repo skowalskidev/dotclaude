@@ -952,6 +952,7 @@ CONTRACTS: dict[str, dict] = {
             "A brief quotes the raw-ask clauses it serves, per workflow-loops, including a brief built from an investigation's findings.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
             "Never trust a subagent's self-report; verify on disk.",
+            "A multi-stage worker continues past each skill report to its final report, and its brief never lists the built-in /security-review, which the orchestrator owns.",
             "Give each independent deliverable its own isolated worktree worker in parallel; the orchestrator edits no product code, checks head, clean status and owned-file diff on disk, and captures the screen itself.",
             "Send fixes as numbered file:line rounds to the same resumed worker; answer worker questions with the recommended option recorded as a decision, asking Simon only for product or data decisions.",
             "Give each finished deliverable a fresh reviewer briefed with the diff range and risk checklist, never builder conclusions; each verified finding returns to the builder as one commit with a regression test.",
@@ -1296,6 +1297,7 @@ CONTRACTS: dict[str, dict] = {
             "several branches at once, each writing only its own branch and its own PR + tickets.",
             "Run references/git-pr-deploy.md § Deploy safety on every Deep PR, unprompted, parallel and non-blocking; per-PR green CI never stands in for the merge train, migration verdict or cutover table.",
             "Run Deploy safety check 4 (installed app builds) on every PR at every tier whose diff a shipped native build calls or renders; the PR shows old-build PASS lines or a not-reached reason.",
+            "The orchestrator, or a single-purpose worker, runs the built-in /security-review on a delegated worker's pushed head; no multi-stage worker brief lists it, and each verdict names the head it read.",
             "Compose the stage-5 resolver at the final fresh-fetch gate; return new or edited unhandled feedback to resolution and affected verification before PASS, including feedback outside threads.",
             "Runs a landing gate before reconciling: the journey, the matrix with its counts, the "
             "prod-data verdict, the deploy-safety results (each on every Deep PR, a skip line otherwise), the tier line, the screenshots, zero collapsed <details> (each one open) in the fetched body_html, resolved threads, the "
