@@ -436,6 +436,15 @@ side plays 10-15 s (speed factor = duration / target, default 12 s, never slowed
 state 4-5 s (default 4.5), the shorter side holds its last frame so both end together; H.264,
 yuv420p, `+faststart`.
 
+DEFAULT for a change that INSERTS a step or screen into a flow: post a sequence, not a pair. BEFORE row: the
+screen before the insertion point, then the screen that followed it on the base. AFTER row: that same
+screen, the NEW step (`--after-callout`, x offset by one frame width), then the same following screen.
+Join each row's frames with `ffmpeg -i 1.png -i 2.png -filter_complex hstack=inputs=2 row.png`
+(`inputs=3` for AFTER), then pass the two strips to `shots --layout stack`: two stacked rows.
+DON'T pair the following screen against the new step: a reviewer reads it as the new step replacing that
+screen (the fix for an optional step added after sign-up, posted as "thanks screen vs new step").
+TEST: a PR that adds a step shows, on the AFTER side, a frame of the screen that follows the new step.
+
 DO open `## Screenshots` with a scenario table, one row per video: `Scenario | What happens | Video`,
 the Video cell linking the `### <scenario>` block that holds its player (an inline player cannot render
 in a table cell).
