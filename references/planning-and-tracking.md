@@ -304,8 +304,9 @@ holds `All stages ran` or `Not run: <stage>, <stage>`, a standard or deep PASS h
 and no `Not run:` list; tiers: `references/testing-strategy.md`
 § Size the checks to the change). Every PASS names its tier and needs a stage receipt on the gated
 sha for each stage that tier requires: `intent-ledger.sh skill` (PostToolUse on the Skill tool, a
-typed `/sk:<stage>` prompt, or a Codex read of the stage's SKILL.md) records one for the cwd repo's
-HEAD, and `intent-ledger.sh stages <tier> HEAD` prints `All stages ran` or the `Not run:` list. The
+typed `/sk:<stage>` prompt, or a Codex read of the stage's SKILL.md) records one for the HEAD of
+the checkout the work runs in (the payload cwd; a subagent's, whose cwd resets, is the checkout its
+last Bash `cd`/`git -C` named), and `intent-ledger.sh stages <tier> HEAD` prints `All stages ran` or the `Not run:` list. The
 hook's stage list is the one home of which stages each tier requires. Stop blocks once per set of
 open pushes, naming each tier's missing stages; a newer head re-opens it.
 

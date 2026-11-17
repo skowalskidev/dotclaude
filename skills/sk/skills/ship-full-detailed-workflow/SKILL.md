@@ -115,11 +115,12 @@ tickets; a fix that belongs to another PR is handed to that owner via
    even when an external blocker already makes the result BLOCKED.** A capacity or resource request
    moves a stage's place and time, never whether it runs: `references/dev-server-hygiene.md`
    § Machine-wide capacity. Each Skill-tool run of a stage
-   records a receipt for the HEAD of the session's working directory, so run it from the PR's
-   checkout at that head. **A delegated worker in its own worktree (e.g. `/tmp/<name>`) cannot move
-   the session's directory, so after EACH stage it runs `~/.claude/hooks/intent-ledger.sh receipt
-   <stage skill> <worktree path>` (stage as `sk:ship-review`; `stages <tier>` lists them)**, which
-   records the receipt on that checkout's HEAD; the gate then matches it to the PR head. **DO record a receipt only right
+   records a receipt for the HEAD of the checkout the work runs in, so run it from the PR's
+   checkout at that head. **A delegated subagent in its own worktree (e.g. `/tmp/<name>`) runs
+   `cd <worktree path> && ...` in its Bash call before each stage, so the receipt follows that
+   checkout; a stage `stages <tier> <sha>` still lists after its Skill call gets
+   `~/.claude/hooks/intent-ledger.sh receipt <stage skill> <worktree path>` (stage as
+   `sk:ship-review`)**, which records the receipt on that checkout's HEAD; the gate then matches it to the PR head. **DO record a receipt only right
    after invoking that stage with the Skill tool on that head; DO list a stage done by hand as `Not run:
    <stage>`, never receipted.** TEST: each receipt follows its own Skill call. Every PASS names its tier, and the gate refuses it with
    `Not run: <stage>, ...` until each stage that tier requires has a receipt on the recorded sha;

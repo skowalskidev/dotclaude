@@ -72,7 +72,8 @@ From an OpenAI chat the Claude judge runs through `~/.claude/bin/claude-launch.p
 variable. Never use pal, an API key or any metered route for a judge.
 DO pin a code judge to the change: pass the change's own checkout with `-C <worktree path>` (Codex
 `--cd`) and name its head sha in the brief, telling the judge to confirm `git rev-parse HEAD` first.
-DON'T let the judge inherit the launching shell's directory. TEST: every code verdict names the sha
+DON'T let the judge inherit the launching shell's directory: `codex-launch.py review` refuses a run
+with no `-C`, and one whose inline brief names shas none of which is that checkout's HEAD or `--commit`. TEST: every code verdict names the sha
 it read, and that sha is the head under review (the fix for three PR reviews whose first judge round
 read a stale checkout and reported the change as absent).
 DO detect a judge's completion by its process exiting, then read its verdict ONLY from its final

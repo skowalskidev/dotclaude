@@ -43,11 +43,12 @@ Read `references/parallelization.md` and reconcile the saved setup with the curr
 Project databases, cloud accounts and other service credentials still follow Step 1's boundary.
 
 1. Run a fresh correctness/security pass over the complete diff using the selected subscription model.
-   OpenAI uses `~/.claude/bin/codex-launch.py -m <saved-openai-model> --sandbox read-only review --base <base-ref>`.
+   OpenAI uses `~/.claude/bin/codex-launch.py -C <the PR's checkout> -m <saved-openai-model> --sandbox read-only review --base <base-ref>`
+   (the launcher refuses a review with no `-C`).
    Full Claude uses fresh Claude reviewers on the existing subscription, with model tiers from the
    saved workflow. Check the active authentication method before starting a headless Claude reviewer.
 2. Run a separate fresh adversarial pass on the first pass's top findings using the same setup.
-   For OpenAI, use `~/.claude/bin/codex-launch.py -p "<findings and diff review brief>" --model <saved-openai-model> --sandbox read-only`.
+   For OpenAI, use `~/.claude/bin/codex-launch.py -p "<findings and diff review brief>" -C <the PR's checkout> --model <saved-openai-model> --sandbox read-only`.
    Verify every finding against the source before accepting it. A finding that moves money, access
    or data also goes before `references/research.md` § Independent judges, one judge per provider.
 3. **When a fix round would follow, run independent lenses IN PARALLEL before fixing anything**:

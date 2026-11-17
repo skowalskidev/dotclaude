@@ -373,6 +373,35 @@ class RuntimeTests(unittest.TestCase):
             self.assertEqual(runtime.launch_cwd(['--cd=' + str(self.home)]), self.home.resolve())
             self.assertEqual(runtime.launch_cwd(['--', '--cd', str(self.home)]), self.cwd.resolve())
 
+    def test_review_is_pinned_to_the_checkout_its_brief_names(self):
+        repo = self.base / 'change'
+        repo.mkdir()
+        git = lambda *a: subprocess.run(['git', '-C', str(repo), '-c', 'user.email=t@example.com',
+                                         '-c', 'user.name=t', *a], check=True, capture_output=True, text=True)
+        git('init', '-q')
+        git('commit', '-q', '--allow-empty', '-m', 'one')
+        head = git('rev-parse', 'HEAD').stdout.strip()
+        other = 'deadbeef1234567'
+        with patch.dict(os.environ, {'CONDUCTOR_WORKSPACE_PATH': str(self.cwd)}):
+            # No -C: the review would read the Conductor workspace root, not the change.
+            with self.assertRaisesRegex(ValueError, 'pass -C'):
+                runtime.review_guard(['review', '--base', 'main', 'check ' + head[:9]], runtime.launch_cwd(['review']))
+            with self.assertRaisesRegex(ValueError, 'pass -C'):
+                runtime.review_guard(['exec', 'review', '-'], runtime.launch_cwd(['exec', 'review', '-']))
+            with self.assertRaisesRegex(ValueError, 'not a git checkout'):
+                runtime.review_guard(['-C', str(self.cwd), 'review', '-'], self.cwd.resolve())
+            # The brief names a sha that is not the pinned checkout's HEAD.
+            args = ['-C', str(repo), 'review', '--base', 'main', 'Review the PR head ' + other]
+            with self.assertRaisesRegex(ValueError, 'brief names ' + other):
+                runtime.review_guard(args, runtime.launch_cwd(args))
+            for args in (['-C', str(repo), 'review', '--base', 'main', 'Review head ' + head[:7] + ' first'],
+                         ['--cd=' + str(repo), 'review', '--commit', other, 'Review ' + other],
+                         ['-C', str(repo), 'review', '-'],
+                         ['-C', str(repo), 'review', '--uncommitted', 'decade is a word, 1234567 a number'],
+                         ['exec', 'not-a-review'], ['app-server']):
+                with self.subTest(args=args):
+                    self.assertIsNone(runtime.review_guard(args, runtime.launch_cwd(args)))
+
     def test_toml_round_trip_special_characters(self):
         value = {'quoted.key': 'line\n"quoted" \\ path $HOME `literal` café',
                  'nested': {'yes': True, 'no': False}, 'list': [1, 2.5, 'x', []]}

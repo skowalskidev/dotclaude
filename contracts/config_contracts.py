@@ -135,6 +135,7 @@ CONTRACTS: dict[str, dict] = {
             "Disable on-demand connectors and retired registry-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
             "Map a shell read of skills/sk/skills/<name>/SKILL.md to an extra Skill event for sk:<name>, so a Codex run of a ship stage records the same stage receipt as Claude's Skill tool.",
+            "Refuse a `review` (or `exec review`) launch with no explicit -C/--cd, a non-git launch directory, or an inline brief naming shas none of which is that checkout's HEAD or its --commit, before Codex starts.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
             "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
             "Leave a headless `codex exec` that names no model on the native Codex config model with no injected default; leave an explicit caller model and the interactive TUI untouched.",
@@ -2436,8 +2437,10 @@ CONTRACTS: dict[str, dict] = {
             "never counts.",
             "Stage receipts: the hook's STAGES_LIGHT/STANDARD/DEEP list is the one home of the stage skills each tier "
             "requires. PostToolUse `skill` (Skill tool), a typed leading /sk:<stage> prompt, and a Codex read of a stage "
-            "SKILL.md mapped by bin/agent_runtime.py append `receipt: <skill> <branch> <head>` for the HEAD of the cwd "
-            "repo; any other skill records nothing. `gate PASS` names its tier (an untiered PASS exits 2) and exits 2 "
+            "SKILL.md mapped by bin/agent_runtime.py append `receipt: <skill> <branch> <head>` for the HEAD of the checkout "
+            "the work runs in: the payload cwd, or for a subagent (agent_id, whose cwd resets) the checkout its last "
+            "Bash `cd`/`git -C` named, recorded per agent by PostToolUse `push`; the receipt still lands in the "
+            "session's ledger. Any other skill records nothing. `gate PASS` names its tier (an untiered PASS exits 2) and exits 2 "
             "printing 'Not run: <stage>, ...' while a required stage has no receipt on the gated sha; a receipt on an "
             "older head never counts. 'All stages ran' in any record needs the same receipts, and a standard or deep "
             "BLOCKED names every stage without one. Receipts are read fence-aware, and `note` refuses a source carrying "

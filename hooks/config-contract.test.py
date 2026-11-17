@@ -1639,6 +1639,47 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         later = commit(wt, "w2.txt")
         check(stages("light", later).stdout.strip().startswith("Not run:"),
               "Receipts on another sha satisfied the gate for a newer head.")
+        # A subagent's payload cwd is the session's start directory (its Bash cwd resets), so its Skill
+        # receipt follows the checkout its last Bash explicitly ran in, never the main checkout's HEAD
+        # (the fix for a delegated PR agent whose stage receipts landed on the main checkout).
+        sub = base / "subagent-wt"
+        git(repo, "worktree", "add", "-q", "-b", "feature/s", str(sub))
+        ssha, rsha = commit(sub, "s.txt"), commit(repo, "r.txt")
+        agent = {"agent_id": "a1b2c3", "agent_type": "general-purpose"}
+
+        def agent_bash(command, who=agent):
+            r = run("push", {"tool_name": "Bash", "tool_input": {"command": command}, **who})
+            check(r.returncode == 0 and r.stdout == "", "The Bash recorder failed or spoke: " + r.stderr + r.stdout)
+
+        def agent_skill(skill, who=agent):
+            r = run("skill", {"tool_name": "Skill", "tool_input": {"skill": skill}, **who})
+            check(r.returncode == 0 and r.stdout == "", "The stage-receipt recorder failed or spoke: " + r.stderr + r.stdout)
+
+        def receipted(tier, sha, skill):
+            return skill not in stages(tier, sha).stdout
+
+        agent_bash("cd '%s' && git status --short" % sub)
+        agent_bash("ls /")   # a command naming no directory keeps the recorded checkout
+        agent_skill("sk:ship-pr")
+        check(receipted("light", ssha, "sk:ship-pr"),
+              "A subagent's Skill receipt missed the worktree its Bash cd'd into.")
+        check(not receipted("light", rsha, "sk:ship-pr"),
+              "A subagent's Skill receipt landed on the session cwd's HEAD instead of its worktree's.")
+        # The main session and a subagent with no recorded checkout keep the payload cwd.
+        receipt("sk:ship-screenshot-changes")
+        agent_skill("sk:ship-resolve-pr-comments", {"agent_id": "other9"})
+        check(receipted("light", rsha, "sk:ship-screenshot-changes")
+              and not receipted("light", ssha, "sk:ship-screenshot-changes"),
+              "A main-session Skill receipt followed a subagent's checkout.")
+        check(receipted("light", rsha, "sk:ship-resolve-pr-comments")
+              and not receipted("light", ssha, "sk:ship-resolve-pr-comments"),
+              "One subagent's Skill receipt followed another subagent's checkout.")
+        # `git -C <dir>` names the checkout when the command never cd'd.
+        agent_bash("git -C %s log -1 --oneline" % repo)
+        agent_skill("sk:ship-check-merge-readiness")
+        check(receipted("standard", rsha, "sk:ship-check-merge-readiness")
+              and not receipted("standard", ssha, "sk:ship-check-merge-readiness"),
+              "A subagent's `git -C` checkout did not take its Skill receipt.")
         r = run("receipt", args=("sk:ship-review", str(base / "not-a-repo")), cwd=wt)
         check(r.returncode == 2, "receipt accepted a directory that is not a checkout.")
         r = run("receipt", args=("sk:work-ralph-loop", str(wt)), cwd=wt)

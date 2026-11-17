@@ -275,6 +275,42 @@ def codex_inference(args):
     return True
 
 
+REVIEW_VALUE_OPTIONS = {'--cd', '-C', '--model', '-m', '--config', '-c', '--profile', '-p', '--sandbox', '-s',
+                        '--ask-for-approval', '-a', '--base', '--commit', '--title', '--enable', '--disable'}
+SHA_WORD = re.compile(r'(?<![0-9a-f])(?=[0-9a-f]*[0-9])(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}(?![0-9a-f])')
+
+
+def review_guard(args, cwd):
+    """Pin `codex review` to the change's checkout (references/research.md § Independent judges).
+
+    A review reads the launch directory, which defaults to the Conductor workspace root rather than the
+    shell's cwd, so an unpinned review reads another checkout. Refuse a review with no explicit -C/--cd,
+    and one whose inline brief names shas none of which is that checkout's HEAD or its --commit.
+    """
+    head = args[:args.index('--')] if '--' in args else args
+    words, values, remaining = [], {}, iter(head)
+    for arg in remaining:
+        if arg in REVIEW_VALUE_OPTIONS:
+            values[arg] = next(remaining, '')
+        elif not arg.startswith('-'):
+            words.append(arg)
+    if words[:1] == ['exec']:
+        words = words[1:]
+    if words[:1] != ['review']:
+        return
+    if not any(arg in ('-C', '--cd') or arg.startswith('--cd=') for arg in head):
+        raise ValueError('codex review reads the launch directory (default: the Conductor workspace root, '
+                         'not the shell cwd); pass -C <the change\'s checkout>. No review was started.')
+    probe = subprocess.run(['git', '-C', str(cwd), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    if probe.returncode != 0:
+        raise ValueError(f'codex review: {cwd} is not a git checkout; pass -C <the change\'s checkout>.')
+    targets = [probe.stdout.strip(), values.get('--commit', '').lower()]
+    named = SHA_WORD.findall(' '.join(words[1:2]).lower())
+    if named and not any(t and (t.startswith(n) or n.startswith(t)) for n in named for t in targets if len(t) >= 7):
+        raise ValueError(f'codex review: the brief names {", ".join(sorted(set(named)))} but {cwd} is at '
+                         f'{targets[0][:12]}; pass -C <the checkout at that sha>. No review was started.')
+
+
 def close_idle_stdin(args, fd=0, wait=0.5):
     """Give a tool-shell `exec` an empty stdin when it was handed an open, silent pipe.
 
@@ -308,6 +344,7 @@ def launch():
         if codex_inference(args):
             require_provider('openai')
         cwd = launch_cwd(args)
+        review_guard(args, cwd)
         args = absolute_cwd_args(args, cwd)
         billing = subscription_policy(args)
         check_subscription_auth(args)

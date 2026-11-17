@@ -33,7 +33,7 @@
 # STAGE RECEIPTS (the harness's "every stage ran as its own skill on this head", made mechanical)
 # Each invocation of a ship stage skill (Skill tool, a typed /sk:<stage> prompt, or a Codex read of
 # its SKILL.md mapped by bin/agent_runtime.py) appends `receipt: <skill> <branch> <head>` to the
-# ledger, head = HEAD of the session's cwd repo. `gate PASS` refuses unless the tier's every stage
+# ledger, head = HEAD of the checkout the work runs in (work_checkout below). `gate PASS` refuses unless the tier's every stage
 # has a receipt on the gated sha; a receipt on an older head never counts. The list below is the
 # one home of which stages each tier requires.
 #
@@ -41,11 +41,13 @@
 #                                 typed /sk:<stage> command)
 #         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
-#         skill                   PostToolUse (Skill) — record a stage receipt for the cwd repo's HEAD
+#         skill                   PostToolUse (Skill) — record a stage receipt for the HEAD of the checkout
+#                                 the work runs in: a subagent's (agent_id) last explicit Bash checkout,
+#                                 else the payload cwd
 #         receipt <stage> [dir]   called by a delegated worker from its OWN checkout — record a stage
 #                                 receipt for the HEAD of <dir> (default: the shell's cwd), in the
-#                                 session's ledger. The Skill hook can only see the session's cwd, which
-#                                 a worker in a /tmp worktree cannot move.
+#                                 session's ledger. The fallback when a Skill receipt missed its checkout
+#                                 (a subagent that never ran a Bash `cd`/`git -C` into it).
 #         stages <tier> [sha|HEAD]
 #                                 read-only — print the tier's required stage skills; with a sha,
 #                                 print "All stages ran" (exit 0) or "Not run: <stage>, ..." (exit 1)
@@ -369,6 +371,56 @@ receipt_record() {
   printf '\n## %s · receipt\n\nreceipt: %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$br" "$head"
 }
 
+# A subagent's hook payload carries the SESSION's start directory as cwd, because its Bash cwd resets
+# between calls, so a Skill run in a subagent working in its own worktree would receipt the coordinator's
+# HEAD. The Bash recorder therefore keeps, per subagent (agent_id), the checkout its last command
+# explicitly ran in, and work_checkout reads it (the fix for a delegated PR agent whose stage receipts
+# landed on the main checkout's head and had to be recorded by hand).
+checkout_file() { printf '%s/%s.agent-%s.checkout' "$STATE" "$SID" "$1"; }
+
+# bash_checkout CMD DIR — print the git toplevel CMD ran in, starting from DIR: its last `cd` target,
+# else its last `git -C` target; fail when it named no directory or that is no checkout.
+bash_checkout() {
+  printf '%s\n' "$1" | sed -E 's/(&&|\|\||[;|&])/\
+/g' | {
+    dir="$2"; cdd=""; gd=""
+    while IFS= read -r seg; do
+      read -ra w <<< "$seg"
+      n=${#w[@]}
+      [ "$n" -gt 0 ] || continue
+      k=0
+      while [ "$k" -lt "$n" ]; do w[$k]="${w[$k]//[\"\']/}"; w[$k]="${w[$k]#(}"; k=$((k + 1)); done
+      i=0
+      while [ "$i" -lt "$n" ] && [[ "${w[$i]}" == *=* ]] && [[ "${w[$i]}" != -* ]]; do i=$((i + 1)); done
+      [ "$i" -lt "$n" ] || continue
+      case "${w[$i]}" in
+        cd) t="${w[$((i + 1))]:-}"; t="${t/#\~/$HOME}"
+            if [ -n "$t" ] && nd="$(cd "$dir" 2>/dev/null && cd "$t" 2>/dev/null && pwd -P)"; then dir="$nd"; cdd="$nd"; fi ;;
+        git) if [ "${w[$((i + 1))]:-}" = -C ]; then
+               t="${w[$((i + 2))]:-}"; t="${t/#\~/$HOME}"
+               if [ -n "$t" ] && nd="$(cd "$dir" 2>/dev/null && cd "$t" 2>/dev/null && pwd -P)"; then gd="$nd"; fi
+             fi ;;
+      esac
+    done
+    t="${cdd:-$gd}"
+    [ -n "$t" ] || exit 1
+    git -C "$t" rev-parse --show-toplevel 2>/dev/null
+  }
+}
+
+# work_checkout — print the checkout a Skill call runs in: the subagent's recorded checkout when the
+# payload names an agent_id and one was recorded, else the payload cwd (which follows `cd` in the
+# main session).
+work_checkout() {
+  wc="$(jf '.cwd')"; [ -n "$wc" ] || wc="${CLAUDE_PROJECT_DIR:-$PWD}"
+  aid="$(jf '.agent_id' | tr -cd '[:alnum:]._-')"
+  if [ -n "$aid" ] && [ -f "$(checkout_file "$aid")" ]; then
+    wd="$(head -n 1 "$(checkout_file "$aid")" 2>/dev/null)"
+    [ -n "$wd" ] && [ -d "$wd" ] && wc="$wd"
+  fi
+  printf '%s' "$wc"
+}
+
 # Print "root<TAB>branch<TAB>sha" for each pushed branch head that has no gate record.
 open_pushes() {
   [ -s "$PUSHES" ] || return 0
@@ -478,7 +530,8 @@ on it and record the result with
   ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
 (a standard or deep PASS holds \"All stages ran\"; a BLOCKED holds it or \"Not run: <stage>, <stage>\")
 or Stop blocks once for the missing gate. A PASS names its tier and needs a receipt on that head for
-every stage the tier requires; each Skill-tool run of a stage records one for the cwd repo's HEAD.
+every stage the tier requires; each Skill-tool run of a stage records one for the HEAD of the checkout
+the work runs in (a subagent's: the one its last Bash cd'd into).
   ~/.claude/hooks/intent-ledger.sh stages <tier> HEAD   lists the stages still missing there."
   jq -cn --arg c "GAUNTLET UPDATE: read the new ask in $target and the existing living plan. Apply \
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
@@ -562,10 +615,19 @@ push)
   # push, a push to main or master, and any repo inside the config repo record nothing.
   [ "$(jf '.tool_name')" = "Bash" ] || exit 0
   cmd="$(jf '.tool_input.command')"
-  case "$cmd" in *push*) ;; *) exit 0 ;; esac
   cwd="$(jf '.cwd')"
   [ -n "$cwd" ] || cwd="${CLAUDE_PROJECT_DIR:-$PWD}"
   [ -d "$cwd" ] || exit 0
+  # A subagent's checkout for its next stage receipt: the directory its command explicitly ran in.
+  aid="$(jf '.agent_id' | tr -cd '[:alnum:]._-')"
+  if [ -n "$aid" ]; then
+    case "$cmd" in *cd\ *|*-C\ *)
+      if wd="$(bash_checkout "$cmd" "$cwd")" && [ -n "$wd" ] && mkdir -p "$STATE" 2>/dev/null; then
+        printf '%s\n' "$wd" > "$(checkout_file "$aid")" 2>/dev/null
+      fi ;;
+    esac
+  fi
+  case "$cmd" in *push*) ;; *) exit 0 ;; esac
   cfg="$(cd -P "$CFG_ROOT" 2>/dev/null && pwd -P)"
   mkdir -p "$STATE" 2>/dev/null || exit 0
   dir="$cwd"
@@ -631,11 +693,11 @@ push)
 
 skill)
   # PostToolUse for Skill: runs only after the skill loaded. A ship stage skill earns a receipt for
-  # the HEAD of the session's cwd repo; every other skill records nothing. Silent either way.
+  # the HEAD of the checkout the work runs in (work_checkout); every other skill records nothing.
+  # The receipt still goes to the session's ledger. Silent either way.
   [ "$(jf '.tool_name')" = "Skill" ] || exit 0
   st="$(stage_name "$(jf '.tool_input.skill')")" || exit 0
-  rcwd="$(jf '.cwd')"; [ -n "$rcwd" ] || rcwd="${CLAUDE_PROJECT_DIR:-$PWD}"
-  rec="$(receipt_record "$st" "$rcwd")" || exit 0
+  rec="$(receipt_record "$st" "$(work_checkout)")" || exit 0
   resolve || exit 0
   acquire "$LEDGER" || exit 0
   header_if_new "$LEDGER"
@@ -644,9 +706,9 @@ skill)
   ;;
 
 receipt)
-  # Explicit-checkout receipt: a delegated worker builds and ships in its own worktree, so the Skill
-  # hook's session-cwd receipt lands on the coordinator's HEAD. The worker runs this from the PR
-  # checkout after each stage; the receipt records that checkout's HEAD, which the gate then matches.
+  # Explicit-checkout receipt: the fallback for a Skill run whose receipt still missed its checkout
+  # (a subagent that never ran a Bash `cd`/`git -C` into it). Run from the PR checkout after the
+  # stage; the receipt records that checkout's HEAD, which the gate then matches.
   st="$(stage_name "${2:-}")" || { echo "receipt: usage: receipt <stage skill, e.g. sk:ship-review> [dir]" >&2; exit 2; }
   rdir="${3:-$PWD}"
   rec="$(receipt_record "$st" "$rdir")" || { echo "receipt: $rdir is not a git checkout with a commit" >&2; exit 2; }
@@ -722,7 +784,8 @@ in \"skipped: <stages>\", not \"Not run:\"." >&2; exit 2 ;;
   if [ -n "$tier" ] && [ "$status" != N/A ]; then
     miss="$(missing_stages "$tier" "$sha")"
     fix="Invoke each with the Skill tool (e.g. Skill sk:ship-review) while the session's working \
-directory is the checkout at ${sha:0:7}; each run records a receipt for that head. Check with
+directory (a subagent: the directory its last Bash cd'd into) is the checkout at ${sha:0:7}; each run \
+records a receipt for that head. Check with
   ~/.claude/hooks/intent-ledger.sh stages $tier ${sha:0:7}"
     if [ -n "$miss" ] && [ "$status" = PASS ]; then
       echo "gate: a $tier PASS refused for $branch at ${sha:0:7}: these required stages have no receipt on this head.

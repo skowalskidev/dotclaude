@@ -744,7 +744,10 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
                   'api_env_present': bool(os.environ.get('CODEX_API_KEY'))}))
 ''')
         self.env.update(CODEX_API_KEY='fixture-only', CODEX_HOME=str(self.home / '.codex-work'))
-        result = self.astra_command('review', '--base', 'master')
+        subprocess.run(['git', 'init', '-q', str(self.repo)], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.repo), '-c', 'user.email=t@example.com', '-c', 'user.name=t',
+                        'commit', '-q', '--allow-empty', '-m', 'base'], check=True, capture_output=True)
+        result = self.astra_command('-C', str(self.repo), 'review', '--base', 'master')
         self.assertEqual(result.returncode, 0, result.stderr)
         call = json.loads(result.stdout)
         self.assertEqual(call['home'], str(self.home / '.codex'))
