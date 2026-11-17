@@ -961,7 +961,7 @@ CONTRACTS: dict[str, dict] = {
             "— auto next-round, durable repairs routed through the scoped repair policy); superspeed and hyperspeed point to "
             "it, not restate it.",
             "Reuse shared dependency build caches for needed setup or permitted verification; never share node_modules across worktrees. Keep project build recipes in allowed project guidance.",
-            "Every money, access or data fix commit a worker lands, and every round of review-fix commits, gets an adversarial reviewer from the other model provider on that commit range, looping until a round returns zero high or medium findings, with the judges' two-round stop rule for a repeated finding.",
+            "Every money, access or data fix commit a worker lands, and every round of review-fix commits, gets an adversarial reviewer from the other model provider on that commit range, its brief stating the judges' BLOCKING bar, looping until a round returns zero BLOCKING high or medium findings (NON-BLOCKING ones go to residual risk), with the judges' two-round stop rule for a repeated finding.",
         ],
     },
     "references/planning-and-tracking.md": {
