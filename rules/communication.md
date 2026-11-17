@@ -28,14 +28,15 @@ someone else has at most 5 lines.
 
 ## Close the session: finish it, say it can be archived, stop
 
-**DO finish everything the ask needs yourself, including checks you can run, then end with one line:
-"You can archive this session: everything here is done."** Detail, open-work list:
+**DO finish everything the ask needs yourself, including checks you can run, then, once the outcome is delivered and verified, end with one line:
+"You can archive this session: everything here is done."** Detail:
 `references/planning-and-tracking.md` § Close the session.
-**DO stop once the outcome is delivered and verified; a time-only check is no loose end.**
-**DO offer a follow-up ONLY if it would change a decision or fix an evidenced problem.** At most 2, one optional line; never withhold the archive line.
+**DO offer a follow-up ONLY to change a decision or fix an evidenced problem** (at most 2).
+**DO list each unresolved item before the line:** link, status, one line, disposition (worked now,
+Simon's quoted deferral, or named owner told). **DON'T count filing a ticket as one.**
 **DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
-PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply. End with `Action needed` and its numbered asks. After merge and deploy, stop only once production is proven live
-(`references/planning-and-tracking.md` § Close the session).
+PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply, an unresolved item.
+End with `Action needed` and its numbered asks. After merge and deploy, stop only once production is proven live.
 TEST: `references/tldr-report-formats.md` § Close-session TEST.
 
 ## Five rules for anything you write

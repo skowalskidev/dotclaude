@@ -294,6 +294,13 @@ A finished session's last message has the archive line, at most 2 optional follo
 running, an unmerged session PR or an item unverdicted, fails; so does "merged" reported as done
 with no prod evidence.
 
+Open-items TEST: the message before the archive line lists every ticket the session created or
+adopted that is not Done or Canceled, every found defect neither fixed nor ticketed and every promised
+check, each with link, status, one line and a disposition (worked now, Simon's quoted deferral, or a
+named owner told). A ticket filed with no disposition, an item missing from the list, or the line
+above any such row fails. Not enforced by the Stop hook: the ledger records prompts and notes, not the
+tool calls that create tickets, so a ledger scan would miss them.
+
 Also moved from the close-session rule: stop once CI is green, deployed and a smoke on what can be
 reached passed; ask no new question at hand-back unless only Simon can decide it and it blocks the
 outcome. The five writing rules govern content and apply equally to subagent prompts.
