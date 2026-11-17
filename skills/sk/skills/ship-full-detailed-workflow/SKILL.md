@@ -113,7 +113,10 @@ tickets; a fix that belongs to another PR is handed to that owner via
    **DO invoke every stage the tier requires as its own skill on the recorded head before recording,
    even when an external blocker already makes the result BLOCKED.** Each Skill-tool run of a stage
    records a receipt for the HEAD of the session's working directory, so run it from the PR's
-   checkout at that head. Every PASS names its tier, and the gate refuses it with
+   checkout at that head. **A delegated worker in its own worktree (e.g. `/tmp/<name>`) cannot move
+   the session's directory, so after EACH stage it runs `~/.claude/hooks/intent-ledger.sh receipt
+   <stage skill> <worktree path>` (stage as `sk:ship-review`; `stages <tier>` lists them)**, which
+   records the receipt on that checkout's HEAD; the gate then matches it to the PR head. Every PASS names its tier, and the gate refuses it with
    `Not run: <stage>, ...` until each stage that tier requires has a receipt on the recorded sha;
    "All stages ran" in any record needs the same receipts. Run
    `~/.claude/hooks/intent-ledger.sh stages <tier> HEAD` before recording and invoke every stage it

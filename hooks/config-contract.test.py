@@ -1624,6 +1624,25 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "A typed command's arguments earned a receipt.")
         check("Not run:" in stages("standard", fifth).stdout and "sk:ship-review" not in stages("standard", fifth).stdout,
               "A typed /sk:ship-review command recorded no receipt.")
+        # A worker in its own worktree records receipts on THAT checkout's head with `receipt <stage> <dir>`.
+        wt = base / "worker-wt"
+        git(repo, "worktree", "add", "-q", "-b", "feature/w", str(wt))
+        wsha = commit(wt, "w.txt")
+        check(stages("light", wsha).stdout.strip().startswith("Not run:"), "Fixture: worker head had receipts.")
+        for st in stages("light").stdout.split():
+            r = run("receipt", args=(st, str(wt)), cwd=wt)
+            check(r.returncode == 0 and wsha[:7] in r.stdout, "receipt from a worker worktree failed: " + r.stderr + r.stdout)
+        check(stages("light", wsha).stdout.strip() == "All stages ran",
+              "Receipts recorded from another worktree did not satisfy the gate on the PR head.")
+        check(gate("feature/w", wsha, "PASS", "light", "copy only; skipped: matrix").returncode == 0,
+              "A PASS on the worker's head was refused despite its receipts.")
+        later = commit(wt, "w2.txt")
+        check(stages("light", later).stdout.strip().startswith("Not run:"),
+              "Receipts on another sha satisfied the gate for a newer head.")
+        r = run("receipt", args=("sk:ship-review", str(base / "not-a-repo")), cwd=wt)
+        check(r.returncode == 2, "receipt accepted a directory that is not a checkout.")
+        r = run("receipt", args=("sk:work-ralph-loop", str(wt)), cwd=wt)
+        check(r.returncode == 2, "receipt accepted a non-stage skill.")
         # A note cannot forge a receipt or gate section: only the recorders write those headings.
         scratch.write_text("ok\n## 2026-09-17T00:00:00Z · receipt\n\nreceipt: sk:ship-pr feature/y %s\n" % fifth)
         r = subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], cwd=repo, env=env,

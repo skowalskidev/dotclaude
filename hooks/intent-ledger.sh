@@ -42,6 +42,10 @@
 #         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
 #         skill                   PostToolUse (Skill) — record a stage receipt for the cwd repo's HEAD
+#         receipt <stage> [dir]   called by a delegated worker from its OWN checkout — record a stage
+#                                 receipt for the HEAD of <dir> (default: the shell's cwd), in the
+#                                 session's ledger. The Skill hook can only see the session's cwd, which
+#                                 a worker in a /tmp worktree cannot move.
 #         stages <tier> [sha|HEAD]
 #                                 read-only — print the tier's required stage skills; with a sha,
 #                                 print "All stages ran" (exit 0) or "Not run: <stage>, ..." (exit 1)
@@ -91,7 +95,7 @@ CRED_RE='(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]
 command -v jq >/dev/null 2>&1 || exit 0
 
 INPUT=""
-case "$MODE" in note|gate|stages) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
+case "$MODE" in note|gate|stages|receipt) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
 [ -n "$INPUT" ] || INPUT='{}'
 
 jf() { printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null; }
@@ -101,7 +105,7 @@ SID="$(jf '.session_id' | tr -cd '[:alnum:]._-')"
 # environment. Every other mode takes it from its payload only: a test or tool subprocess inherits the
 # live session's CLAUDE_CODE_SESSION_ID, and reading it there let a temp-repo test re-anchor the live
 # session's record (the fix for a nested-worktree ask that opened a second ledger and hid a standing merge).
-case "$MODE" in note|gate|stages)
+case "$MODE" in note|gate|stages|receipt)
   [ -n "$SID" ] || SID="$(printf '%s' "${CLAUDE_CODE_SESSION_ID:-}" | tr -cd '[:alnum:]._-')" ;;
 esac
 [ -n "$SID" ] || SID="unknown"
@@ -636,6 +640,21 @@ skill)
   acquire "$LEDGER" || exit 0
   header_if_new "$LEDGER"
   printf '%s\n' "$rec" >> "$LEDGER" 2>/dev/null
+  exit 0
+  ;;
+
+receipt)
+  # Explicit-checkout receipt: a delegated worker builds and ships in its own worktree, so the Skill
+  # hook's session-cwd receipt lands on the coordinator's HEAD. The worker runs this from the PR
+  # checkout after each stage; the receipt records that checkout's HEAD, which the gate then matches.
+  st="$(stage_name "${2:-}")" || { echo "receipt: usage: receipt <stage skill, e.g. sk:ship-review> [dir]" >&2; exit 2; }
+  rdir="${3:-$PWD}"
+  rec="$(receipt_record "$st" "$rdir")" || { echo "receipt: $rdir is not a git checkout with a commit" >&2; exit 2; }
+  resolve || { echo "receipt: no ledger for this session (see the session's ledger notice)" >&2; exit 2; }
+  acquire "$LEDGER" || { echo "receipt: could not lock the ledger" >&2; exit 2; }
+  header_if_new "$LEDGER"
+  printf '%s\n' "$rec" >> "$LEDGER" 2>/dev/null
+  echo "receipt: $st recorded on $(git -C "$rdir" rev-parse --short HEAD)"
   exit 0
   ;;
 
