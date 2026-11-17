@@ -50,6 +50,19 @@ config suite; this is the reading of it.
 | `meta-` | Reporting on his work, housekeeping his environment, and routing tasks to skills | 4 |
 | (none) | `setup-connectors`, already verb-first | 1 |
 
+## Where my own skills live
+
+Verified against the official Claude Code docs:
+- New personal skills go in `~/.claude/skills/sk/skills/<name>/SKILL.md`. Never put my skills loose in
+  `~/.claude/skills/` or `~/.claude/commands/`.
+- **Work-only skills go in `~/.claude/work/sk-work/skills/<name>/`** (`skills/sk-work` symlinks
+  to it). `work/` is untracked, so a work skill is never committed, synced, or backed up.
+- Grouping subfolders in `~/.claude/skills/` are NOT supported (nested discovery only works for
+  project `.claude/skills/`) — always use the plugin-folder pattern above.
+- Creating a NEW top-level folder in `~/.claude/skills/` requires restarting Claude Code — sessions
+  started before the folder existed will never see it (start a fresh session/chat); edits to
+  existing SKILL.md files are picked up live.
+
 ## The map
 
 | Task shape | Spine (Simon's) | Stacks on top | Why the stack earns its place |

@@ -3,7 +3,10 @@
 DO treat every task-bearing session as a gauntlet session with one dashboard and one living plan. Ordinary tasks
 initialize `engine=current`, `gauntlet=false`, `referenceMode=none` and need no loop-options interview.
 The `gauntlet` boolean enables independent judgement, not task tracking. Ralph and independent judgement
-remain explicit execution choices. TEST: starting ordinary work produces one plan
+remain explicit execution choices, with one default: a design-match ask (build to a supplied design or
+reference product: "to a T", "pixel perfect", "recreate", "same as <site>", "implement these designs")
+initializes `gauntlet=true` with no options question, and its judge runs § Build from a supplied design
+source's comparison. TEST: starting ordinary work produces one plan
 and one dashboard without asking the four loop questions.
 
 Before delegation, apply `references/parallelization.md` § Choose and preserve the agent setup.
@@ -319,7 +322,9 @@ only the user's explicit approval in chat freezes the target revision.
 
 DO apply this whenever the task supplies a design source, from any author and in any format (a canvas,
 a Figma frame, mockup HTML, a zipped or exported board set, a board of real-component captures with
-stand-in data, images, or a mockup Simon approved), and whenever Simon asks for a pixel-perfect match.
+stand-in data, images, captures of a reference site or product, or a mockup Simon approved), and whenever
+Simon asks for a pixel-perfect match or to recreate a reference "to a T". Each captured reference screen
+is a board.
 Building it is a measured 1:1 match. The rules act before and during the build; a comparison made only
 at hand-back finds drift after the work is spent. A prose ticket that describes the design never
 replaces reading the source, a board of real-component captures is a target and never proof the build
@@ -456,8 +461,12 @@ DO put the evidence on each PR: before (the board, or the current screen) | afte
 body, and one PR comment holding the measured results table and the design-diff panels, uploaded with
 `gh pr comment --attach` per `/sk:ship-screenshot-changes`. Verify the saved body and comment through
 their `body_html`: every `<img>` loads with `naturalWidth > 0`.
-TEST: each design-built PR carries composites in its body and one results comment, and the
-verification lists zero images with `naturalWidth` 0.
+DO show the source and the build side by side per screen, at the same viewport and scale, in the
+hand-back and in the PR body: one `source | build` composite per board and state, its report verdict
+beside it. TEST: each design-built PR carries composites in its body and one results comment, the
+board count equals the composite count, and the verification lists zero images with `naturalWidth` 0
+(the fix for a recreated onboarding shipped with a scrolling first screen, a broken step connector and
+a clipped illustration label, with no source-vs-build comparison anywhere, built with the judge off).
 
 DO give each slice one fresh read-only fidelity judge that did not build it. This judge belongs to the
 gate, so it runs with `--judge off` too. Its brief holds the spec, target images, built captures,
