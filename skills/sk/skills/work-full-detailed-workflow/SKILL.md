@@ -13,7 +13,8 @@ DO run this as the spine of every task-bearing request, including one that names
 arrives through `/sk:meta-dotclaude-copilot-start-here-for-any-task`: the named or routed skill runs as
 a stage inside it. Scale each stage to the task; a stage with nothing to do gets an N/A and its reason
 in the plan.
-DON'T skip the session record, request reconciliation or stage 10 because the task looks small.
+DON'T skip the session record, request reconciliation or stage 10 because the task looks small, and
+DON'T cite machine capacity as an N/A reason (`references/dev-server-hygiene.md` § Machine-wide capacity).
 TEST: every task-bearing plan shows each stage with evidence or an N/A reason.
 
 ## Catalogs
@@ -106,10 +107,19 @@ current, reconcile against it.
    source, finish the intake in `references/workflow-loops.md` § Build from a supplied design source
    here, before step 5 briefs a builder. For a bug fix, reproduce it here first under
    `references/testing-strategy.md` § Reproduce a reported bug first, then prove the root cause.
+   **DO invoke `/sk:work-does-this-make-sense-to-build` here as its own skill on every build, adopt or
+   rebuild task, ticket or prompt-derived, before step 5 builds anything, and again on the final head
+   before step 10 for adopted or rebuilt work.** Hand back and post its result as
+   `references/tldr-report-formats.md` § Part verdicts. **DON'T wait for Simon to ask whether a part
+   makes sense, follows the most popular approach or regresses anything.** TEST: every build, adopt or
+   rebuild hand-back and PR body holds the Part verdicts table, re-derived on the final head (the fix for
+   a rebuilt PR whose verdicts, mainstream check and second-provider judge ran only after Simon asked).
 4. Plan tree-structured coverage and write needed tests; defer execution to step 9.
 5. Implement the whole authorized task batch, including every feature, on the selected engine; delegate independent edits using the saved setup and inspect the returned diffs on disk.
    After each item: verify its criteria, persist, refresh the dashboard, and with the judge on run
    `references/workflow-loops.md` § Shared judge stage on that revision, routing its gaps back here.
+   Before the first push of this work's commits, an adopted PR's branch included, run
+   `references/planning-and-tracking.md` § Gap sweep before the first push.
 6. Observability + failure handling; never fail silently, no dead-end states.
 7. Review before the heavy gate: `/sk:ship-review` over the whole diff, with step 8's criterion judges in
    the same fan-out, and fix its confirmed findings.

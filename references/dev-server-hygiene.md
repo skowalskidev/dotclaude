@@ -260,6 +260,15 @@ or focused smoke check (one worker, no server, simulator or build, done within 1
 matrices, full suites, builds and stack starts take the same ordinary admission with their own limits.
 Keep other sessions' processes, preview ownership, connector boundaries and paid-call approvals intact.
 
+DO treat a capacity or resource request (Simon's "give resources to other sessions", a busy machine, a
+`DEFER` line, exit 75) as changing WHERE and WHEN a required stage runs: on CI runners, after a lease
+wait in `bin/local-capacity.py` admission, at the cheapest rung that proves it, or with heavy local suites
+deferred to CI. **DON'T drop a required harness stage, or fold it inline instead of invoking its own
+skill, to save machine capacity:** a stage skill's reading, judging and posting hold no heavy slot.
+TEST: no `Not run:` list, skip line or N/A reason in a plan, gate record or hand-back cites capacity,
+resources or other sessions (the fix for a rebuilt PR whose ship stages were skipped to save machine
+capacity).
+
 DO read `status` first: it prints `heavy slot 1 of 3` through `heavy slot 3 of 3`, each free or its holder,
 then `simulators in use`, the `watchdog:` lines and `dev stacks`.
 DO put EVERY heavy step under a lease, a priority session's included: wrap the command itself, e.g.

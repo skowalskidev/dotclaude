@@ -96,6 +96,9 @@ top of that, in this order, because the cheap sources kill the most tickets:
    and it is a recurring source of tickets that describe a problem the other system does not have.
 5. **Primary sources** for any claim about a third party's product, per `rules/process.md`. Check all
    of their surfaces before asserting they do not support something.
+6. **The mainstream practice for each part**, unprompted: how the widest-adopted sources solve the same
+   problem, with one primary-source link, per `rules/engineering-standards.md` § Choose mainstream,
+   widely-adopted tools. A part that departs from it states why the departure fits this case.
 
 **Corroborate before you rely on it.** One source is a lead. A claim that decides a verdict needs a
 second, independent confirmation, and a claim that flatters the conclusion you were drifting toward
@@ -152,7 +155,7 @@ say what would settle it and what it would cost to find out. Silence is not disp
 Follow `rules/copy-quality.md` and `rules/communication.md`: answer first, no preamble, no em dashes.
 
 1. **One-line verdict** for the whole thing — build it, build part of it, or drop it.
-2. **The table** — one row per part: part, verdict, the one fact that decided it.
+2. **The table** — `references/tldr-report-formats.md` § Part verdicts, one row per part.
 3. **Per part, only where it earns space** — the claim that was load-bearing, the evidence with its
    source, and the reshaped proposal if the verdict was BUILD-CHANGED.
 4. **What to say to the author** — two or three sentences he can paste into Linear or say out loud,
@@ -165,6 +168,8 @@ Follow `rules/copy-quality.md` and `rules/communication.md`: answer first, no pr
 
 - **Propose, never build.** No implementation, no scaffolding, no "I went ahead and started". The
   output of this skill is a decision, and the work begins only after he makes it.
+- **DO judge what the branch holds when run on a built head** (the work harness's re-judge of adopted
+  or rebuilt work): one row per part the diff contains, Regression evidence filled from that head.
 - **Read-only everywhere.** No prod writes, no ticket edits, no status changes, no comments posted.
   Per `rules/process.md`, plans and analyses go in chat and are never auto-posted to a ticket.
 - **Never widen the ask.** Judge what was proposed. Adjacent work you noticed goes in one line at the

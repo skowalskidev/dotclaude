@@ -111,7 +111,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    a Light or Standard PASS carries its trigger and skipped stages. The Stop hook blocks a pushed branch
    head with no record, and a newer push re-opens it.
    **DO invoke every stage the tier requires as its own skill on the recorded head before recording,
-   even when an external blocker already makes the result BLOCKED.** Each Skill-tool run of a stage
+   even when an external blocker already makes the result BLOCKED.** A capacity or resource request
+   moves a stage's place and time, never whether it runs: `references/dev-server-hygiene.md`
+   § Machine-wide capacity. Each Skill-tool run of a stage
    records a receipt for the HEAD of the session's working directory, so run it from the PR's
    checkout at that head. **A delegated worker in its own worktree (e.g. `/tmp/<name>`) cannot move
    the session's directory, so after EACH stage it runs `~/.claude/hooks/intent-ledger.sh receipt
@@ -164,6 +166,8 @@ verified the user + system journey, then handed back with it never posted to the
   per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines.
 - Regression check (stage 6), on every PR: one row per modified pre-existing file with PASS or
   INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors.
+- Part verdicts (`/sk:work-full-detailed-workflow`), on every build, adopt or rebuild PR: the table
+  from `references/tldr-report-formats.md` § Part verdicts, re-derived on the final head.
 - Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard
   PR's `Skipped (tier <tier>): <trigger>` line under each matrix, prod-data and deploy-safety heading it skipped.
 - Screenshots (stage 7): every surface eligible under stage 7 at the PR's tier has its image on the PR and every affected

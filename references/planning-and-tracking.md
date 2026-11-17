@@ -323,6 +323,20 @@ a follow-up. **The verbatim prompts are never promoted.** They may carry pasted 
 session transcript already holds them outside the worktree, so copying them into a pushed artifact
 adds a leak path and no information.
 
+## Gap sweep before the first push
+
+**DO, before the first push of a build, adopt or rebuild (a push to an adopted PR's existing branch
+included), list every acceptance criterion of every ticket in `sources` (fetched whole, comments
+included, plus the stated scope of the PR being adopted or rebuilt) and every clause of every raw ask,
+and mark each MET or GAP against `git diff <base>...HEAD`.** Build each in-scope GAP before that push;
+route only another owner's item through `/sk:ship-check-merge-readiness`'s cross-owner discipline.
+Repeat the sweep for an ask that lands after the first push, before the next one.
+**DON'T leave the sweep to `/sk:ship-report-and-ensure-correct-user-system-journey` at the end:** that
+pass proves the criteria with tests; this one keeps a gap from reaching the PR.
+NUMBER: one verdict per criterion and per clause; zero GAP rows unbuilt or unrouted at the push.
+TEST: the plan holds the sweep's verdicts, timestamped before the first push record (the fix for ticket
+criteria a rebuilt PR left out, found only by the late ship report and then asked for by Simon).
+
 ## Verify foundation pillars before building
 - Identify the foundational assumptions the plan rests on (especially third-party platform capabilities) and do detailed research on each before building anything — building around a false assumption is the worst failure mode.
 - Verify what's possible three ways: (1) the codebase itself — read the actual branches, git diffs, and source, never descriptions of them; (2) online — official docs plus how popular production products actually do it; (3) empirically — a small isolated spike (T0) against the real service before anything else.

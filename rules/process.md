@@ -21,8 +21,8 @@ DO size each check to the change's tier, then walk each changed journey e2e on a
 Simulator included, before PR-ready: `references/testing-strategy.md` §§ Size the checks to the
 change, Defects first, Pre-merge end-to-end on a local stack and Native simulator suites.
 DO keep a work PR draft until merge prep: `references/git-pr-deploy.md` § CI runs once, at merge prep.
-DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push. Name
-the real blocker in every status. DO launch every ready stage at once on a priority ask.
+DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push or
+drops a stage. Name the real blocker in every status. DO launch every ready stage at once on a priority ask.
 `references/parallelization.md` §§ Parallelize verification, across tasks AND stages.
 TEST: no routine per-edit/feature/commit runs; mandatory final coverage uses matching inputs.
 

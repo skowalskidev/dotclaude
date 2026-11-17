@@ -430,6 +430,7 @@ CONTRACTS: dict[str, dict] = {
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
             "Fail a body with no Regression check heading, a row recording FAIL, or a modified, renamed or removed file from the PR's fetched file list with no row or no PASS or INTENDED result; a PR modifying no pre-existing file needs a table or a stated reason, and a failed file-list fetch exits 2.",
             "In a repo with a top-level ios/ or android/ directory, fail a PR changing any other runtime file (tests, docs and CI excluded) whose Deploy safety lacks the installed-version table, an 'Old build <version> against the new backend: PASS' or 'Installed builds: not reached, <why>' line, or the 'Waits for the new build:' line; fail any 'Old build ... BLOCKED' line.",
+            "Check a posted Part verdicts section: fail one with no table, a header lacking Verdict, Mainstream or Regression or two judge columns, or a row with no link; an absent section passes, so older bodies need no migration.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -817,6 +818,7 @@ CONTRACTS: dict[str, dict] = {
             "Cap Swift whole-module compiler threads separately from build jobs with SWIFT_USE_PARALLEL_WHOLE_MODULE_OPTIMIZATION=NO; verify installed support and emitted -num-threads 1 without a later larger override. Preserve capacity admission, watchdog and ownership safeguards.",
             "Web runners start at two workers, Playwright included (--workers=2, since its default is half the logical cores); a scripted Playwright run closes each context after its batch.",
             "Session workers inherit priority by checkout ownership and share its canonical lease owner; an Agent-tool worktree inherits it only through its subagents transcript under a listed checkout's projects slug, and an unknown ownership probe grants no priority without failing admission. Keep simulator claim/release labels consistent; name every native simulator, stop through the supervisor, and inspect status after exit 75.",
+            "A capacity or resource request changes where and when a required harness stage runs (CI, a lease wait, a cheaper rung), never whether its own skill is invoked; no skip or N/A reason cites capacity.",
             "A restart stops the launcher's process group, confirms zero listeners, and confirms the new listener started after the stop.",
             "A process a subagent started stays that subagent's until its final task notification; a waiting-on-background-work notification means alive whatever ListAgents shows, and the orchestrator asks the subagent to stop it rather than signalling it.",
             "A wait on a background job uses its PID, a done-file or the harness completion notification; never pgrep -f for a pattern the waiting command contains.",
@@ -975,6 +977,7 @@ CONTRACTS: dict[str, dict] = {
             "format moved to references/tldr-report-formats.md Blocks 1+2; this file owns when it is "
             "required, not what it looks like.",
             "Every ticket the plan names is a full clickable Linear link, never a bare id.",
+            "Before the first push of a build, adopt or rebuild, every ticket criterion and raw-ask clause gets MET or GAP against the diff and each in-scope GAP is built; the end ship report proves, it does not discover.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every proposed check lists its prerequisites from the code and the provider, each confirmed found or missing, before any time estimate or any ask for an input.",
@@ -1112,6 +1115,7 @@ CONTRACTS: dict[str, dict] = {
             "25 words, no prose.",
             "Every chat hand-back of a PR or finished change prints the same table unprompted, straight "
             "after line 1, matching the PR's TLDR.",
+            "Owns the Part verdicts table: per part its verdict and deciding fact, mainstream practice with a primary-source link, regression evidence and one judge column per provider; hand-back and PR body carry it on every build, adopt or rebuild.",
         ],
     },
     "references/user-journey-review.md": {
@@ -1205,6 +1209,7 @@ CONTRACTS: dict[str, dict] = {
             "Unverified is distinct from refuted. No evidence found is not disproof.",
             "Manufacturing objections fails this skill as hard as agreeing by default; a ticket that "
             "holds up gets three lines and a plain yes.",
+            "Names each part's mainstream practice with a primary-source link and reports in the tldr-report-formats Part verdicts shape; on a built head it judges what the branch holds.",
         ],
     },
     "skills/sk/skills/work-investigate-and-fix/SKILL.md": {
@@ -1262,6 +1267,7 @@ CONTRACTS: dict[str, dict] = {
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
             "Require every CI check on the recorded head green at the landing gate; a check failing by design is a finding to fix in that PR, never a PASS reason.",
+            "A capacity or resource request never removes a required stage; it moves the stage per dev-server-hygiene's machine-wide capacity section.",
             "Invoke every stage the tier requires as its own skill before recording the gate, even when an external blocker makes it BLOCKED; every gate reason and hand-back names each unrun stage as 'Not run: <stage>, <stage>' or states 'All stages ran', so a BLOCKED or PASS never hides an unrun stage.",
             "Record a Standard or Deep PASS only with 'All stages ran', never with a 'Not run:' list or a stage that ran on an earlier head; after any new push or base merge, rerun every remaining required stage on the new head unprompted before hand-back and never offer to run them.",
             "Name every stage hooks/intent-ledger.sh requires for any tier as /sk:<stage>; run intent-ledger.sh stages <tier> HEAD before recording and invoke each listed stage with the Skill tool from the checkout at that head, because the gate refuses a PASS, and any 'All stages ran', without a receipt on the recorded sha for each stage the tier requires.",
@@ -1497,6 +1503,8 @@ CONTRACTS: dict[str, dict] = {
             "Plan and write test coverage before implementation; execute the automated matrix at the final gate after all authorized features and review fixes converge, under the shared testing policy.",
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
+            "Step 3 invokes /sk:work-does-this-make-sense-to-build as its own skill on every build, adopt or rebuild before building, and again on the final head for adopted or rebuilt work; hand-back and PR body carry the Part verdicts table.",
+            "The planning-and-tracking gap sweep runs before the first push of the work's commits, an adopted PR's branch included; an N/A reason never cites machine capacity.",
             "For a bug fix, step 3 reproduces it with a control under the testing-strategy reproduce-first section before any implementation.",
             "Names rules/living-plan.md among the always-on rules it does not restate.",
             "Its final stage runs /sk:ship-full-detailed-workflow on every PR the run opened or pushed, unprompted, reusing earlier evidence for the same head and recording each landing-gate result; a change task ends at a ready PR with green CI and landing gate PASS, merge left to Simon; N/A only when no tracked file changed.",

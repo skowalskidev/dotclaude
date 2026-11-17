@@ -201,6 +201,30 @@ matrix_need = next((m for m in gate.check_body(tldr_only, HTML, 0) if m.startswi
 check(all(k in matrix_need for k in ("tier", "COVERED", "Real-environment walk")),
       f"The missing Test matrix line did not name the tier, counts and walk: {matrix_need}")
 check(set(gate.SECTIONS) - {"Verification runs"} <= set(gate.NEEDS), "A gated section has no NEEDS entry")
+
+# references/tldr-report-formats.md § Part verdicts: checked when posted, so an older body still passes.
+PARTS = ("\n## Part verdicts\n\n"
+         "| Part | Verdict | Mainstream practice | Regression evidence | Claude judge | OpenAI judge |\n"
+         "|---|---|---|---|---|---|\n"
+         "| 1. Retry | BUILD: 4% fail once | Backoff with jitter ([AWS](https://aws.amazon.com/x)) "
+         "| suites PASS | agrees | agrees |\n")
+check(not [m for m in gate.check_body(PASSING, HTML, 0) if m.startswith("Part verdicts")],
+      "A body with no Part verdicts section failed the gate")
+check(not [m for m in gate.check_body(PASSING + PARTS, HTML, 0) if m.startswith("Part verdicts")],
+      "A well-formed Part verdicts section failed the gate")
+unlinked = PASSING + PARTS.replace("([AWS](https://aws.amazon.com/x))", "")
+check(any("no primary-source link" in m for m in gate.check_body(unlinked, HTML, 0)),
+      "A Part verdicts row with no primary-source link passed")
+one_judge = PASSING + PARTS.replace(" OpenAI judge |", "").replace(" agrees |\n", "\n")
+check(any("judge columns" in m for m in gate.check_body(one_judge, HTML, 0)),
+      "A Part verdicts table with one judge column passed")
+no_cols = PASSING + PARTS.replace("Mainstream practice", "Approach").replace("Regression evidence", "Tests")
+miss = [m for m in gate.check_body(no_cols, HTML, 0) if m.startswith("Part verdicts")]
+check(any("Mainstream" in m and "Regression" in m for m in miss),
+      f"A Part verdicts header with no Mainstream or Regression column passed: {miss}")
+check(any(m.startswith("Part verdicts: no table") for m in
+          gate.check_body(PASSING + "\n## Part verdicts\n\nAll parts make sense.\n", HTML, 0)),
+      "A Part verdicts section with no table passed")
 both = PASSING.replace("**Do:** merge", "Merge").replace("| Before | After | Why |", "| Old | New | Reason |")
 tldr_rows = [m for m in gate.check_body(both, HTML, 0) if m.startswith("TLDR")]
 check(len(tldr_rows) == 2, f"A TLDR missing both its table and Do line did not report both: {tldr_rows}")

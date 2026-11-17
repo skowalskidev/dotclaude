@@ -14,7 +14,7 @@ first). Don't restate either here.
 
 Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (every block), `/sk:ship-pr` (the before/after TLDR, user journey and system journey in the PR body),
 `/sk:work-full-detailed-workflow` and `references/planning-and-tracking.md` (Block 1 AND Block 2 open every
-plan, reflecting its current trajectory). One owner, so a format fixed once is fixed everywhere.
+plan, reflecting its current trajectory), `/sk:work-does-this-make-sense-to-build` (Part verdicts). One owner, so a format fixed once is fixed everywhere.
 
 ## Human-facing messages
 
@@ -160,6 +160,31 @@ the PR's `## TLDR` (the fix for a 14-row change table Simon had to ask for by na
 TEST: the fetched PR body's first heading is `## TLDR`, it holds a table whose header names Before,
 After and Why in that order, and a `**Do:**` line, and nothing else before `## 🚀 Deploy TLDR`.
 `bin/pr-landing-gate.py` checks this and owns the heading names.
+
+## Part verdicts
+
+**DO hand back, and post under `## Part verdicts` in the PR body, one row per separately-decidable
+part `/sk:work-does-this-make-sense-to-build` named, re-derived on the final head of every build, adopt
+or rebuild:**
+
+```
+| Part | Verdict | Mainstream practice | Regression evidence | Claude judge | OpenAI judge |
+|---|---|---|---|---|---|
+| 1. Retry failed sync calls | BUILD: 4% of calls fail once, then succeed | Capped backoff with jitter ([AWS](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/)) | 3 changed files, base and head suites PASS | agrees | agrees; caps total wait |
+```
+
+- **Verdict:** the skill's verdict plus the one fact that decided it.
+- **Mainstream practice:** the widest-adopted approach to the same problem, one primary-source link
+  (`rules/engineering-standards.md` § Choose mainstream, widely-adopted tools); a part that departs
+  from it names why. A part with no outside analogue links the repo file whose convention it follows.
+- **Regression evidence:** the part's rows from `references/testing-strategy.md` § Regression check;
+  `pending` only before the build.
+- **One judge column per provider** (`references/research.md` § Independent judges), each holding that
+  judge's own position.
+
+NUMBER: one row per part, each cell at most 20 words. TEST: every build, adopt or rebuild hand-back
+and PR body carries the table with a link in every Mainstream practice cell and a position in every
+judge cell; `bin/pr-landing-gate.py` fails a posted section missing its columns or a link.
 
 ## Block 1 · User journey
 

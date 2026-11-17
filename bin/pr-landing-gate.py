@@ -26,6 +26,10 @@ in Deploy safety, the installed-version table, one `Old build <version> against 
 line per walked version or an `Installed builds: not reached, <why>` line, and a `Waits for the new
 build:` line (references/git-pr-deploy.md § Deploy safety check 4). An `Old build ... BLOCKED` line is
 recorded but fails the gate: an unwalked installed build is never a pass.
+A posted Part verdicts section holds a table whose header names Verdict, Mainstream practice, Regression
+evidence and a judge column per provider, with a primary-source link in every row
+(references/tldr-report-formats.md § Part verdicts). The section is checked when present, so a PR body
+written before it existed still passes; the work harness's TEST requires it on build, adopt and rebuild PRs.
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -51,6 +55,7 @@ SECTIONS = {
     "Deploy safety": "Deploy safety",
     "Screenshots": "Screenshots",
     "Verification runs": "Verification runs",
+    "Part verdicts": "Part verdicts",
 }
 MATRIX_COUNTS = ("COVERED", "GAP", "NEEDS-DRIVING", "SKIPPED")
 # What each section must hold, printed with a missing heading so one gate run names every requirement
@@ -73,6 +78,8 @@ NEEDS = {
                       "| share table, 'Old build <version> against the new backend: PASS' per version or "
                       "'Installed builds: not reached, <why>', and 'Waits for the new build: <list or none>'"),
     "Screenshots": "an image, or a no-visible-surface reason with a 'Checked outputs:' clause",
+    "Part verdicts": ("a table whose header names Verdict, Mainstream practice, Regression evidence and "
+                      "a judge column per provider; a primary-source link in every row"),
 }
 
 
@@ -216,6 +223,30 @@ def check_regression(text, modified):
         out.append("Regression check: no PASS or INTENDED result for " + ", ".join(unresolved[:5]))
     if unevidenced:
         out.append("Regression check: no base-vs-head evidence for " + ", ".join(unevidenced[:5]))
+    return out
+
+
+PART_COLUMNS = ("Verdict", "Mainstream", "Regression")
+LINK = re.compile(r"https?://|\]\(")
+
+
+def check_part_verdicts(text):
+    """Missing-row strings for a posted Part verdicts section (references/tldr-report-formats.md)."""
+    if text is None:
+        return []
+    if not has_table(text):
+        return ["Part verdicts: no table (needs: " + NEEDS["Part verdicts"] + ")"]
+    rows = [ln for ln in text.splitlines() if ln.strip().startswith("|")]
+    header = rows[0].lower()
+    out = []
+    absent = [c for c in PART_COLUMNS if c.lower() not in header]
+    if absent:
+        out.append("Part verdicts: the table header has no " + ", ".join(absent) + " column")
+    if header.count("judge") < 2:
+        out.append("Part verdicts: fewer than two judge columns (one per provider)")
+    unlinked = [r for r in rows[2:] if not LINK.search(r)]
+    if unlinked:
+        out.append(f"Part verdicts: {len(unlinked)} row(s) with no primary-source link")
     return out
 
 
@@ -398,6 +429,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
         absent = [label for label in RUN_LABELS if label.lower() not in runs.replace("*", "").lower()]
         if absent:
             missing.append("Verification runs: no " + ", ".join(absent) + " line")
+
+    missing += check_part_verdicts(found.get("Part verdicts"))
 
     collapsed = len(COLLAPSED.findall(body_html or ""))
     if collapsed:
