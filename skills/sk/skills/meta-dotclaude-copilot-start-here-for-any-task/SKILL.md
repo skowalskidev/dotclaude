@@ -27,8 +27,9 @@ applied through to a verified finish — resuming the main thread after any tang
 
 - Apply `rules/living-plan.md` before routing. Run
   `python3 "$HOME/.claude/bin/workflow-dashboard.py" init --root .`; it reuses the workspace's one active
-  plan or creates its intake skeleton and canonical dashboard. Replace the skeleton with this task before
-  presenting the proposal, then regenerate it with `link`.
+  plan or creates its intake skeleton and canonical dashboard. Before presenting the proposal, fill the
+  skeleton's sections in place with this task and keep its trailing `## Dashboard state` block; change
+  state only through `workflow-dashboard.py update`, then regenerate with `link`.
 - Show the `DASHBOARD_PATH` once at task opening. When Simon asks for the dashboard link at any later
   stage, run `python3 "$HOME/.claude/bin/workflow-dashboard.py" link` and return the clickable absolute
   path before continuing.

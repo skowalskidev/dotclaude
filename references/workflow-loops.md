@@ -632,8 +632,10 @@ python3 "$HOME/.claude/bin/workflow-dashboard.py" resolve --target "<dashboard u
 DO run `init` on the first task-bearing prompt. It locks initialization, reuses one active plan or
 creates one ordinary `engine=current`, `gauntlet=false` intake skeleton and exports its dashboard. Task
 intake runs it mechanically; native hosts and the front-door skill run it directly when hooks are not
-available. Replace the skeleton with the approved task before execution. TEST: two simultaneous or
-repeated initializations leave exactly one active plan and dashboard, including unattended intake.
+available. Fill the skeleton's sections in place with the approved task before execution, keeping its
+trailing `## Dashboard state` block; change state only through `update`. TEST: two simultaneous or
+repeated initializations leave exactly one active plan and dashboard, including unattended intake, and
+`link` accepts the filled plan (the fix for a whole-file plan rewrite that dropped the state block).
 
 DO use `link` from any later session to find the workspace's one active plan, regenerate its canonical
 offline HTML and print `DASHBOARD_PATH=<absolute path>`. One active plan wins over completed history;
