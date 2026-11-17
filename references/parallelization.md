@@ -524,6 +524,12 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   `intent-ledger.sh stages <tier> <pr-head-sha>` and reports `All stages ran` or the `Not run:` list.
   TEST: the gate accepts a PASS on the worker's head, and refuses one on a sha with no receipt (the fix
   for five PRs refused PASS after every stage had run).
+- **DO tell a worker to run `intent-ledger.sh receipt <stage> <dir>` only right after invoking that
+  stage with the Skill tool on that head.** The receipt is self-attested; the gate's "All stages ran"
+  rests on it. **DO list work done by hand as `Not run: <stage>`.** DON'T receipt a stage whose skill
+  was not invoked, however closely the work matched it. TEST: every receipt in the ledger follows a
+  Skill call of that stage in the worker's transcript on that head (the fix for a worker that
+  receipted three ship stages it did by hand, then reported the receipts overstated what ran).
 - **DO tell a worker that runs several skills in a row to treat each skill's printed report, the
   built-in `/security-review` included, as one stage's result and go on to the next stage; its turn ends
   only with the final report the brief asks for.** **DO point a built-in review at the worker's own
