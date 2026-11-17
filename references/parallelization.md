@@ -554,6 +554,13 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   report in its hand-back. DON'T write "the orchestrator screenshots the result": a builder that cannot
   see its screen ships layout errors one look would catch. TEST: every UI-building prompt names a spec
   path, a capture command and a target image path, and every such hand-back carries a report.
+- **DO paste the project's exact local CI gate commands into every code worker's first brief, and
+  name the auto-memory files on its area by path,** told to read them before the first commit. DON'T
+  rely on the parent's auto-memory reaching the worker: a worker that runs a near-miss of a gate
+  (repo-wide instead of the CI's own config) reports it clean and CI fails it. TEST: every code
+  brief carries the gate commands verbatim as CI runs them and the applicable memory paths (the fix for
+  two red CI runs in one stack, a migration's reset scan and a duplicate-test scan, both covered by
+  project memories the fix workers never read).
 - **State the OUTPUT FORMAT, not just the task.** This is the one field Anthropic requires that the
   rest of this list doesn't already cover (their four: objective, output format, tool/source
   guidance, task boundaries). In a Workflow script, make it a real JSON schema via `agent(prompt,

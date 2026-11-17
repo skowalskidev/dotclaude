@@ -188,6 +188,19 @@ TEST: each red CI run is followed by one push that fixes every job it failed, ma
 gate-list pass (the fix for a first CI run that failed on a secret-scan false positive on a test
 fixture token and an i18n coverage gate the base had added, both with local commands).
 
+**DO merge the base into an open PR once, at merge prep, after every review and fix round has
+converged** (zero BLOCKING findings and the stage evidence written), then renumber its migrations and
+run CI and the stage receipts on that one head. A base that moves mid-review is no reason to merge:
+each merge is a new head, so it resets every stage receipt and the CI run, and the next base move
+makes it stale again. Merge earlier only for a conflict in a file the PR's own diff touches or a base
+change the fix needs, and say which.
+NUMBER: one base merge per PR per merge prep; a second only when the base moved again before the merge
+itself, then merge prep repeats on that head alone.
+TEST: no PR in a run has a base merge between two review rounds without a named conflict or needed
+change (the fix for a two-PR stack whose base, 13 merges in a day with 6 new migrations, was merged
+in four times mid-review, each time renumbering migrations and rerunning all nine stages and CI on a
+PR whose own diff had not changed).
+
 ## After a push, and after merging the base in
 
 Applies once a push is authorized (Simon asked, or a `sk:ship-*` flow that pushes is running).

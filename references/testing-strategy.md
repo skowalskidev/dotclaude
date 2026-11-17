@@ -356,6 +356,16 @@ linking PR where Simon asked all four by hand; answered, they read: payment path
 iPhone walks PASS, 32/32 production cases linked, 32/32 other-account attempts refused, shared device
 named as residual risk.)
 
+**DO give a decision that several doors read one agreement test that drives every door on the
+same fixture state,** whenever a change touches a shared verdict (eligibility, price, offer, refusal):
+e.g. a trial decision read by the quote, the confirm, the status check and the full-price sale. Each
+case asserts the doors agree end to end (the quote's offer is what the confirm sells, and a refusal
+leads to a sale that works), never one door at a time. Add every new door and every new fixture state
+to the same table, and run it on each fix round.
+TEST: a fix to a shared verdict carries a test that calls every door reading it on one fixture and
+fails when any two disagree (the fix for three review rounds that each found the quote and the confirm
+disagreeing after a fix had changed only one of them).
+
 ## Production source fidelity
 
 Read `~/.claude/rules/connectors.md` and `~/.claude/references/connectors-setup.md`; resolve the

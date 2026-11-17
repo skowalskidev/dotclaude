@@ -865,6 +865,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "A commit is navigable a year later, a set of PRs merges and deploys in either order with no outage, and a deploy is verified working, not assumed working.",
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
+            "An open PR merges its base once, at merge prep, after review rounds converge; a mid-review base move is no reason to merge unless a file the PR touches conflicts or the fix needs the change.",
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Owns worktree config detail: no repository config write from a worktree; one process is sandboxed with git -c or GIT_CONFIG_COUNT.",
             "Owns the review-branch push procedure (fetch, merge in remote commits, plain push, one-line sha report) and the gate on every other PR or remote operation.",
@@ -937,6 +938,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Independent work runs at once without two agents touching one file, and every delegated edit is verified on disk.",
         "purpose": "Fanning work out across agents without collisions or lost edits.",
         "criteria": [
+            "Every code worker's first brief carries the project's local CI gate commands verbatim and names the auto-memory files on its area.",
             "Inspect delegated diffs on disk without routine test execution; no per-feature, per-commit or per-worker-batch checks override the shared policy.",
             "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
@@ -1031,6 +1033,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "The suite proves the thing works and spends nothing doing it.",
         "purpose": "Test structure, the pre-merge end-to-end walk on a local stack, the old app build walk against the new backend, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
+            "A change to a verdict several doors read carries one agreement test driving every door on the same fixture, failing when any two disagree.",
             "Verify runtime admission, limits, validation, authorization and retention against current legitimate production cohorts even without displayed figures; keep unknown telemetry distinct from zero or pass.",
             "Replay actual client payloads through real isolated gates, measure headroom and combined shared budgets, and preserve source privacy, production write authorization and paid-call approval.",
             "Separate code verification, activation dependencies and live proof; scope conclusions to captured populations and windows without promising zero regressions.",
