@@ -1956,6 +1956,16 @@ CONTRACTS: dict[str, dict] = {
             "every run is a nuisance rather than a feature.",
         ],
     },
+    "skills/sk/skills/meta-dotclaude-copilot-make-best-decision/SKILL.md": {
+        "mission": "Each alert, thread or ticket ends with the best-evidenced decision, and only items where a PR is clearly right get one.",
+        "purpose": "Per item: research the popular best practice, inventory the code, verify with read-only prod data, decide among no action, a Simon action, a config change, a PR or a re-architecture, and report.",
+        "criteria": [
+            "Records each item as its own plan row and gives it one verdict from: no action, Simon action, config change, PR, re-architecture.",
+            "Researches the vendor-documented best practice and verifies each load-bearing number from two read-only sources; points at references/research.md, rules/connectors.md and rules/spend-approval.md and restates none of them.",
+            "Decides through /sk:work-does-this-make-sense-to-build and runs /sk:ship-verify-with-prod-data; runs /sk:work-full-detailed-workflow and /sk:ship-full-detailed-workflow only where a PR is clearly right.",
+            "Hands Simon exact action points with a deadline, never opens a PR for a no-action, Simon-action or re-architecture verdict, and replies in the source thread when the item came from a bot or alert thread.",
+        ],
+    },
     "skills/sk/skills/meta-dotclaude-copilot-start-here-for-any-task/SKILL.md": {
         "mission": "Simon calls one skill for any task, immediately gets its complete dashboard, and finishes with no skill forgotten and no tangent dropped.",
         "purpose": "The single user-invocable front door: open the session record, route the task, show progress and drive it to a verified finish.",
