@@ -379,28 +379,55 @@ NEGATED_RE = re.compile(
     r"\b(don'?t|do not|never|not|no|without|before)\s+(?:(?!" + CLAUSE_JOIN + r")[\w']+\s+){0,2}?"
     r"(merg|push|deploy|ship)"
     r"|\b(stop|hold|wait)\b(?:(?!\b" + CLAUSE_JOIN + r")[^.,;\n]){0,25}?\b(merg|push|deploy|ship)", re.I)
-# A question or a hypothetical about the verb is not an instruction to do it: a sentence saying the
-# verb that ends in "?" ("merge 12?"), or that asks should/would/shall/might I|we|you ..., what if,
-# whether, do you think, is it ok/safe to ... ("should I merge when it's ready?", "would you merge?").
-# A polite request ("can/could/will you merge 12?", "please merge") stays an instruction.
+# A question or a hypothetical about the verb is not an instruction to do it. Each sentence is judged
+# clause by clause (split on , ; and a colon before a space), and the CLAUSE that says the verb decides:
+# it is a question when it ends the sentence and the sentence ends in "?" ("merge 12?"), or when the
+# next clause starts with "or" in a sentence ending in "?" ("merge it now, or wait?"). A question
+# opener anywhere up to that clause makes it hypothetical: should/would/shall/might I|we|you ...,
+# can/may/could I|we (asking permission), what if, whether, do you think, is it ok/safe to ... ("should
+# I merge when it's ready?", "can I merge it now, or should we wait?"). A question in a LATER clause
+# does not reach back (the fix for "let's merge and deploy that when it's ready ..., u sure we don't
+# roll back 1031?" read as a question because the sentence ended in "?"). A polite request
+# ("can/could/will you merge 12?", "please merge") stays an instruction.
 HYPOTHETICAL_RE = re.compile(
-    r"\b(should|would|shall|might)\s+(i|we|you|it|this|that|they|claude)\b|\bwhat\s+if\b|\bwhether\b"
+    r"\b(should|would|shall|might)\s+(i|we|you|it|this|that|they|claude)\b|\b(can|may|could)\s+(i|we)\b"
+    r"|\bwhat\s+if\b|\bwhether\b"
     r"|\b(do|did)\s+you\s+think\b|\b(is|are)\s+(it|this|that|they)\s+(ok|okay|safe|fine|wise|worth)\s+to\b", re.I)
 POLITE_REQUEST_RE = re.compile(r"\b(can|could|will)\s+you\b|\bplease\b", re.I)
 SENTENCE_RE = re.compile(r"[^.!?\n]+[.!?]*")
+CLAUSE_SPLIT_RE = re.compile(r"[,;]|:(?=\s)")
+ALTERNATIVE_RE = re.compile(r"^\s*or\b", re.I)
+
+
+def clause_readings(ask: str):
+    """(clause, instructs?) for every clause of the ask: False when the clause is part of a question
+    or a hypothetical, judged as the comment above describes."""
+    for sentence in SENTENCE_RE.findall(ask):
+        asked = sentence.rstrip().endswith("?")
+        clauses = CLAUSE_SPLIT_RE.split(sentence)
+        for i, clause in enumerate(clauses):
+            prefix = " ".join(clauses[:i + 1])
+            last = i == len(clauses) - 1
+            alternative = asked and not last and ALTERNATIVE_RE.match(clauses[i + 1])
+            question = (asked and last and not POLITE_REQUEST_RE.search(prefix)) or alternative
+            yield clause, not (question or HYPOTHETICAL_RE.search(prefix))
 
 
 def instructs(ask: str, verb: str) -> bool:
-    """True when some sentence of the ask says the verb as an instruction, not a question or a
+    """True when some clause of the ask says the verb as an instruction, not a question or a
     hypothetical (the fix for "should I merge when it's ready?" read as a standing merge)."""
     says = re.compile(VERB_FORMS[verb], re.I)
-    for sentence in SENTENCE_RE.findall(ask):
-        if not says.search(sentence) or HYPOTHETICAL_RE.search(sentence):
-            continue
-        if sentence.rstrip().endswith("?") and not POLITE_REQUEST_RE.search(sentence):
-            continue
-        return True
-    return False
+    return any(ok and says.search(clause) for clause, ok in clause_readings(ask))
+
+
+def merge_scope(text: str) -> str:
+    """The text with question clauses that do not say merge removed, so a PR number named only in a
+    side question ("..., u sure we don't roll back 1031?") is neither covered nor read as naming
+    another PR."""
+    says = re.compile(VERB_FORMS["merge"], re.I)
+    return " ".join(c for c, ok in clause_readings(text) if ok or says.search(c))
+
+
 # Every verb check accepts its inflections: merge/merged/merges/merging, push/pushed/pushes/pushing
 # (the fix for "this can be merged if prod deploy ready" missing a `\bmerge\b` check).
 VERB_FORMS = {"merge": r"\bmerg(?:e|ed|es|ing)\b", "push": r"\bpush(?:ed|es|ing)?\b"}
@@ -609,6 +636,7 @@ def covers(text: str, number: str, payload: dict, selector: str, repo: str, cwd)
     it as an open PR this session pushed, or say all/both/them in answer to a hand-back whose merge
     list names it (the fix for "merge and deploy both" refused for the base PR of a stack another
     session pushed, which the hand-back had listed for him to merge)."""
+    text = merge_scope(text)
     if re.search(rf"(?<!\d){number}(?!\d)", text):
         return True
     bulk, numbered = bool(BULK_RE.search(text)), bool(PR_NUMBER_RE.search(text))
@@ -628,7 +656,8 @@ def turn_merge_allowed(payload: dict, words: list, cwd) -> bool:
     text = "\n".join(window)
     if covers(text, number, payload, selector, repo, cwd):
         return True
-    if BULK_RE.search(text) or PR_NUMBER_RE.search(text):
+    scope = merge_scope(text)
+    if BULK_RE.search(scope) or PR_NUMBER_RE.search(scope):
         return False
     return unnamed_merge_ok(payload, window[0], number)
 
