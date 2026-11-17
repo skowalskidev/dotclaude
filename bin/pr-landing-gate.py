@@ -19,7 +19,8 @@ A PR whose Test matrix names the deep tier holds a Value safety section: its fiv
 reasoned does-not-apply (references/testing-strategy.md § Value safety).
 A Screenshots or Verification runs section that posts no evidence and states no visible surface (or a
 does-not-apply) carries a "Checked outputs:" clause naming what was compared on base and head
-(references/screenshot-review.md § Visible surfaces); a bare "No eligible frontend surface" fails.
+(references/screenshot-review.md § Visible surfaces); a bare "No eligible frontend surface" fails, and so
+does a reason naming "no new screen", "no new copy", "existing screen", "existing step" or "same screen".
 In a repo that ships a native app (a top-level ios/ or android/ directory), a PR that changes any other
 runtime file (a server, database, Worker or hosted web file the installed builds call or load) holds,
 in Deploy safety, the installed-version table, one `Old build <version> against the new backend: PASS`
@@ -95,6 +96,11 @@ NO_SURFACE = re.compile(r"no (?:eligible |changed |visible )?(?:frontend |UI |us
                         r"no (?:frontend|UI|visible) change", re.I)
 # references/screenshot-review.md § Visible surfaces: a no-surface claim names the outputs it compared.
 CHECKED_OUTPUTS = re.compile(r"checked outputs\W{0,3}:\**\s*\S+(?:\s+\S+){2,}", re.I)
+# references/screenshot-review.md § Visible surfaces: a change to which existing screen or step a person
+# reaches is visible, so "no new screen" or "reuses an existing screen" is never a no-surface reason.
+ROUTE_REASON = re.compile(r"no new (?:screens?|copy)\b|\bexisting (?:screens?|steps?)\b|\bsame screens?\b", re.I)
+ROUTE_MSG = ("{}: the no-surface reason names a new-screen or new-copy test; a change to which existing screen "
+             "or step a person reaches is visible (references/screenshot-review.md § Visible surfaces)")
 # references/testing-strategy.md § Size the checks to the change: a Light or Standard PR keeps each
 # skipped heading with this line, and its trigger is at least three words.
 TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
@@ -174,6 +180,11 @@ def has_table(text):
 def count_of(text, label):
     pat = re.escape(label) + ("S?" if label == "GAP" else "")
     return re.search(r"\d+\s*\**\s*" + pat + r"\b|\b" + pat + r"\**\s*[:=]?\s*\**\s*\d+", text)
+
+
+def route_reason(text):
+    """True when the no-surface reason (the text before any Checked outputs clause) rests on a new-screen test."""
+    return ROUTE_REASON.search(re.split(r"checked outputs", text, maxsplit=1, flags=re.I)[0]) is not None
 
 
 def reasoned_na(text):
@@ -411,6 +422,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
             missing.append("Screenshots: no image and no stated no-visible-surface reason")
         elif not CHECKED_OUTPUTS.search(shots):
             missing.append(NO_OUTPUTS.format("Screenshots"))
+        if route_reason(shots):
+            missing.append(ROUTE_MSG.format("Screenshots"))
 
     runs = found.get("Verification runs")
     if runs is None:
@@ -421,6 +434,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
     elif not VIDEO.search(runs) and (NO_SURFACE.search(runs) or reasoned_na(runs)):
         if not CHECKED_OUTPUTS.search(runs):
             missing.append(NO_OUTPUTS.format("Verification runs"))
+        if route_reason(runs):
+            missing.append(ROUTE_MSG.format("Verification runs"))
     else:
         if not has_table(runs):
             missing.append("Verification runs: no scenario table")

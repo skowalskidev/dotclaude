@@ -291,6 +291,22 @@ check(any("Checked outputs" in m for m in gate.check_body(section(PASSING, "Scre
 thin = none.replace("the chat reply text and the Slack post blocks, base vs head on the run fixture: identical.", "none")
 check(any("Checked outputs" in m for m in gate.check_body(section(PASSING, "Screenshots", thin), HTML, 0)),
       "A one-word Checked outputs clause passed")
+# A route change between existing screens is visible: a new-screen or new-copy test is never the reason.
+route = ("## Screenshots\n\nNo visible surface changed: no new screen or copy, the paywall reuses an existing "
+         "screen. Checked outputs: the paywall request logs in the unit tests, base vs head: identical.\n")
+check(any("existing screen or step" in m for m in gate.check_body(section(PASSING, "Screenshots", route), HTML, 0)),
+      "A no-surface reason of 'no new screen or copy' passed")
+for phrase in ("No new copy", "reuses the Existing step", "lands on the same screen"):
+    variant = route.replace("no new screen or copy, the paywall reuses an existing screen", phrase)
+    check(any("existing screen or step" in m for m in gate.check_body(section(PASSING, "Screenshots", variant), HTML, 0)),
+          f"A no-surface reason of '{phrase}' passed")
+route_runs = PASSING + ("\n## Verification runs\n\nNo visible surface: same screen as before. Checked outputs: the "
+                        "sign-in screen, base vs head: identical.\n")
+check(any("Verification runs" in m and "existing screen or step" in m for m in gate.check_body(route_runs, HTML, 0)),
+      "A Verification runs no-surface reason of 'same screen' passed")
+outputs_named = none.replace("the chat reply text", "the same screen's chat reply text")
+check(gate.check_body(section(PASSING, "Screenshots", outputs_named), HTML, 0) == [],
+      "A Checked outputs clause naming the same screen failed a valid no-surface reason")
 check("Screenshots" in rows(gate.check_body(section(PASSING, "Screenshots", "## Screenshots\n\nSee below.\n"),
                                             HTML, 0)), "Screenshots with no image or reason passed")
 

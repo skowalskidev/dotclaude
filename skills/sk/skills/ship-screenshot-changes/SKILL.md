@@ -53,13 +53,11 @@ running session's server.
 ## Step 1 — Figure out what changed
 
 `git diff` the branch vs its base. List the exact visible surfaces and journeys the change touches
-(routes, components, states, inputs), per `~/.claude/references/screenshot-review.md` § Visible
-surfaces. A backend, data or bot change whose output a person sees (copy, translations, prices,
-counts, a chat reply, an email, a Slack post, an admin row) has a surface too: capture that real output
-on base and head with production-shaped data; "no frontend files changed" is not "no visible surface".
-(the fix for a translation-backend PR first evidenced with a CI table until Simon asked for the
-translated screen.) With no surface, write that section's no-surface line with its `Checked outputs:`
-clause instead of capturing. Then build the case matrix per the reference's § Discover the
+(routes, components, states, inputs). Decide what counts as a surface, and when a no-surface line
+with its `Checked outputs:` clause replaces capturing, only by `~/.claude/references/screenshot-review.md`
+§ Visible surfaces; capture each counted output on base and head with production-shaped data (the fix
+for a translation-backend PR first evidenced with a CI table until Simon asked for the translated
+screen). Then build the case matrix per the reference's § Discover the
 complete matrix: empty and full states, every conditional scenario, responsive sizes and complete
 journeys. One case per scenario × viewport × variant, blocked and unrun cases included. Scope to the
 diff unless Simon asks for the whole app.

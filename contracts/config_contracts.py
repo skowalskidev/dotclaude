@@ -285,6 +285,7 @@ CONTRACTS: dict[str, dict] = {
             "Record BEFORE on a local or preview build of the base branch, never a production host.",
             "Count every person-visible output the diff can change as a surface: screens, chat replies, email, SMS, push, bot posts, alerts, admin pages, reports; capture its real base and head output, replays labelled, never a drawn stand-in.",
             "Allow a no-surface line only when no person-visible output can differ, stating its reason and a 'Checked outputs:' clause; 'no frontend files' is never the reason.",
+            "Count a change to which existing screen or step a person reaches (redirect, close or keep, step added or skipped, error shown or removed) as visible, with each affected scenario's before and after clip, still and verification run; 'no new screen', 'no new copy' or 'reuses an existing screen' is never a no-surface reason.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
             "Compose every posted before/after image and video with bin/pr-evidence.py: bands above the UI, outline-only callouts, one block per point; verify image/png and video/mp4 serving, then browser playback decides. Post evidence under a top-level ## Screenshots, never inside a collapsed <details>.",
             "Open ## Screenshots with a Scenario | What happens | Video table, one row per video. Post one viewport per state (the targeted one, usually mobile 390px); add the other only when its layout visibly differs, stated; never a duplicate desktop/mobile pair; prefer video for anything that changes over time.",
@@ -427,6 +428,7 @@ CONTRACTS: dict[str, dict] = {
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-visible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
             "Fail a Screenshots or Verification runs no-surface or doesn't-apply line lacking a 'Checked outputs:' clause of 3+ words, so a bare 'No eligible frontend surface' never passes.",
+            "Fail a Screenshots or Verification runs no-surface reason (the text before 'Checked outputs:') naming 'no new screen', 'no new copy', 'existing screen', 'existing step' or 'same screen', case-insensitive, pointing at screenshot-review.md § Visible surfaces.",
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
             "Fail a body with no Regression check heading, a row recording FAIL, or a modified, renamed or removed file from the PR's fetched file list with no row or no PASS or INTENDED result; a PR modifying no pre-existing file needs a table or a stated reason, and a failed file-list fetch exits 2.",
             "In a repo with a top-level ios/ or android/ directory, fail a PR changing any other runtime file (tests, docs and CI excluded) whose Deploy safety lacks the installed-version table, an 'Old build <version> against the new backend: PASS' or 'Installed builds: not reached, <why>' line, or the 'Waits for the new build:' line; fail any 'Old build ... BLOCKED' line.",
@@ -1456,7 +1458,7 @@ CONTRACTS: dict[str, dict] = {
             "matrix: empty and full states, conditional scenarios and responsive sizes, seeded with "
             "realistic inputs, saved inside a workspace root; no bug-hunt or fix-loop.",
             "Size the case matrix to the change's tier under testing-strategy.md: a Light change posts one before/after pair at 390x844 with no video and a skip line; Simon's direct ask runs the full review.",
-            "Lists surfaces per screenshot-review.md § Visible surfaces, so a backend, data or bot change whose output a person sees gets a base and head capture of that real output.",
+            "Lists surfaces per screenshot-review.md § Visible surfaces and restates none of its no-surface criteria, so a backend, data, bot or route change whose output a person sees gets a base and head capture of that real output.",
             "Triggers on the former advanced phrases (advanced screenshot review, all conditional "
             "screenshot scenarios, screenshot coverage matrix); hands back the offline report with "
             "conditions above each screenshot and an actionable TLDR table.",

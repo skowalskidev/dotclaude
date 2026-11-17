@@ -55,6 +55,13 @@ admin screen on local data or a stub provider; the bot's own formatter called on
 one input, its exact text or blocks rendered into a local preview page). Caption output built from
 the project's fixtures `replayed from <fixture path>`. Add the per-scenario video and the verification
 run whenever a journey reaches the surface.
+DO count a change to the route a person takes between existing screens as a visible change: a
+redirect, a sheet or screen that now stays open or now closes, a step added or skipped, an error shown
+or removed. Capture each affected scenario's BEFORE clip and still on the base, its AFTER clip and
+still on the head, and its verification run.
+DON'T give "no new screen", "no new copy" or "reuses an existing screen" as a no-surface reason: the
+screen a person lands on is the output (the fix for a payment-path PR whose paywall stopped closing to
+sign-in, passed three times as "no new screen or copy").
 DON'T post a drawn stand-in: a hand-written mock of a message or screen the code did not produce, or a
 text table describing the change. DON'T post to a real channel, send a real message or make a paid
 call to get the capture; those keep their send and spend gates.
@@ -64,7 +71,8 @@ config, metric math whose posted output is identical), under `## Screenshots` an
 outputs: the Slack post blocks and the sweep row, base vs head on the run fixture: identical`).
 DON'T justify it with "no frontend or UI files changed": that names a file type, not an output.
 TEST: `bin/pr-landing-gate.py` fails a no-surface or does-not-apply line under either heading without
-a `Checked outputs:` clause of 3+ words; a no-surface line on a diff whose server code changes a
+a `Checked outputs:` clause of 3+ words, or whose reason names "no new screen", "no new copy",
+"existing screen", "existing step" or "same screen"; a no-surface line on a diff whose server code changes a
 member- or team-visible message fails review (the fix for eight PRs passed with "No eligible frontend
 surface" while two changed the chat's answer and six the bot's Slack posts).
 
