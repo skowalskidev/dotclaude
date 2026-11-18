@@ -3,8 +3,9 @@
 
 Asserts the template rules: layout dimensions, bands ABOVE frames (band colour in the band rows,
 none of it in the frame rows below), outline-only callouts, video duration within the target plus
-hold, both sides ending together, and a verification run kept real time and uncut with its still
-stretches reported. Needs Pillow and ffmpeg, the engine's own dependencies.
+hold, both sides ending together, a verification run kept real time and uncut with its still
+stretches reported, and the blank gate failing a blank screenshot, a blank stretch or a blank last
+frame in any colour while letting a short transition through. Needs Pillow and ffmpeg, the engine's own dependencies.
 """
 import importlib.util
 import json
@@ -226,6 +227,67 @@ def test_run(tmp: Path):
           f"run did not report the 5 s still stretch: {r.stdout}")
 
 
+def blanking_clip(path: Path, size: str, seconds: float, colour: str, blank_from: float, blank_to: float):
+    # Content (a blue top bar and a brown square) everywhere except [blank_from, blank_to), where the frame
+    # is one plain colour: the recorder's view of a page it lost.
+    off = f"enable='not(between(t,{blank_from},{blank_to - 0.001}))'"
+    r = subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", f"color=c={colour}:s={size}:d={seconds}:r=10",
+                        "-vf", f"drawbox=x=0:y=0:w=iw:h=30:color=0x2850c8:t=fill:{off},"
+                               f"drawbox=x=40:y=200:w=120:h=120:color=0x806040:t=fill:{off}",
+                        "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(path)],
+                       capture_output=True, text=True)
+    check(r.returncode == 0, f"could not synthesize {path.name}: {r.stderr}")
+
+
+def raw_engine(*args):
+    return subprocess.run([sys.executable, str(ENGINE), *args], capture_output=True, text=True, timeout=300)
+
+
+def test_blank_gate(tmp: Path):
+    spec = importlib.util.spec_from_file_location("pr_evidence_engine", ENGINE)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    vc = (HERE / "visual-check.py").read_text()
+    min_ink, delta = getattr(mod, "MIN_INK", None), getattr(mod, "INK_DELTA", None)
+    check(f'"--min-ink", type=float, default={min_ink}' in vc,
+          f"pr-evidence MIN_INK {min_ink} differs from visual-check.py --min-ink: one blank threshold")
+    check(delta == 8 and "by more than 8 on any channel" in vc, "ink pixel delta differs from visual-check.py")
+
+    good = tmp / "bg-good.mp4"
+    blanking_clip(good, "390x844", 9, "0xc8c8cd", 99, 100)
+    # The incident: the page leaves for a hosted checkout and the AFTER clip ends on 5.5 s of light grey.
+    grey_end = tmp / "bg-grey-end.mp4"
+    blanking_clip(grey_end, "390x844", 9.5, "0xd0d0d4", 4, 99)
+    out = tmp / "bg-grey-end-out.mp4"
+    r = raw_engine("video", "--before", str(good), "--after", str(grey_end), "--pr", "1",
+                   "--before-caption", "a", "--after-caption", "b", "--target", "10", "--hold", "4",
+                   "--fps", "10", "--preset", "ultrafast", "--out", str(out))
+    check(r.returncode != 0 and "the last frame is blank" in r.stderr and "blank 4." in r.stderr
+          and "hosted checkout" in r.stderr, f"a clip ending on light grey passed the blank gate: {r.stdout}{r.stderr}")
+    check(not out.exists(), "the blank gate wrote an output for a failing clip; it must fail before composing")
+
+    for colour, name in (("0xffffff", "white"), ("0x000000", "black")):
+        mid = tmp / f"bg-{name}-mid.mp4"
+        blanking_clip(mid, "390x844", 9, colour, 3, 4.5)
+        r = raw_engine("run", "--clip", str(mid), "--title", "t", "--caption", "c", "--fps", "10",
+                       "--preset", "ultrafast", "--out", str(tmp / f"bg-{name}-out.mp4"))
+        check(r.returncode != 0 and "blank 3." in r.stderr and "last frame" not in r.stderr,
+              f"a 1.5 s {name} blank stretch mid-run passed the blank gate: {r.stdout}{r.stderr}")
+
+    flash = tmp / "bg-flash.mp4"
+    blanking_clip(flash, "390x844", 9, "0xffffff", 3, 3.3)
+    r = raw_engine("run", "--clip", str(flash), "--title", "t", "--caption", "c", "--fps", "10",
+                   "--preset", "ultrafast", "--out", str(tmp / "bg-flash-out.mp4"))
+    check(r.returncode == 0, f"a 0.3 s transition flash failed the blank gate: {r.stderr}")
+
+    blank_png, ok_png = tmp / "blank.png", tmp / "ok.png"
+    Image.new("RGB", (390, 844), (240, 240, 244)).save(blank_png)
+    frame_png(ok_png, 390, 844)
+    r = raw_engine("shots", "--before", str(ok_png), "--after", str(blank_png), "--pr", "1",
+                   "--before-caption", "a", "--after-caption", "b", "--out", str(tmp / "blank-out.png"))
+    check(r.returncode != 0 and "is blank" in r.stderr, f"a blank screenshot passed: {r.stderr}")
+
+
 def test_fails_fast(tmp: Path):
     r = subprocess.run([sys.executable, str(ENGINE), "shots", "--before", str(tmp / "nope.png"),
                         "--after", str(tmp / "nope.png"), "--pr", "1", "--before-caption", "a",
@@ -247,6 +309,7 @@ def main() -> int:
         test_shots(tmp)
         test_video(tmp)
         test_run(tmp)
+        test_blank_gate(tmp)
     for f in FAILS:
         print("FAIL", f, file=sys.stderr)
     print(f"pr-evidence: {'ok' if not FAILS else str(len(FAILS)) + ' failure(s)'}")
