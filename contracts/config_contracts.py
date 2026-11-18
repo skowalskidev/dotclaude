@@ -1062,6 +1062,7 @@ CONTRACTS: dict[str, dict] = {
             "At merge prep, before a ready-flip, enqueue, merge or deploy, re-derive the list with ci-gate-list.py on the final head and run every row locally, leased; record each mirrored row and each skip reason.",
             "A base-merge-only head (base merge plus pure renames or regenerated manifests since a fully gated head) runs locally every row its touched set reaches, whole-repo and CI-skipped rows included; the rest read not touched, CI runs it.",
             "Derive the CI gate list from the workflow files with bin/ci-gate-list.py, one row per pull-request run step; each skipped row, a CI-only container step included, names its reason.",
+            "A gate row needing a tool the workflow installs runs locally with that tool at the workflow's pinned version, fetched on demand (npx, brew or a pinned download) without changing the repo; a fetchable missing tool is never a skip reason.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",

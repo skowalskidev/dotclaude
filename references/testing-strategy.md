@@ -798,6 +798,15 @@ available; otherwise name it skipped with that reason, as for a job whose `if:` 
 that missed a coverage-audit job, then a migration-order step that then failed CI).
 TEST: the gate list's row count equals the helper's `TOTAL` run steps, and every skipped row names
 its reason.
+**DO run a row that needs a tool the workflow installs (a `setup-*` action, a pinned CLI download)
+with that tool at the workflow's pinned version, fetched on demand without changing the repo:**
+`npx -y <pkg>@<version>`, `brew install`, or a pinned release download into a scratch directory,
+removed after. Read the version from the action's `with: version:` input or the step's own pin.
+**DON'T name "needs tool X" as a skip reason while the tool can be fetched;** a skip names a tool only
+when no build of it runs on this machine (e.g. a Linux-only binary), and the row then waits for CI.
+TEST: no skipped row's reason is a fetchable missing tool (the fix for a function-bundle size row,
+skipped as "needs supabase CLI", that CI then failed on a 4.7 MB upload-budget breach;
+`npx -y supabase@<pinned>` ran it locally).
 
 **DO run the whole gate list locally in one pass at merge prep, the last step before the ready-flip
 that starts CI, a merge-queue enqueue, a merge or a deploy** (`references/git-pr-deploy.md` § CI runs
