@@ -2268,7 +2268,11 @@ CONTRACTS: dict[str, dict] = {
             "Matches the plain Bash tool and parses the command; fails open on a malformed payload.",
             "Judges only what the shell runs: the command word (after env assignments and prefixes) "
             "must be git/gh, with quoted strings and heredoc bodies masked, so a note or printf that "
-            "merely names a push never fires. A push deny names the branch pushed TO. "
+            "merely names a push never fires. The command word is also read behind a wrapper (env, "
+            "command, time, nohup, sudo, exec, nice, timeout, xargs, with their options) and inside a "
+            "`bash|sh|zsh|dash|ksh -c` string, to four levels, so a wrapped merge or push gets the "
+            "same verdict as the bare one; a command behind xargs takes its arguments from stdin, so "
+            "its merge selector counts as non-literal and is denied. A push deny names the branch pushed TO. "
             "hooks/git-commit-guard.test.py pins both directions.",
             "A `gh pr merge` deny leads with `Cause:` naming the one failing check, read-only and "
             "without changing the verdict: a non-literal selector ($var, substitution, quoted value; "
