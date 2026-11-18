@@ -64,6 +64,15 @@ ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # git global options that take a separate value: `git -C <path> push`.
 GIT_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
 HEREDOC_START_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+QUOTE_MARK = "\x01"
+# Wrappers that run the rest of their line as a command, and the options of theirs that take a value.
+WRAPPERS = {"sudo", "env", "command", "time", "nohup", "exec", "xargs", "nice", "timeout", "stdbuf", "doas"}
+WRAPPER_OPTS_WITH_VALUE = {"-u", "-g", "-n", "-I", "-P", "-d", "-L", "-s", "-k", "-a", "-E", "-S",
+                           "--user", "--group", "--unset", "--max-args", "--max-procs", "--delimiter",
+                           "--signal", "--kill-after"}
+SHELLS = {"bash", "sh", "zsh", "dash", "ksh"}
+SHELL_C_RE = re.compile(r"^-[a-zA-Z]*c[a-zA-Z]*$")
+MAX_UNWRAP = 4
 
 DEFAULT_BRANCHES = {"main", "master"}
 
@@ -84,13 +93,17 @@ INLINE_M_RE = re.compile(r"(?:^|\s)-[a-zA-Z]*m[a-zA-Z]*(?:[\s=]|$)|--message\b")
 HEREDOC_RE = re.compile(r"<<-?\s*(?:['\"]?\w|''|\"\")")
 
 
-def mask(command: str) -> str:
+def mask(command: str, store: list = None) -> str:
     """Blank out quoted strings and heredoc bodies, keeping the quote marks and heredoc markers.
 
     The guard judges what the shell RUNS, not text a command carries: a printf writing a note that
     quotes a push command is a printf, and a heredoc body naming `git commit -m` is data. Matching
     the raw text blocked exactly that (a ledger note quoting a push). Fails open: an unterminated
     quote masks to the end, which can only hide a match, never invent one.
+
+    With `store`, each closed quoted string's content is appended to it and a placeholder
+    (QUOTE_MARK, its index, QUOTE_MARK) stands inside the quotes, so a caller can read a `bash -c`
+    string back without ever matching text inside a quote.
     """
     # Heredoc bodies first: everything after the marker's line up to the closing delimiter line.
     out, i = [], 0
@@ -106,7 +119,7 @@ def mask(command: str) -> str:
     out.append(command[i:])
     text = "".join(out)
 
-    res, quote, esc = [], None, False
+    res, quote, esc, buf = [], None, False, []
     for ch in text:
         if quote:
             if quote == '"' and esc:
@@ -115,10 +128,16 @@ def mask(command: str) -> str:
                 esc = True
             elif ch == quote:
                 quote = None
+                if store is not None:
+                    res.append(f"{QUOTE_MARK}{len(store)}{QUOTE_MARK}")
+                    store.append("".join(buf))
                 res.append(ch)
+            if quote:
+                buf.append(ch)
             continue
         if ch in ("'", '"'):
             quote = ch
+            buf = []
         res.append(ch)
     return "".join(res)
 
@@ -133,6 +152,77 @@ def command_words(seg: str) -> list:
     while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
         words = words[1:]
     return words
+
+
+def lead_words(seg: str) -> list:
+    """Like command_words, but stops at a wrapper so its own options (`env -i`, `sudo -u x`) are read."""
+    words = seg.split()
+    while words and ((words[0] in PREFIX_WORDS and words[0] not in WRAPPERS) or ASSIGN_RE.match(words[0])):
+        words = words[1:]
+    return words
+
+
+def _unwrap_options(words: list) -> list:
+    """Drop a wrapper's own options (`sudo -u root`, `env -i`, `timeout 5`, `xargs -n 1`)."""
+    head = os.path.basename(words[0])
+    rest = words[1:]
+    while rest and rest[0].startswith("-") and rest[0] != "--":
+        opt = rest.pop(0)
+        if opt in WRAPPER_OPTS_WITH_VALUE and rest:
+            rest.pop(0)
+    if rest and rest[0] == "--":
+        rest.pop(0)
+    if head in ("timeout", "nice") and rest and re.fullmatch(r"[\d.]+[smhd]?", rest[0]):
+        rest.pop(0)
+    return rest
+
+
+def _unmark(text: str) -> str:
+    return re.sub(rf"{QUOTE_MARK}\d+{QUOTE_MARK}", "", text)
+
+
+def expand_words(words: list, store: list, depth: int = 0) -> list:
+    """Every command word list `words` really runs: itself, the command behind a wrapper
+    (`sudo -u x gh ...`, `xargs gh ...`) and the commands inside a `bash -c "..."` string.
+
+    A command behind `xargs` takes its arguments from stdin, which the guard cannot read, so it
+    carries a trailing `$xargs` word: a literal-number check then fails closed.
+    """
+    out = [words]
+    if depth >= MAX_UNWRAP or not words:
+        return out
+    head = os.path.basename(words[0])
+    if head in WRAPPERS:
+        rest = command_words(" ".join(_unwrap_options(words)))
+        if rest:
+            if head == "xargs":
+                rest = rest + ["$xargs"]
+            out += expand_words(rest, store, depth + 1)
+    elif head in SHELLS:
+        for i, w in enumerate(words[1:], 1):
+            if SHELL_C_RE.match(w):
+                m = re.fullmatch(rf"""["']{QUOTE_MARK}(\d+){QUOTE_MARK}["']""", words[i + 1]) if i + 1 < len(words) else None
+                if m and int(m.group(1)) < len(store):
+                    out += [w for _, w, _ in expand_command(store[int(m.group(1))], depth + 1)]
+                break
+            if not w.startswith("-"):
+                break
+    return out
+
+
+def expand_command(command: str, depth: int = 0) -> list:
+    """[(segment, words, top)] for every command in `command`, `bash -c` strings and wrappers
+    unwrapped. `top` marks the segment's own command, the only one a `cd` can be read from."""
+    store: list = []
+    out = []
+    for seg in [s.strip() for s in SEGMENT_RE.split(mask(command, store)) if s.strip()]:
+        for n, words in enumerate(expand_words(lead_words(seg), store, depth)):
+            words = [_unmark(w) for w in words]
+            # Placeholders carry the quoted text for the unwrap only; the later checks read the
+            # quotes empty, as they always have.
+            plain = _unmark(seg) if n == 0 else " ".join(words)
+            out.append((plain, words, n == 0 and depth == 0))
+    return out
 
 
 def git_subcommand(words: list) -> str:
@@ -936,9 +1026,8 @@ def main() -> int:
                     "for an excluded decision (rules/self-healing-config.md)."
                 )
     gh_cwd = cwd  # where a `gh pr view` lookup runs; None once a `cd` cannot be resolved statically
-    for seg in segments(command):
-        words = command_words(seg)
-        if words[:1] == ["cd"]:
+    for seg, words, top in expand_command(command):
+        if top and words[:1] == ["cd"]:
             path = words[1] if len(words) == 2 else ""
             literal = path and gh_cwd and not any(ch in path for ch in "$`'\"")
             gh_cwd = os.path.abspath(os.path.join(gh_cwd, os.path.expanduser(path))) if literal else None
