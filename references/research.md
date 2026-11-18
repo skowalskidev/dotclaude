@@ -137,6 +137,25 @@ TEST: a shared-limit diagnosis names which live sessions were asked and what eac
 a monitor throttle diagnosed as the monitor alone, while another session's prod reads overlapped
 its window.)
 
+## Attributing a defect to a change
+
+DO identify the exact component before naming who or which change caused a reported visible defect:
+match EVERY visible string in the screenshot or report to its copy source (the i18n or string table
+and each key's call sites, not only a component file whose copy reads the same), and keep only the
+component that renders all of them on the reporter's platform.
+DON'T name a component found by its title or one code search. Two components can share a title and
+most of their copy.
+DO then name 2 changes: the one that introduced the behaviour (`git blame` or `git log -L` on the
+identified component's deciding lines) and the one that made it reachable for the reporter's
+platform, build or cohort (a route, flag, arm or release that started showing it). Write "same
+change" when they are one.
+DO label the evidence the verdict rests on, one of 3: code read only, a failing test, or a
+reproduction under `references/testing-strategy.md` § Reproduce a reported bug first.
+TEST: an attribution answer cites the copy key or string match that identified the component, names
+the introducing and the reachability change, and labels its evidence (the fix for a regression
+blamed on a web component with a matching title, while the screen was a native one sharing its copy,
+made reachable on the reporter's device by a later change).
+
 ## Read a metric's writer before calling its movement a fault
 
 DO read the code that writes a metric's rows, and that code's merge history (`git log -S '<reason

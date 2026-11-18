@@ -30,8 +30,9 @@ TEST: no routine per-edit/feature/commit/feedback runs; mandatory final coverage
 ### Claims about third parties must come from primary sources
 DO apply `references/research.md` § Claims about third parties to every factual claim about another
 product (comparison, pricing, "they don't support X"). TEST: each such claim cites the vendor's own page.
-DO apply its § Attributing behaviour to an outsider before calling traffic or a failure external.
-TEST: the verdict names the runtime identifiers it was compared against.
+DO apply its §§ Attributing behaviour to an outsider and Attributing a defect to a change before
+calling traffic or a failure external, or naming a defect's change.
+TEST: the verdict cites the identifiers or copy key matched.
 DO send each money, access or data call, and each verdict Simon acts on, to its § Independent judges.
 TEST: each judge's position is listed.
 

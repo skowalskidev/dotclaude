@@ -1033,6 +1033,7 @@ CONTRACTS: dict[str, dict] = {
             "Community write-ups find candidates and are never cited.",
             "A staked recommendation is corroborated against an unstaked source before use.",
             "An external or not-ours verdict names the runtime identifiers it was compared against.",
+            "A verdict naming the change behind a reported visible defect cites the copy key or string match that identified the component, names the introducing and the reachability change, and labels its evidence as code read, failing test or reproduction.",
             "Holds the third-party claim rules: primary sources, every vendor surface before a negative, dated arithmetic, no competitor hyperlink, concede an honest loss.",
             "A vendor-behaviour claim from any human or bot source is checked against the vendor's own page, or labelled unverified, before a commit or plan builds on it.",
             "Owns the independent-judge panel: 2+ judges besides the author, one per provider on subscriptions only, raw evidence without the author's call, own positions before reconciling against data and primary sources, each position recorded.",
