@@ -22,6 +22,12 @@ for the whole video, and the raw recording plays in real time, uncut, with no sp
 added hold. It prints every still stretch of at least --still seconds (ffmpeg freezedetect) so each
 app-caused wait is reported as a finding, never edited out. Method: references/screenshot-review.md
 § Verification run videos.
+
+Every input is gated for blank frames of ANY colour before anything is composed: a screenshot, a
+stretch of at least 0.5 s or a clip's last frame whose ink share is below 0.05% (the visual hand-off
+threshold) fails the command. ffmpeg blackdetect finds only near-black frames, so a white or grey
+blank screen passed it (the fix for an AFTER clip that ended on 5.5 s of light grey after the page
+left for a hosted checkout the recorder could not capture).
 """
 from __future__ import annotations
 
@@ -34,7 +40,7 @@ import tempfile
 from pathlib import Path
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image, ImageChops, ImageDraw, ImageFont
 except ImportError:  # fail fast, before any work
     sys.exit("pr-evidence: Pillow is required. Install it: brew install pillow "
              "(or python3 -m pip install Pillow), then re-run.")
@@ -57,6 +63,14 @@ SUB_PX = 30
 PAD_X = 28
 CALLOUT_RADIUS = 28
 CALLOUT_WIDTH = 8
+# Blank = ink share below 0.05%, where ink is the share of pixels differing from the frame's most common
+# colour by more than 8 on any channel: the same rule and numbers as visual-check.py --min-ink
+# (references/screenshot-review.md § Hand-off check). pr-evidence.test.py pins them equal.
+MIN_INK = 0.0005
+INK_DELTA = 8
+BLANK_FPS = 10         # clip samples per second for the blank gate
+BLANK_W = 240          # sample width in px; the ink share is scale-independent
+MAX_BLANK_S = 0.5      # a blank stretch this long or longer fails (shorter is a screen transition)
 FONT_CANDIDATES = (
     ("/System/Library/Fonts/Supplemental/Arial Bold.ttf", 0),
     ("/Library/Fonts/Arial Bold.ttf", 0),
@@ -137,12 +151,30 @@ def callouts(img: Image.Image, boxes, scale: float, colour) -> None:
         d.rounded_rectangle(box, radius=CALLOUT_RADIUS, outline=colour, width=CALLOUT_WIDTH)
 
 
+def ink_share(img: Image.Image) -> float:
+    """Share of pixels differing from the most common colour by more than INK_DELTA on any channel."""
+    img = img.convert("RGB")
+    _, common = max(img.getcolors(img.width * img.height))
+    r, g, b = ImageChops.difference(img, Image.new("RGB", img.size, common)).split()
+    peak = ImageChops.lighter(ImageChops.lighter(r, g), b)
+    return peak.point(lambda v: 255 if v > INK_DELTA else 0).histogram()[255] / (img.width * img.height)
+
+
+HANDOFF_FIX = ("If the journey left for a page the recorder cannot capture (a hosted checkout, an OS sheet, "
+               "a new tab), end the clip on the last in-app state and say so in the caption, or record the "
+               "external page. Otherwise fix the screen and re-record. See references/screenshot-review.md "
+               "§ Record useful walkthroughs.")
+
+
 def cmd_shots(args) -> int:
     srcs = []
     for p in (args.before, args.after):
         if not Path(p).is_file():
             die(f"missing input image: {p}")
         srcs.append(Image.open(p).convert("RGB"))
+        share = ink_share(srcs[-1])
+        if share < MIN_INK:
+            die(f"{p} is blank (ink {share * 100:.3f}%, need {MIN_INK * 100:.2f}%): capture the screen with its content.")
     layout = resolve_layout(args.layout, [s.size for s in srcs])
     width = PHONE_W if layout == "side" else DESKTOP_W
     band_h = BAND_SIDE_H if layout == "side" else BAND_STACK_H
@@ -211,6 +243,8 @@ def even(v: float) -> int:
 def cmd_video(args) -> int:
     ffmpeg, ffprobe = need("ffmpeg"), need("ffprobe")
     clips = [probe(ffprobe, args.before), probe(ffprobe, args.after)]
+    for path, (w, h, d) in zip((args.before, args.after), clips):
+        blank_gate(ffmpeg, path, w, h, d)
     layout = resolve_layout(args.layout, [(w, h) for w, h, _ in clips])
     width = PHONE_W if layout == "side" else DESKTOP_W
     band_h = BAND_SIDE_H if layout == "side" else BAND_STACK_H
@@ -257,6 +291,45 @@ def cmd_video(args) -> int:
     return 0
 
 
+def blanks(ffmpeg: str, path: str, w: int, h: int, duration: float) -> tuple[list[tuple[float, float]], bool]:
+    """(start, length) of every blank stretch, and whether the last frame is blank, sampled at BLANK_FPS."""
+    sh = even(h * BLANK_W / w)
+    size = BLANK_W * sh * 3
+    proc = subprocess.Popen([ffmpeg, "-v", "error", "-i", path, "-vf", f"fps={BLANK_FPS},scale={BLANK_W}:{sh}",
+                             "-an", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    flags = []
+    while True:
+        buf = proc.stdout.read(size)
+        if len(buf) < size:
+            break
+        flags.append(ink_share(Image.frombytes("RGB", (BLANK_W, sh), buf)) < MIN_INK)
+    err = proc.stderr.read().decode(errors="replace")
+    if proc.wait() != 0 or not flags:
+        die(f"could not sample frames of {path}: {err.strip()[-300:]}")
+    out, start = [], None
+    for i, blank in enumerate(flags + [False]):
+        if blank and start is None:
+            start = i
+        elif not blank and start is not None:
+            out.append((start / BLANK_FPS, min(duration, i / BLANK_FPS) - start / BLANK_FPS))
+            start = None
+    return out, flags[-1]
+
+
+def blank_gate(ffmpeg: str, path: str, w: int, h: int, duration: float) -> None:
+    """Fail before composing when a clip has a blank stretch of MAX_BLANK_S or more, or ends blank."""
+    stretches, last_blank = blanks(ffmpeg, path, w, h, duration)
+    long = [(s, n) for s, n in stretches if n >= MAX_BLANK_S - 1e-6]
+    if not long and not last_blank:
+        return
+    lines = [f"blank {s:.2f}s-{s + n:.2f}s ({n:.2f}s)" for s, n in long]
+    if last_blank:
+        lines.append("the last frame is blank")
+    die(f"{path} shows a blank screen (ink below {MIN_INK * 100:.2f}%, any colour):\n  "
+        + "\n  ".join(lines) + "\n" + HANDOFF_FIX)
+
+
 def stills(ffmpeg: str, path: str, seconds: float, duration: float) -> list[tuple[float, float]]:
     """(start, length) of every frozen stretch of at least `seconds`, from ffmpeg freezedetect."""
     r = subprocess.run([ffmpeg, "-v", "info", "-i", path, "-vf", f"freezedetect=n=-60dB:d={seconds}",
@@ -278,6 +351,7 @@ def stills(ffmpeg: str, path: str, seconds: float, duration: float) -> list[tupl
 def cmd_run(args) -> int:
     ffmpeg, ffprobe = need("ffmpeg"), need("ffprobe")
     w, h, duration = probe(ffprobe, args.clip)
+    blank_gate(ffmpeg, args.clip, w, h, duration)
     layout = "side" if h > w else "stack"
     width = PHONE_W if layout == "side" else DESKTOP_W
     band_h = BAND_SIDE_H if layout == "side" else BAND_STACK_H

@@ -171,12 +171,19 @@ DO start every clip on the first frame of the real UI, immediately before the tr
 everything after the outcome: no idle tail, no unrelated navigation, no next scenario. The composer's final-state hold freezes that outcome frame and
 is not a tail. Web: Playwright `recordVideo` or a Chrome for Testing screencast.
 DON'T put a text slide, title card or intro page in the video; the explanation is real text in the PR.
+DO end a clip whose journey hands off to a page the recorder cannot capture (a payment provider's
+hosted checkout, an OS sheet, a new tab or window) on the last in-app state before the hand-off, and
+name the hand-off in its caption and TLDR (e.g. "Ends as the hosted checkout opens"); or record the
+external page itself. A verification run, which is never trimmed, records the external page or stops
+its script at the hand-off. DON'T post the blank stretch the recorder shows while the page is away:
+`bin/pr-evidence.py` fails any input with a blank stretch of 0.5 s or more or a blank last frame.
+TEST: no posted clip's last frame or 0.5 s stretch has ink below 0.05%.
 DO write each scenario's TLDR as 1-2 lines of PR-body text directly above its video: what the clip
 shows and the expected behaviour (e.g. "Asks the cash price while it loads. Expect a spinner, then
 the fare in the same reply."). It doubles as the scenario table's `What happens` cell.
 DO verify each clip by sampling frames (`ffmpeg -ss <t> -i <clip> -frames:v 1 <png>`) and viewing them:
 the first frame is the app UI just before the action, a frame at the action shows the trigger, and the
-last frame shows the scenario's outcome, each matching the TLDR. `ffprobe` duration above 0. Post it
+last frame shows the scenario's outcome, not a blank screen, each matching the TLDR. `ffprobe` duration above 0. Post it
 to the PR as a playable inline video through that skill's attachment and rendered-playback checks; a text link or
 thumbnail does not pass.
 NUMBER: at least 8 seconds, at least 3 distinct states (UI before the action, action, outcome), and a
@@ -363,13 +370,16 @@ looked off · potential fix (file or component when known):
      synchronous capability check;
    - a prefetch for a paywall firing for a user who cannot meet it (an already-paid member);
    - two client requests racing to create state for one customer; the client issuing both sequences them.
-DO measure a suspected visual gap before building a fix: `ffmpeg -i run-<slug>.mp4 -vf
-blackdetect=d=0.1 -f null -` for blank frames, the engine's still list for frozen ones. Under 0.5 s
-followed by the screen's own transition is no finding.
+DO measure a suspected visual gap before building a fix: the engine's blank gate for blank frames (it
+fails a raw clip with a blank stretch of 0.5 s or more, or a blank last frame, in any colour), its still
+list for frozen ones. Under 0.5 s followed by the screen's own transition is no finding.
+DON'T measure blank frames with `blackdetect`, negated or not: it finds only near-black (or near-white)
+frames, so a grey blank screen passes. Blank means ink share below 0.05% (§ Hand-off check), whatever
+the colour (the fix for an AFTER clip ending on 5.5 s of light grey that blackdetect and the Story row passed).
 
 | # | Check | Pass when |
 |---|---|---|
-| 1 | Story | The first frame is the user's first screen, every scripted step appears in order, the last frame shows the outcome |
+| 1 | Story | The first frame is the user's first screen, every scripted step appears in order, the last frame shows the outcome and is not blank |
 | 2 | Band | It names the scenario, matches the PR description line and shows the whole caption on one line |
 | 3 | Success data | No error, empty, unavailable or placeholder frame |
 | 4 | No redundant state | No screen repeats without a step between, and the script has no back-and-forth |

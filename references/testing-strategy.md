@@ -707,6 +707,25 @@ fix for a flag-gated change whose pay-path pass found an unbounded session read 
 the paid state moved on, under green suites; and for a PR where Simon asked three times whether happy,
 upgrade and resume paths were safe).
 
+**DO check browser support for every web platform API a diff newly reaches on a user path, at every
+tier, before ready.** Newly reached means a new call (a global, static method, DOM or CSS feature) OR a
+new argument or option that switches existing code onto a branch calling one; read the body of each
+helper a new argument enters (e.g. passing a `signal` into a shared fetch wrapper that then runs
+`AbortSignal.any`). Take the project's browser floor from its `browserslist` (`.browserslistrc` or
+`package.json`), else its framework's documented default target, else the oldest browser versions in
+its own analytics over the last 30 days. Read each API's first supporting versions in MDN
+browser-compat-data (developer.mozilla.org compatibility table, or caniuse, which imports it).
+NUMBER: every browser in the floor supports the API, or the call sits behind a feature check
+(`typeof AbortSignal.any === "function"`) whose fallback still sends the request, or a polyfill.
+DON'T count a green suite, typecheck or deep gate as browser support: they run on current engines.
+Record one `Platform APIs:` line under `## Regression check`: each API, the floor and its source, the
+first supporting versions with the BCD link, then PASS, `fallback` or `polyfill`, with a test that
+deletes the API (`delete AbortSignal.any`) and runs the path to its request; a diff reaching no new
+API records `Platform APIs: none`.
+TEST: every API a diff newly reaches on a user path appears on that line, and each one newer than the
+floor has a passing API-deleted test (the fix for a pay-path request that threw before it was sent on
+browsers older than the API, under a passing deep gate).
+
 **DO prove a change to WHICH results or offers are shown keeps every good one the base showed,**
 unprompted: a fallback that fills an empty state, a ranking or eligibility change. Replay a
 production-shaped input set (recent real requests, read-only) on base and head and count each output
