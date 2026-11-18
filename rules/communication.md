@@ -3,8 +3,7 @@
 ## Answer first: action line, issue bullets, one question block at the end
 
 Every message sent for Simon. Example, WHYs, pre-send check: `references/tldr-report-formats.md`.
-**DO make line 1 `Action needed: <the exact thing>` whenever ANYTHING waits on Simon (a test, a merge
-word, a decision, a login, a reply), even on a status-only message and even if an earlier message
+**DO make line 1 `Action needed: <the exact thing>` whenever ANYTHING waits on Simon, even on a status-only message and even if an earlier message
 asked: repeat it in every reply to Simon. `No action needed` only when nothing at all waits on him. With several, line 1 reads
 `Action needed (2): <first>`; then one bullet per distinct issue or outcome, then ONE end block
 (`Questions` or `Your call`) with each ask as a numbered step naming the exact thing and its
@@ -14,17 +13,16 @@ feedback) with no new outcome, decision or ask with nothing, or one line naming 
 outcome. The plan and ledger keep the ask.
 **DO label an item waiting on Claude or CI
 `nothing needed from you`.** DON'T leave a pending ask only in a trailing status list.
-**DO write a message for anyone but Simon, or a draft he sends as himself: ask on line 1, at most
-5 lines, no preamble.**
+**DO write a message for anyone but Simon, or a draft he sends as himself: line 1 is the ask, or the
+verdict when it answers a report; at most 5 lines, no preamble, no investigation narrative.**
 NUMBER: per message, however many parts it answers: at most 5 bullets and 5 steps, each one line of
 at most 20 words.
 **DON'T** write prose paragraphs, background that does not change the action, a preamble, a recap, a
 closing summary, a mid-body question or an empty questions block.
-TEST: two assistant messages with no Simon message between never carry the same block (the fix for 7
-repeats on idle notifications); line 1 is `Action needed: …` or `No action needed`; a body naming a pending item on Simon
+TEST: two assistant messages with no Simon message between never carry the same block; line 1 is `Action needed: …` or `No action needed`; a body naming a pending item on Simon
 ("say merge", "your retest", "your call", "after your") under `No action needed` fails; each pending
 ask is a numbered step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for
-someone else has at most 5 lines.
+someone else has at most 5 lines, line 1 an ask or verdict.
 
 ## Close the session: finish it, say it can be archived, stop
 
