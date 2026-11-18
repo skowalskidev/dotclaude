@@ -1230,7 +1230,9 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Front door for production alerts and error reports: verdict per symptom, corroborated root cause, root fix, regression sweep, deploy proof.",
         "criteria": [
             "Record every symptom in the paste as its own session-record item and close each with one verdict: root-caused, already fixed, expected or needs a decision.",
-            "Discover provisioned connectors before asking for access; back every load-bearing claim with 2 independent sources; keep prod read-only and paid calls under spend-approval.",
+            "Verify each number and any provider outage in the report against the provider's status page and own telemetry before building on it.",
+            "Resolve every relevant connector capability, Vault routes included; back every load-bearing claim with at least 2 independent sources and a stated confidence; loop with another source or narrower slice until high confidence, and report a disagreement surviving 2 rounds as residual; keep prod read-only and paid calls under spend-approval.",
+            "Before building, search open and recently merged PRs by file path and symptom, read their diffs, give each a verdict (fixes, partly, no), build only the uncovered part, and file or update the ticket when asked.",
             "Call a cause a bug only after citing the commit and the ticket intent it contradicts; an external or provider verdict names the runtime identifiers compared.",
             "Reproduce each bug verdict with a control before the fix through the testing-strategy section, keep both as regression tests; fix the owning source, not the alert.",
             "Prove the outcome changed for users with denominators where authorized; a silenced alert alone is never reported as a fix.",

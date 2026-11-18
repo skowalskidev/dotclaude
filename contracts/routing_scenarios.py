@@ -57,6 +57,10 @@ SCENARIOS: list[dict] = [
     {"phrase": "pasted Slack alert", "expect": "work-investigate-and-fix"},
     {"phrase": "is prod ok", "expect": "work-investigate-and-fix"},
     {"phrase": "any regressions since the deploy", "expect": "work-investigate-and-fix"},
+    {"phrase": "a teammate's pasted production defect report, take a look and file it", "expect": "work-investigate-and-fix"},
+    {"phrase": "is this really happening", "expect": "work-investigate-and-fix"},
+    {"phrase": "do we already have a PR for this", "expect": "work-investigate-and-fix"},
+    {"phrase": "provider outage side effect in production", "expect": "work-investigate-and-fix"},
     # --- Repo and code -------------------------------------------------------------
     {"phrase": "clean up the repo", "expect": "maintenance-code-cleanup-repo"},
     {"phrase": "find dead code", "expect": "maintenance-code-cleanup-repo"},
