@@ -271,7 +271,7 @@ def read_priority(root):
                 record["expires"] > time.time() + PRIORITY_MAX_MIN * 60 + 60):
             raise ValueError("invalid priority record")
     except (UnicodeError, ValueError, TypeError) as exc:
-        raise GateError("priority record is corrupt; run prioritize --clear") from exc
+        raise GateError("priority record is corrupt; run prioritize --clear --owner <own>") from exc
     if record["expires"] <= time.time():
         write_priority(root, None)
         return None
@@ -306,7 +306,7 @@ def read_priority_scope(root, record):
                        for ws in workspaces)):
             raise ValueError("invalid scope")
     except (ValueError, TypeError) as exc:
-        raise GateError("priority session scope is corrupt; reissue prioritize or --clear") from exc
+        raise GateError("priority session scope is corrupt; reissue prioritize or --clear --owner <own>") from exc
     if not secrets.compare_digest(scope["grant"], priority_grant(record)):
         write_state(root, None, "priority-session.json")
         return None  # a different grant never inherits this session's scope
@@ -336,15 +336,26 @@ def checkout_path(workspace):
         raise GateError("priority checkout probe failed; session scope is unknown") from exc
 
 
-def prioritize(root, owner, minutes, clear, workspace=None):
-    if clear:
-        if owner is not None:
-            raise GateError("prioritize --clear takes no --owner")
-        with locked(root):
-            write_priority(root, None)
-        return "priority cleared"
+def live_priority_or_corrupt(root):
+    """Return (record, corrupt) under `locked`; a corrupt record names no owner to protect."""
+    try:
+        return read_priority(root), False
+    except GateError:
+        return None, True
+
+
+def prioritize(root, owner, minutes, clear, workspace=None, replace=False):
+    """One machine-wide record: a live grant is never silently replaced or cleared by another owner."""
     if owner is None or not OWNER.fullmatch(owner):
-        raise GateError("prioritize needs --owner with a safe label, or --clear")
+        raise GateError("prioritize needs --owner with a safe label (--clear --owner <own> clears only your own grant)")
+    if clear:
+        with locked(root):
+            record, corrupt = live_priority_or_corrupt(root)
+            if record is not None and record["owner"] != owner:
+                raise GateError("priority is held by " + priority_text(record) + "; --clear --owner %s clears only "
+                                "its own grant, nothing cleared" % owner)
+            write_priority(root, None)
+        return "priority cleared" if record is not None or corrupt else "no live priority; nothing to clear"
     if not math.isfinite(minutes) or minutes <= 0 or minutes > PRIORITY_MAX_MIN:
         raise GateError("--minutes must be above 0 and at most %d" % PRIORITY_MAX_MIN)
     if workspace is not None:
@@ -354,8 +365,13 @@ def prioritize(root, owner, minutes, clear, workspace=None):
             raise GateError("invalid priority workspace")
     record = {"owner": owner, "expires": time.time() + minutes * 60, "workspaces": workspace}
     with locked(root):
+        held, _ = live_priority_or_corrupt(root)
+        if held is not None and held["owner"] != owner and not replace:
+            raise GateError("priority is held by " + priority_text(held) + "; nothing changed. Tell Simon; "
+                            "pass --replace only on his word that %s goes first" % owner)
         write_priority(root, record)
-    return "priority set: " + priority_text(record)
+    replaced = " (replaced %s)" % held["owner"] if held is not None and held["owner"] != owner else ""
+    return "priority set: " + priority_text(record) + replaced
 
 
 def claude_projects_dir():
@@ -2191,7 +2207,8 @@ def main(argv=None):
     priority_parser = sub.add_parser("prioritize")
     priority_parser.add_argument("--owner")
     priority_parser.add_argument("--minutes", type=float, default=PRIORITY_DEFAULT_MIN)
-    priority_parser.add_argument("--clear", action="store_true")
+    priority_parser.add_argument("--clear", action="store_true", help="clear the --owner's own live grant; refuses another owner's")
+    priority_parser.add_argument("--replace", action="store_true", help="replace another owner's live grant (Simon's word only)")
     priority_parser.add_argument("--workspace", action="append", help="session checkout; defaults to current directory, repeat for every worker checkout and its nested linked worktrees")
     args = parser.parse_args(argv)
     root = root_path(args.root or (os.environ.get("LOCAL_CAPACITY_RUN_ROOT") if args.action == "stage" else None))
@@ -2294,7 +2311,7 @@ def main(argv=None):
             print(migrate(root, args.priority_workspace))
         elif args.action == "prioritize":
             print(prioritize(root, args.owner, args.minutes, args.clear,
-                             None if args.clear else args.workspace or str(Path.cwd())))
+                             None if args.clear else args.workspace or str(Path.cwd()), replace=args.replace))
         else:
             release_sim(root, args.udid, args.owner)
             print("simulator claim released")
