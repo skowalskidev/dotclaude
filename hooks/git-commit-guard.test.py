@@ -107,6 +107,32 @@ OWN_WORDS = [
 ]
 
 
+# The deny message leads with the ONE failing check, so the agent fixes the right thing (the fix for a
+# `for n in ...; do gh pr merge $n; done` loop whose generic deny the agent misread as a halt word in
+# Simon's message). (label, the user's newest message, command, text the reason must contain or None
+# for an allowed merge, text the reason must NOT contain)
+DENY_CAUSES = [
+    ("a loop variable selector names the variable, not the user's words", "merge 301 302 303",
+     "for n in 301 302 303; do gh pr merge $n --squash; done",
+     "Blocked `gh pr merge`. Cause: the PR selector `$n` is a shell variable", "Say 'merge #<n>'"),
+    ("the variable cause clears the user's words", "merge 301 302 303",
+     "for n in 301 302 303; do gh pr merge $n --squash; done", "The user's words are NOT the problem", None),
+    ("the same merge with a literal number passes", "merge 301 302 303", "gh pr merge 301 --squash", None, None),
+    ("a quoted variable is a non-literal selector", "merge 301", 'gh pr merge "$n" --squash',
+     "`a quoted value` is a shell variable", None),
+    ("a command substitution is a non-literal selector", "merge 301",
+     "gh pr merge $(gh pr list --json number) --squash", "is a shell variable, substitution", None),
+    ("no selector names the missing PR", "merge 301", "gh pr merge --squash", "Cause: the command names no PR", None),
+    ("a branch selector names the branch", "merge 301", "gh pr merge feature", "`feature` is a branch", None),
+    ("no merge words names that check", "1 yes", "gh pr merge 301", "Cause: no message from the user", None),
+    ("a halt names the halting message", "don't merge 301 yet", "gh pr merge 301",
+     "reads as a halt after the merge ask: \"don't merge 301 yet\"", None),
+    ("other numbers name those PRs", "merge 13 and 14", "gh pr merge 12", "name other PRs (#13, #14), not #12", None),
+    ("the generic rule text still follows the cause", "1 yes", "gh pr merge 301", "OWN words this turn", None),
+    ("the API form points at one literal-number command per PR", "merge 12",
+     "gh api -X PUT repos/o/r/pulls/12/merge", "bare PR number, one command per PR", None),
+]
+
 # The CURRENT TURN is every ask recorded since the user's newest typed prompt that opened a turn in
 # the transcript (queued mid-turn messages arrive as attachments, never as turn-opening user
 # entries). Plural or unnumbered phrasing covers an open PR this session pushed. Two repos, two PRs,
@@ -586,12 +612,21 @@ def main() -> int:
                 passes += 1
             else:
                 failures.append(f"OWN WORDS: {label}: got {reason[:160]!r}")
+        for i, (label, ask, cmd, expect, absent) in enumerate(DENY_CAUSES):
+            session = f"cause{i}"
+            record_ask(dirs["feature"], session, ask)
+            reason = run(dirs["feature"], cmd, own_home, session)
+            ok = (not reason) if expect is None else (expect in reason and not (absent and absent in reason))
+            if ok:
+                passes += 1
+            else:
+                failures.append(f"DENY CAUSE: {label}: got {reason[:220]!r}")
         # One unnamed merge per message: the same message cannot merge a second, different PR.
         record_ask(dirs["feature"], "one-per-ask", "merge and deploy")
         first = run(dirs["feature"], "gh pr merge 21", own_home, "one-per-ask")
         again = run(dirs["feature"], "gh pr merge 21", own_home, "one-per-ask")
         second = run(dirs["feature"], "gh pr merge 22", own_home, "one-per-ask")
-        if not first and not again and second:
+        if not first and not again and second and "ONE PR per message" in second:
             passes += 1
         else:
             failures.append(f"OWN WORDS: one unnamed merge per message: {first!r} {again!r} {second!r}")

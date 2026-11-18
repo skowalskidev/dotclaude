@@ -257,6 +257,10 @@ this session did not push only when the hand-back he is answering lists it on it
 number names only that PR. A default-branch push needs
 `CLAUDE_ALLOW_MAIN_COMMIT=1` AND the user's words this turn saying "push". No flag the model sets
 authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
+**DO run one `gh pr merge <bare number>` per PR; DON'T loop over a variable or substitute the number:**
+the guard reads the PR from the command text, so `gh pr merge $n` denies whatever the user said. Read
+the deny's `Cause:` line first and fix that check; never ask the user to resend clear words (the fix
+for a `for n in ...` merge loop misread as a halt word, with Simon asked twice to resend).
 **DO stop at a ready, green PR and ask "merge #<n>?"; a plain "merge it" / "merge and deploy" answers it.** DON'T read "finish it",
 "priority", "1 yes" to a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged
 on "1 yes" to a model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").

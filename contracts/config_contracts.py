@@ -2266,6 +2266,11 @@ CONTRACTS: dict[str, dict] = {
             "must be git/gh, with quoted strings and heredoc bodies masked, so a note or printf that "
             "merely names a push never fires. A push deny names the branch pushed TO. "
             "hooks/git-commit-guard.test.py pins both directions.",
+            "A `gh pr merge` deny leads with `Cause:` naming the one failing check, read-only and "
+            "without changing the verdict: a non-literal selector ($var, substitution, quoted value; "
+            "it says the user's words are not the problem and not to ask him), no selector, a branch "
+            "selector, a standing merge not ready, no merge instruction, a halt (quoting it), other "
+            "PRs named, a plural not covering it, or the one-unnamed-merge-per-message limit.",
         ],
     },
     "hooks/background-process-guard.py": {
