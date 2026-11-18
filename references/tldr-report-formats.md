@@ -78,6 +78,11 @@ DO show a draft for Simon as the message alone in one quote block, under a chat 
 follows § Human-facing messages. Both stay TLDR: the draft at most 5 lines, the reply around it with
 no commentary restating the draft.
 
+DO open a reply to someone's report or question with the verdict on line 1 when no ask exists
+(`rules/communication.md` § Answer first): "All ok, nothing was broken." or "You're right, it was
+broken; fix is in PR X." Detail below it only where it changes their action; no investigation
+narrative (the fix for a reply that opened with "Checked it, and the fallback worked for all 5.").
+
 DO measure a draft before sending it by any route the hook cannot see (a `codex-app` run,
 `gh pr comment`, `gh api .../replies`):
 `python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`. Expect `ok` and exit 0;
@@ -88,7 +93,7 @@ into `.context/long-message-ok` in the working directory; the guard allows the n
 deletes the file.
 WHY: a teammate reads the notification preview and the first lines; a long message from Simon reads
 as a long instruction from him.
-TEST: every message to someone else has at most 5 lines and 100 words, or traces to a
+TEST: every message to someone else has at most 5 lines and 100 words, with an ask or verdict on line 1, or traces to a
 `.context/long-message-ok` quoting Simon's request for length.
 
 ## Automated message
@@ -286,6 +291,11 @@ pending ask stays in the plan and ledger, and the last message after his own tur
 reconcile turn records the ledger note and sends no restatement. TEST: two assistant messages with no
 Simon message between never carry the same `Your call` block (the fix for 7 copies of one merge ask sent
 on idle agent pings and monitor expiries).
+
+## Moved from `rules/communication.md` § Answer first
+
+Things that wait on Simon: a test, a merge word, a decision, a login, a reply. Origin of the
+no-repeat TEST: 7 repeats of one block on idle notifications.
 
 ## Close-session TEST (moved from `rules/communication.md`)
 
