@@ -737,6 +737,7 @@ CONTRACTS: dict[str, dict] = {
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
             "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
             "Owns the live-tab hand-over check: before handing a live UI tab to Simon, and after any worktree, server or config change, verify on the exact host he will use that the framework hydrated, a primary control responds and the console shows no blocked-origin or HMR error.",
+            "Each message pointing Simon at a preview, repeats after a restart included, follows a same-turn list_pages hit, a 2xx per server and a fresh start-screen screenshot; a failed check means relaunch, never a substitute URL.",
             "Owns multi-persona walks and tab labels: each persona opened by Claude in its own named isolated context, first actor first, fresh accounts, no URL handed to Simon; every walk tab titled '▶ PERSONA tail · page title' and kept across navigations, with step messages naming the tab by that label.",
         ],
     },
