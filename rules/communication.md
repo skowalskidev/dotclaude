@@ -42,7 +42,7 @@ TEST: `references/tldr-report-formats.md` § Close-session TEST.
 ## Five rules for anything you write
 
 **DO link every PR, issue, ticket, Slack thread, CI run or doc in a message to Simon as markdown with its
-full URL, everywhere, every mention.** TEST: a bare "#123" or "POI-123" fails. `references/tldr-report-formats.md` § Links.
+full URL, every mention.** TEST: a bare "#123" or "POI-123" fails. `references/tldr-report-formats.md` § Links.
 
 **DO state the expected result.** "Run X, expect Y."
 **DON'T** write an instruction with no stated outcome.
