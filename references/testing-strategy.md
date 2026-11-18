@@ -782,12 +782,13 @@ its reason.
 **DO run the whole gate list locally in one pass at merge prep, the last step before the ready-flip
 that starts CI, a merge-queue enqueue, a merge or a deploy** (`references/git-pr-deploy.md` § CI runs
 once, at merge prep). Re-derive it with `bin/ci-gate-list.py` on the final head and run every row (a
-base-merge-only head runs its touched rows, below), over CI's own scope: every static gate, typecheck, lint and format, the secret scan over the branch's
-commit range (e.g. `gitleaks git --log-opts="origin/<base>..HEAD"`), design and i18n checks, unit and
-database/migration suites, e2e specs against a built site, and the native compile when the diff
+base-merge-only head runs its touched rows, below), over CI's own scope: every static gate,
+typecheck, lint and format, the secret scan over the branch's commit range (e.g.
+`gitleaks git --log-opts="origin/<base>..HEAD"`), design and i18n checks, unit and database/migration
+suites, e2e specs against a built site, and the native compile when the diff
 touches native code. A row whose workflow `paths:` filter or job `if:` excludes this diff is named
 skipped with that reason. Fix every failure before the flip or enqueue, so CI confirms rather than
-discovers. Lease each heavy row through `local-capacity.py run --owner <session-id>`; its exit 75
+discovers. Lease each heavy row through `local-capacity.py run --owner <session-id>-pr<n>`; its exit 75
 is a wait, never a pass or a skip. A failure in a test the change did not add or edit that passes
 when rerun alone is a load flake: record it by name with both results. Run the whole list again
 before every later push to a ready PR whose diff touches files any gate reads (a base-merge-only push
