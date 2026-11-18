@@ -17,7 +17,8 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      the PR is open, not a draft, mergeable and every check has passed at the moment of the merge. There
      is no override flag: a flag the model sets itself let two PRs merge off a model-written "Merge
      #N?" answered "1 yes" and off "this is priority, finish it". `gh api` merge/enqueue/auto-merge
-     calls are denied outright.
+     calls are denied outright. Every merge deny leads with `Cause:`, the one check that failed
+     (merge_deny_cause), so a `$n` selector is never misread as a problem with the user's words.
 
   1. Committing or pushing on the default branch (main / master). rules/process.md: "If on the
      default branch, create a branch first", and feedback_no_master_commits: never commit/push to
@@ -838,6 +839,55 @@ def unnamed_merge_ok(payload: dict, ask: str, number: str) -> bool:
             return False
 
 
+# The deny message leads with the ONE check that failed, so the agent fixes the right thing instead of
+# guessing (the fix for a `for n in ...; do gh pr merge $n; done` loop denied with the generic rule
+# text, which the agent misread as a halt word in Simon's message and asked him twice to resend, while
+# the real cause was the selector `$n`: the same merges with literal numbers passed at once). Read-only:
+# it re-reads what merge_allowed judged and never changes the verdict or writes the unnamed-merge marker.
+NON_LITERAL_RE = re.compile(r"[$`]|^(?:''|\"\")$")
+
+
+def merge_deny_cause(payload: dict, words: list, why_not: str) -> tuple:
+    """(cause, ask_user): the failing check, stated first in the deny message, and whether asking the
+    user for a merge word is the right next step."""
+    selector, number, _ = merge_target(words)
+    if NON_LITERAL_RE.search(selector):
+        shown = selector if selector not in ("''", '""') else "a quoted value"
+        return (f"the PR selector `{shown}` is a shell variable, substitution or quoted value, not a "
+                "literal number, so the guard cannot match it to the user's words. The user's words are "
+                "NOT the problem: do not ask the user to resend them. Rerun as one command per PR with "
+                "the bare number, e.g. `gh pr merge 301 --squash`, never a loop over a variable"), False
+    if not selector:
+        return "the command names no PR. Rerun with its bare number, e.g. `gh pr merge 301`", False
+    if not number:
+        return (f"the selector `{selector}` is a branch or other name, not a PR number or /pull/N URL. "
+                "Rerun with the bare number, e.g. `gh pr merge 301`"), False
+    if why_not:
+        return (f"a standing merge instruction covers #{number}, but it is not ready: {why_not}. Wait for "
+                "CI and retry; do not ask the user again"), False
+    asks = turn_asks(payload)
+    says = re.compile(VERB_FORMS["merge"], re.I)
+    said = [i for i, a in enumerate(asks) if instructs(a, "merge")]
+    if not said:
+        return ("no message from the user this turn says merge as an instruction (a question, a quote, "
+                "a peer's report or a yes to your own question does not count)"), True
+    halts = [i for i, a in enumerate(asks)
+             if NEGATED_RE.search(a) or (not says.search(a) and HALT_RE.search(a))]
+    if halts and halts[-1] >= said[-1]:
+        text = " ".join(asks[halts[-1]].split())
+        return (f"a message this turn reads as a halt after the merge ask: \"{text[:100]}\""), True
+    scope = merge_scope("\n".join(authorizing_asks(asks, "merge")))
+    named = sorted(set(re.findall(r"\d{2,}", " ".join(PR_NUMBER_RE.findall(scope)))) - {number})
+    if named:
+        return (f"the user's merge words name other PRs ({', '.join('#' + n for n in named)}), "
+                f"not #{number}"), True
+    if BULK_RE.search(scope):
+        return (f"the user's merge words say all/both/them, which covers only open PRs this session "
+                f"pushed or a hand-back Merge list names, and #{number} is neither"), True
+    return (f"an unnumbered merge ask covers ONE PR per message, and this message already merged "
+            f"another, so #{number} needs its own number named"), True
+
+
 def deny(reason: str) -> int:
     print(json.dumps({
         "hookSpecificOutput": {
@@ -900,8 +950,8 @@ def main() -> int:
         if is_gh_api and API_MERGE_RE.search(command):
             return deny(
                 "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
-                "Use `gh pr merge <n>`, which runs only when the user's own words this turn say "
-                "\"merge\" and cover the PR."
+                "Use `gh pr merge <n>` with the bare PR number, one command per PR, which runs only "
+                "when the user's own words this turn say \"merge\" and cover the PR."
             )
         if not (is_commit or is_push or is_gh_merge):
             continue
@@ -912,25 +962,25 @@ def main() -> int:
         # merge. The deny message is what tells Claude to get that yes.
         allowed, why_not = merge_allowed(payload, words, gh_cwd) if is_gh_merge else (True, "")
         if not allowed:
-            number = merge_target(words)[1]
+            cause, ask_user = merge_deny_cause(payload, words, why_not)
             return deny(
-                "Blocked: `gh pr merge` merges a PR into the remote default branch, and it runs only "
+                f"Blocked `gh pr merge`. Cause: {cause}.\n"
+                "The rule: `gh pr merge` merges a PR into the remote default branch, and it runs only "
                 "on the user's OWN words this turn (every message since your last hand-back, queued "
                 "ones included) saying \"merge\" with no later stop/hold/wait, and naming this PR's "
-                "number"
-                + (f" (#{number})" if number else " (name the number, not a branch)") + ", covering "
+                "number, covering "
                 "it as an open PR this session pushed (no number, or all/both/them), saying all/both/them to a "
                 "hand-back whose Merge list names it, or naming no PR "
                 "for one other PR; or on a standing merge an earlier message this session gave "
                 "(\"merge ... when ready\", \"once CI is green then merge\", or \"merge all\"; never a question) covering it, when no "
                 "later message said stop/hold/wait/cancel or not to merge/deploy, and the PR is open, not a draft, "
                 "mergeable and every check passed. A standing instruction lasts for this session "
-                "only. "
-                + (f"A standing instruction covers this PR, but it is not ready: {why_not}. Wait for "
-                   "CI and retry; do not ask the user again. " if why_not else "")
-                + "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
-                "is never that. There is no override flag. Stop at a ready, green PR and ask: "
-                "\"Say 'merge #<n>' to merge it.\""
+                "only. The guard reads the PR from the command itself: run one `gh pr merge <bare "
+                "number>` per PR, never a loop or substitution. "
+                "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
+                "is never that. There is no override flag."
+                + (" Stop at a ready, green PR and ask: \"Say 'merge #<n>' to merge it.\""
+                   if ask_user else " Fix the cause above and retry; do not ask the user.")
             )
 
         # 1. Default-branch protection. The override counts whether the flag is in the hook's OWN env
