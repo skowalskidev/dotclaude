@@ -57,9 +57,10 @@ running session's server.
 with its `Checked outputs:` clause replaces capturing, only by `~/.claude/references/screenshot-review.md`
 § Visible surfaces; capture each counted output on base and head with production-shaped data (the fix
 for a translation-backend PR first evidenced with a CI table until Simon asked for the translated
-screen). Then build the case matrix per the reference's § Discover the
-complete matrix: empty and full states, every conditional scenario, responsive sizes and complete
-journeys. One case per scenario × viewport × variant, blocked and unrun cases included. Scope to the
+screen). Write the reference's changed-state list first, at every tier: each acceptance criterion
+that changes a visible output, on every surface it reaches, gets a pair or a reason line. Then build
+the case matrix per the reference's § Discover the complete matrix: empty and full states, every
+conditional scenario, responsive sizes and complete journeys. One case per scenario × viewport × variant, blocked and unrun cases included. Scope to the
 diff unless Simon asks for the whole app.
 
 ## Step 2 — Seed the account into the state the change is meant to be seen in

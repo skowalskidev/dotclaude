@@ -272,6 +272,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Inventory source branches and real UI states across the declared scope; require empty and full states at every selected supported layout and disclose secondary sampling.",
             "Build the full matrix for a Deep-tier change; capture Light and Standard changes at the scope testing-strategy.md gives their tier and record the skip.",
+            "At every tier, write the changed-state list before the first capture: one row per acceptance criterion or changed output that alters what a person sees, on every surface and reply type it reaches, each with a posted before/after pair or a reason line; the tier sets depth, never which changed states get a pair.",
             "At every tier, add each existing screen a modified pre-existing file reaches and each screen reused in a new place beside its original to the capture scope, for the regression check.",
             "Compose existing browser, testing and native lifecycle owners; preserve authorization boundaries and private local output by default.",
             "Record conditions, reproducible steps, source revision, dirty fingerprint and data mode; distinguish capture from review and genuine base evidence from simulated comparisons.",
