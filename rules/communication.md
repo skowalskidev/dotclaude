@@ -21,11 +21,11 @@ NUMBER: per message, however many parts it answers: at most 5 bullets and 5 step
 at most 20 words.
 **DON'T** write prose paragraphs, background that does not change the action, a preamble, a recap, a
 closing summary, a mid-body question or an empty questions block.
-TEST: two assistant messages with no Simon message between never carry the same block; line 1 is `Action needed: …` or `No action needed`; a body naming a pending item on Simon
-("say merge", "your retest", "your call", "after your") under `No action needed` fails; each pending
-ask is a numbered step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for
-someone else has at most 5 lines, line 1 an ask or verdict; each `?`, "should we" or "correct
-me" in the prompt is answered above any status.
+**DO scope a status, follow-up, TLDR or close-session answer to THIS session's own work;** name
+another session's PR, branch or task only when Simon asks about it. Send this session's impact on
+another session's work to that session (`rules/process.md` § Tell the live session your change
+affects), never onto his action list.
+TEST: `references/tldr-report-formats.md` § Answer-first TEST.
 
 ## Close the session: finish it, say it can be archived, stop
 

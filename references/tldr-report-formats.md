@@ -336,6 +336,17 @@ on idle agent pings and monitor expiries).
 Things that wait on Simon: a test, a merge word, a decision, a login, a reply. Origin of the
 no-repeat TEST: 7 repeats of one block on idle notifications.
 
+## Answer-first TEST (moved from `rules/communication.md`)
+
+Two assistant messages with no Simon message between never carry the same block; line 1 is
+`Action needed: …` or `No action needed`; a body naming a pending item on Simon ("say merge", "your
+retest", "your call", "after your") under `No action needed` fails; each pending ask is a numbered
+step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for someone else has at
+most 5 lines, line 1 an ask or verdict; each `?`, "should we" or "correct me" in the prompt is
+answered above any status. Every `Action needed` item, follow-up and status bullet traces to this
+session's own ledger or work, unless Simon asked about the other session (the fix for a session TLDR
+that listed two other sessions' PR conflicts as Simon's actions).
+
 ## Close-session TEST (moved from `rules/communication.md`)
 
 A finished session's last message has the archive line, at most 2 optional follow-ups, and no
