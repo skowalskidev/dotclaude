@@ -209,7 +209,7 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   and `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <cmd>`. Fill spare
   capacity beside the primary; wait/resume automatically and yield at safe command boundaries.
   Exit 75 → record the retry and keep editing.
-  Run `prioritize` only when Simon names the task to go first ("don't defer" counts); clear it after.
+  Run `prioritize` only when Simon names the task to go first ("don't defer" counts); after, `--clear --owner <own>`.
   Every heavy step holds a lease. Act on a `watchdog:` line naming this session at once.
   Never kill a live owner's build or simulator; only a printed `reclaim-sim` frees an ended owner's.
   Protocol: `references/dev-server-hygiene.md`.

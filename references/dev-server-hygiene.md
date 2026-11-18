@@ -355,8 +355,17 @@ message asked. WHY: a record reserves admission capacity, so only Simon decides 
 
 ```sh
 python3 ~/.claude/bin/local-capacity.py prioritize --owner <session-id> [--minutes 60]
-python3 ~/.claude/bin/local-capacity.py prioritize --clear
+python3 ~/.claude/bin/local-capacity.py prioritize --clear --owner <session-id>
 ```
+
+DO read the `prioritize` result: one machine-wide record exists, and setting it while another owner's
+grant is live exits 1 naming that holder and its end time, with nothing changed. Tell Simon who holds
+it; pass `--replace` only on his word that this task goes before the holder. Renewing your own grant
+needs no flag. DO clear with `--clear --owner <own>`: it refuses another owner's live grant (exit 1,
+nothing cleared) and clears a corrupt record. Check `status` after a grant and before relying on it.
+TEST: a second owner's `prioritize` without `--replace` and a `--clear --owner` naming a non-holder
+both leave the live record unchanged (the fix for a 120-minute grant silently replaced by another
+session's `prioritize`, whose later owner-less `--clear` then wiped the other session's live grant).
 
 DO prioritize every checkout its workers run in when Simon names the task to go first: pass
 `--workspace <checkout>` once per checkout to `prioritize --owner <task>`. Worker labels in listed
@@ -465,7 +474,7 @@ Use separate ordinary `run` phases with automatic admission retries for unsafe w
 label is an explicit cooperative assertion, not an OS sandbox; never relabel a native job as compute.
 No daemon, unknown-process signal, lease stealing or persistent queue is installed.
 TEST: pause-safe rejects native simulator/bridge/stage combinations before their payload runs.
-DO run `prioritize --clear` the moment the priority step ends. TEST: after the clear, `status`
+DO run `prioritize --clear --owner <session-id>` the moment the priority step ends. TEST: after the clear, `status`
 shows no `priority:` line and another owner is admitted when a slot is free.
 
 DO run at most ONE simulator machine-wide, across every session (`MAX_BOOTED_SIMULATORS = 1` in

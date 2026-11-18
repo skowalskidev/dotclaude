@@ -1317,7 +1317,7 @@ class PriorityTests(unittest.TestCase):
         gate.acquire(self.root, "middle", os.getpid(), None)
         gate.prioritize(self.root, "first", 30, False)
         gate.acquire(self.root, "first", os.getpid(), None)
-        gate.prioritize(self.root, "second", 30, False)
+        gate.prioritize(self.root, "second", 30, False, replace=True)
         with self.assertRaises(gate.Busy):
             gate.acquire(self.root, "second", os.getpid(), None)
 
@@ -1330,10 +1330,57 @@ class PriorityTests(unittest.TestCase):
 
     def test_replace_and_clear(self):
         gate.prioritize(self.root, "first", 30, False)
+        gate.prioritize(self.root, "second", 30, False, replace=True)
+        gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
+        self.assertEqual(self.cli("prioritize", "--clear", "--owner", "second").returncode, 0)
+        gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
+
+    def test_another_owners_live_grant_is_never_silently_replaced(self):
+        gate.prioritize(self.root, "first", 120, False)
+        with self.assertRaisesRegex(gate.GateError, r"held by first until .*nothing changed.*--replace"):
+            gate.prioritize(self.root, "second", 30, False)
+        result = self.cli("prioritize", "--owner", "second", "--minutes", "30")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("priority is held by first until", result.stderr)
+        self.assertEqual(gate.read_priority(self.root)["owner"], "first")
+        result = self.cli("prioritize", "--owner", "second", "--minutes", "30", "--replace")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("(replaced first)", result.stdout)
+        self.assertEqual(gate.read_priority(self.root)["owner"], "second")
+
+    def test_the_same_owner_renews_its_own_grant_without_replace(self):
+        gate.prioritize(self.root, "first", 10, False)
+        before = gate.read_priority(self.root)["expires"]
+        self.assertIn("priority set: first", gate.prioritize(self.root, "first", 60, False))
+        self.assertGreater(gate.read_priority(self.root)["expires"], before)
+
+    def test_an_expired_grant_never_blocks_a_new_owner(self):
+        gate.prioritize(self.root, "first", 30, False)
+        record = gate.read_priority(self.root)
+        record["expires"] = time.time() - 1
+        gate.write_priority(self.root, record)
         gate.prioritize(self.root, "second", 30, False)
-        gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
-        self.assertEqual(self.cli("prioritize", "--clear").returncode, 0)
-        gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
+        self.assertEqual(gate.read_priority(self.root)["owner"], "second")
+
+    def test_clear_takes_an_owner_and_refuses_another_owners_live_grant(self):
+        gate.prioritize(self.root, "holder", 120, False)
+        self.assertEqual(self.cli("prioritize", "--clear").returncode, 1)
+        result = self.cli("prioritize", "--clear", "--owner", "mine")
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("priority is held by holder until", result.stderr)
+        self.assertIn("nothing cleared", result.stderr)
+        self.assertEqual(gate.read_priority(self.root)["owner"], "holder")
+        self.assertEqual(self.cli("prioritize", "--clear", "--owner", "holder").returncode, 0)
+        self.assertIsNone(gate.read_priority(self.root))
+        result = self.cli("prioritize", "--clear", "--owner", "holder")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("nothing to clear", result.stdout)
+
+    def test_clear_recovers_a_corrupt_record_that_names_no_owner(self):
+        gate.secure_root(self.root)
+        (self.root / "priority.json").write_text("{not json")
+        self.assertEqual(self.cli("prioritize", "--clear", "--owner", "mine").returncode, 0)
+        self.assertIsNone(gate.read_priority(self.root))
 
     def test_minutes_above_the_maximum_or_not_positive_is_rejected(self):
         for minutes in ("181", "0", "-5", "nan"):
@@ -1402,7 +1449,7 @@ class PriorityTests(unittest.TestCase):
         lines = [line for line in self.cli("status").stdout.splitlines() if line.startswith("priority: ")]
         self.assertEqual(len(lines), 1)
         self.assertIn("vip until", lines[0])
-        self.cli("prioritize", "--clear")
+        self.cli("prioritize", "--clear", "--owner", "vip")
         self.assertNotIn("priority", self.cli("status").stdout)
 
     def test_priority_owner_cannot_take_the_holders_simulator(self):
@@ -1438,7 +1485,7 @@ class PriorityTests(unittest.TestCase):
             if owner == "vip":
                 gate.prioritize(self.root, "vip", 30, False)
             else:
-                gate.prioritize(self.root, None, 0, True)
+                gate.prioritize(self.root, "vip", 0, True)
             with self.assertRaises(gate.Busy):
                 gate.run_command(self.root, owner, None, [sys.executable, "-c", "pass"], wait_seconds=0)
             self.assertIsNone(gate.read_state(self.root))
@@ -1854,12 +1901,12 @@ class PriorityAllowanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(gate.Busy, says):
                     gate.acquire(self.root, owner, os.getpid(), None, child_pending=pending)
             first = gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
-            gate.prioritize(self.root, "replacement", 30, False)
+            gate.prioritize(self.root, "replacement", 30, False, replace=True)
             with self.assertRaises(gate.Busy):
                 gate.acquire(self.root, "replacement", os.getpid(), None, child_pending=True)
             self.assertEqual(gate.read_state(self.root)["token"], first)
             self.assertEqual(gate.allowance_token(self.root), first)
-            gate.prioritize(self.root, "primary", 30, False)
+            gate.prioritize(self.root, "primary", 30, False, replace=True)
             with self.assertRaisesRegex(gate.Busy, "priority allowance is held by holder=primary"):
                 gate.acquire(self.root, "primary", os.getpid(), None, child_pending=True)
 
@@ -1955,7 +2002,7 @@ class PriorityAllowanceTests(unittest.TestCase):
         for clear in (False, True):
             gate.prioritize(self.root, "primary", 30, False)
             if clear:
-                gate.prioritize(self.root, None, 30, True)
+                gate.prioritize(self.root, "primary", 30, True)
             else:
                 record = gate.read_priority(self.root)
                 record["expires"] = time.time() - 1
@@ -2028,7 +2075,7 @@ class PriorityAllowanceTests(unittest.TestCase):
         for clear in (False, True):
             gate.prioritize(self.root, "primary", 30, False, self.tmp.name)
             if clear:
-                gate.prioritize(self.root, None, 30, True)
+                gate.prioritize(self.root, "primary", 30, True)
             else:
                 record = gate.read_priority(self.root)
                 record["expires"] = time.time() - 1
