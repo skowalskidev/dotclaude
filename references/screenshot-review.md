@@ -81,6 +81,17 @@ surface" while two changed the chat's answer and six the bot's Slack posts).
 DO build this matrix for a Deep-tier change; capture a Light or Standard change at the scope
 `references/testing-strategy.md` § Size the checks to the change gives its tier, and record the skip.
 
+DO write the changed-state list at EVERY tier, before the first capture: one row per acceptance
+criterion or changed output that alters what a person sees, on every surface and reply type it reaches
+(e.g. a first result, a follow-up answer, a partial answer, an error state). Map each row to a
+before/after pair, or to a reason line (`unchanged on screen`, `unreachable: <why>`, `covered by
+<test>: <why no capture>`). A tier sets viewports, videos and matrix depth, never which changed states
+get a pair. DON'T scope the captures to the surface the ask or the report named.
+TEST: every row of the list has a posted pair or its reason line under `## Screenshots`; a criterion
+that changes a visible output with neither fails the hand-off (the fix for a server change to which
+upsell tab a Free member sees, captured on the first result only while the same change newly reached
+chat follow-ups and partial answers, found only when Simon asked whether every scenario was captured).
+
 DO default scope to all changed routes and journeys from the diff and acceptance criteria; retain an
 explicit whole-app request. Read render branches, permission checks, flags, account and billing state,
 then explore the real UI before finalizing the matrix. Inventory each materially distinct implemented
