@@ -882,6 +882,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "An open PR merges its base once, at merge prep, after review rounds converge; a mid-review base move is no reason to merge unless a file the PR touches conflicts or the fix needs the change.",
+            "A stack takes the default branch through its bottom: merge it into the bottom PR's branch, then each base into its child; git diff <base-branch>...<child> then lists only the child's own files.",
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Owns worktree config detail: no repository config write from a worktree; one process is sandboxed with git -c or GIT_CONFIG_COUNT.",
             "Owns the review-branch push procedure (fetch, merge in remote commits, plain push, one-line sha report) and the gate on every other PR or remote operation.",

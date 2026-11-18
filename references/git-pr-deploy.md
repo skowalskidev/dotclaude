@@ -216,6 +216,14 @@ change (the fix for a two-PR stack whose base, 13 merges in a day with 6 new mig
 in four times mid-review, each time renumbering migrations and rerunning all nine stages and CI on a
 PR whose own diff had not changed).
 
+**DO bring the default branch into a stack through its bottom:** merge it into the bottom PR's
+branch, then each PR's branch into its child, in stack order. A child merged with the default branch
+directly carries every default-branch commit its base PR's branch lacks in its own PR diff.
+**DON'T merge `origin/main` straight into a stacked child**, even when only the child's CI needs it.
+TEST: after a default-branch merge in a stack, `git diff <base-branch>...<child>` lists only the
+child's own files (the fix for a stacked child whose PR diff grew from 8 files to 51 after a direct
+default-branch merge).
+
 ## After a push, and after merging the base in
 
 Applies once a push is authorized (Simon asked, or a `sk:ship-*` flow that pushes is running).
