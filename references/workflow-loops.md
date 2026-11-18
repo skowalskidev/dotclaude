@@ -390,6 +390,20 @@ the source passes the copy. TEST: every `depicts product` row names a component 
 the build renders, and the build holds zero controls, labels or cards the product does not ship (the
 fix for a recreated competitor tour whose coach marks lit a Search button the app does not have).
 
+DO run a phone-fit check on every screen and state a phone draws, independent of the source, at two
+viewports: 402x750 and 375x667 (a phone browser with its toolbars), page at scroll 0, each open list
+or menu as its own state. Read the primary action's box and the page width; three results fail:
+(a) the action cut by the viewport edge (top inside the viewport, bottom past it); (b) the action
+below the fold when removing tightenable space above it (an empty reserved label line, padding beyond
+the next smaller spacing token, a scroll list taller than its rows) would bring it wholly in sight;
+(c) a page wider than the viewport. Tighten that space first; keep a scroll only where the content
+itself needs the height, and then place the action wholly below the fold. A phone-fit failure the
+source shares is still a failure: fix it and record the moved elements as `phone fit` exceptions.
+DON'T accept a fidelity PASS as proof the screen fits: a source with the same defect passes it.
+TEST: the report carries a phone-fit table per screen, state and viewport (action top, bottom,
+viewport height, page width) with zero (a), (b) or (c) rows (the fix for a copied onboarding whose
+form step cut its Continue at a 750 px phone's edge, matching the source's own defect).
+
 DO write an agreed deviation as a list of existing elements by id, each with what stays and who
 agreed. It never covers an element the board adds, nor the gap between a new element and a kept one:
 that gap is a spec row, measured from the kept element's edge. DON'T hand a builder or a judge a
@@ -452,12 +466,12 @@ data:
   the product's font family is an agreed exception).
 
 DO loop fix, re-render, re-measure until the gate passes. Accept a remaining delta only as a recorded
-exception with one of five causes: data the product cannot supply, a project gate or design-system
-ban, an asset that does not exist, a `depicts product` row drawn by our component, or a value Simon
-agreed (above). Each names its spec id, cause and evidence (the missing field, the gate output, the
-asset search, the component file). DON'T accept any other cause: "close
+exception with one of six causes: data the product cannot supply, a project gate or design-system
+ban, an asset that does not exist, a `depicts product` row drawn by our component, a `phone fit` fix,
+or a value Simon agreed (above). Each names its spec id, cause and evidence (the missing field, the
+gate output, the asset search, the component file, the failing phone-fit row). DON'T accept any other cause: "close
 enough", "kept the current look", other sample data, or a stand-in for an asset the project has.
-TEST: every non-zero delta in the report is fixed or an exception with one of the five causes and its
+TEST: every non-zero delta in the report is fixed or an exception with one of the six causes and its
 evidence (the fix for a card built from a supplied mockup that shipped with an extra line per row and a
 missing column header, after an eye comparison against captures holding other data).
 
@@ -512,7 +526,7 @@ TEST: before a slice is handed back, each of its boards has a spec, a target ima
 measure commands, a PASS report with its difference images, and a judge verdict. A new element with
 no spec row, a built element with none, a delta with no recorded cause, a deviation naming no element
 id, a nearest token without Simon's answer, a route that reads the feature's data with no capture or
-exemption, or a shared string unmatched in one app fails the gate.
+exemption, a phone-fit (a), (b) or (c) row, or a shared string unmatched in one app fails the gate.
 
 ## Shareable design board: the default form for a visual mockup ask
 
