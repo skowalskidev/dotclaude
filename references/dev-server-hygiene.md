@@ -334,8 +334,11 @@ token with `--orphan-inspected`, then raise `--max-min` to fit the payload. When
 killed and printed nothing, `status` prints the release command for a lease whose owner and command
 groups are gone (it reads the token from the slot file, never echoing it); `release-sim` and
 `reclaim-sim` refuse a leased simulator and name that same command. Give each concurrent queue its
-own `--owner`, and judge a payload by its own output or receipt, not only the lease exit code. TEST: no
-retry loop treats 124 like 75 (the fix for four queues that stalled behind their own retained leases).
+own `--owner`, each PR's merge prep included (`<session-id>-pr<n>`, `references/git-pr-deploy.md`
+§ CI runs once, at merge prep), and judge a payload by its own output or receipt, not only the lease
+exit code. TEST: no retry loop treats 124 like 75, and two PRs' merge preps never share one owner (the
+fix for four queues that stalled behind their own retained leases, and for two PRs serialised under
+one owner with a heavy slot free).
 
 DO run `python3 ~/.claude/bin/local-capacity.py cpu` before starting a heavy command outside `run` and
 before dispatching parallel agents or a workflow. It prints one line, `GO` or `DEFER` with idle % and load, and exits 75 on `DEFER`. On `DEFER`, use the
