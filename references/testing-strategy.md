@@ -781,8 +781,8 @@ its reason.
 
 **DO run the whole gate list locally in one pass at merge prep, the last step before the ready-flip
 that starts CI, a merge-queue enqueue, a merge or a deploy** (`references/git-pr-deploy.md` § CI runs
-once, at merge prep). Re-derive it with `bin/ci-gate-list.py` on the final head and run every row,
-over CI's own scope: every static gate, typecheck, lint and format, the secret scan over the branch's
+once, at merge prep). Re-derive it with `bin/ci-gate-list.py` on the final head and run every row (a
+base-merge-only head runs its touched rows, below), over CI's own scope: every static gate, typecheck, lint and format, the secret scan over the branch's
 commit range (e.g. `gitleaks git --log-opts="origin/<base>..HEAD"`), design and i18n checks, unit and
 database/migration suites, e2e specs against a built site, and the native compile when the diff
 touches native code. A row whose workflow `paths:` filter or job `if:` excludes this diff is named
@@ -790,8 +790,9 @@ skipped with that reason. Fix every failure before the flip or enqueue, so CI co
 discovers. Lease each heavy row through `local-capacity.py run --owner <session-id>`; its exit 75
 is a wait, never a pass or a skip. A failure in a test the change did not add or edit that passes
 when rerun alone is a load flake: record it by name with both results. Run the whole list again
-before every later push to a ready PR whose diff touches files any gate reads: a review fix that edits
-a test still owes the duplicate-code and dead-code gates, not only the suite it touched.
+before every later push to a ready PR whose diff touches files any gate reads (a base-merge-only push
+takes the scoped pass below): a review fix that edits a test still owes the duplicate-code and
+dead-code gates, not only the suite it touched.
 **DON'T run a hand-picked or remembered list at merge prep.** TEST: the merge-prep record lists each
 CI job step it mirrored, by helper row, with its result, names every step not run locally with its
 reason, and its row count equals the helper's `TOTAL`; no CI run on the pull request, first or later,
@@ -800,6 +801,27 @@ review-fix pushes that reran one gate and failed CI on another, for a secret-sca
 test fixture token caught only by CI, for a hand-picked list that passed while CI's design job
 failed on its i18n coverage script, and for fix workers' pushes that ran a repo-wide duplicate scan and
 skipped the scripts group, so CI failed on the PR's own duplicate test and a migration's reset scan).
+
+**DO scope the local pass on a base-merge-only head to the rows the merge touches.** A head qualifies
+when it differs from its last fully gated head (a full local pass or green CI on that sha) only by a
+merge of the base plus mechanical renames: migration restamps (pure renames, similarity 100%) and
+manifests the repo's own generator rewrote. Check it: `git diff --name-status -M <old-base>...<gated-head>`
+and `git diff --name-status -M origin/<base>...HEAD` differ only in those files. Build the touched set
+from the PR's own diff (`git diff --name-only origin/<base>...HEAD`), the merge's conflicted files and
+every renamed or regenerated file. Run locally each row whose scope holds a file of that set: its
+working directory, its workflow `paths:` filter or a path its command names. Always run a row with
+none of these (it reads the whole repo), the secret scan over the commit range, the repo's ordering and
+migration checks, and every row CI skips on this PR (e.g. heavy jobs on a PR stacked on a non-default
+branch). Name every other row `not touched; CI runs it`. A head with any other change is new behaviour
+and runs the full list.
+WHY: an untouched row reads the same bytes as the base, whose CI already passed them.
+**DON'T name a row not touched when its scope is unclear, or when CI does not run it on this PR: it runs.**
+NUMBER: rows run, rows not touched and rows skipped sum to the helper's `TOTAL`; zero rows whose scope
+holds a touched file are named not touched.
+TEST: the merge-prep record names the gated head's sha, the touched set and each row's verdict; a head
+with any change beyond the base merge and mechanical renames shows every row run; no CI run fails on a
+gate that has a local command (the fix for a merge-only head that ran all 118 rows, an iOS compile
+included, and sat 2 h unpushed).
 
 **DO diagnose a red CI run on a head by rerunning only its failed specs, locally, on that same head
 first** (e.g. `--repeat-each=5` on the failing e2e specs against the build already made). Build and run

@@ -177,7 +177,22 @@ Simon asked to merge, the base is merged in, a Deep change has finished `referen
 (`references/testing-strategy.md` § Defects first). The same local pass on the final head precedes
 a merge-queue enqueue, a `gh pr merge` and a deploy.
 **DON'T fix CI or mark a PR ready mid-development to see what CI says.** CI fixes belong to merge prep.
-TEST: a PR's first CI run starts at merge prep, on a head carrying a full local gate-list pass.
+TEST: a PR's first CI run starts at merge prep, on a head carrying a full local gate-list pass (or,
+for a base-merge-only head, the scoped pass of `references/testing-strategy.md` § Defects first).
+
+**DO run merge prep for independent PRs, stacked ones included, in parallel: one worktree and one
+capacity owner per PR** (`--owner <session-id>-pr<n>`, `references/dev-server-hygiene.md`
+§ Machine-wide capacity), so each PR's heavy rows take a free heavy slot. A stacked child waits only
+for its parent's base-merge commit: merge that into the child and start the child's prep then.
+**DON'T run two PRs' gate lists under one owner, or hold a PR's prep until a sibling's gate list ends.**
+**DO push each PR, and flip or enqueue it where merge prep does, the moment its own local pass is
+green.** A sibling PR's pass, push or CI never holds it.
+NUMBER: every PR in the run starts its prep within 10 minutes of the first PR's start, and is pushed
+within 10 minutes of its own pass going green.
+TEST: no PR's leased row waits on a sibling PR's owner while `local-capacity.py status` shows a free
+heavy slot, and no PR with a green local pass sits unpushed behind another PR (the fix for a two-PR
+stack prepped serially under one owner: the first PR sat 2 h unpushed with its base merge done and
+one of three heavy slots free).
 
 **DO let a failing CI run finish before acting on it, then fix every failure in one batch.** List
 every run for the head sha (`gh run list --commit <sha>`), wait until all are `completed`, read each
