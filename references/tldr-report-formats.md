@@ -365,6 +365,21 @@ Also moved from the close-session rule: stop once CI is green, deployed and a sm
 reached passed; ask no new question at hand-back unless only Simon can decide it and it blocks the
 outcome. The five writing rules govern content and apply equally to subagent prompts.
 
+## Loose term (moved from `rules/communication.md`)
+
+Use the standard term from then on unless he keeps his. DON'T adopt his term silently and raise the
+standard one only when he asks. Method: `references/code-best-practices.md` § Use the industry's
+name. TEST: the reply naming the term precedes the first artifact.
+
+## Links
+
+Every PR, issue, ticket, Slack thread, CI run or doc a message to Simon mentions is a markdown link
+with its full URL, e.g. `[#123](https://github.com/org/repo/pull/123)`, in bullets, steps and the end
+block, on every mention. He cannot click a bare "#123" or "POI-123". Resolve the URL (`gh pr view
+--json url`, the ticket's own link) before sending; if none exists, say so in place of the id.
+TEST: grep the message for `#\d+` and ticket-id patterns outside a link; any hit fails (the fix for a
+status message that named six PRs and tickets as bare ids).
+
 ## Pasted example (moved from `rules/communication.md`)
 
 **DO read a concrete prompt or example Simon pastes as an illustration of the intent, and act on the

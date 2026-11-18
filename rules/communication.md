@@ -41,10 +41,13 @@ TEST: `references/tldr-report-formats.md` § Close-session TEST.
 
 ## Five rules for anything you write
 
+**DO link every PR, issue, ticket, Slack thread, CI run or doc in a message to Simon as markdown with its
+full URL, everywhere, every mention.** TEST: a bare "#123" or "POI-123" fails. `references/tldr-report-formats.md` § Links.
+
 **DO state the expected result.** "Run X, expect Y."
 **DON'T** write an instruction with no stated outcome.
 
-**DO name the real thing** — the URL, the button label, the command, the flag, the file.
+**DO name the real thing:** the URL, the button label, the command, the flag, the file.
 **DON'T** write "the relevant page" or "the appropriate config".
 
 **DO rest a sent "never", "same day" or "ready to merge" claim on complete reads:** `references/code-best-practices.md` § Claims from complete reads.
@@ -58,10 +61,8 @@ Fast path: `/sk:work-ask-reply-in-full-before-after-artifact`.
 
 ## Correct a loose term once, up front
 
-**DO state the industry-standard term once, with one primary source, in the first reply of the work**
-when Simon calls a thing by a loose or non-standard name; use it from then on unless he keeps his.
-**DON'T adopt his term silently and raise the standard one only when he asks.**
-Method: `references/code-best-practices.md` § Use the industry's name. TEST: its reply precedes the first artifact.
+**DO state the industry-standard term once, with one primary source, in the work's first reply**
+when Simon uses a loose name. TEST: `references/tldr-report-formats.md` § Loose term.
 
 ## A pasted example shows intent, not a spec
 
