@@ -598,7 +598,8 @@ match; a step whose expected request is missing halts the run.
 
 **DO order work around a pending human re-walk: fix, then his walk, then the red tape.** When a human
 walk (`/sk:test-copilot`, or Simon re-testing a flow) produced fixes and he will walk again:
-1. Fix, and run the quick local checks (the touched unit tests, the typecheck).
+1. Fix per `references/workflow-loops.md` § Draft mode: a visible fix runs no check before his
+   re-walk; a logic fix he needs for it runs only its touched unit tests.
 2. Rebuild the local stack or preview from a fresh seed and hand him the re-walk.
 3. Fix what he finds and repeat 1-3 until a walk passes.
 4. Only then the red tape: verification run videos, push, CI waits, PR body and evidence, the landing gate.

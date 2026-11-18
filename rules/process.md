@@ -17,6 +17,7 @@ OpenAI or API fallback. Verify every delegated result on disk.
 ### Fan out verification, and only rebuild what changed
 DO defer tests/typechecks/builds across the whole batch and review fixes; allow concrete diagnostics
 or explicit requests. Keep hooks/CI. Verify once at convergence; reuse proof, rerun affected coverage.
+DO default to draft mode while Simon gives feedback: `references/workflow-loops.md` § Draft mode.
 DO size each check to the change's tier, then walk each changed journey e2e on a local stack, iOS
 Simulator included, before PR-ready: `references/testing-strategy.md` §§ Size the checks to the
 change, Defects first, Pre-merge end-to-end on a local stack and Native simulator suites.
@@ -24,7 +25,7 @@ DO keep a work PR draft until merge prep: `references/git-pr-deploy.md` § CI ru
 DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push or
 drops a stage. Name the real blocker in every status. DO launch every ready stage at once on a priority ask.
 `references/parallelization.md` §§ Parallelize verification, across tasks AND stages.
-TEST: no routine per-edit/feature/commit runs; mandatory final coverage uses matching inputs.
+TEST: no routine per-edit/feature/commit/feedback runs; mandatory final coverage uses matching inputs.
 
 ### Claims about third parties must come from primary sources
 DO apply `references/research.md` § Claims about third parties to every factual claim about another

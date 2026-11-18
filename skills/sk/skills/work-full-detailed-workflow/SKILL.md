@@ -72,6 +72,9 @@ current, reconcile against it.
   from intake to hand-back the plan keeps the complete source log, the decision log and each ask's
   clause IDs, and every builder or worker brief quotes the clauses it serves.
   TEST: a brief built from an investigation still covers every clause of the ask it serves.
+- DO run `references/workflow-loops.md` § Draft mode by default whenever Simon gives feedback or asks
+  about work in progress; its queue enters step 5 on his exit word, and steps 7-10 run once over the
+  whole queue, never per feedback message.
 - DO default to current-session execution with the independent judge off. Ask for run options only
   when Ralph, independent judgement or custom loop options are requested; reuse recorded answers.
 - DO reuse the living plan; compose `/sk:plan-stable-persistent-dynamic-complete-full-plan` only when

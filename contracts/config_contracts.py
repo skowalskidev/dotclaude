@@ -205,6 +205,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Give every task-bearing session one gauntlet record; capture each new requirement with stable IDs and source references before continuing, without an ordinary-session options interview.",
             "Reconcile every request after tangents, compaction and handoff; continue ready authorized work and retain explicit cancellation decisions and blocked next actions.",
+            "Own draft mode as SSOT: while Simon gives feedback, answer questions, make small visible changes and queue the rest in the plan's Draft queue; no per-message check; his exit word builds the queue and runs each check once.",
             "State each acceptance criterion as the ask's own routing or scoping clause, quoted near-verbatim from its source message, never a paraphrase that narrows or widens a boundary; flag drift as an interpretation and confirm it before dispatch or verdict.",
             "Split each ask into clause IDs; keep a complete source log and a when/who/what/why decision log in the plan from intake to hand-back; every brief quotes its clauses, and briefs plus decisions cover every clause of every ask.",
             "Own the same-machine handoff and resume lifecycle as SSOT: a repeatable prepare that stamps a hop-counted manifest, a resolve that maps a pasted dashboard link/html/plan back to its plan, a resume that reuses recorded options, and a manifest that survives normal updates.",
@@ -632,6 +633,7 @@ CONTRACTS: dict[str, dict] = {
             "Process inspection emits names and metadata, never arguments or environment values; exact-argument ownership checks stay internal and report verdicts. Signal only currently proven owned processes or candidates passing the existing orphan gate; preserve other live sessions.",
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
+            "Default to draft mode while Simon gives feedback, pointing at references/workflow-loops.md for its detail; no check runs per feedback message.",
             "Size every check to the change's tier through testing-strategy.md, which owns the tiers; the ship harness runs on every open PR at that tier.",
             "Preserve required hooks and CI without bypassing them to impose batch timing; native compile and backend payment, auth and data tests live in testing-strategy.md.",
             "Keep every role on the actual chat provider except GPT design work on the Fable tier and the read-only cross-provider judge; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
@@ -1178,6 +1180,7 @@ CONTRACTS: dict[str, dict] = {
             "session id; binds external-provider forwarders to the app's own credentials with matching "
             "account identity; reconstructs steps he skipped. Method lives in testing-strategy.md.",
             "Sends a finding needing a visual or design decision to the design route for an approved target before the mid tier implements it; builds fixes outside the served tree during the walk.",
+            "Makes each walk fix per the workflow-loops draft mode and runs the machine checks once, after the walk's last fix, never per fix.",
             "Runs /sk:test-automated-full-matrix for its machine pass (Phase 2) rather than restating "
             "the automated method; the two skills are distinct (human journey vs autonomous matrix).",
             "Before the walk and unasked, reports the arms production deals now per platform, stopped and "
@@ -1281,6 +1284,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Runs the testing-strategy merge-prep local gate list on the final head before any ready-flip, enqueue or merge it performs.",
             "Defer automated verification until the whole authorized batch and review fixes converge; compose the shared timing, evidence-reuse and failure-rerun policy.",
+            "Runs no stage per feedback message during draft mode; it runs once, after Simon's exit word and the whole queue is built.",
             "Composes /sk:ship-check-merge-readiness, "
             "/sk:ship-report-and-ensure-correct-user-system-journey, /sk:ship-review, "
             "/sk:ship-resolve-pr-comments, /sk:ship-screenshot-changes and /sk:ship-pr; does not "
@@ -1540,6 +1544,7 @@ CONTRACTS: dict[str, dict] = {
             "Detect a handoff first: resume from a pasted dashboard link/html/plan via resolve, reusing the recorded engine and options without a second interview.",
             "Keep the source log, decision log and clause IDs in the plan from intake to hand-back; every brief quotes the clauses it serves, and step 8 gives every clause of every raw ask a verdict.",
             "Read references/workflow-loops.md at intake on every run and apply its whole shared lifecycle, not only when a stage calls for it.",
+            "Run the workflow-loops draft mode by default while Simon gives feedback; its queue enters the build stage on his exit word and the review-to-ship stages run once over the whole queue.",
             "Run the shared design-source section in references/workflow-loops.md from intake, before any builder is briefed, for any supplied design or pixel-perfect ask; hold each such section at review until its report is PASS, on either engine with the judge off; restate none of the gate.",
             "With the judge on, run the shared judge stage on each built item's revision inside the numbered build stage and route its gaps back to the engine.",
             "Point a design build at the parallelization worker-per-deliverable section and the design-source harness, design-diff and PR evidence; take machine priority only per dev-server-hygiene; restate none of them.",

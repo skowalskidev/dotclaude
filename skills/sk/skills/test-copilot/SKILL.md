@@ -291,8 +291,9 @@ first; the mid tier implements that target (`references/parallelization.md` § S
 and design). While Simon walks, build each fix in a separate worktree or hold it, and apply it only at
 a step boundary, after telling him the tab will reload (`references/human-pacing.md`).
 
-For each fix: make it, add or extend a test that fails without it, re-run the machine checks,
-then have Simon re-do **just that one step**. **Fix the class, not the instance** (`process.md`) —
+For each fix: make it per `references/workflow-loops.md` § Draft mode, write or extend the test
+that fails without it, then have Simon re-do **just that one step**. Run the machine checks once,
+after the walk's last fix. **Fix the class, not the instance** (`process.md`) —
 one missing empty state means checking every sibling surface. Keep looping until a full pass
 comes back clean; one round of fixes is not the end.
 

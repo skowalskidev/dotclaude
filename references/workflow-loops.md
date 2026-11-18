@@ -104,6 +104,59 @@ TEST: ask for A and B, add C while A runs, ask a status question, then resume af
 same plan still contains A, B and C; none passes without evidence, and the next action resumes B or C.
 An explicit cancellation of B preserves its decision instead of silently deleting B.
 
+## Draft mode: the default while Simon gives feedback
+
+DO work in draft mode by default, in every repo and session, whenever Simon gives feedback on or asks
+about work in progress: a preview or build he is walking, screenshots, a branch, a PR, a plan. Stay
+in it until he says "done", "implement", "ship it" or names implementation mode. A task with no
+feedback loop (a one-shot "build X") starts in implementation mode; his first feedback on its result
+enters draft mode. Record each switch as a `## Decisions & rationale` line. The feedback round is ONE
+authorized batch under `references/testing-strategy.md` § Defects first; this section owns how it runs.
+WHY: a check run per message repeats every suite, build and walk once per message.
+**DON'T run the full workflow per feedback message:** no test suite, typecheck, lint, i18n or other
+gate, scripted walk, screenshot pass or pass table, worker delegation, review, judge, ship-harness
+stage, PR body edit, push or per-change commit. The live preview he reloads is the before/after for a
+draft change; the visual hand-off check in `rules/process.md` runs once, in implementation mode. One
+WIP checkpoint commit per round is allowed; a push only when his preview is remote and cannot update
+without one. His "run the tests" or "build it properly" for one item overrides for that item only.
+
+DO handle each feedback message as exactly one of three kinds, in the same turn:
+1. **Question** → answer it from code, docs and at most 5 read-only lookups, then queue any change
+   it implies. Build it only on "build it" or "do it now".
+2. **Visible front-end change** (copy, layout, padding, spacing, colour, sticky or fixed position,
+   show/hide, order of existing elements; at most 3 files, no new data, API or business logic) →
+   edit the code and let the preview pick it up: the dev server's hot reload, or one rebuild when
+   the preview serves a production build. Serve a review from a hot-reloading dev server when the
+   project has one. Queue the full implementation.
+3. **Complex** (backend, data, money, auth, shared-component logic, cross-cutting, or a bug needing
+   investigation, e.g. a first-paint flash of an old screen) → investigate only to the question
+   bound above: the cause and what the fix touches. When it has a visible part, show that part with
+   stubbed or hard-coded data under kind 2; queue the rest.
+A blocker that stops his feedback round is the one exception: fix it now with only its touched unit test.
+A change request releases the preview for that one refresh; while a paced step is open
+(`references/human-pacing.md`), hold the edit to the step boundary.
+
+DO keep the queue as a `## Draft queue` section of this plan. One row per item, its `D<n>` ID
+standing as its task ID for reconciliation: `D<n> · what · why (clause ID) · quick change: done
+<files> | none · full implementation still needs: <tests, other states and viewports, shared-component
+callers, i18n, backend, edge cases>`. A later message changing a queued item edits its row.
+
+DO open each draft reply with line 1 per `rules/communication.md`, then at most 3 bullets: what
+changed on the preview with its reload URL or build id, the answer to his question, and
+`Queued D<n>: <what> (queue: <count>)`. DON'T report check status in draft mode; none ran.
+
+DO switch to implementation mode on his exit word: build every queue row, grouped into logical
+units, then run each required check ONCE, after the last row is built. Classify the tier from the
+whole round's diff (`references/testing-strategy.md` § Size the checks to the change) and run its
+suites, typecheck, gate list, build, e2e and walks at the needed viewports, review and judges, and
+PR evidence. Commit per logical unit, push and gate, then hand back with every `D<n>` verified with
+evidence or open with its blocker. A failure reruns only the coverage it invalidates.
+TEST: in draft mode no reply runs a suite, typecheck, gate, scripted walk, screenshot pass or worker;
+every question, change and bug from a feedback round has a `## Draft queue` row; implementation mode
+runs each check once, after the last row is built (the fix for a phone review of about 15 messages that
+re-ran unit suites, a production build and two scripted walks after every message, and turned a
+plain question into a build).
+
 ## Supervisor ownership
 
 DO let the active session own one supervisor, one plan and one viewer. Custom Gauntlet options or a

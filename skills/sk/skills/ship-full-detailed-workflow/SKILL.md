@@ -18,6 +18,9 @@ commit-when-done, track-every-task, ask before booting a browser), `living-plan.
 tickets; a fix that belongs to another PR is handed to that owner via
 `/sk:ship-check-merge-readiness`'s cross-owner discipline, never applied across branches.
 
+**DON'T run any stage per feedback message while Simon is in draft mode** (`references/workflow-loops.md`
+§ Draft mode): this harness runs once, after his exit word and the whole queue is built.
+
 **With a human re-walk pending, run it first:** `references/testing-strategy.md` § Human-driven sessions ("order work around a pending human re-walk") orders the push, videos and CI waits below after it.
 
 **The stages, in order:**
