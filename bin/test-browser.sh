@@ -21,7 +21,8 @@
 #
 # Exit codes: 0 ok (stop: also when nothing listens) · 2 usage
 #             · 4 no Chrome for Testing installed (run: npx playwright install chromium)
-#             · 5 the port answers but is not Chrome for Testing (stop: or not on --profile); nothing is signalled
+#             · 5 the port answers but is not Chrome for Testing, or (launch/stop with --profile) runs another
+#               profile; nothing is reused or signalled
 #             · 6 launched but the port never opened · 7 stop signalled but the port stayed open
 set -euo pipefail
 
@@ -47,11 +48,11 @@ case "$cmd" in
   path) resolve ;;
   launch)
     shift
-    port=9222; profile="$HOME/.chrome-for-testing-debug"; size=""; pos=""; url="about:blank"
+    port=9222; profile="$HOME/.chrome-for-testing-debug"; profile_given=0; size=""; pos=""; url="about:blank"
     while [ $# -gt 0 ]; do
       case "$1" in
         --port) port="$2"; shift 2 ;;
-        --profile) profile="$2"; shift 2 ;;
+        --profile) profile="$2"; profile_given=1; shift 2 ;;
         --size) size="$2"; shift 2 ;;
         --pos) pos="$2"; shift 2 ;;
         -*) echo "test-browser: unknown option $1" >&2; exit 2 ;;
@@ -63,6 +64,11 @@ case "$cmd" in
       pid="$(lsof -nP -iTCP:"$port" -sTCP:LISTEN -t 2>/dev/null | head -1 || true)"
       if [ -z "$pid" ] || ! ps -o command= -p "$pid" | grep -q 'Google Chrome for Testing'; then
         echo "test-browser: port $port answers but is not Chrome for Testing. Pick another --port." >&2
+        exit 5
+      fi
+      # An explicit --profile (a fresh walk) must never adopt another session's browser on a shared port.
+      if [ "$profile_given" = 1 ] && ! ps -o command= -p "$pid" | grep -qF -- "--user-data-dir=$profile"; then
+        echo "test-browser: Chrome for Testing on port $port uses another profile; not reusing it. Pick a free --port." >&2
         exit 5
       fi
       echo "test-browser: reusing Chrome for Testing on port $port"
