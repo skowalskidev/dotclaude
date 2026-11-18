@@ -81,8 +81,7 @@ evidence; name all outstanding work at hand-back. TEST: a tangent cannot remove 
 When a new request lands mid-work, add it to the checklist and keep going — never drop the current task
 to serve it, and never make me label it. Say in one line where it landed: running now in parallel
 (independent) or queued next. Treat it as an interrupt only if it says stop, or changes work in flight.
-DO answer a mid-run question in the turn's final message too; text between tool calls is collapsed.
-TEST: the last message answers every question asked during the turn.
+DO answer it in the final message (`rules/communication.md` § Answer first).
 
 ### Tell the live session your change affects
 DO send one `SendMessage` to each live session (`ListAgents`) your work changes: its files, branch, PR,

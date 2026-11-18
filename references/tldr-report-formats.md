@@ -53,6 +53,45 @@ WHY, one per rule:
 - The five writing rules live in `rules/communication.md`; `copilot-testing` and `parallelization.md`
   point there and do not restate them.
 
+## Answer the prompt
+
+The rule and TEST live in `rules/communication.md` § Answer first. This section holds the shape, the
+pre-send check and the WHY.
+
+DO answer, in the final message of every turn that answers a Simon prompt, each question and point
+that prompt made, in his order, one bullet each, right after line 1 and before any status bullet:
+- a question: `Yes: <why>` or `No: <why>`, or the direct answer;
+- a claim he asked you to check ("correct me if I'm wrong", "is it", "should we"): `You're right: <why>`
+  or `Correction: <what is true>`;
+- a point he made with no question: one line saying what you did with it.
+
+The same holds for the reply that delivers background work the prompt started, and for questions he
+sent mid-run (text between tool calls is collapsed, so only the final message counts). Status, PR
+heads and the end block follow the answers.
+
+```
+Action needed: say merge for PR #812
+- No: a returning buyer never restarts the quiz; Back now reopens checkout
+- You're right: anyone who reaches the paywall can pay; the extra gate is gone
+- PR #812 is green and its preview serves the new build
+
+Your call
+1. Say merge for PR #812
+```
+
+**DON'T** end a long run on status alone, and DON'T re-answer an older prompt whose questions an
+earlier message already answered.
+Pre-send check: list every `?` and every "should we", "is it", "correct me" or "am I wrong" in the
+triggering prompt and in each message he sent during the turn; each has its answer bullet above the
+first status bullet. A missing one goes in before sending. TEST (moved from `rules/process.md`): the
+last message answers every question asked during the turn.
+WHY: across a long turn the work's status crowds out the question that started it; Simon then sees a
+wall of status and has to ask again (the fix for a session whose closing messages reported PR status
+and never answered "should we just let people on the paywall pay?").
+Backstop: the `hooks/intent-ledger.sh` stop reconciliation reason repeats this rule at the end of a
+work turn. It does not detect a missing answer: whether a line answers a question needs judgement, and
+a second Stop block would add the very wall of text this rule removes.
+
 ## Message for someone else
 
 The rule and its number live in `rules/communication.md` § Answer first. This section holds the shape,
@@ -308,7 +347,7 @@ Open-items TEST: the message before the archive line lists every ticket the sess
 adopted that is not Done or Canceled, every found defect neither fixed nor ticketed and every promised
 check, each with link, status, one line and a disposition (worked now, Simon's quoted deferral, or a
 named owner told). A ticket filed with no disposition, an item missing from the list, or the line
-above any such row fails. Not enforced by the Stop hook: the ledger records prompts and notes, not the
+above any such row fails. Filing a ticket alone is not a disposition. Not enforced by the Stop hook: the ledger records prompts and notes, not the
 tool calls that create tickets, so a ledger scan would miss them.
 
 Also moved from the close-session rule: stop once CI is green, deployed and a smoke on what can be

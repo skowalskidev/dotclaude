@@ -906,7 +906,9 @@ item, continue ready authorized work, and append the current outcomes with
   ~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>
 Apply rules/self-healing-config.md; the after-run analysis is triggered separately once the work is reconciled. \
 Record evidence for completed work and the next action for every real blocker or pause (not hypothetical checks; see rules/communication.md Close the session). An unapproved \
-proposal remains recorded, not permission to implement. When nothing is left, end the final message with \
+proposal remains recorded, not permission to implement. Open the final message by answering each question \
+and point of the prompt that started this work, in its order, before any status (rules/communication.md \
+Answer first). When nothing is left, end the final message with \
 the archive line from rules/communication.md; with CI running, a session PR awaiting Simon's merge or a \
 promised smoke or reply open, end with the merge list instead. When this turn began from a background \
 notification or this hook and brings no new outcome, decision or ask, write nothing or one line naming \
