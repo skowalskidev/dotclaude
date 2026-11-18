@@ -93,6 +93,15 @@ residual in the PR (the same stop rule `/sk:ship-report-and-ensure-correct-user-
 TEST: every code-judge brief in the run defines BLOCKING before round 1, and no PR runs a third round
 on a repeated finding. (the fix for a monitor hotfix that took 7 judge rounds: rounds 4-7 escalated to
 pre-existing and pathological cases until the bar was added at round 6.)
+DO open a judge loop on a heuristic over open-ended input (names, addresses, free text, parsing) with
+one enumeration pass: the round-1 brief asks each judge to list every input shape in one answer and
+classify each as right, safe miss (falls back to the base behaviour) or wrong.
+DO fix every wrong shape a rule can tell apart, as a class, and write each shape no rule can decide
+(a first name with no surname, a business name read as a person) into every later brief as a recorded
+residual decision; later rounds judge only the fixes and regressions.
+DON'T mark a later round's new rare shape of a recorded class BLOCKING; it joins the residual list.
+TEST: after round 1 no brief lacks the residual list, and no round blocks on a new rare shape of a
+recorded class. (the fix for a name parser that took ten judge rounds, one rare input per round.)
 DO have each judge state, per decision and per source: its call, the evidence row or link it rests
 on, and the best-practice or most widely adopted approach, verified from the vendor's or standard's
 own page (§ Source order). Then reconcile: give every judge the others' positions once, settle each
