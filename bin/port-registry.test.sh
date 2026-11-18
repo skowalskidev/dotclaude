@@ -71,5 +71,14 @@ if command -v python3 >/dev/null 2>&1; then
   kill "$SRV" 2>/dev/null; wait "$SRV" 2>/dev/null
 fi
 
+# A claim from a folder outside any git worktree is refused and records nothing.
+seed
+OUT_RC="$(cd "$TMP" && env -u CLAUDE_PORT_SESSION GIT_CEILING_DIRECTORIES="$TMP" "$PR" claim 47999 --for test >/dev/null 2>&1; echo $?)"
+check 'a claim outside a git worktree is refused' "2" "$OUT_RC"
+check 'a refused claim records no row' "" "$(ports)"
+OUT_RC="$(cd "$TMP" && CLAUDE_PORT_SESSION=explicit GIT_CEILING_DIRECTORIES="$TMP" "$PR" claim 47999 --for test >/dev/null 2>&1; echo $?)"
+check 'an explicit session label still claims outside a worktree' "0" "$OUT_RC"
+check 'the explicit claim is recorded' "47999" "$(ports)"
+
 [ "$FAILS" -eq 0 ] && echo 'all port-registry checks passed' || echo "$FAILS port-registry check(s) failed"
 [ "$FAILS" -eq 0 ]

@@ -2578,6 +2578,8 @@ CONTRACTS: dict[str, dict] = {
             "'no listener' alone would delete a valid claim mid-boot.",
             "Never kills a process and never releases another session's claim. Conflicts are "
             "reported to Simon, who decides.",
+            "claim refuses (exit 2, naming the cwd) outside any git worktree unless CLAUDE_PORT_SESSION "
+            "is set, so a claim never lands under a folder-name label its session cannot release.",
             "sessions prints the working directory of every live Claude/Codex session and writes nothing; match only executable basenames claude and codex, never process arguments or environment values.",
             "owns-workspace tests live cwds from stdin using the same predicate as reconciliation; protect physically nested linked worktrees only with a matching Git common directory, never siblings or unrelated nested repositories.",
             "Report failed process probes, missing session cwds and failed Git probes for candidate nested owners as unknown; preserve port claims and refuse stack reclamation until ownership is known.",

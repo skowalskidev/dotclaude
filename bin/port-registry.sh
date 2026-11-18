@@ -535,6 +535,13 @@ cmd_claim() {
   done
   [ -n "$ports" ] || { echo "port-registry: claim needs at least one port" >&2; return 2; }
   [ -n "$what" ] || what="unspecified"
+  # Outside a git worktree the label falls back to the folder's own name, so a claim made after the
+  # shell drifted to a parent folder lands under a session nobody else will release from (the fix for
+  # a claim filed under the Conductor repo folder that a later release from the worktree never matched).
+  if [ -z "${CLAUDE_PORT_SESSION:-}" ] && ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+    echo "port-registry: $(pwd) is not inside a git worktree; cd into the workspace that will bind the port, or set CLAUDE_PORT_SESSION" >&2
+    return 2
+  fi
 
   acquire_lock || return 1
   h="$(scratch held)"; wq="$(scratch wait)"
