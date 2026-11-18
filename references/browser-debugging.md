@@ -71,6 +71,19 @@ console; a hand-off after a restart with no such check broke the rule (the fix f
 server blocked the tunnel host after a config revert: rendered, never hydrated, HMR 502). The same
 check is the first row of `references/screenshot-review.md` § Hand-off check for a live URL.
 
+**DO re-check a preview in the same turn before every message that tells Simon to use it: the first
+hand-over and each repeat, after a session restart or compaction too.** The window, tab and local
+stack can stop between messages, so a claim from memory is unverified.
+**DO run all 3 checks first:** `list_pages` lists the tab at the preview URL; that URL and each server
+it calls (web and API) answer 2xx (`curl -s -o /dev/null -w '%{http_code}'`); a fresh `take_screenshot`
+shows the journey's start screen.
+**DON'T send a URL or an extra device link (tunnel, LAN, phone) in place of a failed check.** On any
+failure relaunch the test browser or restart the stack, reopen the tab, re-run the hand-over check
+above and the 3 checks, then send the message.
+TEST: each message pointing Simon at a preview follows a same-turn `list_pages` hit, a 2xx per server
+and a screenshot taken that turn; a repeat claim with none broke the rule (the fix for a re-asserted
+preview whose browser window and local stack had stopped after a session restart).
+
 **Setup:** launch the test browser as a SEPARATE instance with its OWN `--user-data-dir`, never your everyday profile:
 `~/.claude/bin/test-browser.sh launch [--port 9222] [--profile "$HOME/.chrome-<project>-debug"] [--size WxH] <url>`. It exits 0 when the port is open (reusing a Chrome for Testing already there), 5 when the port belongs to another browser (pick another `--port`), 4 when no build is cached (`npx playwright install chromium`). The dedicated profile is what makes the port open reliably: passing `--remote-debugging-port` while a Chrome is ALREADY running on that profile just hands the flag to the running instance (it owns the profile's singleton lock), which never opens the port — `DevToolsActivePort` is never written, nothing binds 9222, and the MCP fails with "Could not connect". So poll until `curl -s http://127.0.0.1:9222/json/version` succeeds before attaching. A dedicated profile starts logged OUT, so sign in ONCE in that window; it persists the session across runs. The MCP attaches to that instance. DO stop it at task end with `~/.claude/bin/test-browser.sh stop [--port N] [--profile DIR]`: it signals only the Chrome for Testing listening on that port (on that profile when given), waits for the port to close and exits 7 if it stays open; exit 0 means the port is free. DON'T hand-roll a `pkill`/`kill` on Chrome helpers: the listener is the main process and its exit takes every helper with it (the fix for a teardown that signalled a helper PID and left 24 processes and the port open).
 
