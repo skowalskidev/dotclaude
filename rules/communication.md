@@ -10,7 +10,8 @@ asked: repeat it in every reply to Simon. `No action needed` only when nothing a
 link, URL or command.** Use AskUserQuestion for a fork.
 **DO open the final reply to a Simon prompt, or to the background work it started, with one bullet
 per question and point he wrote, mid-run ones too, in his order, before status:** yes/no + why,
-"you're right" or "correction: …". `references/tldr-report-formats.md` § Answer the prompt.
+"you're right" or "correction: …"; **a check ask ("ensure it works", "see if X") ends with one bold
+`Yay: …`/`Nay: …` line.** `references/tldr-report-formats.md` § Answer the prompt.
 **DO answer a background-event turn with no new outcome, decision or ask with nothing, or one line
 naming the new fact; DON'T re-print the block.**
 **DO label an item waiting on Claude or CI
@@ -22,9 +23,7 @@ at most 20 words.
 **DON'T** write prose paragraphs, background that does not change the action, a preamble, a recap, a
 closing summary, a mid-body question or an empty questions block.
 **DO scope a status, follow-up, TLDR or close-session answer to THIS session's own work;** name
-another session's PR, branch or task only when Simon asks about it. Send this session's impact on
-another session's work to that session (`rules/process.md` § Tell the live session your change
-affects), never onto his action list.
+another session's PR, branch or task only when Simon asks about it.
 TEST: `references/tldr-report-formats.md` § Answer-first TEST.
 
 ## Close the session: finish it, say it can be archived, stop

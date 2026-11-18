@@ -79,6 +79,14 @@ Your call
 1. Say merge for PR #812
 ```
 
+**DO end the final reply to a check ask** ("ensure everything works", "see if X happened", "is it ok")
+**with one bold verdict line, at most 20 words: `**Yay, all good:** <evidence>` or `**Nay: <what is
+broken>.** <next step>`.** Keep the body above it TLDR: at most 3 one-line bullets. Put an unchecked
+scope inside the verdict ("Yay for web; iPhone not walked"), never as a hedge bullet that withholds it.
+TEST: the last line of a check ask's final reply starts with `**Yay` or `**Nay` (the fix for a
+post-merge check whose hand-back spread "yes for web", "not checked" and status over 4 bullets, so
+Simon had to ask "all good or not, yay or nay").
+
 **DON'T** end a long run on status alone, and DON'T re-answer an older prompt whose questions an
 earlier message already answered.
 Pre-send check: list every `?` and every "should we", "is it", "correct me" or "am I wrong" in the
@@ -333,6 +341,9 @@ on idle agent pings and monitor expiries).
 
 ## Moved from `rules/communication.md` § Answer first
 
+Send this session's impact on another session's work to that session (`rules/process.md` § Tell the
+live session your change affects), never onto Simon's action list.
+
 Things that wait on Simon: a test, a merge word, a decision, a login, a reply. Origin of the
 no-repeat TEST: 7 repeats of one block on idle notifications.
 
@@ -343,7 +354,7 @@ Two assistant messages with no Simon message between never carry the same block;
 retest", "your call", "after your") under `No action needed` fails; each pending ask is a numbered
 step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for someone else has at
 most 5 lines, line 1 an ask or verdict; each `?`, "should we" or "correct me" in the prompt is
-answered above any status. Every `Action needed` item, follow-up and status bullet traces to this
+answered above any status; a check ask's final reply ends with a `**Yay`/`**Nay` line. Every `Action needed` item, follow-up and status bullet traces to this
 session's own ledger or work, unless Simon asked about the other session (the fix for a session TLDR
 that listed two other sessions' PR conflicts as Simon's actions).
 
