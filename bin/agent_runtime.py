@@ -11,6 +11,7 @@ import shlex
 import stat
 import subprocess
 import sys
+import tomllib
 
 from agent_setup import check_models, require_provider
 import connector_registry
@@ -258,6 +259,51 @@ def executable():
     raise ValueError('Codex executable not found; install Codex or set AGENT_CODEX_BIN to its executable')
 
 
+FEATURE_KEY = re.compile(r'[A-Za-z0-9_-]+')
+
+
+def feature_value(table):
+    """A table-valued feature as one boolean: its `enabled` key when present, else any truthy flag."""
+    if 'enabled' in table:
+        return bool(table['enabled'])
+    return any(feature_value(value) if isinstance(value, dict) else bool(value) for value in table.values())
+
+
+def feature_overrides(binary, home, env):
+    """Boolean `-c features.<key>=` overrides for table-valued features the selected Codex rejects.
+
+    Another writer of ~/.codex/config.toml (the ChatGPT desktop app) may store a feature as a table,
+    e.g. `context_management = { experimental_mode = true }`. A Codex that reads features as booleans
+    then fails to load its config at all. The file is not ours to edit, so probe the selected binary
+    and, only when it rejects the table form, override each table-valued key for this launch. A newer
+    Codex that reads the table is left untouched. Never blocks a launch.
+    """
+    try:
+        features = tomllib.loads((home / 'config.toml').read_text()).get('features')
+    except (OSError, UnicodeDecodeError, tomllib.TOMLDecodeError):
+        return []
+    if not isinstance(features, dict):
+        return []
+    tables = {key: value for key, value in sorted(features.items())
+              if isinstance(value, dict) and FEATURE_KEY.fullmatch(key)}
+    if not tables:
+        return []
+    try:
+        probe = subprocess.run([binary, 'features', 'list'], env=env, capture_output=True, text=True,
+                               timeout=20, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    output = probe.stdout + probe.stderr
+    if probe.returncode == 0 or 'expected a boolean' not in output or 'features' not in output:
+        return []
+    result = []
+    for key, table in tables.items():
+        result += ['-c', 'features.' + key + '=' + toml(feature_value(table))]
+        print(f'agent setup: this Codex reads features.{key} as a boolean; passing {result[-1]} for this launch',
+              file=sys.stderr)
+    return result
+
+
 def codex_inference(args):
     """Keep metadata/auth tools usable from either host; guard model-capable launches."""
     options_with_value = {'--cd', '-C', '--model', '-m', '--config', '-c', '--profile', '-p',
@@ -358,6 +404,7 @@ def launch():
         # except for the active project's instruction exclusion.
         binary = executable()
         config += retired_overrides(cwd, home)
+        config += feature_overrides(binary, home, env)
         try:
             model_check_lines = check_models()
         except Exception as error:  # check_models must never block a launch

@@ -67,6 +67,11 @@ newest installed stable Codex under `CONDUCTOR_AGENT_BINARIES_DIR`, or the macOS
 `~/Library/Application Support/com.conductor.app/agent-binaries` when that variable is absent,
 before searching PATH. Non-executable files, prereleases and the launcher itself are skipped.
 TEST: `~/.claude/bin/codex-launch.py --version` reports the selected binary without changing authentication.
+DO leave `~/.codex/config.toml` to its writers (the ChatGPT desktop app writes it too). When it holds a
+table-valued feature (`context_management = { experimental_mode = true }`) that the selected Codex
+rejects with `invalid type: map, expected a boolean in features`, the launcher probes `features list`
+and passes `-c features.<key>=<bool>` for that launch only; a Codex that reads the table gets nothing.
+TEST: `codex-launch.py exec` runs on the PATH CLI and the Conductor bundle with the table left in place.
 
 Use `identity.local.json` and git origin to select project connectors, not model billing.
 Both work and personal projects use the same Codex subscription home. Service credentials stay

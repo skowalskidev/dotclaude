@@ -140,6 +140,7 @@ CONTRACTS: dict[str, dict] = {
             "Reject cross-provider Codex inference from Claude agents; preserve metadata/auth commands and propagate OpenAI provider identity to native child processes.",
             "Leave a headless `codex exec` that names no model on the native Codex config model with no injected default; leave an explicit caller model and the interactive TUI untouched.",
             "Resolve explicit binary overrides first, then installed stable Conductor binaries in descending version order, then PATH; skip non-executable files and the launcher itself.",
+            "When the selected Codex rejects a table-valued [features] key in ~/.codex/config.toml, pass a boolean -c features.<key>= override per launch (its `enabled` key, else any truthy flag); leave a Codex that reads the table untouched and never rewrite that file.",
         ],
     },
     "bin/agent_setup.py": {

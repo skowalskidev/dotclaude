@@ -831,6 +831,63 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(output['args'][-2:], ['app-server', '--stdio'])
         self.assertTrue(any(value.startswith('mcp_servers.') for value in output['args']))
 
+    def feature_codex(self, accepts_tables):
+        """A stub Codex that rejects (old CLI) or accepts (new CLI) a table-valued feature."""
+        binary = self.base / ('codex-new' if accepts_tables else 'codex-old')
+        failure = ('echo "Error: config.toml:3:22: invalid type: map, expected a boolean" >&2\n'
+                   'echo "    in \\`features\\`" >&2\nexit 1\n')
+        binary.write_text('#!/bin/sh\n' + ('exit 0\n' if accepts_tables else failure))
+        binary.chmod(0o700)
+        return str(binary)
+
+    def write_codex_config(self, text):
+        home = self.home / '.codex'
+        home.mkdir(parents=True, exist_ok=True)
+        (home / 'config.toml').write_text(text)
+        return home
+
+    def test_table_valued_features_get_boolean_overrides_only_where_codex_rejects_them(self):
+        # The fix for `codex exec` failing on "invalid type: map, expected a boolean in features" after
+        # the ChatGPT desktop app wrote `context_management = { experimental_mode = true }`.
+        home = self.write_codex_config(
+            'model = "fixture"\n[features]\njs_repl = false\n'
+            'context_management = { experimental_mode = true }\n'
+            'paused = { enabled = false, experimental_mode = true }\nempty = {}\n'
+            'nested = { mode = { on = true } }\n')
+        original = (home / 'config.toml').read_bytes()
+        with contextlib.redirect_stderr(io.StringIO()) as errors:
+            old = runtime.feature_overrides(self.feature_codex(False), home, dict(os.environ))
+        self.assertEqual(old, ['-c', 'features.context_management=true', '-c', 'features.empty=false',
+                               '-c', 'features.nested=true', '-c', 'features.paused=false'])
+        self.assertTrue(all(tomllib.loads(value) for value in old[1::2]))
+        self.assertIn('features.context_management', errors.getvalue())
+        self.assertEqual(runtime.feature_overrides(self.feature_codex(True), home, dict(os.environ)), [])
+        self.assertEqual((home / 'config.toml').read_bytes(), original, 'never rewrite the Codex config')
+
+    def test_feature_overrides_skip_the_probe_without_table_values_and_never_block(self):
+        missing = str(self.base / 'no-such-codex')
+        home = self.write_codex_config('[features]\njs_repl = false\n')
+        self.assertEqual(runtime.feature_overrides(missing, home, dict(os.environ)), [])
+        home = self.write_codex_config('[features]\nx = { on = true }\n')
+        self.assertEqual(runtime.feature_overrides(missing, home, dict(os.environ)), [])
+        home = self.write_codex_config('not = [valid toml')
+        self.assertEqual(runtime.feature_overrides(self.feature_codex(False), home, dict(os.environ)), [])
+
+    def test_launch_passes_the_feature_override_to_a_codex_that_rejects_tables(self):
+        self.save_auth({'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}})
+        self.write_codex_config('[features]\ncontext_management = { experimental_mode = true }\n')
+        binary = self.feature_codex(False)
+        with patch.object(runtime.sys, 'argv', ['codex-launch.py', 'exec', 'do a task']), \
+             patch.object(runtime.os, 'getcwd', return_value=str(self.cwd)), \
+             patch.object(runtime.os, 'chdir'), \
+             patch.object(runtime.os, 'execve') as execute, \
+             patch.object(runtime, 'executable', return_value=binary), \
+             contextlib.redirect_stderr(io.StringIO()):
+            runtime.launch()
+        argv = execute.call_args.args[1]
+        self.assertIn('features.context_management=true', argv)
+        self.assertLess(argv.index('features.context_management=true'), argv.index('exec'))
+
     def test_launcher_relative_cd_is_not_applied_twice(self):
         self.save_auth({'auth_mode': 'chatgpt', 'tokens': {'access_token': 'fixture-only'}})
         with patch.object(runtime.sys, 'argv', ['codex-launch.py', '-C', 'workspace', 'exec']), \
