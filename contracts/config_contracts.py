@@ -2702,7 +2702,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Resolves the highest chromium-<n> build at run time; no versioned path is hard-coded.",
             "Never adopts a port held by another browser: exits 5 when the listener is not Chrome for Testing, and exits 4 with the install command when no build is cached.",
-            "Reuses a Chrome for Testing already on the port instead of starting a second one.",
+            "Reuses a Chrome for Testing already on the port instead of starting a second one, only when no --profile is given or the listener runs that profile; an explicit --profile on a port owned by another profile exits 5 without reusing it.",
             "stop signals only the Chrome for Testing listening on the port (and on --profile when given), exits 5 without signalling anything else, waits for the port to close and exits 7 if it stays open.",
         ],
     },
