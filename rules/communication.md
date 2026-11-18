@@ -25,7 +25,7 @@ TEST: two assistant messages with no Simon message between never carry the same 
 ("say merge", "your retest", "your call", "after your") under `No action needed` fails; each pending
 ask is a numbered step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for
 someone else has at most 5 lines, line 1 an ask or verdict; each `?`, "should we" or "correct
-me" in the prompt has an answer bullet above any status.
+me" in the prompt is answered above any status.
 
 ## Close the session: finish it, say it can be archived, stop
 
