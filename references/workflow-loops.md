@@ -362,12 +362,13 @@ a flat image is measured in pixels at its 1x scale and its rows are marked `from
 TEST: every element the board adds has a row, every row cell holds a number or a string, and each
 builder and judge brief names the spec's path.
 
-DO list four kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
+DO list five kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
 a board value that equals no token on the project's scale; a board value a project gate rejects (run
 the gate list in `references/testing-strategy.md` § Defects first on the untouched branch to learn
 which); a board element that contradicts a kept component (`design shows X, app has Y`); a font family
 or image asset the source uses that the product does not ship (compare the source's font families and
-image files with the product's design system and assets). Default for
+image files with the product's design system and assets); a board element that depicts another
+product's own UI (next paragraph). Default for
 the first two: keep the board's value, carried the way the gate accepts (a token added for it, or the
 gate's own exception syntax). A nearest token needs Simon's answer; the row then carries the agreed
 value and its delta from the board (e.g. a 14 px board radius on the 12 px token reads `12 px, -2,
@@ -376,6 +377,18 @@ the board's section. Record the fourth as an exception before the first pixel lo
 Frames check maps the areas it changes to that exception. TEST: the spec lists the source's and the
 product's font families side by side before the first capture (the fix for rounds spent on a
 whole-frame threshold a mockup's different font family made unreachable).
+
+DO split a source copied from another product into two layers at intake. The frame (layout, pacing,
+step count, copy structure, visual style) follows the source. Every element that depicts that product
+itself (a control, a screen, a menu, a result card, the target a coach mark lights) is a
+`depicts product` spec row naming the part of our app that does the same job, built as that real
+component rendered inert with sample data, its box in the board's slot and its pixels our component's.
+Record each such row as an exception before the first pixel loop. A source part our app has no
+counterpart for is an open decision in the question block, with the real part you recommend.
+DON'T redraw a source control, label or card because the board draws it: a judge comparing against
+the source passes the copy. TEST: every `depicts product` row names a component file in the repo that
+the build renders, and the build holds zero controls, labels or cards the product does not ship (the
+fix for a recreated competitor tour whose coach marks lit a Search button the app does not have).
 
 DO write an agreed deviation as a list of existing elements by id, each with what stays and who
 agreed. It never covers an element the board adds, nor the gap between a new element and a kept one:
@@ -439,11 +452,12 @@ data:
   the product's font family is an agreed exception).
 
 DO loop fix, re-render, re-measure until the gate passes. Accept a remaining delta only as a recorded
-exception with one of four causes: data the product cannot supply, a project gate or design-system
-ban, an asset that does not exist, or a value Simon agreed (above). Each names its spec id, cause and
-evidence (the missing field, the gate output, the asset search). DON'T accept any other cause: "close
+exception with one of five causes: data the product cannot supply, a project gate or design-system
+ban, an asset that does not exist, a `depicts product` row drawn by our component, or a value Simon
+agreed (above). Each names its spec id, cause and evidence (the missing field, the gate output, the
+asset search, the component file). DON'T accept any other cause: "close
 enough", "kept the current look", other sample data, or a stand-in for an asset the project has.
-TEST: every non-zero delta in the report is fixed or an exception with one of the four causes and its
+TEST: every non-zero delta in the report is fixed or an exception with one of the five causes and its
 evidence (the fix for a card built from a supplied mockup that shipped with an extra line per row and a
 missing column header, after an eye comparison against captures holding other data).
 
@@ -473,7 +487,8 @@ gate, so it runs with `--judge off` too. Its brief holds the spec, target images
 region crops, frame difference images and recorded exceptions, and no builder narrative. It opens
 every region crop and difference image at full size, re-runs the measure command, and returns one row
 per difference: spec id, board value, built value. A finding with no spec id or no number is sent back,
-never recorded. Any judge, section verdict or visual hand-off pass table records a design-built section
+never recorded. It checks each `depicts product` row against our named component, never the source's
+pixels. Any judge, section verdict or visual hand-off pass table records a design-built section
 failed while its report is not PASS.
 
 DO audit the whole screen in the same turn when anyone reports one design difference on it. Check
