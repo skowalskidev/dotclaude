@@ -90,6 +90,13 @@ from an absolute path (the fix for a base worktree created under `site/web/.cont
 that silently did nothing, two commands after a test run that ended in `site/web`).
 TEST: no tool command's last `cd` leaves the session in a subdirectory; every path in the next command
 is absolute or anchored by its own leading `cd`.
+**DO undo a temporary edit (a debug line, a mutation check) by copying the file aside before the edit
+and copying it back, or by reversing that exact edit.** **DON'T run `git checkout [--] <path>` or `git
+restore <path>` on a path holding uncommitted work:** it discards every uncommitted change in the path,
+not only the temporary one (the fix for a checkout that dropped one debug line and three unsaved test
+edits with it).
+TEST: every checkout or restore of a path follows a passing `git diff --quiet HEAD -- <path>` or a copy
+of that path taken this command.
 **DON'T put `;` after a `cd` or after any step a later step depends on.** When the `cd` fails, the steps
 after `;` run in whatever directory the shell was already in (the fix for a `git merge --ff-only` that
 ran in another checkout and moved its local main after `cd <missing-dir> && …; git merge …`).
