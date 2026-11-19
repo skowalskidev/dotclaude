@@ -14,6 +14,9 @@ then the deployment TLDR, before any template sections.
 
 - Heading: `## 🚀 Deploy TLDR`, as the first content after `## TLDR`.
 - Human-readable numbered steps in the imperative mood.
+- **DO open it with the app build line, above step 1, in a repo that ships a native app:** rule and
+  shape in `~/.claude/references/git-pr-deploy.md` § Deploy safety check 4. The chat hand-back
+  repeats it.
 - **Only what to DO.** Never what not to do — no warnings or prohibitions in this block. If a
   hazard genuinely must be recorded, it goes in Dev Notes, not the TLDR.
 - **DO give every step that changes production four parts:** its order number, a `Check:` line

@@ -447,6 +447,7 @@ CONTRACTS: dict[str, dict] = {
             "On a deep-tier PR, fail a Value safety section lacking any of Happy path, Failure re-enacted, Wrong recipient, Incident replay (N/N or reasoned N/A), Provider lifecycle and Residual risk lines; unless the Provider lifecycle line is a reasoned does-not-apply with no counts, fail a missing ### Provider lifecycle table, fewer than PROVIDER_CASES rows, a row with no doc link or no SAFE, GAP or N/A in its Verdict column, and any GAP row.",
             "Check a posted Part verdicts section: fail one with no table, a header lacking Verdict, Mainstream or Regression or two judge columns, or a row with no link; an absent section passes, so older bodies need no migration; a Light PR's section is never checked.",
             "On a Light PR (its Test matrix names the light tier) accept a reasoned 'Installed builds: not reached, <why>' line alone, with no version table or waits-for line; a Standard or Deep PR keeps every installed-build line.",
+            "In a repo with a top-level ios/ or android/ directory, fail every PR, native-only and web-only ones included, whose Deploy TLDR section holds no 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line with a reason of at least three words on the same line.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -573,6 +574,7 @@ CONTRACTS: dict[str, dict] = {
             "not restate them.",
             "A reply that proposes or recommends a visible change shows it as a before/after screenshot in that same reply, unprompted; the fast method lives in work-ask-reply-in-full-before-after-artifact.",
             "When Simon names a thing with a loose term, the first reply of the work states the industry-standard term once with one primary source, before any artifact is named; the method lives in references/code-best-practices.md.",
+            "Each merge or deploy ask in a native-app repo carries its app build line; the rule, shape and TEST live in references/tldr-report-formats.md § App build line.",
         ],
     },
     "rules/config-repo.md": {
@@ -909,6 +911,7 @@ CONTRACTS: dict[str, dict] = {
             "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
             "Before changing an external value shipped clients read, grep the clients for hard-coded checks; on a hit, a release accepting the new value, or a new key keeping the old live, ships first.",
             "Owns installed app builds: at every tier, each app version still in use is a client until the new one runs on 50% of active installs; changes stay additive and gated on the new client's signal, deploy backend first, and the PR records versions, old-build PASS lines and waits-for list.",
+            "Every PR in a native-app repo puts 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' above step 1 of its Deploy TLDR, consistent with its waits-for line, and points to tldr-report-formats.md § App build line for the hand-back copy.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
             "Every CI wait after a push runs bin/pr-ci-wait.py with --require naming a required job that starts at push time, and acts on its exit code: 3 merges the base in and pushes, never a rerun, cancel or empty commit.",
@@ -1153,6 +1156,7 @@ CONTRACTS: dict[str, dict] = {
             "25 words, no prose.",
             "Every chat hand-back of a PR or finished change prints the same table unprompted, straight "
             "after line 1, matching the PR's TLDR.",
+            "§ App build line: in a repo that ships a native app, every hand-back naming a PR or change to merge or deploy states per PR, in the action line or its numbered step, 'No app build needed: <why>' or 'Needs an app build: <which parts wait>', copied from that PR's Deploy TLDR; rules/communication.md carries only the pointer.",
             "Owns the Part verdicts table: per part its verdict and deciding fact, mainstream practice with a primary-source link, regression evidence and one judge column per provider; hand-back and PR body carry it on every Standard or Deep build, adopt or rebuild, and a Light one posts none.",
         ],
     },
@@ -1687,6 +1691,7 @@ CONTRACTS: dict[str, dict] = {
             "Name bin/pr-landing-gate.py as the one home of the body's section headings and run it on the fetched PR.",
             "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero collapsed <details>: every <details> carries open, as GitHub's own attached-video wrapper does.",
             "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
+            "In a repo that ships a native app, the Deploy TLDR opens with the app build line above step 1, pointing to references/git-pr-deploy.md § Deploy safety check 4 for its rule and shape.",
             "A User journey and a System journey section follow it, read from "
             "references/tldr-report-formats.md, so a reviewer can judge both the feature and the "
             "mechanism without reading the diff. Same blocks as end-report, so a PR and the report "
