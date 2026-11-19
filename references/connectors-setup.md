@@ -171,6 +171,17 @@ Fields:
 - `boundary` — filled in from the root; the guard enforces it. Omit it in a route.
 - `readOnly` — true = must not mutate (e.g. prod read). `gated` — writes require explicit per-write ok.
 - `enabledOnDemand` — NOT provisioned by default; only enabled when required (e.g. a prod-write pathway).
+- `quietWindow` — `{ "minutes": [start, end], "reason", "projects"?, "tools"? }`: minutes of every hour,
+  UTC, both ends inclusive (`[55, 5]` wraps), when the route must not be used, e.g. a project's own
+  monitor sweeps then and shares the provider's rate limit, so a 429 would blind it. Inside it
+  `connector_registry.py run` exits 75 naming the resume minute before any key is read (`--wait`
+  sleeps it out, then runs), a vault-pointer run also honours its `via` reader's window, and
+  `hooks/work-resource-guard.sh` denies the route's MCP tools (reads included) through `guard-facts`.
+  `projects` limits it to sessions in those projects (a shared token route); `tools` to those MCP
+  tools. `resolve` prints the window on the route's line. No window, no change. Dry check:
+  `CLAUDE_QUIET_NOW=2026-11-20T21:25:00Z connector_registry.py quiet-check mcp__<name>__<tool>` exits 75.
+  DON'T route around a window (a raw `curl` with the key file, another route to the same project):
+  wait for the minute it names.
 - `ephemeral` — torn down after use (materialized key removed).
 - `mcp` — for `mcp-*` kinds, the canonical transport object (stdio: command/args/env;
   http: type+url). `~` in `env` values and `args` is expanded to `$HOME` at provision time.
@@ -197,7 +208,7 @@ Each `kind` implements the same five behaviors:
 1. **provision** — make it available (Claude mcp-*: `claude mcp add-json -s local`; Codex: native launch-time projection; api/cli/env/claude-connector/codex-app: no-op).
 2. **readiness** — is it usable now? (mcp-*: registered + not needs-auth; cli: logged-in profile; api/env: key/secret present; claude-connector: `account` — loaded from claude.ai settings for the signed-in account; codex-app: present in the Codex apps cache).
 3. **auth-steps** — the numbered fix (from `auth.steps`), which is also how the key gets created.
-4. **boundary-guard** — deny in the wrong boundary; deny writes when `readOnly`/`gated` (handled data-driven in the guard).
+4. **boundary-guard** — deny in the wrong boundary; deny writes when `readOnly`/`gated`, and every tool inside a `quietWindow` (handled data-driven in the guard).
 5. **secret-location** — where the key lives (for `permissions.deny` + the readiness check).
 
 To add a NEW kind: add its case to the `provision`/`readiness` switch in `bin/connectors-provision.sh`

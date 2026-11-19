@@ -2548,7 +2548,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "hooks/work-resource-guard.sh": {
         "mission": "Work and personal service credentials never cross, model-API keys included; inference stays on the shared subscription and the pal MCP is the only API route.",
-        "purpose": "Enforces the work/personal boundary on Bash and MCP tools.",
+        "purpose": "Enforces the work/personal boundary on Bash and MCP tools, and each MCP route's registry policy (write gates, quiet windows).",
         "criteria": [
             "Allow the shared Codex subscription in either project boundary. Allow the pal MCP only when one boundary declares pal and it is the repo's own; deny it when undeclared, in both roots, jq is missing or a record is unreadable. Deny every shell call to a model-API host in every repo.",
             "Data-driven from the connector registry through bin/connector_registry.py, not hard-coded; the loader runs only for MCP tools and bare CLI profile checks.",
@@ -2564,6 +2564,9 @@ CONTRACTS: dict[str, dict] = {
             "unpinned, not just when the wrong profile is named explicitly.",
             "Reads shared-account routes too, so a shared route's boundary is enforced "
             "exactly like a project route's, and never leaks a secret value.",
+            "Denies every tool (reads included) of an MCP route inside its registry quietWindow, naming the window, its "
+            "reason and the UTC minute to resume, from guard-facts --tool; outside the window, for an unlisted tool or "
+            "for a route with no window the decision is unchanged.",
         ],
     },
     # --- Git hooks -----------------------------------------------------------------
@@ -2601,6 +2604,10 @@ CONTRACTS: dict[str, dict] = {
             "Resolve prints each route's key location (secret.path and secret.var names, text and --json) and never reads or prints a value; secret.var accepts identifiers only.",
             "A route secret is local {path, var} or a vault pointer {store, via, project, name, env}; resolve ranks local before vault unless storeOrder flips it, and blocks a pointer whose via route is undeclared.",
             "run hands a local or vault key only to the child process's environment; errors carry the status, never the token or the value.",
+            "A route's optional quietWindow (minutes of the hour, UTC, both ends inclusive, wrapping allowed, never the whole "
+            "hour; optional projects and tools filters) makes run exit 75 inside it before any key is read, naming the resume "
+            "minute, or with --wait sleep until every window (its own and a vault pointer's reader's) has ended and then run; "
+            "guard-facts --tool and quiet-check report it for an MCP tool; CLAUDE_QUIET_NOW stands in for now. No window, no change.",
             "validate DIR exits 1 unless this engine reads every file of a candidate root, so a record shape is staged and checked by the live engine before it reaches a live root.",
             "Migration keeps every legacy project and connector field reachable; check-migration fails on any missing value.",
             "Python 3.9 standard library only, so the /usr/bin/python3 guard can import nothing else.",

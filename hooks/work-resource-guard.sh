@@ -70,11 +70,11 @@ is_cmd() {
 # (connectorRoots), so the guard has no parser of its own and no blind spot for a shared route.
 # It runs only when a rule below needs it (an MCP tool, a bare stripe), never on every Bash call.
 REGISTRY="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/bin/connector_registry.py"
-FACTS=""; FACTS_FOR=""
-guard_facts() { # $1=server -> JSON {boundaries, readOnly, gated} for this repo (cached per call)
+FACTS=""; FACTS_FOR=""; FACTS_TOOL=""
+guard_facts() { # $1=server -> JSON {boundaries, readOnly, gated, quiet} for this repo (cached per call)
   [ "$FACTS_FOR" = "$1" ] && { printf '%s' "$FACTS"; return 0; }
   FACTS_FOR="$1"
-  FACTS="$(CLAUDE_IDENTITY_FILE="$ID_FILE" "$PY" "$REGISTRY" guard-facts "$1" --cwd "$dir" 2>/dev/null || true)"
+  FACTS="$(CLAUDE_IDENTITY_FILE="$ID_FILE" "$PY" "$REGISTRY" guard-facts "$1" ${FACTS_TOOL:+--tool "$FACTS_TOOL"} --cwd "$dir" 2>/dev/null || true)"
   printf '%s' "$FACTS"
 }
 # A connector NAME can appear under more than one boundary (e.g. `firebase` is work for one project AND
@@ -88,6 +88,10 @@ connector_field() { # $1=server $2=readOnly|gated, this repo's route first, else
   command -v jq >/dev/null 2>&1 || return 0
   guard_facts "$1" | jq -r --arg k "$2" '.[$k] // empty' 2>/dev/null
 }
+connector_quiet() { # $1=server -> the deny message while this tool's route is in its quietWindow
+  command -v jq >/dev/null 2>&1 || return 0
+  guard_facts "$1" | jq -r '.quiet // empty' 2>/dev/null
+}
 connector_cli_profile() { # $1=CLI name -> the profile THIS project pins for it (empty if none declared)
   CLAUDE_IDENTITY_FILE="$ID_FILE" "$PY" "$REGISTRY" cli-profile "$1" --cwd "$dir" 2>/dev/null || true
 }
@@ -100,7 +104,7 @@ MODEL_KEY_SERVERS="pal"
 # --- all other MCP tools: data-driven work/personal isolation + prod read-only/gated write-guard ---
 case "$tool" in
   mcp__*)
-    _rest="${tool#mcp__}"; _server="${_rest%%__*}"; _mtool="${_rest#*__}"
+    _rest="${tool#mcp__}"; _server="${_rest%%__*}"; _mtool="${_rest#*__}"; FACTS_TOOL="$_mtool"
     _cur=personal; [ "$is_work" -eq 1 ] && _cur=work
     _bs="$(connector_boundaries "$_server")"
     case " $MODEL_KEY_SERVERS " in
@@ -111,6 +115,10 @@ case "$tool" in
     if [ -n "$_bs" ] && ! printf '%s\n' "$_bs" | grep -qxF "$_cur"; then
       deny "Blocked by work/personal isolation: MCP server '$_server' is not a $_cur connector (it belongs to: $(printf '%s' "$_bs" | tr '\n' ' ')). Work and personal resources must not cross."
     fi
+    # A route's quietWindow (minutes of the hour when the project's own monitor shares the provider's
+    # rate limit) denies every read and write of its MCP tools; bin/connector_registry.py owns the window.
+    _quiet="$(connector_quiet "$_server")"
+    [ -n "$_quiet" ] && deny "Blocked by quiet window: $_quiet"
     case "$_mtool" in
       *delete*|*set_*|*_set|*update*|*create*|*write*|*remove*|*send*)
         if [ "$(connector_field "$_server" readOnly)" = "true" ]; then

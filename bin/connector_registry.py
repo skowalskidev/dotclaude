@@ -14,6 +14,13 @@ A route is a connector record (the fields references/connectors-setup.md documen
 optional `capabilities`, `scope` (shared-account | per-project), `serves` (projects it is known to
 serve) and optional `requires` ({"claudeAccount": <email or identity-overlay key>}).
 
+A route's optional `quietWindow` ({"minutes": [start, end], "reason", "projects"?, "tools"?}) names
+minutes of every hour, UTC, both inclusive, when the route must not be used: e.g. a project's own
+monitor sweeps then and shares the provider's rate limit. `run` refuses with exit 75 inside it (or
+sleeps it out with --wait), and hooks/work-resource-guard.sh denies the route's MCP tools through
+`guard-facts`. `projects` limits it to sessions in those projects; `tools` to those MCP tools.
+No window, no change.
+
 A route's `secret` is hybrid: `store: local` (the default) names a key file and variable names,
 `store: vault` names a Supabase Vault secret, the local-key route that reads it (`via`), the
 project and the variable the consumer expects. A provider's `storeOrder` ranks the two (local
@@ -30,7 +37,10 @@ Usage:
   connector_registry.py cli-profile CLI [--cwd DIR]   the profile this project pins for a CLI
   connector_registry.py resolve CAPABILITY [--cwd DIR] [--claude-account EMAIL] [--json]
   connector_registry.py record PROVIDER ROUTE ok|fail [--reason TEXT] [--by WHO] [--cwd DIR]
-  connector_registry.py run PROVIDER ROUTE [--cwd DIR] -- CMD...   CMD with the route's key in its env
+  connector_registry.py run PROVIDER ROUTE [--cwd DIR] [--wait] -- CMD...   CMD with the route's key in its env;
+                                                      exit 75 inside the route's quietWindow (--wait sleeps it out)
+  connector_registry.py quiet-check MCP_TOOL [--cwd DIR]   exit 75 naming the resume minute while the MCP
+                                                      tool's route is in its quietWindow, else exit 0
   connector_registry.py list [--json]                 every provider, capability and route, per root
   connector_registry.py validate DIR                   exit 1 unless THIS engine reads every file in a candidate root
   connector_registry.py migrate --from DIR [--write] [--provider-map JSON]
@@ -45,6 +55,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -60,6 +71,9 @@ VAR_NAME = re.compile(r'^[A-Za-z_][A-Za-z0-9_]*$')  # a secret.var entry is a va
 STORES = ('local', 'vault')  # where a route's key lives: a local key file, or a Supabase Vault pointer
 VIA = re.compile(r'^[A-Za-z0-9_.-]+/[A-Za-z0-9_.@-]+$')  # provider/route of the route that reads the vault
 VAULT_API = os.environ.get('CLAUDE_VAULT_API', 'https://api.supabase.com/v1/projects/')
+QUIET_NOW_ENV = 'CLAUDE_QUIET_NOW'  # an ISO time standing in for now: tests and dry checks of a window
+QUIET_EXIT = 75  # EX_TEMPFAIL: retry later, the same code bin/local-capacity.py uses for "wait and resume"
+QUIET_KEYS = ('minutes', 'reason', 'projects', 'tools', '_comment')
 
 
 class RegistryError(ValueError):
@@ -175,6 +189,7 @@ def validate_provider(record, boundary, file):
         if scope == 'per-project' and not route.get('serves'):
             raise RegistryError('per-project route ' + route['id'] + ' must list the projects it serves')
         validate_secret(route)
+        validate_quiet_window(route)
     order = record.get('storeOrder', list(STORES))
     if not isinstance(order, list) or sorted(order) != sorted(STORES):
         raise RegistryError('storeOrder must list ' + ' and '.join(STORES) + ' once each')
@@ -208,6 +223,33 @@ def validate_secret(route):
     names = [names] if isinstance(names, str) else names
     if not isinstance(names, list) or not all(isinstance(n, str) and VAR_NAME.match(n) for n in names):
         raise RegistryError(where + '.var must be variable names, never a value')
+
+
+def validate_quiet_window(route):
+    """`quietWindow` is {minutes: [start, end] (0-59, UTC, both inclusive; end < start wraps the hour),
+    reason?, projects?, tools?}; it never covers the whole hour."""
+    if 'quietWindow' not in route:
+        return
+    window = route['quietWindow']
+    where = 'route ' + route['id'] + ' quietWindow'
+    if not isinstance(window, dict):
+        raise RegistryError(where + ' must be an object')
+    unknown = sorted(set(window) - set(QUIET_KEYS))
+    if unknown:
+        raise RegistryError(where + ' has unknown keys: ' + ', '.join(unknown))
+    minutes = window.get('minutes')
+    if (not isinstance(minutes, list) or len(minutes) != 2
+            or not all(type(m) is int and 0 <= m <= 59 for m in minutes)):
+        raise RegistryError(where + '.minutes must be [start, end]: minutes of the hour 0-59, UTC, both inclusive')
+    if (minutes[1] + 1) % 60 == minutes[0]:
+        raise RegistryError(where + ' covers the whole hour, so the route could never run')
+    if not isinstance(window.get('reason', ''), str):
+        raise RegistryError(where + '.reason must be text')
+    for key in ('projects', 'tools'):
+        values = window.get(key)
+        if values is not None and not (isinstance(values, list) and values
+                                       and all(isinstance(v, str) and v.strip() for v in values)):
+            raise RegistryError(where + '.' + key + ' must be a non-empty list of names')
 
 
 def as_list(value):
@@ -404,10 +446,14 @@ def name_boundaries(name, roots=None):
                    if route['name'] == name})
 
 
-def guard_facts(name, cwd, remote=None, roots=None, identity=None):
-    """What the boundary guard needs for one connector name: boundaries + this repo's write policy."""
+def guard_facts(name, cwd, remote=None, roots=None, identity=None, tool=None, at=None):
+    """What the boundary guard needs for one connector name: boundaries + this repo's write policy,
+    plus `quiet`, the deny message while TOOL (mcp__<name>__<tool>) is inside its route's quietWindow."""
     roots = load_all() if roots is None else roots
-    facts = {'boundaries': name_boundaries(name, roots), 'readOnly': None, 'gated': None}
+    facts = {'boundaries': name_boundaries(name, roots), 'readOnly': None, 'gated': None, 'quiet': ''}
+    if tool:
+        facts['quiet'] = mcp_quiet('mcp__' + name + '__' + tool, cwd, remote=remote, roots=roots,
+                                   identity=identity, at=at)
     try:
         _, manifest, boundary = select(cwd, remote=remote, identity=identity, roots=roots, strict=False)
     except RegistryError:
@@ -527,7 +573,7 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
                 'state': state, 'blocker': blocker, 'readOnly': route.get('readOnly'),
                 'gated': route.get('gated'), 'lastSuccess': entry.get('lastSuccess'),
                 'lastFailure': entry.get('lastFailure'), 'recipe': route.get('recipe'),
-                'secret': secret,
+                'secret': secret, 'quietWindow': route.get('quietWindow'),
                 'root': str(root['path']),
                 '_key': (bool(blocker), state == 'open', not serves_here, route['_store'],
                          0 if state == 'ok' else 1, route['_order'],
@@ -538,6 +584,113 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
         item['rank'] = rank
         del item['_key']
     return out, boundary, project
+
+
+# ---------------------------------------------------------------------------- quiet windows
+
+class QuietWindow(RegistryError):
+    """A route's quietWindow is in effect; `resume` is the UTC time it ends."""
+
+    def __init__(self, message, resume):
+        super().__init__(message)
+        self.resume = resume
+
+
+def quiet_now():
+    """Now, UTC, or the CLAUDE_QUIET_NOW stand-in (tests and dry checks)."""
+    raw = os.environ.get(QUIET_NOW_ENV, '').strip()
+    if raw:
+        stamp = parse_time(raw)
+        if stamp is None:
+            raise RegistryError(QUIET_NOW_ENV + ' must be an ISO time, e.g. 2026-11-20T21:25:00Z')
+        return stamp.astimezone(datetime.timezone.utc)
+    return now_utc()
+
+
+def window_label(window):
+    start, end = window['minutes']
+    return ':%02d-:%02d UTC' % (start, end)
+
+
+def quiet_resume(window, at, project=None, tool=None):
+    """The UTC time WINDOW ends when AT falls inside it and it applies to PROJECT and TOOL, else None."""
+    if not window:
+        return None
+    if window.get('projects') and project not in window['projects']:
+        return None
+    if tool is not None and window.get('tools') and tool not in window['tools']:
+        return None
+    start, end = window['minutes']
+    minute = at.minute
+    inside = start <= minute <= end if start <= end else (minute >= start or minute <= end)
+    if not inside:
+        return None
+    ahead = (end - minute) % 60 + 1
+    return at.replace(second=0, microsecond=0) + datetime.timedelta(minutes=ahead)
+
+
+def quiet_message(label, window, resume, at, hint='connector_registry.py run --wait sleeps it out.'):
+    wait = max(1, int(round((resume - at).total_seconds() / 60.0)))
+    reason = window.get('reason') or 'declared in the connector registry'
+    return ('%s is in its quiet window %s (%s). Wait until :%02d UTC (about %d min), then run it; '
+            'nothing ran. %s' % (label, window_label(window), reason, resume.minute, wait, hint))
+
+
+def route_windows(root, route):
+    """[(label, window)] a run of ROUTE honours: its own and, for a vault pointer, its reader's."""
+    out = [(route.get('_label') or route['id'], route.get('quietWindow'))]
+    secret = secret_location(route)
+    if secret and secret['store'] == 'vault':
+        reader = vault_reader(root, secret)
+        if reader is not None:
+            out.append((secret['via'] + ' (its vault reader)', reader.get('quietWindow')))
+    return [(label, window) for label, window in out if window]
+
+
+def quiet_block(windows, at, project=None):
+    """(message, resume) for the first window in effect at AT, else None."""
+    for label, window in windows:
+        resume = quiet_resume(window, at, project)
+        if resume is not None:
+            return quiet_message(label, window, resume, at), resume
+    return None
+
+
+def quiet_wait_until(windows, at, project=None):
+    """The time every window has ended, following back-to-back windows on a virtual clock."""
+    for _ in range(len(windows) + 1):
+        hit = quiet_block(windows, at, project)
+        if hit is None:
+            return at
+        at = hit[1]
+    return at
+
+
+def mcp_quiet(tool_name, cwd, remote=None, roots=None, identity=None, at=None):
+    """The deny message for an mcp__<server>__<tool> call while its route's window is in effect, else ''.
+
+    The route is this project's connector named <server>, else a same-boundary route of that name
+    (as guard_facts finds the write policy)."""
+    if not tool_name.startswith('mcp__') or '__' not in tool_name[5:]:
+        return ''
+    server, tool = tool_name[5:].split('__', 1)
+    roots = load_all(identity) if roots is None else roots
+    try:
+        _, manifest, boundary = select(cwd, remote=remote, identity=identity, roots=roots, strict=False)
+    except RegistryError:
+        return ''
+    project = manifest.get('project')
+    record = next((item for item in manifest.get('connectors', []) if item['name'] == server), None)
+    if record is None:
+        record = next((connector_view(route) for root in roots if root['boundary'] == boundary
+                       for route in flat_routes(root) if route['name'] == server), None)
+    window = (record or {}).get('quietWindow')
+    at = at or quiet_now()
+    resume = quiet_resume(window, at, project, tool)
+    if resume is None:
+        return ''
+    return quiet_message(tool_name + ' (route ' + record['provider'] + '/' + record['route'] + ')',
+                         window, resume, at, hint='Do other work meanwhile; never reach the same data another way.')
 
 
 # ---------------------------------------------------------------------------- key loading (run)
@@ -603,13 +756,15 @@ def read_vault(secret, token, opener=None):
     return {env: found[name] for name, env in pairs}
 
 
-def route_env(provider, route_id, cwd, remote=None, identity=None, opener=None):
-    """{variable: value} a route's consumer needs, from its key file or its vault pointer."""
+def locate(provider, route_id, cwd, remote=None, identity=None):
+    """(root, route record, session project) of PROVIDER/ROUTE_ID in the session boundary for CWD."""
     identity = read_identity() if identity is None else identity
     roots = load_all(identity)
     remote = origin(cwd) if remote is None else remote
+    project = None
     try:
-        _, _, boundary = select(cwd, remote=remote, identity=identity, roots=roots, strict=False)
+        _, manifest, boundary = select(cwd, remote=remote, identity=identity, roots=roots, strict=False)
+        project = manifest.get('project')
     except RegistryError:
         boundary = session_boundary(remote, identity)
     root = next((item for item in roots if item['boundary'] == boundary and provider in item['providers']), None)
@@ -619,6 +774,12 @@ def route_env(provider, route_id, cwd, remote=None, identity=None, opener=None):
     if route is None:
         raise RegistryError('provider ' + provider + ' has no route ' + route_id + ' in the ' + boundary +
                             ' boundary resolved from ' + str(cwd) + '; run from the project checkout or pass --cwd')
+    return root, {**route, '_label': provider + '/' + route_id}, project
+
+
+def route_env(provider, route_id, cwd, remote=None, identity=None, opener=None, located=None):
+    """{variable: value} a route's consumer needs, from its key file or its vault pointer."""
+    root, route, _ = located or locate(provider, route_id, cwd, remote=remote, identity=identity)
     secret = secret_location(route)
     if secret is None:
         raise RegistryError('route ' + provider + '/' + route_id + ' declares no key')
@@ -635,11 +796,26 @@ def route_env(provider, route_id, cwd, remote=None, identity=None, opener=None):
     return read_vault(secret, token, opener=opener)
 
 
-def run_with_key(provider, route_id, command, cwd, opener=None):
-    """Run COMMAND with the route's key in its environment; return its exit code. Prints no value."""
+def run_with_key(provider, route_id, command, cwd, opener=None, wait=False, sleep=None):
+    """Run COMMAND with the route's key in its environment; return its exit code. Prints no value.
+
+    Inside the route's quietWindow (or its vault reader's) it raises QuietWindow before any key is
+    read; with WAIT it sleeps until every window has ended, then runs."""
     if not command:
         raise RegistryError('run needs a command after --')
-    env = {**os.environ, **route_env(provider, route_id, cwd, opener=opener)}
+    located = locate(provider, route_id, cwd)
+    root, route, project = located
+    windows = route_windows(root, route)
+    at = quiet_now()
+    hit = quiet_block(windows, at, project)
+    if hit is not None:
+        if not wait:
+            raise QuietWindow(*hit)
+        until = quiet_wait_until(windows, at, project)
+        print('connector registry: ' + hit[0].split(' Wait until')[0] + ' Waiting until :%02d UTC.' % until.minute,
+              file=sys.stderr)
+        (sleep or time.sleep)(max(0.0, (until - at).total_seconds()))
+    env = {**os.environ, **route_env(provider, route_id, cwd, opener=opener, located=located)}
     return subprocess.run(command, env=env, cwd=str(cwd)).returncode
 
 
@@ -892,6 +1068,10 @@ def main(argv=None):
     cmd.add_argument('name')
     cmd = sub.add_parser('guard-facts')
     cmd.add_argument('name')
+    cmd.add_argument('--tool', default='', help='the MCP tool (after mcp__<name>__) to check for a quiet window')
+    cmd.add_argument('--cwd', default=os.getcwd())
+    cmd = sub.add_parser('quiet-check')
+    cmd.add_argument('tool', help='mcp__<server>__<tool>')
     cmd.add_argument('--cwd', default=os.getcwd())
     cmd = sub.add_parser('cli-profile')
     cmd.add_argument('cli')
@@ -912,6 +1092,7 @@ def main(argv=None):
     cmd.add_argument('provider')
     cmd.add_argument('route')
     cmd.add_argument('--cwd', default=os.getcwd())
+    cmd.add_argument('--wait', action='store_true', help='inside a quiet window, sleep until it ends, then run')
     cmd.add_argument('child', nargs=argparse.REMAINDER, help='-- then the command to run')
     cmd = sub.add_parser('list')
     cmd.add_argument('--json', action='store_true')
@@ -927,6 +1108,9 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         return run(args)
+    except QuietWindow as exc:
+        print('connector registry: ' + str(exc), file=sys.stderr)
+        return QUIET_EXIT
     except (RegistryError, OSError, ValueError) as exc:
         print('connector registry: ' + str(exc), file=sys.stderr)
         return 2
@@ -947,7 +1131,14 @@ def run(args):
         print_json(project_manifest(args.name))
         return 0
     if args.command == 'guard-facts':
-        print_json(guard_facts(args.name, args.cwd))
+        print_json(guard_facts(args.name, args.cwd, tool=args.tool or None))
+        return 0
+    if args.command == 'quiet-check':
+        message = mcp_quiet(args.tool, args.cwd)
+        if message:
+            print(message)
+            return QUIET_EXIT
+        print('clear: ' + args.tool + ' has no quiet window in effect')
         return 0
     if args.command == 'cli-profile':
         print(cli_profile(args.cli, args.cwd))
@@ -975,6 +1166,9 @@ def run(args):
                 notes.append('declared for another project')
             if item['blocker']:
                 notes.append('BLOCKED: ' + item['blocker'])
+            if item['quietWindow']:
+                notes.append('quiet window ' + window_label(item['quietWindow']) +
+                             ': run refuses then (exit 75), --wait sleeps it out')
             secret = item['secret']
             if secret and secret['store'] == 'vault':
                 pairs = vault_pairs(secret)
@@ -994,7 +1188,7 @@ def run(args):
         return 0
     if args.command == 'run':
         child = args.child[1:] if args.child[:1] == ['--'] else args.child
-        return run_with_key(args.provider, args.route, child, args.cwd)
+        return run_with_key(args.provider, args.route, child, args.cwd, wait=args.wait)
     if args.command == 'validate':
         errors = validate_root(args.root)
         for error in errors:

@@ -442,6 +442,121 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(facts['boundaries'], ['personal', 'work'])
         self.assertTrue(facts['readOnly'])
 
+    # ---------------------------------------------------------------- quiet windows
+
+    def quiet_setup(self, window, vault_window=None):
+        """billing-local and billing-vault with WINDOW on both billing routes; VAULT_WINDOW on the reader."""
+        key_file = self.vault_setup()
+        for name, target in (('billing.json', window), ('vaultdb.json', vault_window)):
+            record = json.loads((self.roots['work'] / name).read_text())
+            for route in record['routes']:
+                if target:
+                    route['quietWindow'] = target
+            (self.roots['work'] / name).write_text(json.dumps(record))
+        return key_file
+
+    def at(self, minute, second=0):
+        return NOW.replace(minute=minute, second=second)
+
+    def quiet_run(self, route, minute, wait=False, sleep=None, second=0, expected='local-value-must-not-print'):
+        with patch.dict(os.environ, {reg.QUIET_NOW_ENV: self.at(minute, second).isoformat()}):
+            identity = self.base / 'identity.json'
+            identity.write_text(json.dumps(self.identity))
+            child = [os.sys.executable, '-c', 'import os, sys; sys.exit(0 if os.environ.get("BILLING_KEY") == '
+                     + repr(expected) + ' else 3)']
+            with patch.dict(os.environ, {'CLAUDE_IDENTITY_FILE': str(identity)}), \
+                    patch.object(reg, 'origin', return_value=WORK_REMOTE):
+                return reg.run_with_key('billing', route, child, self.cwd, wait=wait, sleep=sleep)
+
+    def test_quiet_window_shape_is_validated(self):
+        for window, message in (([20, 35], 'must be an object'),
+                                ({'minutes': [20]}, 'minutes must be'),
+                                ({'minutes': [20, 60]}, 'minutes must be'),
+                                ({'minutes': [20, True]}, 'minutes must be'),
+                                ({'minutes': [20, 19]}, 'whole hour'),
+                                ({'minutes': [20, 35], 'projects': 'alpha'}, 'projects must be'),
+                                ({'minutes': [20, 35], 'tools': []}, 'tools must be'),
+                                ({'minutes': [20, 35], 'until': 36}, 'unknown keys: until')):
+            with self.assertRaisesRegex(reg.RegistryError, message):
+                reg.validate_quiet_window({'id': 'r', 'quietWindow': window})
+        reg.validate_quiet_window({'id': 'r', 'quietWindow': {'minutes': [55, 5], 'reason': 'sweep',
+                                                               'projects': ['alpha'], 'tools': ['execute_sql']}})
+
+    def test_quiet_window_covers_both_ends_wraps_the_hour_and_filters_project_and_tool(self):
+        window = {'minutes': [20, 35]}
+        self.assertIsNone(reg.quiet_resume(window, self.at(19, 59)))
+        self.assertEqual(reg.quiet_resume(window, self.at(20)), self.at(36))
+        self.assertEqual(reg.quiet_resume(window, self.at(35, 59)), self.at(36))
+        self.assertIsNone(reg.quiet_resume(window, self.at(36)))
+        wrap = {'minutes': [55, 5]}
+        self.assertEqual(reg.quiet_resume(wrap, self.at(58)), self.at(6) + datetime.timedelta(hours=1))
+        self.assertEqual(reg.quiet_resume(wrap, self.at(3)), self.at(6))
+        self.assertIsNone(reg.quiet_resume(wrap, self.at(30)))
+        scoped = {'minutes': [20, 35], 'projects': ['alpha'], 'tools': ['execute_sql']}
+        self.assertIsNotNone(reg.quiet_resume(scoped, self.at(25), 'alpha', 'execute_sql'))
+        self.assertIsNone(reg.quiet_resume(scoped, self.at(25), 'beta', 'execute_sql'))
+        self.assertIsNone(reg.quiet_resume(scoped, self.at(25), 'alpha', 'search_docs'))
+        self.assertIsNone(reg.quiet_resume(None, self.at(25)))
+
+    def test_run_refuses_inside_the_window_before_reading_any_key(self):
+        key_file = self.quiet_setup({'minutes': [20, 35], 'reason': 'the hourly monitor sweeps then'})
+        key_file.unlink()   # a key read would raise OSError, so the refusal must come first
+        with self.assertRaises(reg.QuietWindow) as caught:
+            self.quiet_run('billing-local', 25)
+        message = str(caught.exception)
+        self.assertIn('billing/billing-local is in its quiet window :20-:35 UTC (the hourly monitor sweeps then)', message)
+        self.assertIn('Wait until :36 UTC (about 11 min)', message)
+        self.assertIn('nothing ran', message)
+
+    def test_run_outside_the_window_or_with_no_window_runs_unchanged(self):
+        self.quiet_setup({'minutes': [20, 35]})
+        self.assertEqual(self.quiet_run('billing-local', 36), 0)
+        self.assertEqual(self.quiet_run('billing-local', 19), 0)
+        self.vault_setup()
+        self.assertEqual(self.quiet_run('billing-local', 25), 0)
+
+    def test_run_wait_sleeps_out_the_window_then_runs(self):
+        self.quiet_setup({'minutes': [20, 35]})
+        slept = []
+        with patch('sys.stderr', new_callable=io.StringIO) as err:
+            self.assertEqual(self.quiet_run('billing-local', 35, wait=True, sleep=slept.append, second=30), 0)
+        self.assertEqual(slept, [30.0])
+        self.assertIn('Waiting until :36 UTC', err.getvalue())
+
+    def test_a_vault_pointer_honours_its_reader_routes_window(self):
+        self.quiet_setup(None, vault_window={'minutes': [20, 35], 'projects': ['alpha']})
+        with self.assertRaises(reg.QuietWindow) as caught:
+            self.quiet_run('billing-vault', 30)
+        self.assertIn('vaultdb/vault (its vault reader)', str(caught.exception))
+        self.assertEqual(self.quiet_run('billing-local', 30), 0)
+
+    def test_run_cli_exits_75_inside_the_window(self):
+        self.quiet_setup({'minutes': [20, 35]})
+        identity = self.base / 'identity.json'
+        identity.write_text(json.dumps(self.identity))
+        with patch.dict(os.environ, {'CLAUDE_IDENTITY_FILE': str(identity),
+                                     reg.QUIET_NOW_ENV: self.at(22).isoformat()}), \
+                patch.object(reg, 'origin', return_value=WORK_REMOTE), \
+                patch('sys.stderr', new_callable=io.StringIO) as err:
+            code = reg.main(['run', 'billing', 'billing-local', '--cwd', str(self.cwd), '--', 'true'])
+        self.assertEqual(code, reg.QUIET_EXIT)
+        self.assertIn('Wait until :36 UTC', err.getvalue())
+        self.assertNotIn('must-not-print', err.getvalue())
+
+    def test_mcp_tool_quiet_check_names_the_route_and_respects_the_tool_list(self):
+        self.provider('work', 'dbx', [{'id': 'dbx-mcp', 'name': 'dbx', 'kind': 'mcp-http',
+                                       'quietWindow': {'minutes': [20, 35], 'tools': ['execute_sql']}}])
+        roots = reg.load_all(self.identity)
+        quiet = lambda tool, minute: reg.guard_facts('dbx', self.cwd, remote=WORK_REMOTE, roots=roots,  # noqa: E731
+                                                    identity=self.identity, tool=tool, at=self.at(minute))['quiet']
+        self.assertIn('mcp__dbx__execute_sql (route dbx/dbx-mcp) is in its quiet window :20-:35 UTC',
+                      quiet('execute_sql', 25))
+        self.assertEqual(quiet('execute_sql', 40), '')
+        self.assertEqual(quiet('search_docs', 25), '')
+        self.assertEqual(quiet(None, 25), '')
+        self.assertEqual(reg.mcp_quiet('mcp__other__execute_sql', self.cwd, remote=WORK_REMOTE, roots=roots,
+                                       identity=self.identity, at=self.at(25)), '')
+
     # ---------------------------------------------------------------- migration
 
     def legacy(self):

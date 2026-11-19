@@ -155,7 +155,7 @@ def _init_repo(path: Path, origin: str) -> None:
     subprocess.run(["git", "remote", "add", "origin", origin], cwd=path, check=True)
 
 
-def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash", path=None) -> bool:
+def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash", path=None, now=None) -> bool:
     payload = json.dumps({"tool_name": tool, "tool_input": {"command": command}})
     env = {
         **os.environ,
@@ -166,6 +166,9 @@ def fires(project_dir: Path, identity_file: Path, command: str, tool="Bash", pat
     }
     if path is not None:
         env["PATH"] = path
+    env.pop("CLAUDE_QUIET_NOW", None)
+    if now is not None:
+        env["CLAUDE_QUIET_NOW"] = now
     out = subprocess.run(
         ["/bin/bash", str(GUARD)], input=payload, capture_output=True, text=True, env=env
     ).stdout.strip()
@@ -279,18 +282,46 @@ def main() -> int:
             failures.append("SHOULD HAVE BLOCKED a write tool on a readOnly registry route")
         if fires(work, readonly, "", "mcp__dbx__list_rows"):
             failures.append("FALSE POSITIVE: a read tool blocked on a readOnly registry route")
+        # A route's quietWindow denies its MCP tools (reads included) inside the window only, and only
+        # the tools it lists; a route with no window never sees a change.
+        quiet = _home_with(root, "quiet-route", {"work": (
+            {"boundary": "work", "match": [WORK_ORG_MATCH]},
+            {"dbq": {"provider": "dbq", "scope": "shared-account", "routes": [
+                {"id": "dbq", "name": "dbq", "kind": "mcp-http", "readOnly": True,
+                 "quietWindow": {"minutes": [20, 35], "reason": "the hourly monitor sweeps then",
+                                 "tools": ["execute_sql", "list_tables"]}}]},
+             "dbx": {"provider": "dbx", "scope": "shared-account", "routes": [
+                 {"id": "dbx", "name": "dbx", "kind": "mcp-http"}]}})})
+        inside, outside = "2026-11-20T21:25:00Z", "2026-11-20T21:36:00Z"
+        quiet_cases = [
+            ("a read tool inside its route's quiet window", "mcp__dbq__execute_sql", inside, True),
+            ("a second listed tool inside the window", "mcp__dbq__list_tables", inside, True),
+            ("the same tool after the window ends", "mcp__dbq__execute_sql", outside, False),
+            ("an unlisted tool inside the window", "mcp__dbq__search_docs", inside, False),
+            ("a route with no window inside the minutes", "mcp__dbx__list_rows", inside, False),
+        ]
+        for name, tool_name, now, expected in quiet_cases:
+            if fires(work, quiet, "", tool_name, now=now) != expected:
+                failures.append(("SHOULD HAVE BLOCKED " if expected else "FALSE POSITIVE: ") + name)
+        payload = json.dumps({"tool_name": "mcp__dbq__execute_sql", "tool_input": {}})
+        reason = subprocess.run(["/bin/bash", str(GUARD)], input=payload, capture_output=True, text=True, env={
+            **os.environ, "CLAUDE_PROJECT_DIR": str(work), "CLAUDE_IDENTITY_FILE": str(quiet),
+            "HOME": str(quiet.parent), "CLAUDE_QUIET_NOW": inside}).stdout
+        if "Wait until :36 UTC" not in reason or "the hourly monitor sweeps then" not in reason:
+            failures.append("the quiet-window deny does not name the resume minute and the reason: " + reason[:300])
         if not fires(shared_work, identity_file, "", "mcp__linear-api__create_issue"):
             failures.append("SHOULD HAVE BLOCKED personal-shared linear-api in a WORK repo")
         if fires(shared_personal, identity_file, "", "mcp__linear-api__create_issue"):
             failures.append(
                 "FALSE POSITIVE: personal-shared linear-api blocked in a PERSONAL repo under dev/vs-code-projects/")
 
-    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + 2 * len(PAL_SCENARIOS) + 5
+    total = len(MUST_FIRE) + len(MUST_NOT_FIRE) + 2 * len(PAL_SCENARIOS) + 5 + 6
     for f in failures:
         print(f"FAIL  {f}")
     print(f"\n{total - len(failures)} pass / {len(failures)} fail "
           f"(MUST_FIRE {len(MUST_FIRE)}, MUST_NOT_FIRE {len(MUST_NOT_FIRE)}, "
-          f"pal scenarios {len(PAL_SCENARIOS)} x 2, jq-missing, read-only route and shared-linear cases 5)")
+          f"pal scenarios {len(PAL_SCENARIOS)} x 2, jq-missing, read-only route and shared-linear cases 5, "
+          f"quiet-window cases 6)")
     return 1 if failures else 0
 
 
