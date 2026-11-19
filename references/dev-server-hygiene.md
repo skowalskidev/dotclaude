@@ -331,9 +331,10 @@ starts no unregistered payload and cannot extend the stage deadline.
 DO handle exit 124 in any retry loop around `run`: the lease stays held by design, so the same owner's
 next attempt waits on it until its own limit. Confirm the printed owner PID is dead, release the printed
 token with `--orphan-inspected`, then raise `--max-min` to fit the payload. When the runner itself was
-killed and printed nothing, `status` prints the release command for a lease whose owner and command
-groups are gone (it reads the token from the slot file, never echoing it); `release-sim` and
-`reclaim-sim` refuse a leased simulator and name that same command. Give each concurrent queue its
+killed and printed nothing, `status` and every `run` or `acquire` wait line that meets the lease print
+the release command for a lease whose owner and command groups are gone (it reads the token from the
+slot file, never echoing it); `release-sim` and `reclaim-sim` refuse a leased simulator and name that
+same command. Run it the first time a wait line names it, never wait out `--wait-min` behind it. Give each concurrent queue its
 own `--owner`, each PR's merge prep included (`<session-id>-pr<n>`, `references/git-pr-deploy.md`
 § CI runs once, at merge prep), and judge a payload by its own output or receipt, not only the lease
 exit code. TEST: no retry loop treats 124 like 75, and two PRs' merge preps never share one owner (the
@@ -366,6 +367,14 @@ nothing cleared) and clears a corrupt record. Check `status` after a grant and b
 TEST: a second owner's `prioritize` without `--replace` and a `--clear --owner` naming a non-holder
 both leave the live record unchanged (the fix for a 120-minute grant silently replaced by another
 session's `prioritize`, whose later owner-less `--clear` then wiped the other session's live grant).
+**DO stop and tell Simon in your next message the moment a `capacity notice: priority replaced:` or
+`priority allowance ended: priority replaced:` line appears,** naming who replaced you and when.
+A `--replace` writes that notice for the displaced owner until its own grant would have ended, on
+every `run` wait line, `acquire`, allowance heartbeat and `status` (`displaced priority:`). Restore
+your grant only on Simon's word for THIS session, never on your own reading of an earlier "this is
+priority". TEST: a session whose grant was replaced names the replacement to Simon in the next
+reply after the notice (the fix for a twice-stated priority lost mid-run to another session's
+`--replace`, unnoticed until its native runs queued).
 
 DO prioritize every checkout its workers run in when Simon names the task to go first: pass
 `--workspace <checkout>` once per checkout to `prioritize --owner <task>`. Worker labels in listed
@@ -531,10 +540,13 @@ of cleanup. Inspect the saved receipt and process tree before an explicit
 `release --token <token> --orphan-inspected`; a live owner, recorded child group or booted simulator
 still refuses release. Only the lease's own simulator or a booted simulator its owner claimed refuses release; another session's booted simulator never does.
 DO let `acquire`, `run`, `status` and `watchdog` auto-release a provably dead lease: owner PID gone or
-reused, its recorded command and stage groups empty, and no simulator; a live priority session's dead lease included.
+reused, its recorded command and stage groups empty, and no simulator, or one `simctl` reading showing
+its simulator and every simulator its owner claimed not booted (the proof an inspected release needs);
+a live priority session's dead lease included.
 Each release prints `auto-released heavy slot <n> of 3: holder=<owner>` and writes a `telemetry.jsonl`
-event. TEST: a lease with a running group member, a simulator, a pending launch, no recorded group or a
-failed probe stays held. Keep shut-down simulators, derived data and caches for the next scoped run.
+event. TEST: a lease with a running group member, a booted or unread simulator, a pending launch, no
+recorded group or a failed probe stays held, and a killed runner whose simulator is Shutdown frees its
+slot on its owner's next `run`. Keep shut-down simulators, derived data and caches for the next scoped run.
 If an older lease schema is reported, run `python3 ~/.claude/bin/local-capacity.py migrate` to
 upgrade that receipt under lock before any new admission; the owner and child identity remain held.
 
@@ -752,9 +764,12 @@ simulator lease that is never auto-released. (the fix for a five-stage gate chai
 `--wait-min 60`, killed at the 2-hour cap under machine contention, and for a `--max-min 120`
 simulator hold killed at the same cap while Simon was mid-sign-up.)
 **DO set every shorter `run_in_background` task's `timeout` to at least its summed `--wait-min` plus
-`--max-min` plus runtime, in milliseconds.** The tool default is 30 minutes, and a lower timeout kills
-the run while it still waits for admission, so it never starts. (the fix for a simulator test run
-started with a 60-minute timeout and `--wait-min 60 --max-min 30`, killed unrun in the queue.)
+`--max-min` plus 2 minutes of cleanup, in milliseconds, at most 7200000.** The tool default is 30
+minutes, and a lower timeout kills the run while it still waits for admission, so it never starts.
+`hooks/capacity-timeout-guard.py` denies a background capacity `run` (through
+`local-capacity.py` or `native-slot.sh`) that breaks this and names the timeout it needs. (the fix for a simulator test run started with a
+60-minute timeout and `--wait-min 60 --max-min 30`, killed unrun in the queue, and for default-timeout
+native runs killed while queued, whose leases then blocked the owner's next run.)
 TEST: no `run_in_background` task wraps a capacity-gated command or chain whose summed `--wait-min`
 plus `--max-min` reaches 120, and none sets a `timeout` below that sum.
 

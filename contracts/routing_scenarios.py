@@ -377,13 +377,13 @@ HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Bash",
      "expect": ["work-resource-guard.sh",
                 "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py",
-                "process-kill-guard.py"]},
+                "process-kill-guard.py", "capacity-timeout-guard.py"]},
     # The process-kill guard: a pattern kill that can signal other sessions' processes is denied;
     # a kill by pid or a pkill -f scoped to the caller's own path passes
     # (references/dev-server-hygiene.md § Private process inspection).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
        "tool_input": {"command": command}, "decides": {"process-kill-guard.py": decision}}
       for command, decision in (
           ('pkill -f "local-capacity.py run"', "deny"),
@@ -393,6 +393,22 @@ HOOK_ROUTING: list[dict] = [
           ("cd /tmp && sudo pkill -f vitest", "deny"),
           ('pkill -f "$TMP" 2>/dev/null', "allow"),
           ("kill 12345", "allow"),
+      )),
+    # The capacity-timeout guard: a capacity-gated background task whose timeout ends before its
+    # queue and run can is denied; an adequate timeout or a foreground call passes
+    # (references/dev-server-hygiene.md § Waiting on a background job).
+    *({"event": "PreToolUse", "tool": "Bash",
+       "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+       "tool_input": tool_input, "decides": {"capacity-timeout-guard.py": decision}}
+      for tool_input, decision in (
+          ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test",
+            "run_in_background": True}, "deny"),
+          ({"command": "~/.claude/bin/native-slot.sh run --for ui --wait-min 60 --max-min 60 -- x",
+            "run_in_background": True, "timeout": 7200000}, "deny"),
+          ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test",
+            "run_in_background": True, "timeout": 4020000}, "allow"),
+          ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test"}, "allow"),
       )),
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},

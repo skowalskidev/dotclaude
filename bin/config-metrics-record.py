@@ -43,6 +43,7 @@ _DENY_SIGNATURES = {
     "background-process": "hooks/background-process-guard.py",
     "prints a credential value": "hooks/secret-echo-guard.py",
     "pattern kill": "hooks/process-kill-guard.py",
+    "background task's timeout covers its summed": "hooks/capacity-timeout-guard.py",
 }
 
 

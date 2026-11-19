@@ -12,7 +12,10 @@ Local Docker dev stacks take a
 separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
 simulators, idle simulator claims and extra test browsers; `reclaim-sim` shuts down and unclaims an
 unleased simulator only when its claim owner has no live session. Admission, `status` and `watchdog`
-automatically release a provably dead heavy lease (reap_dead_leases). This does not impose an OS CPU or
+automatically release a provably dead heavy lease (reap_dead_leases), a simulator lease once simctl reads
+its device shut down; a waiting run names the inspected release for any orphan it cannot release. A
+`prioritize --replace` leaves the displaced owner a notice it reads on its next run, acquire or status
+until its own grant would have ended. This does not impose an OS CPU or
 memory limit: every participating session must acquire before a heavy command, simulator boot
 or stack start.
 """
@@ -73,6 +76,7 @@ PAUSE_MAX_SECONDS = 300
 MAX_WAIT_MIN = 60  # longest admission wait one run may request
 LEGACY_LOCK_GRACE_SECONDS = 3  # a waiting supervisor holds a legacy lock only for its state check
 ALLOWANCE_SLOT = "priority-run.json"
+REPLACED_SLOT = "priority-replaced.json"  # the grant a --replace displaced, kept until its own expiry
 OWNER = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,79}\Z")
 UDID = re.compile(r"[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\Z")
 TOKEN = re.compile(r"[0-9a-f]{64}\Z")
@@ -320,6 +324,45 @@ def write_priority(root, record):
     write_state(root, {key: record[key] for key in ("owner", "expires")} if record else None, "priority.json")
 
 
+def read_replaced(root):
+    """The displaced grant's record while its original expiry lasts, else None. Call under `locked`."""
+    fd = secure_open(root / REPLACED_SLOT)
+    try:
+        raw = os.read(fd, 4097)
+    finally:
+        os.close(fd)
+    if not raw:
+        return None
+    try:
+        record = json.loads(raw)
+        workspaces = record["workspaces"] if isinstance(record, dict) else None
+        if (len(raw) > 4096 or not isinstance(record, dict)
+                or set(record) != {"owner", "workspaces", "by", "at", "expires"}
+                or not all(isinstance(record[key], str) and OWNER.fullmatch(record[key]) for key in ("owner", "by"))
+                or not all(type(record[key]) in (int, float) and math.isfinite(record[key]) for key in ("at", "expires"))
+                or not (workspaces is None or (isinstance(workspaces, list) and workspaces and all(
+                    isinstance(ws, str) and Path(ws).is_absolute() for ws in workspaces)))):
+            raise ValueError("invalid replaced record")
+    except (UnicodeError, ValueError, TypeError):
+        write_state(root, None, REPLACED_SLOT)  # a notice, never a gate: drop a corrupt one
+        return None
+    if record["expires"] <= time.time():
+        write_state(root, None, REPLACED_SLOT)
+        return None
+    return record
+
+
+def replaced_notice(root, owner):
+    """The line telling a displaced priority owner it no longer goes first, else ''. Call under `locked`."""
+    record = read_replaced(root)
+    if record is None or priority_scope(record, owner) is not True:
+        return ""
+    at = time.strftime("%H:%M:%S %Z", time.localtime(record["at"]))
+    return ("priority replaced: your grant (%s) was replaced by %s at %s via --replace, so this session no "
+            "longer goes first. Tell Simon; only his word restores it: local-capacity.py prioritize --owner %s "
+            "--replace" % (record["owner"], record["by"], at, shlex.quote(record["owner"])))
+
+
 def priority_text(record):
     until = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(record["expires"]))
     return "%s until %s (%d min left)" % (record["owner"], until, max(1, math.ceil((record["expires"] - time.time()) / 60)))
@@ -370,7 +413,16 @@ def prioritize(root, owner, minutes, clear, workspace=None, replace=False):
             raise GateError("priority is held by " + priority_text(held) + "; nothing changed. Tell Simon; "
                             "pass --replace only on his word that %s goes first" % owner)
         write_priority(root, record)
-    replaced = " (replaced %s)" % held["owner"] if held is not None and held["owner"] != owner else ""
+        if held is not None and held["owner"] != owner:
+            # The displaced session reads this on its next run, acquire or status: never a silent loss.
+            write_state(root, {"owner": held["owner"], "workspaces": held["workspaces"], "by": owner,
+                               "at": time.time(), "expires": held["expires"]}, REPLACED_SLOT)
+        else:
+            replaced_record = read_replaced(root)
+            if replaced_record is not None and replaced_record["owner"] == owner:
+                write_state(root, None, REPLACED_SLOT)  # Simon gave the displaced owner its priority back
+    replaced = (" (replaced %s); %s reads the replacement on its next run, acquire or status" % (held["owner"], held["owner"])
+                if held is not None and held["owner"] != owner else "")
     return "priority set: " + priority_text(record) + replaced
 
 
@@ -1331,11 +1383,19 @@ def own_live_lease(root, owner):
     return None
 
 
-def own_lease_text(lease):
+def own_lease_text(lease, hint=""):
     """The one wording for an owner meeting its own lease (heavy slot or the legacy lock it holds)."""
     return ("heavy slot busy: %s; one owner holds at most one lease. This is your own owner's lease, "
             "not machine load: a long-lived server or watcher must not hold it (a dev stack takes "
-            "stack-acquire), and a step of the holding run goes through `stage`" % holder_text(lease))
+            "stack-acquire), and a step of the holding run goes through `stage`%s"
+            % (holder_text(lease), "; " + hint if hint else ""))
+
+
+def waiting_holder_text(root, slot, lease):
+    """holder_text plus, for an orphan nothing can auto-release yet, the exact inspected release, so a
+    waiting `run` names its way out instead of queueing behind its own killed runner."""
+    hint = orphan_release_hint(root, slot, lease)
+    return holder_text(lease) + ("; " + hint if hint else "")
 
 
 def flock_with_grace(fd):
@@ -1449,6 +1509,36 @@ def deferral_text(reason, priority, is_priority, child_pending, allowance_holder
 
 def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False,
             compute_only=False, admission=None, sample=None):
+    """Admit one heavy lease; a displaced priority owner reads its replacement on every attempt."""
+    try:
+        token = _acquire(root, owner, pid, simulator, child_pending, allow_bridge, second_slot_only,
+                         compute_only, admission, sample)
+    except Busy as exc:
+        notice = displaced_priority_notice(root, owner)
+        if notice:
+            raise type(exc)("%s; %s" % (exc, notice)) from exc
+        raise
+    notice = displaced_priority_notice(root, owner)
+    if notice:
+        print("capacity notice: " + notice, file=sys.stderr)
+    return token
+
+
+def displaced_priority_notice(root, owner):
+    """replaced_notice for a caller the live grant does not cover; '' on any lock or probe failure."""
+    try:
+        with locked(root):
+            if read_replaced(root) is None:
+                return ""
+            if priority_scope(read_priority(root), owner) is True:
+                return ""
+            return replaced_notice(root, owner)
+    except GateError:
+        return ""
+
+
+def _acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False,
+             compute_only=False, admission=None, sample=None):
     if not OWNER.fullmatch(owner):
         raise GateError("owner must be 1-80 safe label characters")
     if pid <= 0:
@@ -1469,6 +1559,7 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         scope = priority_scope(priority, owner)
         is_priority = scope is True
         requested_owner = owner
+
         if is_priority:
             owner = priority["owner"]
         states = [read_state(root, slot=name) for name in SLOTS]
@@ -1484,9 +1575,10 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         if admission is not None:
             admission.update(owner=owner, priority_allowance=priority_allowance,
                              priority_binding=priority_binding(priority) if is_priority else None)
-        mine = next((lease for lease in held if lease["owner"] == owner), None)
+        mine_slot, mine = next(((name, lease) for name, lease in zip(SLOTS, states)
+                                if lease and lease["owner"] == owner), (None, None))
         if mine:
-            raise Busy(own_lease_text(mine))
+            raise Busy(own_lease_text(mine, orphan_release_hint(root, mine_slot, mine)))
         if second_slot_only and not states[0]:
             raise Busy("the run holding the legacy native lock finished while this one waited; retry once")
         legacy_lanes = len(bridge_paths(root)) + int((legacy_slot_dir() / "slot.d").exists())
@@ -1498,7 +1590,8 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
         if not free:
             raise Busy("%s: %s; keep editing or inspect and release an exact token" %
                        ("compute slots busy (one native lane reserved)" if reserve_native else
-                        "all %d heavy slots busy" % HEAVY_SLOTS, "; ".join(holder_text(lease) for lease in held)))
+                        "all %d heavy slots busy" % HEAVY_SLOTS,
+                        "; ".join(waiting_holder_text(root, name, lease) for name, lease in zip(SLOTS, states) if lease)))
         if (priority and not is_priority and not any(item["owner"] == priority["owner"] for item in held)
                 and len(free) <= 1):
             raise Busy("last heavy slot reserved: priority owner is %s" % priority_text(priority))
@@ -1609,17 +1702,23 @@ def owner_gone(lease):
     return "owner pid %d reused" % lease["pid"] if current != lease["pid_start"] else None
 
 
-def provably_dead(lease):
+def provably_dead(lease, booted=None):
     """The auto-release reason for a lease nothing can still use, else None.
 
     Every condition must be proven: owner not running or PID reused, a recorded command group plus
-    every stage group with no process left, and no simulator. A live priority session's dead lease is
-    released too: nothing can still use it and keeping it only blocks that session. A pending launch,
-    an acquire-only lease (no recorded group), a simulator lease or any failed probe keeps the lease for
-    the manual `release --orphan-inspected` or `reclaim-sim` path.
+    every stage group with no process left, and no simulator still in use. A simulator lease is dead
+    only when `booted` (one simctl reading) proves its device and every device its owner claimed are
+    not booted: the same proof `release --orphan-inspected` demands, so a runner killed mid-queue no
+    longer blocks its owner's next run. A live priority session's dead lease is released too: nothing
+    can still use it and keeping it only blocks that session. A pending launch, an acquire-only lease
+    (no recorded group), a booted or unread simulator or any failed probe keeps the lease for the
+    manual `release --orphan-inspected` or `reclaim-sim` path, which the waiting line names.
     """
     child = lease["child"]
-    if lease["simulator"] or not isinstance(child, dict) or "pgid" not in child:
+    if not isinstance(child, dict) or "pgid" not in child:
+        return None
+    if lease["simulator"] and (booted is None or lease["simulator"] in booted["devices"]
+                               or lease["owner"] in booted["claimed_by"]):
         return None
     groups = [child["pgid"]] + [stage["pgid"] for stage in lease["stages"]]
     try:
@@ -1630,7 +1729,22 @@ def provably_dead(lease):
     reason = owner_gone(lease)
     if reason is None:
         return None
+    if lease["simulator"]:
+        return "%s; command group %s exited; simulator %s shut down" % (reason, child["pgid"], lease["simulator"])
     return "%s; command group %s exited; no simulator" % (reason, child["pgid"])
+
+
+def booted_reading(root, snapshot):
+    """One simctl reading for simulator leases in `snapshot`, else None (none held or the probe failed)."""
+    if not any(lease and lease["simulator"] for _, lease in snapshot):
+        return None
+    try:
+        devices = set(observe_booted())
+        with locked(root):
+            claims = read_claims(root)
+    except GateError:
+        return None
+    return {"devices": devices, "claimed_by": {owner for udid, owner in claims.items() if udid in devices}}
 
 
 def reap_dead_leases(root):
@@ -1641,7 +1755,8 @@ def reap_dead_leases(root):
             snapshot = [(name, read_state(root, slot=name)) for name in SLOTS]
     except GateError:
         return []  # lock contention or unreadable state: never a release; the caller reports it
-    verdicts = [(name, lease, provably_dead(lease)) for name, lease in snapshot if lease]
+    booted = booted_reading(root, snapshot)
+    verdicts = [(name, lease, provably_dead(lease, booted)) for name, lease in snapshot if lease]
     lines = []
     for name, lease, reason in verdicts:
         if reason is None:
@@ -2070,9 +2185,11 @@ def _run_command(root, owner, simulator, command, max_seconds, metrics, legacy_f
 def check_priority_allowance(root, owner, binding):
     with locked(root):
         priority = read_priority(root)
-    if not priority or priority["owner"] != owner or not bound_priority_matches(priority, binding):
-        raise Busy("priority allowance ended: priority expired/changed; while Simon's priority stands, renew it "
-                   "with the same prioritize command before it expires")
+        ended = not priority or priority["owner"] != owner or not bound_priority_matches(priority, binding)
+        notice = replaced_notice(root, owner) if ended else ""
+    if ended:
+        raise Busy("priority allowance ended: %s" % (notice or "priority expired/changed; while Simon's priority "
+                                                     "stands, renew it with the same prioritize command before it expires"))
 
 
 def cleanup_run(root, token, simulator):
@@ -2242,6 +2359,12 @@ def main(argv=None):
                                                     "; " + hint if hint else ""))
             if priority:
                 print("priority: " + priority_text(priority))
+            with locked(root):
+                displaced = read_replaced(root)
+            if displaced:
+                print("displaced priority: %s, replaced by %s at %s via --replace" % (
+                    displaced["owner"], displaced["by"],
+                    time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(displaced["at"]))))
             legacy_lanes = snapshot["legacy_lanes"]
             if legacy_lanes:
                 print("compute admission: " + ("slot 1 reserved for native capacity" if legacy_lanes == 1 else

@@ -596,6 +596,11 @@ the journey touches and fix each miss before he starts:
    commits behind main, restarted once Simon asked whether main was merged in.)
 6. The journey's first 3 steps, and the first step that reaches each provider, run end to end in his
    state (a search returns results, a typed date parses, a new account lands on the expected plan).
+7. Every client and server he touches serves the current head: read the sha each one reports (a
+   server's identity handshake, `dev-server-hygiene.md` § 2; the served web build's stamp; the
+   installed app's build fingerprint receipt, `ios-simulator.md`) and match `git rev-parse HEAD`.
+   Rebuild and re-serve on any mismatch, and repeat the read after every commit before he re-walks.
+   (the fix for a walk run on an old build after later fixes were committed.)
 **DON'T blank, fake or strip a key, flag or service to save cost or time.** A degraded stack fails like
 a product bug and he cannot tell which. When cost is the concern, ask once in the front-loaded block
 whether the session runs on billable keys; his yes covers the actions he drives, and each billable call
@@ -951,10 +956,25 @@ proof. Map that evidence to the final batch; a new commit SHA alone does not inv
 A prior partial run covers only its recorded scope, never the whole suite. Final verification remains
 mandatory: run every uncovered relevant check, and report blocked or skipped coverage honestly.
 
-**DO report executed, passed, failed and skipped counts per suite or test class.** A class with zero
-executed tests is `not run`, listed with the flag or service it needs. DON'T accept or pass upward
-"0 failures" alone. TEST: every verification line carries the four counts, and no class with zero
-executed tests counts as passing (the fix for opt-in classes accepted as green at 50 skipped, 0 failed).
+**DO report executed, passed, failed and skipped counts per suite or test class, with the head sha it
+ran on, the time it finished and the 1-minute load average while it ran** (`git rev-parse --short HEAD`
+at launch, `sysctl -n vm.loadavg` on macOS, `uptime` elsewhere; native and e2e runs read the load at
+launch and at the result). A class with zero executed tests is `not run`, listed with the flag or
+service it needs. DON'T accept or pass upward "0 failures" alone. DON'T quote a result from a log whose
+sha is not the current head as the head's result: quote it with its own sha and time plus the input
+match that carries it (evidence reuse, above), or rerun it. TEST: every verification line carries the
+four counts, its sha, its finish time and its load, and no class with zero executed tests counts as
+passing (the fix for opt-in classes accepted as green at 50 skipped, 0 failed, and for a stale e2e log
+reported to Simon as "39/39" after later commits).
+
+**DO rerun a failing test alone before calling it a regression when it waits on wall-clock time** (a
+timeout, a retry deadline, a poll or animation wait) **and its run's load average exceeded the core
+count** (`sysctl -n hw.ncpu`). Rerun only that test or class (`-only-testing:<target>/<class>`, the
+single spec) and record both results with both loads. Pass alone: a load flake, named with both runs.
+Fail alone: a regression, handled under § Reproduce a reported bug first. A test the change added or
+edited still owes its root cause (below). TEST: every timing-only failure at a load above the core
+count shows an alone-rerun row before any regression verdict (the fix for two wall-clock iOS classes
+that failed only at load 100 to 383 and passed alone, after time spent judging them as regressions).
 
 **DO root-cause any failure in a test the change added or edited before merging.** A green rerun does
 not clear it; only a failure that also reproduces on the unchanged base counts as an existing flake.
