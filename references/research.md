@@ -91,7 +91,7 @@ DO state the blocking bar in every code-verdict brief from round 1: BLOCKING is 
 the base or a defect in code the change adds with a realistic trigger; behaviour the base already has,
 or a case with no realistic trigger, is NON-BLOCKING and goes to a follow-up ticket or the PR's
 residual-risk line. Have the judge label each finding and put only BLOCKING ones on its VERDICT line.
-DO stop the fix-and-rejudge loop when the same finding survives two consecutive rounds, and name the
+DO stop the fix-and-rejudge loop when the same finding survives two consecutive rounds (§ Judge cadence caps every loop at one full round and two delta passes), and name the
 residual in the PR (the same stop rule `/sk:ship-report-and-ensure-correct-user-system-journey` applies to its fix rounds).
 TEST: every code-judge brief in the run defines BLOCKING before round 1, and no PR runs a third round
 on a repeated finding. (the fix for a monitor hotfix that took 7 judge rounds: rounds 4-7 escalated to
@@ -119,6 +119,41 @@ provider, each with its own position and evidence, or a `one-provider` label nam
 WHY: a judge from the author's own model family favours the author's reading
 ([Panickssery et al. 2024](https://arxiv.org/abs/2404.13076)); a panel of judges from different
 model families beats one judge and shows less intra-model bias ([Verga et al. 2024](https://arxiv.org/abs/2404.18796)).
+
+## Judge cadence: fix everything, then one round at convergence
+
+DEFAULT: judge a PR once, on the converged head, never after each fix. This is the judge half of
+`references/testing-strategy.md` § Verify once, at convergence, which owns the cadence of every heavy check.
+DO finish every fix first, checking each with a cheap targeted test or typecheck only (no judge, no
+stage skill, no full suite between fixes).
+DO run ONE full judge round on that head, both providers' judges in PARALLEL (launch both in the same
+step, same sha, same brief) instead of the OpenAI loop first and the Claude judge after.
+DO fix ALL findings from that round in ONE batch, then run ONE confirmation pass per provider
+limited to the delta (`git diff <judged sha>..HEAD`, brief naming the fixed findings and the BLOCKING
+bar). It answers only "are these fixed, and did the fix add a BLOCKING defect".
+DO record every surviving non-blocking finding as residual risk in the PR. Only a NEW BLOCKING finding
+with a realistic trigger earns another delta pass, and the cap is 2 delta passes: then hand back with
+the residuals named.
+DO give a small follow-up delta (docs-only, one line, a test-only commit) a delta check by one judge or
+by a read of the diff, not a full round; `references/testing-strategy.md` § Follow-up pushes and
+waivers carries the stage receipts for it.
+DO run the suites, stage receipts and CI once on the final head (that section).
+DON'T put "re-judge after every fix until SHIP" in a worker brief: write "fix all findings, then one
+delta pass, cap 2". DON'T re-run a stage skill, a suite or both judges for a small fix.
+KEEP: every money, access or data PR and every verdict Simon acts on still gets both providers' verdicts
+on the head handed back (§ Independent judges); only the cadence changes.
+TEST: a hand-back names at most 1 full judge round plus 2 delta passes per PR, both providers' verdicts
+name the handed-back sha, and the full suites ran once on the final head. (the fix for PRs that took 16
+and 19 judge rounds, each small fix re-running both judges, every stage and the full suites.)
+Sources (mainstream tally, 4 of 4 agree, checked 2026-11): Google Engineering Practices, "Speed of Code
+Reviews" (https://google.github.io/eng-practices/review/reviewer/speed.html: several review rounds fit
+inside one day, so rounds are cheap only when each is a quick look at the update, not a re-review);
+GitHub Docs, "Reviewing proposed changes in a pull request" (comments stay pending and are submitted
+as one review); GitHub Docs, "Managing a merge queue" (required checks run on the merge group before
+the merge, not per commit); Martin Fowler, "Continuous Integration" (https://martinfowler.com/articles/continuousIntegration.html:
+a fast commit build of about ten minutes on each commit, slower secondary suites staged after it).
+Google's author-side page states no batching rule, so "fix all in one batch" rests on the GitHub
+review model and the staged-build practice; the 2-delta cap is this config's own number.
 
 ## Attributing behaviour to an outsider
 

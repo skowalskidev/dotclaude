@@ -16,7 +16,8 @@ OpenAI or API fallback. Verify every delegated result on disk.
 
 ### Fan out verification, and only rebuild what changed
 DO defer tests/typechecks/builds across the whole batch and review fixes; allow concrete diagnostics
-or explicit requests. Keep hooks/CI. Verify once at convergence; reuse proof, rerun affected coverage.
+or explicit requests. Keep hooks/CI. Run every heavy check (suites, judges, stages, CI) ONCE on the converged head;
+between fixes only the failing test: `references/testing-strategy.md` § Verify once, at convergence.
 DO default to draft mode while Simon gives feedback: `references/workflow-loops.md` § Draft mode.
 DO size each check to the change's tier, then walk each changed journey e2e on a local stack, iOS
 Simulator included, before PR-ready: `references/testing-strategy.md` §§ Size the checks to the
@@ -25,7 +26,8 @@ DO keep a work PR draft until merge prep: `references/git-pr-deploy.md` § CI ru
 DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push or
 drops a stage. Name the real blocker in every status. DO launch every ready stage at once on a priority ask.
 `references/parallelization.md` §§ Parallelize verification, across tasks AND stages.
-TEST: no routine per-edit/feature/commit/feedback runs; mandatory final coverage uses matching inputs.
+TEST: no routine per-edit/feature/commit/feedback runs; final coverage uses matching inputs, once per head;
+at most 1 full judge round plus 2 delta passes per PR.
 
 ### Claims about third parties must come from primary sources
 DO apply `references/research.md` § Claims about third parties to every factual claim about another
@@ -158,10 +160,8 @@ Run-to-completion stays the default. When I ask for phases, spacing or a stop af
 `references/planning-and-tracking.md` § Phased execution for that task.
 
 ### Check whether the project declares expected outcomes, before changing a unit
-Many carry a contract registry or acceptance criteria that a green test suite does not enforce on its
-own — a unit can be edited so that every test passes and the thing it exists to produce is destroyed.
-When one exists it is authoritative, and its criteria stay true across your change. Detail and the
-reference implementation are in `~/.claude/references/contracts-and-outcomes.md`.
+DO treat a project's contract registry or acceptance criteria as authoritative: its criteria stay true across
+your change though a suite is green. Why and the reference implementation: `references/contracts-and-outcomes.md`.
 
 ### Checkpoint before a risky change, so undo does not mean re-deriving it
 Before a change touching more than about three files, commit the good state or branch first. Detail:

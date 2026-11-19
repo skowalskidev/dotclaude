@@ -62,7 +62,7 @@ Project databases, cloud accounts and other service credentials still follow Ste
    consumer of that value in every layer, by file.** A rule with no reader list is not ready for a
    builder. After the round, use the changed files and their dependent readers, configuration and
    tests to identify which criterion verdicts may have changed; re-judge those criteria and run one
-   fresh judge over the changed files. Keep an untouched verdict only when its evidence and inputs
+   fresh judge over the changed files, as the ONE delta pass of `references/research.md` § Judge cadence (cap 2). Keep an untouched verdict only when its evidence and inputs
    still apply. Prove each rule that reaches a rendered surface through the running view; a model
    unit test alone cannot prove it. Resolve newly found or introduced gaps before the heavy gate.
    TEST: the round's report lists affected readers, refreshed verdicts and the running-view evidence.
