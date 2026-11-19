@@ -668,6 +668,13 @@ be made additive; a forced update blocks people mid-task and is the last resort.
 - `Waits for the new build:` each behaviour old builds must not get yet and the signal gating it, or `none`.
 **DO order the Deploy TLDR backend first, then the app build's release;** never release an app build
 that needs a backend change not yet live.
+**DO put the app build line above step 1 of the Deploy TLDR on every PR in a repo that ships a native
+app, a PR that changes only web or only native files included:** `No app build needed: <why>` (e.g.
+every changed file is hosted web, so installed builds load it on the next page load) or `Needs an app
+build: <which parts wait for it>`, consistent with the `Waits for the new build:` line. Every chat
+hand-back naming the PR repeats it (`references/tldr-report-formats.md` § App build line).
+`bin/pr-landing-gate.py` fails a Deploy TLDR with neither line in a repo with a top-level `ios/` or
+`android/` directory.
 **`bin/pr-landing-gate.py` enforces these lines:** in a repo with a top-level `ios/` or `android/`
 directory, a PR that changes any other runtime file fails the gate without the version table, an
 old-build line per version (or the not-reached line) and the waits-for line, and an
@@ -675,7 +682,8 @@ old-build line per version (or the not-reached line) and the waits-for line, and
 records the gate BLOCKED rather than PASS. A Light PR (`references/testing-strategy.md` § Size the checks to the
 change) records the not-reached line alone, with no version table or waits-for line.
 TEST: every PR touching a surface a shipped build calls carries the version table, one PASS line per
-walked version or a not-reached reason, the waits-for list and a backend-first Deploy TLDR; a removed,
+walked version or a not-reached reason, the waits-for list and a backend-first Deploy TLDR; every PR in
+a native-app repo carries the app build line in its Deploy TLDR and its hand-back; a removed,
 renamed or newly required field an in-use build relies on is a finding fixed before hand-back.
 Sources (checked 2026-11-16). Term tally, "backward compatible": Google AIP-180, Stripe, Fowler (3);
 "expand and contract" / "parallel change": Fowler. Store rollout: "phased release" (Apple), "staged
