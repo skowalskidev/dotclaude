@@ -997,6 +997,12 @@ sandbox) as `not run: <what it needs>`, walk every step around it, and add a § 
 that takes under a minute. With no local stack, stub the network at the client (Playwright
 `page.route`, a UI test `launchEnvironment` pointing at a stub server) and record the mode as
 `stubbed client`. A capacity wait (exit 75) is a wait, never a skip.
+**DO fill the `Real-environment walk:` line of a Deep PR touching native app code (`ios/`, `android/`)
+or a payment or entitlement path with each simulator, device or local-stack walk that ran, PASS or FAIL
+each, or a reasoned N/A naming why no user journey changed;** an unreachable step is a `not run:` row,
+never the line's N/A. TEST: `bin/pr-landing-gate.py` fails such a PR whose line is bare, rests on unit
+tests or gives any other N/A reason (the fix for an App Store purchase PR that passed its gate before
+its simulator walk ran).
 This section adds no production read or write and no paid call: read-only production,
 `rules/spend-approval.md` and the capacity lease hold throughout.
 TEST: every Standard or Deep PR touching a user flow or its backend shows one pass-table row per

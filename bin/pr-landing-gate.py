@@ -11,7 +11,11 @@ punctuation prefix and any case ("## 🚀 Deploy TLDR"), and may carry a suffix 
 ("## Test matrix (head abc1234)"). The Test matrix heading names the PR's current head sha, so a body
 written for an earlier head fails (/sk:ship-pr § Rewrite the body when the PR changes). The TLDR table
 header names Before, After and Why, in that order. The Test matrix section also holds a Real-environment
-walk line.
+walk line. On a deep PR whose changed files touch native app code (ios/ or android/, tests excluded) or a
+payment or entitlement path (PAYMENT_PATH), that line names a simulator, device or local-stack walk with
+PASS, or a reasoned does-not-apply naming why no user journey changed; a line resting on unit tests, or a
+does-not-apply giving any other reason (e.g. "a real purchase cannot run locally"), fails
+(references/testing-strategy.md § Pre-merge end-to-end on a local stack).
 The Regression check section holds one row per pre-existing file the PR modifies, renames or removes
 (the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED and a filled cell in the
 table's Base-vs-head evidence column: the method is references/testing-strategy.md § Regression check.
@@ -78,7 +82,9 @@ NEEDS = {
     "System journey": "what the system does, in steps",
     "Test matrix": ("a tier named (light, standard or deep) with its trigger; counts for "
                     + ", ".join(MATRIX_COUNTS) + "; a results table; a 'Real-environment walk:' line "
-                    "with PASS, a reasoned does-not-apply or a skip line"),
+                    "with PASS, a reasoned does-not-apply or a skip line; on a deep PR touching native app "
+                    "code or a payment or entitlement path, the simulator, device or local-stack walks with "
+                    "PASS, or a does-not-apply naming why no user journey changed"),
     "Regression check": ("a table with a Base-vs-head evidence column; a row per modified pre-existing file, "
                          "each with evidence and PASS or INTENDED"),
     "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
@@ -130,6 +136,19 @@ LIFECYCLE_VERDICT = re.compile(r"\b(SAFE|GAPS?|N/A)\b")
 TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:light|standard|deep)\b|\b(?:light|standard|deep)\W{0,3}tier\b", re.I)
 # /sk:test-automated-full-matrix's real-environment walk: one line in the Test matrix section.
 WALK = re.compile(r"^.*real[- ]environment walk.*$", re.I | re.M)
+# references/testing-strategy.md § Pre-merge end-to-end: a deep PR touching native app code or a payment or
+# entitlement path walks its changed journeys on a real client; unit tests and "cannot run locally" never count.
+NATIVE_CODE = re.compile(r"^(?:ios|android)/")
+NATIVE_TEST = re.compile(r"(?:Tests|androidTest|/test)/|Tests?\.(?:swift|kt|java|m)$")
+PAYMENT_PATH = re.compile(r"payment|paywall|payer|checkout|stripe|revenuecat|entitlement|purchase|subscri|"
+                          r"billing|refund|invoice|storekit", re.I)
+NATIVE_ENV = re.compile(r"\b(?:simulator|emulator|device|iPhone|iPad|TestFlight)\b", re.I)
+WALK_ENV = re.compile(NATIVE_ENV.pattern + r"|\blocal stack\b|\bbrowser\b|\bPlaywright\b", re.I)
+UNIT_TESTS = re.compile(r"\bunit[- ]tests?\b|\bXCTest\b", re.I)
+WALKED = re.compile(r"\bW\d+\b|\bwalk(?:s|ed)\b|\bjourneys?\b|\bend[- ]to[- ]end\b|\be2e\b|\blocal stack\b", re.I)
+NO_JOURNEY = re.compile(r"\bno (?:user[- ]|purchase |payment |sign[- ]in |changed )?journeys?\b|"
+                        r"\b(?:changes|touches|alters) no (?:user[- ])?journeys?\b|"
+                        r"\bjourneys? (?:is |are |stays? |stay )?(?:unchanged|not changed)\b", re.I)
 # A posted video: an inline <video> or a bare GitHub attachment URL alone on its line (images are <img> or ![]()).
 VIDEO = re.compile(r"<video\s|^\s*https://github\.com/user-attachments/assets/\S+\s*$", re.I | re.M)
 # references/screenshot-review.md § Verification run videos: the labels each run block and the section carry.
@@ -399,6 +418,38 @@ def check_installed_builds(safety, light=False):
     return missing
 
 
+def walk_trigger(changed):
+    """'native' or 'payment' when a deep PR's changed files require a real-client walk; None otherwise."""
+    served = [f for f in changed if not NOT_SERVED.search(f) and not NATIVE_TEST.search(f)]
+    if any(NATIVE_CODE.search(f) for f in served):
+        return "native"
+    if any(PAYMENT_PATH.search(f) for f in served):
+        return "payment"
+    return None
+
+
+def check_walk_required(walk, trigger):
+    """Missing-row strings when a deep native or payment PR's walk line names no real-client walk."""
+    env = NATIVE_ENV if trigger == "native" else WALK_ENV
+    client = "simulator or device" if trigger == "native" else "simulator, device, browser or local-stack"
+    where = f"the {client} walks"
+    scope = "native app code" if trigger == "native" else "a payment or entitlement path"
+    if any(reasoned_na(w) and NO_JOURNEY.search(w) for w in walk):
+        return []
+    passed = [w for w in walk if re.search(r"\bPASS\b", w)]
+    if not passed:
+        return [f"Test matrix: this deep PR touches {scope}, so the Real-environment walk names {where} "
+                "that ran, each with PASS or FAIL, or a does-not-apply naming why no user journey changed; "
+                "a step the local stack cannot reach is a 'not run:' row, never the line's N/A "
+                "(references/testing-strategy.md § Pre-merge end-to-end on a local stack)"]
+    if not any(env.search(w) for w in passed):
+        return [f"Test matrix: the Real-environment walk names no {client} walk for a deep PR touching {scope}"]
+    if any(UNIT_TESTS.search(w) and not WALKED.search(w) for w in passed):
+        return ["Test matrix: the Real-environment walk rests on unit tests; unit tests are not a walk "
+                "(keep them in the results table and name the journeys walked)"]
+    return []
+
+
 def check_matrix_head(order, head):
     """Missing-row strings when the Test matrix heading does not name the PR's current head sha."""
     title = next((text for _, text, _ in order if matches(text, SECTIONS["Test matrix"])), "")
@@ -412,10 +463,13 @@ def check_matrix_head(order, head):
     return []
 
 
-def check_body(body, body_html, unresolved, modified=(), installed=False, head=None, native=False):
+def check_body(body, body_html, unresolved, modified=(), installed=False, head=None, native=False, changed=()):
     """Return one 'row: what is missing' string per failing landing-gate row.
 
     native: the repo ships a native app, so the Deploy TLDR carries the app build line.
+
+    changed: every file the PR changes; on a deep PR, native app code or a payment or entitlement path
+    in it makes the Real-environment walk name a real-client walk (walk_trigger).
 
     head: the PR's current head sha. When given, the Test matrix heading must name it
     ("## Test matrix (head <sha>)"), so a body written for an earlier head fails.
@@ -463,6 +517,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
             missing.append("Test matrix: the Real-environment walk records a FAIL")
         elif not any(re.search(r"\bPASS\b", w) or reasoned_na(w) or TIER_SKIP.search(w) for w in walk):
             missing.append("Test matrix: the Real-environment walk has no PASS, doesn't-apply reason or skip line")
+        elif DEEP_TIER.search(matrix) and walk_trigger(changed or ()):
+            missing += check_walk_required(walk, walk_trigger(changed or ()))
 
     if matrix is not None and head:
         missing += check_matrix_head(order, head)
@@ -572,7 +628,7 @@ def fetch(repo, pr):
     installed = reaches_installed_builds(changed, roots)
     head = (data.get("head") or {}).get("sha") or ""
     return (data.get("body") or "", data.get("body_html") or "", unresolved, files, installed, head,
-            ships_native_app(roots))
+            ships_native_app(roots), changed)
 
 
 def main():
@@ -584,7 +640,7 @@ def main():
         print(f"pr-landing-gate: usage: --repo must be owner/name, got {args.repo}", file=sys.stderr)
         return 2
     try:
-        body, body_html, unresolved, modified, installed, head, native = fetch(args.repo, args.pr)
+        body, body_html, unresolved, modified, installed, head, native, changed = fetch(args.repo, args.pr)
     except (RuntimeError, KeyError, TypeError, ValueError) as err:
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: {err}", file=sys.stderr)
         return 2
@@ -592,7 +648,7 @@ def main():
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: body empty or under 200 chars",
               file=sys.stderr)
         return 2
-    missing = check_body(body, body_html, unresolved, modified, installed, head, native)
+    missing = check_body(body, body_html, unresolved, modified, installed, head, native, changed)
     for row in missing:
         print(f"pr-landing-gate: FAIL {args.repo}#{args.pr} {row}")
     if missing:

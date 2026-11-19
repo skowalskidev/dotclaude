@@ -174,6 +174,58 @@ check(any("walk has no PASS" in m for m in
           gate.check_body(PASSING.replace(WALK_LINE, "Real-environment walk: N/A"), HTML, 0)),
       "A bare walk N/A passed")
 
+# A deep PR touching native app code or a payment or entitlement path names a real-client walk with PASS,
+# or a does-not-apply naming why no user journey changed (testing-strategy.md § Pre-merge end-to-end).
+NATIVE_FILES = ("ios/App/Core/PurchaseConfirmation.swift", "ios/AppTests/PurchaseConfirmationTests.swift")
+PAYMENT_FILES = ("supabase/functions/revenuecat/index.ts", "supabase/functions/revenuecat/index_test.ts")
+sim_walk = ("Real-environment walk: PASS, 7 of 7, on the iOS Simulator, head Debug build with the StoreKit "
+            "configuration, against the local stack.")
+cannot_run = ("Real-environment walk: does not apply locally, because a grant needs a real production App "
+              "Store subscription, which no local stack or sandbox purchase can produce.")
+unit_only = "Real-environment walk: PASS, simulator unit tests 44 of 44 in the purchase confirmation suite."
+no_journey = ("Real-environment walk: does not apply, the diff changes no user journey: it renames a log "
+              "field in the purchase helper.")
+
+
+def walk_body(line):
+    return PASSING.replace(WALK_LINE, line)
+
+
+def walk_missing(line, changed, body=None):
+    return gate.check_body(body or walk_body(line), HTML, 0, changed=changed)
+
+
+check(any("touches native app code" in m for m in walk_missing(cannot_run, NATIVE_FILES)),
+      "A deep native PR whose walk N/A says the purchase cannot run locally passed (the #1350 gap)")
+check(walk_missing(sim_walk, NATIVE_FILES) == [], f"A deep native PR with a simulator walk failed: "
+      f"{walk_missing(sim_walk, NATIVE_FILES)}")
+check(any("rests on unit tests" in m for m in walk_missing(unit_only, NATIVE_FILES)),
+      "A deep native PR whose walk line is simulator unit tests passed")
+check(any("names no simulator or device walk" in m for m in walk_missing(WALK_LINE, NATIVE_FILES)),
+      "A deep native PR whose walk names no simulator or device passed")
+check(walk_missing(no_journey, NATIVE_FILES) == [], "A deep native PR whose N/A names no changed journey failed")
+check(any("walk has no PASS" in m for m in walk_missing("Real-environment walk: N/A", NATIVE_FILES)),
+      "A deep native PR with a bare walk N/A passed")
+check(any("walk records a FAIL" in m for m in
+          walk_missing("Real-environment walk: FAIL, W2 restore on the iOS Simulator.", NATIVE_FILES)),
+      "A deep native PR with a failing simulator walk passed")
+check(walk_missing(WALK_LINE, ("ios/AppTests/PurchaseConfirmationTests.swift",)) == [],
+      "A deep PR changing only native tests was held to the walk rule")
+check(any("touches a payment or entitlement path" in m for m in walk_missing(cannot_run, PAYMENT_FILES)),
+      "A deep payment-path PR whose walk N/A gives another reason passed")
+check(any("names no simulator, device, browser or local-stack walk" in m
+          for m in walk_missing(WALK_LINE, PAYMENT_FILES)),
+      "A deep payment-path PR whose walk names no real client passed")
+browser_walk = "Real-environment walk: PASS, W1-W3 in the browser against the local stack with Stripe test mode."
+check(walk_missing(browser_walk, PAYMENT_FILES) == [], "A deep payment-path PR with a browser walk failed")
+check(walk_missing(WALK_LINE, ("supabase/functions/revenuecat/index_test.ts", "docs/billing.md")) == [],
+      "A deep PR changing only payment tests and docs was held to the walk rule")
+standard = walk_body(cannot_run).replace("Tier: deep (a member's search limit and its billing plan).",
+                                         "Tier: standard (one feature's logic past the Light size).")
+check(not any("touches" in m for m in walk_missing(None, NATIVE_FILES, standard)),
+      "A Standard PR was held to the deep walk rule")
+check(gate.walk_trigger(("site/web/app/display/Card.tsx",)) is None, "A 'display' path counted as a payment path")
+
 # A matrix section missing one count label names that label.
 no_gap = PASSING.replace("· 0 GAP ", "")
 check(any("GAP" in m for m in gate.check_body(no_gap, HTML, 0)), "A matrix with no GAP count passed")
@@ -667,6 +719,17 @@ with tempfile.TemporaryDirectory() as tmp:
     serve(stub, with_app, files=("src/auth/Gate.tsx",), roots=("ios", "src"))
     r = cli()
     check(r.returncode == 0, f"CLI failed a native-app PR with its installed-build and app build lines: {r.stdout}{r.stderr}")
+
+    # The CLI passes the PR's whole changed-file list to the walk rule.
+    native_rows = "".join(f"| `{f}` | 1 | Purchase | unit suite on base and head | PASS |\n" for f in NATIVE_FILES)
+    with_native = with_app.replace("| `Gate` newly mounted", native_rows + "| `Gate` newly mounted", 1)
+    serve(stub, with_native.replace(WALK_LINE, cannot_run), files=NATIVE_FILES, roots=("ios", "src"))
+    r = cli()
+    check(r.returncode == 1 and "touches native app code" in r.stdout,
+          f"CLI passed a deep native PR whose walk was an N/A for another reason: {r.returncode} {r.stdout}")
+    serve(stub, with_native.replace(WALK_LINE, sim_walk), files=NATIVE_FILES, roots=("ios", "src"))
+    r = cli()
+    check(r.returncode == 0, f"CLI failed a deep native PR with a simulator walk: {r.stdout}{r.stderr}")
 
 if FAILS:
     print("pr-landing-gate.test: FAIL\n  " + "\n  ".join(FAILS))
