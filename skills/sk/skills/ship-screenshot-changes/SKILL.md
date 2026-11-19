@@ -6,6 +6,8 @@ argument-hint: [changed routes or journeys; whole app only when requested]
 
 # Screenshot the changed surfaces and journeys, before and after
 
+Cadence: run this once on the converged head, never after each fix; `references/testing-strategy.md` § Verify once, at convergence owns the policy.
+
 Get every changed visible surface and journey on screen in a real browser, in the states a user would
 actually see them, before and after the change, and hand back one review plus PR evidence that looks the
 same on every PR. No bug-hunting or fix-loop: that is `/sk:test-eyeball`, which reuses THIS skill for the

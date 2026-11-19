@@ -6,6 +6,8 @@ argument-hint: "[PR number / branch / diff to test]"
 
 # The full automated test matrix — autonomous, two-stage
 
+Cadence: run this once on the converged head, never after each fix; `references/testing-strategy.md` § Verify once, at convergence owns the policy.
+
 Run this on a finished diff or PR to assess EVERY feature it added, with an evidence-backed verdict,
 UNATTENDED. It runs autonomously: no AskUserQuestion, no pacing, no human step, so it is safe to leave
 on a diff overnight. It is DISTINCT from `/sk:test-copilot` (the human-driven journey); co-pilot runs

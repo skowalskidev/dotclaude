@@ -6,6 +6,8 @@ argument-hint: "[goal | --resume plan-path | --resume <dashboard link>] [--engin
 
 # Simon's work harness
 
+Cadence: run this once on the converged head, never after each fix; `references/testing-strategy.md` § Verify once, at convergence owns the policy.
+
 One harness for every task that produces a change: the full detailed workflow's stages, the gauntlet's
 session record, reconciliation, engines and judge, and the ship harness as the final stage.
 
@@ -121,8 +123,9 @@ current, reconcile against it.
    a rebuilt PR whose verdicts, mainstream check and second-provider judge ran only after Simon asked).
 4. Plan tree-structured coverage and write needed tests; defer execution to step 9.
 5. Implement the whole authorized task batch, including every feature, on the selected engine; delegate independent edits using the saved setup and inspect the returned diffs on disk.
-   After each item: verify its criteria, persist, refresh the dashboard, and with the judge on run
-   `references/workflow-loops.md` § Shared judge stage on that revision, routing its gaps back here.
+   After each item: verify its criteria with cheap targeted checks, persist, refresh the dashboard. With
+   the judge on, run `references/workflow-loops.md` § Shared judge stage once on the converged head, not
+   per item or fix (`references/research.md` § Judge cadence), routing its gaps back here as one batch.
    Before the first push of this work's commits, an adopted PR's branch included, run
    `references/planning-and-tracking.md` § Gap sweep before the first push.
 6. Observability + failure handling; never fail silently, no dead-end states.
