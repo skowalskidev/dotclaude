@@ -26,7 +26,7 @@ DO keep a work PR draft until merge prep: `references/git-pr-deploy.md` § CI ru
 DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push or
 drops a stage. Name the real blocker in every status. DO launch every ready stage at once on a priority ask.
 `references/parallelization.md` §§ Parallelize verification, across tasks AND stages.
-TEST: no routine per-edit/feature/commit/feedback runs; final coverage uses matching inputs, once per head;
+TEST: no routine per-edit/feature/commit/feedback runs; final coverage once per head;
 at most 1 full judge round plus 2 delta passes per PR.
 
 ### Claims about third parties must come from primary sources
@@ -161,7 +161,7 @@ Run-to-completion stays the default. When I ask for phases, spacing or a stop af
 
 ### Check whether the project declares expected outcomes, before changing a unit
 DO treat a project's contract registry or acceptance criteria as authoritative: its criteria stay true across
-your change though a suite is green. Why and the reference implementation: `references/contracts-and-outcomes.md`.
+your change though a suite is green. Why: `references/contracts-and-outcomes.md`.
 
 ### Checkpoint before a risky change, so undo does not mean re-deriving it
 Before a change touching more than about three files, commit the good state or branch first. Detail:
