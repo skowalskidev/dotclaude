@@ -345,13 +345,14 @@ with a verdict, and zero `in scope, not fixed` rows (the fix for a checkout PR w
 log sweep; it found wallet setup errors, an in-sheet retry refused and a stale-guest refusal, all
 folded in through the shared retry owner).
 
-## Value safety: four answers before a money or access change is handed back
+## Value safety: five answers before a money or access change is handed back
 
-**DO answer all four questions below, unprompted and with evidence, on the final head of every PR
+**DO answer all five questions below, unprompted and with evidence, on the final head of every PR
 whose diff can grant, move or revoke value:** money, a charge, credits, an entitlement, an auth or
 session decision, or which person owns a record. Post them under `## Value safety`, one line each
-labelled `Happy path:`, `Failure re-enacted:`, `Wrong recipient:`, `Incident replay:` and
-`Residual risk:`. A Deep PR that moves no value keeps the heading with a reasoned does-not-apply.
+labelled `Happy path:`, `Failure re-enacted:`, `Wrong recipient:`, `Incident replay:`,
+`Provider lifecycle:` and `Residual risk:`. A Deep PR that moves no value keeps the heading with a
+reasoned does-not-apply.
 WHY: these are the first questions a reviewer asks of a money change; one left unanswered moves the
 merge onto Simon.
 1. **Happy path.** List every payment, grant and sign-in entry point by file, each marked touched or
@@ -370,13 +371,44 @@ merge onto Simon.
 4. **Incident replay.** Run § Production compatibility gates' incident replay inside
    `/sk:ship-verify-with-prod-data`, including the other-identity refusal from question 3 per case;
    the line reads `N/N resolved, N/N refused for another account` plus the cohort.
-**DON'T answer any line from a code reading or wait for Simon to ask:** each cites a test, a walk or
-a replay.
-TEST: a Deep PR's fetched body holds `## Value safety` with all five labels and evidence on each, or a
-reasoned does-not-apply; `bin/pr-landing-gate.py` fails it otherwise. (the fix for a guest-purchase
-linking PR where Simon asked all four by hand; answered, they read: payment paths untouched, web and
+5. **Provider lifecycle.** On every PR that grants, revokes or moves paid access through a payment or
+   entitlement provider (a card processor, an app store, a subscription service), enumerate that
+   provider's documented lifecycle as a case matrix, unprompted, under `### Provider lifecycle` inside
+   `## Value safety`, table `Case | Provider doc | Verdict | Evidence`. List the cases from the
+   provider's own docs (its event, state and webhook reference) first, then map the code to each; the
+   PR's own code and our incidents never set the case list. Cover these categories:
+   - purchase outcomes: success, cancel, decline, pending or deferred (Ask to Buy, SCA, 3-D Secure)
+   - renewals: billing retry and grace period
+   - refunds, revocations and chargebacks
+   - ownership transfers between accounts
+   - trials and intro offers
+   - sandbox and test environments
+   - shared or family access
+   - restore
+   - provider outage, rate limits and stale reads
+   - concurrent events (two webhooks, or a webhook racing a client call, on one purchase)
+   - plan changes: upgrade, downgrade, crossgrade
+   Each row links the provider's doc page for that case and reads `SAFE` with the `file:line` that
+   handles it, `GAP` with the `file:line` that mishandles it, or `N/A` with the reason the provider or
+   the diff cannot reach it. Fix every `GAP` before hand-back; one that cannot close goes under
+   `Residual risk:` as a decision for Simon and keeps the gate failing. The `Provider lifecycle:` line
+   gives the counts (`11 rows: 9 SAFE, 2 N/A`), or a reasoned does-not-apply when the diff touches no
+   provider-backed paid access. Give the § Independent judges panel (`references/research.md`) the
+   same matrix plus the provider doc links; each judge adds a row for any documented case it finds
+   missing and re-verdicts each row from the code.
+   NUMBER: every category above gets at least one row or a reasoned `N/A` row: 11 rows minimum.
+**DON'T answer any line from a code reading or wait for Simon to ask:** each labelled line cites a
+test, a walk or a replay; a matrix row cites its `file:line`, and each `GAP` fix lands with a
+regression test that drives that case.
+TEST: a Deep PR's fetched body holds `## Value safety` with all six labels and evidence on each, or a
+reasoned does-not-apply, and a `### Provider lifecycle` table of 11+ rows, each with a doc link and a
+verdict, zero `GAP`, unless its `Provider lifecycle:` line is a reasoned does-not-apply;
+`bin/pr-landing-gate.py` fails it otherwise. (the fix for a guest-purchase linking PR where Simon asked all four by hand; answered, they read: payment paths untouched, web and
 iPhone walks PASS, 32/32 production cases linked, 32/32 other-account attempts refused, shared device
-named as residual risk.)
+named as residual risk. And the fix for a server grant of an app-store entitlement that passed all
+four answers, a security review and four review rounds; only a by-hand pass over the provider's
+documented lifecycle found a refund that left access moved to a second account live, a refund race,
+and four more transfer defects.)
 
 **DO give a decision that several doors read one agreement test that drives every door on the
 same fixture state,** whenever a change touches a shared verdict (eligibility, price, offer, refusal):

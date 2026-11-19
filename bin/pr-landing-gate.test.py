@@ -91,7 +91,24 @@ Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and requ
 **Failure re-enacted:** a member over the old limit searches on web; the walk fails on base and passes on head.
 **Wrong recipient:** only the member's own session reads the limit; a second account's token gets a 403 in `limit_test.ts`.
 **Incident replay:** 12/12 refused members admitted, 12/12 refused for another account (production rows, live definitions).
+**Provider lifecycle:** 11 rows: 10 SAFE, 1 N/A (matrix below).
 **Residual risk:** none found; checked shared phone numbers and family plans.
+
+### Provider lifecycle
+
+| Case | Provider doc | Verdict | Evidence |
+|---|---|---|---|
+| Purchase success, cancel, decline, pending | [doc](https://docs.example.com/lifecycle#0) | SAFE | limit.ts:10 |
+| Renewal billing retry and grace | [doc](https://docs.example.com/lifecycle#1) | SAFE | limit.ts:11 |
+| Refund, revocation, chargeback | [doc](https://docs.example.com/lifecycle#2) | SAFE | limit.ts:12 |
+| Transfer between accounts | [doc](https://docs.example.com/lifecycle#3) | SAFE | limit.ts:13 |
+| Trial and intro offer | [doc](https://docs.example.com/lifecycle#4) | SAFE | limit.ts:14 |
+| Sandbox and test environment | [doc](https://docs.example.com/lifecycle#5) | SAFE | limit.ts:15 |
+| Family sharing | [doc](https://docs.example.com/lifecycle#6) | N/A | the plan has no shared access |
+| Restore | [doc](https://docs.example.com/lifecycle#7) | SAFE | limit.ts:17 |
+| Outage, rate limit, stale read | [doc](https://docs.example.com/lifecycle#8) | SAFE | limit.ts:18 |
+| Concurrent webhooks | [doc](https://docs.example.com/lifecycle#9) | SAFE | limit.ts:19 |
+| Plan change | [doc](https://docs.example.com/lifecycle#10) | SAFE | limit.ts:20 |
 
 ## Deploy safety
 
@@ -253,7 +270,7 @@ check(gate.check_body(section(PASSING, "Deploy safety", safety_na), HTML, 0) == 
 check("Deploy safety" in rows(gate.check_body(section(PASSING, "Deploy safety", "## Deploy safety\n\nFine.\n\n"),
                                               HTML, 0)), "Deploy safety with no merge train or rollback passed")
 
-# Value safety: required on a deep-tier PR; five labelled lines with evidence, or a reasoned doesn't-apply.
+# Value safety: required on a deep-tier PR; six labelled lines with evidence, or a reasoned doesn't-apply.
 no_value = section(PASSING, "Value safety", "")
 check(rows(gate.check_body(no_value, HTML, 0)) == {"Value safety"}, "A deep PR with no Value safety section passed")
 standard = no_value.replace("Tier: deep (a member's search limit and its billing plan).",
@@ -270,6 +287,25 @@ check(any("no N/N count" in m for m in gate.check_body(uncounted, HTML, 0)), "An
 replay_na = PASSING.replace("**Incident replay:** 12/12 refused members admitted, 12/12 refused for another account",
                             "**Incident replay:** does not apply, the PR fixes no production incident")
 check(gate.check_body(replay_na, HTML, 0) == [], "A reasoned incident-replay N/A failed")
+# Value safety question 5: the provider lifecycle matrix, one linked, verdicted row per documented category.
+matrix_rows = [ln for ln in PASSING.splitlines() if ln.startswith("| ") and "docs.example.com" in ln]
+check(len(matrix_rows) == gate.PROVIDER_CASES, "The passing fixture no longer holds a full lifecycle matrix")
+short = PASSING.replace(matrix_rows[-1] + "\n", "")
+check(any("row(s); every documented" in m for m in gate.check_body(short, HTML, 0)), "A short lifecycle matrix passed")
+unlinked_row = PASSING.replace(matrix_rows[0], matrix_rows[0].replace("[doc](https://docs.example.com/lifecycle#0)", "docs"))
+check(any("no provider doc link" in m for m in gate.check_body(unlinked_row, HTML, 0)), "A lifecycle row with no doc link passed")
+gap_row = PASSING.replace(matrix_rows[2], matrix_rows[2].replace("| SAFE |", "| GAP |"))
+check(any("open GAP" in m for m in gate.check_body(gap_row, HTML, 0)), "A lifecycle GAP row passed")
+no_verdict = PASSING.replace(matrix_rows[3], matrix_rows[3].replace("| SAFE |", "| checked |"))
+check(any("no SAFE, GAP or N/A" in m for m in gate.check_body(no_verdict, HTML, 0)), "A lifecycle row with no verdict passed")
+gap_in_case = PASSING.replace(matrix_rows[4], matrix_rows[4].replace("Trial and intro offer", "Trial GAP window"))
+check(gate.check_body(gap_in_case, HTML, 0) == [], "A GAP word outside the Verdict column failed the matrix")
+no_matrix = PASSING[:PASSING.index("\n### Provider lifecycle")] + PASSING[PASSING.index("\n## Deploy safety"):]
+check(any("no ### Provider lifecycle" in m for m in gate.check_body(no_matrix, HTML, 0)), "A missing lifecycle matrix passed")
+lifecycle_na = no_matrix.replace("**Provider lifecycle:** 11 rows: 10 SAFE, 1 N/A (matrix below).",
+                                 "**Provider lifecycle:** does not apply, no provider-backed paid access in the diff")
+check(gate.check_body(lifecycle_na, HTML, 0) == [], "A reasoned provider-lifecycle N/A failed: "
+      f"{gate.check_body(lifecycle_na, HTML, 0)}")
 value_na = section(PASSING, "Value safety",
                    "## Value safety\n\nDoes not apply: the diff moves no money, credit, entitlement, auth or ownership.\n\n")
 check(gate.check_body(value_na, HTML, 0) == [], "A reasoned value-safety N/A failed")

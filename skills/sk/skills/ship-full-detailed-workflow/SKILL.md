@@ -76,8 +76,9 @@ tickets; a fix that belongs to another PR is handed to that owner via
    revokes money, credits, entitlements, auth or record ownership, unprompted, on the final head, in
    that same fan-out;** its incident replay runs inside the prod-data skill above.
    **DON'T hand such a PR back for Simon to ask whether payers, the original failure or another
-   person's value are safe.** TEST: every Deep PR's fetched body holds `## Value safety` with its five
-   labelled lines or a reasoned does-not-apply.
+   person's value are safe, or whether a provider's refund, transfer or decline is handled.** TEST:
+   every Deep PR's fetched body holds `## Value safety` with its six labelled lines and its provider
+   lifecycle matrix, or a reasoned does-not-apply.
    **DO run `references/git-pr-deploy.md` § Deploy safety on EVERY Deep PR in the run, unprompted, as a
    parallel background agent on that same fan-out.** It never blocks; stage 8's Deploy TLDR and the
    landing gate wait on it. A merge-train conflict, red suite or unsafe migration is a finding fixed
@@ -175,7 +176,8 @@ verified the user + system journey, then handed back with it never posted to the
   checked cohorts, unknowns and activation dependencies, or its doesn't-apply verdict with the traced
   reason. An unknown cohort or unmet activation dependency cannot become a compatibility PASS.
 - Value safety (stage 6), on every Deep PR: the happy-path, failure re-enacted, wrong-recipient,
-  incident-replay and residual-risk lines, each with its evidence, or a reasoned does-not-apply.
+  incident-replay, provider-lifecycle and residual-risk lines, each with its evidence, plus the
+  `### Provider lifecycle` matrix with zero GAP rows, or a reasoned does-not-apply.
 - Deploy safety (stage 6), on every Deep PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
   per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines (a Light

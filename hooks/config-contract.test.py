@@ -2401,9 +2401,11 @@ def check_regression_check_runs_on_every_pr() -> None:
 
 def check_value_safety_answers_four_questions() -> None:
     method = " ".join((ROOT / "references/testing-strategy.md").read_text().split())
-    for required in ("## Value safety: four answers before a money or access change is handed back",
+    for required in ("## Value safety: five answers before a money or access change is handed back",
                      "`Happy path:`", "`Failure re-enacted:`", "`Wrong recipient:`", "`Incident replay:`",
-                     "`Residual risk:`", "zero added blocking requests", "on every platform it occurred on",
+                     "`Provider lifecycle:`", "`Residual risk:`", "under `### Provider lifecycle`",
+                     "List the cases from the provider's own docs", "11 rows minimum",
+                     "zero `GAP`", "Give the § Independent judges panel", "zero added blocking requests", "on every platform it occurred on",
                      "receives nothing", "DO replay every proven production incident case",
                      "production's live definitions", "scratch database", "a fixture-only replay is UNKNOWN"):
         check(required in method, "Value safety method lost: " + required)
@@ -2414,6 +2416,8 @@ def check_value_safety_answers_four_questions() -> None:
     gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
     check('"Value safety": "Value safety"' in gate_src and "check_value_safety" in gate_src,
           "The landing gate no longer owns a Value safety row")
+    check("def check_lifecycle_matrix" in gate_src and "PROVIDER_CASES = 11" in gate_src,
+          "The landing gate no longer checks the Provider lifecycle matrix")
 
 
 def check_matrix_binds_copies_and_walks_real_stack() -> None:

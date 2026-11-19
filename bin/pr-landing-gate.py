@@ -15,8 +15,11 @@ walk line.
 The Regression check section holds one row per pre-existing file the PR modifies, renames or removes
 (the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED and a filled cell in the
 table's Base-vs-head evidence column: the method is references/testing-strategy.md § Regression check.
-A PR whose Test matrix names the deep tier holds a Value safety section: its five labelled lines, or a
-reasoned does-not-apply (references/testing-strategy.md § Value safety).
+A PR whose Test matrix names the deep tier holds a Value safety section: its six labelled lines, or a
+reasoned does-not-apply (references/testing-strategy.md § Value safety). Unless its Provider lifecycle
+line is a reasoned does-not-apply, the section holds a Provider lifecycle sub-heading whose table has
+one row per documented provider case (PROVIDER_CASES minimum), each with a doc link and a SAFE, GAP or
+N/A verdict, and no GAP row.
 A Screenshots or Verification runs section that posts no evidence and states no visible surface (or a
 does-not-apply) carries a "Checked outputs:" clause naming what was compared on base and head
 (references/screenshot-review.md § Visible surfaces); a bare "No eligible frontend surface" fails, and so
@@ -77,7 +80,10 @@ NEEDS = {
                          "each with evidence and PASS or INTENDED"),
     "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
     "Value safety": ("on a deep-tier PR, the lines Happy path:, Failure re-enacted:, Wrong recipient:, "
-                     "Incident replay: (with N/N) and Residual risk:, or a reasoned does-not-apply"),
+                     "Incident replay: (with N/N), Provider lifecycle: and Residual risk:, or a reasoned "
+                     "does-not-apply; a ### Provider lifecycle table (Case | Provider doc | Verdict | "
+                     "Evidence) with a doc link and SAFE, GAP or N/A per row, no GAP, unless the Provider "
+                     "lifecycle line is a reasoned does-not-apply"),
     "Deploy safety": ("a merge-train result and a rollback, or a reasoned does-not-apply; in a repo with a "
                       "native app, when the PR changes a file its installed builds call or load: a version "
                       "| share table, 'Old build <version> against the new backend: PASS' per version or "
@@ -112,7 +118,12 @@ TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s
 DEEP_TIER = re.compile(r"\btier\b\W{0,3}deep\b|\bdeep\W{0,3}tier\b", re.I)
 LIGHT_TIER = re.compile(r"\btier\b\W{0,3}light\b|\blight\W{0,3}tier\b", re.I)
 # references/testing-strategy.md § Value safety: the labelled lines, in order.
-VALUE_LABELS = ("Happy path", "Failure re-enacted", "Wrong recipient", "Incident replay", "Residual risk")
+VALUE_LABELS = ("Happy path", "Failure re-enacted", "Wrong recipient", "Incident replay", "Provider lifecycle",
+                "Residual risk")
+# references/testing-strategy.md § Value safety question 5: one matrix row per documented lifecycle category.
+PROVIDER_CASES = 11
+LIFECYCLE_HEADING = re.compile(r"^#{3,6}\W*provider lifecycle\b", re.I | re.M)
+LIFECYCLE_VERDICT = re.compile(r"\b(SAFE|GAPS?|N/A)\b")
 TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:light|standard|deep)\b|\b(?:light|standard|deep)\W{0,3}tier\b", re.I)
 # /sk:test-automated-full-matrix's real-environment walk: one line in the Test matrix section.
 WALK = re.compile(r"^.*real[- ]environment walk.*$", re.I | re.M)
@@ -288,6 +299,46 @@ def check_value_safety(text, deep):
     replay = lines.get("Incident replay")
     if replay and not re.search(r"\b\d+\s*/\s*\d+\b", replay) and not reasoned_na(replay):
         out.append("Value safety: the Incident replay line has no N/N count and no doesn't-apply reason")
+    lifecycle = lines.get("Provider lifecycle")
+    # A count line ("11 rows: 10 SAFE, 1 N/A") is not a does-not-apply, and a posted matrix is always checked.
+    counted = re.search(r"\d+\s+(?:SAFE|GAPS?|N/A)\b", lifecycle or "")
+    if lifecycle and (counted or not reasoned_na(lifecycle) or LIFECYCLE_HEADING.search(text)):
+        out += check_lifecycle_matrix(text)
+    return out
+
+
+def check_lifecycle_matrix(text):
+    """Missing-row strings for the ### Provider lifecycle case matrix inside Value safety."""
+    hit = LIFECYCLE_HEADING.search(text)
+    if not hit:
+        return ["Value safety: no ### Provider lifecycle case matrix (Case | Provider doc | Verdict | Evidence)"]
+    body = text[hit.end():]
+    nxt = re.search(r"^#{1,6}\s", body, re.M)
+    body = body[:nxt.start()] if nxt else body
+    rows = []
+    for ln in body.splitlines():
+        if ln.strip().startswith("|"):
+            rows.append(ln)
+        elif rows and ln.strip():
+            break  # the first table after the heading is the matrix
+    cases = rows[2:] if len(rows) >= 2 and re.fullmatch(r"[\s:|-]*-[\s:|-]*", rows[1].strip()) else []
+    out = []
+    if len(cases) < PROVIDER_CASES:
+        out.append(f"Value safety: the Provider lifecycle matrix has {len(cases)} row(s); every documented "
+                   f"category needs one, {PROVIDER_CASES} minimum")
+    if any(not LINK.search(r) for r in cases):
+        out.append("Value safety: a Provider lifecycle row has no provider doc link")
+    header = [c.strip().lower() for c in rows[0].strip().strip("|").split("|")] if rows else []
+    col = next((i for i, c in enumerate(header) if "verdict" in c), None)
+
+    def verdict(row):
+        cells = row.strip().strip("|").split("|")
+        return LIFECYCLE_VERDICT.search(cells[col] if col is not None and col < len(cells) else row)
+    verdicts = [verdict(r) for r in cases]
+    if any(v is None for v in verdicts):
+        out.append("Value safety: a Provider lifecycle row has no SAFE, GAP or N/A verdict")
+    if any(v and v.group(1).startswith("GAP") for v in verdicts):
+        out.append("Value safety: a Provider lifecycle row is an open GAP")
     return out
 
 
