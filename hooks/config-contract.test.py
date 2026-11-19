@@ -94,7 +94,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("ship-gate-blocks-unproven-pushed-branches",
      "A push of a non-default branch from another repo blocks Stop once until a gate record names the pushed head; "
-     "a newer head re-opens it, and main pushes, config-repo pushes, deletes and quoted prompts record or satisfy nothing; "
+     "a newer head re-opens it, a superseded head clears once the branch's latest head (a later record, a gated "
+     "descendant or origin's tip) is gated, and main pushes, config-repo pushes, deletes and quoted prompts record or satisfy nothing; "
      "a PASS needs its tier's stage receipts on the gated sha, forged ones never count, and an older head's light or "
      "standard receipts carry only within their own branch across a Light-sized delta of the PR's own commits "
      "(deep never carries), each commit diffed once however many heads reach it; "
@@ -1818,6 +1819,48 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         out = stop()
         check(out and "feature/carry-pay" in json.loads(out)["reason"],
               "A waived PR's later push onto a Deep path did not re-open the gate.")
+
+        # Only the branch's latest pushed head is judged: a head superseded by a newer push from another
+        # checkout never blocks once that newer head is gated, even after its checkout is removed, while
+        # a gate on an older head still never counts for a newer one (the fix for a removed temp
+        # worktree's head blocking Stop although its pushed descendant already held gate PASS).
+        check(gate("feature/carry-pay", "HEAD", "N/A", "light", "contract fixture").returncode == 0,
+              "Fixture: closing the pay branch's gate failed.")
+        tmpwt = base / "temp-wt"
+        git(repo, "worktree", "add", "-q", "-b", "feature/sup", str(tmpwt))
+
+        def reason_of(out):
+            return json.loads(out)["reason"] if out else ""
+
+        s1 = commit(tmpwt, "sup1")
+        git(tmpwt, "push", "-q", "origin", "HEAD:feature/sup")
+        push("git push origin HEAD:feature/sup", cwd=tmpwt)
+        s2 = commit(tmpwt, "sup2")
+        git(tmpwt, "push", "-q", "origin", "HEAD:feature/sup")
+        push("git push origin HEAD:feature/sup")   # recorded from the session checkout, as a delegated push is
+        got = reason_of(stop())
+        check(s2[:7] in got and s1[:7] not in got,
+              "Stop did not judge only the newest pushed head of a branch pushed from two checkouts: " + got[:400])
+        check(gate("feature/sup", s2, "N/A", "light", "contract fixture").returncode == 0, "Fixture: gate on s2 failed.")
+        check(stop() == "", "A superseded head blocked Stop although the branch's newer pushed head is gated.")
+        git(repo, "worktree", "remove", "--force", str(tmpwt))
+        check(stop() == "", "A superseded head from a removed checkout blocked Stop although its descendant is gated.")
+        git(repo, "checkout", "-q", "feature/sup")
+        s3 = commit(repo, "sup3")
+        git(repo, "push", "-q", "origin", "feature/sup")
+        push("git push origin feature/sup")
+        got = reason_of(stop())
+        check(s3[:7] in got, "A gate on an older head counted for the newer pushed head: " + got[:400])
+        # Origin's tip is the latest head even when this session never recorded it: a force-pushed
+        # rewrite replaces the recorded head, and its gate clears Stop.
+        git(repo, "reset", "-q", "--hard", s2)
+        s5 = commit(repo, "sup5")
+        git(repo, "push", "-q", "--force", "origin", "feature/sup")
+        got = reason_of(stop())
+        check(s5[:7] in got and s3[:7] not in got,
+              "Stop did not judge origin's tip after a force-push replaced the recorded head: " + got[:400])
+        check(gate("feature/sup", s5, "N/A", "light", "contract fixture").returncode == 0, "Fixture: gate on s5 failed.")
+        check(stop() == "", "A gate on origin's tip did not clear the head it replaced.")
 
     # The stage list lives once, in the hook; the harness names every stage it requires.
     harness = (ROOT / "skills/sk/skills/ship-full-detailed-workflow/SKILL.md").read_text()

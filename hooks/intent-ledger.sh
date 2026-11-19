@@ -565,32 +565,88 @@ work_checkout() {
   printf '%s' "$wc"
 }
 
-# Print "root<TAB>branch<TAB>sha" for each pushed branch head that has no gate record. Simon's
+# Print "root<TAB>branch<TAB>sha" for each pushed branch's LATEST head that has no gate record. Simon's
 # recorded waiver on an earlier head of the same branch covers a later head whose own delta touches
 # no Deep path (any size), so a waived PR's follow-up pushes do not re-block.
+#
+# Only a branch's latest head is judged: a gate on an older head never counts once a newer head is
+# pushed, and a superseded head never blocks once that newer head is gated. The newest record per
+# root+branch is the candidate; it is superseded by (1) a later record of the same branch from another
+# checkout that descends from it, or (2) a gate on the same branch whose head descends from it (the
+# fix for a removed temp worktree's head d334b6f blocking Stop while its descendant 0fb737289, pushed
+# from another checkout, already held gate PASS). Otherwise origin's tip, read with ls-remote from
+# that checkout (or the session root when the checkout is gone and holds the commit), names the head.
+# The offline checks run first and ls-remote stops after LS_REMOTE_BUDGET seconds, inside Stop's 5 s.
+LS_REMOTE_BUDGET="${LS_REMOTE_BUDGET:-3}"
+
+# repo_dir DIR SHA — print a checkout that holds SHA: DIR while it exists, else the session root.
+repo_dir() {
+  if [ -d "$1" ]; then printf '%s' "$1"; return 0; fi
+  [ -n "$SROOT" ] && git -C "$SROOT" cat-file -e "$2^{commit}" 2>/dev/null && printf '%s' "$SROOT"
+}
+
+# head_gated BRANCH SHA DIR — 0 when SHA has a gate on BRANCH, or a waiver on BRANCH carries to it.
+head_gated() {
+  local gb gs wb ws
+  while read -r gb gs; do
+    [ -n "$gb" ] && [ "$gb" = "$1" ] && sha_match "$gs" "$2" && return 0
+  done <<GATES
+$GATES_
+GATES
+  [ -n "$3" ] || return 1
+  while read -r wb ws; do
+    [ -n "$wb" ] && [ "$wb" = "$1" ] || continue
+    CARRY_DIR="$3" delta_carries "$ws" "$2" -1 nobase && return 0
+  done <<WAIVERS
+$WAIVERS_
+WAIVERS
+  return 1
+}
+
+# descends DIR OLD NEW — 0 when NEW is a different commit that has OLD as an ancestor, in DIR.
+descends() {
+  [ -n "$1" ] && ! sha_match "$2" "$3" && git -C "$1" merge-base --is-ancestor "$2" "$3" 2>/dev/null
+}
+
 open_pushes() {
   [ -s "$PUSHES" ] || return 0
-  gates="$(gate_pairs "$LEDGER")"
-  waivers="$(waiver_pairs "$LEDGER")"
-  awk -F'\t' '{ k=$1 FS $2; if (!(k in v)) order[++n]=k; v[k]=$3 }
-    END { for (i=1;i<=n;i++) print order[i] FS v[order[i]] }' "$PUSHES" |
-  while IFS="$(printf '\t')" read -r root branch sha; do
-    found=0
+  SROOT="${root:-}"
+  GATES_="$(gate_pairs "$LEDGER")"
+  WAIVERS_="$(waiver_pairs "$LEDGER")"
+  latest="$(awk -F'\t' '{ k=$1 FS $2; if (!(k in v)) order[++n]=k; v[k]=$3; at[k]=NR }
+    END { for (i=1;i<=n;i++) print at[order[i]] FS order[i] FS v[order[i]] }' "$PUSHES")"
+  started="$SECONDS"; seen=""
+  printf '%s\n' "$latest" | while IFS="$(printf '\t')" read -r at proot branch sha; do
+    [ -n "$branch" ] || continue
+    head_gated "$branch" "$sha" "" && continue
+    dir="$(repo_dir "$proot" "$sha")"
+    head_gated "$branch" "$sha" "$dir" && continue
+    newer=0
+    while IFS="$(printf '\t')" read -r lat lroot lbranch lsha; do
+      [ "$lbranch" = "$branch" ] && [ "$lroot" != "$proot" ] && [ "${lat:-0}" -gt "$at" ] || continue
+      if descends "$dir" "$sha" "$lsha" || descends "$(repo_dir "$lroot" "$lsha")" "$sha" "$lsha"; then
+        newer=1; break; fi
+    done <<LATEST
+$latest
+LATEST
+    [ "$newer" -eq 1 ] && continue
     while read -r gb gs; do
-      [ -n "$gb" ] || continue
-      if [ "$gb" = "$branch" ] && sha_match "$gs" "$sha"; then found=1; break; fi
+      [ -n "$gb" ] && [ "$gb" = "$branch" ] || continue
+      if descends "$dir" "$sha" "$gs"; then newer=1; break; fi
     done <<GATES
-$gates
+$GATES_
 GATES
-    if [ "$found" -eq 0 ]; then
-      while read -r wb ws; do
-        [ -n "$wb" ] && [ "$wb" = "$branch" ] || continue
-        if CARRY_DIR="$root" delta_carries "$ws" "$sha" -1 nobase; then found=1; break; fi
-      done <<WAIVERS
-$waivers
-WAIVERS
+    [ "$newer" -eq 1 ] && continue
+    if [ -n "$dir" ] && [ $((SECONDS - started)) -lt "$LS_REMOTE_BUDGET" ]; then
+      tip="$(GIT_TERMINAL_PROMPT=0 git -C "$dir" ls-remote origin "refs/heads/$branch" 2>/dev/null | cut -f1 | head -n 1)"
+      if [ -n "$tip" ] && ! sha_match "$tip" "$sha"; then
+        head_gated "$branch" "$tip" "$dir" && continue
+        sha="$tip"
+      fi
     fi
-    [ "$found" -eq 1 ] || printf '%s\t%s\t%s\n' "$root" "$branch" "$sha"
+    case " $seen " in *" $branch@$sha "*) continue ;; esac
+    seen="$seen $branch@$sha"
+    printf '%s\t%s\t%s\n' "$proot" "$branch" "$sha"
   done
 }
 
@@ -1126,7 +1182,7 @@ reason holds \"All stages ran\" or \"Not run: <stage>, <stage>\" naming each sta
 skill on that head; a standard or deep PASS holds \"All stages ran\" and is refused with any \"Not run:\" list. \
 A PASS names its tier and is refused while any stage that tier requires has no receipt on the head. \
 Run every stage the tier requires first, on the newest head, unprompted, even when an external blocker makes it BLOCKED. A gate \
-recorded for an older head does not count once a newer head is pushed. A light or standard tier reading \"carried from\" \
+recorded for an older head does not count once a newer head is pushed; only each branch's latest head is listed. A light or standard tier reading \"carried from\" \
 needs only the follow-up delta's own checks (its affected tests, one screenshot if it is visible, the PR body's head) before \
 the gate (references/testing-strategy.md, Follow-up pushes). When Simon waived the checks for this PR, record \
 gate <branch> <sha> N/A <tier> \"waived by Simon: <his words verbatim>\"; it covers the branch's later heads. \

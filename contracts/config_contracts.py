@@ -2500,7 +2500,10 @@ CONTRACTS: dict[str, dict] = {
             "keep their own rules). Stop blocks once per set of "
             "open pushes, also on a stop_hook_active continuation, until each branch's newest pushed head has "
             "a gate record; a record for an older head does not count, and a gate line inside a prompt fence "
-            "never counts.",
+            "never counts. Only the branch's latest head is judged: a recorded head is superseded by a later "
+            "record of the branch from another checkout or a gate on the branch that descends from it (checked in "
+            "the push's checkout, or the session root when that checkout is gone), else by origin's tip read with "
+            "ls-remote inside a 3 s budget; a superseded head never blocks once its newer head is gated.",
             "Stage receipts: the hook's STAGES_LIGHT/STANDARD/DEEP list is the one home of the stage skills each tier "
             "requires. PostToolUse `skill` (Skill tool), a typed leading /sk:<stage> prompt, and a Codex read of a stage "
             "SKILL.md mapped by bin/agent_runtime.py append `receipt: <skill> <branch> <head>` for the HEAD of the checkout "
