@@ -65,6 +65,11 @@ and flagged as blocking.**
   lists the objects its migrations touched and a verdict per hit (the fix for a PR patch addressing a
   function by a signature the default branch had just replaced; the merge was clean, the deploy would
   have failed).
+  DO run the same object list over every open or draft PR's migrations from Step 1
+  (`gh pr diff <n> --name-only`); when two PRs change one object, make each patch it in place
+  (additive, order-independent), never re-create it from a copied body. TEST: each object two open
+  PRs change has a verdict and no copied-body re-create (the fix for two open PRs that each
+  re-created one function's step list, so the second to merge dropped the first's steps).
 - **Review the ENTIRE assembled diff, exhaustively — every changed file against current master, not
   a sample and not only the files that conflicted.** Take the full `git diff origin/master...HEAD`
   (the whole set, every hunk) and read it the way `/sk:ship-review` reads a change, because the
