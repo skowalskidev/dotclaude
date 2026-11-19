@@ -538,6 +538,12 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   stage report while stages remain, and no multi-stage worker brief lists `/security-review` (the fix
   for five ship workers that ended their turn after the built-in review's report, two after the
   earlier reference line).
+- **DO carry `references/git-pr-deploy.md`'s one-base-merge rule into every ship or fix worker's brief:**
+  the worker merges the default branch only at merge prep, once, or for a named conflict or needed
+  change. **DON'T write "if main moved, merge it first" or "fetch and merge if behind" into a brief:** a
+  mid-review merge is a new head that resets every stage receipt and CI. TEST: no brief tells a worker to
+  merge the base on its own judgement (the fix for two Deep PRs rerun through all nine stages five more
+  times after briefs said "merge main first if it moved").
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
   signals only those at cleanup. DON'T let it kill by port, name or pattern. TEST: every brief that has
