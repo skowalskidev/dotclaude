@@ -74,8 +74,9 @@ full suite or stage run on two heads of one PR except after a Deep-path change, 
 
 ## Follow-up pushes and waivers
 
-**DO carry a light or standard head's stage receipts to a later push whose own delta is Light-sized:**
-at most 200 changed product lines in the PR's own commits since that head, no product file on a money,
+**DO carry a light or standard head's stage receipts to a later push of the SAME branch whose own delta
+is Light-sized:** another PR's receipts on an ancestor head (reached through a main merge) never count.
+At most 200 changed product lines in the PR's own commits since that head, no product file on a money,
 auth, stored-data or native path, and no base merge touching a file the PR changes. A test-only
 commit, a small review fix, a clean base merge or a small visual tweak qualifies. Run only the delta's
 own checks: its affected tests, one BEFORE/AFTER pair when it is visible, the PR body's head sha, and

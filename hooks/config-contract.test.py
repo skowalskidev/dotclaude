@@ -38,6 +38,7 @@ import inspect
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -95,7 +96,8 @@ CRITERIA: list[tuple[str, str]] = [
      "A push of a non-default branch from another repo blocks Stop once until a gate record names the pushed head; "
      "a newer head re-opens it, and main pushes, config-repo pushes, deletes and quoted prompts record or satisfy nothing; "
      "a PASS needs its tier's stage receipts on the gated sha, forged ones never count, and an older head's light or "
-     "standard receipts carry only across a Light-sized delta of the PR's own commits (deep never carries); "
+     "standard receipts carry only within their own branch across a Light-sized delta of the PR's own commits "
+     "(deep never carries), each commit diffed once however many heads reach it; "
      "a waiver records only quoting Simon's recorded words and covers later non-Deep-path heads; "
      "the refusal and the Stop block name each missing stage."),
     ("codex-subscription-only-inference",
@@ -1746,6 +1748,49 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         git(repo, "merge", "-q", "--no-edit", "main")
         check(stages("standard", "HEAD").stdout.startswith("Not run:"),
               "A base merge that touched a file the PR changes carried the receipts.")
+
+        # A receipt carries only within the branch it was recorded on: another PR's receipts on an
+        # ancestor head never count, and never cost a delta check (the fix for a gate in a long ledger
+        # that diffed every other PR's receipted ancestor heads and never finished). The work is counted
+        # in git diff-tree calls through a PATH shim, never in wall time.
+        shim = base / "shim"
+        shim.mkdir()
+        calls = base / "diff-tree.log"
+        (shim / "git").write_text("#!/bin/sh\ncase \" $* \" in *\" diff-tree \"*) echo x >> '%s' ;; esac\n"
+                                  "exec '%s' \"$@\"\n" % (calls, shutil.which("git")))
+        (shim / "git").chmod(0o755)
+
+        def counted(*args):
+            calls.write_text("")
+            r = run("stages", args=args, extra={"PATH": "%s:%s" % (shim, os.environ["PATH"])})
+            return r, len(calls.read_text().splitlines())
+
+        git(repo, "checkout", "-q", "-b", "feature/other", k4)
+        o1 = commit(repo, "other", 3, "src/other.ts")
+        for st in stages("standard").stdout.split():
+            receipt(st)
+        git(repo, "checkout", "-q", "-b", "feature/mine", o1)
+        m1 = commit(repo, "mine", 2, "src/mine.ts")
+        check(stages("standard", "HEAD").stdout.startswith("Not run:"),
+              "Another branch's receipts on an ancestor head carried to this branch's head.")
+        r, n = counted("standard", m1, "feature/mine")
+        check(r.stdout.startswith("Not run:") and n == 0,
+              "Another branch's receipted ancestor head was delta-checked (%d diff-tree calls): %s" % (n, r.stdout))
+        check(stages("standard", m1, "feature/other").stdout.startswith("All stages ran (carried from %s" % o1[:7]),
+              "Fixture: the same delta did not carry within its own branch.")
+        r = gate("feature/mine", m1, "PASS", "standard", "one feature; All stages ran")
+        check(r.returncode == 2 and "Not run:" in r.stderr,
+              "A standard PASS was accepted on another branch's carried receipts: " + r.stderr)
+        # Many receipted heads of one branch share history: each commit is diffed once, not once per head.
+        for i in range(5):
+            commit(repo, "memo%d" % i, 1, "src/memo%d.ts" % i)
+            receipt("sk:ship-pr")
+        tip = commit(repo, "memo-tip", 1, "src/memo-tip.ts")
+        r, n = counted("light", tip, "feature/mine")
+        own = len(git(repo, "rev-list", tip, "^" + m1).split())
+        check("sk:ship-pr" not in r.stdout and 0 < n <= own,
+              "Receipted heads sharing history re-diffed commits (%d diff-tree calls for %d commits): %s"
+              % (n, own, r.stdout))
 
         # Simon's waiver: an N/A quoting his own recorded words covers the branch's later heads whose
         # delta touches no Deep path; an invented quote, or a waiver PASS, is refused.

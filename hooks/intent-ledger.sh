@@ -49,10 +49,12 @@
 #                                 receipt for the HEAD of <dir> (default: the shell's cwd), in the
 #                                 session's ledger. The fallback when a Skill receipt missed its checkout
 #                                 (a subagent that never ran a Bash `cd`/`git -C` into it).
-#         stages <tier> [sha|HEAD]
+#         stages <tier> [sha|HEAD] [branch]
 #                                 read-only — print the tier's required stage skills; with a sha,
 #                                 print "All stages ran" (exit 0; "(carried from <sha>...)" when a
-#                                 light or standard receipt carried) or "Not run: <stage>, ..." (exit 1)
+#                                 light or standard receipt carried) or "Not run: <stage>, ..." (exit 1).
+#                                 Receipts carry only within <branch>: default the checkout's branch
+#                                 when <sha> is its HEAD, else every branch
 #         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]
 #                                 called by the model — record the landing-gate result for that head;
 #                                 a PASS names its tier and every stage that tier requires has a
@@ -346,16 +348,18 @@ stage_name() { # stage_name NAME — print the canonical stage skill for a Skill
   return 1
 }
 
-receipt_pairs() { # skill and head of every recorded receipt, outside prompt fences
-  section_lines receipt "$1" | awk '/^receipt: sk:[a-z0-9-]+ [^ ]+ [0-9a-f]+$/ && length($4) >= 7 { print $2, $4 }'
+receipt_pairs() { # skill, head and branch of every recorded receipt, outside prompt fences
+  section_lines receipt "$1" | awk '/^receipt: sk:[a-z0-9-]+ [^ ]+ [0-9a-f]+$/ && length($4) >= 7 { print $2, $4, $3 }'
 }
 
 # RECEIPT CARRY (references/testing-strategy.md § Follow-up pushes). A light or standard receipt on an
 # earlier head counts for a later head when the PR's own delta between them is Light-sized: at most
 # CARRY_MAX_LINES changed product lines, no product file behind a Deep path, and no base merge that
-# touched a file the PR changes. Deep receipts never carry. Computed from git on every read, so no
-# record can claim a carry the history does not show (the fix for a 120-line admin button whose test
-# commit, review fix, clean base merge and icon tweak each re-ran all seven standard stages).
+# touched a file the PR changes. Deep receipts never carry, and a receipt carries only within the
+# branch it was recorded on. Computed from git on every read, so no record can claim a carry the
+# history does not show (the fix for a 120-line admin button whose test commit, review fix, clean base
+# merge and icon tweak each re-ran all seven standard stages; and for a gate in a long ledger that ran
+# the delta check for every other PR's receipted heads, ancestors through a main merge, and never finished).
 CARRY_MAX_LINES=200
 # Not product code: tests, fixtures, snapshots, docs and lockfiles.
 NOT_PRODUCT_RE='(^|/)(tests?|e2e|__tests__|__snapshots__|fixtures?|docs?)/|[._-](test|spec)\.[a-z0-9]+$|_test\.[a-z0-9]+$|\.(md|snap)$|(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|deno\.lock|Cargo\.lock|Podfile\.lock|Gemfile\.lock|go\.sum|poetry\.lock|uv\.lock)$'
@@ -363,48 +367,69 @@ NOT_PRODUCT_RE='(^|/)(tests?|e2e|__tests__|__snapshots__|fixtures?|docs?)/|[._-]
 DEEP_PATH_RE='(^|/)(migrations?|db|ios|android)/|\.sql$|pay|billing|stripe|checkout|pric|entitle|auth|purchase|subscri|refund|webhook|credit|wallet'
 CARRY_DIR=""   # the checkout whose git answers carry questions; empty means the shell's cwd
 
-base_refs() { # the default-branch refs present in the carry checkout, origin's HEAD first
+# Per-invocation memos, so each commit costs one diff-tree however many candidate heads reach it:
+# CARRY_MEMO holds "<newline><commit>:<product lines, or D for a Deep path>"; CARRY_BASES* the base refs.
+CARRY_MEMO=""; CARRY_BASES_DIR=""; CARRY_BASES=""
+NL='
+'
+
+load_bases() { # set CARRY_BASES to the default-branch refs in the carry checkout, origin's HEAD first
   local d="${CARRY_DIR:-$PWD}" out="" h r
+  [ -n "$CARRY_BASES_DIR" ] && [ "$CARRY_BASES_DIR" = "$d" ] && return 0
   h="$(git -C "$d" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)"
   for r in $h origin/main origin/master main master; do
     git -C "$d" rev-parse --verify -q "$r^{commit}" >/dev/null 2>&1 || continue
     case " $out " in *" $r "*) ;; *) out="${out:+$out }$r" ;; esac
   done
-  printf '%s' "$out"
+  CARRY_BASES_DIR="$d"; CARRY_BASES="$out"
+}
+
+# commit_weight DIR COMMIT NPARENTS — print COMMIT's own product lines, or D when a product file it
+# changes sits behind DEEP_PATH_RE (matched case-insensitively). A merge adds only its conflict
+# resolution: the combined diff's lines new against both parents. NOT_PRODUCT_RE files count nothing.
+commit_weight() {
+  if [ "$3" -gt 1 ]; then
+    git -C "$1" diff-tree --cc -p "$2" 2>/dev/null | awk '
+      /^diff --cc / { f=$3; next }
+      /^@@@ / { inh=1; next }
+      inh && f != "" && (substr($0,1,2) ~ /\+/ || substr($0,1,2) == "--") { n[f]++ }
+      END { for (k in n) print n[k] "\t" k }'
+  else
+    git -C "$1" diff-tree --no-commit-id --numstat -r "$2" 2>/dev/null | awk -F'\t' '
+      { a=($1=="-")?0:$1; r=($2=="-")?0:$2; print a+r "\t" $3 }'
+  fi | NP="$NOT_PRODUCT_RE" DP="$DEEP_PATH_RE" awk -F'\t' '
+    $2 == "" { next }
+    $2 ~ ENVIRON["NP"] { next }
+    tolower($2) ~ ENVIRON["DP"] { deep = 1; exit }
+    { lines += $1 }
+    END { if (deep) print "D"; else print lines + 0 }'
 }
 
 # delta_carries FROM TO MAX [nobase] — 0 when TO descends from FROM and the PR's own commits between
 # them (base commits excluded) change at most MAX product lines (-1: no cap) and no product file
 # behind DEEP_PATH_RE; unless "nobase", a base merge in between must touch no file the PR changes.
+# Each commit's weight is memoized in CARRY_MEMO, so candidate heads sharing history reuse it.
 delta_carries() {
-  local d="${CARRY_DIR:-$PWD}" bases commits lines c stat n f first mb1 mb2 both
+  local d="${CARRY_DIR:-$PWD}" bases revs lines c rest p np w first mb1 mb2 both
   git -C "$d" merge-base --is-ancestor "$1" "$2" 2>/dev/null || return 1
-  bases="$(base_refs)"
+  load_bases; bases="$CARRY_BASES"
   # shellcheck disable=SC2086 # bases is a word list on purpose
-  commits="$(git -C "$d" rev-list "$2" "^$1" ${bases:+--not $bases} 2>/dev/null)" || return 1
+  revs="$(git -C "$d" rev-list --parents "$2" "^$1" ${bases:+--not $bases} 2>/dev/null)" || return 1
   lines=0
-  for c in $commits; do
-    if [ "$(git -C "$d" rev-list --parents -n 1 "$c" | wc -w)" -gt 2 ]; then
-      # A merge adds only its conflict resolution: the combined diff's lines new against both parents.
-      stat="$(git -C "$d" diff-tree --cc -p "$c" 2>/dev/null | awk '
-        /^diff --cc / { f=$3; next }
-        /^@@@ / { inh=1; next }
-        inh && f != "" && (substr($0,1,2) ~ /\+/ || substr($0,1,2) == "--") { n[f]++ }
-        END { for (k in n) print n[k] "\t" k }')"
-    else
-      stat="$(git -C "$d" diff-tree --no-commit-id --numstat -r "$c" 2>/dev/null | awk -F'\t' '
-        { a=($1=="-")?0:$1; r=($2=="-")?0:$2; print a+r "\t" $3 }')"
-    fi
-    while IFS="$(printf '\t')" read -r n f; do
-      [ -n "$f" ] || continue
-      printf '%s' "$f" | grep -qE "$NOT_PRODUCT_RE" && continue
-      printf '%s' "$f" | grep -qiE "$DEEP_PATH_RE" && return 1
-      lines=$((lines + n))
-    done <<STAT
-$stat
-STAT
-  done
-  [ "$3" -lt 0 ] || [ "$lines" -le "$3" ] || return 1
+  while read -r c rest; do
+    [ -n "$c" ] || continue
+    case "$CARRY_MEMO$NL" in
+      *"$NL$c:"*) w="${CARRY_MEMO#*"$NL$c:"}"; w="${w%%"$NL"*}" ;;
+      *) np=0; for p in $rest; do np=$((np + 1)); done
+         w="$(commit_weight "$d" "$c" "$np")"
+         CARRY_MEMO="$CARRY_MEMO$NL$c:$w" ;;
+    esac
+    [ "$w" = D ] && return 1
+    lines=$((lines + w))
+    [ "$3" -lt 0 ] || [ "$lines" -le "$3" ] || return 1   # over the cap already: no later commit can carry it
+  done <<REVS
+$revs
+REVS
   first="${bases%% *}"
   if [ "${4:-}" != nobase ] && [ -n "$first" ]; then
     mb1="$(git -C "$d" merge-base "$1" "$first" 2>/dev/null)"; mb2="$(git -C "$d" merge-base "$2" "$first" 2>/dev/null)"
@@ -416,47 +441,51 @@ STAT
   return 0
 }
 
-# carriable_heads SHA — the receipted earlier heads whose receipts carry to SHA, space-separated.
+# carriable_heads SHA [BRANCH] — the earlier heads holding a receipt recorded on BRANCH whose receipts
+# carry to SHA, space-separated. With no BRANCH (`stages` without one) every receipted head is a candidate.
 carriable_heads() {
   [ -f "$LEDGER" ] || return 0
   local out="" h
-  for h in $(receipt_pairs "$LEDGER" | awk '{ print $2 }' | awk '!seen[$0]++'); do
+  for h in $(receipt_pairs "$LEDGER" | awk -v b="${2:-}" 'b == "" || $3 == b { print $2 }' | awk '!seen[$0]++'); do
     sha_match "$h" "$1" && continue
     delta_carries "$h" "$1" "$CARRY_MAX_LINES" && out="${out:+$out }$h"
   done
   printf '%s' "$out"
 }
 
-# stage_status TIER SHA [CARRIABLE] — line 1: the tier's stages with no receipt on SHA (or on a
-# carriable head, never for deep), comma-separated; line 2: the short heads a receipt carried from.
+# stage_status TIER SHA [BRANCH] [CARRIABLE] — line 1: the tier's stages with no receipt on SHA (any
+# branch: a sha names one commit) or on a carriable head of BRANCH (never for deep), comma-separated;
+# line 2: the short heads a receipt carried from. CARRIABLE defaults to carriable_heads SHA BRANCH.
 stage_status() {
-  local have="" carry="" miss="" from="" s ok rs rh h
+  local have="" carry="" miss="" from="" sfrom s ok rs rh rb h
   [ -f "$LEDGER" ] && have="$(receipt_pairs "$LEDGER")"
-  [ "$1" = deep ] || carry="${3-$(carriable_heads "$2")}"
+  [ "$1" = deep ] || carry="${4-$(carriable_heads "$2" "${3:-}")}"
   for s in $(tier_stages "$1"); do
-    ok=0
-    while read -r rs rh; do
+    ok=0; sfrom=""
+    while read -r rs rh rb; do
       [ -n "$rs" ] || continue
       [ "$rs" = "$s" ] || continue
       if sha_match "$rh" "$2"; then ok=1; break; fi
-      case " $carry " in *" $rh "*) ok=2 ;; esac
+      [ -z "${3:-}" ] || [ "$rb" = "$3" ] || continue
+      case " $carry " in *" $rh "*)
+        ok=2; case " $sfrom " in *" ${rh:0:7} "*) ;; *) sfrom="${sfrom:+$sfrom }${rh:0:7}" ;; esac ;;
+      esac
     done <<HAVE
 $have
 HAVE
     if [ "$ok" -eq 0 ]; then miss="${miss:+$miss, }$s"
     elif [ "$ok" -eq 2 ]; then
-      for h in $carry; do
-        printf '%s\n' "$have" | grep -q "^$s $h\$" || continue
-        case " $from " in *" ${h:0:7} "*) ;; *) from="${from:+$from }${h:0:7}" ;; esac
+      for h in $sfrom; do
+        case " $from " in *" $h "*) ;; *) from="${from:+$from }$h" ;; esac
       done
     fi
   done
   printf '%s\n%s\n' "$miss" "$from"
 }
 
-# missing_stages TIER SHA — the tier's stages with no receipt on SHA or a carriable head; needs LEDGER.
+# missing_stages TIER SHA [BRANCH] — the tier's stages with no receipt on SHA or a carriable head; needs LEDGER.
 missing_stages() {
-  stage_status "$1" "$2" | sed -n 1p | tr -d '\n'
+  stage_status "$1" "$2" "${3:-}" | sed -n 1p | tr -d '\n'
 }
 
 # norm_text — lower-case, straighten curly quotes, collapse whitespace, so a quoted waiver matches its ask.
@@ -850,14 +879,18 @@ receipt)
 stages)
   tier="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
   case "$tier" in light|standard|deep) ;; *)
-    echo "stages: usage: stages <light|standard|deep> [sha|HEAD]" >&2; exit 2 ;;
+    echo "stages: usage: stages <light|standard|deep> [sha|HEAD] [branch]" >&2; exit 2 ;;
   esac
   [ -n "${3:-}" ] || { tier_stages "$tier"; exit 0; }
   sha="$(git rev-parse --verify -q "$3^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$3" | tr '[:upper:]' '[:lower:]')"
   case "$sha" in *[!0-9a-f]*|"") echo "stages: cannot resolve $3 to a commit" >&2; exit 2 ;; esac
   QUIET=1
   resolve || { echo "stages: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
-  st="$(stage_status "$tier" "$sha")"
+  sbr="${4:-}"
+  if [ -z "$sbr" ] && sha_match "$(git rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null)" "$sha"; then
+    sbr="$(git symbolic-ref -q --short HEAD 2>/dev/null)"
+  fi
+  st="$(stage_status "$tier" "$sha" "$sbr")"
   miss="$(printf '%s\n' "$st" | sed -n 1p)"; from="$(printf '%s\n' "$st" | sed -n 2p)"
   if [ -n "$miss" ]; then echo "Not run: $miss"; exit 1; fi
   if [ -n "$from" ]; then echo "All stages ran (carried from $from: a Light-sized follow-up delta)"; exit 0; fi
@@ -923,11 +956,11 @@ Quote his own words verbatim, or run the tier's stages." >&2; exit 2
   # Stage receipts on this exact head back the stage statement, so neither a PASS nor "All stages ran"
   # rests on reason text alone. A receipt on an older head never counts.
   if [ -n "$tier" ] && [ "$status" != N/A ]; then
-    miss="$(missing_stages "$tier" "$sha")"
+    miss="$(missing_stages "$tier" "$sha" "$branch")"
     fix="Invoke each with the Skill tool (e.g. Skill sk:ship-review) while the session's working \
 directory (a subagent: the directory its last Bash cd'd into) is the checkout at ${sha:0:7}; each run \
 records a receipt for that head. Check with
-  ~/.claude/hooks/intent-ledger.sh stages $tier ${sha:0:7}"
+  ~/.claude/hooks/intent-ledger.sh stages $tier ${sha:0:7} $branch"
     if [ -n "$miss" ] && [ "$status" = PASS ]; then
       echo "gate: a $tier PASS refused for $branch at ${sha:0:7}: these required stages have no receipt on this head.
 Not run: $miss
@@ -1071,9 +1104,9 @@ the new fact: rules/communication.md forbids re-printing an unchanged block. Thi
   # Each head's missing stages come from its receipts, per tier, so the agent invokes exactly those.
   list="$(printf '%s\n' "$open" | while IFS="$(printf '\t')" read -r oroot obranch osha; do
     printf '  %s (%s) at %s\n' "$obranch" "$oroot" "${osha:0:7}"
-    CARRY_DIR="$oroot"; carry="$(carriable_heads "$osha")"
+    CARRY_DIR="$oroot"; carry="$(carriable_heads "$osha" "$obranch")"
     for t in light standard deep; do
-      st="$(stage_status "$t" "$osha" "$carry")"
+      st="$(stage_status "$t" "$osha" "$obranch" "$carry")"
       m="$(printf '%s\n' "$st" | sed -n 1p)"; f="$(printf '%s\n' "$st" | sed -n 2p)"
       if [ -n "$m" ]; then printf '    %s: Not run: %s\n' "$t" "$m"
       elif [ -n "$f" ]; then printf '    %s: All stages ran (carried from %s: a Light-sized follow-up delta; run only its own checks)\n' "$t" "$f"
