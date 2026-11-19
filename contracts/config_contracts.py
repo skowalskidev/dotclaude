@@ -2383,6 +2383,17 @@ CONTRACTS: dict[str, dict] = {
             "hooks/process-kill-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
+    "hooks/capacity-timeout-guard.py": {
+        "mission": "A capacity-queued background command is never killed by its own task timeout while it still waits or runs.",
+        "purpose": "PreToolUse: denies a run_in_background Bash task running local-capacity.py run or native-slot.sh run whose timeout ends before its summed --wait-min plus --max-min plus cleanup.",
+        "criteria": [
+            "Sums each run's literal --wait-min (default 5) and --max-min (default 60) across a chain, sh/bash -c, eval and $(...); denies a sum of 120 minutes or more (launch detached) and a timeout, 30 minutes when absent, below the sum plus 2 minutes.",
+            "A non-literal --wait-min or --max-min passes only with the 2-hour timeout.",
+            "Allows foreground calls, other local-capacity verbs, the detached start_new_session launcher and text that merely names the command (echo, grep, a quoted string); parsing is shared with hooks/secret-echo-guard.py.",
+            "The deny reason names the needed timeout in ms or the detached launch, and references/dev-server-hygiene.md § Waiting on a background job; fails open on a malformed payload.",
+            "hooks/capacity-timeout-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
         "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",

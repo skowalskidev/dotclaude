@@ -764,9 +764,12 @@ simulator lease that is never auto-released. (the fix for a five-stage gate chai
 `--wait-min 60`, killed at the 2-hour cap under machine contention, and for a `--max-min 120`
 simulator hold killed at the same cap while Simon was mid-sign-up.)
 **DO set every shorter `run_in_background` task's `timeout` to at least its summed `--wait-min` plus
-`--max-min` plus runtime, in milliseconds.** The tool default is 30 minutes, and a lower timeout kills
-the run while it still waits for admission, so it never starts. (the fix for a simulator test run
-started with a 60-minute timeout and `--wait-min 60 --max-min 30`, killed unrun in the queue.)
+`--max-min` plus 2 minutes of cleanup, in milliseconds, at most 7200000.** The tool default is 30
+minutes, and a lower timeout kills the run while it still waits for admission, so it never starts.
+`hooks/capacity-timeout-guard.py` denies a background capacity `run` (through
+`local-capacity.py` or `native-slot.sh`) that breaks this and names the timeout it needs. (the fix for a simulator test run started with a
+60-minute timeout and `--wait-min 60 --max-min 30`, killed unrun in the queue, and for default-timeout
+native runs killed while queued, whose leases then blocked the owner's next run.)
 TEST: no `run_in_background` task wraps a capacity-gated command or chain whose summed `--wait-min`
 plus `--max-min` reaches 120, and none sets a `timeout` below that sum.
 
