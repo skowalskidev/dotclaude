@@ -32,6 +32,8 @@ build:` line (references/git-pr-deploy.md § Deploy safety check 4). An `Old bui
 recorded but fails the gate: an unwalked installed build is never a pass. On a Light PR (the Test matrix
 names the light tier) the `Installed builds: not reached, <why>` line alone passes: no version table or
 Waits line, because a Light change touches no native-build or backend contract.
+In such a repo every PR's Deploy TLDR, a native-only or web-only PR included, holds an app build line:
+`No app build needed: <why>` or `Needs an app build: <which parts wait for it>` (check 4).
 A posted Part verdicts section holds a table whose header names Verdict, Mainstream practice, Regression
 evidence and a judge column per provider, with a primary-source link in every row
 (references/tldr-report-formats.md § Part verdicts). The section is checked when present, so a PR body
@@ -70,7 +72,8 @@ MATRIX_COUNTS = ("COVERED", "GAP", "NEEDS-DRIVING", "SKIPPED")
 # instead of revealing them one rewrite at a time. Keep in step with the checks in check_body.
 NEEDS = {
     "TLDR": "first heading; a | Change | Before | After | Why | table, biggest impact first; a **Do:** line",
-    "Deploy TLDR": "the next heading after the TLDR; numbered deploy steps",
+    "Deploy TLDR": ("the next heading after the TLDR; numbered deploy steps; in a repo with a native app, "
+                    "a 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line"),
     "User journey": "what the user goes through",
     "System journey": "what the system does, in steps",
     "Test matrix": ("a tier named (light, standard or deep) with its trigger; counts for "
@@ -351,6 +354,15 @@ VERSION_TABLE = re.compile(r"^\s*\|[^\n]*\bversion\b[^\n]*\|[^\n]*\b(share|insta
 OLD_BUILD = re.compile(r"Old build \S+(?: \(\d+\))? against the new backend: (PASS|BLOCKED)\b(.*)", re.I)
 NOT_REACHED = re.compile(r"Installed builds: not reached,\s*\S+(?:\s+\S+){2,}", re.I)
 WAITS = re.compile(r"Waits for the new build:\s*\S", re.I)
+APP_BUILD = re.compile(r"(?:No app build needed|Needs an app build)\W{0,3}:\**[ \t]*\S+(?:[ \t]+\S+){2,}", re.I)
+APP_BUILD_MSG = ("Deploy TLDR: no app build line for the native app ('No app build needed: <why>' or "
+                 "'Needs an app build: <which parts wait for it>'; references/git-pr-deploy.md § Deploy "
+                 "safety check 4)")
+
+
+def ships_native_app(root_dirs):
+    """Whether the repo ships a native app, so every PR states whether it needs an app build."""
+    return any(d in root_dirs for d in NATIVE_DIRS)
 
 
 def reaches_installed_builds(changed, root_dirs):
@@ -400,8 +412,10 @@ def check_matrix_head(order, head):
     return []
 
 
-def check_body(body, body_html, unresolved, modified=(), installed=False, head=None):
+def check_body(body, body_html, unresolved, modified=(), installed=False, head=None, native=False):
     """Return one 'row: what is missing' string per failing landing-gate row.
+
+    native: the repo ships a native app, so the Deploy TLDR carries the app build line.
 
     head: the PR's current head sha. When given, the Test matrix heading must name it
     ("## Test matrix (head <sha>)"), so a body written for an earlier head fails.
@@ -424,6 +438,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
     elif tldr_first and not matches(next((t for lv, t, _ in order[1:] if lv <= order[0][0]), ""),
                                     SECTIONS["Deploy TLDR"]):
         missing.append("Deploy TLDR: it is not the next heading after the TLDR")
+    if native and "Deploy TLDR" in found and not APP_BUILD.search(found["Deploy TLDR"]):
+        missing.append(APP_BUILD_MSG)
     for row in ("User journey", "System journey"):
         if row not in found:
             missing.append(no_heading(row))
@@ -555,7 +571,8 @@ def fetch(repo, pr):
     roots = gh_lines("api", f"repos/{repo}/contents", "--jq", '.[] | select(.type == "dir") | .name')
     installed = reaches_installed_builds(changed, roots)
     head = (data.get("head") or {}).get("sha") or ""
-    return data.get("body") or "", data.get("body_html") or "", unresolved, files, installed, head
+    return (data.get("body") or "", data.get("body_html") or "", unresolved, files, installed, head,
+            ships_native_app(roots))
 
 
 def main():
@@ -567,7 +584,7 @@ def main():
         print(f"pr-landing-gate: usage: --repo must be owner/name, got {args.repo}", file=sys.stderr)
         return 2
     try:
-        body, body_html, unresolved, modified, installed, head = fetch(args.repo, args.pr)
+        body, body_html, unresolved, modified, installed, head, native = fetch(args.repo, args.pr)
     except (RuntimeError, KeyError, TypeError, ValueError) as err:
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: {err}", file=sys.stderr)
         return 2
@@ -575,7 +592,7 @@ def main():
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: body empty or under 200 chars",
               file=sys.stderr)
         return 2
-    missing = check_body(body, body_html, unresolved, modified, installed, head)
+    missing = check_body(body, body_html, unresolved, modified, installed, head, native)
     for row in missing:
         print(f"pr-landing-gate: FAIL {args.repo}#{args.pr} {row}")
     if missing:

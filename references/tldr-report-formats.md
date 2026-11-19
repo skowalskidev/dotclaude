@@ -100,6 +100,35 @@ Backstop: the `hooks/intent-ledger.sh` stop reconciliation reason repeats this r
 work turn. It does not detect a missing answer: whether a line answers a question needs judgement, and
 a second Stop block would add the very wall of text this rule removes.
 
+## App build line
+
+The pointer lives in `rules/communication.md` § Answer first. This section holds the rule, shape and
+TEST.
+
+**DO state whether a new native app build is needed on every hand-back that names a PR or change for
+Simon to merge or deploy, in a repo that ships a native app** (a top-level `ios/` or `android/`
+directory, or a native shell that loads hosted web pages). Put it in the `Action needed` line or in
+the numbered step that names the merge, one line per PR, as one of:
+- `No app build needed: <why>`, e.g. every changed file is hosted web, so installed builds load it on
+  the next page load;
+- `Needs an app build: <which parts wait for it>`, naming what users get at deploy and what waits for
+  the store release.
+
+**DO derive it from the PR's changed files and its `Waits for the new build:` line**
+(`references/git-pr-deploy.md` § Deploy safety check 4), and copy the PR's Deploy TLDR app build line
+word for word.
+**DON'T write one verdict for a set of PRs whose verdicts differ, and DON'T leave it for Simon to ask.**
+
+```
+Action needed (2): say merge for PR #812, then retarget PR #813 and say merge
+- PR #812 No app build needed: only hosted web files change; installed builds load them on next open
+- PR #813 Needs an app build: the new paywall header waits for 1.5.0; the price fix is live at deploy
+```
+
+TEST: every hand-back naming a mergeable PR in such a repo holds a `No app build needed` or `Needs an
+app build` line per PR, matching that PR's Deploy TLDR (the fix for a merge ask on a web change to a
+hosted app screen that never said whether its sibling PR's native part needed a build).
+
 ## Message for someone else
 
 The rule and its number live in `rules/communication.md` § Answer first. This section holds the shape,
@@ -355,7 +384,8 @@ Two assistant messages with no Simon message between never carry the same block;
 retest", "your call", "after your") under `No action needed` fails; each pending ask is a numbered
 step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for someone else has at
 most 5 lines, line 1 an ask or verdict; each `?`, "should we" or "correct me" in the prompt is
-answered above any status; a check ask's final reply ends with a `**Yay`/`**Nay` line. Every `Action needed` item, follow-up and status bullet traces to this
+answered above any status; a check ask's final reply ends with a `**Yay`/`**Nay` line; in a
+native-app repo each merge or deploy ask holds its app build line (§ App build line). Every `Action needed` item, follow-up and status bullet traces to this
 session's own ledger or work, unless Simon asked about the other session (the fix for a session TLDR
 that listed two other sessions' PR conflicts as Simon's actions).
 
@@ -387,7 +417,7 @@ name. TEST: the reply naming the term precedes the first artifact.
 
 Every PR, issue, ticket, Slack thread, CI run or doc a message to Simon mentions is a markdown link
 with its full URL, e.g. `[#123](https://github.com/org/repo/pull/123)`, in bullets, steps and the end
-block, on every mention. He cannot click a bare "#123" or "POI-123". Resolve the URL (`gh pr view
+block, on every mention. He cannot click a bare "#123" or "POI-123", so either one fails. Resolve the URL (`gh pr view
 --json url`, the ticket's own link) before sending; if none exists, say so in place of the id.
 TEST: grep the message for `#\d+` and ticket-id patterns outside a link; any hit fails (the fix for a
 status message that named six PRs and tickets as bare ids).
