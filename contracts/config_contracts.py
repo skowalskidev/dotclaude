@@ -208,7 +208,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Give every task-bearing session one gauntlet record; capture each new requirement with stable IDs and source references before continuing, without an ordinary-session options interview.",
             "Reconcile every request after tangents, compaction and handoff; continue ready authorized work and retain explicit cancellation decisions and blocked next actions.",
-            "Own draft mode as SSOT: while Simon gives feedback, answer questions, make small visible changes and queue the rest in the plan's Draft queue; no per-message check; his exit word builds the queue and runs each check once.",
+            "Own draft mode as SSOT: while Simon gives feedback, answer questions, make small visible changes and queue the rest in the plan's Draft queue; no per-message check; feedback after a shipped batch re-enters draft mode with local edits and no new pushed head; his exit word builds the queue and runs each check once.",
             "State each acceptance criterion as the ask's own routing or scoping clause, quoted near-verbatim from its source message, never a paraphrase that narrows or widens a boundary; flag drift as an interpretation and confirm it before dispatch or verdict.",
             "Split each ask into clause IDs; keep a complete source log and a when/who/what/why decision log in the plan from intake to hand-back; every brief quotes its clauses, and briefs plus decisions cover every clause of every ask.",
             "Own the same-machine handoff and resume lifecycle as SSOT: a repeatable prepare that stamps a hop-counted manifest, a resolve that maps a pasted dashboard link/html/plan back to its plan, a resume that reuses recorded options, and a manifest that survives normal updates.",
@@ -1301,7 +1301,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Runs the testing-strategy merge-prep local gate list on the final head before any ready-flip, enqueue or merge it performs.",
             "Defer automated verification until the whole authorized batch and review fixes converge; compose the shared timing, evidence-reuse and failure-rerun policy.",
-            "Runs no stage per feedback message during draft mode; it runs once, after Simon's exit word and the whole queue is built.",
+            "Runs no stage per feedback message during draft mode, feedback after a shipped batch included; it runs once, after Simon's exit word and the whole queue is built.",
             "Composes /sk:ship-check-merge-readiness, "
             "/sk:ship-report-and-ensure-correct-user-system-journey, /sk:ship-review, "
             "/sk:ship-resolve-pr-comments, /sk:ship-screenshot-changes and /sk:ship-pr; does not "

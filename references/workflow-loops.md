@@ -119,6 +119,11 @@ stage, PR body edit, push or per-change commit. The live preview he reloads is t
 draft change; the visual hand-off check in `rules/process.md` runs once, in implementation mode. One
 WIP checkpoint commit per round is allowed; a push only when his preview is remote and cannot update
 without one. His "run the tests" or "build it properly" for one item overrides for that item only.
+**DO re-enter draft mode at once when feedback arrives after an implementation batch shipped**
+(pushed, gated, PR refreshed): a copy pick or one-line tweak is a kind 2 change below. Keep its edit
+local, under the push exception above, so no new pushed head, ship-harness stage or PR body edit
+follows any message. The ship harness and PR refresh run once more, over the whole new round, at his
+next exit word.
 
 DO handle each feedback message as exactly one of three kinds, in the same turn:
 1. **Question** → answer it from code, docs and at most 5 read-only lookups, then queue any change
@@ -155,7 +160,9 @@ TEST: in draft mode no reply runs a suite, typecheck, gate, scripted walk, scree
 every question, change and bug from a feedback round has a `## Draft queue` row; implementation mode
 runs each check once, after the last row is built (the fix for a phone review of about 15 messages that
 re-ran unit suites, a production build and two scripted walks after every message, and turned a
-plain question into a build).
+plain question into a build). Feedback after a shipped batch leaves the pushed head unchanged until
+his next exit word (the fix for a one-line copy pick that was pushed after a PASS gate and restarted
+every ship stage).
 
 ## Supervisor ownership
 
