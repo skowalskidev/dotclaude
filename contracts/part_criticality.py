@@ -35,6 +35,7 @@ SAFETY: set[str] = {
     "hooks/emulate-viewport-guard.py",
     "hooks/secret-echo-guard.py",
     "hooks/process-kill-guard.py",
+    "hooks/capacity-timeout-guard.py",
     "hooks/git-commit-guard.py",
     # Compliance / correctness gates — low fire count, high cost-of-absence
     "hooks/config-contract.test.py",

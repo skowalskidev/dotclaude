@@ -1081,11 +1081,47 @@ class AutoReleaseTests(unittest.TestCase):
         self.assertEqual(gate.reap_dead_leases(self.root), [])
         self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
 
-    def test_simulator_lease_is_kept_for_reclaim(self):
+    def test_simulator_lease_is_kept_while_its_device_is_booted_or_unread(self):
         dead = self.exited_group()
         lease = self.hold(gate.THIRD_SLOT, "sim-holder", dead, "old start", dead, simulator=SIM)
-        self.assertEqual(gate.reap_dead_leases(self.root), [])
+        for booted, claims in (([SIM], {}), ([SIM2], {SIM2: "sim-holder"})):
+            with self.subTest(booted=booted, claims=claims), \
+                 mock.patch.object(gate, "observe_booted", return_value=booted):
+                gate.write_claims(self.root, claims)
+                self.assertEqual(gate.reap_dead_leases(self.root), [])
+                self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
+        gate.write_claims(self.root, {})
+        with mock.patch.object(gate, "observe_booted", side_effect=gate.ProbeFailed("simulator probe failed")):
+            self.assertEqual(gate.reap_dead_leases(self.root), [])
         self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT), lease)
+
+    def test_dead_simulator_lease_with_its_device_shut_down_self_reaps(self):
+        # A runner killed by the background tool's time limit left a simulator lease that blocked its own
+        # owner's later native runs until a manual inspected release (the fix for that session).
+        self.fill_other_slots()
+        dead = self.exited_group()
+        self.hold(gate.THIRD_SLOT, "killed-runner", dead, "old start", dead, simulator=SIM)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            token = gate.acquire(self.root, "killed-runner", os.getpid(), None)
+        self.assertEqual(gate.read_state(self.root, slot=gate.THIRD_SLOT)["token"], token)
+        self.assertIn("holder=killed-runner (owner pid %d not running; command group %d exited; simulator %s shut down"
+                      % (dead, dead, SIM), stderr.getvalue())
+
+    def test_own_booted_orphan_names_its_inspected_release_in_the_wait_line(self):
+        dead = self.exited_group()
+        lease = self.hold(gate.THIRD_SLOT, "killed-runner", dead, "old start", dead, simulator=SIM)
+        with mock.patch.object(gate, "observe_booted", return_value=[SIM]):
+            with self.assertRaises(gate.Busy) as own:
+                gate.acquire(self.root, "killed-runner", os.getpid(), None)
+            self.fill_other_slots()
+            with self.assertRaises(gate.Busy) as full:
+                gate.acquire(self.root, "newcomer", os.getpid(), None)
+        for message in (str(own.exception), str(full.exception)):
+            self.assertIn("shut down %s if it is booted, then release it" % SIM, message)
+            self.assertIn("release --orphan-inspected --token", message)
+            self.assertIn(str(self.root / gate.THIRD_SLOT), message)
+            self.assertNotIn(lease["token"], message)
 
     def test_dead_simulator_lease_names_its_inspected_release_without_the_token(self):
         # A hold killed by the tool's background cap leaves a simulator lease that is never auto-released;
@@ -1186,8 +1222,8 @@ class AutoReleaseTests(unittest.TestCase):
         self.hold(gate.THIRD_SLOT, "gone", dead, "old start", dead)
         original = gate.provably_dead
 
-        def replace_then_judge(lease):
-            verdict = original(lease)
+        def replace_then_judge(lease, *args):
+            verdict = original(lease, *args)
             self.hold(gate.THIRD_SLOT, "replacement", dead, "old start", dead)
             return verdict
 
@@ -1347,6 +1383,48 @@ class PriorityTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("(replaced first)", result.stdout)
         self.assertEqual(gate.read_priority(self.root)["owner"], "second")
+
+    def test_a_replaced_owner_is_told_on_its_next_attempt_until_its_grant_would_have_ended(self):
+        # Another session's --replace took a twice-stated priority and the displaced session ran on
+        # without noticing (the fix for that silent loss).
+        gate.prioritize(self.root, "first", 120, False)
+        gate.prioritize(self.root, "second", 30, False, replace=True)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
+        self.assertIn("capacity notice: priority replaced: your grant (first) was replaced by second", stderr.getvalue())
+        self.assertIn("only his word restores it: local-capacity.py prioritize --owner first --replace", stderr.getvalue())
+        with mock.patch.object(gate, "cpu_idle_percent", return_value=5):
+            with self.assertRaisesRegex(gate.Busy, r"heavy work deferred.*priority replaced: your grant \(first\)"):
+                gate.acquire(self.root, "first", os.getpid(), None)
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            gate.release(self.root, gate.acquire(self.root, "second", os.getpid(), None))
+            gate.release(self.root, gate.acquire(self.root, "third", os.getpid(), None))
+        self.assertNotIn("priority replaced", stderr.getvalue())
+        self.assertIn("displaced priority: first, replaced by second", self.cli("status").stdout)
+        with gate.locked(self.root):
+            self.assertTrue(gate.replaced_notice(self.root, "first"))
+        gate.prioritize(self.root, "first", 30, False, replace=True)  # Simon gave it back
+        with gate.locked(self.root):
+            self.assertEqual(gate.replaced_notice(self.root, "first"), "")
+            self.assertEqual(gate.replaced_notice(self.root, "second"), "priority replaced: your grant (second) "
+                             "was replaced by first at %s via --replace, so this session no longer goes first. Tell "
+                             "Simon; only his word restores it: local-capacity.py prioritize --owner second --replace"
+                             % time.strftime("%H:%M:%S %Z", time.localtime(gate.read_replaced(self.root)["at"])))
+
+    def test_the_displaced_notice_ends_with_the_original_grant_and_survives_no_corruption(self):
+        gate.prioritize(self.root, "first", 30, False)
+        gate.prioritize(self.root, "second", 30, False, replace=True)
+        with gate.locked(self.root):
+            record = gate.read_replaced(self.root)
+            record["expires"] = time.time() - 1
+            gate.write_state(self.root, record, gate.REPLACED_SLOT)
+            self.assertIsNone(gate.read_replaced(self.root))
+            self.assertEqual((self.root / gate.REPLACED_SLOT).read_text(), "")
+            (self.root / gate.REPLACED_SLOT).write_text("{not json")
+            self.assertIsNone(gate.read_replaced(self.root))
+        gate.release(self.root, gate.acquire(self.root, "first", os.getpid(), None))
 
     def test_the_same_owner_renews_its_own_grant_without_replace(self):
         gate.prioritize(self.root, "first", 10, False)
@@ -1819,6 +1897,15 @@ class CooperativeTests(unittest.TestCase):
 
 class PriorityAllowanceTests(unittest.TestCase):
     setUp = PriorityTests.setUp
+
+    def test_a_replaced_allowance_names_who_replaced_it(self):
+        gate.prioritize(self.root, "primary", 30, False)
+        with gate.locked(self.root):
+            binding = gate.priority_binding(gate.read_priority(self.root))
+        gate.prioritize(self.root, "other", 30, False, replace=True)
+        with self.assertRaisesRegex(gate.Busy, r"priority allowance ended: priority replaced: your grant "
+                                               r"\(primary\) was replaced by other"):
+            gate.check_priority_allowance(self.root, "primary", binding)
 
     def run_payload(self, code="pass", **kwargs):
         return gate.run_command(self.root, "primary", None, [sys.executable, "-c", code],
