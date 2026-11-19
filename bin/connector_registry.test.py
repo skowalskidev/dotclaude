@@ -236,6 +236,15 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(self.run_child('billing-local', 'local-value-must-not-print'), 0)
         self.assertNotIn('BILLING_KEY', os.environ)
 
+    def test_run_with_an_unknown_route_names_the_boundary_and_the_cwd(self):
+        self.vault_setup()
+        with self.assertRaises(reg.RegistryError) as caught:
+            self.run_child('no-such-route', 'unused')
+        message = str(caught.exception)
+        self.assertIn('work boundary', message)
+        self.assertIn(str(self.cwd), message)
+        self.assertIn('--cwd', message)
+
     def test_run_reads_a_vault_pointer_through_its_route_and_quotes_the_name(self):
         self.vault_setup()
         (self.roots['work'] / 'billing.json').write_text((self.roots['work'] / 'billing.json').read_text()

@@ -617,7 +617,8 @@ def route_env(provider, route_id, cwd, remote=None, identity=None, opener=None):
         raise RegistryError('no ' + boundary + ' provider named ' + provider)
     route = next((item for item in root['providers'][provider].get('routes', []) if item['id'] == route_id), None)
     if route is None:
-        raise RegistryError('provider ' + provider + ' has no route ' + route_id)
+        raise RegistryError('provider ' + provider + ' has no route ' + route_id + ' in the ' + boundary +
+                            ' boundary resolved from ' + str(cwd) + '; run from the project checkout or pass --cwd')
     secret = secret_location(route)
     if secret is None:
         raise RegistryError('route ' + provider + '/' + route_id + ' declares no key')

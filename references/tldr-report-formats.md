@@ -159,6 +159,13 @@ DO open a reply to someone's report or question with the verdict on line 1 when 
 broken; fix is in PR X." Detail below it only where it changes their action; no investigation
 narrative (the fix for a reply that opened with "Checked it, and the fallback worked for all 5.").
 
+DO lead with the action when a reply to a teammate's proposal carries a decision: line 1 is what to do,
+with its numbers; then the rule for what comes next; then the one-line why; the acknowledgement ("your
+inputs check out") goes last. End on the suggestion, never a question, and name whose figure each is
+("your table", "my query"), never a bare "ours". TEST: no line before the action thanks, agrees or
+confirms (the fix for an ads-scoreboard reply that opened "Agreed on your table" and closed "Can we use
+the after-costs query?").
+
 DO measure a draft before sending it by any route the hook cannot see (a `codex-app` run,
 `gh pr comment`, `gh api .../replies`):
 `python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`. Expect `ok` and exit 0;
