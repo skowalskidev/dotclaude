@@ -410,6 +410,24 @@ unreached = with_installed.replace("Old build 1.4.9 (115) against the new backen
                                    "Installed builds: not reached, the diff only changes the admin site")
 check(gate.check_body(unreached, HTML, 0, (), True) == [], "A reasoned not-reached line failed")
 
+# A Light PR (references/testing-strategy.md § Size the checks to the change): a reasoned not-reached line
+# alone passes the installed-build check, and a posted Part verdicts section needs no judge columns.
+light = PASSING.replace("Tier: deep (a member's search limit and its billing plan).",
+                        "Tier: light (one admin page button, team-only).")
+light_unreached = light.replace("## Screenshots",
+                                "Installed builds: not reached, only the team admin site changes\n\n## Screenshots", 1)
+check(gate.check_body(light_unreached, HTML, 0, (), True) == [],
+      f"A Light PR's not-reached line alone failed: {gate.check_body(light_unreached, HTML, 0, (), True)}")
+check(any("installed-version table" in m for m in gate.check_body(
+          PASSING.replace("## Screenshots", "Installed builds: not reached, only the team admin site changes\n\n## Screenshots", 1),
+          HTML, 0, (), True)),
+      "A deep PR's not-reached line passed without its version table")
+check(len([m for m in gate.check_body(light, HTML, 0, (), True) if m.startswith("Deploy safety:")]) == 3,
+      "A Light PR with no installed-build line at all passed")
+check(not [m for m in gate.check_body(light + PARTS.replace(" OpenAI judge |", "").replace(" agrees |\n", "\n"),
+                                      HTML, 0) if m.startswith("Part verdicts")],
+      "A Light PR's Part verdicts section was held to two judge columns")
+
 # Unresolved review threads fail.
 check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
 

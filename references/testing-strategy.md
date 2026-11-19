@@ -17,12 +17,15 @@ rule, skill and gate that runs checks applies it and restates none of it.
 
 | Tier | Trigger | Runs | Skips |
 |---|---|---|---|
-| Light | Copy, style or layout on ONE surface; zero logic, data, money, auth, API or shared-component change | The affected unit tests; one BEFORE/AFTER pair of the changed state at the default phone viewport (390×844); the project's gate list; CI; one verdict per ask clause in the ledger | Full matrix, prod data, deploy-safety merge train, ship-report journey tests, multi-model and security review, videos, multi-width and multi-state captures |
-| Standard | Logic inside one feature, or a style-only change to a shared component (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, § Pre-merge end-to-end on a local stack for each changed journey, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
-| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, logic in a component or helper used on 2+ surfaces, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, § Pre-merge end-to-end on a local stack, prod data, § Deep-tier discovery rounds, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
+| Light | A small change: at most 200 changed product lines (tests, fixtures, snapshots, docs and lockfiles not counted) on ONE surface or a team-only surface (an admin page, an internal tool); zero Deep trigger, API-contract change or native-build change. Editing or extracting a shared UI component stays Light while every existing caller keeps its behaviour and its tests pass | The affected unit tests; one BEFORE/AFTER pair of the changed state at the default phone viewport (390×844); the project's gate list; CI; one verdict per ask clause in the ledger | Full matrix, prod data, deploy-safety merge train, ship-report journey tests, multi-model and security review, videos, multi-width and multi-state captures |
+| Standard | Logic inside one feature past the Light size, an API-contract change, or a change to a shared component that alters what an existing caller does (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, § Pre-merge end-to-end on a local stack for each changed journey, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
+| Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, a behaviour change in a component or helper that 2+ customer-facing surfaces render, a native build, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, § Pre-merge end-to-end on a local stack, prod data, § Deep-tier discovery rounds, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
 
 **DO take the deeper tier when a trigger is unclear.** WHY: a missed regression costs more than one
-extra pass.
+extra pass. A shared-component extraction whose callers' tests pass, or a team-only page, is not
+unclear: size it by its lines and triggers. TEST: a PR under 200 product lines with no Deep trigger,
+API-contract or native-build change records Light (the fix for a 120-line admin Refresh button sized
+Standard because it folded three identical buttons into one shared part).
 **DO escalate the moment a lower tier turns up something unexpected:** a failing test outside the
 changed lines, the change rendering on a second surface, a Deep trigger found while reading, a review
 finding in logic, or prod-data Phase 1 finding a stored-data dependency. Re-classify, record the
@@ -46,6 +49,25 @@ line per skipped stage; a diff holding any Deep trigger shows the full harness's
 is the fix for centring a wrapped word in one table cell, which ran a matrix, prod-data checks and
 multi-width captures; Deep is the fix for a price label on shared paywall code, where the full pass
 found a trial showing $0.00/mo.)
+
+## Follow-up pushes and waivers
+
+**DO carry a light or standard head's stage receipts to a later push whose own delta is Light-sized:**
+at most 200 changed product lines in the PR's own commits since that head, no product file on a money,
+auth, stored-data or native path, and no base merge touching a file the PR changes. A test-only
+commit, a small review fix, a clean base merge or a small visual tweak qualifies. Run only the delta's
+own checks: its affected tests, one BEFORE/AFTER pair when it is visible, the PR body's head sha, and
+CI. `hooks/intent-ledger.sh` computes the carry from git (`stages <tier> HEAD` prints `All stages ran
+(carried from <sha>...)`), so the gate's `All stages ran (carried from <sha>)` needs no rerun.
+**DON'T carry a Deep receipt, or a delta past the bound:** rerun the tier's stages on that head.
+TEST: a carried head's gate reason names the sha it carried from, and `stages <tier> HEAD` agrees.
+
+**DO record Simon's explicit waiver of the checks for a PR** ("it's fine", "too much red tape", "just
+merge") as `intent-ledger.sh gate <branch> <sha> N/A <tier> "waived by Simon: <his words verbatim>"`,
+and stop running the waived stages on that PR. The gate refuses a quote that is not in a recorded ask;
+the record covers the branch's later heads until one touches a money, auth, stored-data or native path.
+CI, required hooks, spend approval and read-only production still hold.
+TEST: every waiver record quotes words from the ledger's asks.
 
 ## Deep-tier discovery rounds
 

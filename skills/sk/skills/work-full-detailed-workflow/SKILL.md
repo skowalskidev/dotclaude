@@ -110,12 +110,13 @@ current, reconcile against it.
    source, finish the intake in `references/workflow-loops.md` § Build from a supplied design source
    here, before step 5 briefs a builder. For a bug fix, reproduce it here first under
    `references/testing-strategy.md` § Reproduce a reported bug first, then prove the root cause.
-   **DO invoke `/sk:work-does-this-make-sense-to-build` here as its own skill on every build, adopt or
-   rebuild task, ticket or prompt-derived, before step 5 builds anything, and again on the final head
+   **DO invoke `/sk:work-does-this-make-sense-to-build` here as its own skill on every Standard or Deep
+   build, adopt or rebuild task (a Light one, `references/testing-strategy.md` § Size the checks to
+   the change, records one build reason instead), ticket or prompt-derived, before step 5 builds anything, and again on the final head
    before step 10 for adopted or rebuilt work.** Hand back and post its result as
    `references/tldr-report-formats.md` § Part verdicts. **DON'T wait for Simon to ask whether a part
-   makes sense, follows the most popular approach or regresses anything.** TEST: every build, adopt or
-   rebuild hand-back and PR body holds the Part verdicts table, re-derived on the final head (the fix for
+   makes sense, follows the most popular approach or regresses anything.** TEST: every Standard or Deep
+   build, adopt or rebuild hand-back and PR body holds the Part verdicts table, re-derived on the final head (the fix for
    a rebuilt PR whose verdicts, mainstream check and second-provider judge ran only after Simon asked).
 4. Plan tree-structured coverage and write needed tests; defer execution to step 9.
 5. Implement the whole authorized task batch, including every feature, on the selected engine; delegate independent edits using the saved setup and inspect the returned diffs on disk.

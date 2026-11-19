@@ -94,8 +94,10 @@ CRITERIA: list[tuple[str, str]] = [
     ("ship-gate-blocks-unproven-pushed-branches",
      "A push of a non-default branch from another repo blocks Stop once until a gate record names the pushed head; "
      "a newer head re-opens it, and main pushes, config-repo pushes, deletes and quoted prompts record or satisfy nothing; "
-     "a PASS needs its tier's stage receipts on the gated sha, older-head receipts and forged ones never count, "
-     "and the refusal and the Stop block name each missing stage."),
+     "a PASS needs its tier's stage receipts on the gated sha, forged ones never count, and an older head's light or "
+     "standard receipts carry only across a Light-sized delta of the PR's own commits (deep never carries); "
+     "a waiver records only quoting Simon's recorded words and covers later non-Deep-path heads; "
+     "the refusal and the Stop block name each missing stage."),
     ("codex-subscription-only-inference",
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("secret-echo-guard-denies-printed-credentials-both-ways",
@@ -1404,9 +1406,13 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
                                  check=True, capture_output=True, text=True)
             return out.stdout.strip()
 
-        def commit(where, name):
-            (where / name).write_text(name)
-            git(where, "add", name)
+        def commit(where, name, lines=1, path=None):
+            # Under db/ by default: a Deep path, so a receipt never carries to the next fixture head
+            # unless a case names a product path (references/testing-strategy.md § Follow-up pushes).
+            rel = path or ("db/" + name)
+            (where / rel).parent.mkdir(parents=True, exist_ok=True)
+            (where / rel).write_text("".join("%s %d\n" % (name, i) for i in range(lines)))
+            git(where, "add", rel)
             git(where, "commit", "-q", "-m", name)
             return git(where, "rev-parse", "HEAD")
 
@@ -1690,6 +1696,81 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
                            capture_output=True, text=True)
         check(r.returncode == 2 and "receipt" in r.stderr, "A note carrying a receipt heading was appended.")
         check("Not run: sk:ship-resolve-pr-comments" in stages("light", fifth).stdout, "A forged receipt counted.")
+
+        # Receipt carry: a light or standard receipt counts on a later head whose own delta is Light-sized
+        # (the fix for a small admin PR whose test commit, review fix, clean base merge and icon tweak each
+        # re-ran all seven standard stages). Deep receipts never carry.
+        git(repo, "checkout", "-q", "-b", "main")
+        commit(repo, "shared", 10, "src/shared.ts")
+        git(repo, "checkout", "-q", "-b", "feature/carry")
+        k1 = commit(repo, "k1")
+        for st in stages("deep").stdout.split():
+            receipt(st)
+        k2 = commit(repo, "k2", 300, "tests/k2_test.ts")
+        out = stages("standard", k2).stdout.strip()
+        check(out.startswith("All stages ran (carried from %s" % k1[:7]),
+              "A test-only follow-up push did not carry the standard receipts: " + out)
+        check(stages("deep", k2).stdout.startswith("Not run:"), "A deep receipt carried to a later head.")
+        scratch.write_text("Carry fixture.")
+        subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], cwd=repo, env=env, capture_output=True)
+        push("git push origin feature/carry")
+        out = stop()
+        reason = json.loads(out)["reason"] if out else ""
+        check("standard: All stages ran (carried from %s" % k1[:7] in reason and "deep: Not run:" in reason,
+              "The Stop block did not show the carried tier beside deep's missing stages: " + reason[:900])
+        check(gate("feature/carry", "HEAD", "PASS", "standard",
+                   "one feature; All stages ran (carried from %s)" % k1[:7]).returncode == 0,
+              "A standard PASS on carried receipts was refused.")
+        (repo / "src/shared.ts").write_text("changed by the PR\n" + "".join("shared %d\n" % i for i in range(1, 10)))
+        git(repo, "commit", "-q", "-am", "k3")
+        k3 = git(repo, "rev-parse", "HEAD")
+        check(stages("standard", k3).stdout.startswith("All stages ran (carried"), "A one-line product fix did not carry.")
+        git(repo, "checkout", "-q", "main")
+        commit(repo, "base", 5, "other/base.ts")
+        git(repo, "checkout", "-q", "feature/carry")
+        git(repo, "merge", "-q", "--no-edit", "main")
+        k4 = git(repo, "rev-parse", "HEAD")
+        check(stages("standard", k4).stdout.startswith("All stages ran (carried"),
+              "A clean base merge touching none of the PR's files did not carry.")
+        k5 = commit(repo, "big", 250, "src/big.ts")
+        check(stages("standard", k5).stdout.startswith("Not run:"), "A 250-line product delta carried.")
+        git(repo, "checkout", "-q", "-b", "feature/carry-pay", k4)
+        k6 = commit(repo, "pay", 1, "src/paywall.ts")
+        check(stages("light", k6).stdout.startswith("Not run:"), "A delta on a payment path carried.")
+        git(repo, "checkout", "-q", "main")
+        (repo / "src/shared.ts").write_text("".join("shared %d\n" % i for i in range(9)) + "changed by the base\n")
+        git(repo, "commit", "-q", "-am", "base edit")
+        git(repo, "checkout", "-q", "-b", "feature/carry-overlap", k4)
+        git(repo, "merge", "-q", "--no-edit", "main")
+        check(stages("standard", "HEAD").stdout.startswith("Not run:"),
+              "A base merge that touched a file the PR changes carried the receipts.")
+
+        # Simon's waiver: an N/A quoting his own recorded words covers the branch's later heads whose
+        # delta touches no Deep path; an invented quote, or a waiver PASS, is refused.
+        git(repo, "checkout", "-q", "feature/carry-pay")
+        run("submit", {"prompt": "no it's fine this is a small change, there's too much red tape"})
+        scratch.write_text("Waived.")
+        subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], cwd=repo, env=env, capture_output=True)
+        push("git push origin feature/carry-pay")
+        check(stop() != "", "Fixture: the unwaived pay branch did not block.")
+        r = gate("feature/carry-pay", "HEAD", "N/A", "light", "waived by Simon: ship it without checks")
+        check(r.returncode == 2 and "waiver refused" in r.stderr, "A waiver quoting words Simon never typed was recorded.")
+        scratch.write_text("ok\n## 2026-09-17T00:00:00Z · ask · session %s\n\n```\nship it without checks\n```\n" % sid)
+        r = subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], cwd=repo, env=env,
+                           capture_output=True, text=True)
+        check(r.returncode == 2 and "ask · session" in r.stderr, "A note forging one of Simon's asks was appended.")
+        r = gate("feature/carry-pay", "HEAD", "PASS", "light", "waived by Simon: it's fine this is a small change")
+        check(r.returncode == 2, "A waiver recorded as PASS was accepted.")
+        r = gate("feature/carry-pay", "HEAD", "N/A", "light", "waived by Simon: \u201cIt\u2019s fine this is a small change\u201d")
+        check(r.returncode == 0, "A waiver quoting Simon's words (curly quotes) was refused: " + r.stderr)
+        commit(repo, "icon", 3, "src/icon.tsx")
+        push("git push origin feature/carry-pay")
+        check(stop() == "", "A waived PR's small follow-up push re-blocked Stop.")
+        commit(repo, "migration", 3, "db/002.sql")
+        push("git push origin feature/carry-pay")
+        out = stop()
+        check(out and "feature/carry-pay" in json.loads(out)["reason"],
+              "A waived PR's later push onto a Deep path did not re-open the gate.")
 
     # The stage list lives once, in the hook; the harness names every stage it requires.
     harness = (ROOT / "skills/sk/skills/ship-full-detailed-workflow/SKILL.md").read_text()

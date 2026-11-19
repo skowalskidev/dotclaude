@@ -216,8 +216,9 @@ After and Why in that order, and a `**Do:**` line, and nothing else before `## �
 ## Part verdicts
 
 **DO hand back, and post under `## Part verdicts` in the PR body, one row per separately-decidable
-part `/sk:work-does-this-make-sense-to-build` named, re-derived on the final head of every build, adopt
-or rebuild:**
+part `/sk:work-does-this-make-sense-to-build` named, re-derived on the final head of every Standard or
+Deep build, adopt or rebuild; a Light one (`references/testing-strategy.md` § Size the checks to the
+change) posts no table and convenes no judges:**
 
 ```
 | Part | Verdict | Mainstream practice | Regression evidence | Claude judge | OpenAI judge |
@@ -234,8 +235,8 @@ or rebuild:**
 - **One judge column per provider** (`references/research.md` § Independent judges), each holding that
   judge's own position.
 
-NUMBER: one row per part, each cell at most 20 words. TEST: every build, adopt or rebuild hand-back
-and PR body carries the table with a link in every Mainstream practice cell and a position in every
+NUMBER: one row per part, each cell at most 20 words. TEST: every Standard or Deep build, adopt or
+rebuild hand-back and PR body carries the table with a link in every Mainstream practice cell and a position in every
 judge cell; `bin/pr-landing-gate.py` fails a posted section missing its columns or a link.
 
 ## Block 1 · User journey

@@ -34,8 +34,9 @@
 # Each invocation of a ship stage skill (Skill tool, a typed /sk:<stage> prompt, or a Codex read of
 # its SKILL.md mapped by bin/agent_runtime.py) appends `receipt: <skill> <branch> <head>` to the
 # ledger, head = HEAD of the checkout the work runs in (work_checkout below). `gate PASS` refuses unless the tier's every stage
-# has a receipt on the gated sha; a receipt on an older head never counts. The list below is the
-# one home of which stages each tier requires.
+# has a receipt on the gated sha; a receipt on an older head counts only when it carries (RECEIPT
+# CARRY below: a light or standard receipt, and a Light-sized delta of the PR's own commits since that
+# head). The list below is the one home of which stages each tier requires.
 #
 # Modes:  submit                  UserPromptSubmit — append the ask verbatim (and a receipt for a
 #                                 typed /sk:<stage> command)
@@ -50,7 +51,8 @@
 #                                 (a subagent that never ran a Bash `cd`/`git -C` into it).
 #         stages <tier> [sha|HEAD]
 #                                 read-only — print the tier's required stage skills; with a sha,
-#                                 print "All stages ran" (exit 0) or "Not run: <stage>, ..." (exit 1)
+#                                 print "All stages ran" (exit 0; "(carried from <sha>...)" when a
+#                                 light or standard receipt carried) or "Not run: <stage>, ..." (exit 1)
 #         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]
 #                                 called by the model — record the landing-gate result for that head;
 #                                 a PASS names its tier and every stage that tier requires has a
@@ -59,7 +61,9 @@
 #                                 "Not run: <stage>, <stage>" naming every stage with no receipt;
 #                                 "All stages ran" at any tier needs the receipts; a standard or
 #                                 deep PASS reason holds "All stages ran" and no "Not run:" list
-#                                 (exit 2 otherwise);
+#                                 (exit 2 otherwise); an N/A reason "waived by Simon: <quote>" records
+#                                 only when the quote is in an ask of this ledger, and it also covers
+#                                 the branch's later heads whose delta touches no Deep path;
 #                                 PASS for a branch with an open PR records only when
 #                                 bin/pr-landing-gate.py passes on the fetched PR and
 #                                 bin/pr-ci-wait.py --once finds every check green on <sha>
@@ -346,21 +350,132 @@ receipt_pairs() { # skill and head of every recorded receipt, outside prompt fen
   section_lines receipt "$1" | awk '/^receipt: sk:[a-z0-9-]+ [^ ]+ [0-9a-f]+$/ && length($4) >= 7 { print $2, $4 }'
 }
 
-# missing_stages TIER SHA — the tier's stages with no receipt on SHA, comma-separated; needs LEDGER.
-missing_stages() {
-  have=""; [ -f "$LEDGER" ] && have="$(receipt_pairs "$LEDGER")"
-  miss=""
+# RECEIPT CARRY (references/testing-strategy.md § Follow-up pushes). A light or standard receipt on an
+# earlier head counts for a later head when the PR's own delta between them is Light-sized: at most
+# CARRY_MAX_LINES changed product lines, no product file behind a Deep path, and no base merge that
+# touched a file the PR changes. Deep receipts never carry. Computed from git on every read, so no
+# record can claim a carry the history does not show (the fix for a 120-line admin button whose test
+# commit, review fix, clean base merge and icon tweak each re-ran all seven standard stages).
+CARRY_MAX_LINES=200
+# Not product code: tests, fixtures, snapshots, docs and lockfiles.
+NOT_PRODUCT_RE='(^|/)(tests?|e2e|__tests__|__snapshots__|fixtures?|docs?)/|[._-](test|spec)\.[a-z0-9]+$|_test\.[a-z0-9]+$|\.(md|snap)$|(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|deno\.lock|Cargo\.lock|Podfile\.lock|Gemfile\.lock|go\.sum|poetry\.lock|uv\.lock)$'
+# A product file here may hold a Deep trigger (money, auth, stored data, native builds): it never carries.
+DEEP_PATH_RE='(^|/)(migrations?|db|ios|android)/|\.sql$|pay|billing|stripe|checkout|pric|entitle|auth|purchase|subscri|refund|webhook|credit|wallet'
+CARRY_DIR=""   # the checkout whose git answers carry questions; empty means the shell's cwd
+
+base_refs() { # the default-branch refs present in the carry checkout, origin's HEAD first
+  local d="${CARRY_DIR:-$PWD}" out="" h r
+  h="$(git -C "$d" symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null)"
+  for r in $h origin/main origin/master main master; do
+    git -C "$d" rev-parse --verify -q "$r^{commit}" >/dev/null 2>&1 || continue
+    case " $out " in *" $r "*) ;; *) out="${out:+$out }$r" ;; esac
+  done
+  printf '%s' "$out"
+}
+
+# delta_carries FROM TO MAX [nobase] — 0 when TO descends from FROM and the PR's own commits between
+# them (base commits excluded) change at most MAX product lines (-1: no cap) and no product file
+# behind DEEP_PATH_RE; unless "nobase", a base merge in between must touch no file the PR changes.
+delta_carries() {
+  local d="${CARRY_DIR:-$PWD}" bases commits lines c stat n f first mb1 mb2 both
+  git -C "$d" merge-base --is-ancestor "$1" "$2" 2>/dev/null || return 1
+  bases="$(base_refs)"
+  # shellcheck disable=SC2086 # bases is a word list on purpose
+  commits="$(git -C "$d" rev-list "$2" "^$1" ${bases:+--not $bases} 2>/dev/null)" || return 1
+  lines=0
+  for c in $commits; do
+    if [ "$(git -C "$d" rev-list --parents -n 1 "$c" | wc -w)" -gt 2 ]; then
+      # A merge adds only its conflict resolution: the combined diff's lines new against both parents.
+      stat="$(git -C "$d" diff-tree --cc -p "$c" 2>/dev/null | awk '
+        /^diff --cc / { f=$3; next }
+        /^@@@ / { inh=1; next }
+        inh && f != "" && (substr($0,1,2) ~ /\+/ || substr($0,1,2) == "--") { n[f]++ }
+        END { for (k in n) print n[k] "\t" k }')"
+    else
+      stat="$(git -C "$d" diff-tree --no-commit-id --numstat -r "$c" 2>/dev/null | awk -F'\t' '
+        { a=($1=="-")?0:$1; r=($2=="-")?0:$2; print a+r "\t" $3 }')"
+    fi
+    while IFS="$(printf '\t')" read -r n f; do
+      [ -n "$f" ] || continue
+      printf '%s' "$f" | grep -qE "$NOT_PRODUCT_RE" && continue
+      printf '%s' "$f" | grep -qiE "$DEEP_PATH_RE" && return 1
+      lines=$((lines + n))
+    done <<STAT
+$stat
+STAT
+  done
+  [ "$3" -lt 0 ] || [ "$lines" -le "$3" ] || return 1
+  first="${bases%% *}"
+  if [ "${4:-}" != nobase ] && [ -n "$first" ]; then
+    mb1="$(git -C "$d" merge-base "$1" "$first" 2>/dev/null)"; mb2="$(git -C "$d" merge-base "$2" "$first" 2>/dev/null)"
+    if [ -n "$mb1" ] && [ -n "$mb2" ] && [ "$mb1" != "$mb2" ]; then
+      both="$( { git -C "$d" diff --name-only "$mb1" "$mb2"; git -C "$d" diff --name-only "$mb2" "$2"; } 2>/dev/null | sort | uniq -d)"
+      [ -z "$both" ] || return 1
+    fi
+  fi
+  return 0
+}
+
+# carriable_heads SHA — the receipted earlier heads whose receipts carry to SHA, space-separated.
+carriable_heads() {
+  [ -f "$LEDGER" ] || return 0
+  local out="" h
+  for h in $(receipt_pairs "$LEDGER" | awk '{ print $2 }' | awk '!seen[$0]++'); do
+    sha_match "$h" "$1" && continue
+    delta_carries "$h" "$1" "$CARRY_MAX_LINES" && out="${out:+$out }$h"
+  done
+  printf '%s' "$out"
+}
+
+# stage_status TIER SHA [CARRIABLE] — line 1: the tier's stages with no receipt on SHA (or on a
+# carriable head, never for deep), comma-separated; line 2: the short heads a receipt carried from.
+stage_status() {
+  local have="" carry="" miss="" from="" s ok rs rh h
+  [ -f "$LEDGER" ] && have="$(receipt_pairs "$LEDGER")"
+  [ "$1" = deep ] || carry="${3-$(carriable_heads "$2")}"
   for s in $(tier_stages "$1"); do
     ok=0
     while read -r rs rh; do
       [ -n "$rs" ] || continue
-      if [ "$rs" = "$s" ] && sha_match "$rh" "$2"; then ok=1; break; fi
+      [ "$rs" = "$s" ] || continue
+      if sha_match "$rh" "$2"; then ok=1; break; fi
+      case " $carry " in *" $rh "*) ok=2 ;; esac
     done <<HAVE
 $have
 HAVE
-    [ "$ok" -eq 1 ] || miss="${miss:+$miss, }$s"
+    if [ "$ok" -eq 0 ]; then miss="${miss:+$miss, }$s"
+    elif [ "$ok" -eq 2 ]; then
+      for h in $carry; do
+        printf '%s\n' "$have" | grep -q "^$s $h\$" || continue
+        case " $from " in *" ${h:0:7} "*) ;; *) from="${from:+$from }${h:0:7}" ;; esac
+      done
+    fi
   done
-  printf '%s' "$miss"
+  printf '%s\n%s\n' "$miss" "$from"
+}
+
+# missing_stages TIER SHA — the tier's stages with no receipt on SHA or a carriable head; needs LEDGER.
+missing_stages() {
+  stage_status "$1" "$2" | sed -n 1p | tr -d '\n'
+}
+
+# norm_text — lower-case, straighten curly quotes, collapse whitespace, so a quoted waiver matches its ask.
+norm_text() {
+  LC_ALL=C sed -e "s/’/'/g" -e "s/‘/'/g" -e 's/“/"/g' -e 's/”/"/g' | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' '
+}
+ask_text() { # every ask recorded in the ledger, normalized
+  awk '
+    index($0, "## ") == 1 && index($0, " · ask · session ") > 0 { cap = 1; fence = ""; next }
+    cap && fence == "" && $0 ~ /^`{3,}$/ { fence = $0; next }
+    cap && fence != "" && $0 == fence { cap = 0; next }
+    cap && fence != "" { print; next }
+    cap && index($0, "## ") == 1 { cap = 0 }
+  ' "$LEDGER" | norm_text
+}
+
+# waiver_pairs — branch and sha of every recorded N/A gate holding Simon's waiver, outside prompt fences.
+waiver_pairs() {
+  section_lines gate "$1" | awk '/^gate: [^ ]+ [0-9a-f]+ N\/A .*waived by Simon:/ { print $2, $3 }'
 }
 
 # receipt_record SKILL DIR — print the ledger entry for SKILL run on DIR's HEAD; the caller holds the lock.
@@ -421,10 +536,13 @@ work_checkout() {
   printf '%s' "$wc"
 }
 
-# Print "root<TAB>branch<TAB>sha" for each pushed branch head that has no gate record.
+# Print "root<TAB>branch<TAB>sha" for each pushed branch head that has no gate record. Simon's
+# recorded waiver on an earlier head of the same branch covers a later head whose own delta touches
+# no Deep path (any size), so a waived PR's follow-up pushes do not re-block.
 open_pushes() {
   [ -s "$PUSHES" ] || return 0
   gates="$(gate_pairs "$LEDGER")"
+  waivers="$(waiver_pairs "$LEDGER")"
   awk -F'\t' '{ k=$1 FS $2; if (!(k in v)) order[++n]=k; v[k]=$3 }
     END { for (i=1;i<=n;i++) print order[i] FS v[order[i]] }' "$PUSHES" |
   while IFS="$(printf '\t')" read -r root branch sha; do
@@ -435,6 +553,14 @@ open_pushes() {
     done <<GATES
 $gates
 GATES
+    if [ "$found" -eq 0 ]; then
+      while read -r wb ws; do
+        [ -n "$wb" ] && [ "$wb" = "$branch" ] || continue
+        if CARRY_DIR="$root" delta_carries "$ws" "$sha" -1 nobase; then found=1; break; fi
+      done <<WAIVERS
+$waivers
+WAIVERS
+    fi
     [ "$found" -eq 1 ] || printf '%s\t%s\t%s\n' "$root" "$branch" "$sha"
   done
 }
@@ -568,10 +694,11 @@ note)
       echo "note: refusing: $src is a living plan or dashboard, and note deletes its source. Write the note to a scratch file and pass that." >&2
       exit 2 ;;
   esac
-  # Gate and receipt entries are written only by `gate` and the receipt recorder. A note carrying
-  # their heading would open such a section and forge a record the ship gate trusts.
-  if grep -qE '^## [0-9]{4}-.* · (gate|receipt)$' "$src" 2>/dev/null; then
-    echo "note: refusing: $src holds a '## <time> · gate' or '· receipt' heading, which only the gate and the stage-receipt recorder write. Reword that line." >&2
+  # Gate and receipt entries are written only by `gate` and the receipt recorder, and ask entries only
+  # by `submit`. A note carrying their heading would open such a section and forge a record the ship
+  # gate trusts, or Simon's words that a waiver or the merge guard reads.
+  if grep -qE '^## [0-9]{4}-.* · (gate|receipt|ask · session .*)$' "$src" 2>/dev/null; then
+    echo "note: refusing: $src holds a '## <time> · gate', '· receipt' or '· ask · session' heading, which only the gate, the stage-receipt recorder and the prompt recorder write. Reword that line." >&2
     exit 2
   fi
   acquire "$LEDGER" || { echo "note: could not acquire the ledger lock" >&2; exit 2; }
@@ -730,8 +857,10 @@ stages)
   case "$sha" in *[!0-9a-f]*|"") echo "stages: cannot resolve $3 to a commit" >&2; exit 2 ;; esac
   QUIET=1
   resolve || { echo "stages: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
-  miss="$(missing_stages "$tier" "$sha")"
+  st="$(stage_status "$tier" "$sha")"
+  miss="$(printf '%s\n' "$st" | sed -n 1p)"; from="$(printf '%s\n' "$st" | sed -n 2p)"
   if [ -n "$miss" ]; then echo "Not run: $miss"; exit 1; fi
+  if [ -n "$from" ]; then echo "All stages ran (carried from $from: a Light-sized follow-up delta)"; exit 0; fi
   echo "All stages ran"
   exit 0
   ;;
@@ -779,6 +908,18 @@ in \"skipped: <stages>\", not \"Not run:\"." >&2; exit 2 ;;
   case "$sha" in *[!0-9a-f]*|"") echo "gate: cannot resolve $ref to a commit" >&2; exit 2 ;; esac
   [ "${#sha}" -ge 7 ] || { echo "gate: sha needs 7+ characters" >&2; exit 2; }
   resolve || { echo "gate: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
+  # Simon's waiver ("it's fine", "just merge") is an N/A whose quote is his own recorded words, so no
+  # agent can waive the harness for him. It also covers the branch's later heads (open_pushes).
+  case "$reason" in *"waived by Simon:"*)
+    if [ "$status" != N/A ]; then
+      echo "gate: a waiver is recorded as N/A: gate <branch> <sha> N/A [tier] \"waived by Simon: <his words>\"" >&2; exit 2
+    fi
+    quote="$(printf '%s' "${reason#*waived by Simon:}" | norm_text | sed -e 's/^[ "]*//' -e 's/[ "]*$//')"
+    if [ "${#quote}" -lt 8 ] || ! ask_text | grep -qF -- "$quote"; then
+      echo "gate: waiver refused: \"$quote\" is not 8+ characters of an ask Simon typed in this session's ledger. \
+Quote his own words verbatim, or run the tier's stages." >&2; exit 2
+    fi ;;
+  esac
   # Stage receipts on this exact head back the stage statement, so neither a PASS nor "All stages ran"
   # rests on reason text alone. A receipt on an older head never counts.
   if [ -n "$tier" ] && [ "$status" != N/A ]; then
@@ -930,10 +1071,14 @@ the new fact: rules/communication.md forbids re-printing an unchanged block. Thi
   # Each head's missing stages come from its receipts, per tier, so the agent invokes exactly those.
   list="$(printf '%s\n' "$open" | while IFS="$(printf '\t')" read -r oroot obranch osha; do
     printf '  %s (%s) at %s\n' "$obranch" "$oroot" "${osha:0:7}"
+    CARRY_DIR="$oroot"; carry="$(carriable_heads "$osha")"
     for t in light standard deep; do
-      m="$(missing_stages "$t" "$osha")"
-      printf '    %s: %s\n' "$t" "${m:+Not run: $m}"
-    done | sed 's/: $/: All stages ran/'
+      st="$(stage_status "$t" "$osha" "$carry")"
+      m="$(printf '%s\n' "$st" | sed -n 1p)"; f="$(printf '%s\n' "$st" | sed -n 2p)"
+      if [ -n "$m" ]; then printf '    %s: Not run: %s\n' "$t" "$m"
+      elif [ -n "$f" ]; then printf '    %s: All stages ran (carried from %s: a Light-sized follow-up delta; run only its own checks)\n' "$t" "$f"
+      else printf '    %s: All stages ran\n' "$t"; fi
+    done
   done)"
   msg="This session pushed these branches and recorded no ship-gate result for the pushed head:
 $list
@@ -948,7 +1093,11 @@ reason holds \"All stages ran\" or \"Not run: <stage>, <stage>\" naming each sta
 skill on that head; a standard or deep PASS holds \"All stages ran\" and is refused with any \"Not run:\" list. \
 A PASS names its tier and is refused while any stage that tier requires has no receipt on the head. \
 Run every stage the tier requires first, on the newest head, unprompted, even when an external blocker makes it BLOCKED. A gate \
-recorded for an older head does not count once a newer head is pushed. This fires at most once per set of open pushes."
+recorded for an older head does not count once a newer head is pushed. A light or standard tier reading \"carried from\" \
+needs only the follow-up delta's own checks (its affected tests, one screenshot if it is visible, the PR body's head) before \
+the gate (references/testing-strategy.md, Follow-up pushes). When Simon waived the checks for this PR, record \
+gate <branch> <sha> N/A <tier> \"waived by Simon: <his words verbatim>\"; it covers the branch's later heads. \
+This fires at most once per set of open pushes."
   jq -cn --arg r "$msg" '{decision:"block",reason:$r}'
   exit 0
   ;;

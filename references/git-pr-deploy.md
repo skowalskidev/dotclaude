@@ -672,7 +672,8 @@ that needs a backend change not yet live.
 directory, a PR that changes any other runtime file fails the gate without the version table, an
 old-build line per version (or the not-reached line) and the waits-for line, and an
 `Old build <version> against the new backend: BLOCKED, <why>` line fails it too, so the harness
-records the gate BLOCKED rather than PASS.
+records the gate BLOCKED rather than PASS. A Light PR (`references/testing-strategy.md` § Size the checks to the
+change) records the not-reached line alone, with no version table or waits-for line.
 TEST: every PR touching a surface a shipped build calls carries the version table, one PASS line per
 walked version or a not-reached reason, the waits-for list and a backend-first Deploy TLDR; a removed,
 renamed or newly required field an in-use build relies on is a finding fixed before hand-back.
