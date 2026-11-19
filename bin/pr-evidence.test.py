@@ -266,6 +266,23 @@ def test_blank_gate(tmp: Path):
           and "hosted checkout" in r.stderr, f"a clip ending on light grey passed the blank gate: {r.stdout}{r.stderr}")
     check(not out.exists(), "the blank gate wrote an output for a failing clip; it must fail before composing")
 
+    # A change that removes a blank screen: the BEFORE clip shows it, with a stated reason only.
+    blank_start = tmp / "bg-blank-start.mp4"
+    blanking_clip(blank_start, "390x844", 9, "0xfafafa", 0, 0.6)
+    video = lambda before, after, *extra: raw_engine(  # noqa: E731
+        "video", "--before", str(before), "--after", str(after), "--pr", "1", "--before-caption", "a",
+        "--after-caption", "b", "--target", "10", "--hold", "4", "--fps", "10", "--preset", "ultrafast",
+        "--out", str(tmp / "bg-expected-out.mp4"), *extra)
+    r = video(blank_start, good, "--before-blank", "the loader's bare half second this change removes")
+    check(r.returncode == 0 and "blank as expected" in r.stderr and "blank 0.0" in r.stderr,
+          f"a stated BEFORE blank failed the gate: {r.stderr}")
+    r = video(blank_start, good)
+    check(r.returncode != 0 and "blank 0.0" in r.stderr, f"an unstated BEFORE blank passed: {r.stderr}")
+    r = video(blank_start, good, "--before-blank", "blank")
+    check(r.returncode != 0 and "3 or more words" in r.stderr, f"a one-word reason passed: {r.stderr}")
+    r = video(good, blank_start, "--before-blank", "the loader's bare half second this change removes")
+    check(r.returncode != 0 and "blank 0.0" in r.stderr, f"an AFTER blank passed with --before-blank: {r.stderr}")
+
     for colour, name in (("0xffffff", "white"), ("0x000000", "black")):
         mid = tmp / f"bg-{name}-mid.mp4"
         blanking_clip(mid, "390x844", 9, colour, 3, 4.5)

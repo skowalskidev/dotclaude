@@ -177,6 +177,8 @@ name the hand-off in its caption and TLDR (e.g. "Ends as the hosted checkout ope
 external page itself. A verification run, which is never trimmed, records the external page or stops
 its script at the hand-off. DON'T post the blank stretch the recorder shows while the page is away:
 `bin/pr-evidence.py` fails any input with a blank stretch of 0.5 s or more or a blank last frame.
+DO pass `video --before-blank "<the blank screen this change removes>"` only when the change removes a
+blank screen and the BEFORE clip shows it; the AFTER clip stays gated.
 TEST: no posted clip's last frame or 0.5 s stretch has ink below 0.05%.
 DO write each scenario's TLDR as 1-2 lines of PR-body text directly above its video: what the clip
 shows and the expected behaviour (e.g. "Asks the cash price while it loads. Expect a spinner, then
