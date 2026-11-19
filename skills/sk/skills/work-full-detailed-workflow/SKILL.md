@@ -86,7 +86,8 @@ current, reconcile against it.
   places the judge after each build result and routes its gaps back to the selected engine.
 - DO run `references/workflow-loops.md` § Build from a supplied design source from intake whenever a
   design source is supplied, by anyone and in any format, or a pixel-perfect match is asked for. Hold each such section at `review`
-  until its measurement report is PASS with its difference images and every exception named; a
+  until its measurement report is PASS with its difference images and every exception named, and its
+  fidelity judge passed fresh captures of the current head; a
   side-by-side read by eye never passes it, on either engine and with the judge off.
 - DO run a design build's deliverables per `references/parallelization.md` § One isolated worker per
   deliverable: parallel isolated workers, on-disk checks, resumed fix rounds, recommended-option

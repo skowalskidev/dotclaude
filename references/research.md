@@ -66,6 +66,8 @@ flag, a file path) needs none.
 DO give each judge the raw evidence: the question, the query output, the source rows or files, and
 the primary-source links. DON'T give a judge the author's conclusion or another judge's answer before
 it has written its own.
+DO brief a design-fidelity judge with the inputs and pass bar in `references/workflow-loops.md` § Build
+from a supplied design source; restate none of them here.
 DO launch the OpenAI judge read-only from a Claude chat, with the brief on stdin:
 `AGENT_ALLOW_CROSS_PROVIDER=1 timeout 900 ~/.claude/bin/codex-launch.py -p --sandbox read-only < <brief file>`.
 From an OpenAI chat the Claude judge runs through `~/.claude/bin/claude-launch.py -p` with the same

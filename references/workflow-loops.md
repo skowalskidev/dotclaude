@@ -405,11 +405,17 @@ DO finish these five steps at intake, before any layout is written or briefed:
    comparison: its rows report `unmeasured`.
 
 DO write the measured spec at `.context/design-spec/<board>-<state>.md`, one row per element the board
-adds or changes. Each row carries: a stable id the build exposes as its test identifier; the exact
-text; width and height; the offset from a NAMED anchor (parent edge, screen edge or safe-area edge);
-the gap to the adjacent element on all four sides, kept chrome and screen edges included; font size,
-weight, line height and rendered line count; colours; radius; and the existing component and token
-each value maps to, or `new`. Extract every number from the source's own values (inline styles, exported node data, the
+adds or changes (on a recreated screen, every element it draws), decorations and connectors included: pointers, arrows, dotted or dashed lines, badges,
+highlights, shadows, spotlight cutouts and dim overlays each get their own row. Each row carries: a
+stable id the build exposes as its test identifier; the exact text; width and height; the offset from
+a NAMED anchor (parent edge, screen edge or safe-area edge); the gap to the adjacent element on all
+four sides, kept chrome and screen edges included; font size, weight, line height and rendered line
+count; colours; radius; z-order against each neighbour it touches; overlap with each neighbour in px
+(0 when they only meet); and the existing component and token each value maps to, or `new`. A
+connector row also names the element and edge each end anchors to, with its offset, and the order of
+its parts along its direction (e.g. dots, then the glyph, on a downward pointer). DO build every
+decoration as a real element carrying its id: a `::before`, a background image or a canvas stroke has
+no box to read, so its row reports `unmeasured`. Extract every number from the source's own values (inline styles, exported node data, the
 rendered board's element boxes). DON'T read a number off an image by eye when the source carries it;
 a flat image is measured in pixels at its 1x scale and its rows are marked `from image`.
 TEST: every element the board adds has a row, every row cell holds a number or a string, and each
@@ -442,6 +448,20 @@ DON'T redraw a source control, label or card because the board draws it: a judge
 the source passes the copy. TEST: every `depicts product` row names a component file in the repo that
 the build renders, and the build holds zero controls, labels or cards the product does not ship (the
 fix for a recreated competitor tour whose coach marks lit a Search button the app does not have).
+
+DO hold a copied design to near pixel-perfect by default: every row's box, anchor offset, z-order and
+overlap match the source within the Boxes tolerance below, and only the content inside a slot differs.
+Our copy and illustrations are `ours` rows: the source keeps the slot (box, offsets, type size, line
+count), we supply the words and pixels. DO re-anchor every element tied to an `ours` or `depicts
+product` row when our content's size differs from the source's (a longer string, our component taller
+than their card): pointers, connectors, highlights and spotlight cutouts take their offsets from our
+element's measured box, then get re-measured. When the source lights a sub-part of its card, light the
+sub-part of our component that does the same job, never the whole component. DON'T keep geometry
+measured against the source's element after the swap. TEST: every row anchored to an `ours` or
+`depicts product` row names its anchor id in our build and was measured after the last swap, and a
+sub-part highlight's box equals our sub-part's box within tolerance (the fix for a copied coach screen
+whose 44 px plane pointer rendered at 32 px, before its dotted line, on the lit card's border, and
+which lit our whole card where the source lit only its transfer section).
 
 DO run a phone-fit check on every screen and state a phone draws, independent of the source, at two
 viewports: 402x750 and 375x667 (a phone browser with its toolbars), page at scroll 0, each open list
@@ -495,7 +515,9 @@ where a row wrapped). Five mechanical checks against the spec, in the board's st
 data:
 - **Boxes.** Read each row's built box (web: the element's bounding client rect; native: its
   accessibility frame in a UI test, e.g. `XCUIElement.frame`) and compare width, height, anchor offset
-  and every gap. Tolerance: 1 px on web, 2 pt on native. Commit these as assertions in the project's
+  and every gap. Compare each row's z-order (web: `document.elementsFromPoint` at the overlap's
+  centre), its overlap with each neighbour (the two boxes' intersection) and a connector's end anchors
+  and part order. Tolerance: 1 px on web, 2 pt on native, decoration and connector rows included. Commit these as assertions in the project's
   existing UI test runner. Add one position assertion per new element against its nearest neighbour,
   in every route that draws it (e.g. the plan line's top is at or below the composer's bottom): a slot
   that exists is not the slot the board draws.
@@ -519,12 +541,14 @@ data:
   the product's font family is an agreed exception).
 
 DO loop fix, re-render, re-measure until the gate passes. Accept a remaining delta only as a recorded
-exception with one of six causes: data the product cannot supply, a project gate or design-system
-ban, an asset that does not exist, a `depicts product` row drawn by our component, a `phone fit` fix,
-or a value Simon agreed (above). Each names its spec id, cause and evidence (the missing field, the
-gate output, the asset search, the component file, the failing phone-fit row). DON'T accept any other cause: "close
+exception with one of seven causes: data the product cannot supply, a project gate or design-system
+ban, an asset that does not exist, an `ours` row holding our copy or illustration, a `depicts product`
+row drawn by our component, a `phone fit` fix, or a value Simon agreed (above). Each names its spec id,
+cause and evidence (the missing field, the gate output, the asset search, our string or image file, the
+component file, the failing phone-fit row). An `ours` or `depicts product` exception covers the pixels
+inside its slot only, never the slot's box or the rows anchored to it. DON'T accept any other cause: "close
 enough", "kept the current look", other sample data, or a stand-in for an asset the project has.
-TEST: every non-zero delta in the report is fixed or an exception with one of the six causes and its
+TEST: every non-zero delta in the report is fixed or an exception with one of the seven causes and its
 evidence (the fix for a card built from a supplied mockup that shipped with an extra line per row and a
 missing column header, after an eye comparison against captures holding other data).
 
@@ -551,7 +575,12 @@ a clipped illustration label, with no source-vs-build comparison anywhere, built
 
 DO give each slice one fresh read-only fidelity judge that did not build it. This judge belongs to the
 gate, so it runs with `--judge off` too. Its brief holds the spec, target images, built captures,
-region crops, frame difference images and recorded exceptions, and no builder narrative. It opens
+region crops, frame difference images and recorded exceptions, and no builder narrative. DO capture
+the build fresh for each judge round: every screen and state from the head under review, each capture
+named with that head's sha, beside the source board at the same viewport and scale. The judge confirms
+each capture's sha is the head and fails every row outside tolerance, decoration and connector rows
+included. DON'T count a verdict on a capture from an earlier head, or on box rows with the decoration,
+z-order and overlap rows unread, as a pass. It opens
 every region crop and difference image at full size, re-runs the measure command, and returns one row
 per difference: spec id, board value, built value. A finding with no spec id or no number is sent back,
 never recorded. It checks each `depicts product` row against our named component, never the source's
@@ -579,7 +608,9 @@ TEST: before a slice is handed back, each of its boards has a spec, a target ima
 measure commands, a PASS report with its difference images, and a judge verdict. A new element with
 no spec row, a built element with none, a delta with no recorded cause, a deviation naming no element
 id, a nearest token without Simon's answer, a route that reads the feature's data with no capture or
-exemption, a phone-fit (a), (b) or (c) row, or a shared string unmatched in one app fails the gate.
+exemption, a phone-fit (a), (b) or (c) row, a shared string unmatched in one app, a decoration or
+connector with no row, a row anchored to a swapped element left unmeasured, or a judge verdict on a
+capture from an earlier head fails the gate.
 
 ## Shareable design board: the default form for a visual mockup ask
 
@@ -847,7 +878,8 @@ constructs a newer edge case and the loop never converges. TEST: every heuristic
 failing error direction and input population from round 1 (the fix for a month reader that took seven
 review rounds, five of them on constructed inputs, and passed once the bar was stated).
 DO judge a section built from a design source against its measurement report from § Build from a
-supplied design source: not-met while the report is not PASS, whatever the side-by-side looks like.
+supplied design source: not-met while the report is not PASS or its captures predate the revision
+under review, whatever the side-by-side looks like.
 
 DO translate a failed judgement into a concrete task delta, fix it, rerun affected checks and send
 the new revision to a new judge. The judge reads and reports only; it cannot edit source, criteria,
