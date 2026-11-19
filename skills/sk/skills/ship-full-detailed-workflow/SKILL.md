@@ -146,8 +146,10 @@ tickets; a fix that belongs to another PR is handed to that owner via
    and a stage the tier itself skips goes in the tier's skip line (`skipped: <stages>`), never under
    `Not run:`. The gate refuses a PASS holding `Not run:` or "ran on an earlier head".
    **DO rerun every remaining required stage on the new head, unprompted, before hand-back, after any
-   new push or merge of the base into the branch:** a stage's result counts only for the head it ran
-   on. Reuse proof only where `rules/process.md` § Fan out verification allows it, and invoke each
+   new push or merge of the base into the branch,** unless `stages <tier> HEAD` reads `carried from`:
+   a Light-sized follow-up delta on a light or standard head runs only its own checks under
+   `references/testing-strategy.md` § Follow-up pushes and waivers, and Simon's waiver is recorded
+   there. Otherwise a stage's result counts only for the head it ran on. Reuse proof only where `rules/process.md` § Fan out verification allows it, and invoke each
    rerun stage as its own skill. **DON'T hand back offering to run them,** or with a PASS for an older
    head. TEST: every Standard or Deep PASS at hand-back names the final pushed head and holds
    `All stages ran` with no `Not run:` (the fix for PASS records reading "Not run: merge readiness,
@@ -176,11 +178,12 @@ verified the user + system journey, then handed back with it never posted to the
   incident-replay and residual-risk lines, each with its evidence, or a reasoned does-not-apply.
 - Deploy safety (stage 6), on every Deep PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
-  per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines.
+  per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines (a Light
+  PR: the not-reached line alone).
 - Regression check (stage 6), on every PR: one row per modified pre-existing file with PASS or
   INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors.
-- Part verdicts (`/sk:work-full-detailed-workflow`), on every build, adopt or rebuild PR: the table
-  from `references/tldr-report-formats.md` § Part verdicts, re-derived on the final head.
+- Part verdicts (`/sk:work-full-detailed-workflow`), on every Standard or Deep build, adopt or rebuild
+  PR: the table from `references/tldr-report-formats.md` § Part verdicts, re-derived on the final head.
 - Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard
   PR's `Skipped (tier <tier>): <trigger>` line under each matrix, prod-data and deploy-safety heading it skipped.
 - Screenshots (stage 7): every surface eligible under stage 7 at the PR's tier has its image on the PR and every affected

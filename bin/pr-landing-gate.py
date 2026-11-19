@@ -26,11 +26,15 @@ runtime file (a server, database, Worker or hosted web file the installed builds
 in Deploy safety, the installed-version table, one `Old build <version> against the new backend: PASS`
 line per walked version or an `Installed builds: not reached, <why>` line, and a `Waits for the new
 build:` line (references/git-pr-deploy.md § Deploy safety check 4). An `Old build ... BLOCKED` line is
-recorded but fails the gate: an unwalked installed build is never a pass.
+recorded but fails the gate: an unwalked installed build is never a pass. On a Light PR (the Test matrix
+names the light tier) the `Installed builds: not reached, <why>` line alone passes: no version table or
+Waits line, because a Light change touches no native-build or backend contract.
 A posted Part verdicts section holds a table whose header names Verdict, Mainstream practice, Regression
 evidence and a judge column per provider, with a primary-source link in every row
 (references/tldr-report-formats.md § Part verdicts). The section is checked when present, so a PR body
-written before it existed still passes; the work harness's TEST requires it on build, adopt and rebuild PRs.
+written before it existed still passes; the work harness's TEST requires it on Standard and Deep build,
+adopt and rebuild PRs. A Light PR's Part verdicts section is never checked: its judges are not required
+(references/research.md § Independent judges).
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -77,7 +81,8 @@ NEEDS = {
     "Deploy safety": ("a merge-train result and a rollback, or a reasoned does-not-apply; in a repo with a "
                       "native app, when the PR changes a file its installed builds call or load: a version "
                       "| share table, 'Old build <version> against the new backend: PASS' per version or "
-                      "'Installed builds: not reached, <why>', and 'Waits for the new build: <list or none>'"),
+                      "'Installed builds: not reached, <why>', and 'Waits for the new build: <list or none>'; "
+                      "on a Light PR the not-reached line alone"),
     "Screenshots": "an image, or a no-visible-surface reason with a 'Checked outputs:' clause",
     "Part verdicts": ("a table whose header names Verdict, Mainstream practice, Regression evidence and "
                       "a judge column per provider; a primary-source link in every row"),
@@ -105,6 +110,7 @@ ROUTE_MSG = ("{}: the no-surface reason names a new-screen or new-copy test; a c
 # skipped heading with this line, and its trigger is at least three words.
 TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
 DEEP_TIER = re.compile(r"\btier\b\W{0,3}deep\b|\bdeep\W{0,3}tier\b", re.I)
+LIGHT_TIER = re.compile(r"\btier\b\W{0,3}light\b|\blight\W{0,3}tier\b", re.I)
 # references/testing-strategy.md § Value safety: the labelled lines, in order.
 VALUE_LABELS = ("Happy path", "Failure re-enacted", "Wrong recipient", "Incident replay", "Residual risk")
 TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:light|standard|deep)\b|\b(?:light|standard|deep)\W{0,3}tier\b", re.I)
@@ -305,9 +311,14 @@ def reaches_installed_builds(changed, root_dirs):
                for f in changed)
 
 
-def check_installed_builds(safety):
-    """Missing-row strings for the installed-build lines in Deploy safety (check 4)."""
+def check_installed_builds(safety, light=False):
+    """Missing-row strings for the installed-build lines in Deploy safety (check 4).
+
+    light: the PR is Light tier, so a reasoned not-reached line alone passes.
+    """
     text = safety or ""
+    if light and NOT_REACHED.search(text) and not OLD_BUILD.findall(text):
+        return []
     missing = []
     if not VERSION_TABLE.search(text):
         missing.append("Deploy safety: no installed-version table (| version | share |) for the native app")
@@ -411,8 +422,9 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
             missing.append("Deploy safety: no merge-train result and no doesn't-apply reason")
         if not re.search(r"roll ?back", safety, re.I) and not na:
             missing.append("Deploy safety: no rollback and no doesn't-apply reason")
+    light = matrix is not None and LIGHT_TIER.search(matrix) is not None and DEEP_TIER.search(matrix) is None
     if installed:
-        missing += check_installed_builds(safety)
+        missing += check_installed_builds(safety, light)
 
     shots = found.get("Screenshots")
     if shots is None:
@@ -445,7 +457,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
         if absent:
             missing.append("Verification runs: no " + ", ".join(absent) + " line")
 
-    missing += check_part_verdicts(found.get("Part verdicts"))
+    if not light:
+        missing += check_part_verdicts(found.get("Part verdicts"))
 
     collapsed = len(COLLAPSED.findall(body_html or ""))
     if collapsed:

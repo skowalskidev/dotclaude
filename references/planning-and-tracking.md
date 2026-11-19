@@ -319,7 +319,10 @@ typed `/sk:<stage>` prompt, or a Codex read of the stage's SKILL.md) records one
 the checkout the work runs in (the payload cwd; a subagent's, whose cwd resets, is the checkout its
 last Bash `cd`/`git -C` named), and `intent-ledger.sh stages <tier> HEAD` prints `All stages ran` or the `Not run:` list. The
 hook's stage list is the one home of which stages each tier requires. Stop blocks once per set of
-open pushes, naming each tier's missing stages; a newer head re-opens it.
+open pushes, naming each tier's missing stages; a newer head re-opens it. A light or standard
+receipt carries to a later head across a Light-sized delta of the PR's own commits, and an N/A
+quoting Simon's recorded waiver covers the branch's later non-Deep-path heads
+(`references/testing-strategy.md` § Follow-up pushes and waivers).
 
 **Two shortfalls, two different homes.** A raw-ask clause, or a ratified criterion, that was not
 built is a Not-met criterion and is closed the way any gap is, by

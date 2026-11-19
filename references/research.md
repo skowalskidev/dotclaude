@@ -62,7 +62,8 @@ acts on: a build/refute verdict, a figure read from production data, a payment o
 reading, a security finding, an accept/refute of review feedback that changes stored or sent data.
 NUMBER: at least 2 judges besides the author, one per provider: a fresh Claude subagent and OpenAI
 through Codex on the ChatGPT subscription. A lookup with one primary-source answer (a version, a
-flag, a file path) needs none.
+flag, a file path) needs none, and neither does a Light change's build, review or ship verdict
+(`references/testing-strategy.md` § Size the checks to the change): it moves no money, access or data.
 DO give each judge the raw evidence: the question, the query output, the source rows or files, and
 the primary-source links. DON'T give a judge the author's conclusion or another judge's answer before
 it has written its own.

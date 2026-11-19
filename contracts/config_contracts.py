@@ -444,7 +444,8 @@ CONTRACTS: dict[str, dict] = {
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
             "Fail a body with no Regression check heading, a row recording FAIL, or a modified, renamed or removed file from the PR's fetched file list with no row or no PASS or INTENDED result; a PR modifying no pre-existing file needs a table or a stated reason, and a failed file-list fetch exits 2.",
             "In a repo with a top-level ios/ or android/ directory, fail a PR changing any other runtime file (tests, docs and CI excluded) whose Deploy safety lacks the installed-version table, an 'Old build <version> against the new backend: PASS' or 'Installed builds: not reached, <why>' line, or the 'Waits for the new build:' line; fail any 'Old build ... BLOCKED' line.",
-            "Check a posted Part verdicts section: fail one with no table, a header lacking Verdict, Mainstream or Regression or two judge columns, or a row with no link; an absent section passes, so older bodies need no migration.",
+            "Check a posted Part verdicts section: fail one with no table, a header lacking Verdict, Mainstream or Regression or two judge columns, or a row with no link; an absent section passes, so older bodies need no migration; a Light PR's section is never checked.",
+            "On a Light PR (its Test matrix names the light tier) accept a reasoned 'Installed builds: not reached, <why>' line alone, with no version table or waits-for line; a Standard or Deep PR keeps every installed-build line.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -1040,7 +1041,7 @@ CONTRACTS: dict[str, dict] = {
             "A verdict naming the change behind a reported visible defect cites the copy key or string match that identified the component, names the introducing and the reachability change, and labels its evidence as code read, failing test or reproduction.",
             "Holds the third-party claim rules: primary sources, every vendor surface before a negative, dated arithmetic, no competitor hyperlink, concede an honest loss.",
             "A vendor-behaviour claim from any human or bot source is checked against the vendor's own page, or labelled unverified, before a commit or plan builds on it.",
-            "Owns the independent-judge panel: 2+ judges besides the author, one per provider on subscriptions only, raw evidence without the author's call, own positions before reconciling against data and primary sources, each position recorded.",
+            "Owns the independent-judge panel: 2+ judges besides the author, one per provider on subscriptions only, raw evidence without the author's call, own positions before reconciling against data and primary sources, each position recorded; a single-answer lookup and a Light change's build, review or ship verdict need none.",
             "A judge's verdict is read only from its final message after its process exits, never from a marker grepped in its streamed transcript.",
             "Points a design-fidelity judge at the workflow-loops design-source section for its inputs and pass bar and restates none of them.",
         ],
@@ -1064,6 +1065,8 @@ CONTRACTS: dict[str, dict] = {
             "Separate code verification, activation dependencies and live proof; scope conclusions to captured populations and windows without promising zero regressions.",
             "Own Value safety: a PR moving money, credits, entitlements, auth or ownership answers happy path, re-enacted failure, wrong recipient with residual risk, and an N/N incident replay over production rows and live definitions.",
             "Own the Light, Standard and Deep verification tiers: classify from the diff before any check, take the deeper tier when unclear, escalate on an unexpected finding, and record tier, trigger and skipped stages on the PR and gate.",
+            "Light covers a change of at most 200 changed product lines on one or a team-only surface with no Deep trigger, API-contract or native-build change, a behaviour-preserving shared UI component edit or extraction included; Deep keeps money, price, entitlement, auth, stored data, migrations, native builds and a behaviour change in a part 2+ customer-facing surfaces render.",
+            "Own Follow-up pushes and waivers: a light or standard head's receipts carry across a Light-sized delta of the PR's own commits (no Deep path, no base merge on a PR file) and only the delta's checks run; Deep never carries; Simon's waiver is an N/A quoting his recorded words that covers the branch's later non-Deep-path heads.",
             "Every tier keeps CI, required hooks, the project gate list, PR feedback handling, read-only production, spend approval and the post-deploy prod check; a Deep trigger always gets the full harness.",
             "Re-read the CI gate list after every base merge or rebase, and run it in one pass over CI's own scope, secret scan included, before the ready-flip that starts CI.",
             "At merge prep, before a ready-flip, enqueue, merge or deploy, re-derive the list with ci-gate-list.py on the final head and run every row locally, leased; record each mirrored row and each skip reason.",
@@ -1148,7 +1151,7 @@ CONTRACTS: dict[str, dict] = {
             "25 words, no prose.",
             "Every chat hand-back of a PR or finished change prints the same table unprompted, straight "
             "after line 1, matching the PR's TLDR.",
-            "Owns the Part verdicts table: per part its verdict and deciding fact, mainstream practice with a primary-source link, regression evidence and one judge column per provider; hand-back and PR body carry it on every build, adopt or rebuild.",
+            "Owns the Part verdicts table: per part its verdict and deciding fact, mainstream practice with a primary-source link, regression evidence and one judge column per provider; hand-back and PR body carry it on every Standard or Deep build, adopt or rebuild, and a Light one posts none.",
         ],
     },
     "references/user-journey-review.md": {
@@ -1306,7 +1309,7 @@ CONTRACTS: dict[str, dict] = {
             "Require every CI check on the recorded head green at the landing gate; a check failing by design is a finding to fix in that PR, never a PASS reason.",
             "A capacity or resource request never removes a required stage; it moves the stage per dev-server-hygiene's machine-wide capacity section.",
             "Invoke every stage the tier requires as its own skill before recording the gate, even when an external blocker makes it BLOCKED; every gate reason and hand-back names each unrun stage as 'Not run: <stage>, <stage>' or states 'All stages ran', so a BLOCKED or PASS never hides an unrun stage.",
-            "Record a Standard or Deep PASS only with 'All stages ran', never with a 'Not run:' list or a stage that ran on an earlier head; after any new push or base merge, rerun every remaining required stage on the new head unprompted before hand-back and never offer to run them.",
+            "Record a Standard or Deep PASS only with 'All stages ran', never with a 'Not run:' list or a stage that ran on an earlier head; after any new push or base merge, rerun every remaining required stage on the new head unprompted before hand-back and never offer to run them, unless intent-ledger.sh stages reads 'carried from' for a Light-sized follow-up delta, which runs only its own checks, or Simon's waiver is recorded.",
             "Name every stage hooks/intent-ledger.sh requires for any tier as /sk:<stage>; run intent-ledger.sh stages <tier> HEAD before recording and invoke each listed stage with the Skill tool from the checkout at that head, because the gate refuses a PASS, and any 'All stages ran', without a receipt on the recorded sha for each stage the tier requires.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
             "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
@@ -1541,7 +1544,7 @@ CONTRACTS: dict[str, dict] = {
             "Plan and write test coverage before implementation; execute the automated matrix at the final gate after all authorized features and review fixes converge, under the shared testing policy.",
             "Stays a thin index; the detail lives in references/ and is not duplicated here.",
             "Step 1 is the research pass, so Simon never has to ask for research separately.",
-            "Step 3 invokes /sk:work-does-this-make-sense-to-build as its own skill on every build, adopt or rebuild before building, and again on the final head for adopted or rebuilt work; hand-back and PR body carry the Part verdicts table.",
+            "Step 3 invokes /sk:work-does-this-make-sense-to-build as its own skill on every Standard or Deep build, adopt or rebuild before building, and again on the final head for adopted or rebuilt work; hand-back and PR body carry the Part verdicts table; a Light task records one build reason instead.",
             "The planning-and-tracking gap sweep runs before the first push of the work's commits, an adopted PR's branch included; an N/A reason never cites machine capacity.",
             "For a bug fix, step 3 reproduces it with a control under the testing-strategy reproduce-first section before any implementation.",
             "Names rules/living-plan.md among the always-on rules it does not restate.",
@@ -2483,8 +2486,18 @@ CONTRACTS: dict[str, dict] = {
             "printing 'Not run: <stage>, ...' while a required stage has no receipt on the gated sha; a receipt on an "
             "older head never counts. 'All stages ran' in any record needs the same receipts, and a standard or deep "
             "BLOCKED names every stage without one. Receipts are read fence-aware, and `note` refuses a source carrying "
-            "a gate or receipt heading, so neither can be forged. Stop's ship-gate block lists each tier's missing "
+            "a gate, receipt or ask heading, so none can be forged. Stop's ship-gate block lists each tier's missing "
             "stages per pushed head; `stages <tier> [sha]` prints the list or the missing ones, read-only.",
+            "Receipt carry: a light or standard receipt on an earlier head counts for a later head, computed from git on "
+            "every read, when the head descends from it and the PR's own commits since (base commits excluded, a merge "
+            "counted by its conflict resolution) change at most CARRY_MAX_LINES (200) product lines, touch no product "
+            "file matching DEEP_PATH_RE (money, auth, stored data, native builds), and no base merge between touched a "
+            "file the PR changes; deep receipts never carry. `stages` and the Stop block print 'All stages ran (carried "
+            "from <sha>...)'.",
+            "Waiver: `gate <branch> <sha> N/A [tier] \"waived by Simon: <quote>\"` records only when the quote (8+ "
+            "characters, case, curly quotes and whitespace normalized) appears in an ask recorded in the ledger; a "
+            "waiver as PASS exits 2. Stop treats the branch's later pushed heads as gated while the delta since the "
+            "waived head touches no DEEP_PATH_RE product file.",
             "`gate PASS` for a branch with an open PR on a GitHub origin records only when bin/pr-landing-gate.py "
             "exits 0 and bin/pr-ci-wait.py --once exits 0 for the gate's sha (resolved to the full id when local), "
             "else exits 1 printing the missing rows or the failing, pending or moved-head CI line; a failed PR "
