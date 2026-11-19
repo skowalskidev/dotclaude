@@ -122,6 +122,16 @@ minutes on usage errors from an empty run id.) Wait on PR CI with `bin/pr-ci-wai
 TEST: every background wait states its condition and a timeout below the tool's cap, ends with its own
 timeout verdict, and its first output was read within 2 minutes of launch.
 
+**DO run a poll's status command once in the FOREGROUND and see it print a recognised state before
+launching the background loop.** Inside the loop, exit non-zero with the command's error when the status
+command fails or prints nothing: `s=$(<status cmd>) && [ -n "$s" ] || { echo "status failed: $s" >&2;
+exit 1; }`.
+**DON'T read a failing or empty status command as "still waiting".** An unsupported CLI field, a typo'd
+flag or a missing id makes every iteration fail the same way, and the loop sleeps to its cap. (the fix
+for a merge wait that read an unsupported CLI field and polled empty output to its cap.)
+TEST: every background poll was preceded by one foreground run of its status command that printed a
+recognised state, and its loop body exits non-zero when that command fails.
+
 **DON'T let a "nothing pending" exit pass on an empty set.** A wait for CI checks, jobs or files first
 requires the expected items to exist for the right head or id (e.g. the check count for the head sha is
 above zero), then waits for none pending.

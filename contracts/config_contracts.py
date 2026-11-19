@@ -766,6 +766,7 @@ CONTRACTS: dict[str, dict] = {
             "Stop every watcher, poll, monitor or scheduled wake when its target finishes or its owner hands back; none wakes a finished agent.",
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
             "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
+            "A background poll runs its status command once in the foreground to a recognised state before launch, and its loop exits non-zero with the error when that command fails or prints nothing.",
             "CI and merge watchers judge the newest run per check, read an empty conclusion as pending, exit distinctly on CONFLICTING and end with their own verdict inside the background tool's cap.",
             "Glob-like flag values are quoted, and a zsh glob that may match nothing carries (N) or runs under null_glob, so one empty glob never aborts a command with literal paths.",
             "A loop over multi-word items runs inside bash -c or splits an array, never set -- on a zsh scalar; macOS sed alternation uses one -e per alternative or -E, never \\| in a basic regex.",
