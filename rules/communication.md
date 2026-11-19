@@ -2,12 +2,12 @@
 
 ## Answer first: action line, issue bullets, one question block at the end
 
-Every message sent for Simon. Example, WHYs, pre-send check: `references/tldr-report-formats.md`.
+Every message sent for Simon. Example, WHYs, pre-send check, app build line: `references/tldr-report-formats.md`.
 **DO make line 1 `Action needed: <the exact thing>` whenever ANYTHING waits on Simon, even on a status-only message and even if an earlier message
 asked: repeat it in every reply to Simon. `No action needed` only when nothing at all waits on him. With several, line 1 reads
 `Action needed (2): <first>`; then one bullet per distinct issue or outcome, then ONE end block
 (`Questions` or `Your call`) with each ask as a numbered step naming the exact thing and its
-link, URL or command.** Use AskUserQuestion for a fork.
+link, URL or command, and a native-app repo's app build line.** Use AskUserQuestion for a fork.
 **DO open the final reply to a Simon prompt, or to the background work it started, with one bullet
 per question and point he wrote, mid-run ones too, in his order, before status:** yes/no + why,
 "you're right" or "correction: …"; **a check ask ("ensure it works", "see if X") ends with one bold
@@ -41,7 +41,7 @@ TEST: `references/tldr-report-formats.md` § Close-session TEST.
 ## Five rules for anything you write
 
 **DO link every PR, issue, ticket, Slack thread, CI run or doc in a message to Simon as markdown with its
-full URL, every mention.** TEST: a bare "#123" or "POI-123" fails. `references/tldr-report-formats.md` § Links.
+full URL, every mention.** `references/tldr-report-formats.md` § Links.
 
 **DO state the expected result.** "Run X, expect Y."
 **DON'T** write an instruction with no stated outcome.

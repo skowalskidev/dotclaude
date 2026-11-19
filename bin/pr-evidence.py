@@ -27,7 +27,9 @@ Every input is gated for blank frames of ANY colour before anything is composed:
 stretch of at least 0.5 s or a clip's last frame whose ink share is below 0.05% (the visual hand-off
 threshold) fails the command. ffmpeg blackdetect finds only near-black frames, so a white or grey
 blank screen passed it (the fix for an AFTER clip that ended on 5.5 s of light grey after the page
-left for a hosted checkout the recorder could not capture).
+left for a hosted checkout the recorder could not capture). `video --before-blank REASON` is the one
+exception: when the change under review removes a blank screen, the BEFORE clip may show it; the gate
+still reports each stretch and prints the reason, and the AFTER clip stays fully gated.
 """
 from __future__ import annotations
 
@@ -243,8 +245,11 @@ def even(v: float) -> int:
 def cmd_video(args) -> int:
     ffmpeg, ffprobe = need("ffmpeg"), need("ffprobe")
     clips = [probe(ffprobe, args.before), probe(ffprobe, args.after)]
-    for path, (w, h, d) in zip((args.before, args.after), clips):
-        blank_gate(ffmpeg, path, w, h, d)
+    reason = " ".join((args.before_blank or "").split())
+    if args.before_blank is not None and len(reason.split()) < 3:
+        die("--before-blank needs a reason of 3 or more words: the blank screen the change removes")
+    for path, (w, h, d), expected in zip((args.before, args.after), clips, (reason, "")):
+        blank_gate(ffmpeg, path, w, h, d, expected)
     layout = resolve_layout(args.layout, [(w, h) for w, h, _ in clips])
     width = PHONE_W if layout == "side" else DESKTOP_W
     band_h = BAND_SIDE_H if layout == "side" else BAND_STACK_H
@@ -317,8 +322,9 @@ def blanks(ffmpeg: str, path: str, w: int, h: int, duration: float) -> tuple[lis
     return out, flags[-1]
 
 
-def blank_gate(ffmpeg: str, path: str, w: int, h: int, duration: float) -> None:
-    """Fail before composing when a clip has a blank stretch of MAX_BLANK_S or more, or ends blank."""
+def blank_gate(ffmpeg: str, path: str, w: int, h: int, duration: float, expected: str = "") -> None:
+    """Fail before composing when a clip has a blank stretch of MAX_BLANK_S or more, or ends blank.
+    `expected` (the BEFORE clip of a change that removes a blank screen) reports the stretches instead."""
     stretches, last_blank = blanks(ffmpeg, path, w, h, duration)
     long = [(s, n) for s, n in stretches if n >= MAX_BLANK_S - 1e-6]
     if not long and not last_blank:
@@ -326,6 +332,9 @@ def blank_gate(ffmpeg: str, path: str, w: int, h: int, duration: float) -> None:
     lines = [f"blank {s:.2f}s-{s + n:.2f}s ({n:.2f}s)" for s, n in long]
     if last_blank:
         lines.append("the last frame is blank")
+    if expected:
+        print(f"pr-evidence: {path} blank as expected ({expected}):\n  " + "\n  ".join(lines), file=sys.stderr)
+        return
     die(f"{path} shows a blank screen (ink below {MIN_INK * 100:.2f}%, any colour):\n  "
         + "\n  ".join(lines) + "\n" + HANDOFF_FIX)
 
@@ -404,6 +413,8 @@ def main(argv=None) -> int:
     v.add_argument("--hold", type=float, default=4.5, help="seconds the final state is held (4-5)")
     v.add_argument("--fps", type=int, default=30)
     v.add_argument("--preset", default="medium", help="libx264 preset")
+    v.add_argument("--before-blank", metavar="REASON",
+                   help="the change removes a blank screen the BEFORE clip shows: report it, do not fail (3+ words)")
     w = sub.add_parser("run", help="one raw verification run -> MP4 with its scenario band above")
     w.add_argument("--clip", required=True, help="the raw continuous recording of the run")
     w.add_argument("--title", required=True, help="the scenario name")

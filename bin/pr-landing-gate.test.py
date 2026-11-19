@@ -446,6 +446,30 @@ unreached = with_installed.replace("Old build 1.4.9 (115) against the new backen
                                    "Installed builds: not reached, the diff only changes the admin site")
 check(gate.check_body(unreached, HTML, 0, (), True) == [], "A reasoned not-reached line failed")
 
+# The app build line (references/git-pr-deploy.md § Deploy safety check 4): every PR in a native-app repo.
+APP_LINE = "No app build needed: every changed file is hosted web, loaded on the next page open.\n\n"
+with_app = with_installed.replace("1. Merge. The pipeline", APP_LINE + "1. Merge. The pipeline", 1)
+check(gate.check_body(with_app, HTML, 0, (), True, native=True) == [],
+      f"A native-app PR with its app build line failed: {gate.check_body(with_app, HTML, 0, (), True, native=True)}")
+check(gate.ships_native_app(["ios", "site"]) and not gate.ships_native_app(["src", "docs"]),
+      "ships_native_app misread the repo's top-level folders")
+check(any(m.startswith("Deploy TLDR: no app build line") for m in
+          gate.check_body(with_installed, HTML, 0, (), True, native=True)),
+      "A native-app PR with no app build line passed")
+check(any(m.startswith("Deploy TLDR: no app build line") for m in gate.check_body(PASSING, HTML, 0, native=True)),
+      "A native-app PR that reaches no installed build skipped the app build line")
+needs = with_app.replace(APP_LINE, "**Needs an app build:** the new header waits for 1.5.0.\n\n")
+check(gate.check_body(needs, HTML, 0, (), True, native=True) == [], "A bold 'Needs an app build:' line failed")
+bare = with_app.replace(APP_LINE, "No app build needed: yes\n\n")
+check(any(m.startswith("Deploy TLDR: no app build line") for m in gate.check_body(bare, HTML, 0, (), True, native=True)),
+      "An app build line with no reason passed")
+elsewhere = with_installed.replace("## User journey", "## Notes\n\n" + APP_LINE + "## User journey", 1)
+check(any(m.startswith("Deploy TLDR: no app build line") for m in
+          gate.check_body(elsewhere, HTML, 0, (), True, native=True)),
+      "An app build line outside the Deploy TLDR passed")
+check(gate.check_body(with_installed, HTML, 0, (), True) == [],
+      "The app build line was required in a repo with no native app")
+
 # A Light PR (references/testing-strategy.md § Size the checks to the change): a reasoned not-reached line
 # alone passes the installed-build check, and a posted Part verdicts section needs no judge columns.
 light = PASSING.replace("Tier: deep (a member's search limit and its billing plan).",
@@ -638,7 +662,11 @@ with tempfile.TemporaryDirectory() as tmp:
           f"CLI passed a native-app PR with no installed-build lines: {r.returncode} {r.stdout}")
     serve(stub, with_installed, files=("src/auth/Gate.tsx",), roots=("ios", "src"))
     r = cli()
-    check(r.returncode == 0, f"CLI failed a native-app PR with its installed-build lines: {r.stdout}{r.stderr}")
+    check(r.returncode == 1 and "no app build line" in r.stdout,
+          f"CLI passed a native-app PR with no app build line: {r.returncode} {r.stdout}")
+    serve(stub, with_app, files=("src/auth/Gate.tsx",), roots=("ios", "src"))
+    r = cli()
+    check(r.returncode == 0, f"CLI failed a native-app PR with its installed-build and app build lines: {r.stdout}{r.stderr}")
 
 if FAILS:
     print("pr-landing-gate.test: FAIL\n  " + "\n  ".join(FAILS))

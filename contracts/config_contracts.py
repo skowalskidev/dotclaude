@@ -74,7 +74,9 @@ CONTRACTS: dict[str, dict] = {
             "Use port-registry ownership for idle-stack decisions: live Claude/Codex sessions protect their checkout and physically nested linked worktrees of the same repository; sibling and unrelated repositories remain reclaimable. A failed session or ownership probe stops no stack and never fails the asking command.",
             "Watchdog and status flag, read-only, processes at or above 200% ps CPU aged 120 seconds or more, unleased booted simulators, idle claims and extra Chrome for Testing instances, naming each simulator's owner; they stop nothing.",
             "Retain interrupted, orphaned and PID-reused owners for inspection; never expire a lease by age alone.",
-            "Auto-release on acquire, status and watchdog only a provably dead lease: owner PID gone or reused, recorded command and stage groups empty, no simulator, a live priority session's lease included; recheck the exact lease under the lock, print the owner and slot, and log a telemetry event. A pending launch, an unrecorded group or a failed probe keeps the lease.",
+            "Auto-release on acquire, status and watchdog only a provably dead lease: owner PID gone or reused, recorded command and stage groups empty, no simulator or one simctl reading showing its device and every device its owner claimed not booted, a live priority session's lease included; recheck the exact lease under the lock, print the owner and slot, and log a telemetry event. A pending launch, an unrecorded group, a booted device or a failed probe keeps the lease.",
+            "A deferral meeting an orphan it cannot auto-release (the waiter's own lease included) names that lease's inspected release command, reading the token from its slot file and never printing it.",
+            "A prioritize --replace records the displaced grant until its original expiry; that owner's every acquire, run wait line, allowance heartbeat and status names who replaced it, when, and that only Simon's word restores it; the displaced owner's own later grant clears the record.",
             "reclaim-sim shuts down and unclaims a simulator only when its claim owner has no live session and no lease holds it; it exits 1 naming a live owner and never deletes the device.",
             "Record a new simulator claim's checkout without changing the owner-label API. Retain label-only claims while any session is live; use shared workspace ownership for recorded claims, including live parents of nested worktrees.",
             "Print the reclaim command on run, claim-sim and watchdog output only for an ended claim owner; a failed session probe is never read as ended.",
@@ -447,6 +449,7 @@ CONTRACTS: dict[str, dict] = {
             "On a deep-tier PR, fail a Value safety section lacking any of Happy path, Failure re-enacted, Wrong recipient, Incident replay (N/N or reasoned N/A), Provider lifecycle and Residual risk lines; unless the Provider lifecycle line is a reasoned does-not-apply with no counts, fail a missing ### Provider lifecycle table, fewer than PROVIDER_CASES rows, a row with no doc link or no SAFE, GAP or N/A in its Verdict column, and any GAP row.",
             "Check a posted Part verdicts section: fail one with no table, a header lacking Verdict, Mainstream or Regression or two judge columns, or a row with no link; an absent section passes, so older bodies need no migration; a Light PR's section is never checked.",
             "On a Light PR (its Test matrix names the light tier) accept a reasoned 'Installed builds: not reached, <why>' line alone, with no version table or waits-for line; a Standard or Deep PR keeps every installed-build line.",
+            "In a repo with a top-level ios/ or android/ directory, fail every PR, native-only and web-only ones included, whose Deploy TLDR section holds no 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line with a reason of at least three words on the same line.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -573,6 +576,7 @@ CONTRACTS: dict[str, dict] = {
             "not restate them.",
             "A reply that proposes or recommends a visible change shows it as a before/after screenshot in that same reply, unprompted; the fast method lives in work-ask-reply-in-full-before-after-artifact.",
             "When Simon names a thing with a loose term, the first reply of the work states the industry-standard term once with one primary source, before any artifact is named; the method lives in references/code-best-practices.md.",
+            "Each merge or deploy ask in a native-app repo carries its app build line; the rule, shape and TEST live in references/tldr-report-formats.md § App build line.",
         ],
     },
     "rules/config-repo.md": {
@@ -837,7 +841,7 @@ CONTRACTS: dict[str, dict] = {
             "Track and stop every started process; retain explicitly requested previews only through their bounded owned lifecycle. Verify identity before trusting logs.",
             "Route iOS simulator execution to references/ios-simulator.md without duplicating its preflight, preview evidence or recovery procedure.",
             "Require explicit positive pass_fds and inherited environment at every Python stage-launch boundary; never bypass bridge validation or create nested leases.",
-            "Own the machine-wide capacity protocol: three heavy leases, one simulator, the stack cap and idle-stack teardown, the CPU/load guards (memory never gates), the watchdog, the Simon-granted priority record that passes no cap and that another owner can neither replace without --replace nor clear (--clear takes --owner and refuses another owner's live grant), explicit runner limits, auto-release of only provably dead leases, and reclaim-sim only for an ended simulator owner. Simon's \"prioritise\" or \"don't defer\" is served by prioritize, never a bare heavy command; every heavy step holds a lease; a watchdog line naming this session is acted on at once.",
+            "Own the machine-wide capacity protocol: three heavy leases, one simulator, the stack cap and idle-stack teardown, the CPU/load guards (memory never gates), the watchdog, the Simon-granted priority record that passes no cap and that another owner can neither replace without --replace nor clear (--clear takes --owner and refuses another owner's live grant) and whose replacement the displaced session reports to Simon at once, explicit runner limits and background-task timeouts that cover the queue, auto-release of only provably dead leases with the wait line naming any orphan's inspected release, and reclaim-sim only for an ended simulator owner. Simon's \"prioritise\" or \"don't defer\" is served by prioritize, never a bare heavy command; every heavy step holds a lease; a watchdog line naming this session is acted on at once.",
             "Cap Swift whole-module compiler threads separately from build jobs with SWIFT_USE_PARALLEL_WHOLE_MODULE_OPTIMIZATION=NO; verify installed support and emitted -num-threads 1 without a later larger override. Preserve capacity admission, watchdog and ownership safeguards.",
             "Web runners start at two workers, Playwright included (--workers=2, since its default is half the logical cores); a scripted Playwright run closes each context after its batch.",
             "Session workers inherit priority by checkout ownership and share its canonical lease owner; an Agent-tool worktree inherits it only through its subagents transcript under a listed checkout's projects slug, and an unknown ownership probe grants no priority without failing admission. Keep simulator claim/release labels consistent; name every native simulator, stop through the supervisor, and inspect status after exit 75.",
@@ -909,6 +913,7 @@ CONTRACTS: dict[str, dict] = {
             "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
             "Before changing an external value shipped clients read, grep the clients for hard-coded checks; on a hit, a release accepting the new value, or a new key keeping the old live, ships first.",
             "Owns installed app builds: at every tier, each app version still in use is a client until the new one runs on 50% of active installs; changes stay additive and gated on the new client's signal, deploy backend first, and the PR records versions, old-build PASS lines and waits-for list.",
+            "Every PR in a native-app repo puts 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' above step 1 of its Deploy TLDR, consistent with its waits-for line, and points to tldr-report-formats.md § App build line for the hand-back copy.",
             "Owns the batch-merge method: merge queue when enabled, else one batch PR that merge-commits "
             "each PR head unchanged and merges with a merge commit, so originals show merged.",
             "Every CI wait after a push runs bin/pr-ci-wait.py with --require naming a required job that starts at push time, and acts on its exit code: 3 merges the base in and pushes, never a rerun, cancel or empty commit.",
@@ -1108,7 +1113,9 @@ CONTRACTS: dict[str, dict] = {
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
             "Own the live-variant check: before a walk, review or capture of a journey dealt per person, read production's arms and 72-hour shares as aggregates, report stopped and missing arms, and walk only a live arm unless Simon names another.",
             "Before step 1 on each platform of a human walk, print the arms the local server dealt this device beside production's; copy production's split settings locally when they differ, and send no step until they match or the difference is stated.",
-            "Before step 1 of a human walk, preflight production parity: key source, dealt arms, new-account enrolment, launch scripts, PR heads and the first steps; never blank or fake a key or flag; list remaining gaps once.",
+            "Before step 1 of a human walk, preflight production parity: key source, dealt arms, new-account enrolment, launch scripts, PR heads, every served client and server reporting the current head sha (re-read after each commit) and the first steps; never blank or fake a key or flag; list remaining gaps once.",
+            "Every reported test result carries its four counts, the head sha it ran on, its finish time and its 1-minute load; a result from another sha is quoted with that sha and its input match, never as the head's.",
+            "A wall-clock test failing at a load above the core count is rerun alone, with both results and loads recorded, before any regression verdict; a test the change added or edited still owes its root cause.",
             "On a simulator walk the agent performs every relaunch (terminate, launch with the local server address, screenshot) and the tester's step starts from the confirmed screen; never tell him to reopen the app.",
             "A human's default walk starts at the real entry with a fresh account; a state is seeded directly only past 15 minutes of walking and is labelled; Claude loads step 1's address in his starting state first.",
             "Claude runs every later step in its own browser from his state and sends it only when the Expect screen appears; an account he may be signed into is never deleted or reset, and a reset step is one storage-clearing line plus the next URL.",
@@ -1153,6 +1160,7 @@ CONTRACTS: dict[str, dict] = {
             "25 words, no prose.",
             "Every chat hand-back of a PR or finished change prints the same table unprompted, straight "
             "after line 1, matching the PR's TLDR.",
+            "§ App build line: in a repo that ships a native app, every hand-back naming a PR or change to merge or deploy states per PR, in the action line or its numbered step, 'No app build needed: <why>' or 'Needs an app build: <which parts wait>', copied from that PR's Deploy TLDR; rules/communication.md carries only the pointer.",
             "Owns the Part verdicts table: per part its verdict and deciding fact, mainstream practice with a primary-source link, regression evidence and one judge column per provider; hand-back and PR body carry it on every Standard or Deep build, adopt or rebuild, and a Light one posts none.",
         ],
     },
@@ -1687,6 +1695,7 @@ CONTRACTS: dict[str, dict] = {
             "Name bin/pr-landing-gate.py as the one home of the body's section headings and run it on the fetched PR.",
             "Every PR body section is a visible ## or ### heading; the fetched body_html holds zero collapsed <details>: every <details> carries open, as GitHub's own attached-video wrapper does.",
             "Every production-changing step carries its order, a precondition check, a post-step smoke with its expected result, and a rollback written as an action, never a caveat.",
+            "In a repo that ships a native app, the Deploy TLDR opens with the app build line above step 1, pointing to references/git-pr-deploy.md § Deploy safety check 4 for its rule and shape.",
             "A User journey and a System journey section follow it, read from "
             "references/tldr-report-formats.md, so a reviewer can judge both the feature and the "
             "mechanism without reading the diff. Same blocks as end-report, so a PR and the report "
@@ -2377,6 +2386,17 @@ CONTRACTS: dict[str, dict] = {
             "Overridable with CLAUDE_ALLOW_PATTERN_KILL=1 (environment or inline prefix on that command) "
             "for a case Simon named; fails open on a malformed payload.",
             "hooks/process-kill-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
+    "hooks/capacity-timeout-guard.py": {
+        "mission": "A capacity-queued background command is never killed by its own task timeout while it still waits or runs.",
+        "purpose": "PreToolUse: denies a run_in_background Bash task running local-capacity.py run or native-slot.sh run whose timeout ends before its summed --wait-min plus --max-min plus cleanup.",
+        "criteria": [
+            "Sums each run's literal --wait-min (default 5) and --max-min (default 60) across a chain, sh/bash -c, eval and $(...); denies a sum of 120 minutes or more (launch detached) and a timeout, 30 minutes when absent, below the sum plus 2 minutes.",
+            "A non-literal --wait-min or --max-min passes only with the 2-hour timeout.",
+            "Allows foreground calls, other local-capacity verbs, the detached start_new_session launcher and text that merely names the command (echo, grep, a quoted string); parsing is shared with hooks/secret-echo-guard.py.",
+            "The deny reason names the needed timeout in ms or the detached launch, and references/dev-server-hygiene.md § Waiting on a background job; fails open on a malformed payload.",
+            "hooks/capacity-timeout-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
     "hooks/config-status.sh": {
