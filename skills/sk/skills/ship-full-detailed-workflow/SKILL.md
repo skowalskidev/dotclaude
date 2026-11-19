@@ -6,6 +6,8 @@ argument-hint: "[PR number / branch / what to ship]"
 
 # Simon's Ship Harness
 
+Cadence: run this once on the converged head, never after each fix; `references/testing-strategy.md` § Verify once, at convergence owns the policy.
+
 Run this on a FINISHED PR or branch to prove it covers every ticket and the whole diff, then land it.
 The counterpart to `/sk:work-full-detailed-workflow`: that one builds; this one ships what is built. Each
 stage's owning skill is the single source of truth — invoke it at its stage, do not restate it here.
@@ -42,7 +44,7 @@ word and the whole queue is built.
    the living plan; reconcile against it at stage 9.
 2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the
    rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
-3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out; fix the confirmed findings. Standard runs one pass; Light skips it.
+3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out, both providers in parallel; fix ALL confirmed findings in one batch, then one delta pass (`references/research.md` § Judge cadence). Standard runs one round; Light skips it.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
    dial or allowlist relaxation, or an injection surface. **DO run it from the orchestrator when the
    other stages run in a delegated worker:** the orchestrator, or a dedicated worker whose brief is this

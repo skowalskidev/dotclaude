@@ -50,6 +50,28 @@ is the fix for centring a wrapped word in one table cell, which ran a matrix, pr
 multi-width captures; Deep is the fix for a price label on shared paywall code, where the full pass
 found a trial showing $0.00/mo.)
 
+## Verify once, at convergence
+
+The owner of the cadence for every heavy check (`rules/process.md` § Fan out verification). Skills, harnesses
+and receipts point here and restate none of it.
+
+DEFAULT: build all the fixes first, then run the full verification set once on the converged head.
+DO between fixes run only cheap targeted checks: the one failing test, a narrow unit, a typecheck of the
+touched file. DON'T run a judge, stage skill, full suite, simulation, screenshot run or CI wait for a small fix.
+DO run the whole set ONCE on the final head, launching every independent item in parallel: full suites,
+simulations and replays, prod-data verification, screenshots and videos, the stage skills and their receipts
+(`/sk:ship-review`, the test matrix, `/sk:ship-report-and-ensure-correct-user-system-journey`,
+`/sk:ship-screenshot-changes`), the security review, both providers' judges, the landing gate and CI.
+DO fix everything the run finds in ONE batch, then re-run only the checks that batch touched (affected
+tests, the screenshots of changed screens, a delta judge pass per `references/research.md` § Judge cadence),
+then stop and record what survives as residual risk. A new BLOCKING finding with a realistic trigger earns
+another batch; the cap is 2 re-run passes, then hand back with the residuals named.
+DO treat a small follow-up delta (docs-only, one line, a test-only commit) per § Follow-up pushes and
+waivers: its receipts carry, and only its own checks run.
+KEEP: every check the tier requires still runs, once, on the head handed back. Only the cadence changes.
+TEST: each heavy check ran once on the final head (its sha is in the evidence), no hand-back shows the same
+full suite or stage run on two heads of one PR except after a Deep-path change, and the judge cap holds.
+
 ## Follow-up pushes and waivers
 
 **DO carry a light or standard head's stage receipts to a later push whose own delta is Light-sized:**
