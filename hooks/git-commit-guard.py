@@ -2256,7 +2256,8 @@ def _shell_merge(command: str, depth: int = 0) -> int:
             # A pathname pattern as the command word (`/opt/homebrew/bin/g[h]`) is expanded by the shell.
             globbed_head = bool(re.search(r"[*?\[]", words[0])) and "merge" in words[1:]
             built_merge = names_merge and (built(words[0]) or (
-                head == "gh" and _gh_subcommand(words) != ("pr", "merge") and any(built(w) for w in words[1:4])))
+                head == "gh" and _gh_subcommand(words) != ("pr", "merge") and not _gh_literal_read(words)
+                and any(built(w) for w in words[1:4])))
             if globbed_head or built_merge:
                 count += 99
             # A pathname pattern in gh's command or subcommand place (`gh pr m*` beside a file named
@@ -2505,12 +2506,79 @@ def git_alias_merge(command: str, cwd) -> bool:
     return False
 
 
+# gh (command, subcommand) pairs that only read. Once gh has read a literal read subcommand, a variable in
+# its arguments cannot turn it into a merge, however it word-splits. `gh api` is not here: a split
+# variable can add `-X PUT` or a merge path to it.
+GH_READS = {("pr", "view"), ("pr", "list"), ("pr", "checks"), ("pr", "diff"), ("pr", "status"),
+            ("issue", "view"), ("issue", "list"), ("issue", "status"), ("run", "view"), ("run", "list"),
+            ("run", "watch"), ("workflow", "view"), ("workflow", "list"), ("repo", "view"),
+            ("release", "view"), ("release", "list"), ("search", "prs"), ("search", "issues")}
+SIMPLE_PARAM_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})")
+
+
+def _gh_literal_read(words: list) -> bool:
+    """`gh pr view $n`: a literal gh whose command, subcommand and every word before the subcommand are
+    literal, naming a GH_READS pair. A variable there (`gh pr $verb`, `gh pr -R $r view`, which may split
+    into `-R o/r merge`) is no read."""
+    if not words or os.path.basename(words[0]) != "gh" or re.search(r"[$`{*?\[]", words[0]):
+        return False
+    found, i, value = 0, 1, False
+    while i < len(words) and found < 2:
+        w = words[i]
+        if re.search(r"[$`*?\[]|\{[^{}]*(?:,|\.\.)[^{}]*\}", w):
+            return False
+        if value or w.startswith("-"):
+            value = not value and w in GH_PR_OPTS_WITH_VALUE
+        else:
+            found += 1
+        i += 1
+    return _gh_subcommand(words) in GH_READS
+
+
+def _read_argument_params(text: str) -> set:
+    """Start offsets in text of each simple parameter (`$n`, `${n}`) that is an argument of a literal gh
+    read (`_gh_literal_read`). Commands are split at unquoted `;&|()` and newlines; a quoted or escaped
+    character never splits."""
+    spans, start, quote, i = [], 0, None, 0
+    while i < len(text):
+        ch = text[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+        elif ch == "\\":
+            i += 1
+        elif quote:
+            quote = None if ch == '"' else quote
+        elif ch in "'\"":
+            quote = ch
+        elif ch in ";&|()\n":
+            spans.append((start, i))
+            start = i + 1
+        i += 1
+    spans.append((start, len(text)))
+    benign = set()
+    for a, b in spans:
+        try:
+            words = _drop_redirections(_shell_lexer(text[a:b]))
+        except ValueError:
+            continue
+        while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
+            words = words[1:]
+        # A split the lexer disagrees with (an operator token left inside the span) marks nothing.
+        if _gh_literal_read(words) and not any(set(w) <= set(";&|()\n") for w in words):
+            benign.update(a + m.start() for m in SIMPLE_PARAM_RE.finditer(text[a:b]))
+    return benign
+
+
 def hidden_merge(command: str) -> bool:
     """A merge the shell would run but the masked parse cannot see: `'gh' pr merge`, `g\\h pr merge`,
     `gh pr me''rge`. The shell's own tokens decide, with no substring fast path."""
     shell = _shell_merge(command)
     text = shell_text(command)
+    # A simple variable argument of a literal gh read (`gh pr view $n`) builds no command: it never counts.
     dynamic = bool(re.search(r"\bgh\b", text) and re.search(r"\bmerge\b", text, re.I) and DYNAMIC_RE.search(text))
+    if dynamic:
+        benign = _read_argument_params(text)
+        dynamic = any(m.start() not in benign for m in DYNAMIC_RE.finditer(text))
     # A function or alias defined in the same input can turn any name, an inert one included, into a
     # runner of its arguments (`printf() { "$@"; }; printf gh pr merge 12`).
     defines = re.search(r"(?:^|[\s;&|(])(?:function\s+[\w.:-]+|[\w.:-]+\s*\(\s*\))|\balias\s+\S+=", text)

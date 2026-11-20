@@ -120,6 +120,19 @@ MUST_FIRE = [
     ("a merge piped into an unknown reader counts", "feature", "printf 'gh pr merge 42' | fish", "hides the merge"),
     ("a merge run as rg's preprocessor counts", "feature", "rg --pre 'gh pr merge 42' x .", "hides the merge"),
     ("an empty parameter between pr and merge counts", "feature", "gh pr $X merge 42 --squash", "hides the merge"),
+    # The read exemption covers a variable ARGUMENT only: a variable command word, command or subcommand,
+    # a substitution, or a gh api path stays a possible merge beside a merge word.
+    ("a variable subcommand beside a merge word counts", "feature", "gh pr $verb $n; echo merge", "hides the merge"),
+    ("a variable command word beside a gh read and a merge word counts", "feature",
+     "gh pr view 5; $GH pr view $n; echo merge", "hides the merge"),
+    ("a variable gh command beside a merge word counts", "feature", "gh $c view $n; echo merge", "hides the merge"),
+    ("a variable option before a read subcommand counts", "feature", "gh pr -R $r view 5; echo merge",
+     "hides the merge"),
+    ("a substitution in a read's arguments beside a merge word counts", "feature",
+     "gh pr view $(echo 5); echo merge", "hides the merge"),
+    ("a variable gh api path beside a merge word counts", "feature", "gh api repos/o/r/pulls/$n; echo merge",
+     "hides the merge"),
+    ("a quoted gh command is still a merge", "feature", "gh \"pr\" merge 12", "hides the merge"),
     ("a function shadowing an inert name to run a merge counts", "feature",
      'printf() { "$@"; }; printf gh pr merge 12 --squash', "hides the merge"),
     ("an alias building a merge counts", "feature", "alias p='gh pr'; p merge 12", "hides the merge"),
@@ -200,6 +213,18 @@ MUST_NOT_FIRE = [
     ("a pr list searching for merge is no merge", "feature", "gh pr list --search merge"),
     ("a pr view with a redirection is no merge", "feature", "gh pr view 12 2>&1 >/dev/null; echo merge"),
     ("a pr view with a variable is no merge", "feature", "gh pr view $N --json mergeable,mergeStateStatus"),
+    # A literal read subcommand with a variable ARGUMENT is no merge, even when "merge" is a word elsewhere
+    # in the command (the fix for a status loop denied because it also removed watch-merge-1294.sh).
+    ("a read loop with a variable beside a merge-named file is no merge", "feature",
+     "rm -f .context/watch-merge-1294.sh; git worktree list | grep -i x; for n in 1327 1329; do gh pr view $n "
+     "--json number,mergeable,statusCheckRollup --jq '\"#\\(.number) \\(.mergeable) fail=\\([.statusCheckRollup[]"
+     "|select(.conclusion==\"FAILURE\")]|length)\"'; done"),
+    ("a pr checks of a quoted variable beside a merge word is no merge", "feature",
+     'gh pr checks "$n"; echo merge'),
+    ("a run view of a braced variable beside a merge word is no merge", "feature",
+     "gh run view ${ID} --log-failed; echo merge"),
+    ("a pr list with a variable search beside a merge word is no merge", "feature",
+     "gh pr list --author $ME --json number; echo merge"),
     ("a merge command piped into grep is data", "feature", "echo 'gh pr merge 42' | grep merge"),
     ("a git log searching for a merge command is no merge", "feature", 'git log --grep "gh pr merge"'),
     ("a literal GraphQL read is no merge", "feature", "gh api graphql -f query='{ viewer { login } }'"),
