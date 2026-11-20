@@ -161,6 +161,37 @@ MUST_FIRE = [
      "gh pr view $(echo 5); echo merge", "hides the merge"),
     ("a variable gh api path beside a merge word counts", "feature", "gh api repos/o/r/pulls/$n; echo merge",
      "hides the merge"),
+    # The data exemption covers a variable that only reaches a non-runner as data: one that names, or may
+    # hold, gh or merge, reaches a runner, or builds a command word stays a possible merge.
+    ("a variable gh argument to an unknown command beside a merge counts", "feature", "G=gh; ./run.sh $G pr merge 1",
+     "hides the merge"),
+    ("an assigned merge word handed to an unknown command beside gh counts", "feature",
+     "V=merge; gh api graphql -f query='{viewer{login}}'; ./run.sh \"$V\" 1", "hides the merge"),
+    ("a loop variable holding merge handed to an unknown command counts", "feature",
+     "for w in merge; do ./x gh pr \"$w\" 1; done", "hides the merge"),
+    ("a read variable handed to an unknown command beside gh and merge counts", "feature",
+     "read V; gh pr view 1; ./x $V; echo merge", "hides the merge"),
+    ("a temp file run by a shell beside a merge counts", "feature",
+     "f=$(mktemp) && printf 'gh pr merge 1' > \"$f\" && sh \"$f\"", "hides the merge"),
+    ("a file read into a variable and eval'd beside gh and merge counts", "feature",
+     "X=$(cat f.txt); eval \"$X\"; echo merge; gh pr view 1", "hides the merge"),
+    ("a substituted gh assigned then used as a command word counts", "feature",
+     "f=$(echo gh); printf x > \"$f\"; $f pr merge 1", "hides the merge"),
+    ("a backquoted temp file beside gh and merge counts", "feature", "f=`mktemp`; gh pr view 1; echo merge",
+     "hides the merge"),
+    ("an assigned substitution running an interpreter beside gh and merge counts", "feature",
+     "echo gh merge; f=$(python3 -c 'import subprocess; subprocess.run([\"g\"+\"h\",\"pr\",\"mer\"+\"ge\",\"1\"])')",
+     "hides the merge"),
+    ("a printf-built value handed to a command that runs it counts", "feature",
+     "echo gh merge; f=$(printf '\\147\\150 pr \\155erge 1'); tar --checkpoint=1 --checkpoint-action=\"exec=$f\" "
+     "-cf /dev/null /etc/hosts", "hides the merge"),
+    ("a stored git config value handed to an unknown command beside gh and merge counts", "feature",
+     "x=$(git config --get review.action); ./run.sh \"$x\"; printf 'gh merge'", "hides the merge"),
+    ("a quote-split literal value handed to an unknown command beside gh and merge counts", "feature",
+     "echo gh merge; f='$(printf x) pr mer\"\"ge 1'; ./run.sh \"$f\"", "hides the merge"),
+    ("a variable handed to a versioned interpreter beside gh and merge counts", "feature",
+     "echo gh merge; f=$(printf x); python3.11 -c 'import os,sys; os.system(sys.argv[1])' \"$f\"",
+     "hides the merge"),
     ("a quoted gh command is still a merge", "feature", "gh \"pr\" merge 12", "hides the merge"),
     ("a function shadowing an inert name to run a merge counts", "feature",
      'printf() { "$@"; }; printf gh pr merge 12 --squash', "hides the merge"),
@@ -278,6 +309,21 @@ MUST_NOT_FIRE = [
     ("a REST GET written -X=GET is no merge", "feature", "gh api repos/{owner}/{repo}/pulls/1/comments -X=GET"),
     ("a GraphQL query aliasing a field mergePullRequest is no merge", "feature",
      "gh api graphql -f query='{mergePullRequest:viewer{login}}'"),
+    # A command that only hands a value to another command as data (a temp-file assignment, a redirection's
+    # file, an inert or non-runner command's whole-word argument) never makes a gh read a merge, whatever
+    # merge word another command names (the fix for a GraphQL mergeable read denied beside a ledger note).
+    ("a GraphQL read beside a temp-file note naming a merge is no merge", "feature",
+     "cd /x && gh api graphql -f query='{repository(owner:\"O\",name:\"R\"){a:pullRequest(number:1327){mergeable "
+     "state} b:pullRequest(number:1329){mergeable state}}}' --jq '.data'; f=$(mktemp) && printf -- '- r379: "
+     "hand-back. Merged this ask: #1337 (merge queue)' > \"$f\" && ~/.claude/hooks/intent-ledger.sh note "
+     "reconcile \"$f\"; python3 ~/.claude/bin/workflow-dashboard.py link"),
+    ("a GraphQL read with a merge word in its jq beside a quoted temp file is no merge", "feature",
+     "gh api graphql -f query='{viewer{login}}' --jq '.data|map(.merge)'; f=\"$(mktemp -d)\"; "
+     "printf x > \"$f/n.md\"; ./tool.sh note \"$f\""),
+    ("a pr view beside a temp file concatenated into a tool's argument is no merge", "feature",
+     "gh pr view 1; f=$(mktemp); printf merge > \"$f\"; ./tool.sh note \"prefix-$f\""),
+    ("a pr view beside a redirection to a variable file naming a merge is no merge", "feature",
+     "out=$(mktemp); gh pr view 12 --json state > \"$out\"; echo merge done >> $out"),
     ("a PR comment quoting a merge command is no merge", "feature", 'gh pr comment 5 --body "run gh pr merge 12"'),
     ("a substitution in a quoted heredoc is data", "feature", "cat > m.txt <<'EOF'\n$(gh pr merge 42)\nEOF"),
     ("a heredoc body naming a shell and a merge is data", "feature",

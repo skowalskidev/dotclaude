@@ -2580,6 +2580,149 @@ def _read_argument_params(text: str) -> set:
     return benign
 
 
+# Command words that may run an argument as code, a command, a request or a file of commands: a variable in
+# their words is never judged by its value. Any other literal command word only receives it as data.
+RUNNERS = SHELLS | WRAPPERS | {"gh", "git", "curl", "wget", "http", "eval", "source", ".", "exec", "command",
+                               "builtin", "xargs", "parallel", "find", "ssh", "trap", "fish", "csh", "tcsh",
+                               "python", "python3", "node", "deno", "bun", "perl", "ruby", "osascript", "awk",
+                               "gawk", "sed", "make", "watch", "script", "open", "coproc", "php", "lua",
+                               "luajit", "tclsh", "expect", "Rscript", "julia", "swift", "cmake", "ninja", "npx",
+                               "npm", "pnpm", "yarn", "uv", "uvx", "pipx", "go", "cargo", "java", "jshell", "pwsh",
+                               "screen", "tmux", "vim", "nvim", "emacs", "gdb", "lldb", "busybox", "nohup",
+                               "tar", "rsync", "less", "man", "git-lfs", "zip", "unzip"}
+# A versioned or variant interpreter name (`python3.11`, `pypy3`, `node18`) runs code like its base name.
+VERSIONED_RUNNER_RE = re.compile(r"(?:python|pypy|node|perl|ruby|php|lua|tclsh|bash|zsh|ksh|sh)[\d.]*")
+NAMES_GH_OR_MERGE_RE = re.compile(r"\bgh\b|merge", re.I)
+ASSIGN_PREFIX_RE = re.compile(r"\s*(?:(?:export|local|declare|readonly|typeset)\s+(?:-\w+\s+)*)?"
+                              r"[A-Za-z_][A-Za-z0-9_]*=\"?")
+
+
+def _simple_command_end(text: str, i: int) -> int:
+    """Offset of the first unquoted `;&|` or newline at or after i outside a `$( )`: where the simple
+    command holding offset i ends."""
+    quote, depth = None, 0
+    while i < len(text):
+        ch = text[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+        elif ch == "\\":
+            i += 1
+        elif quote:
+            quote = None if ch == '"' else quote
+        elif ch in "'\"":
+            quote = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return i
+        elif ch in ";&|\n" and depth == 0:
+            return i
+        i += 1
+    return len(text)
+
+
+def _is_runner(head: str) -> bool:
+    return head in RUNNERS or bool(VERSIONED_RUNNER_RE.fullmatch(head))
+
+
+def _literal_head(command: str):
+    """The basename of a simple command's literal command word; None when it has none or the shell builds it."""
+    words = _span_words(command)
+    while words and words[0] in ("{", "}", "!"):
+        words = words[1:]
+    if not words or re.search(r"[$`{}*?\[\]]", words[0]):
+        return None
+    return os.path.basename(words[0])
+
+
+# Commands whose output a command cannot choose to spell another command (a path, a time, a count): a
+# variable set from one holds data. printf, echo, cat, sed, tr and base64 can spell anything, and git
+# prints stored config (`git config --get x`).
+VALUE_PRODUCERS = {"mktemp", "date", "pwd", "uname", "hostname", "whoami", "id", "nproc", "uuidgen"}
+CLEAN_LITERAL_RE = re.compile(r"[\w./:@%+,=~-]*")
+
+
+def _clean_substitution(body: str) -> bool:
+    """`$(mktemp -d)`: one simple command run by a VALUE_PRODUCERS word, with nothing the shell expands and
+    neither gh nor merge named."""
+    if re.search(r"[$`\\;&|<>()\n]", body) or NAMES_GH_OR_MERGE_RE.search(body):
+        return False
+    return _literal_head(body) in VALUE_PRODUCERS
+
+
+def _unclean_names(text: str) -> set:
+    """Every variable the text may set to a value that spells a command: any assignment whose value is not a
+    plain literal naming neither gh nor merge, nor one clean substitution (`_clean_substitution`); every
+    `for` variable; and every name `read`, `mapfile`, `readarray`, `getopts` or `printf -v` sets."""
+    unclean = set()
+    for m in re.finditer(r"(?:^|[\s;&|(`{])([A-Za-z_][A-Za-z0-9_]*)\+?=", text):
+        v = m.end()
+        if text.startswith(("$(", '"$('), v):
+            q = int(text[v] == '"')
+            close = _simple_command_end(text, v + 2 + q)
+            after = close + 1 + q
+            clean = (text[close:close + 1] == ")" and text[close + 1:close + 1 + q] == '"' * q
+                     and _clean_substitution(text[v + 2 + q:close])
+                     and text[after:after + 1] in ("", " ", "\t", "\n", ";", "&", "|", ")"))
+        else:
+            value = (text[v:_simple_command_end(text, v)].split() or [""])[0]
+            bare = value[1:-1] if len(value) > 1 and value[0] == value[-1] and value[0] in "'\"" else value
+            clean = bool(CLEAN_LITERAL_RE.fullmatch(bare)) and not NAMES_GH_OR_MERGE_RE.search(bare)
+        if not clean:
+            unclean.add(m.group(1))
+    unclean.update(re.findall(r"\bfor\s+([A-Za-z_][A-Za-z0-9_]*)\s", text))
+    for m in re.finditer(r"\b(?:read|mapfile|readarray|getopts)\b([^;&|\n]*)", text):
+        unclean.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", m.group(1)))
+    unclean.update(re.findall(r"\bprintf\s+-v\s*([A-Za-z_][A-Za-z0-9_]*)", text))
+    return unclean
+
+
+def _data_dynamics(text: str) -> set:
+    """Start offsets in text of each DYNAMIC_RE construct that can only hand data to a command, so it builds
+    no gh command or merge however the rest of the input reads. Judged per simple command:
+      - `f=$(mktemp)`, `f="$(date +%s)"`: an assignment's whole value from one clean substitution
+        (`_clean_substitution`). The variable's use is judged where it is used.
+      - `> "$f"`: a simple parameter as an output redirection's file.
+      - `printf ... "$f"`: a simple parameter in an argument of an inert command (INERT_COMMANDS).
+      - `tool note "$f"`: a simple parameter in an argument of a literal command word that is no runner
+        (RUNNERS), in a command naming neither gh nor merge, when the text never sets the variable to a value
+        that could spell a command (`_unclean_names`; an inherited variable such as $HOME counts as data).
+    Anything else (a built command word, a backquote, eval, a shell or interpreter, gh or git, a value built
+    by printf or echo) stays a possible hidden merge. (the fix for a read-only `gh api graphql` query
+    denied because a later `f=$(mktemp) && printf '... merge ...' > "$f"` named merge and built a temp path)"""
+    benign, unclean = set(), None
+    spans = _command_spans(text)
+    for m in DYNAMIC_RE.finditer(text):
+        p = m.start()
+        a, b = next(((a, b) for a, b in spans if a <= p < b), (p, p))
+        if m.group() == "$(" and not text.startswith("$((", p):
+            close = _simple_command_end(text, p + 2)
+            if (ASSIGN_PREFIX_RE.fullmatch(text[a:p]) and text[close:close + 1] == ")"
+                    and _clean_substitution(text[p + 2:close])):
+                benign.add(p)
+            continue
+        param = SIMPLE_PARAM_RE.match(text, p)
+        if not param:
+            continue
+        if re.search(r"(?:^|[^<>&])(?:\d?>>?|&>>?|>\|)\s*\"?$", text[a:p]):
+            benign.add(p)  # an output redirection's file
+            continue
+        head = _literal_head(text[a:b])
+        if head is None:
+            continue  # no command word, or one the shell builds
+        if head in INERT_COMMANDS:
+            benign.add(p)
+            continue
+        if unclean is None:
+            unclean = _unclean_names(text)
+        if (not _is_runner(head) and not NAMES_GH_OR_MERGE_RE.search(text[a:b])
+                and param.group().strip("${}") not in unclean):
+            benign.add(p)
+    return benign
+
+
 # `gh api` options that take a value, by what the value is; and its options that take none.
 GH_API_VALUE_OPTS = {"-X": "method", "--method": "method", "-f": "field", "--raw-field": "field",
                      "-F": "field", "--field": "field", "-H": "header", "--header": "header", "-q": "",
@@ -2683,10 +2826,12 @@ def hidden_merge(command: str) -> bool:
     `gh pr me''rge`. The shell's own tokens decide, with no substring fast path."""
     shell = _shell_merge(command)
     text = shell_text(command)
-    # A simple variable argument of a literal gh read (`gh pr view $n`) builds no command: it never counts.
+    # A simple variable argument of a literal gh read (`gh pr view $n`) builds no command, nor does a
+    # construct that only hands data to another command (`_data_dynamics`): neither ever counts, so a merge
+    # word in one command and a temp-file variable in another never make a gh read a merge.
     dynamic = bool(re.search(r"\bgh\b", text) and re.search(r"\bmerge\b", text, re.I) and DYNAMIC_RE.search(text))
     if dynamic:
-        benign = _read_argument_params(text)
+        benign = _read_argument_params(text) | _data_dynamics(text)
         dynamic = any(m.start() not in benign for m in DYNAMIC_RE.finditer(text))
     # A function or alias defined in the same input can turn any name, an inert one included, into a
     # runner of its arguments (`printf() { "$@"; }; printf gh pr merge 12`).
