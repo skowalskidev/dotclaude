@@ -346,6 +346,8 @@ MUST_NOT_FIRE = [
     ("commit -F on a feature branch", "feature", f"{COMMIT} -F msg.txt"),
     ("amend no-edit", "feature", f"{COMMIT} --amend --no-edit"),
     ("malformed unterminated quote fails open", "feature", f"echo 'oops {PUSH} origin main"),
+    ("a read-only API call with a query string is no hidden merge", "feature",
+     "gh api \"repos/o/r/deployments?per_page=4\" --jq '.[] | [.environment, .ref] | @tsv'"),
     ("an unreadable heredoc body whose words only contain gh (weight, through) beside merge is data",
      "feature", "cp /tmp/a /tmp/b && cat > /tmp/x.py <<'EOF'\nprint('it adds weight through the week. "
      "No merge needed. I haven\\'t touched it.')\nEOF\npython3 /tmp/x.py && ls -la /tmp/x.py"),

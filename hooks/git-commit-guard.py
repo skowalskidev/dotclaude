@@ -2264,9 +2264,13 @@ def _shell_merge(command: str, depth: int = 0) -> int:
             if globbed_head or built_merge:
                 count += 99
             # A pathname pattern in gh's command or subcommand place (`gh pr m*` beside a file named
-            # merge) is expanded by the shell after the hook reads it.
-            if head == "gh" and any(re.search(r"[*?\[]", w) for w in
-                                    [w for w in words[1:] if not w.startswith("-")][:2]):
+            # merge) is expanded by the shell after the hook reads it. Only `pr`'s subcommand can become
+            # a merge, so a `?` in an API path's query string (`gh api "repos/o/r/x?per_page=4"`) is no
+            # pattern to fear; API merges have their own check below.
+            places = [w for w in words[1:] if not w.startswith("-")][:2]
+            globbed = lambda w: bool(re.search(r"[*?\[]", w))
+            if head == "gh" and places and (globbed(places[0]) or (
+                    places[0] == "pr" and len(places) > 1 and globbed(places[1]))):
                 count += 99
             if head == "gh" and _gh_subcommand(words) == ("pr", "merge"):
                 count += 1
