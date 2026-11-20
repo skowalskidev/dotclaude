@@ -289,6 +289,21 @@ record_push() { # record_push ROOT SRC DST
   printf '%s\t%s\t%s\n' "$1" "$b" "$sha" >> "$PUSHES" 2>/dev/null
 }
 
+# record_pushed_output ROOT — record each branch the push's own output names under a `To <url>` line
+# that is ROOT's origin. For a push whose refspec or directory the shell builds at run time (`git push
+# origin HEAD:"$b"`, `cd "$wt" && git push`): its text names no branch, and the checkout the hook
+# resolves may not be the one that pushed. No output (`-q`, a redirection) records nothing.
+record_pushed_output() {
+  origin="$(git -C "$1" remote get-url --push origin 2>/dev/null)" || return 0
+  { jf '.tool_response.stderr'; jf '.tool_response.stdout'; } | awk -v o="${origin%.git}" '
+    /^To / { u = substr($0, 4); sub(/\.git$/, "", u); ok = (u == o); next }
+    ok && / -> / && $0 !~ /^ *!/ { d = $0; sub(/.* -> /, "", d); sub(/ .*/, "", d); print d }' |
+  while IFS= read -r d; do
+    case "$d" in *'$'*|*'`'*|"") continue ;; esac
+    record_push "$1" "$d" "$d"
+  done
+}
+
 # landing_check BRANCH SHA — 0 when the branch has no open PR on a GitHub origin, or when
 # bin/pr-landing-gate.py passes on that PR AND bin/pr-ci-wait.py --once finds every check on SHA
 # succeeded or skipped. Otherwise prints why and fails, so `gate PASS` records nothing. A PR that
@@ -868,7 +883,8 @@ note)
 push)
   # PostToolUse for Bash: runs only after a successful tool call. Handles `cd X && git -C Y push
   # origin branch`, several pushes in one command and refspecs; a delete, --tags, --all or --mirror
-  # push, a push to main or master, and any repo inside the config repo record nothing.
+  # push, a push to main or master, and any repo inside the config repo record nothing. A refspec or
+  # directory built at run time (`"$b"`, `cd "$wt"`) is read from the push's own output instead.
   [ "$(jf '.tool_name')" = "Bash" ] || exit 0
   cmd="$(jf '.tool_input.command')"
   cwd="$(jf '.cwd')"
@@ -886,7 +902,7 @@ push)
   case "$cmd" in *push*) ;; *) exit 0 ;; esac
   cfg="$(cd -P "$CFG_ROOT" 2>/dev/null && pwd -P)"
   mkdir -p "$STATE" 2>/dev/null || exit 0
-  dir="$cwd"
+  dir="$cwd"; built=0
   printf '%s\n' "$cmd" | sed -E 's/(&&|\|\||[;|&])/\
 /g' | while IFS= read -r seg; do
     read -ra w <<< "$seg"
@@ -899,14 +915,16 @@ push)
     [ "$i" -lt "$n" ] || continue
     if [ "${w[$i]}" = cd ]; then
       t="${w[$((i + 1))]:-}"; t="${t/#\~/$HOME}"
+      case "$t" in *'$'*|*'`'*) built=1 ;; /*) built=0 ;; esac  # a run-time directory: the checkout is unknown
       if [ -n "$t" ] && nd="$(cd "$dir" 2>/dev/null && cd "$t" 2>/dev/null && pwd -P)"; then dir="$nd"; fi
       continue
     fi
     [ "${w[$i]}" = git ] || continue
-    i=$((i + 1)); gdir="$dir"
+    i=$((i + 1)); gdir="$dir"; gbuilt="$built"
     while [ "$i" -lt "$n" ]; do
       case "${w[$i]}" in
         -C) t="${w[$((i + 1))]:-}"; t="${t/#\~/$HOME}"
+            case "$t" in *'$'*|*'`'*) gbuilt=1 ;; /*) gbuilt=0 ;; esac
             if nd="$(cd "$gdir" 2>/dev/null && cd "$t" 2>/dev/null && pwd -P)"; then gdir="$nd"; fi
             i=$((i + 2)) ;;
         -c|--git-dir|--work-tree|--namespace) i=$((i + 2)) ;;
@@ -929,7 +947,10 @@ push)
     root="$(git -C "$gdir" rev-parse --show-toplevel 2>/dev/null)" || continue
     root="$(cd -P "$root" 2>/dev/null && pwd -P)" || continue
     case "$root/" in "$cfg"/*) continue ;; esac
-    if [ "${#pos[@]}" -le 1 ]; then
+    case " ${pos[*]:-} " in *'$'*|*'`'*) gbuilt=1 ;; esac
+    if [ "$gbuilt" = 1 ]; then
+      record_pushed_output "$root"
+    elif [ "${#pos[@]}" -le 1 ]; then
       cur="$(git -C "$root" symbolic-ref -q --short HEAD 2>/dev/null)"
       m="$(git -C "$root" config "branch.$cur.merge" 2>/dev/null)"
       record_push "$root" HEAD "${m:-$cur}"

@@ -1511,6 +1511,28 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               + (lines[-1] if lines else "no record"))
         gate("feature/remote", pushed, "N/A", "light", "contract fixture")
 
+        # A refspec or directory built at run time is read from the push's own output, never from its
+        # text or the cwd's HEAD (the fix for a delegated `git push origin HEAD:"$b"` recorded as a
+        # branch named $b at the session checkout's HEAD, which then blocked Stop).
+        def push_out(command, stderr):
+            r = run("push", {"tool_name": "Bash", "tool_input": {"command": command},
+                             "tool_response": {"stdout": "", "stderr": stderr}})
+            check(r.returncode == 0 and r.stdout == "", "The push recorder failed or spoke: " + r.stderr + r.stdout)
+        before = record_count()
+        for command in ('b=feature/remote; git push origin HEAD:"$b"', 'git push origin "$b"',
+                        'cd "$wt" && git push', "git push origin HEAD:`cat b`"):
+            push_out(command, "")
+        push_out('git push origin HEAD:"$b"', "To /elsewhere/remote.git\n * [new branch]      HEAD -> feature/remote\n")
+        recorded = pushes.read_text().splitlines()[before:] if pushes.exists() else []
+        check(not recorded and "$b" not in (pushes.read_text() if pushes.exists() else ""),
+              "A run-time refspec with no output, or output for another remote, recorded a push: %r" % recorded)
+        push_out('cd "$wt" && git push -u origin HEAD:"$b"',
+                 "To %s\n * [new branch]      HEAD -> feature/remote\n" % bare)
+        lines = pushes.read_text().splitlines() if pushes.exists() else []
+        check(record_count() == before + 1 and lines[-1].split("\t")[1:] == ["feature/remote", pushed],
+              "A run-time refspec was not recorded as the branch and remote head its output names: %r"
+              % lines[before:])
+
         # Gate rules: PASS records the head; BLOCKED and N/A need a reason; a bad status is refused.
         check(gate("feature/x", "HEAD", "MAYBE").returncode == 2, "An unknown gate status was accepted.")
         check(gate("feature/x", "HEAD", "N/A").returncode == 2, "An N/A gate without a reason was accepted.")
