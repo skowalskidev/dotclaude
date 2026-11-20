@@ -198,6 +198,14 @@ TEST: an attribution answer cites the copy key or string match that identified t
 the introducing and the reachability change, and labels its evidence (the fix for a regression
 blamed on a web component with a matching title, while the screen was a native one sharing its copy,
 made reachable on the reporter's device by a later change).
+DO name a change as a metric shift's cause only after a control shows the base code behaves
+differently: the old and new code run side by side in one repro or test. A before/after split in
+production data dates the shift; it never names its cause.
+DON'T hand back "caused by #N" from a rate that moved after #N deployed. Write "time-correlated with
+#N, cause unproved" until the control runs.
+TEST: every commit named as a metric shift's cause cites a control run where base and head differ
+(the fix for a payment failure blamed on a timer change from a 0-of-18 vs 7-of-8 split, whose
+pre-change code then failed identically, 16 of 16, in a WebKit repro).
 
 ## Read a metric's writer before calling its movement a fault
 
