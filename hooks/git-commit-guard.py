@@ -2535,10 +2535,9 @@ def _gh_literal_read(words: list) -> bool:
     return _gh_subcommand(words) in GH_READS
 
 
-def _read_argument_params(text: str) -> set:
-    """Start offsets in text of each simple parameter (`$n`, `${n}`) that is an argument of a literal gh
-    read (`_gh_literal_read`). Commands are split at unquoted `;&|()` and newlines; a quoted or escaped
-    character never splits."""
+def _command_spans(text: str) -> list:
+    """(start, end) of each simple command in text, split at unquoted `;&|()` and newlines; a quoted or
+    escaped character never splits."""
     spans, start, quote, i = [], 0, None, 0
     while i < len(text):
         ch = text[i]
@@ -2555,18 +2554,128 @@ def _read_argument_params(text: str) -> set:
             start = i + 1
         i += 1
     spans.append((start, len(text)))
+    return spans
+
+
+def _span_words(span: str):
+    """The command words of one span, prefixes and assignments dropped; None when the lexer cannot read
+    it or disagrees with the split (an operator token left inside the span)."""
+    try:
+        words = _drop_redirections(_shell_lexer(span))
+    except ValueError:
+        return None
+    while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
+        words = words[1:]
+    return None if any(set(w) <= set(";&|()\n") for w in words) else words
+
+
+def _read_argument_params(text: str) -> set:
+    """Start offsets in text of each simple parameter (`$n`, `${n}`) that is an argument of a literal gh
+    read (`_gh_literal_read`), per `_command_spans` command."""
     benign = set()
-    for a, b in spans:
-        try:
-            words = _drop_redirections(_shell_lexer(text[a:b]))
-        except ValueError:
-            continue
-        while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
-            words = words[1:]
-        # A split the lexer disagrees with (an operator token left inside the span) marks nothing.
-        if _gh_literal_read(words) and not any(set(w) <= set(";&|()\n") for w in words):
+    for a, b in _command_spans(text):
+        words = _span_words(text[a:b])
+        if words and _gh_literal_read(words):
             benign.update(a + m.start() for m in SIMPLE_PARAM_RE.finditer(text[a:b]))
     return benign
+
+
+# `gh api` options that take a value, by what the value is; and its options that take none.
+GH_API_VALUE_OPTS = {"-X": "method", "--method": "method", "-f": "field", "--raw-field": "field",
+                     "-F": "field", "--field": "field", "-H": "header", "--header": "header", "-q": "",
+                     "--jq": "", "-t": "", "--template": "", "-p": "", "--preview": "", "--cache": "",
+                     "--hostname": ""}
+GH_API_FLAGS = {"-i", "--include", "--paginate", "--slurp", "--silent", "--verbose"}
+
+
+def _unquoted(span: str):
+    """span with every quoted character blanked to NUL, or None when the shell would expand anything in it:
+    `$` or a backquote outside single quotes, or an unquoted glob or brace expansion."""
+    out, quote, i = [], None, 0
+    while i < len(span):
+        ch = span[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+            out.append("\0")
+        elif ch == "\\":
+            out.append("\0\0")
+            i += 1
+        elif ch in "$`":
+            return None
+        elif quote:
+            quote = None if ch == '"' else quote
+            out.append("\0")
+        elif ch in "'\"":
+            quote = ch
+            out.append("\0")
+        else:
+            out.append(ch)
+        i += 1
+    text = "".join(out)
+    return None if re.search(r"[*?\[]|\{[^{}]*(?:,|\.\.)[^{}]*\}", text) else text
+
+
+def _gh_api_read(span: str) -> bool:
+    """`gh api graphql -f query='{...}'` or `gh api -X GET repos/o/r/pulls/12/comments -f per_page=100`: a
+    literal gh api call that only reads. gh and api are written plainly, nothing in it expands, no field
+    reads a file or stdin (`@`), no body comes from --input, and no option is unknown. A GraphQL call
+    passes only with a query field and no `mutation` anywhere (GraphQL spells every mutation with that
+    keyword). A REST call passes only as a GET (fields with no method make gh send a POST) on a path that
+    names no merge. Any other call is left to the merge checks."""
+    unq = _unquoted(span)
+    words = _span_words(span) if unq is not None else None
+    if (not words or len(words) < 3 or os.path.basename(words[0]) != "gh" or words[1] != "api"
+            or not re.search(r"(?:^|[\s/])gh[ \t]+api(?:[ \t]|$)", unq)):
+        return False
+    method, fields, endpoint, i = "", [], [], 2
+    while i < len(words):
+        w = words[i]
+        name, eq, val = w.partition("=") if w.startswith("--") else (w, "", "")
+        if not w.startswith("--") and len(w) > 2 and w[:2] in GH_API_VALUE_OPTS:  # -XGET, -X=GET, -fq=...
+            name, eq, val = w[:2], "=", w[3:] if w[2] == "=" else w[2:]
+        if name in GH_API_FLAGS and not eq:
+            i += 1
+            continue
+        if name in GH_API_VALUE_OPTS:
+            if not eq:
+                if i + 1 >= len(words):
+                    return False
+                i += 1
+                val = words[i]
+            kind = GH_API_VALUE_OPTS[name]
+            if kind == "method":
+                method = val.upper()
+            elif kind == "field":
+                fields.append(val)
+            elif kind == "header" and re.search(r"method|override", val, re.I):
+                return False
+            i += 1
+            continue
+        if w.startswith("-"):  # --input, an option cluster or one gh api does not have
+            return False
+        endpoint.append(w)
+        i += 1
+    if len(endpoint) != 1 or any(f.partition("=")[2].startswith("@") for f in fields):
+        return False
+    from urllib.parse import unquote
+    path = unquote(unquote(endpoint[0]))
+    if path == "graphql":
+        # `mutation` is read in the words as the shell joins them (`mu''tation`) and as written; gh fills a
+        # {owner}, {repo} or {branch} placeholder into a field, so a field holding one is unread.
+        return (method in ("", "POST") and any(f.startswith("query=") for f in fields)
+                and not re.search(r"mutation", span + "".join(words), re.I)
+                and not any(re.search(r"\{(?:owner|repo|branch)\}", f) for f in fields))
+    placeholders = re.sub(r"\{(?:owner|repo|branch)\}", "", path)  # gh fills these in; no other brace
+    return ((method == "GET" or (not method and not fields)) and not re.search(r"merge|graphql", path, re.I)
+            and not re.search(r"[{}]", placeholders))
+
+
+def _without_api_reads(text: str) -> str:
+    """text with every `_gh_api_read` command blanked, so the API merge checks judge only the rest."""
+    for a, b in _command_spans(text):
+        if _gh_api_read(text[a:b]):
+            text = text[:a] + " " * (b - a) + text[b:]
+    return text
 
 
 def hidden_merge(command: str) -> bool:
@@ -2638,9 +2747,10 @@ def main() -> int:
                     "input, or puts a redirection before it, which hides the merge from this guard. Rerun it "
                     "as a plain `gh pr merge <n>`.")
     # A merge through the API, however gh is spelled ('gh', g\h) or whatever client sends it (curl), is
-    # read from the text as bash sees it, before any word parse can miss it.
+    # read from the text as bash sees it, before any word parse can miss it. A literal gh api read (a
+    # GraphQL query, a REST GET) is blanked first: its braces and fields are no glob or write.
     if isinstance(command, str):
-        api_text = shell_text(command)
+        api_text = _without_api_reads(shell_text(command))
         plain_api = api_text.replace("'", "").replace('"', "").replace("\\", "")
         client = re.search(r"\bgh\b|\bcurl\b|\bwget\b|\bhttp\b|api\.github\.com", plain_api)
         # A GraphQL body read from a file or stdin is a request the hook cannot read: it may be a merge.
@@ -2733,7 +2843,7 @@ def main() -> int:
                         "token, which can point the merge at another repository than the one checked. Name the "
                         "repository with -R instead and rerun.")
         is_gh_api = bool(words) and os.path.basename(words[0]) == "gh" and words[1:2] == ["api"]
-        if is_gh_api and API_MERGE_RE.search(command):
+        if is_gh_api and API_MERGE_RE.search(_without_api_reads(command)):
             return deny(
                 "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
                 "Use `gh pr merge <n>` with the bare PR number, one command per PR, which runs only "
