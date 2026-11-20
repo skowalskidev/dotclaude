@@ -428,6 +428,18 @@ CONTRACTS: dict[str, dict] = {
             "Python 3.9+, standard library only; keep bin/health-pulse.test.py passing under /usr/bin/python3.",
         ],
     },
+    "bin/monitoring_only.py": {
+        "mission": "A monitoring-bot fix that touches nothing else lands without Simon's merge word, and nothing outside the bot ever does.",
+        "purpose": "Owns the monitoring-only change class: overlay validation, path globs, the PR file check and the per-session pending list.",
+        "criteria": [
+            "Read monitoringOnly only through bin/connector_registry.py; project values stay in the local overlay, never in this repo.",
+            "`*` and `?` stay inside one path segment and `**`, a whole segment only, spans segments; reject an absolute, escaping or wildcard-led entry, and a workflow entry that is not a literal .github/workflows/<file>.yml path.",
+            "spec_for takes an exact owner/name listed in the project's match, case-insensitively and looked up in the entry's own spelling (never a substring) and returns any registry read error instead of treating it as undeclared.",
+            "classify fails closed: an empty, unreadable, repeated or incomplete file list (files shorter than changedFiles), a change type outside ADDED/MODIFIED/DELETED (CHANGED, a mode or type change, declines), or one path outside the globs; a .github/ path (nested ones included), a package manifest, lockfile, composite action, extensionless runner or .pth file matches only a literal entry.",
+            "validate requires a non-empty offlineTests and requiredChecks as <workflow> / <job>, rejects [ ] and a wildcard in the first segment of a path, and checks optional names. pending makes one gh call per session, failed or not, pinned to github.com, and only where the overlay declares the paths; it prints nothing when none match or gh fails. bin/monitoring_only.test.py pins globs, validation, the listing and task-intake's line.",
+            "Python 3.9 standard library only.",
+        ],
+    },
     "bin/pr-landing-gate.py": {
         "mission": "Simon never gets a ship-gate PASS on a PR whose fetched body lacks a landing-gate row, because the record itself is refused.",
         "purpose": "Fetches a PR body, body_html and review threads through gh and checks every landing-gate row.",
@@ -2289,7 +2301,10 @@ CONTRACTS: dict[str, dict] = {
             "A negator crossing a clause join (yes/and/then/them/so/ok/ie) never negates the verb "
             "(no regressions then merge), and a sentence that asks or supposes the merge (ends in ?, "
             "a modal I|we|you question such as would you, what if, whether) authorizes nothing on either path; "
-            "a polite can/could/will you or please request still does.",
+            "a polite can/could/will you or please request still does. A typographic apostrophe (don’t) "
+            "reads as the ASCII one on every path, everything from a `>` quote line on stays pasted material as "
+            "before while a negated merge inside it still halts (clean_asks), and a number after "
+            "not/except/skip/without is never covered (merge #13 but not #12 merges #13 only).",
             "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
             "AND the user's words this turn saying push after its last halt.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
@@ -2300,7 +2315,11 @@ CONTRACTS: dict[str, dict] = {
             "unverified push keeps the block. Every other repository keeps the unchanged guard.",
             "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
             "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
-            "Matches the plain Bash tool and parses the command; fails open on a malformed payload.",
+            "Reads `gh pr -R <repo> merge` (the repository option before the subcommand) as a merge too, and "
+            "denies a merge the shell would run but quoting or escapes hide from the masked parse ('gh' pr "
+            "merge, g\\\\h pr merge, inside bash -c too). "
+            "Matches the plain Bash tool and parses the command; fails open on a malformed payload, but a crash "
+            "on a payload that names gh and merge denies.",
             "Judges only what the shell runs: the command word (after env assignments and prefixes) "
             "must be git/gh, with quoted strings and heredoc bodies masked, so a note or printf that "
             "merely names a push never fires. The command word is also read behind a wrapper (env, "
@@ -2314,6 +2333,27 @@ CONTRACTS: dict[str, dict] = {
             "it says the user's words are not the problem and not to ask him), no selector, a branch "
             "selector, a standing merge not ready, no merge instruction, a halt (quoting it), other "
             "PRs named, a plural not covering it, or the one-unnamed-merge-per-message limit.",
+            "A monitoring-only merge (references/git-pr-deploy.md § Monitoring-only changes; the exact "
+            "conditions are the comment above monitoring_merge) runs with no merge words only for ONE plain "
+            "printable-ASCII `gh pr merge <N> -R github.com/<owner>/<name> --match-head-commit <40-hex>` with at "
+            "most --squash, on a base whose queue (if any) squashes (never --merge, --rebase, --delete-branch, --auto, --admin, an env assignment, a "
+            "wrapper or a compound), when: the overlay lists that exact repo and declares the paths; gh reads "
+            "the PR open, not a draft, MERGEABLE with merge state CLEAN or HAS_HOOKS and a review decision of none or APPROVED (so gh never turns on auto-merge), on the repo's real default branch, with a complete file list "
+            "of ADDED/MODIFIED/DELETED files inside the paths and a head equal to the pin; checks pass as "
+            "monitoring_not_ready reads them (times compared as instants, requiredChecks SUCCESS); the base "
+            "renamed, copied or removed nothing under a PR path's folders since it branched; the merge queue "
+            "squashes or merges (rules and GraphQL); this session's newest gate record on that branch and full "
+            "head is a standard or deep PASS holding BAR_PHRASE; and monitoring_halt finds no hold. "
+            "monitoring_halt reads the ledger (one stamped read, peer records included) and the transcript "
+            "(typed and queued prompts as hold-only records, tool answers and denied-call feedback), each "
+            "running forward in time (the ledger's own gate records included in that order); any record from the gate's second on that is no lift declines; a hold "
+            "is any hold word in any inflection, a mention of the bot, a PR or merging, a negated merge-like "
+            "verb, or any text it cannot read for certain (non-ASCII letters, marks or controls, ASCII "
+            "controls, HTML entities, percent-escapes, backslash escapes or markup, any square bracket (Markdown links of every form), redaction, over 4000 characters); only a "
+            "whole raw ASCII ask matching LIFT_RE lifts, and a hold carrying a number only a lift naming this PR by "
+            "value. Any read error, unrecorded-prompt marker, timeout or exception declines; a declining repo "
+            "that declares (or malforms) the paths gets a `Cause (monitoring-only merge):` line, and a repo "
+            "with no exact declaration makes no extra gh call; the shared PR_FIELDS view is unchanged. A monitoring-only PR merged on Simon's own words (turn or standing) also passes monitoring_halt's hold reading, so a later hold stops an earlier merge word; a PR with one listed path outside, or a repo declaring nothing, is untouched (the repository is the one GitHub reports for the PR, read once and cached, so an old name or a remote alias resolves to the current repo), and an unreadable overlay, PR or file list in a declaring repo, or a repo mismatch, holds.",
         ],
     },
     "hooks/background-process-guard.py": {
@@ -2533,6 +2573,19 @@ CONTRACTS: dict[str, dict] = {
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
+            "gate refuses a branch or reason holding a line break and stamps its heading with the session "
+            "id; the read-only gates mode prints only this session's fence-free gate lines, exits 3 when "
+            "no ledger resolves and 4 while a lock-contention fallback file holds this session's prompts, "
+            "so the merge guard can tell a failed read from an empty one. latest-ask --stamped prints each "
+            "ask with its time; latest-ask parses every prompt "
+            "record of every session and kind with its fence before filtering to this session's asks, so a "
+            "heading pasted in any prompt is never a record, and exits 5, printing nothing, on any unfinished "
+            "record (no fence before the next heading or the end, or an unclosed fence), which the merge "
+            "guard's ask reader treats as no words; --stamped also exits 4 while a lock-contention fallback "
+            "file exists, before and after the read; note "
+            "refuses a source with an unclosed code fence, judged by the same FENCE_AWK rules the readers use, "
+            "or with an ask or peer heading; gates prefixes each line with its heading time; "
+            "gates exits 6 when the ledger ends inside a fence.",
         ],
     },
     "hooks/task-intake.sh": {
@@ -2544,6 +2597,7 @@ CONTRACTS: dict[str, dict] = {
             "Never deny Agent, Task or Workflow and require no AskUserQuestion callback, approval stamp, sentinel or arbitrary prompt-length authority.",
             "Ignore short acknowledgements and automated background notifications; strip <cross-session-message>, <task-notification> and <system-reminder> blocks (the set hooks/intent-ledger.sh strips) and open no plan when nothing remains, while a real ask behind a banner still initializes. Preserve CLAUDE_INTAKE_GATE=off as the manual kill switch; give a delegated worker (AGENT_DELEGATED_WORKER=1) only a boundary notice, never a plan or routing instruction.",
             "Run tests only with isolated session-root/workspace paths; stale former gate markers cannot affect authorization or rearm work.",
+            "Append bin/monitoring_only.py pending's line naming open monitoring-only PRs: one gh call per session, only where the overlay declares the paths, silent when none or on any error.",
         ],
     },
     "hooks/work-resource-guard.sh": {

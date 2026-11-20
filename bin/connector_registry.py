@@ -6,7 +6,7 @@ overlay (`connectorRoots` in identity.local.json), e.g. a work root under the wo
 and a personal root under the personal-projects folder. Each root holds:
 
   index.json         {"boundary", "match": [...]}: the root itself and the repos its shared routes reach
-  projects/<p>.json  {"match": [...], "ignoreProjectInstructions"?, "monitor"?}: one file per project
+  projects/<p>.json  {"match": [...], "ignoreProjectInstructions"?, "monitor"?, "monitoringOnly"?}: one file per project
   <provider>.json    {"provider", "capabilities", "scope", "routes": [route, ...]}: one file per provider
   health.json        route outcomes, written only by `record` (state, kept apart from the records)
 
@@ -144,7 +144,7 @@ def load_root(boundary, path):
         try:
             entry = json.loads(file.read_text())
             if not isinstance(entry, dict) or 'connectors' in entry or 'boundary' in entry:
-                raise RegistryError('a project file holds match/ignoreProjectInstructions/monitor only')
+                raise RegistryError('a project file holds match/ignoreProjectInstructions/monitor/monitoringOnly only')
         except (OSError, ValueError) as exc:
             root['errors'].append(str(file) + ': ' + str(exc))
             continue

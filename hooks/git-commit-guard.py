@@ -19,6 +19,8 @@ Deny THREE git mistakes Claude makes that no other layer catches:
      #N?" answered "1 yes" and off "this is priority, finish it". `gh api` merge/enqueue/auto-merge
      calls are denied outright. Every merge deny leads with `Cause:`, the one check that failed
      (merge_deny_cause), so a `$n` selector is never misread as a problem with the user's words.
+     One narrow path needs no merge words: a monitoring-only PR at its bar (monitoring_merge below,
+     references/git-pr-deploy.md § Monitoring-only changes), which Simon authorized for that class.
 
   1. Committing or pushing on the default branch (main / master). rules/process.md: "If on the
      default branch, create a branch first", and feedback_no_master_commits: never commit/push to
@@ -47,26 +49,34 @@ switched off.
 
 import datetime
 import hashlib
+import html
 import json
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
+import time
+import unicodedata
+from urllib.parse import quote
 
 # Split on shell separators so each command is judged on its own. Runs on the MASKED command, so a
 # separator inside quotes or a heredoc body never splits it.
 SEGMENT_RE = re.compile(r"(?:\|\||&&|;|\||\n)")
 
 # Tokens that can precede the real command word: `VAR=1 git push`, `sudo git …`, `( git … )`.
-PREFIX_WORDS = {"sudo", "env", "command", "time", "nohup", "exec", "(", "{", "!", "then", "do", "else"}
+PREFIX_WORDS = {"sudo", "env", "command", "time", "nohup", "exec", "(", "{", "!", "then", "do", "else",
+                "if", "elif", "while", "until", "coproc", "builtin",
+                "noglob", "nocorrect", "-"}  # zsh precommand modifiers run the next word as the command  # a condition runs its command too: `if gh pr merge 12; then`
 ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 # git global options that take a separate value: `git -C <path> push`.
 GIT_OPTS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
-HEREDOC_START_RE = re.compile(r"<<-?\s*(['\"]?)(\w+)\1")
+HEREDOC_START_RE = re.compile(r"(?<!<)<<(?!<)-?\s*(['\"]?)(\w+)\1")  # never a here-string (<<<)
 QUOTE_MARK = "\x01"
 # Wrappers that run the rest of their line as a command, and the options of theirs that take a value.
-WRAPPERS = {"sudo", "env", "command", "time", "nohup", "exec", "xargs", "nice", "timeout", "stdbuf", "doas"}
+WRAPPERS = {"sudo", "env", "command", "builtin", "time", "nohup", "exec", "xargs", "nice", "timeout", "stdbuf",
+            "doas"}
 WRAPPER_OPTS_WITH_VALUE = {"-u", "-g", "-n", "-I", "-P", "-d", "-L", "-s", "-k", "-a", "-E", "-S",
                            "--user", "--group", "--unset", "--max-args", "--max-procs", "--delimiter",
                            "--signal", "--kill-after"}
@@ -458,8 +468,32 @@ def config_push_problem(repo: str, args: list) -> str:
 # ask, or a later halt denies: the action is irreversible.
 HARNESS_BLOCK_RE = re.compile(
     r"<(system-reminder|task-notification|agent-message|cross-session-message)\b[^>]*>.*?</\1>", re.S | re.I)
-# Pasted material inside his message (a fenced block, a `>` quote) is not his instruction.
+# Pasted material inside his message (a fenced block, or everything from a `>` quote line on) is not his
+# instruction, as before. A negated merge/push/deploy/ship inside it still halts: clean_asks keeps it.
 QUOTED_RE = re.compile(r"^[ \t]*(`{3,}|~{3,}).*?^[ \t]*\1[ \t]*$|^[ \t]*>.*$", re.S | re.M)
+QUOTED_HALT = "don't merge: a halt sits in the quoted or pasted text"
+ASK_READ_LIMIT = 8000
+TOO_LONG_HALT = "don't merge: a message too long to read in time may hold a halt"
+
+
+def clean_asks(raw: list) -> list:
+    """Each ask with harness blocks and quotes removed, and, after any ask whose removed text negated
+    merging, pushing, deploying or shipping, a halt standing in for it: quoted text never authorizes,
+    and never hides a halt either."""
+    out = []
+    for a in raw:
+        if len(a) > ASK_READ_LIMIT:
+            # Too long to clean inside the hook's budget (the fence pattern is superlinear on many
+            # unclosed fences): never read, it stands as a halt, and a later short message can lift it.
+            out.append(TOO_LONG_HALT)
+            continue
+        kept = HARNESS_BLOCK_RE.sub("", a).translate(APOSTROPHES)
+        cleaned = QUOTED_RE.sub("", kept).strip()
+        if cleaned:
+            out.append(cleaned)
+        if NEGATED_RE.search(kept) and not NEGATED_RE.search(cleaned):
+            out.append(QUOTED_HALT)
+    return out
 # A negator must GOVERN the verb: at most 2 words between them, and no comma or clause-joining word
 # crossing: yes, and, then (or its typo "them"), so, ok, ie (the fix for "not be so strict yes merge",
 # "no regressions, then merge" and "safe for prod ie no regressions then merge and deploy" read as
@@ -525,15 +559,42 @@ VERB_FORMS = {"merge": r"\bmerg(?:e|ed|es|ing)\b", "push": r"\bpush(?:ed|es|ing)
 # A later ask that does not repeat the verb but says one of these cancels the earlier authority.
 HALT_RE = re.compile(r"\b(stop|hold|wait|cancel|pause|don'?t|do not|never)\b", re.I)
 PR_NUMBER_RE = re.compile(r"#?\b\d{2,}\b")
+# A PR named explicitly, of any length: "#7", "PR 7", "pull request 7"; and a repository-qualified one.
+EXPLICIT_SELECTOR_RE = re.compile(r"#\d+|\b(?:pr|pull|pull request)\s*#?\s*\d+", re.I)
+QUALIFIED_REF_RE = re.compile(r"(?<![\w.-])(?:github\.com/)?[\w.-]+/[\w.-]+(?:/pull/|#)\d+")
 # Plural phrasing ("merge all that's ready", "merge both", "merge them", "the ready ones") covers every open PR this
 # session pushed, never a PR it did not push (the "merge everything" incident merged 8 PRs).
 BULK_RE = re.compile(r"\b(all|both|every|everything|each|batch|them|these|those|ones)\b", re.I)
 API_MERGE_RE = re.compile(
-    r"enqueuePullRequest|mergePullRequest|enablePullRequestAutoMerge|/pulls/\d+/merge\b", re.I)
+    r"enqueuePullRequest|mergePullRequest|enablePullRequestAutoMerge|/pulls/[^/\s]+/merge\b", re.I)  # any selector
 # `gh pr merge` options that take a value, so the value is never read as the PR selector.
 GH_MERGE_OPTS_WITH_VALUE = {"-R", "--repo", "-t", "--subject", "-b", "--body", "-F", "--body-file",
                             "-A", "--author-email", "--match-head-commit"}
 STATE_DIR = os.path.join(os.path.expanduser("~"), ".claude", ".intent-ledger")
+
+
+def _run(args, timeout=None, **kw):
+    """subprocess.run in its own process group, killed whole on timeout: a grandchild holding the pipes
+    (an awk under the ledger script, a gh credential helper) can no longer keep the hook past its own
+    timeout, which would let the command run."""
+    kw.pop("check", None)
+    data = kw.pop("input", None)
+    capture = kw.pop("capture_output", False)
+    if capture:
+        kw["stdout"], kw["stderr"] = subprocess.PIPE, subprocess.PIPE
+    if data is not None:
+        kw["stdin"] = subprocess.PIPE
+    with subprocess.Popen(args, start_new_session=True, **kw) as proc:
+        try:
+            out, err = proc.communicate(input=data, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                pass
+            proc.communicate(timeout=1)
+            raise
+    return subprocess.CompletedProcess(args, proc.returncode, out, err)
 
 
 def session_id(payload: dict) -> str:
@@ -546,11 +607,13 @@ def ledger_asks(payload: dict, since: str = "") -> list:
     if not os.path.isfile(script):
         return []
     try:
-        p = subprocess.run(["bash", script, "latest-ask", *(["--since", since] if since else [])],
-                           text=True, capture_output=True, timeout=5,
+        p = _run(["bash", script, "latest-ask", *(["--since", since] if since else [])],
+                           text=True, capture_output=True, timeout=bounded(5),
                            input=json.dumps({"session_id": payload.get("session_id", ""),
                                              "cwd": payload.get("cwd", "")}))
     except Exception:
+        return []
+    if p.returncode != 0:  # an unfinished or unreadable record: no words can authorize from it
         return []
     return [a for a in (p.stdout or "").split("\x1e") if a.strip()]
 
@@ -581,12 +644,22 @@ def _typed_prompt(e: dict) -> bool:
     if isinstance(content, list):
         if any(isinstance(x, dict) and x.get("type") == "tool_result" for x in content):
             return False
-        text = " ".join(str(x.get("text", "")) for x in content if isinstance(x, dict))
+        text = part_text(content)
     elif isinstance(content, str):
         text = content
     else:
         return False
     return bool(HARNESS_BLOCK_RE.sub("", text).strip())
+
+
+NON_TEXT_PART = "[a non-text part: an image or file the guard cannot read]"
+
+
+def part_text(parts) -> str:
+    """A message's text parts joined, each non-text part (an image, a document) as NON_TEXT_PART: the
+    guard cannot read it, so it holds (its brackets are markup) rather than vanish."""
+    return " ".join(str(x.get("text", "")) if x.get("type", "text") == "text" else NON_TEXT_PART
+                    for x in parts or [] if isinstance(x, dict))
 
 
 def turn_opened_at(path: str) -> str:
@@ -637,8 +710,8 @@ def turn_asks(payload: dict) -> list:
     """Every ask Simon typed this turn, oldest first, with harness blocks and pasted quotes removed."""
     since = turn_opened_at(str(payload.get("transcript_path") or ""))
     raw = ledger_asks(payload, since) if since else ledger_asks(payload)[-1:]
-    cleaned = (QUOTED_RE.sub("", HARNESS_BLOCK_RE.sub("", a)).strip() for a in raw)
-    return [a for a in cleaned if a]
+    # A typographic apostrophe ("don’t merge") reads like the ASCII one, so a halt is never missed.
+    return clean_asks(raw)
 
 
 def authorizing_asks(asks: list, verb: str) -> list:
@@ -665,10 +738,20 @@ def merge_target(words: list) -> tuple:
             repo = value if w in ("-R", "--repo") else repo
         elif w.startswith("--repo="):
             repo = w.split("=", 1)[1]
+        elif w.startswith("-R") and len(w) > 2:  # an attached value: -Rowner/name
+            repo = w[2:]
         elif not w.startswith("-") and not selector:
             selector = w
-    m = re.fullmatch(r"#?(\d+)", selector) or re.search(r"/pull/(\d+)", selector)
-    return selector, (m.group(1) if m else ""), repo
+    return selector, selector_number(selector), repo
+
+
+# The whole selector must be a PR number or a GitHub PR URL: a branch named "feature/pull/12" is no #12.
+SELECTOR_RE = re.compile(r"#?(\d+)|(?:https?://)?(?:www\.)?github\.com/[^/\s]+/[^/\s]+/pull/(\d+)/?")
+
+
+def selector_number(selector: str) -> str:
+    m = SELECTOR_RE.fullmatch(selector)
+    return (m.group(1) or m.group(2)) if m else ""
 
 
 def github_slug(url: str) -> str:
@@ -682,17 +765,22 @@ _PR_CACHE: dict = {}
 
 def pr_view(selector: str, repo: str, cwd) -> dict:
     """One read-only `gh pr view` per hook run, shared by the ownership and readiness checks, inside
-    the hook's 10 s budget. {} when the PR cannot be resolved, which denies."""
+    the hook's budget (bounded(), MONITORING_BUDGET_S). {} when the PR cannot be resolved, which denies."""
     if not repo and "/pull/" not in selector and cwd is None:
         return {}
     key = (selector, repo, cwd)
     if key not in _PR_CACHE:
         try:
-            p = subprocess.run(["gh", "pr", "view", selector, "--json", PR_FIELDS,
+            p = _run(["gh", "pr", "view", selector, "--json", PR_FIELDS,
                                 *(["--repo", repo] if repo else [])],
-                               cwd=cwd or None, capture_output=True, text=True, timeout=8)
+                               cwd=cwd or None, capture_output=True, text=True, timeout=bounded(8))
             pr = json.loads(p.stdout) if p.returncode == 0 else {}
         except Exception:
+            pr = {}
+        # GitHub's answer must be the PR the selector names: any other number (a branch selector that
+        # resolved to another PR) is no answer.
+        got = re.search(r"/pull/(\d+)/?$", str(pr.get("url", ""))) if isinstance(pr, dict) else None
+        if not got or got.group(1) != selector_number(selector):
             pr = {}
         _PR_CACHE[key] = pr if isinstance(pr, dict) else {}
     return _PR_CACHE[key]
@@ -722,15 +810,121 @@ def session_pushed_pr(payload: dict, selector: str, repo: str, cwd) -> bool:
                for root, branch in pushed)
 
 
+def too_long_to_read(text: str) -> bool:
+    """Words too long to read inside the hook's time budget authorize nothing: a regex cannot be stopped
+    mid-match, and a hook that outlives its timeout lets the command run."""
+    return len(text) > 4000 or bool(re.search(r"[\w.-]{513}", text))
+
+
+def excluded(text: str, number: str) -> bool:
+    """True when the words EXCLUDE this PR ("merge #13 but not #12", "except 12", "skip 12"): naming
+    a number after a negator never authorizes it (the fix for "merge X but not Y" read as merging Y)."""
+    # The excluded PR may be named qualified too ("except acme/api#12", a PR URL), and anywhere in a list
+    # after the negator ("except #12 and #13", "but not 12, 13 or 14"): the number still counts.
+    sel = r"(?:pr\s*)?(?:(?:https?://)?(?:[\w.-]+\.[a-z]+/)?[\w.-]+/[\w.-]+(?:/pull/|#))?#?\d+"
+    for m in re.finditer(rf"\b(?:not|except|excluding|skip|skipping|without|but not|other than|apart from|besides|"
+                         rf"leave out|leaving out|minus|save)(?:\s+(?:for|the|on|with|of|to))*\s+"
+                         rf"(?:{sel}\s*(?:,|\band\b|\bor\b|&|\bnor\b)\s*)*"
+                         rf"(?:pr\s*)?(?:(?:https?://)?(?:[\w.-]+\.[a-z]+/)?[\w.-]+/[\w.-]+(?:/pull/|#))?#?0*{int(number)}(?!\d)",
+                         text, re.I):
+        if not re.search(r"\b(?:don'?t|do not|never)\s+(?:\w+\s+)?$", text[:m.start()], re.I):
+            return True
+    return False
+
+
+def stated_repos(text: str) -> set:
+    """Every repository the words state, lowercase owner/name: a github.com URL's first two path parts, and
+    any other slash-joined name of two parts ("acme/api", "in acme/service/"). A URL on another host, or a
+    longer slash path, states a repository the guard cannot resolve ("\x00unknown"), which no target
+    matches. Fail closed: a two-part file path counts as a repository too."""
+    stated = set()
+    for m in re.finditer(r"https?://([^\s/]+)(/\S*)?", text):
+        parts = [x for x in (m.group(2) or "").split("/") if x]
+        if m.group(1).lower() in ("github.com", "www.github.com") and len(parts) >= 2:
+            stated.add(f"{parts[0]}/{parts[1]}".rstrip(".,;:)").lower())
+        else:
+            stated.add("\x00unknown")
+    rest = re.sub(r"https?://\S+", " ", text)
+    for m in re.finditer(r"(?<![\w.-])(?:github\.com/)?([\w.-]+(?:/[\w.-]+)+)/*", rest):
+        parts = m.group(1).rstrip(".").lower().split("/")
+        stated.add("/".join(parts) if len(parts) == 2 else "\x00unknown")
+    return stated
+
+
+def merge_target_repo(selector: str, repo: str, cwd) -> str:
+    """The merge's repository, lowercase owner/name, from -R or GitHub's answer; "" when unknown."""
+    target = re.sub(r"^(?:https?://)?github\.com/", "", repo or "").strip("/").lower()
+    if not target:
+        got = re.search(r"github\.com/([^/]+/[^/]+)/pull/", str(pr_view(selector, repo, cwd).get("url", "")))
+        target = got.group(1).lower() if got else ""
+    return target
+
+
 def covers(text: str, number: str, payload: dict, selector: str, repo: str, cwd) -> bool:
     """Simon's words name this PR's number, or (naming no other PR, or saying all/both/them) cover
     it as an open PR this session pushed, or say all/both/them in answer to a hand-back whose merge
     list names it (the fix for "merge and deploy both" refused for the base PR of a stack another
     session pushed, which the hand-back had listed for him to merge)."""
-    text = merge_scope(text)
-    if re.search(rf"(?<!\d){number}(?!\d)", text):
-        return True
-    bulk, numbered = bool(BULK_RE.search(text)), bool(PR_NUMBER_RE.search(text))
+    # A period inside a path or repository name ("acme/service.web") is part of the name, never the end
+    # of a clause, so names are protected while the message is split into clauses.
+    if too_long_to_read(text):
+        return False
+    scoped = merge_scope(re.sub(r"(?<![\w.-])[\w.-]+/[\w.-]+", lambda m: m.group(0).replace(".", "\x07"), text))
+    text = scoped.replace("\x07", ".")
+    # A URL on another host names a PR GitHub cannot be asked about: it is masked before anything else is
+    # read (one space each, so every later position matches), and it leaves the repository unknown.
+    foreign = bool(re.search(r"https?://(?!(?:www\.)?github\.com/)\S+", text))
+    text = re.sub(r"https?://(?!(?:www\.)?github\.com/)\S+", " ", text)
+    # Only a sentence that itself says merge names a PR to merge by number ("Merge #34. Review #12."
+    # covers #34). Every other rule reads the whole message: a selector or an exclusion anywhere in it
+    # still counts ("Merge it. That is PR #34." names a PR, so no unnumbered fallback runs).
+    merge_spans, at = [], 0
+    for piece in re.split(r"((?<=[.!?;])\s+|\n+)", text):
+        if re.search(r"\bmerg", piece, re.I):
+            merge_spans.append((at, at + len(piece)))
+        at += len(piece)
+    if excluded(text, number):
+        return False
+    # Every repository-qualified reference (a PR URL, owner/name#N) is read whole first and covers that
+    # repository's PR alone: "merge https://github.com/acme/service/pull/12" is no word for acme/bot#12,
+    # and the 12 in "acme/service12#34" is part of a reference to #34, never a bare mention of 12.
+    refs = list(re.finditer(r"(?<![\w.-])(?:github\.com/)?([\w.-]+/[\w.-]+)(?:/pull/|#)(\d+)(?!\d)", text))
+    # A repository stated in words ("merge PR #12 in acme/service", "github.com/acme/service") binds every
+    # selector in the message to it: the words cover no PR of another repository.
+    bare = text
+    for m in reversed(refs):
+        bare = bare[:m.start()] + " " * (m.end() - m.start()) + bare[m.end():]
+    # Any other slash-joined name in the words ("merge acme/api PR #12", "in acme/service/", a repo URL)
+    # is a stated repository; one of more than two parts (a/b/c) cannot be told from a path, so it makes
+    # the repository unknown. Fail closed: a two-part file path counts as a repository too.
+    stated = stated_repos(bare) | ({"\x00unknown"} if foreign else set())
+    # Beside any explicit selector (a qualified reference, "#34", "PR 34"), only an explicit selector names
+    # a PR: a bare number there may be anything ("merge #34 for release 12").
+    explicit = bool(refs) or bool(EXPLICIT_SELECTOR_RE.search(bare))
+    if any(any(a <= m.start() < b for a, b in merge_spans) for m in re.finditer(
+            rf"(?<!\d){number}(?!\d)" if not explicit else rf"(?:#|\b(?:pr|pull|pull request)\s*#?\s*){number}(?!\d)",
+            bare, re.I)):
+        if not stated:
+            return True
+        # Several repositories stated: which selector belongs to which is not read, so only a qualified
+        # reference (owner/name#N) names a PR there ("merge #12 in acme/api and #34 in acme/web").
+        if len(stated | {m.group(1).lower() for m in refs}) > 1:
+            return False
+        target = merge_target_repo(selector, repo, cwd)
+        return bool(target) and target in stated
+    # Digits compared as written, as the bare match does: "acme/api#0012" names no PR 12 (exclusions,
+    # stricter, read the value).
+    named_in = {m.group(1).lower() for m in refs if m.group(2) == number
+                and any(a <= m.start() < b for a, b in merge_spans)}
+    if named_in:
+        target = merge_target_repo(selector, repo, cwd)
+        return bool(target) and target in named_in
+    bulk, numbered = bool(BULK_RE.search(text)), bool(PR_NUMBER_RE.search(text)) or explicit
+    if stated:
+        # "merge all ready PRs in acme/api": the bulk and unnumbered paths cover that repository alone.
+        target = merge_target_repo(selector, repo, cwd)
+        if not target or len(stated) > 1 or target not in stated:
+            return False
     if bulk and number in handed_back_merge_list(str(payload.get("transcript_path") or "")):
         return True
     return (bulk or not numbered) and session_pushed_pr(payload, selector, repo, cwd)
@@ -745,10 +939,17 @@ def turn_merge_allowed(payload: dict, words: list, cwd) -> bool:
     if not number or not window:
         return False
     text = "\n".join(window)
+    if too_long_to_read(text):
+        return False
     if covers(text, number, payload, selector, repo, cwd):
         return True
     scope = merge_scope(text)
-    if BULK_RE.search(scope) or PR_NUMBER_RE.search(scope):
+    if BULK_RE.search(scope) or PR_NUMBER_RE.search(scope) or EXPLICIT_SELECTOR_RE.search(scope) \
+            or QUALIFIED_REF_RE.search(scope):
+        return False
+    # "merge the PR in acme/service" names no number, but its one unnamed merge stays in that repository.
+    stated = stated_repos(text)
+    if stated and (len(stated) > 1 or merge_target_repo(selector, repo, cwd) not in stated):
         return False
     return unnamed_merge_ok(payload, window[0], number)
 
@@ -799,8 +1000,8 @@ PASSED_CONCLUSIONS = {"SUCCESS", "NEUTRAL", "SKIPPED"}
 def session_asks(payload: dict) -> list:
     """Every ask Simon typed this session, oldest first, cleaned like turn_asks."""
     raw = ledger_asks(payload, "1970-01-01T00:00:00Z")
-    cleaned = (QUOTED_RE.sub("", HARNESS_BLOCK_RE.sub("", a)).strip() for a in raw)
-    return [a for a in cleaned if a]
+    # A typographic apostrophe ("don’t merge") reads like the ASCII one, so a halt is never missed.
+    return clean_asks(raw)
 
 
 def halts_standing(ask: str) -> bool:
@@ -824,7 +1025,8 @@ def standing_merge_ask(asks: list, number: str = "") -> str:
     named = re.compile(rf"(?<!\d){number}(?!\d)") if number else None
     for i in range(len(asks) - 1, -1, -1):
         ask = asks[i]
-        standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask) or (named and named.search(ask))
+        standing = CONDITIONAL_RE.search(ask) or STANDING_BULK_RE.search(ask) or (
+            named and named.search(ask) and not excluded(ask, number))
         if instructs(ask, "merge") and standing and not STANDING_NEGATED_RE.search(ask):
             later = asks[i + 1:]
             halted = any(halts_standing(a) or (named and STANDING_CLOSE_RE.search(a) and named.search(a))
@@ -901,12 +1103,885 @@ def standing_merge(payload: dict, words: list, cwd) -> tuple:
     return (not why), why
 
 
-def merge_allowed(payload: dict, words: list, cwd) -> tuple:
-    """(allowed, why_not): this turn's words authorize the merge, or a standing merge instruction
-    from this session does and the PR is ready now."""
+# A MONITORING-ONLY merge: Simon gave standing authorization (references/git-pr-deploy.md §
+# Monitoring-only changes) for a PR whose every file sits inside the paths his local overlay declares
+# for the project's monitoring bot (bin/monitoring_only.py owns the class). With no merge words it runs
+# only when ALL hold, each read fresh, and any read error declines:
+#   - the command is ONE plain `gh pr merge <N> -R github.com/<owner/name> --match-head-commit <40-hex sha>`
+#     with at most one --squash (or -s) flag: no env assignment, wrapper, pipe, compound,
+#     substitution, GH_REPO/GH_HOST in the environment, --auto or --admin, so what is checked is what
+#     merges, and GitHub refuses the merge if the head moved after the check;
+#   - the overlay entry lists that exact owner/name and declares the paths;
+#   - one gh pr view of that repo shows the PR open, isDraft false, MERGEABLE, merge state CLEAN or
+#     HAS_HOOKS, review decision none or APPROVED, based on the default branch, every check passing as
+#     monitoring_not_ready reads it (each overlay requiredChecks entry SUCCESS on every run on the head), a
+#     squash merge (no queue, or a queue that squashes), a complete file list with
+#     known change types (no rename or copy) and every path inside the paths, and a head equal to the
+#     pinned sha; and the base renamed, copied or removed none of the PR's paths since it branched;
+#   - this session's newest gate record for that branch and exact head is a standard or deep PASS
+#     whose reason ends with monitoring_only.BAR_PHRASE;
+#   - Simon's asks read cleanly and no hold stands (monitoring_halt reads the whole session in order).
+# No --rebase: replaying the PR's commits one by one can undo a base change the PR's net file list never
+# shows (a commit that repeats a base change, then one that reverts it). Squash or a merge commit applies
+# the net diff the file list describes.
+# Squash only: a merge commit would make every ancestor PR's head part of the default branch, which GitHub
+# then marks merged too (a product PR the bot branched from, its change reverted in the bot PR). No -d: it
+# switches and pulls the local checkout.
+MONITORING_FLAGS = {"--squash", "-s"}
+# One budget for the whole hook run, under the timeout settings.json gives this hook: a hook that runs
+# past its timeout is a non-blocking error, so the merge would go ahead. Every subprocess on this path
+# gets only the time left, and the path declines once too little remains.
+HOOK_STARTED = time.monotonic()
+MONITORING_BUDGET_S = 22.0  # 8 s under the 30 s hook timeout: the scans after the last read and the deny fit
+
+
+class OutOfTime(Exception):
+    pass
+
+
+def bounded(limit: float) -> float:
+    """A timeout for the older merge paths' reads: at most `limit`, and never into the last 6 s the
+    deny message keeps for itself."""
+    left = MONITORING_BUDGET_S - 6 - (time.monotonic() - HOOK_STARTED)
+    if left < 0.5:
+        raise OutOfTime()  # main() turns it into a deny, never a timed-out hook
+    return min(limit, left)
+
+
+def time_left(need: float = 0.5) -> float:
+    left = MONITORING_BUDGET_S - (time.monotonic() - HOOK_STARTED)
+    if left < need:
+        raise OutOfTime()
+    return left
+# Read from the hook's own environment, which the harness shares with the Bash tool's; a host set only
+# in a shell profile could still differ, which the full --match-head-commit pin makes fail at GitHub.
+MONITORING_ENV = ("GH_REPO", "GH_HOST", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN")
+MONITORING_FIELDS = ("number,headRefName,headRefOid,baseRefName,state,url,isDraft,mergeable,"
+                     "mergeStateStatus,reviewDecision,statusCheckRollup,files,changedFiles")
+GATE_LINE_RE = re.compile(r"\Agate: ([^\s]+) ([0-9a-f]+) (PASS|BLOCKED|N/A)(?: (light|standard|deep)(?= |$))?([^\n]*)\Z")
+FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
+APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'"})
+
+
+def _unrecorded(payload: dict) -> bool:
+    """True when the prompt recorder failed to append one of this session's prompts."""
+    try:
+        os.stat(os.path.join(STATE_DIR, f"{session_id(payload)}.unrecorded"))
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True  # the marker cannot be checked: treat it as present
+    return True
+
+
+def _ledger_read(payload: dict, *args: str) -> tuple:
+    """(ok, stdout) from this hook's sibling intent-ledger.sh; ok False on any failure, so the
+    monitoring path can tell a failed read from an empty one."""
+    script = os.path.join(os.path.dirname(os.path.realpath(__file__)), "intent-ledger.sh")
+    if not os.path.isfile(script):
+        return False, ""
+    try:
+        p = _run(["bash", script, *args], text=True, capture_output=True, timeout=min(5, time_left()),
+                           input=json.dumps({"session_id": payload.get("session_id", ""),
+                                             "cwd": payload.get("cwd", "")}))
+    except OutOfTime:
+        raise
+    except Exception:
+        return False, ""
+    return p.returncode == 0, p.stdout or ""
+
+
+def _monitoring_module():
+    bin_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "bin")
+    if bin_dir not in sys.path:
+        sys.path.insert(0, bin_dir)
+    try:
+        import monitoring_only
+    except Exception as exc:  # a named cause, not a bare traceback: every caller still declines
+        raise RuntimeError(f"bin/monitoring_only.py could not be loaded ({type(exc).__name__}: {exc})") from exc
+    return monitoring_only
+
+
+def monitoring_shape(command: str) -> tuple:
+    """(number, slug, pinned sha, why_not) for the one command shape the path accepts."""
+    if not re.fullmatch(r"[ -~]+", command) or any(ch in command for ch in ";&|<>()$`\\'\"") \
+            or any(os.environ.get(k) for k in MONITORING_ENV):
+        return "", "", "", "the command must be one plain `gh pr merge`, with no shell syntax or GH_REPO/GH_HOST"
+    words = command.split()
+    if words[:3] != ["gh", "pr", "merge"]:
+        return "", "", "", "the command must start with `gh pr merge`, with no env assignment or wrapper"
+    number = slug = pinned = ""
+    flags = set()
+    rest = words[3:]
+    while rest:
+        w = rest.pop(0)
+        if w in ("-R", "--repo", "--match-head-commit") and rest:
+            value = rest.pop(0)
+            if w == "--match-head-commit":
+                pinned = value if not pinned else "conflict"
+            else:
+                slug = value if not slug else "conflict"
+        elif w.startswith("--repo="):
+            slug = w.split("=", 1)[1] if not slug else "conflict"
+        elif w.startswith("--match-head-commit="):
+            pinned = w.split("=", 1)[1] if not pinned else "conflict"
+        elif w in MONITORING_FLAGS:
+            if "method" in flags:
+                return "", "", "", f"`{w}` repeats a method flag"
+            flags.add("method")
+        elif re.fullmatch(r"\d+", w) and not number:
+            number = w
+        else:
+            return "", "", "", f"`{w}` is outside the monitoring-only merge shape"
+    if not number:
+        return "", "", "", "the command names no bare PR number"
+    host_slug = re.fullmatch(r"github\.com/([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)", slug)
+    if not host_slug:
+        return "", "", "", ("the command needs `-R github.com/<owner>/<name>` naming the repository once, "
+                            "so the host is pinned whatever GH_HOST the shell sets")
+    slug = host_slug.group(1)
+    if not FULL_SHA_RE.fullmatch(pinned.lower()):
+        return "", "", "", "the command needs `--match-head-commit <full 40-character head sha>` once"
+    return number, slug, pinned.lower(), ""
+
+
+def _gh_env() -> dict:
+    env = {k: v for k, v in os.environ.items() if k not in MONITORING_ENV}
+    return {**env, "GH_HOST": "github.com"}
+
+
+def monitoring_default_branch(slug: str) -> str:
+    try:
+        p = _run(["gh", "repo", "view", slug, "--json", "defaultBranchRef", "-q", ".defaultBranchRef.name"],
+                           capture_output=True, text=True, timeout=min(8, time_left()), env=_gh_env())
+    except OutOfTime:
+        raise
+    except Exception:
+        return ""
+    name = p.stdout.strip() if p.returncode == 0 else ""
+    return name if re.fullmatch(r"[\w./-]+", name) else ""
+
+
+def monitoring_base_moves(slug: str, head: str, base: str, paths: set) -> str:
+    """Why the base branch's own changes since the PR branched could carry the PR's edit outside the
+    bot paths; "" when they cannot. Git applies an edit to a file the base renamed at its new path, so a
+    PR whose file list is all bot paths could still change a product file: any base-side rename, copy
+    or removal of a path the PR touches declines, as does a compare that cannot be read whole."""
+    try:
+        # The branch name is URL-encoded: a "#" or "?" in it would otherwise cut the path short.
+        p = _run(["gh", "api", f"repos/{slug}/compare/{head}...{quote(base, safe='')}"], capture_output=True,
+                           text=True, timeout=min(8, time_left()), env=_gh_env())
+        data = json.loads(p.stdout) if p.returncode == 0 else None
+    except OutOfTime:
+        raise
+    except Exception:
+        data = None
+    if not isinstance(data, dict) or not isinstance(data.get("files"), list):
+        return "the base branch's changes since the PR branched could not be read"
+    files = data["files"]
+    if len(files) >= 300:
+        return "the base branch changed 300 or more files since the PR branched, so the list may be cut"
+    for f in files:
+        status = f.get("status") if isinstance(f, dict) else None
+        if (status not in ("added", "modified", "removed", "renamed", "copied", "changed", "unchanged")
+                or not isinstance(f.get("filename"), str)
+                or (status in ("renamed", "copied") and not isinstance(f.get("previous_filename"), str))):
+            return "the base branch's changes since the PR branched could not be read"
+        before = f.get("previous_filename") or f.get("filename")
+        parts = before.split("/")[:-1]
+        folders = ["/".join(parts[:k]) + "/" for k in range(1, len(parts) + 1)]
+        # A rename moves the PR's edit to the file, and git's directory-rename detection can move a file the
+        # PR adds anywhere under a renamed folder, so a PR path under any folder of the old path declines too.
+        if status in ("renamed", "copied", "removed") and (
+                {before, f.get("filename")} & paths or any(x.startswith(d) for d in folders for x in paths)):
+            return (f"the base branch {status} {before} since the PR branched, so the PR's edit to it or "
+                    "beside it could land elsewhere: merge the base in and rerun the bar")
+    return ""
+
+
+def monitoring_merge_method(slug: str, base: str, command: str) -> str:
+    """Why the merge would not squash; "" when it does. A merge queue on the base uses its own method,
+    which must be SQUASH; with no queue the command must name --squash. A rebase replays commits and a
+    merge commit marks ancestor PRs merged, so both decline. An unreadable rule set declines."""
+    try:
+        p = _run(["gh", "api", f"repos/{slug}/rules/branches/{quote(base, safe='')}"], capture_output=True, text=True,
+                           timeout=min(8, time_left()), env=_gh_env())
+        rules = json.loads(p.stdout) if p.returncode == 0 else None
+    except OutOfTime:
+        raise
+    except Exception:
+        rules = None
+    if not isinstance(rules, list) or not all(isinstance(r, dict) and isinstance(r.get("type"), str) and r["type"]
+                                              for r in rules):
+        return f"the rules on {base} could not be read, so the merge method is unknown"
+    # A queue set up in classic branch protection is absent from the rule set: GraphQL's mergeQueue
+    # covers both kinds, and an unreadable answer declines.
+    owner, _, name = slug.partition("/")
+    query = ("query($o:String!,$n:String!,$b:String!){repository(owner:$o,name:$n)"
+             "{mergeQueue(branch:$b){configuration{mergeMethod}}}}")
+    try:
+        g = _run(["gh", "api", "graphql", "-f", f"query={query}", "-F", f"o={owner}", "-F", f"n={name}",
+                            "-F", f"b={base}"], capture_output=True, text=True, timeout=min(8, time_left()),
+                           env=_gh_env())
+        repo_data = ((json.loads(g.stdout) if g.returncode == 0 else {}).get("data") or {}).get("repository")
+    except OutOfTime:
+        raise
+    except Exception:
+        repo_data = None
+    if not isinstance(repo_data, dict) or "mergeQueue" not in repo_data:
+        return f"the merge queue on {base} could not be read, so the merge method is unknown"
+    graph_queue = repo_data.get("mergeQueue")
+    if graph_queue is not None:
+        method = str(((graph_queue or {}).get("configuration") or {}).get("mergeMethod") or "").upper()
+        if method != "SQUASH":
+            return f"the merge queue on {base} uses {method or 'an unknown method'}"
+    queues = [r for r in rules if r.get("type") == "merge_queue"]
+    if graph_queue is not None and not queues:
+        return ""
+    if queues:
+        methods = {str((r.get("parameters") or {}).get("merge_method") or "").upper() for r in queues}
+        return "" if methods == {"SQUASH"} else f"the merge queue on {base} uses {', '.join(sorted(methods))}"
+    words = command.split()
+    return "" if MONITORING_FLAGS & set(words) else "with no merge queue the command must name --squash"
+
+
+def monitoring_pr(number: str, slug: str) -> dict:
+    try:
+        p = _run(["gh", "pr", "view", number, "--repo", slug, "--json", MONITORING_FIELDS],
+                           capture_output=True, text=True, timeout=min(8, time_left()), env=_gh_env())
+        pr = json.loads(p.stdout) if p.returncode == 0 else {}
+    except OutOfTime:
+        raise
+    except Exception:
+        pr = {}
+    return pr if isinstance(pr, dict) else {}
+
+
+CHECK_PAGE = 100  # gh reads at most this many contexts; a full page may be truncated
+
+
+def monitoring_not_ready(pr: dict, required: list, default_branch: str) -> str:
+    """Stricter than pr_not_ready, and local to this path. isDraft must be false, the base the default
+    branch, and the check list complete and well formed. Nothing may be pending, and any failed or
+    cancelled check declines, a rerun gone green included. Each of the overlay's requiredChecks must
+    have succeeded on every run on the head, so a rollup of skips alone never passes."""
+    if pr.get("state") != "OPEN":
+        return f"the PR is {str(pr.get('state', 'unknown')).lower()}"
+    if pr.get("isDraft") is not False:
+        return "the PR is a draft" if pr.get("isDraft") else "the PR's draft state could not be read"
+    if pr.get("mergeable") != "MERGEABLE":
+        return f"mergeable is {pr.get('mergeable') or 'unknown'}"
+    # Only a PR GitHub would merge or enqueue at once: anything short of that (a review still required,
+    # the branch behind, a blocked rule) makes `gh pr merge` turn on auto-merge, which merges later with
+    # no further check.
+    if pr.get("mergeStateStatus") not in ("CLEAN", "HAS_HOOKS"):
+        return f"the merge state is {pr.get('mergeStateStatus') or 'unknown'}, so the merge would not run at once"
+    # No decision (null, or "" as gh prints it) or APPROVED; a missing key or any other value is unknown.
+    if "reviewDecision" not in pr or pr["reviewDecision"] not in (None, "", "APPROVED"):
+        return f"the review decision is {pr.get('reviewDecision') or 'unreadable'}"
+    if not default_branch or pr.get("baseRefName") != default_branch:
+        return (f"the PR targets {pr.get('baseRefName') or 'an unknown branch'}, not the repository's "
+                f"default branch {default_branch or '(unreadable)'}")
+    rollup = pr.get("statusCheckRollup")
+    if not isinstance(rollup, list) or not rollup or not all(isinstance(c, dict) for c in rollup):
+        return "the PR's checks could not be read"
+    if len(rollup) >= CHECK_PAGE:
+        return f"the PR reports {len(rollup)} checks, so the list may be truncated"
+    runs = []
+    for i, c in enumerate(rollup):
+        if "state" in c and "status" not in c:  # a commit status context
+            if not c.get("context"):
+                return "a check on the PR has no name or status"
+            if c.get("state") != "SUCCESS":
+                return f"{c['context']} is {str(c.get('state')).lower()}"
+            continue
+        if not (c.get("name") and c.get("status")):
+            return "a check on the PR has no name or status"
+        if c.get("status") != "COMPLETED":
+            return f"{c['name']} is still {str(c.get('status')).lower()}"
+        stamp = _check_time(c)
+        when = None
+        if stamp:  # compared as instants, never as strings ("12:00:00Z" before "12:00:00.500Z")
+            m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,6})\d*)?Z", stamp)
+            if not m:
+                return f"{c['name']} carries an unreadable time ({stamp[:30]}), so the order of its runs is unknown"
+            when = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
+                microsecond=int((m.group(2) or "0").ljust(6, "0")))
+        runs.append(((c.get("workflowName") or "", c["name"]), "", when, i, c))
+    for key, run, when, i, c in runs:
+        # Any failed or cancelled check declines, even beside a later success of the same name: two jobs
+        # can share a display name in one run, so a success is no proof the failed job ran again. After a
+        # rerun, the PR waits for Simon's merge word.
+        verdict = c.get("conclusion")
+        # Stricter than PASSED_CONCLUSIONS on purpose: a NEUTRAL check declines here too.
+        if verdict not in ("SUCCESS", "SKIPPED"):
+            return f"{key[1]} concluded {str(verdict).lower()}"
+    for name in required:
+        workflow, job = name.split(" / ", 1)
+        ran = [r for r in runs if r[0] == (workflow, job)]
+        if any(not r[2] for r in ran):
+            return f"a run of the bot's own check {name} has no recorded time, so its latest run is unknown"
+        # Every run of a required bot check on this head must succeed: which run is newest cannot be read
+        # for certain from start and finish times that overlap, so an older success never masks a skip.
+        if not ran or any(r[4].get("conclusion") != "SUCCESS" for r in ran):
+            return f"the bot's own check {name} has not succeeded on every run"
+    return ""
+
+
+# The halt reading on this path fails closed, and a hold is never narrowed to other PRs. _is_hold and
+# _lifts are the predicates: a hold is any message with a turn-level halt, a negator before a
+# merge-like verb, any HOLD_WORDS_RE word anywhere, a mention of the bot, a PR or merging
+# (CLASS_ANY_RE, the overlay's names), or this PR's number. Only a whole raw message matching LIFT_RE
+# lifts it.
+MARKUP_RE = re.compile(r"<[A-Za-z!/][^<>]*>")
+HOLD_NEGATED_RE = re.compile(
+    r"\b(?:don'?t|do not|never|not|no|without|before|stop)\s+(?:[\w']+\s+){0,3}?"
+    r"(?:merg|push|deploy|ship|land|close|touch|release)", re.I | re.A)
+HOLD_WORDS_RE = re.compile(
+    r"\b(?:stop|hold|wait|pause|cancel|skip|keep|leave|freeze|until|yet|later|myself|first|before|hang"
+    r"|sec|moment|minute|not|don'?t|never|no|nope|block|revert|roll ?back|undo|defer|postpone|delay"
+    r"|hands[- ]off|park|parked|mine|handle|i'?ll|i will|let me|let\b|i'?m going|i am going|we'?ll"
+    r"|halt|abort|avoid|refrain|quit|cease|forget|sign-?off|approv\w*|forbid\w*|prohibit\w*|ban(?:ned)?"
+    r"|disallow\w*|without|only|my|me|broken|risky|unsafe|careful|veto\w*|once|after|when|if|unless"
+    r"|as soon as|tomorrow|tonight|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+    r"|afternoon|evening|week|needs?|should|must|agree\w*|ok'?d|okay'?d|instead|off[- ]limits|close\w*"
+    r"|kill\w*|drop\w*|scrap\w*|discard\w*|abandon\w*|rework\w*|rewrite\w*|rethink\w*|redo|wrong|reject\w*"
+    r"|nothing|none|nobody|no one|everything|personally|eyeball\w*|live|prod\w*|production|go(?:es)? out"
+    r"|stays?|staying|review\w*|embargo\w*|nah|nay|stand(?:s)? down|ask\w*|decid\w*|day|hmm+"
+    r"|suspend\w*|withdraw\w*|retract\w*|shel(?:f|v\w*)|table|mothball\w*|ice|stand ?by|await\w*|pending"
+    r"|interven\w*|danger\w*|bad|problem\w*|issue\w*|concern\w*|worr\w*|doubt\w*|unsure|uncertain|discuss\w*"
+    r"|talk\w*|approval|permission|consent\w*|quarantin\w*|lock\w*|frozen|protect\w*|restrict\w*|revisit\w*"
+    r"|reconsider\w*|land\w*|publish\w*|launch\w*|roll ?out\w*|deploy\w*|ship\w*|releas\w*|push\w*"
+    r"|belay\w*|scrub\w*|nix\w*|kibosh|countermand\w*|rescind\w*|desist|hang fire|sit tight|whoa|woah|easy"
+    r"|slow down|steady|back off|no[- ]?go|negative|never ?mind|scratch that|disregard\w*|ignore\w*|revers\w*"
+    # Stems for words that drop their final e before -ing/-ed ("pausing", "closing", "freezing").
+    r"|paus|leav|clos|freez|postpon|revok|disabl|deactivat|terminat|reserv|shelv|declin|refus|revis|delet"
+    r"|remov|retir|archiv|resolv|wav|stal|wedg|park"
+    # Irregular forms ("held", "kept", "froze", "withdrew").
+    r"|held|withheld|kept|left|withdrew|undid|undone|forbade|froze|stood|shut|took back|hung|sat|bade)\w*\b",
+    re.I | re.A)
+# A lift is ONLY a message that is, whole, a plain unconditional merge of this PR or of the bot class:
+# "merge #12", "ok merge the bot fixes", "please merge the monitoring PRs now". Anything more (a
+# condition, a person, a time, a report, a question) is no lift.
+LIFT_RE = re.compile(
+    r"\A(?:(?:ok|okay|yes|yep|sure|please|go ahead|and|so|then)[\s,!.]+)*merge\s+(?:"
+    r"(?:pr\s*)?#?(?P<n>\d+)"
+    r"|(?:the\s+|all\s+(?:the\s+)?)?(?:bot|monitoring|sre)(?:'s)?(?:\s+(?:fix|fixes|prs?|changes?))?"
+    r")(?:\s+(?:now|please))?[\s.!]*\Z", re.I)
+
+
+def _names(ask: str, number: str) -> bool:
+    """The ask names this PR by value ("#012" names 12)."""
+    return any(int(n) == int(number) for n in re.findall(r"(?<![\d.])\d+(?!\d|\.\d)", ask) if len(n) < 12)
+
+
+# The structural closure: a message that mentions the bot (a built-in class word or one of the overlay's
+# own `names`), any PR, or merging at all, and is not a lift, is a hold. So in a session where Simon
+# talks about the bot or its PRs, the path waits for his plain lift; it runs on its own only where he
+# has said nothing about them.
+CLASS_ANY_RE = re.compile(r"bots?\b|\bmonitor\w*|\bsre\b|merg\w*|\bprs?\b|\bprs?\d|pull[- ]?requests?|#\d+|/pulls?\b"
+                          r"|\bgh-\d+",
+                          re.I | re.A)
+
+
+DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe63\uff0d"})
+
+
+def _normalize(text: str) -> str:
+    """The words the way a person reads them, for every hold and PR-number check, overlay names
+    included: compatibility forms folded (full-width digits and #), every dash a hyphen, "P.R." as
+    "PR", markdown emphasis and other symbols as spaces (`_` is a word character and would hide a
+    hold word from every \\b), and any whitespace run as one space."""
+    text = unicodedata.normalize("NFKC", text)
+    # Invisible format characters (soft hyphen, zero-width joiners) vanish, so "Do\u00adn't" reads "Don't".
+    text = "".join(c for c in text if unicodedata.category(c) != "Cf").translate(DASHES).translate(APOSTROPHES)
+    text = " ".join(text.split())  # whitespace runs first, so "P.  R." reads as "P. R."
+    text = re.sub(r"\bp\s*\.\s*r\s*\.?(?=\W|$|s\b)", "PR", text, flags=re.I)
+    text = re.sub(r"[^\w\s'#/.,:;!?-]|_", " ", text)
+    # A digit glued to a word ("1sec", "2hold", "2prs") is read apart, since \b sees no boundary there.
+    text = re.sub(r"(?<=[0-9])(?=[A-Za-z])|(?<=[A-Za-z])(?=[0-9])", " ", text)
+    return " ".join(text.split())
+
+
+HOLD_SCAN_LIMIT = 4000  # characters; a longer message (a pasted log, a token) holds without a scan
+
+
+def _is_hold(ask: str, number: str, names: tuple = ()) -> bool:
+    """True when the message holds. Every rule applies to every copy the caller passes, the raw one
+    (harness blocks and their contents included) too: a false hold costs one lift, a missed one a merge."""
+    time_left()  # each message costs time: the scan declines through OutOfTime, never runs past the hook
+    if len(ask) > HOLD_SCAN_LIMIT:
+        return True
+    if "[REDACTED CREDENTIAL]" in ask:
+        return True  # the recorder redacted part of it, so what it said cannot be read: fail closed
+    if re.search(r"(?<![A-Za-z])[A-Za-z](?:[\s.\-*_'’+/|~]+[A-Za-z](?![A-Za-z])){2,}", ask):
+        return True  # a word spelled letter by letter ("S-T-O-P", "w a i t") cannot be read for certain
+    if re.search(r"\*\*|~~|__(?=\w)|(?<=\w)__|\w\*|\*\w", ask):
+        return True  # Markdown emphasis or strikethrough ("~~go~~**wa**it") renders words the text splits
+    if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", ask):
+        return True  # an ASCII control (a terminal color escape) can glue itself to a word
+    if html.unescape(ask) != ask or re.search(r"%[0-9A-Fa-f]{2}", ask) or "\\" in ask:
+        # An HTML entity, a percent-escape or any backslash escape (JSON "\\u0077", Markdown "\\'") stands
+        # for other text ("&#88;wait", "%70ull"), so what it says cannot be read for certain.
+        return True
+    folded = unicodedata.normalize("NFKC", ask)
+    # Checked on the text as typed AND as folded: NFKC turns some symbols into ASCII letters ("ⓘ" to "i"),
+    # which would glue them to the next word.
+    if any(ord(c) > 127 and unicodedata.category(c)[0] in "LNSMC" for c in ask + folded):
+        # A letter, digit, symbol, mark or control outside ASCII (a look-alike "о", a 🤖, a variation
+        # selector, a zero-width joiner) fails closed; only non-ASCII punctuation and spaces read through.
+        return True
+    # Markdown emphasis inside a word renders joined ("**wa**it" reads "wait"), so a copy with the marks
+    # dropped is judged too.
+    joined = re.sub(r"[*_~`\\]+", "", folded)  # emphasis marks and Markdown escapes ("Don\\'t") dropped
+    if MARKUP_RE.search(folded):
+        return True  # inline markup (a tag, an HTML comment) renders as other text, wherever it appears
+    if "[" in folded or "]" in folded:
+        return True  # a square bracket may be Markdown link syntax of any form, whose rendered text cannot be read
+    kept = re.sub(r"[*~`\\]+", "", folded)  # the same, with "_" left for _normalize to read as a space
+    # Punctuation inside a word ("wa-it", "st.op", "ho/ld") is dropped in one more copy, so a split word
+    # still reads whole.
+    glued = re.sub(r"(?<=[A-Za-z])[^\w\s]+(?=[A-Za-z])", "", joined)
+    return any(_is_hold_text(_normalize(t), number, names) for t in (ask, joined, kept, glued))
+
+
+def _is_hold_text(ask: str, number: str, names: tuple) -> bool:
+    if halts_standing(ask) or NEGATED_RE.search(ask) or HOLD_NEGATED_RE.search(ask):
+        return True
+    if HOLD_WORDS_RE.search(ask):  # no topic gate: a false hold costs one plain lift, a missed one a merge
+        return True
+    if any(re.search(rf"(?<![A-Za-z0-9]){re.escape(_normalize(n))}", ask, re.I) for n in names if _normalize(n)):
+        return True
+    return bool(_names(ask, number) or CLASS_ANY_RE.search(ask))
+
+
+def _lifts(ask: str, number: str) -> bool:
+    """A later ask lifts a hold on this PR only when it is, whole, LIFT_RE: a plain merge of this PR, or
+    of the bot class with no PR number."""
+    if not re.fullmatch(r"[!-~]+(?: [!-~]+)*", ask):
+        # One line of printable ASCII words split by single spaces: no newline, tab or indent can make a
+        # code block of it, and case-insensitive Unicode matching cannot read "ı" as "i".
+        return False
+    m = LIFT_RE.match(ask.strip())
+    return bool(m) and (m.group("n") == number if m.group("n") else True)
+
+
+ANSWER_TOOL_RE = re.compile(r"(?:^|__)(?:AskUserQuestion|ExitPlanMode)$")
+# The harness's own wording for a user's denial, at the start of the result: never a hook's own deny, nor a
+# failed command whose output happens to quote these words.
+DENIAL_RE = re.compile(r"\A\s*(?:The user doesn'?t want to|The user does not want to|User rejected|The user rejected)",
+                       re.I)
+
+
+def transcript_answers(path: str) -> tuple:
+    """(ok, answers, typed, events): what the user said through a tool, which never reaches the ledger (an
+    AskUserQuestion or ExitPlanMode answer, or the feedback typed when a tool call was denied), what he typed,
+    each [(stamp, text)], and both in file order as events [(kind "answer" or "typed", stamp, text)]."""
+    lines = _transcript(path) if path else []
+    if not lines:
+        return False, [], [], []
+    asked, answers, typed, events, fine = set(), [], [], [], []
+    for n, line in enumerate(lines):
+        if n % 2000 == 0:
+            time_left()  # a long transcript declines through OutOfTime, never runs past the hook
+        if not line.strip():
+            continue
+        e = _entry(line)
+        if not e:  # an undecodable record could be the answer that holds: the read fails
+            return False, [], [], []
+        # Metadata lines (a title, a cost state) carry no message and often no time: only a user, assistant
+        # or attachment line can hold what Simon said, and each of those must carry a plain UTC stamp, as
+        # the harness writes it. Any other form (an offset, no time) leaves the order unknown.
+        if e.get("type") not in ("user", "assistant", "attachment"):
+            continue
+        raw_stamp = str(e.get("timestamp") or "")
+        if not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?Z", raw_stamp):
+            return False, [], [], []
+        stamp = raw_stamp[:19] + "Z"
+        frac = raw_stamp[20:-1] if len(raw_stamp) > 20 else ""
+        precise = raw_stamp[:19] + "." + frac[:6].ljust(6, "0")  # full precision, for the order check only
+        # What Simon typed, read from the transcript as well as the ledger, so a prompt the recorder never
+        # saw (its dependency missing, its hook skipped) still holds.
+        if e.get("type") == "attachment" and (e.get("attachment") or {}).get("type") == "queued_command":
+            typed.append((stamp, str((e.get("attachment") or {}).get("prompt") or "")))
+            events.append(("queued",) + typed[-1])  # holds like a typed prompt; its later delivery is no new word
+            fine.append(precise)
+        elif _typed_prompt(e):
+            body = (e.get("message") or {}).get("content")
+            typed.append((stamp, body if isinstance(body, str) else part_text(body)))
+            events.append(("typed",) + typed[-1])
+            fine.append(precise)
+        content = (e.get("message") or {}).get("content")
+        if not isinstance(content, list):
+            continue
+        for item in content:
+            if not isinstance(item, dict):
+                continue
+            if e.get("type") == "assistant" and item.get("type") == "tool_use" and \
+                    ANSWER_TOOL_RE.search(str(item.get("name") or "")):
+                asked.add(item.get("id"))
+            elif e.get("type") == "user" and item.get("type") == "tool_result":
+                body = item.get("content")
+                text = body if isinstance(body, str) else part_text(body)
+                if item.get("tool_use_id") in asked or (item.get("is_error") and DENIAL_RE.match(text)):
+                    answers.append((stamp, text))
+                    events.append(("answer",) + answers[-1])
+                    fine.append(precise)
+    # Typed prompts and answers share one file order: together they must run forward in time, or an answer
+    # stamped before an earlier lift (a clock that stepped back) could be read as cleared by it.
+    # Every message line, in file order, must run forward at full precision: within one second a record
+    # written after another but stamped before it (a queued lift behind an answer) leaves the order unknown.
+    if any(b[1] < a[1] for a, b in zip(events, events[1:])) or any(b < a for a, b in zip(fine, fine[1:])):
+        return False, [], [], []
+    return True, answers, typed, events
+
+
+def _delegated(payload: dict) -> bool:
+    """A delegated worker or an Agent-tool subagent: its transcript holds the task brief, not the user's
+    own messages and answers, so it never merges a monitoring-only PR; the parent session does."""
+    return (os.environ.get("AGENT_DELEGATED_WORKER") == "1" or bool(payload.get("agent_id"))
+            or bool(payload.get("agent_type"))
+            or "/subagents/" in str(payload.get("transcript_path") or "").replace(os.sep, "/"))
+
+
+def monitoring_halt(payload: dict, number: str, gate_stamp: str, names: tuple = (), head: str = "",
+                    strict_gate: bool = True) -> str:
+    """Why Simon's words stop this merge, "" when they do not. ONE stamped read of the session's asks
+    serves both rules, so no message can fall between two reads. Both rules fail closed:
+    - any message from the gate record's second on that is not, whole, a lift declines, an empty one
+      (only a quote or a pasted block) included: read it, then record the gate again;
+    - every message this session is read in order for a hold (_is_hold) not lifted since (_lifts)."""
+    if _delegated(payload):
+        return ("a delegated subagent cannot read the user's answers in the parent's transcript, so it hands "
+                "this merge back to the parent session")
+    if _unrecorded(payload):
+        return "a message from the user failed to reach the ledger, so a halt cannot be ruled out"
+    ok, raw = _ledger_read(payload, "latest-ask", "--stamped", "--since", "1970-01-01T00:00:00Z")
+    records = [r.split("\x1f", 2) for r in raw.split("\x1e") if r] if ok else []
+    if ok and not records:
+        return "no message from the user is recorded this session, so a halt cannot be ruled out"
+    if not ok or any(len(r) != 3 or not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", r[0])
+                                    or r[1] not in ("ask", "peer", "gate") for r in records):
+        return "the user's messages could not be read completely, so a halt cannot be ruled out"
+    ok_t, answers, typed, events = transcript_answers(str(payload.get("transcript_path") or ""))
+    if not ok_t:
+        return "the session transcript could not be read, so an answer given through a question cannot be ruled out"
+    # Time order is the only order shared across the sources, so each source must run forward in time as
+    # written: a clock that stepped back could otherwise sort a hold before the lift it followed.
+    for name, stamps in (("ledger", [r[0] for r in records]), ("transcript", [t for t, _ in typed]),
+                         ("transcript answers", [t for t, _ in answers])):
+        if any(b < a for a, b in zip(stamps, stamps[1:])):
+            return f"the {name} timestamps run backwards, so the order of the user's messages is unknown"
+    # The ledger's own gate records took part in that order check (a message stamped before a gate it was
+    # written after is caught there). The newest one on this head, in this same read, must still be the
+    # PASS the gate check found: a later record (a BLOCKED, a re-run) declines.
+    if head and not strict_gate:
+        # Merged on Simon's own words: the newest gate on this head in this same read, if any, is the cutoff,
+        # so a gate recorded since the earlier gates read still bounds the messages after it.
+        parsed = [(r[0], GATE_LINE_RE.match(r[2].strip())) for r in records if r[1] == "gate"]
+        on_head = [t for t, m in parsed if m and m.group(2) == head]
+        if on_head:
+            gate_stamp = min(gate_stamp, on_head[-1])
+    elif head:
+        parsed = [(r[0], GATE_LINE_RE.match(r[2].strip())) for r in records if r[1] == "gate"]
+        on_head = [(t, m) for t, m in parsed if m and m.group(2) == head]
+        mo = _monitoring_module()
+        if not on_head:
+            return "the gate record is missing from the final ledger read, so the merge declines"
+        t, m = on_head[-1]
+        if (t != gate_stamp or m.group(3) != "PASS" or m.group(4) not in ("standard", "deep")
+                or not (m.group(5) or "").rstrip().endswith(mo.BAR_PHRASE)):
+            return "the newest gate record on this head is not the PASS the gate check found, so the merge declines"
+    records = [r for r in records if r[1] != "gate"]
+    if not records:  # gate records alone: no message of the user's is recorded here (another checkout's ledger?)
+        return "no message from the user is recorded in this ledger, so a halt cannot be ruled out"
+    # The transcript's typed prompts join the ledger's records in time order (the ledger first on a tie):
+    # a prompt the recorder missed still holds, and a duplicate of a recorded one changes nothing.
+    # Transcript copies are kind "typed": they can hold, never lift, and a plain lift among them is neutral,
+    # so a copy re-sorted on a tie cannot reorder a lift past a recorded hold.
+    records = sorted([tuple(r) for r in records] + [(t, "typed", text) for t, text in typed], key=lambda r: r[0])
+    clean = lambda text: (text if len(text) > HOLD_SCAN_LIMIT else
+                          QUOTED_RE.sub("", HARNESS_BLOCK_RE.sub("", text)).strip().translate(APOSTROPHES))
+    # A hold is judged on the quote-stripped, the harness-stripped and the raw recorded text, so neither a
+    # quoted line ("> #12" then "Bob decides") nor a tag can hide it; a lift must be the raw text.
+    full = lambda text: (text if len(text) > HOLD_SCAN_LIMIT else
+                         HARNESS_BLOCK_RE.sub("", text).strip().translate(APOSTROPHES))
+    raw = lambda text: text.strip().translate(APOSTROPHES)  # nothing stripped: a tag cannot hide a hold
+    # The text as rendered: inline HTML tags dropped ("<strong>wa</strong>it" reads "wait"). Any tag left
+    # once harness blocks are gone is markup the lists cannot read, so it holds on its own (MARKUP_RE).
+    visible = lambda text: re.sub(r"<[^<>]*>", "", full(text))
+    # Only Simon's own ask can lift; a peer record (another agent, or a typed tag) can only hold.
+    # A message past HOLD_SCAN_LIMIT is never cleaned or matched: it can only hold (_is_hold says so first).
+    # The body as recorded must itself be the lift: no indent (a Markdown code sample), no quote, no tag.
+    # Trailing newlines are dropped from every source alike (the recorder's shell capture drops them), so
+    # "merge #12" with a final newline is the same lift in the ledger and in the transcript.
+    body = lambda text: text.rstrip("\n")
+    lifting = lambda kind, text: (kind == "ask" and len(text) <= HOLD_SCAN_LIMIT and text.isascii()
+                                  and body(text) == clean(text) and _lifts(clean(text), number))
+    neutral = lambda kind, text: (kind == "typed" and len(text) <= HOLD_SCAN_LIMIT and text.isascii()
+                                  and body(text) == clean(text) and _lifts(clean(text), number))
+    for stamp, kind, text in records:
+        if stamp >= gate_stamp and not lifting(kind, text) and not neutral(kind, text):
+            shown = " ".join(clean(text).split())[:80] or "a message holding only quoted or pasted text"
+            if any(_is_hold(t, number, names) for t in (clean(text), full(text), raw(text), visible(text),
+                                                       re.sub(r"<[^<>]*>", " ", raw(text)))) \
+                    or MARKUP_RE.search(full(text)):
+                return (f"the user's message after the gate PASS reads as a hold (\"{shown}\"): it needs his "
+                        "plain lift, \"merge the bot fixes\" or \"merge #<n>\"; once he lifts it, record the gate "
+                        "again on this head")
+            return (f"the user wrote after the gate PASS was recorded (\"{shown}\"): read it, and if it is "
+                    "no halt, record the gate again on this head and retry")
+    def typed_after(when: str, text: str) -> bool:
+        """The transcript shows this lift typed after `when`: queued after it, or typed directly after it
+        and not the delivery of a copy queued at or before it (a queued prompt keeps its queue time)."""
+        early = {body(x).strip() for k, t, x in events if k == "queued" and t <= when}
+        return any(t > when and body(x) == body(text) and (k == "queued" or body(x).strip() not in early)
+                   for k, t, x in events if k in ("typed", "queued"))
+
+    def standing(seq, lifts) -> tuple:
+        held, held_this, held_at = "", False, ""
+        for stamp, kind, text in seq:
+            if not raw(text) or (neutral(kind, text) and not lifts(kind, text)):
+                continue
+            if lifts(kind, text):
+                # A hold that named this PR is lifted only by a lift naming it, never by a class lift. A
+                # record is stamped when written, and a lift's record can be written long after Simon typed
+                # it, so a hold lifts only on a lift the transcript shows typed in a later second.
+                certain = not held_at or typed_after(held_at, text)
+                if certain and (not held_this or _names(_normalize(clean(text)), number)):
+                    held, held_this, held_at = "", False, ""
+            elif any(_is_hold(t, number, names) for t in (clean(text), full(text), raw(text), visible(text),
+                                                           re.sub(r"<[^<>]*>", " ", raw(text)))) \
+                    or MARKUP_RE.search(full(text)):
+                # A hold carrying any number is treated as naming this PR: only "merge #<n>" lifts it.
+                held, held_this = full(text) or raw(text), held_this or bool(re.search(r"\d", _normalize(raw(text))))
+                held_at = max(held_at, stamp)
+        return held, held_this
+
+    # Read twice, and a hold either reading leaves standing stands: in the time-sorted records (ledger
+    # asks and peers, where only Simon's own recorded ask lifts), and in the transcript's own file order
+    # of what he typed (where his typed lift lifts). The ledger stamps a record when its writer takes the
+    # lock, so two prompts can be appended in the opposite order to the one he typed them in.
+    held, held_this = standing(records, lifting)
+    if not held:
+        held, held_this = standing([(t, "typed", text) for t, text in typed], neutral)
+    # Answers given through a tool (a question, a plan, a denied call) never reach the ledger: one at or
+    # after the gate declines, and an earlier one that holds stands unless a lift Simon typed AFTER it in the
+    # transcript's own file order clears it. The ledger's append time is no order for an answer (the recorder
+    # can append a lift typed before the answer after it), so a ledger lift never clears one. A hold carrying
+    # a number needs a lift naming this PR, as for ledger holds.
+    for i, (kind, stamp, text) in enumerate(events):
+        if kind != "answer":
+            continue
+        if stamp >= gate_stamp:
+            return ("the user answered a question or a denied tool call after the gate PASS: read it, and once "
+                    "it is no halt, record the gate again on this head")
+        named = bool(re.search(r"\d", _normalize(text)))
+        # A prompt queued before the answer and delivered after it was typed before it: its delivery is
+        # no lift given after the answer.
+        queued_before = {body(t).strip() for k, _, t in events[:i] if k == "queued"}
+        cleared = any(k == "typed" and neutral("typed", t) and body(t).strip() not in queued_before
+                      and (not named or _names(_normalize(clean(t)), number))
+                      for k, _, t in events[i + 1:])
+        if not cleared and _is_hold(text, number, names):
+            return f"the user's answer holds the merge: \"{' '.join(text.split())[:100]}\""
+    if held:
+        needed = f"merge #{number}" if held_this else "merge the bot fixes"
+        return (f"the user's hold on merging still stands: \"{' '.join(held.split())[:100]}\"; it lifts only "
+                f"on his plain \"{needed}\"")
+    return ""
+
+
+def monitoring_merge(payload: dict, command: str, words: list) -> tuple:
+    """(allowed, cause, declared): the monitoring-only merge path. `declared` is True when the
+    command's repository declares monitoring-only paths (or its overlay could not be read), so the
+    deny message adds this path's own Cause line only where it applies."""
+    selector, number, repo = merge_target(words)
+    # Case is kept for the overlay lookup: the registry's work/personal boundary match is case-sensitive,
+    # so a lowercased owner reads as the other boundary (the fix for a draft that denied every real merge).
+    hosted = re.fullmatch(r"(?:https?://)?github\.com/([^/\s]+/[^/\s]+?)(?:\.git)?/?", repo or "")
+    named = hosted.group(1) if hosted else (repo or "")  # github_slug lowercases; this keeps the case
+    if not number or not named or NON_LITERAL_RE.search(selector):
+        return False, "", False
+    try:
+        mo = _monitoring_module()
+        spec, error = mo.spec_for(named)
+    except Exception as exc:
+        return False, f"bin/monitoring_only.py could not be loaded ({exc})", True
+    if error.startswith("the connector overlay could not be read"):
+        return False, f"{error}, so whether this repo declares monitoring-only paths is unknown", True
+    if error:  # this repo's own entry is malformed
+        return False, error, True
+    if not spec:
+        return False, "", False
+    number, slug, pinned, why = monitoring_shape(command.strip())
+    if why:
+        return False, why, True
+    if slug.lower() != named.lower():
+        return False, "the command names its repository more than once", True
+    pr = monitoring_pr(number, slug)
+    if not pr:
+        return False, "the PR lookup failed", True
+    read_back = re.search(r"github\.com/([^/]+/[^/]+)/pull/(\d+)$", str(pr.get("url", "")))
+    if not read_back or read_back.group(1).lower() != slug.lower() or read_back.group(2) != number:
+        return False, f"the PR read back is not {slug}#{number}", True
+    not_ready = monitoring_not_ready(pr, spec["requiredChecks"], monitoring_default_branch(slug))
+    if not_ready:
+        return False, not_ready, True
+    outside = mo.classify(pr.get("files"), pr.get("changedFiles"), spec)
+    if outside:
+        return False, outside, True
+    head, branch = str(pr.get("headRefOid") or "").lower(), str(pr.get("headRefName") or "")
+    if not FULL_SHA_RE.fullmatch(head) or not branch:
+        return False, "the PR's head commit could not be read", True
+    if pinned != head:
+        return False, f"--match-head-commit {pinned[:12]} is not the PR's head {head[:12]}", True
+    method = monitoring_merge_method(slug, str(pr.get("baseRefName") or ""), command)
+    if method:
+        return False, method, True
+    moved = monitoring_base_moves(slug, head, str(pr.get("baseRefName") or ""),
+                                  {f.get("path") for f in pr.get("files") or [] if isinstance(f, dict)})
+    if moved:
+        return False, moved, True
+    if session_id(payload) == "unknown":
+        return False, "the session id is missing, so its gate records cannot be read", True
+    ok, raw = _ledger_read(payload, "gates")
+    if not ok:
+        return False, ("this session's ledger could not be read, or a prompt sits in its lock-contention "
+                       "fallback file"), True
+    # Split on the writer's own delimiter only: splitlines() also breaks on U+2028 and other separators
+    # a one-line reason may carry, which could turn one BLOCKED record into a forged PASS.
+    gates = []
+    for line in raw.split("\n"):
+        stamp, _, rest = line.partition(" ")
+        m = GATE_LINE_RE.match(rest)
+        if m and re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp):
+            gates.append(m.groups() + (stamp,))
+    mine = [g for g in gates if g[0] == branch and g[1] == head]
+    if not mine:
+        older = [g for g in gates if g[0] == branch and g[2] == "PASS"]
+        hint = f" (this session's newest PASS for it is on {older[-1][1][:12]})" if older else ""
+        return False, (f"no gate record from this session is on {branch} at the full head {head[:12]}{hint}. "
+                       "Run the monitoring-only bar on this head and record it with intent-ledger.sh gate"), True
+    status, tier, reason = mine[-1][2], mine[-1][3] or "", mine[-1][4] or ""
+    if status != "PASS" or tier not in ("standard", "deep") or not reason.rstrip().endswith(mo.BAR_PHRASE):
+        return False, (f"the newest gate record at {head[:12]} is not a standard or deep PASS whose reason "
+                       f"ends with \"{mo.BAR_PHRASE}\""), True
+    halt = monitoring_halt(payload, number, mine[-1][5], tuple(spec.get("names", ())), head)
+    if halt:
+        return False, halt, True
+    return True, "", True
+
+
+def pinned_head(words: list) -> str:
+    """The full sha a merge command pins with --match-head-commit, "" when none or more than one."""
+    found = [words[i + 1] for i, w in enumerate(words[:-1]) if w == "--match-head-commit"]
+    found += [w.split("=", 1)[1] for w in words if w.startswith("--match-head-commit=")]
+    return found[0].lower() if len(found) == 1 else ""
+
+
+def monitoring_word_hold(payload: dict, words: list, cwd) -> str:
+    """For a monitoring-only PR merged on Simon's own words, the monitoring hold reading still applies, so
+    a later "I veto this" stops an earlier "merge #12". Returns "" only for a PR known NOT to be
+    monitoring-only (one listed path outside the declared paths) or a repo that declares nothing; an
+    unreadable overlay, PR or file list in a declaring repo holds."""
+    selector, number, repo = merge_target(words)
+    if not number:
+        return ""
+    try:
+        mo = _monitoring_module()
+    except RuntimeError as exc:
+        return str(exc)
+    hosted = re.fullmatch(r"(?:https?://)?github\.com/([^/\s]+/[^/\s]+?)(?:\.git)?/?", repo or "")
+    in_url = re.search(r"github\.com/([^/]+/[^/]+)/pull/\d+", selector)
+    named = [x for x in (hosted.group(1) if hosted else (repo or ""), in_url.group(1) if in_url else "") if x]
+    if len({x.lower() for x in named}) > 1:
+        return "the merge names two different repositories, so the hold read declines"
+    # GitHub's own answer for the PR names the repository, in its current name (an old name or a remote
+    # alias redirects there): the read is cached from the readiness check.
+    try:
+        got = re.search(r"github\.com/([^/]+/[^/]+)/pull/\d+", str(pr_view(selector, repo, cwd).get("url", "")))
+        if not got and cwd is None and not named:
+            return "the directory the merge runs in is unknown (a cd or pushd the guard cannot follow), so name the repository with -R"
+        if not got:
+            # No answer: hold when some repository gh could have meant may declare monitoring paths. A
+            # remote can carry a renamed repo's old name, so an owner with any declared repo holds too.
+            try:
+                listed = _run(["git", "config", "--get-regexp", r"^remote\..*\.url$"], cwd=cwd or None,
+                                        capture_output=True, text=True, timeout=min(5, time_left()))
+                urls = [l.split(None, 1)[1] for l in listed.stdout.splitlines() if " " in l] if listed.returncode == 0 else []
+                known = listed.returncode in (0, 1) and all(mo.repo_slug(u) for u in urls)
+            except OutOfTime:
+                raise
+            except Exception:
+                known, urls = False, []
+            candidates = {x for x in named + [re.sub(r"^(?:https?://)?github\.com/", "", os.environ.get("GH_REPO", ""))]
+                          + [mo.repo_slug(u) for u in urls] if x}
+            owners = mo.declared_owners()
+            if known and owners is not None and not any(
+                    x[0] or x[1] for x in map(mo.spec_for, candidates)) and not any(
+                    c.split("/", 1)[0].lower() in owners for c in candidates):
+                return ""
+            return "the PR could not be read, so the repository it is in, and any hold on it, is unknown"
+        slug = got.group(1)
+        spec, error = mo.spec_for(slug)
+        if error:
+            return f"{error}, so whether this PR is monitoring-only is unknown"
+        if not spec:
+            return ""
+        pr = monitoring_pr(number, slug)
+        files = pr.get("files") if pr else None
+        if isinstance(files, list) and any(isinstance(f, dict) and isinstance(f.get("path"), str)
+                                           and not mo.path_matches(f["path"], spec) for f in files):
+            # One path outside the declared paths: not monitoring-only, so the ordinary words decide, for
+            # THIS head only. Pinned to it, a push that makes the PR monitoring-only after this read cannot
+            # merge past a hold the read skipped.
+            head = str(pr.get("headRefOid") or "").lower()
+            if not re.fullmatch(r"[0-9a-f]{40}", head) or pinned_head(words) != head:
+                return (f"the PR is not monitoring-only at its head {head or '(unreadable)'}, and a merge of it in "
+                        f"this repository must pin that head: add --match-head-commit {head or '<full head sha>'}")
+            return ""
+        if not pr or not isinstance(files, list) or pr.get("changedFiles") != len(files):
+            return "the PR's file list could not be read whole, so whether it is monitoring-only is unknown"
+        # A gate already recorded on this head still bounds the read: any message after it that is no
+        # lift declines here too, whichever words authorized the merge.
+        stamp = "9999-12-31T23:59:59Z"
+        head, branch = str(pr.get("headRefOid") or "").lower(), str(pr.get("headRefName") or "")
+        ok, raw = _ledger_read(payload, "gates")
+        if not ok:
+            return "this session's ledger could not be read, so the hold read declines"
+        for line in raw.split("\n"):
+            when, _, rest = line.partition(" ")
+            m = GATE_LINE_RE.match(rest)
+            if m and m.group(1) == branch and m.group(2) == head:
+                stamp = when
+        return monitoring_halt(payload, number, stamp, tuple(spec.get("names", ())), head, strict_gate=False)
+    except OutOfTime:
+        return "the monitoring-only hold read ran out of time"
+    except Exception as exc:
+        return f"the monitoring-only hold read hit malformed data ({type(exc).__name__})"
+
+
+def merge_allowed(payload: dict, words: list, cwd, command: str = "") -> tuple:
+    """(allowed, why_not, monitoring_cause): this turn's words authorize the merge, or a standing
+    merge instruction from this session does and the PR is ready now, or the PR passes the
+    monitoring-only path. monitoring_cause is that path's reason when it applied and declined."""
     if turn_merge_allowed(payload, words, cwd):
-        return True, ""
-    return standing_merge(payload, words, cwd)
+        held = monitoring_word_hold(payload, words, cwd)
+        return (False, "", held) if held else (True, "", "")
+    allowed, why_not = standing_merge(payload, words, cwd)
+    if allowed:
+        held = monitoring_word_hold(payload, words, cwd)
+        return (False, "", held) if held else (True, "", "")
+    try:
+        ok, cause, declared = monitoring_merge(payload, command, words)
+    except OutOfTime:
+        ok, cause, declared = False, "the monitoring-only checks ran out of time, so they declined", True
+    except Exception as exc:  # malformed data from gh or the ledger declines, never crashes the hook
+        ok, cause, declared = False, f"the monitoring-only checks hit malformed data ({type(exc).__name__})", True
+    if ok:
+        return True, "", ""
+    return False, why_not, (cause if declared else "")
 
 
 # "merge and deploy" with no number authorizes ONE merge of a PR this session did not push: the first
@@ -978,6 +2053,491 @@ def merge_deny_cause(payload: dict, words: list, why_not: str) -> tuple:
             f"another, so #{number} needs its own number named"), True
 
 
+MERGE_SEEN = False  # set by main() once the payload is read; the crash handler denies only a merge
+
+
+GH_PR_OPTS_WITH_VALUE = {"-R", "--repo"}
+# Setting or clearing any of these changes which repository an unqualified merge resolves in.
+# Git's own discovery variables change which checkout, and so which repository, gh reads too.
+REPO_ENV_RE = re.compile(r"\b(?:GH_REPO|GH_HOST|GH_ENTERPRISE_TOKEN|GITHUB_ENTERPRISE_TOKEN|GIT_DIR|GIT_WORK_TREE"
+                         r"|GIT_COMMON_DIR|GIT_CONFIG\w*|GIT_CEILING_DIRECTORIES|GIT_DISCOVERY_ACROSS_FILESYSTEM)\s*="
+                         r"|\b(?:unset|env\s+(?:-\S+\s+)*-u|-u)\s+(?:GH_REPO|GH_HOST)\b|--unset[= ](?:GH_REPO|GH_HOST)\b")
+
+
+# A shell word anywhere outside heredoc bodies (`} | bash`, `| /bin/sh`, `| "sh"`, `coproc`, `.`): any
+# heredoc body in the command may be what it reads, so every body is kept as code.
+SHELL_READER_RE = re.compile(r"(?:^|[\s;&|({\"'/])(?:bash|sh|zsh|dash|ksh|eval|source|coproc)(?=[\s;&|)}\"']|$)"
+                             r"|(?:^|[\s;&|({])\.(?=\s)")
+# Command words whose heredoc is data to the shell (a file's text, a message, another language's
+# program, which the guard cannot read anyway). Any other command word in the command keeps every body.
+HEREDOC_DATA_COMMANDS = {"cat", "tee", "gh", "git", "cd", "mkdir", "python", "python3", "node", "deno",
+                         "echo", "printf", "grep", "wc", "jq", "head", "tail", "sort", "ls", "true", ":"}
+
+
+def _shell_lexer(command: str) -> list:
+    """The shell's tokens: a newline separates commands as ";" does. `#` is literal here; shell_text has
+    already dropped real comments (a `#` inside a word is no comment to bash)."""
+    lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>\n")
+    lexer.whitespace = " \t\r"
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    return list(lexer)
+
+
+def _command_heads(text: str):
+    """The command word of every simple command in text, after prefixes, assignments, redirections
+    and wrappers; None when text cannot be tokenized."""
+    try:
+        tokens = _shell_lexer(text)
+    except ValueError:
+        return None
+    heads, segment = [], []
+    for tok in tokens + [";"]:
+        if tok and set(tok) <= set(";&|()\n"):
+            words, segment = _drop_redirections(segment), []
+            while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0]) or words[0] in ("{", "}")):
+                words = words[1:]
+            while words and os.path.basename(words[0]) in WRAPPERS:
+                words = _unwrap_options(words)
+                while words and ASSIGN_RE.match(words[0]):
+                    words = words[1:]
+            if words:
+                heads.append(os.path.basename(words[0]))
+            continue
+        segment.append(tok)
+    return heads
+
+
+def shell_text(command: str) -> str:
+    """shell_text_once, keeping every heredoc body unless the command's every command word reads its
+    heredoc as data (HEREDOC_DATA_COMMANDS) and no shell reads one (SHELL_READER_RE)."""
+    text = shell_text_once(command)
+    heads = _command_heads(shell_text_once(command, keep_delims=False))
+    if SHELL_READER_RE.search(text) or heads is None or any(h not in HEREDOC_DATA_COMMANDS for h in heads):
+        return shell_text_once(command, keep_bodies=True)
+    return text
+
+
+def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool = True) -> str:
+    """The command as bash reads it before splitting words: a backslash-newline outside single quotes
+    joined away (`me\\<newline>rge` is `merge`), and the body of every heredoc whose marker sits outside
+    quotes dropped (data, never run). The closing delimiter line is kept, so mask() still finds it."""
+    out, i, n, quote, pending, arith = [], 0, len(command), None, [], []
+    while i < n:
+        ch = command[i]
+        if arith and not quote:  # inside $(( )), (( )) or $[ ]: `<<` is a shift, never a heredoc
+            if ch in "([":
+                arith.append(")" if ch == "(" else "]")
+            elif ch == arith[-1]:
+                arith.pop()
+            out.append(ch)
+            i += 1
+            continue
+        if not quote and (command.startswith("$((", i) or command.startswith("((", i) or command.startswith("$[", i)):
+            opener = "$((" if command.startswith("$((", i) else "((" if command.startswith("((", i) else "$["
+            arith = [")", ")"] if "(" in opener else ["]"]
+            out.append(opener)
+            i += len(opener)
+            continue
+        if quote == "'":
+            out.append(ch)
+            quote = None if ch == "'" else quote
+            i += 1
+            continue
+        if ch == "\\" and i + 1 < n:
+            if command[i + 1] == "\n":
+                i += 2
+                continue
+            out.append(command[i:i + 2])
+            i += 2
+            continue
+        if quote:  # a double quote, or an ANSI-C $'...' (backslash escapes handled above)
+            out.append(ch)
+            quote = None if ch == quote[-1] else quote
+            i += 1
+            continue
+        if ch == "#" and (i == 0 or command[i - 1] in " \t\n;&|()"):  # a comment runs to the line end: dropped
+            j = command.find("\n", i)
+            i = n if j == -1 else j
+            continue
+        if ch in "'\"":
+            quote = ch
+        elif ch == "$" and command.startswith("$'", i):
+            out.append("$'")
+            quote, i = "$'", i + 2
+            continue
+        elif command.startswith("<<<", i):  # a here-string: one redirection, never a heredoc
+            out.append("<<<")
+            i += 3
+            continue
+        elif command.startswith("<<", i):
+            m = re.match(r"<<(-?)[ \t]*([^\s<>;&|()]+)", command[i:])
+            if m:
+                word = m.group(2)
+                delim, quoted = re.sub(r"[\\'\"]", "", word), bool(re.search(r"[\\'\"]", word))
+                # A body a shell reads is code (`bash <<EOF`, `cat <<EOF | sh`): it stays, so its merges count.
+                pending.append((delim, m.group(1) == "-", keep_bodies, quoted))
+                out.append(m.group(0))
+                i += m.end()
+                continue
+        elif ch == "\n" and pending:
+            out.append("\n")
+            i += 1
+            for delim, tabs, code, quoted in pending:
+                # An unquoted delimiter expands its body: a substitution in it runs, so that body is code.
+                body_end = re.compile(rf"^\t*{re.escape(delim)}$" if tabs else rf"^{re.escape(delim)}$", re.M)
+                found = body_end.search(command, i)
+                body = command[i:found.start() if found else n]
+                code = code or (not quoted and bool(re.search(r"\$\(|`", body)))
+                while i < n:
+                    j = command.find("\n", i)
+                    line = command[i:] if j == -1 else command[i:j]
+                    nxt = n if j == -1 else j + 1
+                    if (line.lstrip("\t") if tabs else line) == delim:
+                        break
+                    if code:
+                        out.append(command[i:nxt])
+                    i = nxt
+                if keep_delims:
+                    out.append(command[i:n if command.find("\n", i) == -1 else command.find("\n", i) + 1])
+                else:
+                    out.append("\n")
+                i = n if command.find("\n", i) == -1 else command.find("\n", i) + 1
+            pending = []
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+# Constructs that build or run a command word the parsers cannot read (`$'gh'`, `{gh,pr,merge,12}`, `gh pr $X merge`, `eval gh ...`,
+# `find -exec gh ...`, `${X:-gh}`, `$(echo gh)`): with gh and merge both in the text, they count as a
+# hidden merge when the masked parse saw no plain one. (xargs is a wrapper both parsers read.)
+DYNAMIC_RE = re.compile(r"\$'|\$\(|\$\{|\$[A-Za-z_@*#?0-9!-]|`|\{[^{}\s]*(?:,|\.\.)[^{}\s]*\}|\beval\b|-exec(?:dir)?\b|-ok\b|\bparallel\b|\bsource\b|(?:^|[\s;&|(])\.\s")
+
+
+def _shell_merge(command: str, depth: int = 0) -> int:
+    """True when the shell, with its own quoting resolved, would run `gh ... pr ... merge` in command
+    position (after env assignments and wrappers), directly or inside a `bash -c` string. A command it
+    cannot tokenize counts when it names gh and merge."""
+    command = shell_text(command)
+    try:
+        tokens = _shell_lexer(command)
+    except ValueError:
+        return int("gh" in command and "merge" in command) * 99  # unreadable: never matched by the masked parse
+    segment, count, piped = [], 0, False
+    names_merge = bool(re.search(r"\bgh\b", command) and re.search(r"\bmerge\b", command))
+    for tok in tokens + [";"]:
+        if tok and set(tok) <= set(";&|()\n"):
+            fed = piped or any(t and set(t) <= set("<>&") and "<" in t for t in segment)
+            piped = tok in ("|", "|&")
+            words = _drop_redirections(segment)
+            segment = []
+            if any(ASSIGN_RE.match(w) and re.search(r"\bgh\b", w) and re.search(r"\bmerge\b", w) for w in words):
+                count += 99  # GIT_PAGER='gh pr merge 42' git log: a variable some program runs as a command
+            while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
+                words = words[1:]
+            fills = False  # xargs or parallel supplies arguments, or replaces words (-I {}), at run time
+            while words and os.path.basename(words[0]) in WRAPPERS:
+                fills = fills or os.path.basename(words[0]) == "xargs"
+                words = _unwrap_options(words)
+                while words and ASSIGN_RE.match(words[0]):
+                    words = words[1:]
+            if not words:
+                continue
+            if words[0].startswith("="):  # zsh's =cmd expands to the command's path
+                words = [words[0][1:]] + words[1:]
+            head = os.path.basename(words[0])
+            # Per command: a command word, or a gh subcommand, that the shell builds at run time (`$G pr
+            # merge 13`, `gh pr $X merge 13`, `{gh,pr}`) beside a merge named anywhere in the input may be
+            # one more merge, even when another command in the input is a plain, checked merge.
+            built = lambda w: bool(re.search(r"[$`]|\{[^{}]*(?:,|\.\.)[^{}]*\}", w))
+            # A pathname pattern as the command word (`/opt/homebrew/bin/g[h]`) is expanded by the shell.
+            globbed_head = bool(re.search(r"[*?\[]", words[0])) and "merge" in words[1:]
+            built_merge = names_merge and (built(words[0]) or (
+                head == "gh" and _gh_subcommand(words) != ("pr", "merge") and any(built(w) for w in words[1:4])))
+            if globbed_head or built_merge:
+                count += 99
+            # A pathname pattern in gh's command or subcommand place (`gh pr m*` beside a file named
+            # merge) is expanded by the shell after the hook reads it.
+            if head == "gh" and any(re.search(r"[*?\[]", w) for w in
+                                    [w for w in words[1:] if not w.startswith("-")][:2]):
+                count += 99
+            if head == "gh" and _gh_subcommand(words) == ("pr", "merge"):
+                count += 1
+            elif head == "gh" and fills and names_merge:
+                count += 99  # `echo merge 42 | xargs gh pr`, `xargs -I{} gh pr {} 42`: the subcommand comes later
+            elif head not in INERT_COMMANDS and head != "gh" and not (
+                    head == "git" and not any(w == "-c" or w.startswith(("-c", "--config", "--exec-path"))
+                                              or "alias." in w or w.startswith("!") for w in words)) and not (
+                    head in SHELLS and any(
+                    SHELL_C_RE.match(w) for w in words[1:])) and any(
+                    re.search(r"\bgh\b", w) and re.search(r"\bmerge\b", w) for w in words[1:] if " " in w or "\t" in w):
+                # One argument holding a whole merge command (`trap 'gh pr merge 42' EXIT`, `python3 -c "..."`,
+                # `ssh host 'gh pr merge 42'`): a command that may run its argument as code.
+                count += 99
+            elif head not in INERT_COMMANDS and head not in SHELLS and any(
+                    os.path.basename(w) == "gh" and _gh_subcommand(words[k:]) == ("pr", "merge")
+                    for k, w in enumerate(words[1:], 1)):
+                # `gh pr merge` as the arguments of a command word neither parser knows (`builtin command
+                # gh ...`, `find -exec gh ...`): it may run, so it counts, and the guard cannot check it.
+                count += 1
+            if head in SHELLS:
+                for i, w in enumerate(words[1:], 1):
+                    if SHELL_C_RE.match(w) and i + 1 < len(words):
+                        # The words after the string are its positional arguments: `bash -c '"$@"' _ gh pr
+                        # merge 42` and `bash -c 'gh "$@"' _ pr merge 42` run them, so gh and merge across the
+                        # string and its arguments count.
+                        rest = words[i + 2:]
+                        joined = " ".join(words[i + 1:])  # the string and its arguments together
+                        if rest and re.search(r"\bgh\b", joined) and re.search(r"merge", joined):
+                            count += 99
+                        # Past the nesting limit the string is not read, so naming gh and merge counts.
+                        inner = words[i + 1]
+                        count += _shell_merge(inner, depth + 1) if depth < 3 else 99 * bool(
+                            re.search(r"\bgh\b", inner) and re.search(r"\bmerge\b", inner))
+                        break
+            # A command reading a pipe or a redirection that may run what it reads (`printf 'gh pr merge 12' |
+            # sh`, `| fish`, `sh <<< "..."`, `sh < f`) runs text no parser here reads: with gh and merge named
+            # anywhere in the command, that text may be a merge. Only known readers of data are exempt.
+            if fed and names_merge and head not in STDIN_DATA_COMMANDS and not (
+                    head in SHELLS and any(SHELL_C_RE.match(w) for w in words[1:])):
+                count += 99
+            continue
+        segment.append(tok)
+    return count
+
+
+# Commands that read their standard input as data, never as commands.
+STDIN_DATA_COMMANDS = {"cat", "grep", "egrep", "fgrep", "wc", "head", "tail", "jq", "tee", "uniq", "comm", "diff",
+                       "gh", "git", "less", "more", "base64", "xxd", "od", "tr", "cut"}
+# Commands that never run their arguments: `echo gh pr merge 12` only prints.
+# (Not rg, whose --pre runs a program, nor sort, whose --compress-program does.)
+INERT_COMMANDS = {"echo", "printf", ":", "true", "false", "test", "[", "grep", "egrep", "fgrep", "cat",
+                  "head", "tail", "wc", "uniq", "jq", "comm", "diff", "ls"}
+
+
+def _drop_redirections(tokens: list) -> list:
+    """The shell's words with every redirection and its operand removed, wherever it sits: `>/dev/null gh
+    pr merge 42` runs gh as its command word. A file-descriptor number before the operator goes too."""
+    out, skip = [], False
+    for tok in tokens:
+        if skip:
+            skip = False
+            continue
+        if tok and set(tok) <= set("<>&") and set(tok) & set("<>"):
+            if out and out[-1].isdigit():
+                out.pop()
+            skip = True
+            continue
+        out.append(tok)
+    return out
+
+
+def _gh_subcommand(words: list) -> tuple:
+    """(command, subcommand) of a gh invocation, options and their values skipped: `gh pr -R o/r merge`
+    gives ("pr", "merge"), `gh pr list --search merge` gives ("pr", "list")."""
+    found, rest = [], list(words[1:])
+    while rest and len(found) < 2:
+        w = rest.pop(0)
+        if w.startswith("-"):
+            if w in GH_PR_OPTS_WITH_VALUE and rest:
+                rest.pop(0)
+            continue
+        found.append(w)
+    return tuple(found)
+
+
+# gh's own commands; any other first word is an alias or an extension, which gh resolves after the hook.
+GH_COMMANDS = {"auth", "browse", "codespace", "discussion", "gist", "issue", "org", "pr", "project", "release",
+               "repo", "skill", "cache", "run", "workflow", "stack", "agent-task", "alias", "api", "attestation",
+               "completion", "config", "copilot", "extension", "ext", "gpg-key", "label", "licenses", "preview",
+               "ruleset", "search", "secret", "ssh-key", "status", "variable", "help", "version", "--version",
+               "--help", "-h"}
+
+
+def _gh_alias_uses(command: str, depth: int = 0):
+    """(first word, the words after it) of every gh invocation whose first word is no gh command, in the
+    command and in every `bash -c` string it runs, at any depth; None when the outer text is unreadable."""
+    try:
+        tokens = _shell_lexer(shell_text(command))
+    except ValueError:
+        return None if depth == 0 else [("\x00unreadable", [])]
+    found, segment = [], []
+    for tok in tokens + [";"]:
+        if tok and set(tok) <= set(";&|()\n"):
+            words = _drop_redirections(segment)
+            segment = []
+            while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
+                words = words[1:]
+            while words and os.path.basename(words[0]) in WRAPPERS:
+                words = _unwrap_options(words)
+            if words and os.path.basename(words[0]) == "gh":
+                at = next((i for i, w in enumerate(words[1:], 1) if not w.startswith("-")), 0)
+                if at and words[at] not in GH_COMMANDS:
+                    found.append((words[at], words[at + 1:]))
+            elif words and os.path.basename(words[0]) in SHELLS:
+                for i, w in enumerate(words[1:], 1):
+                    if SHELL_C_RE.match(w) and i + 1 < len(words):
+                        inner = _gh_alias_uses(words[i + 1], depth + 1) if depth < 3 else [("\x00deep", [])]
+                        found.extend(inner or [])
+                        break
+            continue
+        segment.append(tok)
+    return found
+
+
+def gh_alias_merge(command: str) -> bool:
+    """A gh invocation whose first word is no gh command (an alias such as `gh pm 42` for `pr merge`, or a
+    shell alias `!...`) whose expansion may merge, read from `gh alias list`; an unreadable list counts."""
+    words_seen = _gh_alias_uses(command)
+    if words_seen is None:
+        return False  # hidden_merge already judged an unreadable command
+    if not words_seen:
+        return False
+    try:
+        p = _run(["gh", "alias", "list"], capture_output=True, text=True, timeout=bounded(5))
+    except Exception:
+        return True
+    if p.returncode != 0:
+        return True
+    aliases = {}
+    for line in p.stdout.splitlines():
+        name, _, expansion = line.partition(":")
+        aliases[name.strip().strip("'\"")] = expansion.strip().strip("'\"")  # the list may quote YAML-style
+    for w, args in words_seen:
+        if w.startswith("\x00"):  # an inner string too deep or unreadable to read: its alias is unknown
+            return True
+        expansion = aliases.get(w)
+        if expansion is None:
+            continue  # an extension (gh-<name>), which merges only through its own code: a script residual
+        # The alias rebuilt with its arguments, as gh runs it: a shell alias, a placeholder, or a merge
+        # word anywhere counts (`p: pr` then `gh p merge 5` runs `gh pr merge 5`).
+        rebuilt = expansion.split() + list(args)
+        # An alias to `gh api` sends whatever request it builds, and "merge" anywhere in it (an endpoint
+        # path included) may be one.
+        if expansion.startswith("!") or "$" in expansion or re.search(r"merge", " ".join(rebuilt), re.I) \
+                or (rebuilt and rebuilt[0] == "api") or _gh_subcommand(["gh"] + rebuilt) == ("pr", "merge"):
+            return True
+    return False
+
+
+# git's common commands; any other first word may be an alias from the invocation's git config.
+GIT_COMMANDS = set("""add am apply archive bisect blame branch bundle cat-file check-attr check-ignore checkout
+cherry-pick clean clone commit commit-tree config describe diff diff-tree fetch for-each-ref format-patch gc grep
+hash-object help init lfs log ls-files ls-remote ls-tree maintenance merge merge-base mv name-rev notes pull push
+range-diff read-tree rebase reflog remote reset restore rev-list rev-parse revert rm shortlog show show-ref
+sparse-checkout stash status submodule switch symbolic-ref tag update-index update-ref var verify-commit version
+worktree write-tree whatchanged filter-repo""".split())
+
+
+def git_alias_merge(command: str, cwd) -> bool:
+    """A git invocation whose first word is a configured alias that may merge a PR: a shell alias (`!...`)
+    or any alias naming gh, curl, an API call or a merge. An unreadable alias read counts."""
+    try:
+        tokens = _shell_lexer(shell_text(command))
+    except ValueError:
+        return False
+    # The directory each git runs in, as the shell moves: a literal cd or pushd moves it, successive -C
+    # options stack, and anything the guard cannot follow (cd -, popd, a variable, GIT_DIR) makes it
+    # unknown, which counts for any alias lookup.
+    uses, segment, here = [], [], os.path.abspath(cwd or ".")
+    pure_chain = not re.search(r"\|\||;|\n|(?<!&)&(?!&)|\|", mask(command))
+    for tok in tokens + [";"]:
+        if tok and set(tok) <= set(";&|()\n"):
+            words = _drop_redirections(segment)
+            segment = []
+            if any(re.match(r"GIT_(?:DIR|WORK_TREE|CONFIG\w*|COMMON_DIR)=", w) for w in words):
+                here = None
+            while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0])):
+                words = words[1:]
+            while words and os.path.basename(words[0]) in WRAPPERS:
+                words = _unwrap_options(words)
+            if words and words[0] in ("cd", "pushd"):
+                target = words[1] if len(words) == 2 else ""
+                via_cdpath = ((bool(os.environ.get("CDPATH")) or "CDPATH" in command)
+                              and not target.startswith(("/", ".", "~")))
+                literal = (pure_chain and target and target != "-" and not via_cdpath
+                           and not re.search(r"[$`*?\[{]", target))
+                here = (os.path.normpath(os.path.join(here, os.path.expanduser(target)))
+                        if literal and here else None)
+            elif words and words[0] == "popd":
+                here = None
+            elif words and os.path.basename(words[0]) == "git":
+                rest, where = words[1:], here
+                while rest and rest[0].startswith("-"):
+                    opt = rest.pop(0)
+                    if opt in GIT_OPTS_WITH_VALUE and rest:
+                        value = rest.pop(0)
+                        if opt == "-C":
+                            where = (os.path.normpath(os.path.join(where, os.path.expanduser(value)))
+                                     if where and not re.search(r"[$`*?\[{]", value) else None)
+                        elif opt in ("--git-dir", "--work-tree", "-c"):
+                            where = where if opt == "-c" and not value.lower().startswith("include") else None
+                if rest and rest[0] not in GIT_COMMANDS:
+                    uses.append((rest[0], where))
+            continue
+        segment.append(tok)
+    for name, where in uses:
+        if where is None:  # the directory git reads its config in is unknown
+            return True
+        # Followed alias to alias as git does, to a shell alias or a git command; a cycle or a chain past
+        # five links counts.
+        seen = set()
+        while name:
+            if name in seen or len(seen) >= 5:
+                return True
+            seen.add(name)
+            try:
+                p = _run(["git", "config", "--get", f"alias.{name}"], cwd=where,
+                         capture_output=True, text=True, timeout=bounded(3))
+            except Exception:
+                return True
+            if p.returncode not in (0, 1):
+                return True
+            value = p.stdout.strip()
+            if value and (value.startswith("!") and re.search(r"\bgh\b|\bcurl\b|\bmerge\b|\bapi\b|\$", value)
+                          or re.search(r"\bgh\b|\bcurl\b", value)):
+                return True
+            first = value.split()[0] if value and not value.startswith("!") else ""
+            name = first if first and first not in GIT_COMMANDS else ""
+    return False
+
+
+def hidden_merge(command: str) -> bool:
+    """A merge the shell would run but the masked parse cannot see: `'gh' pr merge`, `g\\h pr merge`,
+    `gh pr me''rge`. The shell's own tokens decide, with no substring fast path."""
+    shell = _shell_merge(command)
+    text = shell_text(command)
+    dynamic = bool(re.search(r"\bgh\b", text) and re.search(r"\bmerge\b", text, re.I) and DYNAMIC_RE.search(text))
+    # A function or alias defined in the same input can turn any name, an inert one included, into a
+    # runner of its arguments (`printf() { "$@"; }; printf gh pr merge 12`).
+    defines = re.search(r"(?:^|[\s;&|(])(?:function\s+[\w.:-]+|[\w.:-]+\s*\(\s*\))|\balias\s+\S+=", text)
+    if defines and re.search(r"\bgh\b", text) and re.search(r"\bmerge\b", text):
+        return True
+    if not shell and not dynamic:
+        return False
+    seen = sum(1 for _, w, _ in expand_command(command)
+               if w and os.path.basename(gh_pr_words(w)[0]) == "gh" and gh_pr_words(w)[1:3] == ["pr", "merge"])
+    # Every merge the shell would run must be one the guard checks; a built command word with no plain
+    # merge beside it is one the guard cannot check.
+    return shell > seen or (dynamic and not seen)
+
+
+def gh_pr_words(words: list) -> list:
+    """`gh pr -R o/r merge 12` as `gh pr merge 12 -R o/r`: gh accepts its repository option between `pr`
+    and the subcommand, so a merge written that way is judged like any other (it skipped the whole guard)."""
+    if len(words) < 3 or os.path.basename(words[0]) != "gh" or words[1] != "pr" or not words[2].startswith("-"):
+        return words
+    moved, rest = [], list(words[2:])
+    while rest and rest[0].startswith("-"):
+        w = rest.pop(0)
+        moved.append(w)
+        if w in GH_PR_OPTS_WITH_VALUE and rest:
+            moved.append(rest.pop(0))
+    return words[:2] + rest[:1] + rest[1:] + moved if rest else words
+
+
 def deny(reason: str) -> int:
     print(json.dumps({
         "hookSpecificOutput": {
@@ -998,7 +2558,60 @@ def main() -> int:
     if payload.get("tool_name") != "Bash":
         return 0
     command = payload.get("tool_input", {}).get("command", "")
-    if not isinstance(command, str) or ("git" not in command and "gh " not in command):
+    global MERGE_SEEN
+    # Quotes and escapes removed first, so `gh pr me''rge` that crashed a parse is still a merge to deny.
+    plain = re.sub(r"['\"\\\s]", "", command) if isinstance(command, str) else ""
+    MERGE_SEEN = isinstance(command, str) and "gh" in plain and "merge" in plain
+    if isinstance(command, str) and (hidden_merge(command) or gh_alias_merge(command)
+                                     or git_alias_merge(command, payload.get("cwd") or os.getcwd())):
+        return deny("Blocked `gh pr merge`. Cause: the command spells `gh` or its subcommand with quotes or "
+                    "escapes, builds it at run time, runs it through a gh alias, another command or a shell's "
+                    "input, or puts a redirection before it, which hides the merge from this guard. Rerun it "
+                    "as a plain `gh pr merge <n>`.")
+    # A merge through the API, however gh is spelled ('gh', g\h) or whatever client sends it (curl), is
+    # read from the text as bash sees it, before any word parse can miss it.
+    if isinstance(command, str):
+        api_text = shell_text(command)
+        plain_api = api_text.replace("'", "").replace('"', "").replace("\\", "")
+        client = re.search(r"\bgh\b|\bcurl\b|\bwget\b|\bhttp\b|api\.github\.com", plain_api)
+        # A GraphQL body read from a file or stdin is a request the hook cannot read: it may be a merge.
+        # Only a query written out in the command is read; any file, stdin or JSON body form is not.
+        unread_graphql = re.search(r"graphql", plain_api, re.I) and (re.search(
+            r"@|--input\b|--json\b|\s-d\s*-|--data[\w-]*[\s=]+-(?:\s|$)|<|\s-T\s|--upload-file", plain_api)
+            or not re.search(r"\bquery\b", plain_api))
+        # Each URL or path as the client resolves it: %-escapes decoded and dot segments removed
+        # (`pulls/12/x/../merge` is the merge endpoint); a pulls path the guard cannot normalize counts.
+        def resolved(tok):
+            import posixpath
+            from urllib.parse import unquote
+            t = unquote(unquote(tok))
+            head, sep, path = t.partition("://")
+            host, _, rest = path.partition("/") if sep else ("", "", t)
+            norm = posixpath.normpath("/" + rest.split("?", 1)[0].split("#", 1)[0])
+            return f"{head}{sep}{host}{norm}"
+        pulls_paths = [resolved(t) for t in plain_api.split() if "pull" in t.lower() or "%" in t]
+        # curl expands {a,b} and [1-3] in a URL itself, quoted or not: a pulls URL holding one is unread.
+        globbed = any(re.search(r"[{}\[\]]", t) for t in plain_api.split()
+                      if re.search(r"pull|repos/|api\.github\.com|graphql", t, re.I))
+        # curl reading its options from a config file or stdin (-K f, --config=f, -K-) sends a request the
+        # hook cannot read.
+        curl_config = re.search(r"\bcurl\b", plain_api) and re.search(
+            r"(?:^|\s)(?:-(?!-)[A-Za-z0-9#:]*K\S*|--config\b\S*)", plain_api)  # -K alone or in a cluster: -sK
+        # A state-changing request whose target the shell builds at run time ($U/merge, `cmd`) beside a
+        # merge, a pulls path or GraphQL named anywhere is unread too.
+        writes = re.search(r"-X\s*(?:PUT|POST|PATCH)|--request[\s=]*(?:PUT|POST|PATCH)|--method[\s=]*(?:PUT|POST|PATCH)"
+                           r"|(?:^|\s)-(?:d|F|f|T)\b|--data|--json|--input|--upload-file|\bwget\b.*--post", plain_api, re.I)
+        api_client = re.search(r"\bcurl\b|\bwget\b|\bhttp\b|\bgh\s+api\b", plain_api)
+        built_target = (api_client and writes and re.search(r"[$`]", plain_api)
+                        and re.search(r"merge|pulls|graphql", plain_api, re.I))
+        if client and (API_MERGE_RE.search(api_text) or API_MERGE_RE.search(plain_api) or unread_graphql
+                       or any(API_MERGE_RE.search(t) for t in pulls_paths) or globbed or curl_config or built_target):
+            return deny(
+                "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
+                "Use `gh pr merge <n>` with the bare PR number, one command per PR, which runs only "
+                "when the user's own words this turn say \"merge\" and cover the PR."
+            )
+    if not isinstance(command, str) or ("git" not in command and not re.search(r"\bgh\b", command)):
         return 0
     cwd = payload.get("cwd") or os.getcwd()
 
@@ -1026,15 +2639,30 @@ def main() -> int:
                     "for an excluded decision (rules/self-healing-config.md)."
                 )
     gh_cwd = cwd  # where a `gh pr view` lookup runs; None once a `cd` cannot be resolved statically
+    # A cd counts as run only in a pure && chain: after `;`, `||`, `|`, `&` or a new line, a skipped or
+    # failed cd still lets the next command run, in a directory the guard cannot know.
+    pure_chain = not re.search(r"\|\||;|\n|(?<!&)&(?!&)|\|", mask(command))
     for seg, words, top in expand_command(command):
-        if top and words[:1] == ["cd"]:
+        # cd and pushd move the directory a later gh reads its repository from; one the guard cannot
+        # follow (popd, cd -, a variable, a move inside a subshell) leaves it unknown.
+        if words[:1] in (["cd"], ["pushd"]):
             path = words[1] if len(words) == 2 else ""
-            literal = path and gh_cwd and not any(ch in path for ch in "$`'\"")
+            # A relative name may resolve through CDPATH (the environment's, or one set in the command).
+            via_cdpath = (bool(os.environ.get("CDPATH")) or "CDPATH" in command) and not path.startswith(("/", ".", "~"))
+            literal = (top and pure_chain and path and path != "-" and gh_cwd and not via_cdpath
+                       and not any(ch in path for ch in "$`'\"*?[{"))
             gh_cwd = os.path.abspath(os.path.join(gh_cwd, os.path.expanduser(path))) if literal else None
+        elif words[:1] == ["popd"]:
+            gh_cwd = None
         sub = git_subcommand(words)
         is_commit = sub == "commit"
         is_push = sub == "push"
+        words = gh_pr_words(words)
         is_gh_merge = bool(words) and os.path.basename(words[0]) == "gh" and words[1:3] == ["pr", "merge"]
+        if is_gh_merge and REPO_ENV_RE.search(command):
+            return deny("Blocked `gh pr merge`. Cause: the command sets GH_REPO, GH_HOST or an enterprise "
+                        "token, which can point the merge at another repository than the one checked. Name the "
+                        "repository with -R instead and rerun.")
         is_gh_api = bool(words) and os.path.basename(words[0]) == "gh" and words[1:2] == ["api"]
         if is_gh_api and API_MERGE_RE.search(command):
             return deny(
@@ -1049,11 +2677,29 @@ def main() -> int:
         # (two on red CI) into master off a general "merge everything". A general instruction is never
         # a yes for a specific merge, so block unless the user's own words this turn cover THIS
         # merge. The deny message is what tells Claude to get that yes.
-        allowed, why_not = merge_allowed(payload, words, gh_cwd) if is_gh_merge else (True, "")
+        try:
+            allowed, why_not, monitoring_cause = merge_allowed(payload, words, gh_cwd, command) if is_gh_merge else (True, "", "")
+        except Exception as exc:  # a crash would exit non-zero, which the harness treats as allow
+            return deny(f"Blocked `gh pr merge`. Cause: the merge check raised {type(exc).__name__}, so it "
+                        "declines. Rerun once; if it repeats, ask the user for the merge word.")
+        # Beside other commands, a merge with no -R may run against a repository those commands chose (a
+        # remote changed, a config written, a checkout moved): an allowed merge must then name it.
+        if is_gh_merge and allowed and len(segments(command)) > 1 and not merge_target(words)[2] \
+                and "/pull/" not in merge_target(words)[0]:
+            return deny("Blocked `gh pr merge`. Cause: the merge runs beside other commands with no -R, so the "
+                        "repository it resolves in may differ from the one checked. Name it with "
+                        "-R github.com/<owner>/<name>, or run the merge as its own command.")
         if not allowed:
+            if MONITORING_BUDGET_S - (time.monotonic() - HOOK_STARTED) < 6:
+                # Too little time is left to read the ledger again for the cause: deny now, before the
+                # hook's timeout turns the deny into a non-blocking error that lets the merge run.
+                return deny("Blocked `gh pr merge`. Cause: the merge checks ran long and declined. Rerun once; "
+                            "if it repeats, ask the user for the merge word."
+                            + (f"\nCause (monitoring-only merge): {monitoring_cause}." if monitoring_cause else ""))
             cause, ask_user = merge_deny_cause(payload, words, why_not)
             return deny(
                 f"Blocked `gh pr merge`. Cause: {cause}.\n"
+                + (f"Cause (monitoring-only merge): {monitoring_cause}.\n" if monitoring_cause else "") +
                 "The rule: `gh pr merge` merges a PR into the remote default branch, and it runs only "
                 "on the user's OWN words this turn (every message since your last hand-back, queued "
                 "ones included) saying \"merge\" with no later stop/hold/wait, and naming this PR's "
@@ -1068,6 +2714,9 @@ def main() -> int:
                 "number>` per PR, never a loop or substitution. "
                 "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
                 "is never that. There is no override flag."
+                + (" If this PR is monitoring-only, it merges with no merge words once that cause is "
+                   "fixed (references/git-pr-deploy.md § Monitoring-only changes); otherwise ask."
+                   if monitoring_cause else "")
                 + (" Stop at a ready, green PR and ask: \"Say 'merge #<n>' to merge it.\""
                    if ask_user else " Fix the cause above and retry; do not ask the user.")
             )
@@ -1121,5 +2770,91 @@ def main() -> int:
     return 0
 
 
+# Under the 30 s hook timeout set in settings.json; the environment can only shorten it (the tests do).
+def _watchdog_limit() -> float:
+    try:
+        value = float(os.environ.get("GIT_COMMIT_GUARD_WATCHDOG_S") or 26.0)
+    except ValueError:
+        return 26.0  # a malformed value never breaks the hook: it would exit non-zero, which allows
+    return min(26.0, value) if value == value and value > 0 else 26.0
+
+
+WATCHDOG_S = _watchdog_limit()
+STALL_DENY = json.dumps({"hookSpecificOutput": {
+    "hookEventName": "PreToolUse", "permissionDecision": "deny",
+    "permissionDecisionReason": "Blocked: the guard did not decide within its time limit, so it declines. "
+                                "Rerun once; if it repeats, ask the user."}})
+
+
+def _worker(data: str, w: int) -> None:
+    """The decision itself, in a forked child: its output goes to the supervisor through the pipe."""
+    import io
+    sys.stdin, sys.stdout = io.StringIO(data), io.StringIO()
+    try:
+        stall = os.environ.get("GIT_COMMIT_GUARD_TEST_STALL")  # the tests' stand-in for a stalled read
+        if stall and re.fullmatch(r"\d+(?:\.\d+)?", stall):
+            time.sleep(float(stall))
+        code = main()
+    except Exception as exc:  # a crash exits non-zero, which the harness treats as allow: deny a merge instead
+        code = deny(f"Blocked `gh pr merge`. Cause: the guard crashed ({type(exc).__name__}), so it declines. "
+                    "Rerun once; if it repeats, ask the user for the merge word.") if MERGE_SEEN else 0
+    out = sys.stdout.getvalue().encode()
+    while out:
+        out = out[os.write(w, out):]
+    os._exit(code or 0)
+
+
+def _supervise() -> int:
+    """The harness-facing process: it runs the decision in a worker and, if the worker has not finished
+    by WATCHDOG_S or dies without a word, kills it and denies a possible merge, exiting 0 so the harness
+    reads the denial. A stall nothing inside can interrupt (a regex mid-match, a hung read) then declines
+    instead of timing out, which the harness would treat as allow."""
+    import select
+    data = sys.stdin.read()
+    plain = re.sub(r"['\"\\\s]", "", data)
+    risky = "gh" in plain or "curl" in plain or "git" in plain or "merge" in plain
+    r, w = os.pipe()
+    try:
+        pid = os.fork()
+    except OSError:  # no worker means no watchdog: a possible merge declines rather than run unwatched
+        os.close(r)
+        os.close(w)
+        if risky:
+            print(STALL_DENY)
+            return 0
+        import io
+        sys.stdin = io.StringIO(data)
+        return main()
+    if pid == 0:
+        os.close(r)
+        _worker(data, w)
+    os.close(w)
+    chunks, timed_out = [], False
+    while True:
+        left = HOOK_STARTED + WATCHDOG_S - time.monotonic()
+        ready = select.select([r], [], [], max(0.0, left))[0] if left > 0 else []
+        if not ready:
+            timed_out = True
+            break
+        chunk = os.read(r, 65536)
+        if not chunk:
+            break
+        chunks.append(chunk)
+    if timed_out:
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+    _, status = os.waitpid(pid, 0)
+    out = b"".join(chunks).decode(errors="replace")
+    if timed_out or os.WIFSIGNALED(status):  # a worker that died mid-write may have left half an answer
+        if risky:
+            print(STALL_DENY)
+        return 0
+    sys.stdout.write(out)
+    sys.stdout.flush()
+    return os.WEXITSTATUS(status) if os.WIFEXITED(status) else 0
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(_supervise())

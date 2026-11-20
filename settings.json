@@ -28,7 +28,7 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/git-commit-guard.py",
-            "timeout": 10
+            "timeout": 30
           },
           {
             "type": "command",

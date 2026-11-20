@@ -141,12 +141,12 @@ label change, PR edit/comment, or PR next-step talk, unless I ask or a `sk:ship-
 harness does PR ops; it ends each change task at a ready, green PR.
 Merge needs an explicit ask; **'merge to main' is a LOCAL merge. Never push or `gh pr merge` a remote
 default branch (origin `main`/`master`) without my own unprompted 'push'** (a yes to an option YOU
-authored is not it).
+authored is not it). Exception: a monitoring-only PR at its bar merges unasked,
+`references/git-pr-deploy.md` § Monitoring-only changes.
 
 **DEFAULT: push each finished commit to its tracking branch when it backs an open PR or is shared for
-review or testing** (a teammate's PR branch counts). Fetch and merge remote commits first, never rebase
-a shared branch, never force-push, then say in one line that the remote has the new head (short sha).
-No PR outside the harness: commit only. "wait"/"hold" pauses pushing. Procedure: `references/git-pr-deploy.md`.
+review or testing** (a teammate's PR counts); no PR outside the harness: commit only. "wait"/"hold"
+pauses it. Merge remote, never rebase/force: `references/git-pr-deploy.md` § Git, PRs, integration.
 TEST: `git rev-list --count @{u}..HEAD` is 0 at every check-in on such a branch.
 
 **Write a navigable commit, one per stage: ONE logical unit per commit** — a finished

@@ -58,4 +58,14 @@ fi
 CONTEXT="TASK ROUTING
 $DASHBOARD_CONTEXT
 Apply rules/living-plan.md: initialize the task in this record or reconcile new requests into its existing work, then regenerate its dashboard. For a task that produces a change, run /sk:work-full-detailed-workflow as the spine, with the matching installed skill from references/skill-stack.md as a stage inside it; its final stage runs /sk:ship-full-detailed-workflow on every PR the work opened or pushed. Use existing explicit or standing authorization and continue the authorized work. Ask only for unresolved consequential choices, missing access, production writes or paid calls. No generic confirmation or AskUserQuestion callback is required. Keep engine=current and gauntlet=false unless another mode was requested."
+# Open monitoring-only PRs (bin/monitoring_only.py owns the class): one gh call per session, only in a
+# repo whose overlay declares the paths, silent when there are none or gh fails. Event-driven pickup,
+# never a watcher (references/git-pr-deploy.md § Monitoring-only changes).
+# bash's SECONDS counts from the hook's start: with under 6 s of the 10 s hook left, the listing waits for
+# the next prompt rather than risk the whole routing context.
+if [ -f "$CFG_ROOT/bin/monitoring_only.py" ] && [ "${SECONDS:-0}" -le 3 ]; then
+  MONITORING_LINE="$(/usr/bin/python3 "$CFG_ROOT/bin/monitoring_only.py" pending --cwd "$TASK_CWD" --session "$SESSION_ID" 2>/dev/null)"
+  [ -n "$MONITORING_LINE" ] && CONTEXT="$CONTEXT
+$MONITORING_LINE"
+fi
 printf '%s' "$CONTEXT" | /usr/bin/python3 -c 'import json,sys; print(json.dumps({"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":sys.stdin.read()}}))'

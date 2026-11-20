@@ -128,6 +128,9 @@ CRITERIA: list[tuple[str, str]] = [
      "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
+    ("monitoring-only-class-holds",
+     "A monitoring-only PR merges with no merge word only at its bar and only inside the overlay's bot paths: "
+     "the class tests pass, and the merge policy, the bar and the rule pointer keep their one home each."),
     ("regression-check-runs-on-every-pr",
      "Every PR proves its modified pre-existing files left outside paths alone and names the caller each newly "
      "mounted shared part mirrors; the ship harness, review, matrix and capture scope all invoke that one method."),
@@ -2463,6 +2466,22 @@ def check_pr_ci_wait_refuses_quiet_states() -> None:
               f"{path} does not point at bin/pr-ci-wait.py for PR CI waits")
     check("for _ in $(seq 1 10)" not in (ROOT / "references/git-pr-deploy.md").read_text(),
           "references/git-pr-deploy.md still carries the hand-written CI wait loop")
+
+
+def check_monitoring_only_class_holds() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "monitoring_only.test.py")])
+    check(result.returncode == 0, "Monitoring-only class regression: " + result.stdout + result.stderr)
+    merge = (ROOT / "references/git-pr-deploy.md").read_text()
+    for required in ("## Monitoring-only changes", "bin/monitoring_only.py", "never merges its own",
+                     "Cause (monitoring-only merge):"):
+        check(required in merge, "references/git-pr-deploy.md lost the monitoring-only merge policy: " + required)
+    phrase = re.search(r'BAR_PHRASE = "([^"]+)"', (ROOT / "bin/monitoring_only.py").read_text())
+    check(bool(phrase) and phrase.group(1) in (ROOT / "references/testing-strategy.md").read_text(),
+          "references/testing-strategy.md no longer carries bin/monitoring_only.py BAR_PHRASE verbatim")
+    check("§ Monitoring-only changes" in (ROOT / "rules/process.md").read_text(),
+          "rules/process.md no longer points the merge exception at § Monitoring-only changes")
+    check("monitoring-only bar" in (ROOT / "hooks/git-commit-guard.py").read_text(),
+          "hooks/git-commit-guard.py no longer requires the gate to name the monitoring-only bar")
 
 
 def check_pr_landing_gate_refuses_missing_rows() -> None:

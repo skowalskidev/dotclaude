@@ -50,6 +50,31 @@ is the fix for centring a wrapped word in one table cell, which ran a matrix, pr
 multi-width captures; Deep is the fix for a price label on shared paywall code, where the full pass
 found a trial showing $0.00/mo.)
 
+**DO size a monitoring-only change at Standard plus the monitoring-only bar.** The class and its merge
+live in `references/git-pr-deploy.md` § Monitoring-only changes. The bar, all on the PR's final head:
+1. both § Independent judges (`references/research.md`) return SHIP: OpenAI through Codex on the
+   subscription and a fresh Claude subagent, never a headless self-review; each confirms the diff stays
+   inside the class boundary (`references/git-pr-deploy.md` § Monitoring-only changes), workflow and
+   skill text included, and that no product workflow or code reads a changed bot path (`uses:`, a script
+   path, an import); in a listed bot workflow, each confirms no added trigger, permission, secret,
+   environment or deploy step, and no symlink or submodule under a bot path; any fix goes back to both;
+2. the bot's own suites pass offline (the overlay's `offlineTests`) and its `requiredChecks` pass in CI;
+3. a replay of the bot's recorded recent runs (its fixtures and saved sweep state) on main and on the
+   head raises the same user-impact alerts, or each difference is the intended fix; this replay is the
+   change's § Pre-merge end-to-end walk;
+4. CI is green and the session that merges, never a delegated subagent, records the gate with `BAR_PHRASE` from
+   `bin/monitoring_only.py` verbatim, on one line:
+
+```
+~/.claude/hooks/intent-ledger.sh gate <branch> <full PR head sha> PASS standard "All stages ran; monitoring-only bar: OpenAI SHIP, Claude SHIP, offline suites pass, replay matches main"
+```
+
+It skips the Deep legs (full matrix, prod data beyond the replay); the screenshot stage shoots a changed
+bot post, else records its `Checked outputs:` line. WHY: judges stay mandatory because the second
+judge found real defects in every one of five bot PRs; the Deep legs found nothing a monitoring-only
+diff can break.
+TEST: every monitoring-only gate PASS names both judges' SHIP, the offline suites and the replay.
+
 ## Verify once, at convergence
 
 The owner of the cadence for every heavy check (`rules/process.md` § Fan out verification). Skills, harnesses

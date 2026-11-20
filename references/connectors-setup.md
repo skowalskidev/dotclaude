@@ -61,7 +61,8 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
 
 ```
 <root>/index.json             {"boundary": "work", "match": ["YourOrg/"]}
-<root>/projects/<project>.json {"match": [...], "ignoreProjectInstructions": false, "monitor": {...}}
+<root>/projects/<project>.json {"match": [...], "ignoreProjectInstructions": false, "monitor": {...},
+                               "monitoringOnly": {"paths": [...], "offlineTests": [...], "requiredChecks": [...], "names": [...]}}
 <root>/<provider>.json        {"provider", "capabilities", "scope", "routes": [route, ...]}
 <root>/health.json            {"<provider>/<route id>": {"lastSuccess": {...}, "lastFailure": {...}}}
 ```
@@ -72,7 +73,10 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
 - `projects/<project>.json` — `match` (substrings of the git origin; the path is used only when there is
   no remote; two matching projects fail), optional boolean `ignoreProjectInstructions` (default
   `false`; `true` activates `references/project-instructions.md`, and it is rejected anywhere else),
-  optional `monitor` (the daily health pulse's probes and project SQL, `references/production-monitoring.md`).
+  optional `monitor` (the daily health pulse's probes and project SQL, `references/production-monitoring.md`),
+  optional `monitoringOnly` (the monitoring bot's own path globs, offline suites, required CI checks as
+  GitHub Actions `<workflow> / <job>` names, never a commit-status context, and the words people use for it, read only by
+  `bin/monitoring_only.py`; `references/git-pr-deploy.md` § Monitoring-only changes).
   The project's root decides its boundary; it must agree with the identity overlay.
 - `<provider>.json` — one file per provider: `provider`, `capabilities` (e.g. `slack.send`,
   `supabase.read`), `scope` (default for its routes), `routes` in PREFERENCE order, optional `notes`.

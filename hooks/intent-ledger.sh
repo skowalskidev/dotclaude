@@ -75,7 +75,10 @@
 #                                 (stdin payload: session_id, cwd); prints nothing when none. Read-only.
 #                                 With --since (UTC, YYYY-MM-DDTHH:MM:SSZ) it prints EVERY ask recorded
 #                                 at or after that second, oldest first, separated by an ASCII RS (\036).
-#         stop                    Stop — require reconciliation after the newest recorded input, then
+#         gates                   PreToolUse helper — print "<heading time> <gate line>" for each gate THIS session recorded (stdin
+#                                 payload: session_id, cwd). Read-only; silent when none; exit 3 when
+#                                 no ledger resolves.
+#         stop                   Stop — require reconciliation after the newest recorded input, then
 #                                 a gate record for every pushed branch head
 
 set -uo pipefail
@@ -132,7 +135,20 @@ emit_once() {
   : > "$m" 2>/dev/null || return 0
   jq -cn --arg c "$2" \
     '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
-  find "$STATE" -type f -mtime +7 -delete 2>/dev/null
+  sweep_state
+}
+
+sweep_state() { # one cleanup for every path: a recorder-failure marker outlives the 7-day sweep (30 days),
+  # since it is the only evidence that the session history is incomplete; the once-per-session listing
+  # marker keeps 30 days too, so a resumed session does not list its PRs again
+  find "$STATE" -type f -mtime +7 ! -name '*.unrecorded' ! -name '*.monitoring-only-listed' -delete 2>/dev/null
+  find "$STATE" -type f \( -name '*.unrecorded' -o -name '*.monitoring-only-listed' \) -mtime +30 -delete 2>/dev/null
+}
+
+mark_unrecorded() { # a real prompt of a known session could not be read or recorded
+  [ "$SID" != unknown ] || return 0
+  mkdir -p "$STATE" 2>/dev/null && : > "$STATE/$SID.unrecorded" 2>/dev/null
+  return 0
 }
 
 LOCK=""
@@ -311,13 +327,17 @@ Fix the failing check in this PR, or wait for the pending one, then rerun gate P
   return 0
 }
 
-section_lines() { # section_lines KIND FILE — every line under a "## <ts> · KIND" heading, outside prompt fences
-  awk -v kind="$1" '
+# The fence rules every fence-aware reader shares: a ``` or ~~~ run opens a fence; only the same mark,
+# at least as long, with nothing after it, closes it. `fence` is the open fence's width, 0 outside.
+FENCE_AWK='
     { line=$0; sub(/^ */, "", line)
       if (line ~ /^(```|~~~)/) { mark=substr(line,1,1); match(line, "^" mark "+"); width=RLENGTH
         tail=substr(line,width+1)
         if (!fence) { fence=width; delimiter=mark; next }
-        if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }
+        if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }'
+
+section_lines() { # section_lines KIND FILE — every line under a "## <ts> · KIND" heading, outside prompt fences
+  awk -v kind="$1" "$FENCE_AWK"'
     !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ (" · " kind "$")); next }
     !fence && insec { print }
   ' "$2"
@@ -654,7 +674,14 @@ run_mode() {
 case "$MODE" in
 
 submit)
-  prompt="$(jf '.prompt')"
+  # A prompt that cannot be read (jq fails) or recorded is marked, so the merge guard declines rather
+  # than miss it: mark_unrecorded leaves <session>.unrecorded in the session state.
+  # A NUL in the prompt cannot survive a shell variable (bash drops it, gluing "Actually\0wait" into
+  # one word), so the recorded text would differ from what was typed: mark it unrecorded instead. Only an
+  # explicit "false" from jq clears it; an error counts as a NUL.
+  nul="$(printf '%s' "$INPUT" | jq -r '(.prompt // "") | tostring | test("\u0000")' 2>/dev/null)"
+  [ "$nul" = "false" ] || { mark_unrecorded; exit 0; }
+  prompt="$(jf '.prompt')" || { mark_unrecorded; exit 0; }
   [ -n "$prompt" ] || exit 0
 
   # Harness-injected prompts are not Simon's asks: a background-task completion arrives as a
@@ -669,7 +696,7 @@ submit)
   stripped="$(printf '%s' "$INPUT" | jq -r '(.prompt // "")
     | gsub("<task-notification>.*?</task-notification>"; ""; "mg")
     | gsub("<system-reminder>.*?</system-reminder>"; ""; "mg")
-    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)"
+    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)" || { mark_unrecorded; exit 0; }
   [ -n "$stripped" ] || exit 0
   # A peer's message (a subagent's <agent-message> report or another session's <cross-session-message>)
   # is Claude-authored data, not Simon's words. Record it as a `peer` entry so reconciliation still sees
@@ -680,10 +707,12 @@ submit)
   own="$(printf '%s' "$stripped" | jq -Rrs '
     gsub("<(agent-message|cross-session-message)\\b[^>]*>.*?</(agent-message|cross-session-message)>"; ""; "mgi")
     | gsub("Another Claude session sent a message:"; ""; "g")
-    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)"
+    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)" || { mark_unrecorded; exit 0; }
   [ -n "$own" ] || kind=peer
 
-  resolve || exit 0
+  # A real prompt that cannot be recorded (the ledger does not resolve) is marked like a failed append,
+  # so the merge guard declines rather than miss it.
+  resolve || { mark_unrecorded; exit 0; }
 
   redacted=0
   if printf '%s' "$prompt" | grep -qiE "$CRED_RE" 2>/dev/null; then
@@ -704,7 +733,8 @@ $(basename "$target"). Fold it back into intent-ledger.md before teardown."
     printf '\n## %s · %s · session %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$kind" "$SID"
     [ "$redacted" -eq 1 ] && printf '> A credential-shaped value was REDACTED from this record.\n\n'
     printf '%s\n%s\n%s\n' "$fence" "$prompt" "$fence"
-  } >> "$target" 2>/dev/null || exit 0
+  } >> "$target" 2>/dev/null || {
+    mark_unrecorded; exit 0; }
 
   # A typed /sk:<stage> command runs that stage skill, so it earns the receipt a Skill tool call does.
   # Only the leading command counts; the rest of the line is its arguments.
@@ -779,18 +809,32 @@ note)
       echo "note: refusing: $src is a living plan or dashboard, and note deletes its source. Write the note to a scratch file and pass that." >&2
       exit 2 ;;
   esac
-  # Gate and receipt entries are written only by `gate` and the receipt recorder, and ask entries only
-  # by `submit`. A note carrying their heading would open such a section and forge a record the ship
-  # gate trusts, or Simon's words that a waiver or the merge guard reads.
-  if grep -qE '^## [0-9]{4}-.* · (gate|receipt|ask · session .*)$' "$src" 2>/dev/null; then
-    echo "note: refusing: $src holds a '## <time> · gate', '· receipt' or '· ask · session' heading, which only the gate, the stage-receipt recorder and the prompt recorder write. Reword that line." >&2
-    exit 2
+  # One snapshot of the source is validated and appended, so a file replaced after the checks (while the
+  # writer waits for the lock) can never put unchecked text in the ledger.
+  orig_src="$src"
+  snap="$(mktemp "${TMPDIR:-/tmp}/ledger-note.XXXXXX")" || { echo "note: could not snapshot $src" >&2; exit 2; }
+  cat -- "$orig_src" > "$snap" || { rm -f "$snap"; echo "note: could not read $src" >&2; exit 2; }
+  src="$snap"
+  # Gate and receipt entries are written only by `gate` and the receipt recorder. A note carrying
+  # their heading would open such a section and forge a record the ship gate trusts.
+  # An unclosed fence would shift which later lines the fence-aware readers treat as prompt text. The
+  # check runs the readers' own fence rules (FENCE_AWK), so what passes here reads the same there.
+  if ! awk "$FENCE_AWK"' END { exit (fence ? 1 : 0) }' "$src" 2>/dev/null; then
+    echo "note: refusing: $orig_src has an unclosed code fence. Close it, then rerun." >&2; rm -f "$snap"; exit 2
   fi
-  acquire "$LEDGER" || { echo "note: could not acquire the ledger lock" >&2; exit 2; }
+  if grep -qE '^##.* · (ask|peer) · session ' "$src" 2>/dev/null; then
+    echo "note: refusing: $orig_src holds a '## <time> · ask · session' heading, which only the prompt recorder writes. Reword that line." >&2
+    rm -f "$snap"; exit 2
+  fi
+  if grep -qE '^##.* · (gate|receipt)$' "$src" 2>/dev/null; then
+    echo "note: refusing: $orig_src holds a '## <time> · gate' or '· receipt' heading, which only the gate and the stage-receipt recorder write. Reword that line." >&2
+    rm -f "$snap"; exit 2
+  fi
+  acquire "$LEDGER" || { rm -f "$snap"; echo "note: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
   { printf '\n## %s · %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$kind"; cat "$src"; printf '\n'; } \
     >> "$LEDGER"
-  rm -f "$src"
+  rm -f "$orig_src" "$snap"
 
   # Cross-run ratchet. Counts and enums only, never prompt text — the retro log's posture, kept.
   # One recurring shortfall across runs is a config defect; one in a single run is not.
@@ -899,7 +943,7 @@ push)
       done
     fi
   done
-  find "$STATE" -type f -mtime +7 -delete 2>/dev/null
+  sweep_state
   exit 0
   ;;
 
@@ -963,6 +1007,16 @@ gate)
   usage="gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]"
   case "$status" in PASS|BLOCKED|N/A) ;; *) echo "$usage" >&2; exit 2 ;; esac
   if [ -z "$branch" ] || [ -z "$ref" ]; then echo "$usage" >&2; exit 2; fi
+  # One record is one line: a line break in the branch or reason would append a second, forged gate line.
+  case "$branch$reason" in *$'\n'*|*$'\r'*)
+    echo "gate: the branch and reason must be one line each" >&2; exit 2 ;;
+  esac
+  case "$branch" in *[[:space:]]*|*[[:cntrl:]]*)
+    echo "gate: the branch name holds whitespace or a control character" >&2; exit 2 ;;
+  esac
+  case "$reason" in *[[:cntrl:]]*)
+    echo "gate: the reason holds a control character" >&2; exit 2 ;;
+  esac
   if [ "$status" != PASS ] && [ -z "$reason" ]; then
     echo "gate: $status needs a reason (the blocker, or why the harness does not apply)" >&2; exit 2
   fi
@@ -1047,7 +1101,7 @@ Use \"Not run: $miss\"." >&2; exit 2
   acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
   {
-    printf '\n## %s · gate\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf '\n## %s · session %s · gate\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SID"
     printf 'gate: %s %s %s %s\n' "$branch" "$sha" "$status" "$reason"
   } >> "$LEDGER"
   echo "Recorded $status gate for $branch at ${sha:0:7} in $LEDGER"
@@ -1198,7 +1252,8 @@ latest-ask)
   # `--since <ts>` returns every ask from that second on: the guard passes the second the current
   # turn opened, so a merge ask followed by a queued clarification keeps its authority.
   QUIET=1
-  since=""
+  since=""; stamped=0
+  if [ "${2:-}" = "--stamped" ]; then stamped=1; shift; fi
   if [ "${2:-}" = "--since" ]; then
     since="${3:-}"
     case "$since" in
@@ -1206,21 +1261,68 @@ latest-ask)
       *) exit 0 ;;
     esac
   fi
-  resolve || exit 0
+  if ! resolve; then [ "$stamped" = 1 ] && exit 3; exit 0; fi
+  # The stamped read serves the merge guard's final check: a prompt in the lock-contention fallback
+  # file is a recorded message it cannot see, so it fails (exit 4), checked again after the read.
+  fallback="${LEDGER%.md}.$SID.md"
+  [ "$stamped" = 1 ] && [ -e "$fallback" ] && exit 4
   [ -f "$LEDGER" ] || exit 0
-  awk -v sid="$SID" -v since="$since" '
-    index($0, "## ") == 1 && index($0, " · ask · session " sid) > 0 &&
-      substr($0, length($0) - length(sid) + 1) == sid { cap = 1; fence = ""; buf = ""; ts = $2; next }
-    cap && fence == "" && $0 ~ /^`{3,}$/ { fence = $0; next }
-    cap && fence != "" && $0 == fence {
-      cap = 0; last = buf
-      if (since != "" && (ts "") >= (since "")) { out = out (n++ ? "\036" : "") buf }
+  # Every prompt record of every session and kind (ask, peer) is parsed with its fence, and only then
+  # filtered to this session's asks, so text inside ANY prompt (a pasted heading included) is never
+  # read as a record boundary. Any unfinished record (no fence before the next heading or the end, or
+  # an unclosed fence) exits 5, so the merge guard treats the read as failed. --stamped prints each
+  # record as "<time>\037<ask|peer>\037<text>", split by \036, so one read serves every window.
+  awk -v sid="$SID" -v since="$since" -v stamped="$stamped" '
+    function flush() { if (mine) { rec = (stamped ? ts "\037" kind "\037" : "") buf; last = rec
+      if (since != "" && (ts "") >= (since "")) { out = out (n++ ? "\036" : "") rec } } }
+    inrec && fence != "" && $0 == fence { flush(); inrec = 0; fence = ""; next }
+    # A prompt holding the reserved \036 or \037 delimiter could split into forged records: fail the read.
+    inrec && fence != "" { if (mine) { if (index($0, "\036") || index($0, "\037")) broken = 1; buf = buf $0 "\n" }
       next }
-    cap && fence != "" { buf = buf $0 "\n"; next }
-    cap && index($0, "## ") == 1 { cap = 0 }
-    END { if (since == "") printf "%s", last; else printf "%s", out }
+    $0 ~ /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z · (ask|peer) · session [A-Za-z0-9._-]+$/ &&
+      split($0, part, " · ") == 3 {
+      if (inrec) broken = 1
+      # --stamped also returns the peer records of this session: a peer-looking prompt may be Simon typing
+      # an <agent-message> tag, so the merge guard reads it too (it can hold, never lift).
+      inrec = 1; fence = ""; buf = ""; ts = $2; kind = part[2]
+      mine = ((part[2] == "ask" || (stamped && part[2] == "peer")) && part[3] == "session " sid); next }
+    inrec && fence == "" && $0 ~ /^`{3,}$/ { fence = $0; next }
+    inrec && index($0, "## ") == 1 { broken = 1; inrec = 0 }
+    # --stamped also returns this session'"'"'s gate records, in append order with the asks, so the guard can
+    # tell a message written after a gate even when the clock stepped back between them.
+    # Compared as a string, never a regex: a "." in a session id must not match another id.
+    !inrec && index($0, "## ") == 1 { gsuf = " · session " sid " · gate"
+      ingate = (stamped && length($0) > length(gsuf) && substr($0, length($0) - length(gsuf) + 1) == gsuf)
+      gts = $2; next }
+    !inrec && ingate && /^gate: / && (index($0, "\036") || index($0, "\037")) { broken = 1; next }
+    !inrec && ingate && /^gate: / && since != "" && (gts "") >= (since "") { out = out (n++ ? "\036" : "") gts "\037gate\037" $0 }
+    END { if (inrec || broken) exit 5; if (since == "") printf "%s", last; else printf "%s", out }
   ' "$LEDGER"
-  exit 0
+  rc=$?
+  [ "$stamped" = 1 ] && [ -e "$fallback" ] && exit 4
+  exit $rc
+  ;;
+
+gates)
+  # Read-only: every recorded landing-gate line of this session's ledger, outside prompt fences, as
+  # `gate: <branch> <sha> <STATUS> <tier> <reason>`. hooks/git-commit-guard.py reads it for the
+  # monitoring-only merge path, which needs a PASS on the PR's exact head. Silent with no ledger.
+  # Only this session's records count: the writer stamps its session id into the heading. Exit 3 when
+  # the ledger cannot be resolved, so the guard tells a failed read from an empty one.
+  QUIET=1
+  resolve || exit 3
+  # A prompt written to the lock-contention fallback file is not in the ledger yet: exit 4, so the
+  # guard declines rather than miss a halt there.
+  [ -e "${LEDGER%.md}.$SID.md" ] && exit 4
+  [ -f "$LEDGER" ] || exit 0
+  # A ledger that ends inside a fence exits 6: every record after the opening line is unreadable.
+  awk -v sid="$SID" "$FENCE_AWK"'
+    !fence && /^## [0-9][0-9][0-9][0-9]-/ { stamp = $2; suffix = " · session " sid " · gate"
+      insec = (length($0) > length(suffix) && substr($0, length($0) - length(suffix) + 1) == suffix); next }
+    !fence && insec && /^gate: [^ ]+ [0-9a-f]+ (PASS|BLOCKED|N\/A)( |$)/ { print stamp " " $0 }
+    END { if (fence) exit 6 }
+  ' "$LEDGER"
+  exit $?
   ;;
 
 *) exit 0 ;;

@@ -82,8 +82,8 @@ config repairs. The project-repository restrictions below do not cancel that sco
   --json state`) or one shared for testing, including someone else's PR branch. No upstream or no open PR:
   commit only. Per commit: `git fetch origin <branch>`; if `git rev-list --count HEAD..@{u}` is above 0,
   merge it in (fast-forward or a merge commit, never a rebase of a shared branch, per § Force-pushing a
-  shared PR branch); `git push origin HEAD:<branch>`, never `--force`; then state "remote has `<short
-  sha>`". The default-branch guard in `hooks/git-commit-guard.py` still blocks `origin main`/`master`,
+  shared PR branch); `git push origin HEAD:<branch>`, never `--force`; then say in one line that the
+  remote has the new head (`<short sha>`). The default-branch guard in `hooks/git-commit-guard.py` still blocks `origin main`/`master`,
   and a PR branch push passes it. Stop pushing on my "wait"/"hold". TEST: `git rev-list --count
   @{u}..HEAD` prints 0 right after each commit on such a branch (the fix for a reviewer testing a stale
   draft PR head while seven finished commits sat local).
@@ -268,7 +268,7 @@ touches or renumbers a migration: `/sk:ship-pr` § Rewrite the body when the PR 
 ## Merging to the default branch — a general instruction is never a yes for a specific merge
 
 Outside the own-config exception (`/sk:claude-config-sync` lands a head verified by
-`bin/config-land-check.py` with no confirmation), **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
+`bin/config-land-check.py` with no confirmation) and § Monitoring-only changes, **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
 specific irreversible merge. `hooks/git-commit-guard.py` runs `gh pr merge <n>` only when the user's
 OWN words this turn (every ask `hooks/intent-ledger.sh latest-ask --since` recorded since his newest
@@ -356,6 +356,96 @@ branch, and put its deletion to the user in the same hand-back. Squash fits a sh
 branch and breaks a branch that keeps going (GitHub and GitLab both document this), so commit nothing
 more to a squashed branch. TEST: after a squash merge the hand-back names the leftover branch and its
 gate result.
+
+## Monitoring-only changes — merge at the bar, no merge word
+
+Simon's standing authorization (2026-11-18): a monitoring-bot fix is like a config fix, automatic
+unless it needs something from him. A PR whose every file sits inside the paths the project's overlay
+declares for its monitoring bot merges without his merge word once it meets the monitoring-only bar.
+
+- **Class:** `bin/monitoring_only.py` owns it. The project's registry entry, which must list the
+  repository's exact `owner/name` in `match`, declares `monitoringOnly.paths`, `offlineTests` and
+  `requiredChecks` and optional `names` (fields: `references/connectors-setup.md` § Registry schema;
+  `names` should hold every word people use for the bot and its topic, so a message using one holds). **DO declare only paths the bot alone owns:** no app, database, function, site
+  or iOS path, and no workflow that holds the product's secrets, environments or deploys. A bot skill
+  path is instruction text an agent later follows, so the judges confirm a skill change grants the bot
+  no new authority. A workflow counts only when listed by its literal path. The guard reads its
+  path, never its content, so a change adding a product secret, environment or deploy target is outside
+  the class and takes Simon's merge word.
+- **DO pick these PRs up unasked:** on the session's first prompt in a repo whose overlay declares the paths `hooks/task-intake.sh` names the
+  open monitoring-only PRs among the newest 100 (one gh call per session, silent when none). Add each
+  to the living plan as "run the monitoring-only bar on #N and merge when it passes". Skip a PR another live session owns.
+- **DO run the bar on the PR's final head:** `references/testing-strategy.md` § Size the checks to the
+  change, monitoring-only bar. Mark a draft ready only once the bar passes.
+- **DO record the gate last, then at once run exactly `gh pr merge <N> -R github.com/<owner>/<name>
+  --match-head-commit <full head sha> --squash`** (`-s` is the same; never `--merge`, whose merge commit
+  makes an ancestor PR's head part of main so GitHub marks that PR merged too, nor `--rebase`, which
+  replays commits the file list does not show), and no `--delete-branch` (it switches and pulls the local
+  checkout; the repo's own branch deletion runs instead), as its own Bash command. The flag is required
+  when the base has no merge queue; a queue on the base must squash. A PR GitHub
+  would not merge or enqueue at once (merge state other than CLEAN or HAS_HOOKS: behind, blocked, a review outstanding)
+  declines, since `gh pr merge` would turn on auto-merge instead; update the branch and rerun the bar.
+  A skipped check passes, as branch protection reads it (a path-filtered product job skips on a bot
+  PR), but every `requiredChecks` entry must succeed.
+  Any failed, cancelled or neutral check on the head declines, a rerun gone green included (two jobs can share a
+  name), so after a rerun the PR waits for Simon's merge word or a fresh push. A check outside
+  `requiredChecks` that turns red between the read and the merge is not seen; GitHub enforces the rest. **With a
+  queue, stay with the PR until it merges:** any message or peer record that is no plain lift, arriving
+  while it waits, means dequeue it at once (`gh api graphql` `dequeuePullRequest`) and report; the
+  guard cannot see past the enqueue, and the base can also move while the PR waits. A message or peer record recorded in or after the gate
+  record's second declines the merge, unless it is Simon's own plain lift, until you read it and, if it
+  is no hold (the guard bullet below), record the gate again. Where a hold stands, report in one line
+  that #N passed the bar and waits for the lift the deny names. Verify any deploy the
+  merge triggers (§ Shipping is not done until the deploy is verified) and report in one line:
+  `#N merged at <sha>; deploy <verified|none>`.
+- **The guard:** `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
+  lists them); any read error declines, and any hold Simon gave this session stands for every
+  monitoring-only PR: any message with a hold word ("not", "if", "wait", "nothing goes live"), and any
+  message that mentions the bot (or one of the overlay's `names`), a PR or merging at all, counts. It
+  stands until a later message from Simon himself that is only a plain
+  merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"); a condition, a person or a
+  time in it makes it no lift, and a peer or tagged message never lifts. A hold that names a PR, or
+  carries any number, lifts only on "merge #N". So the path runs unasked only in a session where
+  Simon's messages carry no hold and do not mention the bot or PRs. A deny adds a `Cause (monitoring-only merge):` line: fix that check, or stop and ask for
+  the merge word when the PR is outside the class. Residual, by
+  design: the head pin is server-enforced but the base is not, so someone retargeting the PR in the
+  second between the check and the merge sends it to that other, non-default branch (the guard first
+  reads the repository's real default branch and requires it as the base). Two more residuals: the
+  bar's legs are attested by the gate reason, backed by the tier's stage receipts, not by their own
+  receipts (a PR changing a listed bot workflow also changes the check that gates it, so the judges
+  confirm that check still tests the bot); a halt typed in another session is not read, so tell the session doing the merge; and a
+  prompt made only of harness tags (`<system-reminder>`, `<task-notification>`) is never recorded, by
+  the ledger's contract, so a halt typed entirely inside one is not read either; a message recorded in
+  the milliseconds between the guard's read and the command's start is not read, as for every
+  PreToolUse guard, nor is a queued message that has reached neither the ledger nor the transcript;
+  and a hold worded only with words outside the guard's list (`HOLD_WORDS_RE`), with no mention of
+  the bot, a PR or merging ("Pat takes it from here"), is not read: an open vocabulary has no complete list,
+  so say "hold" or name the bot. A prompt the harness submits from a schedule Claude wrote (a wakeup,
+  a loop) is recorded as Simon's ask, so never schedule a lift. In a declaring repo, Simon's own merge
+  words on a monitoring-only PR pass the same hold reading: only a plain "merge #N" merges it ("merge
+  #12 and deploy" holds), and an unreadable PR lookup declines. Every merge, in any repo, must name
+  its repository with -R when it runs beside other commands, and never sets or clears GH_REPO, GH_HOST
+  or Git's discovery variables for any owner with a declared repo
+  (a remote may carry a renamed repo's old name; a repo moved to another owner is the gap). A merge there of a PR outside the class
+  must pin its head with `--match-head-commit <full sha>` (the deny prints it), so a push that makes it
+  monitoring-only cannot merge past a hold the read skipped. GitHub's file list carries no file
+  mode, so a symlink or submodule added under a bot path is the judges' to catch; and the guard trusts the ledger
+  file, as the word path does, so never write it except through `hooks/intent-ledger.sh`. The guard
+  reads the Bash command text only: a merge run from a script file or an interpreter (`python3 x.py`),
+  or set up in machine config it does not read (a gh extension, `~/.curlrc`), is never seen, so run
+  every merge as its own plain `gh pr merge`. An approved plan (ExitPlanMode)
+  reads as an answer holding the path, so after one the merge waits for a plain lift.
+- **DON'T merge anything else on this path.** A PR with one file outside the paths, or one that fails
+  the bar, waits for Simon's merge word as before.
+- **A delegated subagent never merges on this path; it hands the merge back to the parent session.**
+  Its transcript holds the task brief, not Simon's messages and answers, so the guard declines a
+  monitoring-only merge from it (`hooks/git-commit-guard.py` `_delegated`); report "#N passed the bar"
+  to the parent, which runs the merge command itself.
+- **The bot keeps opening draft PRs and never merges its own.** WHY: nothing inside the bot reviews
+  its fixes, and the bar's second judge is what caught their defects (`references/testing-strategy.md`).
+  Deferred, not built: bot self-merge after N clean cycles in which both judges found nothing.
+TEST: each monitoring-only merge traces to a gate PASS whose reason ends with the bar phrase, on that exact head, and
+the hand-back reports it in one line.
 
 ## Merging several PRs at once — one batch, one CI run, one deploy
 
