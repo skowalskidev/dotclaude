@@ -244,6 +244,8 @@ MUST_FIRE = [
     ("a quoted merge subcommand is still a merge", "feature", "gh pr 'merge' 12", "hides the merge"),
     ("a quoted gh inside bash -c is still a merge", "feature", "bash -c \"'gh' pr merge 12\"", "hides the merge"),
     ("a subcommand built from quoted fragments is still a merge", "feature", "gh pr me''rge 12", "hides the merge"),
+    ("an unreadable command spelling gh and merge with quotes still fails closed", "feature",
+     "g''h pr me''rge 12 && echo 'unterminated", "hides the merge"),
     ("a quoted gh after a newline is still a merge", "feature", "ls\n'gh' pr merge 12", "hides the merge"),
     ("a quoted second merge beside a plain one is caught", "feature", "gh pr merge 12 --squash; 'gh' pr merge 13",
      "hides the merge"),
@@ -344,6 +346,9 @@ MUST_NOT_FIRE = [
     ("commit -F on a feature branch", "feature", f"{COMMIT} -F msg.txt"),
     ("amend no-edit", "feature", f"{COMMIT} --amend --no-edit"),
     ("malformed unterminated quote fails open", "feature", f"echo 'oops {PUSH} origin main"),
+    ("an unreadable heredoc body whose words only contain gh (weight, through) beside merge is data",
+     "feature", "cp /tmp/a /tmp/b && cat > /tmp/x.py <<'EOF'\nprint('it adds weight through the week. "
+     "No merge needed. I haven\\'t touched it.')\nEOF\npython3 /tmp/x.py && ls -la /tmp/x.py"),
 ]
 
 

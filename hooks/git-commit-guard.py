@@ -2225,7 +2225,10 @@ def _shell_merge(command: str, depth: int = 0) -> int:
     try:
         tokens = _shell_lexer(command)
     except ValueError:
-        return int("gh" in command and "merge" in command) * 99  # unreadable: never matched by the masked parse
+        # Unreadable: never matched by the masked parse. Quotes and escapes go first so `g''h pr me\rge`
+        # still counts; whole words only, so prose with "weight" or "through" beside "merge" is no merge.
+        plain = re.sub(r"['\"\\]", "", command)
+        return int(bool(re.search(r"\bgh\b", plain) and re.search(r"\bmerge\b", plain))) * 99
     segment, count, piped = [], 0, False
     names_merge = bool(re.search(r"\bgh\b", command) and re.search(r"\bmerge\b", command))
     for tok in tokens + [";"]:
