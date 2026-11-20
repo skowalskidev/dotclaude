@@ -2122,7 +2122,7 @@ def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool =
     """The command as bash reads it before splitting words: a backslash-newline outside single quotes
     joined away (`me\\<newline>rge` is `merge`), and the body of every heredoc whose marker sits outside
     quotes dropped (data, never run). The closing delimiter line is kept, so mask() still finds it."""
-    out, i, n, quote, pending, arith = [], 0, len(command), None, [], []
+    out, i, n, quote, pending, arith, esc_end = [], 0, len(command), None, [], [], -1
     while i < n:
         ch = command[i]
         if arith and not quote:  # inside $(( )), (( )) or $[ ]: `<<` is a shift, never a heredoc
@@ -2150,13 +2150,14 @@ def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool =
                 continue
             out.append(command[i:i + 2])
             i += 2
+            esc_end = i  # the escaped character is part of the word: a "#" right after it is no comment
             continue
         if quote:  # a double quote, or an ANSI-C $'...' (backslash escapes handled above)
             out.append(ch)
             quote = None if ch == quote[-1] else quote
             i += 1
             continue
-        if ch == "#" and (i == 0 or command[i - 1] in " \t\n;&|()"):  # a comment runs to the line end: dropped
+        if ch == "#" and i != esc_end and (i == 0 or command[i - 1] in " \t\n;&|()"):  # a comment: dropped
             j = command.find("\n", i)
             i = n if j == -1 else j
             continue

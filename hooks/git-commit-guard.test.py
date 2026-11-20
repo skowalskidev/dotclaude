@@ -142,6 +142,8 @@ MUST_FIRE = [
      "hides the merge"),
     ("a # inside a word is no comment, so the merge after it counts", "feature", "echo a#b; 'gh' pr merge 12",
      "hides the merge"),
+    ("a # after an escaped space is no comment, so the merge after it counts", "feature",
+     "echo ticket\\ #12; 'gh' pr merge 12", "hides the merge"),
     ("a builtin dispatch of a merge is judged", "feature", "builtin command gh pr merge 42", "gh pr merge"),
     ("a merge in an unknown command's arguments counts", "feature", "nohup2 gh pr merge 42", "hides the merge"),
     ("an arithmetic shift is no heredoc, so the next line's merge counts", "feature",
