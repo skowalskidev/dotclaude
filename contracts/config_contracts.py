@@ -2169,6 +2169,8 @@ CONTRACTS: dict[str, dict] = {
             "Infer feedback: true for proposals requesting choices or comments; one corner Generate & copy action copies current inputs for chat, with a truthful fallback. Keep pure mockup and board viewers read-only.",
             "Retain complete source and legacy runtime metadata inertly for CLI extraction and deterministic rebuilding; new specs need no control schema.",
             "Owns the fast before/after for a proposed visible change: in the same reply, unprompted, a reused or fresh real BEFORE capture and an AFTER rendered on the real page (measured overlay as fallback), one card per region, visual-checked and linked; no full mockup pipeline for it.",
+            "Researches every option online unprompted and attaches research with a verdict, one-line TLDR and at least one primary-source link, or an unverified verdict stated in the TLDR.",
+            "Dispatches the design tier (fable alias) to make each not-built design option's Preview on the real BEFORE capture; the main session opens every PNG and visual-checks the artifact before hand-back.",
         ],
     },
     "skills/sk/skills/work-ask-reply-tldr/SKILL.md": {

@@ -24,21 +24,53 @@ The builder composes `bin/presentation-shell.html`, shared with mockups and desi
 hand-roll chrome. Keep images inline as data URIs and behavior offline.
 
 DO give each section and card a unique `id`. Sections carry `title`, optional `lead` and `cards`.
-Cards carry `title`, `tradeoff`, optional `detail`, `before` and `after`. Default to a 2–5 word title
-and one tradeoff sentence of at most 25 words. Put supporting evidence in collapsed Details.
+Cards carry `title`, `tradeoff`, `research`, optional `detail`, `before` and `after`. Default to a
+2–5 word title and one tradeoff sentence of at most 25 words. Put supporting evidence in collapsed Details.
 Delete repeated What it does, Contrast and Verdict paragraphs rather than shortening each one.
-TEST: each collapsed card has at most one prose block alongside its title and labelled previews;
-that block states a consequence that changes the choice.
+TEST: each collapsed card has at most one prose block alongside its title, research stamp and TLDR,
+and labelled previews; that block states a consequence that changes the choice.
 
 DO attach real screenshots, captured per `/sk:ship-screenshot-changes` at desktop and 390 wide, to
 every card whose option changes or keeps something a person sees. BEFORE is the current rendering
 captured now. AFTER is the built rendering; for a not-built option it is a Preview rendered from the
-real app code or an HTML/CSS overlay on the real screenshot per `/sk:ship-mockup-before-after`,
-labelled Preview. Map width labels to image data URIs in `before` and `after`; `{text: "..."}` holds
-a concrete code/config snippet. Omit previews only for a pure logic or data rule without a visible
+real app code or an HTML/CSS overlay on the real screenshot per `/sk:ship-mockup-before-after`, made
+per § Mock up each suggestion on the design tier when it changes a design, and labelled Preview.
+Map width labels to image data URIs in `before` and `after`; `{text: "..."}` holds a concrete
+code/config snippet. Omit previews only for a pure logic or data rule without a visible
 surface. Never fabricate a missing capture or draw a stand-in.
 TEST: every card whose option changes or keeps a visible surface carries a desktop and a 390px image
 in before and after; a card with only text for a visible surface fails.
+
+## Research every option online
+
+DO research every option online before building its card, automatically and unprompted: find the
+mainstream practice for that choice in primary sources per `references/research.md` § Source order
+(the vendor's, platform's or standard body's own page) and attach `research` to the card:
+`{"verdict": "recommended" | "not-recommended" | "mixed" | "unverified", "tldr": "<one line>",
+"details": ["..."], "sources": [{"title": "...", "url": "https://..."}]}`. The viewer renders a
+Researched stamp, the visible TLDR and a collapsed Research disclosure holding details and links.
+NUMBER: a TLDR of at most 20 words, at most 3 detail paragraphs, at least 1 primary-source link on
+every verdict except `unverified`.
+DON'T cite a blog, forum answer or recalled fact; when no primary page settles it, set `unverified`
+and say so in the TLDR. (e.g. an option to collapse detail cites the platform's own `details` docs.)
+TEST: every card carries `research` with a source link, or verdict `unverified` with a TLDR stating
+it; `decision-artifact.py build` refuses any other verdict without an http(s) source.
+
+## Mock up each suggestion on the design tier
+
+DO dispatch the design tier to create the AFTER Preview for every suggested option that adds or
+changes a visible design (a layout, component or visual treatment) and has no built rendering: the
+Agent tool with `model: "fable"`, or `model_route: design` from a GPT orchestrator, per
+`references/parallelization.md`. Brief it with the real BEFORE capture path, the option, its research
+TLDR and the PNG output paths; it builds the overlay with the app's own measured styles, renders both
+widths to PNG and edits no app code. Launch one worker per option, all in parallel.
+DO open every returned PNG on disk yourself, embed it labelled Preview and run `bin/visual-check.py`
+on the built artifact before hand-back.
+NUMBER: 1 design worker per option, 2 widths each; a copy-only text swap on the real page stays in
+the main session per § Fast before/after.
+DON'T draw a design Preview on the orchestrating or mid tier, or ship a Preview nobody opened.
+TEST: every not-built design option's AFTER image traces to a design-tier output file and appears in
+the visual-check pass table.
 
 ## Fast before/after for a proposed visible change
 
@@ -46,9 +78,10 @@ DO show a proposed or recommended visible change (UI copy, a notice, a layout tw
 AFTER screenshot card in the SAME reply that proposes it, unprompted. Speed first:
 1. BEFORE: reuse this session's capture of that screen and state when it still shows the current
    code; otherwise capture the real screen now from the running stack or preview.
-2. AFTER: render the change on that same real page (edit the text or DOM in the test browser with the
-   app's own classes and copy) and capture it at the same viewport, labelled Preview. Use a measured
-   overlay per `/sk:ship-mockup-before-after` only when the state cannot be rendered.
+2. AFTER: for a copy-only change, edit the text on that same real page in the test browser with the
+   app's own classes and capture it at the same viewport, labelled Preview. A change of layout,
+   component or styling goes to the design tier per § Mock up each suggestion on the design tier.
+   Use a measured overlay per `/sk:ship-mockup-before-after` only when the state cannot be rendered.
 3. Build one card per § Build the artifact, run `bin/visual-check.py` on it, return it through the
    session dashboard per § Hand back, and link the AFTER image path in the reply.
 NUMBER: one card per changed region, the two widths above; target under 5 minutes from proposal to
