@@ -364,6 +364,7 @@ CONTRACTS: dict[str, dict] = {
             "Render titles and one tradeoff per card, collapsed details, real before/after previews and section navigation.",
             "Require no control schema for new specs. Preserve legacy control/runtime/comments metadata unchanged and inert for deterministic CLI extraction/rebuild.",
             "Only feedback: true exposes choices, comments and one reserved corner Generate & copy action; each click copies current inputs, reports success truthfully and offers manual copying after failure without covering content.",
+            "Render a card's optional research as a text-labelled verdict stamp, a visible TLDR and a collapsed Research disclosure with escaped http(s) source links; build refuses a verdict other than unverified without a source, and the response text omits research.",
         ],
     },
     "bin/mockup-build.py": {

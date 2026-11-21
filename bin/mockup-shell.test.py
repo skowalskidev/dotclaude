@@ -98,6 +98,11 @@ def main():
         assert extract(decision_path.read_text())==decision_spec, 'legacy decision metadata roundtrips unchanged'
         assert decision.build(extract(decision_path.read_text()))==decision_path.read_text(), 'decision rebuild is deterministic'
         decision.build(decision.EXAMPLE)  # New read-only specs need no control schema.
+        unsourced=copy.deepcopy(decision.EXAMPLE)
+        unsourced['sections'][0]['cards'][1]['research']={'verdict':'mixed','tldr':'No link.'}
+        try: decision.build(unsourced); raise AssertionError('research verdict without a source must fail')
+        except ValueError: pass
+        unsourced['sections'][0]['cards'][1]['research']['verdict']='unverified'; decision.build(unsourced)
 
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
@@ -240,16 +245,26 @@ def main():
             legacy.locator('.decision-details summary').click()
             assert page.locator('.decision-card').nth(2).locator(':scope > p').inner_text()=='Clarifies the flow; leaves the product unchanged.'
             assert not page.locator('.decision-card').nth(2).locator('.decision-details p').is_visible()
-            assert first.locator('.decision-details').get_attribute('open') is None
+            assert first.locator(':scope > .decision-details').get_attribute('open') is None
             assert not first.get_by_text('Supporting evidence stays collapsed.').is_visible()
-            first.locator('.decision-details summary').click()
+            first.locator(':scope > .decision-details summary').click()
             assert first.get_by_text('Supporting evidence stays collapsed.').is_visible()
+            # Research: a verdict stamp and visible TLDR; detail and sources stay collapsed.
+            assert first.get_attribute('data-research')=='recommended'
+            assert first.locator('.decision-stamp').inner_text()=='Researched · Recommended'
+            assert first.locator('.decision-research-tldr').is_visible()
+            assert first.locator('.decision-research details').get_attribute('open') is None
+            assert not first.locator('.decision-sources a').first.is_visible()
+            first.locator('.decision-research summary').click()
+            assert all(a.get_attribute('target')=='_blank' and 'noopener' in a.get_attribute('rel') for a in first.locator('.decision-sources a').all())
+            assert page.locator('.decision-card').nth(1).locator('.decision-stamp').count()==0
             first.locator('[data-choice]').select_option('Revise')
             first.locator('.decision-feedback summary').click()
             first.locator('[data-comment]').fill('Keep the existing navigation.')
             page.locator('#generate-copy').focus();page.keyboard.press('Enter')
             page.wait_for_function("document.getElementById('generate-copy').textContent==='Copied'")
             assert 'Small update: Revise\n  Keep the existing navigation.' in page.evaluate('window.copied')
+            assert 'Researched' not in page.evaluate('window.copied'), 'research never changes the response format'
             first.locator('[data-choice]').select_option('Accept')
             first.locator('[data-comment]').fill('Use the latest notes.')
             page.click('#generate-copy')
