@@ -91,18 +91,37 @@ def main():
         subprocess.run([sys.executable, str(HERE / 'mockup-build.py'), str(back), str(again)], check=True)
         assert built.read_bytes() == again.read_bytes(), 'deterministic roundtrip'
         decision = load('decision', HERE / 'decision-artifact.py')
-        decision_spec=copy.deepcopy(decision.EXAMPLE)
+        decision.build(decision.EXAMPLE)  # The example is a valid feedback proposal.
+        decision_spec=copy.deepcopy(decision.EXAMPLE);decision_spec.pop('feedback')
         decision_spec['sections'][0]['cards'][0]['control']={'type':'radio','group':'scope','default':True}
         decision_spec['runtime']={'comments':{'small':'Preserve this prior note'},'included':{'docs':False}}
         decision_path = path / 'decision.html'; decision_path.write_text(decision.build(decision_spec))
         assert extract(decision_path.read_text())==decision_spec, 'legacy decision metadata roundtrips unchanged'
         assert decision.build(extract(decision_path.read_text()))==decision_path.read_text(), 'decision rebuild is deterministic'
-        decision.build(decision.EXAMPLE)  # New read-only specs need no control schema.
         unsourced=copy.deepcopy(decision.EXAMPLE)
         unsourced['sections'][0]['cards'][1]['research']={'verdict':'mixed','tldr':'No link.'}
         try: decision.build(unsourced); raise AssertionError('research verdict without a source must fail')
         except ValueError: pass
         unsourced['sections'][0]['cards'][1]['research']['verdict']='unverified'; decision.build(unsourced)
+        # Every feedback card is one decidable change (references/tldr-report-formats.md § Before/after unit).
+        def refused(change, needle, feedback=True):
+            bad=copy.deepcopy(decision.EXAMPLE);bad['feedback']=feedback;change(bad['sections'][0]['cards'])
+            try: decision.build(bad)
+            except ValueError as error: assert needle in str(error), (needle, str(error)); return
+            raise AssertionError(f'build accepted a card that should fail: {needle}')
+        refused(lambda cards: cards[0].pop('after'), 'needs both before and after (missing after)')
+        refused(lambda cards: cards[0].update(before={}), 'missing before')
+        refused(lambda cards: cards[0].pop('tradeoff'), 'one-line context TLDR')
+        refused(lambda cards: cards[0].update(tradeoff=' '.join(['word']*26)), 'one-line context TLDR')
+        refused(lambda cards: cards[0].pop('decline'), 'needs decline')
+        refused(lambda cards: cards[0].update(title='Streaks'), '2-6 words')
+        refused(lambda cards: cards[0].update(after=cards[0]['before']), 'before and after are identical')
+        refused(lambda cards: cards.append({**cards[1], 'id':'rest-days-ship', 'title':'Rest days hold streaks'}), 'same before/after as card rest-days')
+        for label in ('Streaks: ship as built','Streaks: suggest to a teammate','Option B','Keep as is','Defer'):
+            refused(lambda cards, label=label: cards[0].update(title=label), 'option label')
+            refused(lambda cards, label=label: cards[0].update(title=label), 'option label', feedback=False)
+        for title in ('Keep sessions signed in longer','Ship receipts by email','Show the current streak'):
+            fine=copy.deepcopy(decision.EXAMPLE);fine['sections'][0]['cards'][0]['title']=title;decision.build(fine)
 
         with sync_playwright() as pw:
             browser = pw.chromium.launch()
@@ -210,7 +229,7 @@ def main():
                 assert page.locator('textarea,input[type="radio"],input[type="checkbox"]').count()==0
                 assert page.locator('#copy-spec,#save-html,#copy-response,#generate-response,[data-select-all],[data-count]').count()==0
             assert page.locator('.decision-card').count()==3
-            assert 'Small update' in page.locator('.decision-doc').inner_text()
+            assert 'Streak rules fold under Details' in page.locator('.decision-doc').inner_text()
             assert 'Preserve this prior note' not in page.locator('body').inner_text()
             if page.locator('#open-controls').is_visible():page.click('#open-controls')
             page.evaluate("document.querySelector('.decision-card').dataset.marker='same-card'")
@@ -221,21 +240,19 @@ def main():
             assert page.locator('.decision-card').first.is_visible()
             assert page.locator('textarea,input').count()==0, 'phone design viewer has no response or choice inputs'
             assert json.loads(page.locator('#spec').text_content())==decision_spec, 'viewing never mutates retained metadata'
-            page.click('#open-controls');page.click('[data-jump="direction"]')
+            page.click('#open-controls');page.click('[data-jump="streaks"]')
             assert page.locator('#presentation-app').evaluate("el=>el.classList.contains('is-collapsed')"), 'section navigation closes the phone sheet'
 
             # Proposal feedback is explicit and isolated from pure viewers.
-            proposal=copy.deepcopy(decision_spec);proposal['feedback']=True
-            proposal['sections'][0]['cards'][0]['detail']='Supporting evidence stays collapsed.'
+            # Legacy prose in a read-only viewer: long text collapses, a short legacy line stays visible.
+            legacy_spec=copy.deepcopy(decision_spec)
             long_detail=' '.join(['Preserve every meaningful detail.']*9)
-            proposal['sections'][0]['cards'][1].pop('tradeoff')
-            proposal['sections'][0]['cards'][1]['explainer']=long_detail
-            proposal['sections'][0]['cards'][2].pop('tradeoff')
-            proposal['sections'][0]['cards'][2].update(explainer=long_detail,verdict='Clarifies the flow; leaves the product unchanged.')
-            proposal_path=path/'proposal.html';proposal_path.write_text(decision.build(proposal))
-            page.goto(proposal_path.as_uri())
-            page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copied=text}}})")
-            first=page.locator('.decision-card').first
+            legacy_spec['sections'][0]['cards'][1].pop('tradeoff')
+            legacy_spec['sections'][0]['cards'][1]['explainer']=long_detail
+            legacy_spec['sections'][0]['cards'][2].pop('tradeoff')
+            legacy_spec['sections'][0]['cards'][2].update(explainer=long_detail,verdict='Clarifies the flow; leaves the product unchanged.')
+            legacy_path=path/'legacy.html';legacy_path.write_text(decision.build(legacy_spec))
+            page.set_viewport_size({'width':1440,'height':900});page.goto(legacy_path.as_uri())
             assert page.locator('.decision-card').nth(1).locator(':scope > p').count()==0, 'long legacy prose is not a visible summary'
             assert page.locator('.decision-card').nth(1).locator('.decision-details p').text_content()==long_detail, 'long prose is preserved intact'
             legacy=page.locator('.decision-card').nth(1)
@@ -245,6 +262,20 @@ def main():
             legacy.locator('.decision-details summary').click()
             assert page.locator('.decision-card').nth(2).locator(':scope > p').inner_text()=='Clarifies the flow; leaves the product unchanged.'
             assert not page.locator('.decision-card').nth(2).locator('.decision-details p').is_visible()
+            proposal=copy.deepcopy(decision_spec);proposal['feedback']=True
+            proposal['sections'][0]['cards'][0]['detail']='Supporting evidence stays collapsed.'
+            proposal_path=path/'proposal.html';proposal_path.write_text(decision.build(proposal))
+            page.goto(proposal_path.as_uri())
+            page.evaluate("Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copied=text}}})")
+            first=page.locator('.decision-card').first
+            # A decidable unit: context TLDR, Accept/Decline and BEFORE/AFTER all show without expanding.
+            for index in range(3):
+                card=page.locator('.decision-card').nth(index)
+                assert card.locator(':scope > p').first.is_visible(), 'context TLDR is visible'
+                assert card.locator('.decision-outcome dt').all_inner_texts()==['Accept','Decline']
+                assert card.locator('.decision-outcome').is_visible()
+                assert [c.split(' ·')[0] for c in card.locator('.decision-preview figcaption').all_inner_texts()]==['Before','After']
+                assert card.locator('.decision-preview').is_visible()
             assert first.locator(':scope > .decision-details').get_attribute('open') is None
             assert not first.get_by_text('Supporting evidence stays collapsed.').is_visible()
             first.locator(':scope > .decision-details summary').click()
@@ -263,13 +294,13 @@ def main():
             first.locator('[data-comment]').fill('Keep the existing navigation.')
             page.locator('#generate-copy').focus();page.keyboard.press('Enter')
             page.wait_for_function("document.getElementById('generate-copy').textContent==='Copied'")
-            assert 'Small update: Revise\n  Keep the existing navigation.' in page.evaluate('window.copied')
+            assert 'Streak rules fold under Details: Revise\n  Keep the existing navigation.' in page.evaluate('window.copied')
             assert 'Researched' not in page.evaluate('window.copied'), 'research never changes the response format'
             first.locator('[data-choice]').select_option('Accept')
             first.locator('[data-comment]').fill('Use the latest notes.')
             page.click('#generate-copy')
             page.wait_for_function("document.getElementById('generate-copy').textContent==='Copied'")
-            assert 'Small update: Accept\n  Use the latest notes.' in page.evaluate('window.copied')
+            assert 'Streak rules fold under Details: Accept\n  Use the latest notes.' in page.evaluate('window.copied')
             assert 'Keep the existing navigation.' not in page.evaluate('window.copied')
             assert page.locator('#response-fallback').is_hidden()
             page.evaluate("() => { navigator.clipboard.writeText=async()=>{throw new DOMException('Denied','NotAllowedError')}; }")

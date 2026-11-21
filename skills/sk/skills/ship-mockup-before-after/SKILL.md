@@ -30,6 +30,10 @@ server is not shareable and is not done.
 A one-region change proposed in a reply (copy, a notice) takes the fast card in
 `/sk:work-ask-reply-in-full-before-after-artifact` § Fast before/after, not this pipeline.
 
+DO label each AFTER variant with the change it makes, never "Option B" or "Variant 2", and hand each
+plan part over with its context TLDR line, per `references/tldr-report-formats.md` § Before/after unit.
+TEST: zero variant labels are option labels, and each handed-over plan part carries a context line.
+
 A change with NO screen — a schema, a prompt harness, a pipeline ordering — has nothing to screenshot;
 diagram the before and after instead. The rule is the medium follows the subject.
 

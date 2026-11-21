@@ -2,7 +2,8 @@
 name: work-ask-reply-in-full-before-after-artifact
 description: >
   Explain a confusing reply or compare proposals with compact BEFORE and AFTER cards.
-  Show one tradeoff per option with details collapsed; collect choices and comments with
+  Show one proposed change per card with its context TLDR, what Accept and Decline do, and
+  its BEFORE and AFTER, details collapsed; collect choices and comments with
   one Generate & copy action when the proposal asks for a response. Run it unprompted, in the
   same reply, whenever Claude proposes or recommends a visible change (copy, a notice, a layout
   tweak). Use for "show me a screenshot of the proposed change", "I don't know what you're
@@ -23,12 +24,14 @@ Use `example` for the schema and `extract <artifact.html> <spec.json>` for lossl
 The builder composes `bin/presentation-shell.html`, shared with mockups and design boards. Do not
 hand-roll chrome. Keep images inline as data URIs and behavior offline.
 
-DO give each section and card a unique `id`. Sections carry `title`, optional `lead` and `cards`.
-Cards carry `title`, `tradeoff`, `research`, optional `detail`, `before` and `after`. Default to a
-2–5 word title and one tradeoff sentence of at most 25 words. Put supporting evidence in collapsed Details.
-Delete repeated What it does, Contrast and Verdict paragraphs rather than shortening each one.
-TEST: each collapsed card has at most one prose block alongside its title, research stamp and TLDR,
-and labelled previews; that block states a consequence that changes the choice.
+DO shape every card per `references/tldr-report-formats.md` § Before/after unit. Give each section
+and card a unique `id`. Sections carry `title`, optional `lead` and `cards`. Cards carry `title` (the
+change), `tradeoff` (the unit's context TLDR), `accept`, `decline`, `before`, `after`, `research` and
+optional `detail`, which holds supporting evidence collapsed. Delete repeated What it does, Contrast and
+Verdict paragraphs rather than shortening each one.
+TEST: each collapsed card shows its title, research stamp and TLDR, one context line, Accept and
+Decline lines and labelled BEFORE/AFTER previews, and no other prose; with `feedback: true`,
+`decision-artifact.py build` refuses a card missing any of them.
 
 DO attach real screenshots, captured per `/sk:ship-screenshot-changes` at desktop and 390 wide, to
 every card whose option changes or keeps something a person sees. BEFORE is the current rendering

@@ -426,6 +426,14 @@ def main(argv=None) -> int:
     args = ap.parse_args(argv)
     if args.cmd == "video" and not (10 <= args.target <= 15 and 4 <= args.hold <= 5):
         die("--target must be 10-15 s and --hold 4-5 s")
+    if args.cmd in ("shots", "video"):
+        before, after = args.before_caption.strip(), args.after_caption.strip()
+        if not before or not after:
+            die("--before-caption and --after-caption each need one line: what happens on the base, "
+                "then the result on this PR (references/tldr-report-formats.md § Before/after unit)")
+        if before.casefold() == after.casefold():
+            die("--before-caption and --after-caption are identical, so the pair shows no change; "
+                "state what differs (references/tldr-report-formats.md § Before/after unit)")
     if args.cmd == "run":
         if args.still <= 0:
             die("--still must be above 0 s")

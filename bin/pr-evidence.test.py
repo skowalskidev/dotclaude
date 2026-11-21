@@ -310,6 +310,12 @@ def test_fails_fast(tmp: Path):
                         "--after", str(tmp / "nope.png"), "--pr", "1", "--before-caption", "a",
                         "--after-caption", "b", "--out", str(tmp / "x.png")], capture_output=True, text=True)
     check(r.returncode != 0 and "missing input image" in r.stderr, "missing input did not fail loudly")
+    ok = tmp / "caption-ok.png"
+    frame_png(ok, 390, 844)
+    for before, after, needle in (("  ", "b", "each need one line"), ("Same", "same", "are identical")):
+        r = raw_engine("shots", "--before", str(ok), "--after", str(ok), "--pr", "1", "--before-caption", before,
+                       "--after-caption", after, "--out", str(tmp / "caption-out.png"))
+        check(r.returncode != 0 and needle in r.stderr, f"caption {before!r}/{after!r} passed: {r.stderr}")
     check("drawtext" not in ENGINE.read_text().split('"""', 2)[2],
           "engine uses drawtext; it must render text with Pillow")
 

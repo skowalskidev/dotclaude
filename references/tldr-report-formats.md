@@ -14,7 +14,7 @@ first). Don't restate either here.
 
 Consumers: `/sk:ship-report-and-ensure-correct-user-system-journey` (every block), `/sk:ship-pr` (the before/after TLDR, user journey and system journey in the PR body),
 `/sk:work-full-detailed-workflow` and `references/planning-and-tracking.md` (Block 1 AND Block 2 open every
-plan, reflecting its current trajectory), `/sk:work-does-this-make-sense-to-build` (Part verdicts). One owner, so a format fixed once is fixed everywhere.
+plan, reflecting its current trajectory), `/sk:work-does-this-make-sense-to-build` (Part verdicts), the before/after producers listed in § Before/after unit. One owner, so a format fixed once is fixed everywhere.
 
 ## Human-facing messages
 
@@ -210,6 +210,43 @@ failed. Each one has to answer, at a glance: what is this about, what is happeni
   saying what happened to it.
 - **Actionable, not narrated.** Every block ends in something the reader can do: approve it, ask a
   named question, or request a specific change.
+
+## Before/after unit
+
+The one owner of how any BEFORE/AFTER is shown: a proposal or decision card
+(`/sk:work-ask-reply-in-full-before-after-artifact`, `bin/decision-artifact.py`), a mockup plan part
+(`/sk:ship-mockup-before-after`), a PR evidence pair (`/sk:ship-screenshot-changes`,
+`references/screenshot-review.md` § PR evidence template), a plan delta and a row of § Before/after
+TLDR. Each consumer points here and restates none of it.
+
+**DO make each unit show ONE proposed change, titled with that change in 2-6 words** (e.g. "Outside
+workouts count for streaks").
+**DON'T title a unit with an option label or a bare topic** ("Streaks", "Ship as built", "Suggest to
+<person>", "Option B", "Keep current"): the reader cannot tell what Accept takes.
+
+**DO show, visible without expanding, in this order:**
+1. A one-line context TLDR: what changes, who sees it, the consequence.
+2. On a decision card, one line each: `Accept:` what ships or happens, `Decline:` what stays.
+3. BEFORE, the exact current state, and AFTER, the exact state once accepted.
+
+DO show BEFORE and AFTER as real screenshots when the change touches a visible surface; a not-built
+AFTER is a labelled Preview rendered from the real app code or screenshot. Otherwise write
+them as concrete text with real values, e.g. `Streak day: plan workout + calorie goal` →
+`Streak day: plan workout OR a 20+ min outside workout, + calorie goal`.
+DO put context the TLDR cannot hold in one collapsed Details, and add none when the TLDR covers it.
+**DON'T split one decision into mirror units** (keep vs change, ship vs defer, suggest vs build as
+is): one unit, and its Accept/Decline control decides it. Two genuinely different changes are two
+units, each with its own BEFORE and AFTER.
+DO give a PR evidence pair a context line above its image (what changed, why it matters), a BEFORE
+caption saying what happens on the base and an AFTER caption saying the result, never the same text.
+
+NUMBER: 1 change per unit; title 2-6 words; TLDR at most 25 words; Accept and Decline one line each.
+TEST: reading one unit alone, a reviewer names what changes and what Accept does; every unit carries
+a TLDR, a BEFORE and an AFTER; zero titles are option labels; zero pairs of units are the same
+decision. The card builder refuses a feedback card that breaks this, and `bin/pr-evidence.py` refuses
+a blank or identical caption pair (the fix for a decision board whose first two cards,
+"Streaks: suggest to <person>" and "Streaks: ship as built", each held one sentence and no
+before/after).
 
 ## Before/after TLDR
 

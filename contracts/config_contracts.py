@@ -299,6 +299,7 @@ CONTRACTS: dict[str, dict] = {
             "Allow a no-surface line only when no person-visible output can differ, stating its reason and a 'Checked outputs:' clause; 'no frontend files' is never the reason.",
             "Count a change to which existing screen or step a person reaches (redirect, close or keep, step added or skipped, error shown or removed) as visible, with each affected scenario's before and after clip, still and verification run; 'no new screen', 'no new copy' or 'reuses an existing screen' is never a no-surface reason.",
             "Capture before/after screenshots and video with matching state and viewport; label new surfaces `new, no before`. Apply the screenshot skill's inline-player layout and playback checks.",
+            "Open each posted point with one context line (what changed, why it matters) shaped per tldr-report-formats.md § Before/after unit.",
             "Compose every posted before/after image and video with bin/pr-evidence.py: bands above the UI, outline-only callouts, one block per point; verify image/png and video/mp4 serving, then browser playback decides. Post evidence under a top-level ## Screenshots, never inside a collapsed <details>.",
             "Open ## Screenshots with a Scenario | What happens | Video table, one row per video. Post one viewport per state (the targeted one, usually mobile 390px); add the other only when its layout visibly differs, stated; never a duplicate desktop/mobile pair; prefer video for anything that changes over time.",
             "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
@@ -326,6 +327,7 @@ CONTRACTS: dict[str, dict] = {
             "Run: stack one neutral scenario band above the raw clip for its whole length, keep it real time and uncut with no hold, and print every still stretch of at least --still seconds.",
             "Before composing, fail a blank input in any colour (ink share below visual-check.py's 0.05%, pixels more than 8 off the most common colour): a blank screenshot, a clip's blank stretch of 0.5 s or more, or a blank last frame, naming each stretch and the external-page fix; a shorter transition passes.",
             "Exit non-zero with an install hint when Pillow or ffmpeg is missing or an input is absent; bin/pr-evidence.test.py passes in the contract suite.",
+            "Refuse a shots or video pair whose before or after caption is blank, or whose two captions are identical, naming tldr-report-formats.md § Before/after unit.",
         ],
     },
     "bin/design-board.py": {
@@ -358,10 +360,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "bin/decision-artifact.py": {
-        "mission": "Simon scans proposal tradeoffs and copies his current choices back to chat.",
+        "mission": "Simon decides each proposed change from its card alone and copies his current choices back to chat.",
         "purpose": "Builds and extracts compact proposal cards in the shared presentation frame.",
         "criteria": [
-            "Render titles and one tradeoff per card, collapsed details, real before/after previews and section navigation.",
+            "Render per card its change title, one context TLDR (tradeoff), Accept and Decline lines, real before/after previews, collapsed details and section navigation.",
+            "With feedback: true, build refuses a card lacking a 2-6 word title, a tradeoff TLDR of at most 25 words, accept, decline, or both before and after, and names references/tldr-report-formats.md § Before/after unit.",
+            "Build refuses identical before and after, two cards with the same before/after pair (mirror cards of one decision), and any card titled with an option label such as 'Streaks: ship as built'.",
             "Require no control schema for new specs. Preserve legacy control/runtime/comments metadata unchanged and inert for deterministic CLI extraction/rebuild.",
             "Only feedback: true exposes choices, comments and one reserved corner Generate & copy action; each click copies current inputs, reports success truthfully and offers manual copying after failure without covering content.",
             "Render a card's optional research as a text-labelled verdict stamp, a visible TLDR and a collapsed Research disclosure with escaped http(s) source links; build refuses a verdict other than unverified without a source, and the response text omits research.",
@@ -1176,6 +1180,7 @@ CONTRACTS: dict[str, dict] = {
             "Every chat hand-back of a PR or finished change prints the same table unprompted, straight "
             "after line 1, matching the PR's TLDR.",
             "§ App build line: in a repo that ships a native app, every hand-back naming a PR or change to merge or deploy states per PR, in the action line or its numbered step, 'No app build needed: <why>' or 'Needs an app build: <which parts wait>', copied from that PR's Deploy TLDR; rules/communication.md carries only the pointer.",
+            "§ Before/after unit is the one owner of how any before/after is shown (decision cards, mockup plan parts, PR evidence pairs, plan deltas): one change per unit, a change title of 2-6 words, a context TLDR, Accept/Decline on decision cards, BEFORE and AFTER, no mirror units; consumers point there.",
             "Owns the Part verdicts table: per part its verdict and deciding fact, mainstream practice with a primary-source link, regression evidence and one judge column per provider; hand-back and PR body carry it on every Standard or Deep build, adopt or rebuild, and a Light one posts none.",
         ],
     },
@@ -1518,6 +1523,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon sees every changed surface and journey before and after, across states and sizes, in a review and current PR description, with a verified comment fallback.",
         "purpose": "The one screenshot skill: advanced scenario matrix, before/after capture, journey videos, offline report and the default PR post through the shared evidence template.",
         "criteria": [
+            "Each posted point's context line and captions follow references/tldr-report-formats.md § Before/after unit; the skill restates none of it.",
             "Screenshots each CHANGED surface and journey (from git diff) across the reference's case "
             "matrix: empty and full states, conditional scenarios and responsive sizes, seeded with "
             "realistic inputs, saved inside a workspace root; no bug-hunt or fix-loop.",
@@ -1892,6 +1898,7 @@ CONTRACTS: dict[str, dict] = {
                    "overlay, walkable as a storyboard — one per ticket or plan part.",
         "criteria": [
             "Finishes with bin/visual-check.py on the built mockup file, one --state per switch, and hands over the pass table per references/screenshot-review.md.",
+            "Labels each AFTER variant with the change it makes, never an option label, and hands each plan part over with its context TLDR per references/tldr-report-formats.md § Before/after unit.",
             "Ships a self-contained shareable Claude artifact for a change with a real screen, never "
             "a dev route to view it and never HTML rebuilt by eye. Fidelity comes from real pixels; "
             "both alternatives were rejected 2026-08-10.",
@@ -2161,10 +2168,10 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "skills/sk/skills/work-ask-reply-in-full-before-after-artifact/SKILL.md": {
-        "mission": "Simon understands each tradeoff and can return his choices without retyping them.",
+        "mission": "Simon decides each proposed change from its card alone and can return his choices without retyping them.",
         "purpose": "Explain confusing replies and proposals through compact before/after cards.",
         "criteria": [
-            "Build through decision-artifact.py and the shared frame; show a 2–5 word title and one tradeoff of at most 25 words, with details collapsed.",
+            "Build through decision-artifact.py and the shared frame; shape every card per references/tldr-report-formats.md § Before/after unit (change title, context TLDR, Accept/Decline, BEFORE and AFTER), details collapsed, without restating it.",
             "Every card whose option changes or keeps a visible surface carries real desktop and 390px images in before and after; a not-built AFTER is a labelled Preview from app code or a screenshot overlay.",
             "Infer feedback: true for proposals requesting choices or comments; one corner Generate & copy action copies current inputs for chat, with a truthful fallback. Keep pure mockup and board viewers read-only.",
             "Retain complete source and legacy runtime metadata inertly for CLI extraction and deterministic rebuilding; new specs need no control schema.",

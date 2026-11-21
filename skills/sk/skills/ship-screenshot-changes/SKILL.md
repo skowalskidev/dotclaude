@@ -184,7 +184,8 @@ TEST: a supported description contains the actual images and inline videos; a co
 a verified limitation, never an assumption from a missing CLI upload flag.
 
 **Post one block per point, laid out by the reference's § PR evidence template.** A point is the surface,
-scenario or journey step being shown (e.g. "Settings: empty list"). Each block holds the composed
+scenario or journey step being shown (e.g. "Settings: empty list"). Its context line and captions follow
+`references/tldr-report-formats.md` § Before/after unit. Each block holds the composed
 before/after image per captured platform and the point's composed video. Journey mode: one block per
 step, in step order.
 

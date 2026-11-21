@@ -485,8 +485,9 @@ rule for mobile frames was written for the offline report).
 TEST: the fetched `body_html` has zero `<img>` without a `width`, every mobile or iOS frame reads 300 (600
 for a pair), and `grep -c '!\[' body.md` over image lines is 0.
 DO post one block per point in the PR description, with a comment only when description embedding
-is unsupported or blocked, all under that top-level `## Screenshots` section: `### <point>`, one line naming what the left (or top)
-and right (or bottom) frames show, then per posted platform a `**Desktop**` / `**Mobile**` / `**iOS**`
+is unsupported or blocked, all under that top-level `## Screenshots` section: `### <point>`, one context line
+(what changed and why it matters, shaped per `references/tldr-report-formats.md` § Before/after unit)
+that names what the left (or top) and right (or bottom) frames show, then per posted platform a `**Desktop**` / `**Mobile**` / `**iOS**`
 label over its composed image as an `<img>` with an explicit width (`<img src="<url>" width="600"
 alt="<point> <platform> before and after">`),
 then the scenario's 1-2 line TLDR (§ Record useful walkthroughs) as plain text, then the composed video
