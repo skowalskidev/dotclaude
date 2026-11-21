@@ -218,6 +218,10 @@ CRITERIA: list[tuple[str, str]] = [
     ("repro-brewfile-covers-dependencies",
      "Every external CLI the hooks and bin scripts hard-depend on is in dotfiles/Brewfile. The "
      "Brewfile is what makes a new machine reproducible; a missing entry breaks setup silently."),
+    ("repro-agent-setup-declares-runtimes",
+     "Every runtime package a bin script needs outside the Brewfile (Node Playwright behind "
+     "bin/node_playwright.py, Python Playwright in a test) has its install command in README.md "
+     "§ Agent setup. Without it a fresh or cleaned machine silently loses the visual hand-off check."),
     ("repro-readme-counts-are-live",
      "README.md quotes no hardcoded count that has since drifted. A stale 'expect 65 pass' teaches "
      "the next agent to accept a wrong number as correct."),
@@ -1044,6 +1048,31 @@ def check_repro_brewfile_covers_dependencies() -> None:
             check(tool in brewfile,
                   f"{tool} is used by a hook or script but is not in dotfiles/Brewfile, so a fresh "
                   f"machine set up from the README will not have it.")
+
+
+# Signal in a bin/ script -> the commands § Agent setup must carry so that script runs on a new machine.
+AGENT_SETUP_RUNTIMES = {
+    r"\bimport node_playwright\b": ("npm install -g playwright", "npx playwright install chromium"),
+    r"from playwright\.sync_api import": ("uv run --with playwright playwright install chromium",
+                                          "uv run --with playwright python3"),
+}
+
+
+def check_repro_agent_setup_declares_runtimes() -> None:
+    if not (ROOT / "README.md").exists() or not (ROOT / "bin").is_dir():
+        return
+    text = read("README.md")
+    start = text.find("## \U0001f916 Agent setup")
+    end = text.find("### Secrets to recreate", start)
+    check(start >= 0 and end > start, "README.md has no '## Agent setup' section ending at "
+                                      "'### Secrets to recreate'; the runtime install commands have no home.")
+    setup = text[start:end]
+    for pattern, commands in AGENT_SETUP_RUNTIMES.items():
+        users = sorted(p.name for p in (ROOT / "bin").glob("*.py")
+                       if re.search(pattern, p.read_text(encoding="utf-8", errors="replace")))
+        for cmd in commands if users else ():
+            check(cmd in setup, f"{', '.join(users)} need(s) a runtime that README.md § Agent setup never "
+                                f"installs: add `{cmd}` there, so a fresh machine can run them.")
 
 
 def check_repro_readme_counts_are_live() -> None:

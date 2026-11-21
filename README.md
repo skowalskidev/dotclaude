@@ -9,7 +9,7 @@ Made by Simon. Fork it and make it yours.
 ## Make it yours (quickstart)
 
 1. Clone it to `~/.claude`: `git clone https://github.com/skowalskidev/dotclaude.git ~/.claude` (or clone elsewhere and point Claude Code at it).
-2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq, ffmpeg, pillow).
+2. Install the tools: `brew bundle --file dotfiles/Brewfile` (gitleaks, jq, ffmpeg, pillow), then Playwright: `npm install -g playwright && npx playwright install chromium`.
 3. Run `bash dotfiles/bootstrap.sh`. It wires the safe parts (Claude + Codex skill links, dotfile symlinks, hook bits, the secret-scan gate), scaffolds `identity.local.json` from the template, then prints a checklist of anything left to do and **fails loud until it is all done**. Re-run it until it says `Ready`.
 4. Edit `identity.local.json` with your own accounts: the git-origin substring that marks a WORK repo, your work and personal emails, and your work and personal cloud projects. Optional `workClaudeLogins` lists extra Claude logins accepted in a work repo (alongside `workEmail`). Untracked, so it is never pushed; it drives the work/personal guard and the boundary context injected each session.
 5. Set `connectorRoots` in `identity.local.json` (one local registry root per boundary, outside every repo), then set up connectors with `/sk:setup-connectors` (or copy the `connectors/*.json.example` templates into each root). Schema and steps in `references/connectors-setup.md`.
@@ -125,7 +125,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `bin/pr-ci-wait.py` (+ `bin/pr-ci-wait.test.py`) | The one PR CI wait after a push: `--repo owner/name --pr N [--sha S] [--require JOB] [--once]` (`S` full or 7+ hex abbreviated) exits 3 on a conflicting PR, 4 when no run starts for the head sha in 10 minutes, 1 on a failed check, 5 when the head moved, 6 on its own timeout, and 0 only when every check for the head is terminal and green; `--once` reads one time (6 = still pending), the CI leg of `intent-ledger.sh gate PASS`; retries transient gh 5xx errors. `references/git-pr-deploy.md` § After a push points here. Python standard library; needs `gh` |
 | `bin/pr-landing-gate.py` (+ `bin/pr-landing-gate.test.py`) | Landing-gate checker for a fetched PR: `--repo owner/name --pr N` reads the body, `body_html` and review threads through `gh`, prints one FAIL line per missing row (TLDR + Do line, Deploy TLDR, journeys, test matrix counts, prod data, deploy safety, screenshots, collapsed `<details>`, unresolved threads). Owns the PR body's section headings. `hooks/intent-ledger.sh gate PASS` runs it for a branch with an open PR. Python standard library; needs `gh` |
 | `bin/visual-check.py` (+ `bin/visual-check.test.py`) | Hand-off check for any visual artifact: opens the exact file or URL headless (Node Playwright), screenshots every `--state` x `--viewport`, fails on a blank page or region, a region cut by an ancestor, missing text, page error or failed request, prints the pass table; `--wait-for CSS` waits for data rendered after load, `--route GLOB=FILE` serves a local page an API fixture. Method in `references/screenshot-review.md` § Hand-off check. A page too large for one screenshot fails with its size and `--split-hint`. Python standard library; Node Playwright found by `bin/node_playwright.py` |
-| `bin/node_playwright.py` | Shared Node Playwright lookup (env, the current repo and its other worktrees, the global npm root, `~/.claude`; a miss lists every place searched) and the measured one-screenshot area limit, used by `visual-check`, `mockup-shots` and `design-board`. Installs nothing |
+| `bin/node_playwright.py` | Shared Node Playwright lookup (env, the current repo and its other worktrees, the global npm root, `~/.claude`; a miss lists every place searched and the global install command) and the measured one-screenshot area limit, used by `visual-check`, `mockup-shots` and `design-board`. Installs nothing; the global install is § Agent setup step 4 |
 | `bin/design-board.py` + `bin/design-board.html` (+ `bin/design-board.test.py`) | The board adapter composes the shared presentation frame: phone frames in titled sections on a pan/zoom canvas, picks badged, hidden frames kept in the spec, `window.__measure()` and `window.__flatten()` hooks for the capture loop, every image and the font stored once in the `#spec` island and filled into the frames at runtime; `build`, `extract`, `example`, `check` (runs `bin/visual-check.py`); `build` and `check` warn when the flattened board is too large for one screenshot. `references/workflow-loops.md` § Shareable design board owns the method |
 | `bin/mockup-shots.py` | Screenshots a built mockup headlessly (Node Playwright, spec extracted in Python): `shell.png` plus one PNG per variant x persona x state with JavaScript running; exits 1 on any page error. `/sk:ship-mockup-before-after` names it in its real-app check |
 | `bin/superspeed-analyse.py` | Turns one superspeed run directory into waste metrics and actions: idle capacity, slice imbalance, cache read/write ratio, inference concurrency, ownership leaks, duplicated reads, reconcile rework, dead slices, fan-out-worth-it, plus the log's own `INSTRUMENTATION GAPS`. Writes `analysis.json` |
@@ -262,6 +262,7 @@ Native adapter details and verified upstream references live in `references/agen
   Source `bin/node-runtime.zsh` as described in step 2 so terminal and agent shells use the
   same installed Node 24 patch, including commands run from project subdirectories.
   For the gauntlet app, run `cd apps/gauntlet && npm install` once.
+- **uv** (Astral's Python runner) for the two Python Playwright tests: `uv --version`; if missing, `brew install uv`.
 - **Username:** `settings.json` hook commands use absolute `$HOME/...` paths. If your `settings.json`
   still carries a hardcoded home dir, repoint the paths at your own `$HOME`: `sed -i '' "s#/Users/<olduser>#$HOME#g" ~/.claude/settings.json`.
 
@@ -309,7 +310,16 @@ Native adapter details and verified upstream references live in `references/agen
    ```bash
    brew bundle --file ~/.claude/dotfiles/Brewfile     # gitleaks, jq, ffmpeg, pillow
    git -C ~/.claude config core.hooksPath .githooks    # secret gate + conventional-commit gate
+   npm install -g playwright                           # Node Playwright, found by bin/node_playwright.py in `npm root -g`
+   npx playwright install chromium                     # its matching Chromium
+   uv run --with playwright playwright install chromium  # Chromium for the Python Playwright tests
    ```
+   Node Playwright drives `bin/visual-check.py` (the visual hand-off check), `bin/mockup-shots.py` and
+   `bin/design-board.py`; without it they exit 2 with `SETUP: Node Playwright not found`. The global
+   install lives under the active nvm Node 24 patch, so after `nvm install` of a newer patch re-run the
+   two `npm`/`npx` lines (or install with `--reinstall-packages-from=current`).
+   `bin/mockup-shell.test.py` and the browser cases of `bin/workflow-dashboard.test.py` import Python
+   Playwright: run them as `uv run --with playwright python3 bin/mockup-shell.test.py`.
    The SessionStart sync-reminder hook is already wired in `settings.json` (no separate install). There is
    **no background daemon** — syncing runs at task completion or on demand via the `/sk:claude-config-sync` skill.
 5. **Install the third-party skill packs** (intentionally NOT tracked here — they're other people's

@@ -61,6 +61,12 @@ echo "2. Dependencies  (install any missing with: brew bundle --file dotfiles/Br
 for dep in git jq gitleaks; do
   if have "$dep"; then ok "$dep"; else todo "$dep missing — brew bundle --file dotfiles/Brewfile"; fi
 done
+# Node Playwright runs bin/visual-check.py, the mandatory visual hand-off check; npm, not Homebrew, installs it.
+if have python3 && python3 -c 'import sys; sys.path.insert(0, sys.argv[1]); import node_playwright; sys.exit(0 if node_playwright.find()[0] else 1)' "$ROOT/bin" 2>/dev/null; then
+  ok "Node Playwright"
+else
+  todo "Node Playwright missing — npm install -g playwright && npx playwright install chromium  (README section Agent setup, step 4)"
+fi
 if have gh; then
   if gh auth status >/dev/null 2>&1; then ok "gh authenticated"; else warn "gh not authenticated — run: gh auth login  (only needed to push/sync)"; fi
 else
