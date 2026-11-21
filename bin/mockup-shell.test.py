@@ -2,7 +2,8 @@
 """Behavioral contracts for the shared frame and mockup/decision adapters.
 
 Run after the edit batch converges and resource capacity is admitted. Requires
-Python Playwright/Chromium. No network or service credentials are used.
+Python Playwright/Chromium: `uv run --with playwright python3 bin/mockup-shell.test.py`
+(README.md § Agent setup step 4). No network or service credentials are used.
 """
 import copy
 import importlib.util

@@ -280,7 +280,8 @@ def discovery_checks(root) -> dict:
         msg = node_playwright.not_found_message(groups)
         checks["a miss lists every place searched and the fix"] = (
             found == [] and msg.startswith(node_playwright.NOT_FOUND) and "current directory and parents" in msg
-            and "not in a git repo" in msg and "MOCKUP_SHOTS_NODE_MODULES" in msg and "npm install" in msg)
+            and "not in a git repo" in msg and "MOCKUP_SHOTS_NODE_MODULES" in msg
+            and "npm install -g playwright && npx playwright install chromium" in msg)
     finally:
         node_playwright._npm_root = real_npm
     return checks

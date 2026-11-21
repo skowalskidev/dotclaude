@@ -507,7 +507,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "One home for the Node Playwright lookup and the largest page one Chromium screenshot holds, shared by visual-check, mockup-shots and design-board.",
         "criteria": [
             "Search in order: MOCKUP_SHOTS_NODE_MODULES, NODE_PATH, node_modules in the current directory and its parents, beside every tracked package.json of the current git repo, npm root -g, the same package dirs in the repo's other worktrees (at most 60 dirs), ~/.claude/node_modules; accept playwright, playwright-core or @playwright/test; install nothing.",
-            "On a miss, print a message starting 'SETUP: Node Playwright not found' that lists each searched group with its dirs and names the fix (npm install in a checkout that lists playwright, or MOCKUP_SHOTS_NODE_MODULES).",
+            "On a miss, print a message starting 'SETUP: Node Playwright not found' that lists each searched group with its dirs and names the fix: first the documented global install `npm install -g playwright && npx playwright install chromium` (README.md § Agent setup step 4), then npm install in a checkout that lists playwright, or MOCKUP_SHOTS_NODE_MODULES.",
             "LAUNCH_JS tries each found copy until Chromium launches and exits 2 listing every copy's launch error.",
             "SCREENSHOT_MAX_PIXELS is an area measured in Chromium (527 Mpx passed, 536 Mpx failed; 66000 px tall passed), never a per-side cap; BUDGET_PIXELS (250 Mpx) is the builders' warning line. Verify the lookup in bin/visual-check.test.py.",
             "Python 3.9+, standard library only.",

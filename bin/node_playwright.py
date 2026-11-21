@@ -10,7 +10,8 @@ Lookup order (first match wins; Chromium launch failures fall through to the nex
   5. the global npm root (npm root -g)
   6. the same package dirs in the repo's other git worktrees (a sibling checkout that ran npm install)
   7. ~/.claude/node_modules
-Each dir is searched for playwright, playwright-core and @playwright/test. Nothing is installed.
+Each dir is searched for playwright, playwright-core and @playwright/test. Nothing is installed; the
+documented install is the global one (README.md § Agent setup step 4), found in group 5.
 
 Python 3.9+, standard library only.
 """
@@ -95,7 +96,9 @@ def not_found_message(groups: list) -> str:
         shown = ", ".join(str(r) for r in roots[:3]) or "(nothing to search)"
         more = f" (+{len(roots) - 3} more)" if len(roots) > 3 else ""
         lines.append(f"  {label}: {shown}{more}")
-    lines.append("Fix: run `npm install` in a checkout whose package.json lists playwright or @playwright/test, "
+    lines.append("Fix: install it once globally (README.md § Agent setup step 4): "
+                 "`npm install -g playwright && npx playwright install chromium`. "
+                 "Or run `npm install` in a checkout whose package.json lists playwright or @playwright/test, "
                  "or set MOCKUP_SHOTS_NODE_MODULES to a node_modules dir that holds playwright.")
     return "\n".join(lines)
 
