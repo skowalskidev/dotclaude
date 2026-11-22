@@ -563,6 +563,7 @@ def run(args) -> int:
             reason = why + ':' + str(info['cause'])
             if reason not in entry.get('notified', []):
                 entry.setdefault('notified', []).append(reason)
+                entry['notifiedAt'] = now()
                 notify('Session needs you', '%s stopped on %s and was not resumed: %s.' % (
                     label, info['cause'], why))
                 log.info('notify sid=%s reason=%s', info['sid'], reason)
@@ -582,7 +583,8 @@ def prune(state: dict):
     for sid in list(state['sessions']):
         entry = state['sessions'][sid]
         entry['attempts'] = [a for a in entry.get('attempts', []) if t - a < CAP_WINDOW]
-        if not entry['attempts'] and not pid_alive(entry.get('pid')) and t - entry.get('startedAt', 0) > CAP_WINDOW:
+        last = max(entry.get('startedAt', 0), entry.get('notifiedAt', 0))
+        if not entry['attempts'] and not pid_alive(entry.get('pid')) and t - last > CAP_WINDOW:
             del state['sessions'][sid]
     for marker in (STATE_DIR / 'stops').glob('*.json'):
         if t - marker.stat().st_mtime > 7 * 86400:

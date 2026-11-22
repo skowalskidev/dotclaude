@@ -243,6 +243,9 @@ class AutoResume(unittest.TestCase):
         out = self.f.run('run')
         self.assertIn('not auto-resumable: invalid-request', out)
         self.assertIn('not auto-resumable: usage-credits-required', out)
+        self.f.run('run')
+        log = (self.f.base / 'log').read_text()
+        self.assertEqual(log.count('notify sid=s-long'), 1, 'a second run re-notified')
         self.assertEqual(self.f.resumes(wait=0.3), [])
 
     def test_extra_usage_on_pauses_every_resume_under_the_spend_rule(self):
