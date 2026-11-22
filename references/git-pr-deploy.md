@@ -29,6 +29,13 @@ resolution leaves paths staged that `git add <paths>` never resets. TEST: no com
 outside its intended list (the fix for deletions staged by an earlier `git rm` landing in an
 unrelated commit).
 
+**DO stage only the paths this task changed or owns: `git add -- <paths>`, never `git add -A`, `git add .`
+or `git commit -a`.** Another worker's scratch file, a generated artifact or Simon's WIP sits untracked
+in a shared tree, and a whole-tree add sweeps it in. Before the commit, `git diff --cached --name-only`
+lists exactly those paths; leave every other untracked or modified file alone and report it in the
+hand-back. TEST: no commit holds a path its author did not change (the fix for a scratch capture test
+from another worker committed with a one-line label fix, then amended out).
+
 ## The shape of the message
 
 `~/.claude/.githooks/commit-msg` enforces the subject line in the config repo and rejects anything

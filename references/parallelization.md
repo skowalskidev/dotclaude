@@ -263,7 +263,8 @@ message). If on the default branch, branch first — never branch off `master`/`
 START SHA; it goes VERBATIM into every paste block.
 ```bash
 git switch -c <harness>/<run-id>          # if not already on a feature branch
-git add -A && git commit -F <msg-file>    # only if dirty; -F, never -m (git-pr-deploy.md)
+git add -- <owned-paths> && git diff --cached --name-only   # only if dirty; staging rule: git-pr-deploy.md
+git commit -F <msg-file>                  # -F, never -m; only after the list matches <owned-paths>
 git push -u origin HEAD
 git rev-parse HEAD                        # ← the START SHA each session fetches and branches from
 ```
@@ -319,7 +320,8 @@ git switch -c <harness>/<run-id>/<name> <START-SHA>   # a Conductor workspace al
 # stop, never rebuild the deleted files. REPORT the exact branch name (Conductor names its own) so the
 # orchestrator cleans up by the reported name, never by a pattern.
 # …do the work…
-git add -A && git commit -F <msg-file>     # -F, never -m
+git add -- <owned-paths> && git diff --cached --name-only   # only paths this worker changed; git-pr-deploy.md
+git commit -F <msg-file>                   # -F, never -m; only after the list matches <owned-paths>
 git push -u origin HEAD
 # Stacked off a feature base? The pre-push gate may diff against master and false-positive on an
 # INHERITED base finding — prove clean vs your base and push --no-verify (§ "Parallelize verification"),

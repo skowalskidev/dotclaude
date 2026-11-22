@@ -169,6 +169,11 @@ CRITERIA: list[tuple[str, str]] = [
      "No two config files carry the same rule text. A duplicated rule drifts, and then two files "
      "disagree about what you want."),
 
+    ("structure-no-whole-tree-staging",
+     "No reference or own skill tells a worker to stage the whole tree (git add -A, git add ., "
+     "git commit -a). Workers share a tree, and a whole-tree add commits another worker's scratch "
+     "files. The staging rule has one owner, references/git-pr-deploy.md."),
+
     # --- Credential protection ---------------------------------------------------------
     ("secrets-crown-jewel-paths-denied",
      "settings.json keeps the Edit tamper-denies on the key directories (~/.ssh, ~/.aws, "
@@ -471,6 +476,26 @@ def check_structure_one_owner_per_concern() -> None:
                       f"exact one — it has already drifted, so the two files now say different "
                       f"things. Starts: {a[:90]}...")
                 return  # one report is enough; the fix is the same shape for the rest
+
+
+def check_structure_no_whole_tree_staging() -> None:
+    """No instruction in references/, rules/ or the user's own skills tells an agent to stage the
+    whole tree. Prose that forbids it (a paragraph saying never or DON'T) is the rule, not a violation.
+    Third-party skill packs (gstack, impeccable) are not the user's to edit and are out of scope."""
+    pat = re.compile(r"git add (-A|--all|\.)(\s|$|`)|git commit -a\b|git commit -[a-z]*a[a-z]* ")
+    forbids = re.compile(r"\b(never|don't|do not)\b", re.I)
+    files = list((ROOT / "references").glob("*.md")) + list((ROOT / "rules").glob("*.md"))
+    for plugin in ("sk",):
+        files += list((ROOT / "skills" / plugin).rglob("*.md"))
+    for p in files:
+        for para in re.split(r"\n\s*\n", p.read_text(encoding="utf-8", errors="replace")):
+            if forbids.search(para):
+                continue  # a paragraph that forbids it is the rule, not a violation
+            for line in para.splitlines():
+                if pat.search(line):
+                    check(False, f"{p.relative_to(ROOT)} tells an agent to stage the whole tree "
+                                 f"({line.strip()[:80]}). Use `git add -- <owned-paths>` and the check "
+                                 f"in references/git-pr-deploy.md.")
 
 
 def check_secrets_crown_jewel_paths_denied() -> None:

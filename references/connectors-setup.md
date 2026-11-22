@@ -416,7 +416,7 @@ repo only) or the global `core.excludesFile` (`~/.gitignore_global`, all repos) 
 `.conductor/settings.local.toml` is already handled this way via `.git/info/exclude`.)
 DO commit the shared behavior and ignore the personal parts (settings, credentials), which teammates
 never see. DO keep them uncommitted, not just ignored: `~/.gitignore_global` ignores the secret patterns
-(`*serviceAccountKey*.json`, `.firebase/`, `.env.op`) so `git add -A` never stages them; gitleaks or
+(`*serviceAccountKey*.json`, `.firebase/`, `.env.op`) so a stray whole-tree add never stages them; gitleaks or
 pre-commit scans content on commit (the `~/.claude` repo gates with gitleaks; team repos rely on their
 own CI). DON'T commit or force-add a personal or secret file past `.gitignore`; git commands themselves stay unblocked.
 
