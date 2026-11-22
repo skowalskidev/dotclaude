@@ -126,6 +126,8 @@ CRITERIA: list[tuple[str, str]] = [
      "The local CI gate list is derived from the workflow files: every pull-request run step counted, container needs marked, an empty list never passes."),
     ("session-auto-resume-resumes-only-stopped-unfinished-work",
      "The hourly watchdog resumes a session only after an API-error stop or a crash with recorded unfinished work, never a running, archived, interrupted or other-account one, and the installer stays behind the daemon guard."),
+    ("daemon-guard-refuses-inline-self-approval",
+     "The persistent-process guard passes only an override set in the session's starting environment; an agent-typed CLAUDE_ALLOW_DAEMON=1 prefix is denied and no doc advertises one."),
     ("pr-ci-wait-refuses-quiet-states",
      "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
     ("pr-landing-gate-refuses-missing-rows",
@@ -1275,7 +1277,8 @@ def check_routing_hooks_fire_for_the_tools_they_target() -> None:
             payload = json.dumps({"hook_event_name": case["event"], "tool_name": case["tool"],
                                   "tool_input": case.get("tool_input", {})})
             env = {k: v for k, v in os.environ.items()
-                   if k not in ("CLAUDE_TEST_VIEWPORT_MAX_H", "CLAUDE_ALLOW_PATTERN_KILL")}
+                   if k not in ("CLAUDE_TEST_VIEWPORT_MAX_H", "CLAUDE_ALLOW_PATTERN_KILL",
+                                "CLAUDE_ALLOW_DAEMON")}
             result = subprocess.run([str(ROOT / "hooks" / hook_name)], input=payload, text=True,
                                     capture_output=True, timeout=20, env=env)
             try:
@@ -2522,6 +2525,36 @@ def check_pr_ci_wait_refuses_quiet_states() -> None:
               f"{path} does not point at bin/pr-ci-wait.py for PR CI waits")
     check("for _ in $(seq 1 10)" not in (ROOT / "references/git-pr-deploy.md").read_text(),
           "references/git-pr-deploy.md still carries the hand-written CI wait loop")
+
+
+def check_daemon_guard_refuses_inline_self_approval() -> None:
+    guard = ROOT / "hooks" / "background-process-guard.py"
+    base = {k: v for k, v in os.environ.items() if k != "CLAUDE_ALLOW_DAEMON"}
+
+    def decision(command: str, env: dict) -> str:
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}})
+        result = subprocess.run(["/usr/bin/python3", str(guard)], input=payload, text=True,
+                                capture_output=True, timeout=20, env=env)
+        try:
+            return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+        except Exception:  # noqa: BLE001
+            return "allow"
+
+    install = "/usr/bin/python3 ~/.claude/bin/session-auto-resume.py install"
+    for command in (install, "CLAUDE_ALLOW_DAEMON=1 " + install, "env CLAUDE_ALLOW_DAEMON=1 " + install,
+                    "  CLAUDE_ALLOW_DAEMON=1 launchctl bootstrap gui/501 x.plist",
+                    "export CLAUDE_ALLOW_DAEMON=1 && crontab job.cron"):
+        check(decision(command, base) == "deny",
+              f"background-process-guard.py let an agent self-approve a persistent install: {command!r}")
+    check(decision(install, {**base, "CLAUDE_ALLOW_DAEMON": "1"}) == "allow",
+          "background-process-guard.py denied an install in a session Simon started with CLAUDE_ALLOW_DAEMON=1.")
+    check("INLINE_OVERRIDE" not in guard.read_text(),
+          "background-process-guard.py carries an inline-override matcher again.")
+    for relative in ("README.md", "AGENTS.md", "references/session-auto-resume.md", "rules/process.md"):
+        text = read(relative)
+        check(re.search(r"CLAUDE_ALLOW_DAEMON=1 +(?:/usr/bin/)?python3?\b", text) is None
+              and "inline assignment" not in text,
+              f"{relative} advertises an inline CLAUDE_ALLOW_DAEMON=1 prefix as the install path.")
 
 
 def check_session_auto_resume_resumes_only_stopped_unfinished_work() -> None:

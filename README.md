@@ -62,7 +62,7 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/git-commit-guard.test.py` | Both directions for the commit/push/merge guard. The must-NOT-fire cases pin that a quoted note, heredoc body or filename naming a push is never a block |
 | `hooks/git-commit-guard.py` | PreToolUse Bash guard — blocks a commit/push on `main`/`master` and a `git commit` with `-m`/heredoc (the `-F`-only rule). In this config repo a commit passes and a main push passes when `bin/config-land-check.py` verified the head. A monitoring-only PR merges with no merge words once its gate PASS names the monitoring-only bar on its head. Overrides: `CLAUDE_ALLOW_MAIN_COMMIT=1`, `CLAUDE_ALLOW_COMMIT_M=1` |
 | `bin/config-land-check.py` | Verifies a config head before it lands (contract suite, range secret scan, hash-bound diff review, fast-forward) and records it so the guard lets the push through with no question |
-| `hooks/background-process-guard.py` | PreToolUse Bash guard — blocks installing a persistent process (crontab install, `launchctl load`, `systemctl enable`, LaunchAgents/Daemons writes, `session-auto-resume.py install`). Override: `CLAUDE_ALLOW_DAEMON=1` in the environment or as the command's leading inline assignment |
+| `hooks/background-process-guard.py` | PreToolUse Bash guard — blocks installing a persistent process (crontab install, `launchctl load`, `systemctl enable`, LaunchAgents/Daemons writes, `session-auto-resume.py install`). Override: `CLAUDE_ALLOW_DAEMON=1` in the session's starting environment only; an inline prefix in the command is denied, so an agent cannot approve its own install |
 | `bin/session-auto-resume.py` (+ `bin/session-auto-resume.test.py`, `dotfiles/session-auto-resume.plist`) | Hourly launchd watchdog: resumes, in place with `claude -p --resume`, a session stopped by a usage limit, API/network error or crash that still has unfinished work; zero model calls for the check. `install`, `uninstall`, `status`, `run --dry-run`, `ignore <id>`; `record-stop` is its `StopFailure` hook. Runtime state in `state/session-auto-resume/`, log in `~/Library/Logs/session-auto-resume.log`. How and why: `references/session-auto-resume.md`. Python standard library |
 | `hooks/emulate-viewport-guard.py` | PreToolUse `mcp__chrome-devtools__emulate` guard — denies an emulated viewport taller than the test window (height, or width when landscape) above its `MAX_VIEWPORT_H` cap. Override for a taller window: `CLAUDE_TEST_VIEWPORT_MAX_H` |
 | `hooks/outbound-message-guard.py` | PreToolUse Slack/Gmail guard — denies a send, reply, forward or draft over the 5-line, 100-word TLDR cap for a message to someone else. `--check <file>` measures a draft for routes it cannot see (`codex exec`, `gh pr comment`). One-shot override: Simon's words in `.context/long-message-ok` |
@@ -346,9 +346,10 @@ Native adapter details and verified upstream references live in `references/agen
    per-repo setup and nothing in anyone's committed `.gitignore`.
 7. **Install the hourly auto-resume watchdog (ask the user first: it is a LaunchAgent).** It resumes a
    session stopped by a usage limit, an API or network error or a crash that still has unfinished
-   work, with zero model calls for the hourly check (`references/session-auto-resume.md`):
+   work, with zero model calls for the hourly check (`references/session-auto-resume.md`). The user
+   runs `install` in their own terminal; an agent's Bash call is denied by the daemon guard:
    ```bash
-   CLAUDE_ALLOW_DAEMON=1 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py install
+   /usr/bin/python3 ~/.claude/bin/session-auto-resume.py install
    /usr/bin/python3 ~/.claude/bin/session-auto-resume.py status    # expect: launchd: state=not running, ...
    ```
    Remove it with `session-auto-resume.py uninstall` before deleting or moving `~/.claude`.

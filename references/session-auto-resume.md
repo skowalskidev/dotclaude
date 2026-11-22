@@ -15,15 +15,17 @@ on the 5-hour limit and sat until Simon asked "did you get stuck?").
 DO install, check and remove it with the engine itself; each command is idempotent:
 
 ```bash
-CLAUDE_ALLOW_DAEMON=1 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py install   # writes + loads the LaunchAgent
+/usr/bin/python3 ~/.claude/bin/session-auto-resume.py install       # Simon only: writes + loads the LaunchAgent
 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py run --dry-run   # lists what it would resume and why, resumes nothing
 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py status          # launchd state, last exit, tracked sessions
 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py ignore <session-id>   # keep one session stopped
 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py uninstall       # boots it out and deletes the plist
 ```
 
-DON'T run `install` unless Simon asked for this job: `hooks/background-process-guard.py` denies it
-without the inline `CLAUDE_ALLOW_DAEMON=1`. `install` fills `dotfiles/session-auto-resume.plist`
+DO hand `install` to Simon to run in his own terminal, or run it in a session he started with
+`CLAUDE_ALLOW_DAEMON=1` in its environment. DON'T prefix the command with `CLAUDE_ALLOW_DAEMON=1`:
+`hooks/background-process-guard.py` denies the inline form, because an agent typing it would approve
+its own install. `install` fills `dotfiles/session-auto-resume.plist`
 from `$HOME` and writes `~/Library/LaunchAgents/com.dotclaude.session-auto-resume.plist`.
 DO run `uninstall` before deleting or moving the script: a login item pointing at a deleted script is
 the mess to avoid. TEST: `launchctl print gui/$(id -u)/com.dotclaude.session-auto-resume` succeeds

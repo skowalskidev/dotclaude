@@ -2397,8 +2397,8 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "Blocks the install/enable verbs only (crontab install, launchctl load, systemctl "
             "enable, LaunchAgents/Daemons writes, session-auto-resume.py install); list and remove pass.",
-            "Overridable with CLAUDE_ALLOW_DAEMON=1, in the environment or as the command's leading "
-            "inline assignment, only when Simon asked for that process.",
+            "Overridable only by CLAUDE_ALLOW_DAEMON=1 in the session's starting environment, which "
+            "Simon sets; a CLAUDE_ALLOW_DAEMON=1 prefix or env assignment inside the command is denied.",
             "Fails open on a malformed payload.",
         ],
     },

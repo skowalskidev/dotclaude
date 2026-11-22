@@ -14,9 +14,10 @@ WHAT IT BLOCKS (the install/enable verbs only — listing and removing stay allo
   - writing a plist into ~/Library/LaunchAgents or /Library/LaunchDaemons.
   - an installer that loads one itself: `session-auto-resume.py install`.
 
-Override: CLAUDE_ALLOW_DAEMON=1, in the environment or as the command's leading inline assignment
-(`CLAUDE_ALLOW_DAEMON=1 python3 ...`), only when the user asked for that specific persistent process.
-Fails OPEN on anything malformed — a guard that breaks the session gets switched off.
+Override: CLAUDE_ALLOW_DAEMON=1 in the ENVIRONMENT the Claude session was started with, which only
+the user sets. A `CLAUDE_ALLOW_DAEMON=1 ...` prefix inside the command does NOT pass: the agent types
+the command, so an inline prefix would let it approve its own gated install (rules/self-healing-config.md
+§ Safeguard changes). Fails OPEN on anything malformed — a guard that breaks the session gets switched off.
 """
 
 import json
@@ -39,10 +40,6 @@ PATTERNS = [
      "installs the hourly auto-resume LaunchAgent (persistent scheduled job)"),
 ]
 
-# The override as a leading inline assignment, the grammar the sibling guards accept
-# (git-commit-guard.py, process-kill-guard.py); the hook process never sees a command's own env.
-INLINE_OVERRIDE = re.compile(r"^\s*(?:env\s+)?CLAUDE_ALLOW_DAEMON=1\s")
-
 
 def main() -> int:
     try:
@@ -55,7 +52,7 @@ def main() -> int:
     command = payload.get("tool_input", {}).get("command", "")
     if not isinstance(command, str):
         return 0
-    if os.environ.get("CLAUDE_ALLOW_DAEMON") == "1" or INLINE_OVERRIDE.match(command):
+    if os.environ.get("CLAUDE_ALLOW_DAEMON") == "1":
         return 0
 
     for rx, what in PATTERNS:
@@ -69,9 +66,10 @@ def main() -> int:
                         "background process without asking the user first, and prefers on-demand / "
                         "event-driven over always-on.\n"
                         "Ask the user first, with what it would run and why. If they asked for this "
-                        "specific persistent process, prefix the command with CLAUDE_ALLOW_DAEMON=1 — "
-                        "and remove it AND its registration when the task is done, unless they asked "
-                        "for it to stay installed."
+                        "specific persistent process, they run the command in their own terminal or "
+                        "start the session with CLAUDE_ALLOW_DAEMON=1 in its environment; an inline "
+                        "CLAUDE_ALLOW_DAEMON=1 prefix in the command is not accepted. Remove it AND its "
+                        "registration when the task is done, unless they asked for it to stay installed."
                     ),
                 }
             }))
