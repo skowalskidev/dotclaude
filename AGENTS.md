@@ -15,7 +15,8 @@ execute the steps in order; they're idempotent.
   or runtime data — they're excluded on purpose.
 - When Simon's config changes, commit it here via the **`/sk:claude-config-sync`** skill (reviews the diff +
   secret-scans first), or `git -C ~/.claude add -A && git -C ~/.claude commit && git -C ~/.claude push`.
-  A `gitleaks` pre-commit hook + the allowlist `.gitignore` block any staged secret. No background daemon.
+  A `gitleaks` pre-commit hook + the allowlist `.gitignore` block any staged secret. No background sync daemon;
+  the one opt-in LaunchAgent is the auto-resume watchdog (`references/session-auto-resume.md`).
 
 ## Native host adapters
 

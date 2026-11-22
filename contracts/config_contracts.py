@@ -136,6 +136,7 @@ CONTRACTS: dict[str, dict] = {
             "Block cached API authentication and CLI billing overrides; strip inherited API environment and pin the native subscription endpoint without modifying credentials.",
             "Disable on-demand connectors and retired registry-owned names; never copy authentication files.",
             "Preserve native hook trust and shared block decisions; map every patch source and destination to the edit guards.",
+            "Leave Claude-only hook events (StopFailure) out of the Codex dispatcher; refuse any other event Codex does not support.",
             "Map a shell read of skills/sk/skills/<name>/SKILL.md to an extra Skill event for sk:<name>, so a Codex run of a ship stage records the same stage receipt as Claude's Skill tool.",
             "Refuse a `review` (or `exec review`) launch with no explicit -C/--cd, a non-git launch directory, or an inline brief naming shas none of which is that checkout's HEAD or its --commit, before Codex starts.",
             "Keep SessionEnd transcript metrics Claude-only until their parser supports Codex.",
@@ -183,6 +184,29 @@ CONTRACTS: dict[str, dict] = {
             "Preserve native --profile, exec, mcp and app-server invocations without interpreting their arguments as print prompts.",
         ],
     },
+    "bin/session-auto-resume.py": {
+        "mission": "A session that stopped on a usage limit, an API or network error or a crash finishes its unfinished work without Simon having to notice and type resume.",
+        "purpose": "Hourly launchd watchdog: finds stopped sessions with recorded unfinished work and resumes each in place with claude -p --resume; zero model calls for the check.",
+        "criteria": [
+            "Resume only an API-error stop or a mid-turn death with an open plan section, an unreconciled ask or a mid tool loop, idle 15 min and within 48 h.",
+            "Never resume a running, Conductor-closed, archived, interrupted, waiting-on-Simon, other-account or headless -p session; --session alone admits a -p session.",
+            "Pass the fixed prompt with a fixed-list cause, the session's own cwd and its recorded permission mode; add no mode the transcript lacks.",
+            "Hold every session of an account until its newest stated usage reset plus 2 min; at most one attempt per session per hour and 24 per 48 h.",
+            "Pause every resume while ~/.claude.json shows extra usage on, and tell Simon once (rules/spend-approval.md).",
+            "Log and store ids, causes, counts and outcomes only; never transcript text, titles or secret values. Read conductor.db read-only.",
+            "A held run lock skips the run; --dry-run resumes nothing and writes no state; record-stop exits 0 on any payload.",
+            "Install, status and uninstall are idempotent; the plist template resolves $HOME at install and schedules with StartCalendarInterval.",
+        ],
+    },
+    "references/session-auto-resume.md": {
+        "mission": "Simon and any agent can install, check, explain and safely change the auto-resume watchdog from one page with its primary sources.",
+        "purpose": "Qualification rules, retry and quota behaviour, the Conductor limit, install commands and the research behind the hourly watchdog.",
+        "criteria": [
+            "Name every qualification rule bin/session-auto-resume.py applies, in the order its dry run reports them.",
+            "Cite a primary source for each Claude Code, Conductor and launchd claim, with the date researched.",
+            "Name the mainstream alternatives rejected and why, with their adoption signal.",
+        ],
+    },
     "bin/claude-launch.py": {
         "mission": "Simon starts Claude in a project with his chosen instruction boundary while his personal rules and caller settings remain active.",
         "purpose": "Claude executable wrapper for per-project native instruction exclusions.",
@@ -190,7 +214,7 @@ CONTRACTS: dict[str, dict] = {
             "With the flag false, launch native Claude with unchanged arguments; with true, exclude project instruction files through native claudeMdExcludes.",
             "Preserve caller settings and personal ~/.claude files; reject invalid policy before launching Claude.",
             "Keep temporary merged settings private and clean them after normal exit; forward signals to the child.",
-            "Mark a -p/--print run AGENT_DELEGATED_WORKER=1; never mark a streaming (Conductor) session.",
+            "Mark a -p/--print run AGENT_DELEGATED_WORKER=1; never mark a streaming (Conductor) session or a print run carrying AGENT_SESSION_RESUMED=1 (the auto-resume watchdog continuing a main session).",
         ],
     },
     "references/agent-hosts.md": {
@@ -2371,8 +2395,9 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "PreToolUse: blocks installing a cron/launchd/systemd persistent process.",
         "criteria": [
             "Blocks the install/enable verbs only (crontab install, launchctl load, systemctl "
-            "enable, LaunchAgents/Daemons writes); list and remove pass.",
-            "Overridable with CLAUDE_ALLOW_DAEMON=1 when Simon asked for that process.",
+            "enable, LaunchAgents/Daemons writes, session-auto-resume.py install); list and remove pass.",
+            "Overridable with CLAUDE_ALLOW_DAEMON=1, in the environment or as the command's leading "
+            "inline assignment, only when Simon asked for that process.",
             "Fails open on a malformed payload.",
         ],
     },
@@ -2506,6 +2531,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Every ask Simon makes survives verbatim, so no plan finishes with a point silently missing.",
         "purpose": "Records complete redacted asks, prompts gauntlet updates and checks reconciliation freshness at hand-back.",
         "criteria": [
+            "Records no ask for a submit carrying AGENT_SESSION_RESUMED=1: that prompt is the auto-resume watchdog's, never Simon's words.",
             "The only hook that writes into a project, because the record has to sit beside the "
             "branch it describes. That inversion is the risk, so the refusals ARE the contract: "
             "not a git repo, $HOME, an unwritable dir, a git-TRACKED path, a path that is not "
@@ -2602,6 +2628,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Simon gets one recoverable session record without repeated approval interviews.",
         "purpose": "UserPromptSubmit advisory initializes or reuses the task dashboard and points to task routing.",
         "criteria": [
+            "A prompt carrying AGENT_SESSION_RESUMED=1 opens no plan and records no ask; it gets one notice to continue the existing plan.",
             "Initialize one ordinary plan and canonical dashboard idempotently; resolve the session root through bin/session-root.sh even after a nested-worktree cwd change.",
             "Use existing explicit or standing authorization; ask only unresolved consequential choices, missing access, production writes or paid calls.",
             "Never deny Agent, Task or Workflow and require no AskUserQuestion callback, approval stamp, sentinel or arbitrary prompt-length authority.",

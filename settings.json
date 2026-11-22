@@ -229,6 +229,17 @@
           }
         ]
       }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/session-auto-resume.py record-stop",
+            "timeout": 5
+          }
+        ]
+      }
     ]
   },
   "worktree": {

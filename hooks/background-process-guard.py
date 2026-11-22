@@ -12,9 +12,11 @@ WHAT IT BLOCKS (the install/enable verbs only — listing and removing stay allo
   - launchctl load / bootstrap / enable / kickstart / start.
   - systemctl [--user] enable / start.
   - writing a plist into ~/Library/LaunchAgents or /Library/LaunchDaemons.
+  - an installer that loads one itself: `session-auto-resume.py install`.
 
-Override: CLAUDE_ALLOW_DAEMON=1 when you have asked for that specific persistent process. Fails
-OPEN on anything malformed — a guard that breaks the session gets switched off.
+Override: CLAUDE_ALLOW_DAEMON=1, in the environment or as the command's leading inline assignment
+(`CLAUDE_ALLOW_DAEMON=1 python3 ...`), only when the user asked for that specific persistent process.
+Fails OPEN on anything malformed — a guard that breaks the session gets switched off.
 """
 
 import json
@@ -32,7 +34,14 @@ PATTERNS = [
      "enables a systemd unit (persistent background process)"),
     (re.compile(r"(?:>|>>|\bcp\b|\bmv\b|\btee\b|\bln\b|\binstall\b|\bcat\b)[^\n]*Library/Launch(?:Agents|Daemons)"),
      "writes a plist into a LaunchAgents/LaunchDaemons directory"),
+    # An installer that calls launchctl itself hides the verb from the patterns above, so it is named.
+    (re.compile(r"\bsession-auto-resume\.py\s+install\b"),
+     "installs the hourly auto-resume LaunchAgent (persistent scheduled job)"),
 ]
+
+# The override as a leading inline assignment, the grammar the sibling guards accept
+# (git-commit-guard.py, process-kill-guard.py); the hook process never sees a command's own env.
+INLINE_OVERRIDE = re.compile(r"^\s*(?:env\s+)?CLAUDE_ALLOW_DAEMON=1\s")
 
 
 def main() -> int:
@@ -46,7 +55,7 @@ def main() -> int:
     command = payload.get("tool_input", {}).get("command", "")
     if not isinstance(command, str):
         return 0
-    if os.environ.get("CLAUDE_ALLOW_DAEMON") == "1":
+    if os.environ.get("CLAUDE_ALLOW_DAEMON") == "1" or INLINE_OVERRIDE.match(command):
         return 0
 
     for rx, what in PATTERNS:
@@ -60,8 +69,9 @@ def main() -> int:
                         "background process without asking the user first, and prefers on-demand / "
                         "event-driven over always-on.\n"
                         "Ask the user first, with what it would run and why. If they asked for this "
-                        "specific persistent process, set CLAUDE_ALLOW_DAEMON=1 — and remove it AND "
-                        "its registration when the task is done."
+                        "specific persistent process, prefix the command with CLAUDE_ALLOW_DAEMON=1 — "
+                        "and remove it AND its registration when the task is done, unless they asked "
+                        "for it to stay installed."
                     ),
                 }
             }))

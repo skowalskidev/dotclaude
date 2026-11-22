@@ -124,6 +124,8 @@ CRITERIA: list[tuple[str, str]] = [
      "The daily pulse only reads, never prints a key, flags a tanking paywall arm, a dropped webhook and a jump in failures, and keeps noise green."),
     ("ci-gate-list-counts-every-pr-run-step",
      "The local CI gate list is derived from the workflow files: every pull-request run step counted, container needs marked, an empty list never passes."),
+    ("session-auto-resume-resumes-only-stopped-unfinished-work",
+     "The hourly watchdog resumes a session only after an API-error stop or a crash with recorded unfinished work, never a running, archived, interrupted or other-account one, and the installer stays behind the daemon guard."),
     ("pr-ci-wait-refuses-quiet-states",
      "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
     ("pr-landing-gate-refuses-missing-rows",
@@ -2517,6 +2519,18 @@ def check_pr_ci_wait_refuses_quiet_states() -> None:
               f"{path} does not point at bin/pr-ci-wait.py for PR CI waits")
     check("for _ in $(seq 1 10)" not in (ROOT / "references/git-pr-deploy.md").read_text(),
           "references/git-pr-deploy.md still carries the hand-written CI wait loop")
+
+
+def check_session_auto_resume_resumes_only_stopped_unfinished_work() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "session-auto-resume.test.py")])
+    check(result.returncode == 0, "Auto-resume watchdog regression: " + result.stdout + result.stderr)
+    plist = read("dotfiles/session-auto-resume.plist")
+    check("StartCalendarInterval" in plist and "StartInterval" not in plist.replace("StartCalendarInterval", ""),
+          "dotfiles/session-auto-resume.plist must schedule with StartCalendarInterval, which launchd "
+          "runs on wake after a missed hour; StartInterval skips intervals the Mac slept through.")
+    check("/Users/" not in plist, "dotfiles/session-auto-resume.plist hardcodes a home directory.")
+    check("references/session-auto-resume.md" in read("rules/process.md"),
+          "rules/process.md must name the sanctioned auto-resume LaunchAgent through its reference.")
 
 
 def check_monitoring_only_class_holds() -> None:

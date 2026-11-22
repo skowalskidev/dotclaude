@@ -11,6 +11,12 @@ if [ "${AGENT_DELEGATED_WORKER:-}" = "1" ]; then
   printf '%s' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"DELEGATED WORKER (AGENT_DELEGATED_WORKER=1): your supervisor owns the session plan, dashboard and intent ledger. Do not create, edit, update or reconcile any of them; return your result in your final message."}}'
   exit 0
 fi
+# The auto-resume watchdog (bin/session-auto-resume.py) continues a stopped main session with a fixed
+# machine prompt: the session keeps its own plan, and that prompt is never a new ask.
+if [ "${AGENT_SESSION_RESUMED:-}" = "1" ]; then
+  printf '%s' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"AUTO-RESUMED SESSION (AGENT_SESSION_RESUMED=1): the hourly watchdog sent this prompt, not Simon. Keep your existing living plan and ledger, record no new ask, and continue the unfinished work."}}'
+  exit 0
+fi
 CFG_ROOT="${CLAUDE_CONFIG_ROOT:-$HOME/.claude}"
 INPUT="$(cat)"
 json_field() {

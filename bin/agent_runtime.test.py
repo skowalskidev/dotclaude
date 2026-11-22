@@ -467,6 +467,8 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(set(runtime.native_hooks()), {'SessionStart', 'PreToolUse'})
         self.write('settings.json', {'hooks': {'Stop': [], 'UserPromptSubmit': []}})
         self.assertEqual(set(runtime.native_hooks()), {'SessionStart', 'PreToolUse', 'Stop', 'UserPromptSubmit'})
+        self.write('settings.json', {'hooks': {'Stop': [], 'StopFailure': []}})
+        self.assertEqual(set(runtime.native_hooks()), {'SessionStart', 'PreToolUse', 'Stop'})
         self.write('settings.json', {'hooks': {'InventedEvent': []}})
         with self.assertRaisesRegex(ValueError, 'Unsupported'):
             runtime.native_hooks()

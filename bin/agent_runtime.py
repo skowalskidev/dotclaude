@@ -20,6 +20,10 @@ ROOT = Path(__file__).resolve().parent.parent
 EVENTS = {'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
           'Stop', 'PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart',
           'SubagentStop', 'Interrupt'}
+# Claude Code events Codex has no counterpart for. Their handlers serve Claude sessions only (the
+# StopFailure marker feeds bin/session-auto-resume.py, which resumes Claude transcripts), so the
+# Codex dispatcher leaves them out instead of refusing to launch.
+CLAUDE_ONLY_EVENTS = {'StopFailure'}
 
 
 def read_json(path, default=None):
@@ -186,7 +190,7 @@ def toml(value):
 
 def native_hooks():
     """One native dispatcher per event; the real wiring remains in settings.json."""
-    events = set(read_json(ROOT / 'settings.json').get('hooks', {})) | {'SessionStart', 'PreToolUse'}
+    events = (set(read_json(ROOT / 'settings.json').get('hooks', {})) - CLAUDE_ONLY_EVENTS) | {'SessionStart', 'PreToolUse'}
     unsupported = events - EVENTS
     if unsupported:
         raise ValueError('Unsupported Codex hook events: ' + ', '.join(sorted(unsupported)))

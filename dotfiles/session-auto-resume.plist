@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Template for the hourly auto-resume watchdog LaunchAgent. Never load this file directly:
+     `~/.claude/bin/session-auto-resume.py install` fills __SCRIPT__ and __LOG_DIR__ from $HOME and
+     writes ~/Library/LaunchAgents/com.dotclaude.session-auto-resume.plist. Why these keys:
+     references/session-auto-resume.md. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.dotclaude.session-auto-resume</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/python3</string>
+		<string>__SCRIPT__</string>
+		<string>run</string>
+	</array>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Minute</key>
+		<integer>17</integer>
+	</dict>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>LowPriorityIO</key>
+	<true/>
+	<key>AbandonProcessGroup</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>__LOG_DIR__/session-auto-resume.launchd.log</string>
+	<key>StandardErrorPath</key>
+	<string>__LOG_DIR__/session-auto-resume.launchd.log</string>
+</dict>
+</plist>

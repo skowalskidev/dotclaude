@@ -230,7 +230,7 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   residue. Cases: `references/dev-server-hygiene.md`.
 - **Never install a persistent background process** (login item, LaunchAgent/LaunchDaemon, cron,
   always-on watcher) without asking first — and if you add one for a task, remove it AND its
-  registration when done. A login item pointing at a deleted script is the mess to avoid.
+  registration when done. The one sanctioned job: `references/session-auto-resume.md`.
 - **Prefer on-demand / event-driven over always-on.** An idle CPU-burning daemon is rarely right;
   reach for a hook, a manual command, or a session-start check instead.
 

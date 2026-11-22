@@ -158,8 +158,10 @@ def launch():
         cwd = launch_cwd()
         _, manifest, _ = project(cwd)
         args = sys.argv[1:]
-        if print_mode(args):
-            # Shared hooks read this to leave the supervisor's plan and ledger alone.
+        if print_mode(args) and os.environ.get('AGENT_SESSION_RESUMED') != '1':
+            # Shared hooks read this to leave the supervisor's plan and ledger alone. A session the
+            # auto-resume watchdog continues (bin/session-auto-resume.py) owns its own plan, so it
+            # stays unmarked.
             os.environ['AGENT_DELEGATED_WORKER'] = '1'
         binary = executable()
         if manifest.get('ignoreProjectInstructions', False):

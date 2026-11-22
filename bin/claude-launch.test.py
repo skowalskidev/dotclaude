@@ -200,6 +200,19 @@ class LauncherTests(unittest.TestCase):
                 launcher.launch()
             self.assertEqual(execute.call_args.args[2].get('AGENT_DELEGATED_WORKER') == '1', marked, argv)
 
+    def test_a_resumed_session_print_run_keeps_its_own_plan(self):
+        binary = self.base / 'claude'
+        binary.write_text('fixture')
+        binary.chmod(0o700)
+        os.environ.pop('AGENT_DELEGATED_WORKER', None)
+        with patch.dict(os.environ, {'AGENT_SESSION_RESUMED': '1'}), \
+             patch.object(launcher, 'project', return_value=(None, {}, 'personal')), \
+             patch.object(launcher, 'executable', return_value=str(binary)), \
+             patch.object(launcher.os, 'chdir'), patch.object(launcher.os, 'execve') as execute, \
+             patch.object(launcher.sys, 'argv', ['claude-launch.py', '-p', '--resume', 'sid', 'go']):
+            launcher.launch()
+        self.assertNotIn('AGENT_DELEGATED_WORKER', execute.call_args.args[2])
+
     def test_binary_selection_prefers_stable_conductor_and_skips_self(self):
         directory = self.base / 'conductor'
         for version in ('2.1.1', '2.2.0-alpha.1', '2.1.2'):
