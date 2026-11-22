@@ -1143,6 +1143,17 @@ uses the same signed host as the suite and proves its required service operation
 and the [ad hoc pseudo-identity](https://developer.apple.com/documentation/security/seccodesignatureflags/adhoc);
 ad hoc signing is not a developer identity (checked 2026-10-09).
 
+**Keep seeded device state across restarts, and re-verify it after every boot.** DO boot any emulator
+or simulator that a walk seeds (installed data-seeding tools, records in a platform health store) so
+state persists: for the Android emulator omit `-no-snapshot-save`, which reverts the device to its saved
+snapshot on every restart. DO re-read the seeded records after ANY device boot, before the first walk
+step, and treat "no data" as a reverted device until that check passes. DO finish builds before booting
+a long-lived emulator under the lease, or boot it as `references/dev-server-hygiene.md` § Machine-wide
+capacity prescribes for long-lived processes, so a rebuild never forces a reboot. DON'T wrap a
+long-lived emulator in `bin/native-slot.sh run`: it holds the owner's one lease and every later build
+exits 75. TEST: a walk report names the seeded-data check run after the last device boot. (the fix for
+35 minutes spent diagnosing a snapshot-reverted emulator as an app bug)
+
 **Pin the simulator to the CI locale before the full suite.** `xcrun simctl spawn <udid> defaults read -g
 AppleLocale` must read `en_US`; a shared simulator left on a UK region failed 6 date tests that pass in CI.
 **Pass `TEST_RUNNER_*` variables in xcodebuild's environment (`TEST_RUNNER_X=y xcodebuild …`), never as a
