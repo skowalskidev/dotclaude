@@ -439,7 +439,8 @@ lease". Boot the server on its claimed port lane (`bin/port-slot.sh`) and its Do
 `stack-acquire`; lease its separate build and test steps. A held simulator preview is the leased hold
 command of `references/ios-simulator.md` § Hold for the user, then clean up, and takes the same one
 lease: finish web rebuilds and final checks BEFORE the hold, and stop the hold to rebuild, because a
-same-owner job queued behind a hold waits until the hold ends. TEST: `status` shows no heavy slot held
+same-owner job queued behind a hold waits until the hold ends. A long-lived device emulator follows the same rule: `references/testing-strategy.md` § Native simulator suites.
+TEST: `status` shows no heavy slot held
 by a dev server while its session runs a simulator preview, and no same-session build or gate is queued
 while that session's preview hold runs (the fix for a web rebuild and final checks queued behind the
 session's own preview).
