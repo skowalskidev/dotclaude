@@ -278,7 +278,8 @@ number, or "all"/"both"/"them"), or name no PR at all for ONE other PR per turn.
 this session did not push only when the hand-back he is answering lists it on its `Merge list:` line
 (the fix for "merge and deploy both" refused for a stack's base PR another session pushed), and a
 number names only that PR. A default-branch push needs
-`CLAUDE_ALLOW_MAIN_COMMIT=1` AND the user's words this turn saying "push". No flag the model sets
+`CLAUDE_ALLOW_MAIN_COMMIT=1` in the session's starting environment (an inline prefix in the command
+is denied) AND the user's words this turn saying "push". No flag the model sets
 authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
 **DO run one `gh pr merge <bare number>` per PR; DON'T loop over a variable or substitute the number:**
 the guard reads the PR from the command text, so `gh pr merge $n` denies whatever the user said. Read

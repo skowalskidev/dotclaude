@@ -128,6 +128,10 @@ CRITERIA: list[tuple[str, str]] = [
      "The hourly watchdog resumes a session only after an API-error stop or a crash with recorded unfinished work, never a running, archived, interrupted or other-account one, and the installer stays behind the daemon guard."),
     ("daemon-guard-refuses-inline-self-approval",
      "The persistent-process guard passes only an override set in the session's starting environment; an agent-typed CLAUDE_ALLOW_DAEMON=1 prefix is denied and no doc advertises one."),
+    ("main-commit-guard-refuses-inline-self-approval",
+     "The commit guard passes a default-branch commit only on a CLAUDE_ALLOW_MAIN_COMMIT=1 set in the session's starting environment; every agent-typed inline, env or export form is denied and no doc advertises one."),
+    ("kill-guard-refuses-inline-self-approval",
+     "The process-kill guard passes a pattern kill only on a CLAUDE_ALLOW_PATTERN_KILL=1 set in the session's starting environment; every agent-typed inline, env or export form is denied and no doc advertises one."),
     ("pr-ci-wait-refuses-quiet-states",
      "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
     ("pr-landing-gate-refuses-missing-rows",
@@ -1278,7 +1282,7 @@ def check_routing_hooks_fire_for_the_tools_they_target() -> None:
                                   "tool_input": case.get("tool_input", {})})
             env = {k: v for k, v in os.environ.items()
                    if k not in ("CLAUDE_TEST_VIEWPORT_MAX_H", "CLAUDE_ALLOW_PATTERN_KILL",
-                                "CLAUDE_ALLOW_DAEMON")}
+                                "CLAUDE_ALLOW_DAEMON", "CLAUDE_ALLOW_MAIN_COMMIT")}
             result = subprocess.run([str(ROOT / "hooks" / hook_name)], input=payload, text=True,
                                     capture_output=True, timeout=20, env=env)
             try:
@@ -2561,6 +2565,75 @@ def check_daemon_guard_refuses_inline_self_approval() -> None:
         check(required in rule, "rules/self-healing-config.md lost its safeguard-change condition: " + required)
     check("§ Safeguard changes" in read("rules/security.md"),
           "rules/security.md no longer routes guard changes through § Safeguard changes.")
+
+
+def _guard_decision(guard: Path, command: str, env: dict, cwd=None) -> str:
+    payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+    if cwd is not None:
+        payload["cwd"] = str(cwd)
+    result = subprocess.run(["/usr/bin/python3", str(guard)], input=json.dumps(payload), text=True,
+                            capture_output=True, timeout=20, env=env, cwd=cwd)
+    try:
+        return json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"]
+    except Exception:  # noqa: BLE001
+        return "allow"
+
+
+# Docs that would teach an agent the override: none may show it typed into a command.
+_OVERRIDE_DOCS = ("README.md", "AGENTS.md", "rules/process.md", "references/git-pr-deploy.md",
+                  "references/dev-server-hygiene.md")
+
+
+def _check_no_inline_doc(var: str, guard: Path) -> None:
+    typed = re.compile(r"(?:env\s+|export\s+)?" + var + r"=1\s+(?:&&\s*)?(?:git|gh|pkill|killall|kill|sudo)\b")
+    for relative in _OVERRIDE_DOCS:
+        text = read(relative) if (ROOT / relative).exists() else ""
+        check(typed.search(text) is None and "inline prefix on that command" not in text
+              and "prefixed inline" not in text,
+              f"{relative} advertises an inline {var}=1 prefix as an override.")
+    source = guard.read_text()
+    check(typed.search(source) is None and "prefix the command with" not in source,
+          f"{guard.name} tells the agent to type {var}=1 into the command.")
+
+
+def check_main_commit_guard_refuses_inline_self_approval() -> None:
+    guard = ROOT / "hooks" / "git-commit-guard.py"
+    var = "CLAUDE_ALLOW_MAIN_COMMIT"
+    base = {k: v for k, v in os.environ.items()
+            if k not in (var, "CLAUDE_ALLOW_COMMIT_M", "CLAUDE_CODE_SESSION_ID", "CLAUDE_PROJECT_DIR",
+                         "AGENT_DELEGATED_WORKER", "CLAUDE_INTENT_LEDGER", "CLAUDE_INTAKE_GATE")}
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Path(tmp) / "r"
+        repo.mkdir()
+        for args in (["init", "-q", "-b", "main"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit",
+                                                     "-q", "--allow-empty", "--allow-empty-message", "-F", "/dev/null"]):
+            subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+        commit = "git " + "commit -F msg.txt"  # assembled so this file's source is never a guarded command
+        for command in (commit, f"{var}=1 {commit}", f"env {var}=1 {commit}", f"  {var}=1 {commit}",
+                        f"export {var}=1 && {commit}", f"{var}=1 git push origin main"):
+            check(_guard_decision(guard, command, base, repo) == "deny",
+                  f"git-commit-guard.py let an agent self-approve a default-branch commit/push: {command!r}")
+        check(_guard_decision(guard, commit, {**base, var: "1"}, repo) == "allow",
+              f"git-commit-guard.py denied a main commit in a session Simon started with {var}=1.")
+    check(re.search(r"\\b" + var + r"=1", guard.read_text()) is None,
+          "git-commit-guard.py carries an inline-override matcher again.")
+    _check_no_inline_doc(var, guard)
+
+
+def check_kill_guard_refuses_inline_self_approval() -> None:
+    guard = ROOT / "hooks" / "process-kill-guard.py"
+    var = "CLAUDE_ALLOW_PATTERN_KILL"
+    base = {k: v for k, v in os.environ.items() if k != var}
+    kill = "pkill -f vitest"
+    for command in (kill, f"{var}=1 {kill}", f"env {var}=1 {kill}", f"  {var}=1 killall node",
+                    f"export {var}=1 && {kill}", f"sudo {var}=1 pkill node"):
+        check(_guard_decision(guard, command, base) == "deny",
+              f"process-kill-guard.py let an agent self-approve a pattern kill: {command!r}")
+    check(_guard_decision(guard, kill, {**base, var: "1"}) == "allow",
+          f"process-kill-guard.py denied a pattern kill in a session Simon started with {var}=1.")
+    check("_prefix_assignments" not in guard.read_text(),
+          "process-kill-guard.py carries an inline-override matcher again.")
+    _check_no_inline_doc(var, guard)
 
 
 def check_session_auto_resume_resumes_only_stopped_unfinished_work() -> None:

@@ -24,8 +24,11 @@ Deny THREE git mistakes Claude makes that no other layer catches:
 
   1. Committing or pushing on the default branch (main / master). rules/process.md: "If on the
      default branch, create a branch first", and feedback_no_master_commits: never commit/push to
-     master without your confirmation. Branch first, or set CLAUDE_ALLOW_MAIN_COMMIT=1 — in the
-     hook's env OR prefixed inline on the command — when you have confirmed this exact commit/push.
+     master without your confirmation. Branch first. The override is CLAUDE_ALLOW_MAIN_COMMIT=1 in
+     the ENVIRONMENT the Claude session was started with, which only the user sets. A
+     `CLAUDE_ALLOW_MAIN_COMMIT=1 ...` prefix (or `env`, `export`) inside the command does NOT pass:
+     the agent types the command, so an inline prefix would let it approve its own default-branch
+     commit or push (rules/self-healing-config.md § Safeguard changes).
      The ~/.claude config repo is the one exception, and it is narrow: a commit there passes (it
      lives on main by design), and a push to its main passes only when every pushed head was
      verified by bin/config-land-check.py (contract suite, secret scan and a hash-bound diff review
@@ -2946,11 +2949,8 @@ def main() -> int:
         return 0
     cwd = payload.get("cwd") or os.getcwd()
 
-    masked = mask(command)
     target_cwd = command_cwd(command, cwd)
-    allow_main = os.environ.get("CLAUDE_ALLOW_MAIN_COMMIT") == "1" or bool(
-        re.search(r"\bCLAUDE_ALLOW_MAIN_COMMIT=1\b", masked)
-    )
+    allow_main = os.environ.get("CLAUDE_ALLOW_MAIN_COMMIT") == "1"
     # Config-repo landing: decided once for the whole command, and only when every commit or push in
     # it statically targets the config repo. A mixed or unresolvable command keeps the ordinary guard.
     config_scope = False
@@ -3052,10 +3052,10 @@ def main() -> int:
                    if ask_user else " Fix the cause above and retry; do not ask the user.")
             )
 
-        # 1. Default-branch protection. The override counts whether the flag is in the hook's OWN env
-        # OR prefixed inline on the command (`CLAUDE_ALLOW_MAIN_COMMIT=1 git push …`). Claude only
-        # adds it once the user has confirmed THIS push; a bare push with no flag stays blocked. The
-        # config repo was judged above: its commits pass, and its main pushes need a verified head.
+        # 1. Default-branch protection. The override counts only from the hook's OWN env, i.e. the
+        # session's starting environment the user set; the same assignment typed into the command is
+        # the agent's own word and stays blocked. The config repo was judged above: its commits pass,
+        # and its main pushes need a verified head.
         # A config commit the resolver could not parse keeps its old exemption; a config push never
         # does, so an unverified head reaching main still stops here.
         # A push to the remote default branch outside the config repo also needs the user's OWN
@@ -3083,8 +3083,9 @@ def main() -> int:
                     "rules/process.md says branch first; never commit or push to main/master "
                     "without the user's confirmation.\n"
                     "Create a feature branch (git switch -c <branch>) and redo it there. If the user "
-                    "confirmed this exact commit/push to the default branch, prefix the command with "
-                    "CLAUDE_ALLOW_MAIN_COMMIT=1 (e.g. `CLAUDE_ALLOW_MAIN_COMMIT=1 git push origin main`)."
+                    "wants this exact commit/push on the default branch, they run it in their own "
+                    "terminal or start the session with CLAUDE_ALLOW_MAIN_COMMIT=1 in its environment; "
+                    "an inline CLAUDE_ALLOW_MAIN_COMMIT=1 prefix in the command is not accepted."
                 )
 
         # 2. Commit must use -F <file>, never -m or a heredoc.

@@ -378,7 +378,8 @@ HOOK_ROUTING: list[dict] = [
      "expect": ["work-resource-guard.sh",
                 "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py",
                 "process-kill-guard.py", "capacity-timeout-guard.py"]},
-    # The process-kill guard: a pattern kill that can signal other sessions' processes is denied;
+    # The process-kill guard: a pattern kill that can signal other sessions' processes is denied,
+    # an agent-typed override prefix included (only the session's starting environment passes);
     # a kill by pid or a pkill -f scoped to the caller's own path passes
     # (references/dev-server-hygiene.md § Private process inspection).
     *({"event": "PreToolUse", "tool": "Bash",
@@ -391,6 +392,8 @@ HOOK_ROUTING: list[dict] = [
           ("killall node", "deny"),
           ("bash -c 'pkill -f vitest'", "deny"),
           ("cd /tmp && sudo pkill -f vitest", "deny"),
+          ("CLAUDE_ALLOW_PATTERN_KILL=1 pkill node", "deny"),
+          ("env CLAUDE_ALLOW_PATTERN_KILL=1 pkill -f vitest", "deny"),
           ('pkill -f "$TMP" 2>/dev/null', "allow"),
           ("kill 12345", "allow"),
       )),

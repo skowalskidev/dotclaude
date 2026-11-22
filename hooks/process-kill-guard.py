@@ -27,9 +27,11 @@ WHAT IT ALLOWS:
   - text that merely NAMES a command (a quoted string, heredoc body or grep pattern).
 
 Parsing is shared with hooks/secret-echo-guard.py (parse / effective / shell_body), one shell
-grammar for both guards. Override: CLAUDE_ALLOW_PATTERN_KILL=1 in the environment or as an inline
-prefix on that command, only for a case the user named. Fails OPEN on anything malformed: a guard
-that breaks the session gets switched off.
+grammar for both guards. Override: CLAUDE_ALLOW_PATTERN_KILL=1 in the ENVIRONMENT the Claude session
+was started with, which only the user sets. A `CLAUDE_ALLOW_PATTERN_KILL=1 ...` prefix (or `env`,
+`export`) inside the command does NOT pass: the agent types the command, so an inline prefix would
+let it approve its own gated kill (rules/self-healing-config.md § Safeguard changes). Fails OPEN on
+anything malformed: a guard that breaks the session gets switched off.
 """
 
 import importlib.util
@@ -159,17 +161,6 @@ def kill_all_target(args):
     return "-1" in targets
 
 
-def _prefix_assignments(words):
-    """The VAR=value words (env included) before a command's first real word."""
-    out = []
-    for w in words:
-        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", w):
-            out.append(w)
-        elif os.path.basename(w) not in ("env", "sudo"):
-            break
-    return out
-
-
 def strip_sudo(words):
     out, i = [], 0
     while i < len(words):
@@ -188,10 +179,7 @@ def judge(P, cmds, depth=0):
     if depth > 6:
         return None
     for idx, cmd in enumerate(cmds):
-        raw = cmd.texts()
-        if f"{OVERRIDE}=1" in _prefix_assignments(raw):
-            continue  # inline override on this command only
-        words, _ = P.effective(strip_sudo(raw))
+        words, _ = P.effective(strip_sudo(cmd.texts()))
         base = os.path.basename(words[0]) if words else ""
         args = words[1:]
         if base == "pkill":
@@ -266,7 +254,8 @@ def main() -> int:
                 "background task, or use the tool's own release (e.g. `local-capacity.py release "
                 "--token <token>`). See references/dev-server-hygiene.md § Private process inspection.\n"
                 "A pkill -f scoped to a path only you own passes (e.g. `pkill -f \"$TMP\"`, your worktree "
-                f"path). Override with {OVERRIDE}=1 only for a case the user named."
+                f"path). Override only with {OVERRIDE}=1 in the environment the user started the "
+                "session with, for a case the user named; an inline prefix in the command is not accepted."
             ),
         }
     }))

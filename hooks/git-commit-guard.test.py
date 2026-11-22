@@ -256,7 +256,13 @@ MUST_FIRE = [
     ("bash -c push to main", "feature", 'bash -c "git push origin main"', "(main)"),
     ("xargs git push is judged as a push on main", "main", "echo origin | xargs git push", "(main)"),
     ("a self-set flag is not the user's word", "feature", "CLAUDE_ALLOW_PR_MERGE=1 gh pr merge 12", "OWN words this turn"),
-    ("a push flag alone is not the user's word", "feature", f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", "OWN words this turn"),
+    # The main override counts only from the session's starting environment: every agent-typed form
+    # in the command is the agent approving itself, so the default-branch block stands.
+    ("an inline push flag is not the override", "feature", f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", "(main)"),
+    ("an inline commit flag on main is not the override", "main", f"CLAUDE_ALLOW_MAIN_COMMIT=1 {COMMIT} -F msg.txt", "(main)"),
+    ("an env-prefixed flag is not the override", "main", f"env CLAUDE_ALLOW_MAIN_COMMIT=1 {COMMIT} -F msg.txt", "(main)"),
+    ("a leading-space inline flag is not the override", "main", f"  CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", "(main)"),
+    ("an exported flag is not the override", "main", f"export CLAUDE_ALLOW_MAIN_COMMIT=1 && {COMMIT} -F msg.txt", "(main)"),
     ("commit -m", "feature", f'{COMMIT} -m "fix: thing"', "-m or a heredoc"),
     ("commit -am", "feature", f'{COMMIT} -am "fix"', "-m or a heredoc"),
     ("commit from a heredoc", "feature", f"{COMMIT} -F - <<'EOF'\nfix: thing\nEOF", "-m or a heredoc"),
@@ -496,10 +502,19 @@ OWN_WORDS = [
     ("bash -c on something else is not a merge", "finish it", 'bash -c "echo gh pr merge 301"', False),
     ("bash -c push to main", "finish it", 'bash -c "git push origin main"', True),
     ("bash -c commit -m", "finish it", 'bash -c "git commit -m x"', True),
-    ("push to main when the user said push", "push it to main",
-     f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", False),
-    ("push flag but the user said finish it", "finish it",
+    ("an inline push flag stays denied even when the user said push", "push it to main",
      f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", True),
+    ("inline push flag and the user said finish it", "finish it",
+     f"CLAUDE_ALLOW_MAIN_COMMIT=1 {PUSH} origin main", True),
+]
+
+
+# CLAUDE_ALLOW_MAIN_COMMIT=1 in the environment the session started with: (label, the user's newest
+# message, command run on main, denied).
+ENV_OVERRIDE = [
+    ("environment flag allows a main commit", "finish it", f"{COMMIT} -F msg.txt", False),
+    ("environment flag and the user said push", "push it to main", f"{PUSH} origin main", False),
+    ("environment flag but the user said finish it", "finish it", f"{PUSH} origin main", True),
 ]
 
 
@@ -1644,7 +1659,7 @@ def session_anchor(tmp: Path, own_home: Path, failures: list) -> int:
     return passes
 
 
-def run(cwd: Path, command: str, home=None, session="", transcript=None, bin_dir=None) -> str:
+def run(cwd: Path, command: str, home=None, session="", transcript=None, bin_dir=None, extra_env=None) -> str:
     payload = {"tool_name": "Bash", "tool_input": {"command": command}, "cwd": str(cwd)}
     if session:
         payload["session_id"] = session
@@ -1655,6 +1670,8 @@ def run(cwd: Path, command: str, home=None, session="", transcript=None, bin_dir
         env["HOME"] = str(home)
     if bin_dir is not None:
         env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+    if extra_env:
+        env.update(extra_env)
     p = subprocess.run([sys.executable, str(GUARD)], input=json.dumps(payload), text=True,
                        capture_output=True, cwd=cwd, env=env)
     if not p.stdout.strip():
@@ -1688,6 +1705,17 @@ def main() -> int:
                 passes += 1
             else:
                 failures.append(f"OWN WORDS: {label}: got {reason[:160]!r}")
+        # The override set in the session's starting environment (Simon's, never the agent's) still
+        # passes: a main commit, and a main push once his own words this turn say push.
+        for i, (label, ask, cmd, denied) in enumerate(ENV_OVERRIDE):
+            where = dirs["main"]
+            session = f"env{i}"
+            record_ask(where, session, ask)
+            reason = run(where, cmd, own_home, session, extra_env={"CLAUDE_ALLOW_MAIN_COMMIT": "1"})
+            if bool(reason) == denied:
+                passes += 1
+            else:
+                failures.append(f"ENV OVERRIDE: {label}: got {reason[:160]!r}")
         for i, (label, ask, cmd, expect, absent) in enumerate(DENY_CAUSES):
             session = f"cause{i}"
             record_ask(dirs["feature"], session, ask)

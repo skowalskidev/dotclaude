@@ -2346,9 +2346,10 @@ CONTRACTS: dict[str, dict] = {
             "before while a negated merge inside it still halts (clean_asks), and a number after "
             "not/except/skip/without is never covered (merge #13 but not #12 merges #13 only).",
             "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
-            "AND the user's words this turn saying push after its last halt.",
+            "in the session's starting environment AND the user's words this turn saying push after its last halt.",
             "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
-            "hook's env OR prefixed inline on the command. In the ~/.claude config repo and its "
+            "session's starting environment, which Simon sets; a CLAUDE_ALLOW_MAIN_COMMIT=1 prefix, env "
+            "or export assignment inside the command is denied. In the ~/.claude config repo and its "
             "worktrees (identified by shared Git storage) a commit passes, and a push to main passes "
             "with no confirmation only when every pushed head was recorded by bin/config-land-check.py "
             "and fast-forwards the remote main; a forced, deleting, piped, variable-path, mixed or "
@@ -2466,8 +2467,9 @@ CONTRACTS: dict[str, dict] = {
             "command never fires.",
             "The deny reason names kill-by-own-pid, the tool's own release, references/dev-server-hygiene.md "
             "§ Private process inspection and the override.",
-            "Overridable with CLAUDE_ALLOW_PATTERN_KILL=1 (environment or inline prefix on that command) "
-            "for a case Simon named; fails open on a malformed payload.",
+            "Overridable only by CLAUDE_ALLOW_PATTERN_KILL=1 in the session's starting environment, which "
+            "Simon sets for a case he named; a CLAUDE_ALLOW_PATTERN_KILL=1 prefix, env or export assignment "
+            "inside the command is denied. Fails open on a malformed payload.",
             "hooks/process-kill-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },

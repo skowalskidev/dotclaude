@@ -70,6 +70,12 @@ MUST_FIRE = [
     ("kill -9 -1", "kill -9 -1"),
     ("kill -- -1", "kill -- -1"),
     ("kill -s KILL -1", "kill -s KILL -1"),
+    # an agent-typed override is not the user's: only the session's starting environment passes
+    ("inline override prefix", "CLAUDE_ALLOW_PATTERN_KILL=1 pkill -f vitest"),
+    ("env override prefix", "env CLAUDE_ALLOW_PATTERN_KILL=1 pkill node"),
+    ("leading-space override prefix", "  CLAUDE_ALLOW_PATTERN_KILL=1 killall node"),
+    ("exported override", "export CLAUDE_ALLOW_PATTERN_KILL=1 && pkill -f vitest"),
+    ("override prefix under sudo", "sudo CLAUDE_ALLOW_PATTERN_KILL=1 pkill node"),
 ]
 
 MUST_NOT_FIRE = [
@@ -105,8 +111,6 @@ MUST_NOT_FIRE = [
     ("pgrep counted", "pgrep node | wc -l"),
     ("scoped pgrep feeding kill", 'pgrep -f "$TMP" | xargs kill'),
     ("killall -l lists signals", "killall -l"),
-    # override, inline on that command
-    ("inline override", "CLAUDE_ALLOW_PATTERN_KILL=1 pkill -f vitest"),
     # text that merely NAMES a command
     ("echo naming pkill", 'echo "never run pkill node"'),
     ("grep for pkill", 'grep -rn "pkill -f" bin'),
