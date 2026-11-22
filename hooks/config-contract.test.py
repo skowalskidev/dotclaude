@@ -1941,7 +1941,10 @@ def check_codex_subscription_only_inference() -> None:
     result = run(["python3", str(ROOT / "hooks/work-resource-guard.test.py")])
     check(result.returncode == 0,
           f"Subscription/resource guard regressions failed:\n{result.stdout}\n{result.stderr}")
-    result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")])
+    # Its 705 cases measured 141-175 s at load below 1 per CPU on an 8-core host, over the 120 s
+    # default, so this one call gets a 360 s floor that still catches a hang.
+    result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")],
+                 timeout=max(360, RUN_TIMEOUT_S))
     check(result.returncode == 0,
           f"Git commit/push guard regressions failed:\n{result.stdout}\n{result.stderr}")
     result = run(["python3", str(ROOT / "hooks/worktree-path-guard.test.py")])
