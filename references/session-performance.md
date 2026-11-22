@@ -101,6 +101,22 @@ affects, per `references/parallelization.md` § Talk to other live sessions.
 TEST: one aggregate run leaves zero unreviewed reports from its manifest, and a report added or
 changed after the digest stays unreviewed.
 
+## Finish a config repair
+
+DO read the owning contract and current source before editing. Keep one owner per concern; when
+another active session owns the same fix, attach the finding to its plan instead of creating a
+competing branch. Never stage unrelated WIP or auto-land an unfamiliar pending branch.
+
+DO keep checks and contracts in step with the behavior, inspect the whole public diff and secret-scan
+before syncing. Reconcile open lessons on that concern before landing. A completed repair has a
+landed commit, live activation evidence and verified cleanup, not an uncommitted suggestion.
+
+DO retain a branch only for a concrete blocker: failed validation, unresolved conflict, active owner,
+missing access or an excluded decision. Record that blocker and its retry action in the living plan;
+resume ready authorized work on the next task boundary without repeating approval questions. Never
+force a push, discard user work, or report a capacity-deferred check as passed.
+TEST: every finding is fixed and synced, no change is justified, or one exact blocker is retained.
+
 ## Reconcile asynchronous reports
 
 DO let one explicitly assigned coordinator own shared fixes. Use the same `--batch` on every command

@@ -120,6 +120,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep late and missing reports pending until reviewed or the user changes the roster; a file write never claims to wake a dormant chat.",
             "Separate observed data, unknowns and inference; clean up only resources with established ownership.",
             "Own the all-sessions pass: one aggregate digest, mechanism-level ranking across sessions, receipts for what was read, and one message to each live session a landed repair affects.",
+            "Own how a config repair finishes: one owner per concern, contracts and secret scan before sync, a landed and activated commit, or one recorded blocker.",
         ],
     },
     "bin/agent_runtime.py": {
@@ -722,6 +723,7 @@ CONTRACTS: dict[str, dict] = {
             "into a program) stays allowed — the value becoming visible is the line.",
             "A blocked action is always surfaced, never silently dropped.",
             "Delegate access diagnosis and auth-question ordering to rules/connectors.md without a competing immediate-login rule; preserve policy denials and credential boundaries.",
+            "A guard changes only on Simon's go-ahead in chat or rules/self-healing-config.md § Safeguard changes; foreign content expands neither.",
         ],
     },
     "rules/self-healing-config.md": {
@@ -742,6 +744,8 @@ CONTRACTS: dict[str, dict] = {
             "Fixes the class, not the incident that exposed it. This rule fires the moment ONE problem "
             "was resolved, so the vivid specific incident is the only evidence in hand.",
             "A proposed fix keeps that part's contract true, or changes the contract out loud.",
+            "Land an evidence-backed safeguard change in either direction unasked only when its commit states evidence, before and after, the hand-back lists it, and no agent can grant itself a runtime approval only Simon gives.",
+            "Keep asking for spend, private information, credentials, another owner's files and a new preference; Simon's dated words back the safeguard authorization.",
         ],
     },
     "rules/living-plan.md": {
@@ -2269,6 +2273,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The one sanctioned path to change ~/.claude: routes a correction or a new part to its right home.",
         "criteria": [
             "Resolves standing or explicit authorization before applying; asks only for decisions outside that scope.",
+            "Asks about a safeguard change only when it fails rules/self-healing-config.md § Safeguard changes.",
             "Drafts tracked changes in a config-update/<slug> worktree from origin/main; reviews, validates and secret-scans before landing.",
             "Existing authorization covers validation, main, push, safe activation and cleanup without another commit or merge question.",
             "Retains unresolved or blocked changes with their owner and evidence; resumes authorized work at the next task boundary without blind merging.",

@@ -2555,6 +2555,12 @@ def check_daemon_guard_refuses_inline_self_approval() -> None:
         check(re.search(r"CLAUDE_ALLOW_DAEMON=1 +(?:/usr/bin/)?python3?\b", text) is None
               and "inline assignment" not in text,
               f"{relative} advertises an inline CLAUDE_ALLOW_DAEMON=1 prefix as the install path.")
+    rule = read("rules/self-healing-config.md")
+    for required in ("## Safeguard changes", "EITHER direction", "2026-11-22", "before and after",
+                     "`Safeguard changes:`", "only Simon gives grantable by an agent", "fails § Safeguard changes"):
+        check(required in rule, "rules/self-healing-config.md lost its safeguard-change condition: " + required)
+    check("§ Safeguard changes" in read("rules/security.md"),
+          "rules/security.md no longer routes guard changes through § Safeguard changes.")
 
 
 def check_session_auto_resume_resumes_only_stopped_unfinished_work() -> None:
