@@ -2575,6 +2575,43 @@ class StackTests(unittest.TestCase):
         lease = {"owner": "gone-owner", "created": time.time() - 7200, "keep_until": time.time() - 60}
         self.assertIn("stopped idle stack held", self.idle_with_lease(lease)[0])
 
+    def test_a_lease_through_a_symlinked_path_protects_the_stack_docker_reports_by_real_path(self):
+        # macOS /tmp is a symlink to /private/tmp: the lease and Docker's workdir label spell one stack two ways.
+        real = Path(self.tmp.name).resolve() / "private-tmp" / "stack"
+        real.mkdir(parents=True)
+        link = Path(self.tmp.name).resolve() / "tmp"
+        link.symlink_to(real.parent)
+        spelled = str(link / "stack")
+        old = time.time() - (gate.STACK_IDLE_MIN + 1) * 60
+        gate.stack_acquire(self.root, "gone-owner", spelled, keep_hours=1)
+        self.assertEqual(set(gate.read_stack_leases(self.root)), {str(real)})
+        self.running(str(real))
+        self.host["activity"] = {str(real): old}
+        self.host["sessions"] = ["/elsewhere/other-session"]
+        self.calls.reset_mock()
+        self.assertEqual(gate.stack_sweep(True, leases=gate.read_stack_leases(self.root)), [])
+        self.assertEqual(gate.stack_sweep(True, leases={spelled: gate.read_stack_leases(self.root)[str(real)]}), [])
+        self.running(spelled)
+        self.assertEqual(gate.stack_sweep(True, leases=gate.read_stack_leases(self.root)), [])
+        self.assertEqual(gate.stack_sweep(True, exclude=str(real)), [])
+        self.calls.assert_not_called()
+        gate.stack_keep(self.root, str(real), 2)
+        gate.stack_release(self.root, spelled)
+        self.assertEqual(gate.read_stack_leases(self.root), {})
+
+    def test_leases_stored_under_two_spellings_read_as_one_keeping_the_latest_marker(self):
+        real = Path(self.tmp.name).resolve() / "real"
+        real.mkdir()
+        link = Path(self.tmp.name).resolve() / "link"
+        link.symlink_to(real)
+        now = time.time()
+        gate.secure_root(self.root)
+        gate.write_stack_leases(self.root, {
+            str(link): {"owner": "older", "created": now - 60, "keep_until": now + 3600},
+            str(real): {"owner": "newer", "created": now}})
+        self.assertEqual(gate.read_stack_leases(self.root),
+                         {str(real): {"owner": "newer", "created": now, "keep_until": now + 3600}})
+
     def test_stack_keep_sets_the_marker_and_acquire_can_set_it(self):
         gate.stack_acquire(self.root, "alpha", "/w/a")
         gate.stack_keep(self.root, "/w/a", 2)

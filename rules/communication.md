@@ -66,3 +66,4 @@ when Simon uses a loose name. TEST: `references/tldr-report-formats.md` § Loose
 ## A pasted example shows intent, not a spec
 
 **DO act on the rule behind a pasted example, never its specifics.** TEST: `references/tldr-report-formats.md` § Pasted example.
+**DO build an exact replica on copy, to a T, exactly, 1:1:** `references/workflow-loops.md` § Build from a supplied design source.

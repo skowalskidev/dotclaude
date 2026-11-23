@@ -1069,8 +1069,16 @@ def docker_json_lines(args):
     return result.stdout
 
 
+def canonical_workspace(workspace):
+    """One spelling per stack workspace: an absolute path with every symlink resolved; any other key (a
+    compose project name standing in for a missing workdir) as given. Every stack key, observed or leased, is
+    stored and compared in this form, so `/tmp/x` and `/private/tmp/x` (macOS /tmp is a symlink) are one stack.
+    (the fix for an idle sweep that stopped a leased stack recorded as /tmp/x while Docker reported /private/tmp/x)"""
+    return os.path.realpath(workspace) if os.path.isabs(workspace) else workspace
+
+
 def observe_stacks():
-    """Running local dev stacks keyed by workspace: {workspace: {"project", "supabase"}}."""
+    """Running local dev stacks keyed by canonical workspace: {workspace: {"project", "supabase"}}."""
     try:
         fixture = host_fixture("stacks", [])
         if fixture is None:
@@ -1086,7 +1094,8 @@ def observe_stacks():
                 fixture.append({"project": project, "workdir": workdir, "supabase": SUPABASE_LABEL in labels})
         stacks = {}
         for item in fixture:
-            stacks[item["workdir"]] = {"project": item["project"], "supabase": bool(item["supabase"])}
+            stacks[canonical_workspace(item["workdir"])] = {"project": item["project"],
+                                                            "supabase": bool(item["supabase"])}
         return stacks
     except FileNotFoundError:
         return {}  # no docker CLI: no stack can run
@@ -1187,6 +1196,9 @@ def idle_stacks(stacks, exclude=None, leases=None):
 
     A failed session or ownership probe counts every stack as active: it returns no stack and the probe
     error, so a sweep stops nothing and the command that asked for the sweep still proceeds."""
+    exclude = None if exclude is None else canonical_workspace(exclude)
+    stacks = {canonical_workspace(ws): stack for ws, stack in stacks.items()}
+    leases = {canonical_workspace(ws): lease for ws, lease in (leases or {}).items()}
     candidates = [(ws, stack) for ws, stack in sorted(stacks.items()) if ws != exclude and stack["supabase"]]
     if not candidates:
         return [], None
@@ -1196,7 +1208,7 @@ def idle_stacks(stacks, exclude=None, leases=None):
         for workspace, stack in candidates:
             if session_owns_workspace(workspace, cwds):
                 continue
-            if stack_lease_holds((leases or {}).get(workspace), workspace):
+            if stack_lease_holds(leases.get(workspace), workspace):
                 continue
             quiet = (time.time() - workspace_activity(workspace)) / 60
             if quiet >= STACK_IDLE_MIN:
@@ -1253,7 +1265,14 @@ def read_stack_leases(root):
                     type(lease["created"]) not in (int, float) or
                     type(lease.get("keep_until", 0)) not in (int, float)):
                 raise ValueError("invalid stack lease")
-        return leases
+        # A lease written before keys were canonical, or under two spellings, reads as one key: the newest
+        # lease wins and keeps the latest keep-until marker of either.
+        canonical = {}
+        for workspace, lease in sorted(leases.items(), key=lambda item: item[1]["created"]):
+            key = canonical_workspace(workspace)
+            keep = max(lease.get("keep_until", 0), canonical.get(key, {}).get("keep_until", 0))
+            canonical[key] = dict(lease, **({"keep_until": keep} if keep else {}))
+        return canonical
     except (ValueError, UnicodeError, TypeError) as exc:
         raise GateError("stack leases are corrupt; inspect them") from exc
 
@@ -1285,6 +1304,7 @@ def stack_acquire(root, owner, workspace, keep_hours=None):
         raise GateError("owner must be 1-80 safe label characters")
     if not Path(workspace).is_absolute() or ".." in Path(workspace).parts:
         raise GateError("--workspace must be an absolute path without '..'")
+    workspace = canonical_workspace(workspace)
     secure_root(root)
     swept = stack_sweep(True, exclude=workspace, leases=read_stack_leases(root))
     running = observe_stacks()
@@ -1313,6 +1333,7 @@ def stack_keep(root, workspace, hours):
     """Mark a leased stack as handed to Simon: the idle sweep leaves it alone until `hours` from now."""
     if not math.isfinite(hours) or not 0 < hours <= STACK_KEEP_MAX_HOURS:
         raise GateError("--hours must be above 0 and at most %d" % STACK_KEEP_MAX_HOURS)
+    workspace = canonical_workspace(workspace)
     with locked(root):
         leases = read_stack_leases(root)
         if workspace not in leases:
@@ -1324,7 +1345,7 @@ def stack_keep(root, workspace, hours):
 def stack_release(root, workspace):
     with locked(root):
         leases = read_stack_leases(root)
-        leases.pop(workspace, None)
+        leases.pop(canonical_workspace(workspace), None)
         write_stack_leases(root, leases)
 
 

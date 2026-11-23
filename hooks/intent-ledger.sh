@@ -1307,8 +1307,8 @@ latest-ask)
     $0 ~ /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z · (ask|peer) · session [A-Za-z0-9._-]+$/ &&
       split($0, part, " · ") == 3 {
       if (inrec) broken = 1
-      # --stamped also returns the peer records of this session: a peer-looking prompt may be Simon typing
-      # an <agent-message> tag, so the merge guard reads it too (it can hold, never lift).
+      # --stamped also returns the peer records of this session, so the time-order check of the merge guard
+      # sees every record; the guard then drops them: a peer envelope neither holds nor lifts.
       inrec = 1; fence = ""; buf = ""; ts = $2; kind = part[2]
       mine = ((part[2] == "ask" || (stamped && part[2] == "peer")) && part[3] == "session " sid); next }
     inrec && fence == "" && $0 ~ /^`{3,}$/ { fence = $0; next }
