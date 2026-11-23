@@ -1000,6 +1000,7 @@ CONTRACTS: dict[str, dict] = {
             "Every step names the surface the human acts in (a browser tab by title and host).",
             "No edit lands in the tree the human's dev server serves while they walk; a fix is built elsewhere or held and applied at a step boundary after telling them the tab will reload.",
             "A surface handed to the human is theirs alone until they reply: Claude only reads it, and any follow-up action there is announced as its own step first, never run while their step is open.",
+            "A step the human hands back by name is the only one Claude drives; steps go out in plan order, and any skip or reorder is named with its reason.",
             "Every step ends with Reply \"done\"; Claude captures the surface, logs and state itself and judges the Expect line, never asking what they see; an uncapturable surface names 1 capture.",
             "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
         ],
@@ -1168,7 +1169,7 @@ CONTRACTS: dict[str, dict] = {
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
             "Own the live-variant check: before a walk, review or capture of a journey dealt per person, read production's arms and 72-hour shares as aggregates, report stopped and missing arms, and walk only a live arm unless Simon names another.",
             "Before step 1 on each platform of a human walk, print the arms the local server dealt this device beside production's; copy production's split settings locally when they differ, and send no step until they match or the difference is stated.",
-            "Before step 1 of a human walk, preflight production parity: key source, dealt arms, new-account enrolment, launch scripts, PR heads, every served client and server reporting the current head sha (re-read after each commit) and the first steps; never blank or fake a key or flag; list remaining gaps once.",
+            "Before step 1 of a human walk, preflight production parity: key source, dealt arms, new-account enrolment, fixture accounts lasting every step they walk, launch scripts, PR heads, every served client and server reporting the current head sha (re-read after each commit) and the first steps; never blank or fake a key or flag; list remaining gaps once.",
             "Every reported test result carries its four counts, the head sha it ran on, its finish time and its 1-minute load; a result from another sha is quoted with that sha and its input match, never as the head's.",
             "A wall-clock test failing at a load above the core count is rerun alone, with both results and loads recorded, before any regression verdict; a test the change added or edited still owes its root cause.",
             "On a simulator walk the agent performs every relaunch (terminate, launch with the local server address, screenshot) and the tester's step starts from the confirmed screen; never tell him to reopen the app.",
@@ -1250,6 +1251,8 @@ CONTRACTS: dict[str, dict] = {
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
             "Claude drives every step except new inputs, on web and native; zero-new-input walks send Simon no step to perform.",
+            "When Simon asks to experience the walk himself, he clicks every step: Claude prepares the stack and 1 labelled window per scenario at its real entry, drives only a step he names, and tears nothing down before his done.",
+            "Writes each scenario as one connected journey from its real entry through every downstream surface the change reaches for that persona, shows the outline once, and closes no persona window with a branch unwalked.",
             "Narrates each step before acting and queues comments as findings without pausing, except blockers.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
             "Proves the human is on the watched server (his first request in the log, the host to expect "
