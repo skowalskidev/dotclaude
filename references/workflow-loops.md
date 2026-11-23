@@ -812,6 +812,14 @@ re-renders the dashboard with a visible "Handed off" banner. Then hand the user 
 is durable. TEST: after handoff the dashboard shows the banner and `HANDOFF_LINK` names the loopback URL
 when serving, else the `file://` dashboard.
 
+DO record the next actions on the prepare side in run order: open build items, then each review/fix
+stage, then the heavy checks as one convergence step. DON'T record a heavy check (`references/testing-strategy.md`
+§ Verify once, at convergence) as the first next action while a build or review/fix stage remains.
+DO, on pick-up, re-derive the order from the plan's open stages before running the recorded next action:
+when build or review/fix stages remain, run them first and move a recorded heavy step to convergence.
+TEST: a prepared handoff lists no heavy check ahead of an open build or review/fix stage, and a resumed
+run's first heavy check names the converged head.
+
 DO make handoff REPEATABLE, so A→B→C chains without bound. Each call increments `hop` from the same
 plan; nothing accumulates and no context degrades, because every hop regenerates from the one SSOT.
 TEST: a second handoff reports `hop` one higher and the plan validates.
