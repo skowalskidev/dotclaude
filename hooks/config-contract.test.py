@@ -159,6 +159,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("edge-case-hunt-feeds-every-walk",
      "Every walkthrough of a human-facing change starts from one edge-case hunt over entry points x states x "
      "failure modes, owned by testing-strategy.md; the matrix, co-pilot, ship-report and pre-merge walk point at it."),
+    ("question-form-asks-stay-open",
+     "An agent's answer to Simon's question-form ask stays open-for-Simon until his own words decide it; "
+     "reconcile and ship-report never count it covered."),
     ("design-diff-measures-changed-regions",
      "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
     ("dashboard-runtime-preserves-completion",
@@ -2814,6 +2817,19 @@ def check_edge_case_hunt_feeds_every_walk() -> None:
                 "skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md"):
         text = " ".join((ROOT / rel).read_text().split())
         check(heading in text, rel + " no longer points at § " + heading)
+
+
+def check_question_form_asks_stay_open() -> None:
+    loops = " ".join((ROOT / "references/workflow-loops.md").read_text().split())
+    for required in ("question-form ask from Simon", "OPEN-FOR-SIMON until his own words decide it",
+                     "never as a decision", "build it revertably and show a before/after",
+                     "DON'T close, drop or count as answered a question-form clause on an agent's answer alone",
+                     "question-form ask only by Simon's own decision"):
+        check(required in loops, "workflow-loops.md lost: " + required)
+    report = " ".join((ROOT / "skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md").read_text().split())
+    for required in ("gets Met only with Simon's own words deciding it", "| Open for Simon |",
+                     "every Open for Simon clause, with the recommendation"):
+        check(required in report, "ship-report lost: " + required)
 
 
 def check_matrix_binds_copies_and_walks_real_stack() -> None:

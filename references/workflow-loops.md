@@ -42,6 +42,17 @@ that reads it is judged against the quoted clause. (e.g. a payment-routing claus
 named conversion step and another for the rest, was restated in a plan as "the second path for every
 later step"; the narrowed version is what got built, while the ledger held the right words throughout.)
 
+DO keep a question-form ask from Simon ("should X also have Y?", "maybe X?", "what about X?", "can
+it Z?") OPEN-FOR-SIMON until his own words decide it. Record the agent's answer as a recommendation,
+`<when> · agent · recommends <pick> · <why> · open-for-Simon`, never as a decision, and list it under
+`Your call` in every hand-back until he replies. When the ask reads as a wish (it names a concrete
+addition), build it revertably and show a before/after beside the recommendation.
+**DON'T close, drop or count as answered a question-form clause on an agent's answer alone.**
+TEST: every question-form clause maps to a Simon-authored Decisions line, a build with its
+before/after, or an open-for-Simon line in the latest hand-back (the fix for "should this card also
+get a matching dot?", answered no by the agent, logged as decided, counted covered by the clause
+check and never built until Simon asked again).
+
 DO split each Simon message into numbered clauses (`A<n>.<m>`, one per requested outcome, scope word,
 timing or condition) and map every clause to a task ID or a recorded decision. Keep a complete SOURCE
 LOG under `## Sources` and DECISION LOG under `## Decisions & rationale` from intake to hand-back:
@@ -94,7 +105,8 @@ not another independent judge. Artifact work cannot use this reserved section to
 
 DO reconcile each source ask, clause by clause, against its IDs before any final response or handoff;
 on substantive work `/sk:ship-report-and-ensure-correct-user-system-journey` runs this check. Record
-one outcome per clause and item: verified with evidence, answered with the answer location, explicitly cancelled/superseded
+one outcome per clause and item: verified with evidence, answered with the answer location (a
+question-form ask only by Simon's own decision, above), open-for-Simon with the recommendation, explicitly cancelled/superseded
 with the decision, or still open with its blocker/next action. Close a cancelled item's criterion only
 with the recorded cancellation, never a claim it was implemented. Complete means zero unaccounted asks
 and zero required unfinished items. A pause or blocked hand-back states every remaining item and the

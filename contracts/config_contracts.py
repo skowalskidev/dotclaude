@@ -238,6 +238,7 @@ CONTRACTS: dict[str, dict] = {
             "Own draft mode as SSOT: while Simon gives feedback, answer questions, make small visible changes and queue the rest in the plan's Draft queue; no per-message check; feedback after a shipped batch re-enters draft mode with local edits and no new pushed head; his exit word builds the queue and runs each check once.",
             "State each acceptance criterion as the ask's own routing or scoping clause, quoted near-verbatim from its source message, never a paraphrase that narrows or widens a boundary; flag drift as an interpretation and confirm it before dispatch or verdict.",
             "Split each ask into clause IDs; keep a complete source log and a when/who/what/why decision log in the plan from intake to hand-back; every brief quotes its clauses, and briefs plus decisions cover every clause of every ask.",
+            "A question-form ask stays open-for-Simon until his own words decide it: an agent's answer is a recommendation listed in every hand-back, a wish-shaped ask is built revertably with a before/after, and no reconcile counts it answered on the agent's word.",
             "Own the same-machine handoff and resume lifecycle as SSOT: a repeatable prepare that stamps a hop-counted manifest, a resolve that maps a pasted dashboard link/html/plan back to its plan, a resume that reuses recorded options, and a manifest that survives normal updates.",
             "Derive the session record, artifact index and remaining-action index from the plan; never create a second task store.",
             "Make link discovery regenerate one canonical offline dashboard, select one active plan over completed history and reject multiple active plans.",
@@ -1517,6 +1518,7 @@ CONTRACTS: dict[str, dict] = {
             "built back. The verdict names who decided and when.",
             "Simon's raw-ask clauses are always baseline: every clause gets a verdict, and an unfulfilled one is built or named with its blocker; the invented-criteria guard applies to criteria the agent derives, never to his words.",
             "Journey tests take their cases from the edge-case hunt in testing-strategy.md.",
+            "A question-form clause is Met only by Simon's own decision or the build he asked about; an agent's answer leaves it Open for Simon in the questions block, never covered.",
             "Consults the living plan (.context/<slug>-plan.md) from "
             "/sk:plan-stable-persistent-dynamic-complete-full-plan as a baseline source when present, per "
             "rules/living-plan.md.",
