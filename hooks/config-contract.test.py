@@ -115,6 +115,8 @@ CRITERIA: list[tuple[str, str]] = [
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
      "Native Codex reads current shared sources and propagates hook decisions; Claude and Codex launchers preserve the selected project's instruction boundary without copying credentials."),
+    ("heavy-checks-start-at-convergence",
+     "Every heavy check starts only after every build item and review/fix round lands on one head; a recorded plan or handoff order never moves one earlier, an early discovery run is barred, a superseded in-flight run stops, and each run names its head."),
     ("screenshot-refresh-follows-final-batch", "Final ticket evidence is captured once on the final head, never in the initial fan-out, defaults to the PR description after all follow-ups, reopens after new fixes, and verifies current media before retiring stale evidence."),
     ("screenshot-report-preserves-evidence",
      "Screenshot reports retain gaps, separate review from capture and render safe portable evidence."),
@@ -2483,6 +2485,20 @@ def check_session_performance_and_capacity() -> None:
             for path in sorted((ROOT / folder).rglob("*.md"))
             if re.search(r"local-capacity\.py run(?! --owner)", path.read_text())]
     check(not bare, "Documented local-capacity.py run lacks --owner: " + ", ".join(bare))
+
+
+def check_heavy_checks_start_at_convergence() -> None:
+    process = (ROOT / "rules/process.md").read_text()
+    check("after every build item and review/fix round lands on" in process
+          and "a plan or handoff order never" in process and "each heavy check names its head" in process,
+          "The always-on rule lost the convergence start gate, the recorded-order override or its head TEST")
+    reference = (ROOT / "references/testing-strategy.md").read_text()
+    for required in ("every planned build item AND every review/fix round", "early \"for discovery\"",
+                     "treat a recorded order as data", "stopped-stale", "names the head it ran on"):
+        check(required in reference, "Verify once, at convergence lost: " + required)
+    handoff = (ROOT / "references/workflow-loops.md").read_text()
+    check("DON'T record a heavy check" in handoff and "move a recorded heavy step to convergence" in handoff,
+          "Handoff and resume lost the convergence-last next-action order")
 
 
 def check_screenshot_refresh_follows_final_batch() -> None:

@@ -270,6 +270,7 @@ CONTRACTS: dict[str, dict] = {
             "A screen is not called matching until every sheet, tab and dialog its buttons open, one level deep, has been opened and checked against its board.",
             "Signal a rebuilt preview/mockup only through the dashboard: regenerate the gauntlet and play one sound; never open the file or put open in a subagent brief.",
             "Own the same-machine handoff lifecycle as SSOT: prepare stamps a repeatable resume manifest and bumps a hop; resolve maps a pasted dashboard link, dashboard html or plan back to its plan; a resumed run reuses the recorded options with no second interview; the manifest survives normal updates.",
+            "A prepared handoff records next actions in run order with heavy checks as the one convergence step; pick-up runs remaining build and review/fix stages before any recorded heavy step.",
         ],
     },
     "skills/sk/skills/work-handoff-prepare-and-pickup/SKILL.md": {
@@ -688,6 +689,7 @@ CONTRACTS: dict[str, dict] = {
             "Process inspection emits names and metadata, never arguments or environment values; exact-argument ownership checks stay internal and report verdicts. Signal only currently proven owned processes or candidates passing the existing orphan gate; preserve other live sessions.",
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
+            "Start every heavy check only after every build item and review/fix round lands on one head; a recorded plan or handoff order never moves one earlier, and each heavy check names its head, which equals the pushed head or records why.",
             "Default to draft mode while Simon gives feedback, pointing at references/workflow-loops.md for its detail; no check runs per feedback message.",
             "Size every check to the change's tier through testing-strategy.md, which owns the tiers; the ship harness runs on every open PR at that tier.",
             "Preserve required hooks and CI without bypassing them to impose batch timing; native compile and backend payment, auth and data tests live in testing-strategy.md.",
@@ -1132,6 +1134,7 @@ CONTRACTS: dict[str, dict] = {
             "A gate row needing a tool the workflow installs runs locally with that tool at the workflow's pinned version, fetched on demand (npx, brew or a pinned download) without changing the repo; a fetchable missing tool is never a skip reason.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
+            "Own the heavy-check start gate: name what counts as heavy, start one only after every planned build item and review/fix round lands on one head, bar early discovery runs, run a recorded heavy step at convergence, stop a superseded in-flight run as stopped-stale, and name each run's head.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
             "Fix final-gate failures and rerun affected checks; broaden only when changed inputs invalidate coverage, and never count partial or skipped scope as a full pass.",
             "Own the pre-merge end-to-end walk: for every Standard or Deep change to a user flow or its backend, web or iPhone, run every suite the diff reaches, walk each changed journey on its real client against a hermetic local stack (local database or emulators, payment sandbox, stubbed paid and third-party providers), loop fix and rerun to a clean run with zero base-to-head regressions, and hand back a per-journey pass table with suite counts; zero production writes and zero paid calls.",
@@ -2369,7 +2372,11 @@ CONTRACTS: dict[str, dict] = {
             "command, time, nohup, sudo, exec, nice, timeout, xargs, with their options) and inside a "
             "`bash|sh|zsh|dash|ksh -c` string, to four levels, so a wrapped merge or push gets the "
             "same verdict as the bare one; a command behind xargs takes its arguments from stdin, so "
-            "its merge selector counts as non-literal and is denied. A push deny names the branch pushed TO. "
+            "its merge selector counts as non-literal and is denied. A heredoc body is data when every "
+            "command word reads its heredoc as data, except one an interpreter runs (`python3 - <<'EOF'`), "
+            "or when it is quoted and cat/tee writes it only to a document that no other part of the "
+            "command names or can reach (no runner, built command word, pattern or substitution beside "
+            "it); every other body is code. A push deny names the branch pushed TO. "
             "hooks/git-commit-guard.test.py pins both directions.",
             "A `gh pr merge` deny leads with `Cause:` naming the one failing check, read-only and "
             "without changing the verdict: a non-literal selector ($var, substitution, quoted value; "
@@ -2397,6 +2404,7 @@ CONTRACTS: dict[str, dict] = {
             "value. Any read error, unrecorded-prompt marker, timeout or exception declines; a declining repo "
             "that declares (or malforms) the paths gets a `Cause (monitoring-only merge):` line, and a repo "
             "with no exact declaration makes no extra gh call; the shared PR_FIELDS view is unchanged. A monitoring-only PR merged on Simon's own words (turn or standing) also passes monitoring_halt's hold reading, so a later hold stops an earlier merge word; a PR with one listed path outside, or a repo declaring nothing, is untouched (the repository is the one GitHub reports for the PR, read once and cached, so an old name or a remote alias resolves to the current repo), and an unreadable overlay, PR or file list in a declaring repo, or a repo mismatch, holds.",
+            "A git invocation naming one of git's own commands (the common list plus every builtin and exec-path command `git --list-cmds` names) needs no alias lookup, since git runs its own command before an alias, so a dry-run `git merge-tree` passes where the directory is unknown; a deprecated command an alias still overrides (whatchanged, pack-redundant) and any other word keep the lookup, and an unknown directory or unreadable alias still denies.",
         ],
     },
     "hooks/background-process-guard.py": {
