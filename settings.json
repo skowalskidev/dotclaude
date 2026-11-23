@@ -72,6 +72,16 @@
         ]
       },
       {
+        "matcher": "mcp__chrome-devtools__navigate_page",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/test-browser-label-guard.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
         "matcher": "mcp__.*([Ss]lack|[Gg]mail).*",
         "hooks": [
           {
