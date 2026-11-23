@@ -304,9 +304,40 @@ MUST_FIRE = [
     ("commit -m", "feature", f'{COMMIT} -m "fix: thing"', "-m or a heredoc"),
     ("commit -am", "feature", f'{COMMIT} -am "fix"', "-m or a heredoc"),
     ("commit from a heredoc", "feature", f"{COMMIT} -F - <<'EOF'\nfix: thing\nEOF", "-m or a heredoc"),
+    # A plain git merge subcommand names no gh merge, but git's output, a quoted copy of the words or a
+    # sliced value can still build one: each stays a hidden merge.
+    ("git merge-base output cut into a gh subcommand counts", "feature",
+     "gh pr $(git merge-base -h 2>&1 | cut -c12-16) 12", "hides the merge"),
+    ("git merge-base output cut into a variable for gh counts", "feature",
+     "x=$(git merge-base -h 2>&1 | cut -c12-16); gh pr $x 12", "hides the merge"),
+    ("a loop over git merge-base output into a gh subcommand counts", "feature",
+     "for n in $(git merge-base -h | cut -c12-16); do gh pr $n 12; done", "hides the merge"),
+    ("a merge-base word sliced by a parameter expansion counts", "feature",
+     "git merge-base a b; x=merge-base; gh pr ${x%-base} 12", "hides the merge"),
+    ("a quoted git merge sliced into gh counts", "feature",
+     "git merge-base a b; x=\"a;git merge\"; gh pr $(echo $x | cut -c7-) 12", "hides the merge"),
+    ("a variable merge beside git merge-base counts", "feature",
+     "git merge-base a b; x=merge; gh pr $x 12", "hides the merge"),
 ]
 
 MUST_NOT_FIRE = [
+    # `merge` as a plain git subcommand or inside one (`git merge-base`) names no gh merge, so a `$(...)`, a
+    # loop or a redirection beside a gh read never makes the read a hidden merge (the fix for two read-only
+    # branch checks denied on 23 Nov 2026).
+    ("git merge-base in a substitution beside a gh pr list loop is no merge", "feature",
+     "cd /tmp/repo && git fetch -q origin && git log --oneline HEAD..origin/main | wc -l && git diff "
+     "--name-only $(git merge-base HEAD origin/main) origin/main | grep -E \"paywall|ios-pay\" ; for n in "
+     "$(gh pr list --state open --limit 100 --json number -q '.[].number' 2>/dev/null); do gh pr diff $n "
+     "--name-only 2>/dev/null | grep -q -E \"paywall/year-offer\" && echo \"#$n\"; done"),
+    ("git merge-base in a substitution beside a redirected gh pr list is no merge", "feature",
+     "cd /tmp/repo && git fetch -q origin && git log --oneline HEAD..origin/main | wc -l && git diff "
+     "--name-only $(git merge-base HEAD origin/main) origin/main | grep -E \"paywall\"; gh pr list --state "
+     "open --limit 100 --json number -q '.[].number' > /tmp/prs.txt; wc -l < /tmp/prs.txt"),
+    ("git -C merge-tree in a substitution beside a gh read is no merge", "feature",
+     "t=$(git -C repo merge-tree --write-tree origin/main HEAD); gh pr view 12 > /tmp/v.txt"),
+    ("a plain git merge beside a gh read with a variable is no merge", "feature",
+     "git merge --ff-only origin/main && for n in $(gh pr list -q '.[].number' --json number); do "
+     "gh pr view $n; done"),
     ("another tool's --config beside a curl health check is no curl config", "feature",
      "nohup npx wrangler dev --local --config ../w.json --port 56650 > w.log 2>&1 & "
      "for i in 1 2; do c=$(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:56650/); done"),
