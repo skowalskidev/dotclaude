@@ -991,6 +991,15 @@ minutes of reading the log. TEST: no diagnosis rebuilds the base, reruns CI-pass
 full suite before the failed specs ran on the head (the fix for a two-hour serial re-run of CI-passed
 gates before one flaky browser spec ran once; it then passed 150 of 150).
 
+**DO compile-check native code (Swift, Kotlin, Objective-C) before a review of it counts as done:**
+run the narrowest leased build that type-checks the changed files on the reviewed head (the app
+target's `xcodebuild build -quiet`, or `./gradlew :<module>:compile<Variant>Kotlin`), once per review
+round, as the one native compile this policy allows before convergence; `swiftc -parse` catches syntax
+only, so record it as `syntax-only` when no build can run. The full native suite still runs once at
+convergence. TEST: every review verdict on native code cites a compile result on the reviewed sha
+(the fix for a Swift compile error that passed two read-only reviews and surfaced at the first build
+after them).
+
 **DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
 PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant
 suites and builds ONCE on the converged, reviewed batch, followed by the real-app check within its
