@@ -136,6 +136,10 @@ CRITERIA: list[tuple[str, str]] = [
      "The process-kill guard passes a pattern kill only on a CLAUDE_ALLOW_PATTERN_KILL=1 set in the session's starting environment; every agent-typed inline, env or export form is denied and no doc advertises one."),
     ("pr-ci-wait-refuses-quiet-states",
      "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
+    ("config-landing-serializes-concurrent-landers",
+     "Two config landers on one machine queue on one landing lock held from the merge of the remote "
+     "main to the push: both land with no lost race, a waiter names the holder, the wait ends with "
+     "exit 75 at its bound, and a killed holder frees the lock."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
     ("monitoring-only-class-holds",
@@ -2703,6 +2707,15 @@ def check_monitoring_only_class_holds() -> None:
           "rules/process.md no longer points the merge exception at § Monitoring-only changes")
     check("monitoring-only bar" in (ROOT / "hooks/git-commit-guard.py").read_text(),
           "hooks/git-commit-guard.py no longer requires the gate to name the monitoring-only bar")
+
+
+def check_config_landing_serializes_concurrent_landers() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "config-land-check.test.py")],
+                 timeout=max(180, RUN_TIMEOUT_S))
+    check(result.returncode == 0, "Config landing lock regression: " + result.stdout + result.stderr)
+    sync = " ".join((ROOT / "skills/sk/skills/claude-config-sync/SKILL.md").read_text().split())
+    for required in ("landing lock", "exits 75 naming the holder", "--lock-wait SECONDS"):
+        check(required in sync, "claude-config-sync no longer documents the landing lock: " + required)
 
 
 def check_pr_landing_gate_refuses_missing_rows() -> None:
