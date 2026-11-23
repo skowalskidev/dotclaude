@@ -836,11 +836,36 @@ def excluded(text: str, number: str) -> bool:
     return False
 
 
+# A chat UI turns a typed reference into a markdown link ("[#1410](.context/pull-requests/1410.md)"). A link
+# to a local file reads as its label alone: the target names a file, never a repository. A link with a
+# scheme or to github.com reads as its target, with the label's digits masked: the label is display text for
+# that URL, so "[#12](https://github.com/acme/other/pull/12)" names acme/other#12 and never a bare #12.
+MD_LINK_RE = re.compile(r"\[([^\[\]\n]*)\]\(([^()\s]*)\)")
+
+
+def link_labels(text: str) -> str:
+    """The words with every markdown link read as above (the fix for a merge of four named PRs refused
+    because the chat UI linked the last number to a local .md file, read as a stated repository)."""
+    # Spaces on both sides keep a label from joining the text around it ("[#12](a.md)3" is never #123).
+    def one(m):
+        if re.match(r"[a-z][a-z0-9+.-]*:|//|(?:www\.)?github\.com/", m.group(2), re.I):
+            return f" {re.sub(r'[0-9]', ' ', m.group(1))} {m.group(2)} "
+        return f" {m.group(1)} "
+    return MD_LINK_RE.sub(one, text)
+
+
+# A file path is not a repository: a token starting with ~, ./, ../, a dot-name (".context/...") or one
+# slash ("/tmp/x"; "//host" stays a URL), or a slash path ending in a document or image extension.
+FILE_TOKEN_RE = re.compile(r"(?<![^\s(\[<\"'`,;=])(?:~|\.\.?/|\.(?=\w)|/(?!/))[^\s()\[\]<>\"'`,;]*")
+FILE_EXT_RE = re.compile(r"\.(?:md|markdown|mdx|txt|log|rst|csv|pdf|png|jpe?g|gif|webp|patch|diff)$", re.I)
+
+
 def stated_repos(text: str) -> set:
     """Every repository the words state, lowercase owner/name: a github.com URL's first two path parts, and
     any other slash-joined name of two parts ("acme/api", "in acme/service/"). A URL on another host, or a
     longer slash path, states a repository the guard cannot resolve ("\x00unknown"), which no target
-    matches. Fail closed: a two-part file path counts as a repository too."""
+    matches. Fail closed: any other two-part slash name counts as a repository; only a clear file path
+    (FILE_TOKEN_RE, FILE_EXT_RE) does not."""
     stated = set()
     for m in re.finditer(r"https?://([^\s/]+)(/\S*)?", text):
         parts = [x for x in (m.group(2) or "").split("/") if x]
@@ -848,9 +873,11 @@ def stated_repos(text: str) -> set:
             stated.add(f"{parts[0]}/{parts[1]}".rstrip(".,;:)").lower())
         else:
             stated.add("\x00unknown")
-    rest = re.sub(r"https?://\S+", " ", text)
+    rest = FILE_TOKEN_RE.sub(" ", re.sub(r"https?://\S+", " ", text))
     for m in re.finditer(r"(?<![\w.-])(?:github\.com/)?([\w.-]+(?:/[\w.-]+)+)/*", rest):
         parts = m.group(1).rstrip(".").lower().split("/")
+        if FILE_EXT_RE.search(parts[-1]):
+            continue
         stated.add("/".join(parts) if len(parts) == 2 else "\x00unknown")
     return stated
 
@@ -873,6 +900,7 @@ def covers(text: str, number: str, payload: dict, selector: str, repo: str, cwd)
     # of a clause, so names are protected while the message is split into clauses.
     if too_long_to_read(text):
         return False
+    text = link_labels(text)
     scoped = merge_scope(re.sub(r"(?<![\w.-])[\w.-]+/[\w.-]+", lambda m: m.group(0).replace(".", "\x07"), text))
     text = scoped.replace("\x07", ".")
     # A URL on another host names a PR GitHub cannot be asked about: it is masked before anything else is
@@ -945,6 +973,7 @@ def turn_merge_allowed(payload: dict, words: list, cwd) -> bool:
     text = "\n".join(window)
     if too_long_to_read(text):
         return False
+    text = link_labels(text)
     if covers(text, number, payload, selector, repo, cwd):
         return True
     scope = merge_scope(text)
@@ -2112,10 +2141,10 @@ def unnamed_merge_ok(payload: dict, ask: str, number: str) -> bool:
 NON_LITERAL_RE = re.compile(r"[$`]|^(?:''|\"\")$")
 
 
-def merge_deny_cause(payload: dict, words: list, why_not: str) -> tuple:
+def merge_deny_cause(payload: dict, words: list, why_not: str, cwd=None) -> tuple:
     """(cause, ask_user): the failing check, stated first in the deny message, and whether asking the
     user for a merge word is the right next step."""
-    selector, number, _ = merge_target(words)
+    selector, number, repo = merge_target(words)
     if NON_LITERAL_RE.search(selector):
         shown = selector if selector not in ("''", '""') else "a quoted value"
         return (f"the PR selector `{shown}` is a shell variable, substitution or quoted value, not a "
@@ -2141,7 +2170,17 @@ def merge_deny_cause(payload: dict, words: list, why_not: str) -> tuple:
     if halts and halts[-1] >= said[-1]:
         text = " ".join(asks[halts[-1]].split())
         return (f"a message this turn reads as a halt after the merge ask: \"{text[:100]}\""), True
-    scope = merge_scope("\n".join(authorizing_asks(asks, "merge")))
+    scope = merge_scope(link_labels("\n".join(authorizing_asks(asks, "merge"))))
+    # A repository the words state binds their selectors to it: say so, rather than blaming the numbers
+    # (the fix for "name other PRs" shown when a link target read as a stated repository was the cause).
+    stated = stated_repos(scope)
+    if stated and re.search(rf"(?<!\d){number}(?!\d)", scope):
+        target = merge_target_repo(selector, repo, cwd)
+        if len(stated) > 1 or target not in stated:
+            shown = ", ".join(sorted(r if r != "\x00unknown" else "a path or URL no repository can be read from"
+                                     for r in stated))
+            return (f"the user's merge words name repository {shown}, not {target or 'the repository of #' + number}, "
+                    f"so they cover no PR there"), True
     named = sorted(set(re.findall(r"\d{2,}", " ".join(PR_NUMBER_RE.findall(scope)))) - {number})
     if named:
         return (f"the user's merge words name other PRs ({', '.join('#' + n for n in named)}), "
@@ -3300,7 +3339,7 @@ def main() -> int:
                 return deny("Blocked `gh pr merge`. Cause: the merge checks ran long and declined. Rerun once; "
                             "if it repeats, ask the user for the merge word."
                             + (f"\nCause (monitoring-only merge): {monitoring_cause}." if monitoring_cause else ""))
-            cause, ask_user = merge_deny_cause(payload, words, why_not)
+            cause, ask_user = merge_deny_cause(payload, words, why_not, gh_cwd)
             return deny(
                 f"Blocked `gh pr merge`. Cause: {cause}.\n"
                 + (f"Cause (monitoring-only merge): {monitoring_cause}.\n" if monitoring_cause else "") +
