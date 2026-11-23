@@ -60,23 +60,26 @@ skill commits + pushes those changes safely.
    work and record the final local/origin head inventory. Preserve unrelated WIP.
 
 **A branch from a worktree:** inspect the full `origin/main..<branch>` diff, its evidence and owner.
-For a validated repair within standing scope, fetch and merge current `origin/main` into that branch,
-resolve conflicts only within the owned change and re-run affected checks on the final state. Commit
-with `-F` if needed, then land it automatically, with no question to Simon and no
-`CLAUDE_ALLOW_MAIN_COMMIT` prefix:
+For a validated repair within standing scope, commit with `-F` if needed, then land it automatically,
+with no question to Simon and no `CLAUDE_ALLOW_MAIN_COMMIT` prefix:
 1. `/usr/bin/python3 ~/.claude/bin/config-land-check.py --root <literal worktree path> --diff`; read
-   the whole diff it prints.
-2. `/usr/bin/python3 ~/.claude/bin/config-land-check.py --root <path> --reviewed <diff-sha256>`. It
-   runs the contract suite and the range secret scan on that exact head and records it.
-3. `git -C <literal path> push origin HEAD:main`, as its own command. `hooks/git-commit-guard.py` lets
-   that head through; a new commit needs steps 1-2 again. Use literal paths: a `$VAR`, pipe or force
-   keeps the guard's block.
-A non-fast-forward rejection means another session landed: fetch, reconcile and validate again;
-never force-push. Ask Simon only for an excluded decision under `rules/self-healing-config.md`. Verify `git rev-list --left-right --count origin/main...<branch>` returns `0 0`.
+   the whole diff it prints (the change since the branch left `origin/main`).
+2. `/usr/bin/python3 ~/.claude/bin/config-land-check.py --root <path> --reviewed <diff-sha256>`, run in
+   the background. It takes the machine-wide landing lock, then fetches and merges `origin/main`, runs
+   the contract suite and the range secret scan on that exact head, records it and pushes it to main.
+   A second lander queues on the lock instead of racing: while it waits it prints the holder and since
+   when, and after 30 min (`--lock-wait SECONDS`) it exits 75 naming the holder; rerun step 2 then.
+   Exit 1 on a merge conflict or a hash mismatch (main changed the reviewed files): resolve the
+   conflict within the owned change, then steps 1-2 again. A new commit needs steps 1-2 again.
+A rejected push means something landed outside the lock: run steps 1-2 again; never force-push. Ask
+Simon only for an excluded decision under `rules/self-healing-config.md`. Verify
+`git rev-list --left-right --count origin/main...<branch>` returns `0 0`.
 DO run that check as its own command and remove the worktree and branches only after it prints `0 0`.
-DON'T pipe the push through `tail`/`head` or chain cleanup behind it with `&&`: the pipe masks a rejected
-push (the fix for a non-fast-forward push whose worktree and remote branch were deleted anyway and had
-to be recovered from a dangling merge). TEST: no cleanup command runs in the same shell line as the push.
+DON'T pipe the landing through `tail`/`head` or chain cleanup behind it with `&&`: the pipe masks a
+rejected push (the fix for a non-fast-forward push whose worktree and remote branch were deleted anyway
+and had to be recovered from a dangling merge). TEST: no cleanup command runs in the same shell line as
+the landing. A manual `git -C <literal path> push origin HEAD:main` of a recorded head still passes
+`hooks/git-commit-guard.py`; a `$VAR`, pipe or force keeps its block.
 
 DO activate in `~/.claude` only with a clean tracked tree and no merge/rebase in progress. Preserve its
 branch: fast-forward to `origin/main` when possible; otherwise merge it without discarding unrelated

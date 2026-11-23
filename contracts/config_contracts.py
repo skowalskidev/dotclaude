@@ -92,11 +92,13 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/config-land-check.py": {
         "mission": "A validated repair of Simon's own config lands on main with no question, and an unchecked head cannot.",
-        "purpose": "Verifies a config-repo head (contract suite, secret scan, hash-bound diff review, fast-forward) and records its sha for hooks/git-commit-guard.py.",
+        "purpose": "Verifies a config-repo head (contract suite, secret scan, hash-bound diff review, fast-forward), records its sha for hooks/git-commit-guard.py and pushes it, one lander at a time.",
         "criteria": [
-            "Refuses a checkout outside the ~/.claude repository, uncommitted tracked changes, a head that does not fast-forward the fetched remote main, and a reviewed hash that differs from the current diff.",
-            "Records the head sha in the shared Git directory only after the contract suite and dotfiles/secret-scan.sh --range both pass on that exact head; a new commit needs a new run.",
-            "hooks/git-commit-guard.test.py drives its refusals; the landing itself proves the success path.",
+            "Refuses a checkout outside the ~/.claude repository, uncommitted tracked changes, a merge of the fetched remote main that conflicts, and a reviewed hash that differs from the diff after that merge.",
+            "Records the head sha in the shared Git directory and pushes it to the remote main only after the contract suite and dotfiles/secret-scan.sh --range both pass on that exact head; a new commit needs a new run, and a rejected push exits 1, never forces.",
+            "Holds an fcntl.flock on claude-config-land.lock in the shared Git directory from the fetch and merge of the remote main through the checks to the push, so concurrent landers on one machine queue instead of rerunning the suite after a lost race.",
+            "A waiting lander prints the holder's pid, branch, root and start time; after --lock-wait seconds (default 1800) it exits 75 naming the holder and pushes nothing. The kernel releases the lock when its holder exits, killed included.",
+            "bin/config-land-check.test.py drives serialization, the named holder, the timeout, a killed holder and a conflicting main against a temp repo with stub checks; hooks/git-commit-guard.test.py drives its refusals.",
         ],
     },
     "bin/session-performance.py": {

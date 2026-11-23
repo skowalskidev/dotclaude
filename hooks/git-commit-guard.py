@@ -2965,9 +2965,9 @@ def main() -> int:
                     f"Blocked: push to the config repo's main: {problem}. A validated config repair "
                     "lands automatically, with no question to the user: run "
                     f"`/usr/bin/python3 ~/.claude/bin/config-land-check.py --root {repo} --diff`, read "
-                    "the whole diff, then rerun with `--reviewed <diff-sha256>` and push the head it "
-                    "verified with a literal `git -C <path> push origin HEAD:main`. Ask the user only "
-                    "for an excluded decision (rules/self-healing-config.md)."
+                    "the whole diff, then rerun with `--reviewed <diff-sha256>`: it queues on the "
+                    "landing lock, merges origin/main, runs the checks and pushes the head it "
+                    "verified. Ask the user only for an excluded decision (rules/self-healing-config.md)."
                 )
     gh_cwd = cwd  # where a `gh pr view` lookup runs; None once a `cd` cannot be resolved statically
     # A cd counts as run only in a pure && chain: after `;`, `||`, `|`, `&` or a new line, a skipped or
