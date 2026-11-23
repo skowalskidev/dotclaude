@@ -1540,10 +1540,10 @@ def _names(ask: str, number: str) -> bool:
 # by "#<n>", "PR <n>", "pull request <n>", a /pull/<n> URL, "GH-<n>", a merge, close or cancel verb
 # before a run of numbers of three or more digits ("merge 1294 1295 1296"), or such a number opening a
 # line as a list item ("1306 - i think we should cancel this", his 18 Nov 10:02 list). The hold stays a
-# class hold, holding every PR, when no PR is named, when a holding sentence speaks of the class, a related PR, a range or a condition
-# ("all", "the bot queue, including #1405", "its sibling", "PR10-PR20", "until #13 lands"), when a named PR
-# sits near an unnamed one ("hold #1405, and this PR"), when the sentences naming no PR
-# hold on their own, or when no single sentence holds.
+# class hold, holding every PR, when no PR is named, when a holding sentence speaks of the class, a
+# related PR, a range or a condition ("all", "the bot queue, including #1405", "its sibling",
+# "PR10-PR20", "until #13 lands"), when a named PR sits near an unnamed one ("hold #1405, and this PR"),
+# when the sentences naming no PR hold on their own, or when no single sentence holds.
 PR_REF_RE = re.compile(r"(?:#|\bprs?\s*#?\s*|\bpull\s+requests?\s*#?\s*|/pulls?/|\bgh-)(\d+)\b"
                        r"|\b(?:merge|merging|close|closing|cancel|cancell?ing|land|ship)\s+"
                        r"((?:#?\d{3,}\b[\s,]*(?:(?:and|&)\s+)?)+)"
