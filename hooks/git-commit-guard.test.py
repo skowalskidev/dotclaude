@@ -1851,6 +1851,19 @@ def main() -> int:
             passes += 1
         else:
             failures.append(f"MONITORING: a git alias that merges must count, got {got_alias}")
+        # git runs its own commands before an alias of the same name, so a builtin outside the common list
+        # (merge-tree, a dry-run merge; merge-file) needs no alias lookup even where the directory is unknown,
+        # in a heredoc of plan text too. A deprecated command an alias still overrides keeps the lookup.
+        own = [guard.git_alias_merge(c, str(plain_dir)) for c in (
+            "cd $D && git merge-tree --write-tree origin/main HEAD", f"cd {plain_dir}; git merge-file -p a b c",
+            f"cd {plain_dir} && sed -n 1p x\ncat >> plan.md <<'E'\n- converge (git merge-tree dry run) first\nE",
+            "cd $D && git whatchanged", "cd $D && git frobnicate")]
+        subprocess.run(["git", "config", "alias.whatchanged", "!gh pr merge 12"], cwd=ga, check=True)
+        own.append(guard.git_alias_merge("git whatchanged", str(ga)))
+        if own == [False, False, False, True, True, True]:
+            passes += 1
+        else:
+            failures.append(f"a git builtin must need no alias lookup; an overridable one must, got {own}")
         # A message too long to clean in time is a halt, read in no time at all.
         fences = "".join("`" * (3 + i) + "\n" for i in range(400)) + "merge #12"
         t1 = _t2.monotonic() if "_t2" in dir() else 0

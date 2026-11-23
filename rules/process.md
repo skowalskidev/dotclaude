@@ -15,19 +15,20 @@ TEST: implementation resolves to `mid`/`small`, never `top`/`design`; GPT design
 OpenAI or API fallback. Verify every delegated result on disk.
 
 ### Fan out verification, and only rebuild what changed
-DO defer tests/typechecks/builds across the whole batch and review fixes; allow concrete diagnostics
-or explicit requests. Keep hooks/CI. Run every heavy check (suites, judges, stages, CI) ONCE on the converged head;
-between fixes only the failing test: `references/testing-strategy.md` § Verify once, at convergence.
+DO start each heavy check (builds, full suites, typecheck, device walks, captures, judges, stages,
+CI) ONCE, after every build item and review/fix round lands on one head; a plan or handoff order never
+moves one earlier. Between edits only the affected test file and analyze on touched files; allow a
+concrete diagnostic or Simon's ask. Keep hooks/CI. Detail: `references/testing-strategy.md` § Verify once, at convergence.
 DO default to draft mode while Simon gives feedback: `references/workflow-loops.md` § Draft mode.
 DO size each check to the change's tier, then walk each changed journey e2e on a local stack, iOS
 Simulator included, before PR-ready: `references/testing-strategy.md` §§ Size the checks to the
 change, Defects first, Pre-merge end-to-end on a local stack and Native simulator suites.
 DO keep a work PR draft until merge prep: `references/git-pr-deploy.md` § CI runs once, at merge prep.
-DO push a finished fix once cheap checks pass where CI runs: a capacity wait never holds a push or
-drops a stage. Name the real blocker in every status. DO launch every ready stage at once on a priority ask.
-`references/parallelization.md` §§ Parallelize verification, across tasks AND stages.
-TEST: no routine per-edit/feature/commit/feedback runs; final coverage once per head;
-at most 1 full judge round plus 2 delta passes per PR.
+DO push a finished fix rather than wait on a local slot, name the real blocker in every status and
+launch every ready stage at once on a priority ask: `references/parallelization.md` §§ Parallelize
+verification, across tasks AND stages.
+TEST: no routine per-edit/feature/commit/feedback runs; each heavy check names its head, which equals
+the pushed head or records why; at most 1 full judge round plus 2 delta passes per PR.
 
 ### Claims about third parties must come from primary sources
 DO apply `references/research.md` § Claims about third parties to every factual claim about another

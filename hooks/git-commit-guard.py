@@ -2440,7 +2440,26 @@ cherry-pick clean clone commit commit-tree config describe diff diff-tree fetch 
 hash-object help init lfs log ls-files ls-remote ls-tree maintenance merge merge-base mv name-rev notes pull push
 range-diff read-tree rebase reflog remote reset restore rev-list rev-parse revert rm shortlog show show-ref
 sparse-checkout stash status submodule switch symbolic-ref tag update-index update-ref var verify-commit version
-worktree write-tree whatchanged filter-repo""".split())
+worktree write-tree filter-repo""".split())
+# Deprecated commands an alias of the same name still overrides (git-config(1) alias.*, checked on git 2.54).
+GIT_ALIAS_OVERRIDABLE = {"whatchanged", "pack-redundant"}
+_GIT_OWN = None
+
+
+def is_git_command(name: str) -> bool:
+    """git runs its own commands before any alias of the same name, so none needs an alias lookup: the
+    common list above plus every builtin and exec-path command `git --list-cmds` names (merge-tree, a
+    dry-run merge, was looked up as an alias and denied whenever the directory was unknown)."""
+    global _GIT_OWN
+    if _GIT_OWN is None:
+        try:
+            p = _run(["git", "--list-cmds=builtins,main"], capture_output=True, text=True, timeout=bounded(3))
+            _GIT_OWN = set(p.stdout.split()) if p.returncode == 0 else set()
+        except OutOfTime:
+            raise
+        except Exception:
+            _GIT_OWN = set()
+    return name not in GIT_ALIAS_OVERRIDABLE and (name in GIT_COMMANDS or name in _GIT_OWN)
 
 
 def git_alias_merge(command: str, cwd) -> bool:
@@ -2486,7 +2505,7 @@ def git_alias_merge(command: str, cwd) -> bool:
                                      if where and not re.search(r"[$`*?\[{]", value) else None)
                         elif opt in ("--git-dir", "--work-tree", "-c"):
                             where = where if opt == "-c" and not value.lower().startswith("include") else None
-                if rest and rest[0] not in GIT_COMMANDS:
+                if rest and not is_git_command(rest[0]):
                     uses.append((rest[0], where))
             continue
         segment.append(tok)
@@ -2512,7 +2531,7 @@ def git_alias_merge(command: str, cwd) -> bool:
                           or re.search(r"\bgh\b|\bcurl\b", value)):
                 return True
             first = value.split()[0] if value and not value.startswith("!") else ""
-            name = first if first and first not in GIT_COMMANDS else ""
+            name = first if first and not is_git_command(first) else ""
     return False
 
 

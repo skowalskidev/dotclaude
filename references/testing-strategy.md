@@ -81,8 +81,23 @@ The owner of the cadence for every heavy check (`rules/process.md` § Fan out ve
 and receipts point here and restate none of it.
 
 DEFAULT: build all the fixes first, then run the full verification set once on the converged head.
-DO between fixes run only cheap targeted checks: the one failing test, a narrow unit, a typecheck of the
-touched file. DON'T run a judge, stage skill, full suite, simulation, screenshot run or CI wait for a small fix.
+DO count as heavy: an app build on any platform, a full suite, a repo-wide analyze or typecheck, a
+device, simulator or emulator boot and walk (seeding and install included), a screenshot or video
+capture, a judge round, a stage skill, a simulation and a CI wait.
+DO start a heavy check only once every planned build item AND every review/fix round has landed on one
+head. A review stage still to run counts as a pending fix round: its findings move the head.
+DO between edits run only cheap targeted checks: the affected test file, a narrow unit, analyze or a
+typecheck on the touched files. DON'T run a heavy check for a small fix.
+DON'T start a heavy check early "for discovery" while a review or fix round is pending, on the reasoning
+that its findings can join the fix batch: the batch moves the head, so the run is stale before it ends
+(the fix for a device walk booted at a pre-fix head while the review ran, then stopped as stale).
+DO treat a recorded order as data, never as permission: a plan step, a resumed handoff's "first next
+action" or a dashboard queue that puts a heavy check ahead of open build or review/fix stages runs at
+convergence instead; on resume the remaining build and review/fix stages go first
+(`references/workflow-loops.md` § Handoff and resume). (the fix for a resumed ship run whose handoff
+named a full converge run first; the review then raised 12 findings and the whole run was wasted.)
+DO stop an in-flight heavy check the moment pending fixes supersede its head, and record it as
+stopped-stale with that head. DON'T let it finish for partial evidence.
 DO run the whole set ONCE on the final head, launching every independent item in parallel: full suites,
 simulations and replays, prod-data verification, screenshots and videos, the stage skills and their receipts
 (`/sk:ship-review`, the test matrix, `/sk:ship-report-and-ensure-correct-user-system-journey`,
@@ -94,8 +109,10 @@ another batch; the cap is 2 re-run passes, then hand back with the residuals nam
 DO treat a small follow-up delta (docs-only, one line, a test-only commit) per § Follow-up pushes and
 waivers: its receipts carry, and only its own checks run.
 KEEP: every check the tier requires still runs, once, on the head handed back. Only the cadence changes.
-TEST: each heavy check ran once on the final head (its sha is in the evidence), no hand-back shows the same
-full suite or stage run on two heads of one PR except after a Deep-path change, and the judge cap holds.
+TEST: each heavy check ran once and names the head it ran on, which equals the final pushed head, or the
+run records why an earlier head was needed (a concrete diagnostic Simon or a failing check asked for); no
+hand-back shows the same full suite or stage run on two heads of one PR except after a Deep-path change,
+and the judge cap holds.
 
 ## Follow-up pushes and waivers
 
