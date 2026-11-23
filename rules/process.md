@@ -54,13 +54,8 @@ When I report wrong output (a bad render, a wrong answer, a broken page), my exa
 general failure mode, not the scope of the fix. **Don't patch the instance.** Name the rule that was
 violated, check whether it is a known class, and write the fix generically so it catches variants I
 haven't hit.
-- **Write the rule, not the example.** "The brand mark landed on the building instead of the crew's
-  vests" becomes "a stated placement is authoritative and overrides any default placement", never "put
-  brand marks on vests."
-- **Keep ONE concrete instance** (`e.g.` / "the fix for X") so the fix stays actionable; never let it
-  become the condition.
-- **Tell me which class you concluded and what you checked** to rule out a one-off, so I can judge
-  whether the generalization went too far or not far enough.
+DO write the rule, keep one concrete instance, and name the class and what you checked:
+`references/planning-and-tracking.md` § Fix the class of failure.
 
 ### Front-load everything you need from me — at the START of a session
 Assume I may hand the session over and walk away. Before starting substantial work, survey what the
