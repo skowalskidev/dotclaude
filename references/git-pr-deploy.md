@@ -373,8 +373,7 @@ declares for its monitoring bot merges without his merge word once it meets the 
 
 - **Class:** `bin/monitoring_only.py` owns it. The project's registry entry, which must list the
   repository's exact `owner/name` in `match`, declares `monitoringOnly.paths`, `offlineTests` and
-  `requiredChecks` and optional `names` (fields: `references/connectors-setup.md` § Registry schema;
-  `names` should hold every word people use for the bot and its topic, so a message using one holds). **DO declare only paths the bot alone owns:** no app, database, function, site
+  `requiredChecks` (fields: `references/connectors-setup.md` § Registry schema). **DO declare only paths the bot alone owns:** no app, database, function, site
   or iOS path, and no workflow that holds the product's secrets, environments or deploys. A bot skill
   path is instruction text an agent later follows, so the judges confirm a skill change grants the bot
   no new authority. A workflow counts only when listed by its literal path. The guard reads its
@@ -408,13 +407,21 @@ declares for its monitoring bot merges without his merge word once it meets the 
   `#N merged at <sha>; deploy <verified|none>`.
 - **The guard:** `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
   lists them); any read error declines, and any hold Simon gave this session stands for every
-  monitoring-only PR: any message with a hold word ("not", "if", "wait", "nothing goes live"), and any
-  message that mentions the bot (or one of the overlay's `names`), a PR or merging at all, counts. It
-  stands until a later message from Simon himself that is only a plain
-  merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"); a condition, a person or a
-  time in it makes it no lift, and a peer or tagged message never lifts. A hold that names a PR, or
-  carries any number, lifts only on "merge #N". So the path runs unasked only in a session where
-  Simon's messages carry no hold and do not mention the bot or PRs. A deny adds a `Cause (monitoring-only merge):` line: fix that check, or stop and ask for
+  monitoring-only PR. A hold is an explicit hold aimed at merging or shipping, read as whole words and
+  phrases (`HOLD_RES`): a hold word given as an order ("hold the bot PRs", "wait before merging",
+  "stop"), a negated merge or ship ("don't merge #1405", "do not deploy"), or a hold phrase ("not yet",
+  "leave it open", "nothing goes live", "needs my sign-off", "I'll review it first"). A mention of the
+  bot, a PR, merging or a fix holds nothing, nor does "not", "if" or "no" alone ("look at sre bots
+  threads and see if we need to make any more fixes" and "are you almost done or not yet?" pass).
+  System text is no word of Simon's: a background task's notification, a `<system-reminder>`, the
+  host's `<system_instruction>` and a slash command's name tags are never read for a hold; a peer
+  agent's record still holds. A look-alike letter, a control character, a redaction or an image fails
+  closed. It stands until a later message from Simon himself that is only a plain
+  merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"), or that restates the standing
+  class merge with no PR number ("remember that sre bot fixes which don't influence user prod and have
+  been validated should be merged", `STANDING_LIFT_RE`); a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A hold that names a PR, or
+  carries any number, lifts only on "merge #N". So the path runs unasked in any session where Simon
+  gave no explicit hold, a session about the bot and its PRs included. A deny adds a `Cause (monitoring-only merge):` line: fix that check, or stop and ask for
   the merge word when the PR is outside the class. Residual, by
   design: the head pin is server-enforced but the base is not, so someone retargeting the PR in the
   second between the check and the merge sends it to that other, non-default branch (the guard first
@@ -426,9 +433,9 @@ declares for its monitoring bot merges without his merge word once it meets the 
   the ledger's contract, so a halt typed entirely inside one is not read either; a message recorded in
   the milliseconds between the guard's read and the command's start is not read, as for every
   PreToolUse guard, nor is a queued message that has reached neither the ledger nor the transcript;
-  and a hold worded only with words outside the guard's list (`HOLD_WORDS_RE`), with no mention of
-  the bot, a PR or merging ("Pat takes it from here"), is not read: an open vocabulary has no complete list,
-  so say "hold" or name the bot. A prompt the harness submits from a schedule Claude wrote (a wakeup,
+  and a hold worded only with words outside the guard's list (`HOLD_RES`), with no hold word or negated
+  merging ("Pat takes it from here"), is not read: an open vocabulary has no complete list, so say
+  "hold" or "don't merge". A prompt the harness submits from a schedule Claude wrote (a wakeup,
   a loop) is recorded as Simon's ask, so never schedule a lift. In a declaring repo, Simon's own merge
   words on a monitoring-only PR pass the same hold reading: only a plain "merge #N" merges it ("merge
   #12 and deploy" holds), and an unreadable PR lookup declines. Every merge, in any repo, must name
