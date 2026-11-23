@@ -3109,8 +3109,10 @@ def main() -> int:
                       if re.search(r"pull|repos/|api\.github\.com|graphql", t, re.I))
         # curl reading its options from a config file or stdin (-K f, --config=f, -K-) sends a request the
         # hook cannot read.
-        curl_config = re.search(r"\bcurl\b", plain_api) and re.search(
-            r"(?:^|\s)(?:-(?!-)[A-Za-z0-9#:]*K\S*|--config\b\S*)", plain_api)  # -K alone or in a cluster: -sK
+        # Only curl's own arguments count: each curl call up to the next command separator, so another
+        # tool's --config in the same line (wrangler dev --config w.json && curl …) is no curl config.
+        curl_config = any(re.search(r"(?:^|\s)(?:-(?!-)[A-Za-z0-9#:]*K\S*|--config\b\S*)", call)
+                          for call in re.findall(r"\bcurl\b([^;&|\n]*)", plain_api))  # -K alone or in a cluster: -sK
         # A state-changing request whose target the shell builds at run time ($U/merge, `cmd`) beside a
         # merge, a pulls path or GraphQL named anywhere is unread too.
         writes = re.search(r"-X\s*(?:PUT|POST|PATCH)|--request[\s=]*(?:PUT|POST|PATCH)|--method[\s=]*(?:PUT|POST|PATCH)"
