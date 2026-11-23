@@ -1690,10 +1690,12 @@ def transcript_answers(path: str) -> tuple:
         # saw (its dependency missing, its hook skipped) still holds.
         queued = (e.get("attachment") or {}) if e.get("type") == "attachment" else {}
         if queued.get("type") == "queued_command" and (
-                (isinstance(queued.get("origin"), dict) and queued["origin"].get("kind") == "task-notification")
+                (isinstance(queued.get("origin"), dict) and queued["origin"].get("kind") in ("task-notification", "peer"))
                 or queued.get("commandMode") == "task-notification"
                 or not own_words(str(queued.get("prompt") or "")).strip()):
-            pass  # a background task's notification, queued by the harness: no word of Simon's
+            # A background task's notification or a peer session's message, queued by the harness (its
+            # origin names the sender): no word of Simon's, whatever text sits outside the envelope.
+            pass
         elif queued.get("type") == "queued_command":
             typed.append((stamp, str((e.get("attachment") or {}).get("prompt") or "")))
             events.append(("queued",) + typed[-1])  # holds like a typed prompt; its later delivery is no new word
@@ -1784,8 +1786,13 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
         if (t != gate_stamp or m.group(3) != "PASS" or m.group(4) not in ("standard", "deep")
                 or not (m.group(5) or "").rstrip().endswith(mo.BAR_PHRASE)):
             return "the newest gate record on this head is not the PASS the gate check found, so the merge declines"
-    records = [r for r in records if r[1] != "gate"]
-    if not records:  # gate records alone: no message of the user's is recorded here (another checkout's ledger?)
+    # A peer record is a turn the recorder found to be nothing but a peer's envelope (another session's
+    # <cross-session-message>, a subagent's <agent-message>): Claude-authored data, not a word of Simon's,
+    # so it neither holds, lifts nor counts as a message after the gate (the fix for a peer's FYI ending
+    # "Don't push to config main separately" read as Simon's hold on a monitoring-only merge). A turn
+    # where he typed beside an envelope is an ask, judged below on his text alone (own_words).
+    records = [r for r in records if r[1] not in ("gate", "peer")]
+    if not records:  # gate or peer records alone: no message of the user's is recorded here (another checkout's ledger?)
         return "no message from the user is recorded in this ledger, so a halt cannot be ruled out"
     # The transcript's typed prompts join the ledger's records in time order (the ledger first on a tie):
     # a prompt the recorder missed still holds, and a duplicate of a recorded one changes nothing.
@@ -1796,19 +1803,17 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
                           QUOTED_RE.sub("", HARNESS_BLOCK_RE.sub("", text)).strip().translate(APOSTROPHES))
     full = lambda text: (text if len(text) > HOLD_SCAN_LIMIT else
                          HARNESS_BLOCK_RE.sub("", text).strip().translate(APOSTROPHES))
-    raw = lambda text: text.strip().translate(APOSTROPHES)
     # Simon's own words: system text (SYSTEM_TAG_RE: a task notification, a reminder, the host's
     # instructions, a slash command's name tags) is no word of his, so it never holds. A hold is judged
-    # with quoted lines kept and dropped; a peer record (another agent) holds on its tagged text too.
+    # with quoted lines kept and dropped.
     # Stripped at any length up to SYSTEM_SCAN_LIMIT, so a long notification pasted whole holds nothing.
     own = lambda text: (text if len(text) > SYSTEM_SCAN_LIMIT else
                         own_words(text).strip().translate(APOSTROPHES))
     hold_texts = lambda kind, text: ([own(text)] if len(own(text)) > HOLD_SCAN_LIMIT else
-                                     [own(text), QUOTED_RE.sub("", own(text)).strip()]
-                                     + ([raw(text)] if kind == "peer" else []))
+                                     [own(text), QUOTED_RE.sub("", own(text)).strip()])
     holds = lambda kind, text: any(_is_hold(t, number) for t in hold_texts(kind, text) if t)
-    spoken = lambda kind, text: bool(raw(text) if kind == "peer" else own(text))
-    # Only Simon's own ask can lift; a peer record (another agent, or a typed tag) can only hold.
+    spoken = lambda kind, text: bool(own(text))
+    # Only Simon's own recorded ask can lift.
     # A message past HOLD_SCAN_LIMIT is never cleaned or matched: it can only hold (_is_hold says so first).
     # The body as recorded must itself be the lift: no indent (a Markdown code sample), no quote, no tag.
     # Trailing newlines are dropped from every source alike (the recorder's shell capture drops them), so
@@ -1848,13 +1853,13 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
                     held, held_this, held_at = "", False, ""
             elif holds(kind, text):
                 # A hold carrying any number is treated as naming this PR: only "merge #<n>" lifts it.
-                said = raw(text) if kind == "peer" else own(text)
+                said = own(text)
                 held, held_this = said, held_this or bool(re.search(r"\d", _normalize(said)))
                 held_at = max(held_at, stamp)
         return held, held_this
 
     # Read twice, and a hold either reading leaves standing stands: in the time-sorted records (ledger
-    # asks and peers, where only Simon's own recorded ask lifts), and in the transcript's own file order
+    # asks, where only Simon's own recorded ask lifts), and in the transcript's own file order
     # of what he typed (where his typed lift lifts). The ledger stamps a record when its writer takes the
     # lock, so two prompts can be appended in the opposite order to the one he typed them in.
     held, held_this = standing(records, lifting)
