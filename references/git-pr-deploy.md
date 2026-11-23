@@ -407,7 +407,10 @@ declares for its monitoring bot merges without his merge word once it meets the 
   `#N merged at <sha>; deploy <verified|none>`.
 - **The guard:** `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
   lists them); any read error declines, and any hold Simon gave this session stands for every
-  monitoring-only PR. A hold is an explicit hold aimed at merging or shipping, read as whole words and
+  monitoring-only PR unless it names PRs: a hold naming PRs ("#1298", "PR 1405", a `/pull/<n>` URL,
+  "merge 1296") holds those PRs only, a question proposing to cancel one included (`_hold_scope`); one
+  that also speaks of the class or a condition ("all", "the bot PRs", "until #13 lands") stays a class
+  hold. A hold is an explicit hold aimed at merging or shipping, read as whole words and
   phrases (`HOLD_RES`): a hold word given as an order ("hold the bot PRs", "wait before merging",
   "stop"), a negated merge or ship ("don't merge #1405", "do not deploy"), or a hold phrase ("not yet",
   "leave it open", "nothing goes live", "needs my sign-off", "I'll review it first"). A mention of the
@@ -419,8 +422,9 @@ declares for its monitoring bot merges without his merge word once it meets the 
   closed. It stands until a later message from Simon himself that is only a plain
   merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"), or that restates the standing
   class merge with no PR number ("remember that sre bot fixes which don't influence user prod and have
-  been validated should be merged", `STANDING_LIFT_RE`); a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A hold that names a PR, or
-  carries any number, lifts only on "merge #N". So the path runs unasked in any session where Simon
+  been validated should be merged", `STANDING_LIFT_RE`); a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A hold that names this PR, or a
+  class hold that also names a PR, lifts only on "merge #N"; a number naming no PR ("1 but", "14
+  days") leaves it a class hold. So the path runs unasked in any session where Simon
   gave no explicit hold, a session about the bot and its PRs included. A deny adds a `Cause (monitoring-only merge):` line: fix that check, or stop and ask for
   the merge word when the PR is outside the class. Residual, by
   design: the head pin is server-enforced but the base is not, so someone retargeting the PR in the
