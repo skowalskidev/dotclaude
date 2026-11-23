@@ -111,6 +111,8 @@ CRITERIA: list[tuple[str, str]] = [
      "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
     ("outbound-message-guard-caps-messages-to-others",
      "A Slack or Gmail send or draft over the 5-line TLDR cap is denied, while a short message, a read, a canvas, the one-shot override and the --check CLI behave as documented."),
+    ("test-browser-tabs-stay-labelled-and-swept",
+     "Every test-browser tab keeps its task, persona and owner label through the page's own title changes and reloads, an unlabelled navigate_page is denied, and sweep closes only blank, unlabelled, ended, idle or own earlier-task tabs while live walks' tabs stay open."),
     ("agent-setups-preserve-provider-choice",
      "Full Claude and Full Astra preserve selected models, fail without fallback, and report only measured telemetry."),
     ("native-codex-shares-canonical-config",
@@ -2018,6 +2020,22 @@ def check_capacity_timeout_guard_covers_background_queues_both_ways() -> None:
     result = run(["python3", str(ROOT / "hooks/capacity-timeout-guard.test.py")])
     check(result.returncode == 0,
           f"Capacity-timeout guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_test_browser_tabs_stay_labelled_and_swept() -> None:
+    groups = settings().get("hooks", {}).get("PreToolUse", [])
+    wired = [g.get("matcher") for g in groups
+             if any(h.get("command", "").endswith("hooks/test-browser-label-guard.py") for h in g.get("hooks", []))]
+    check(any(m and re.fullmatch(m, "mcp__chrome-devtools__navigate_page") for m in wired),
+          "settings.json must wire hooks/test-browser-label-guard.py on mcp__chrome-devtools__navigate_page.")
+    for test in ("hooks/test-browser-label-guard.test.py", "bin/test-browser-tabs.test.py"):
+        result = run(["python3", str(ROOT / test)])
+        check(result.returncode == 0, f"{test} failed:\n{result.stdout}\n{result.stderr}")
+    browser = " ".join((ROOT / "references/browser-debugging.md").read_text().split())
+    for phrase in ("test-browser-tabs.py label --task", "pass it as `initScript` on EVERY `navigate_page`",
+                   "DON'T set `document.title` once", "test-browser-tabs.py sweep --task",
+                   "before step 1 and before every later step message", "whichever session opened it"):
+        check(phrase in browser, f"browser-debugging.md § Tab labels and stale tabs lost: {phrase}")
 
 
 def check_outbound_message_guard_caps_messages_to_others() -> None:
