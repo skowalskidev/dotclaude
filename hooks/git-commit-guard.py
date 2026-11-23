@@ -1629,11 +1629,11 @@ STANDING_LIFT_RE = re.compile(
     r"(?=.*(?:\b(?:should|must|can|are to|need to|needs to|to)\s+(?:be|get)\s+merged\b|\bjust\s+merge\s+(?:them|those|these)\b"
     r"|\bget\s+(?:them|those|these)\s+merged\b))", re.I | re.A)
 STANDING_LIFT_WORDS = frozenset("""
-remember reminder again note please ok okay so yes and also that the any all only every sre bot bots
+remember reminder again note please ok okay so yes and also that the any all every sre bot bots
 monitoring bot's fix fixes pr prs pull request requests change changes which that are is don't doesn't do does influence influences affect affects touch touches impact impacts change risk user users user's prod production
 pay payment paths path flows flow customer customers and or have has been validated tested verified checked green
-passed pass passing the bar its their own safe should must can be get merged merge just them those these they when
-once done ready finished automatically auto always to of with without in on for
+passed pass passing the bar its their own safe should must can be get merged merge just them those these they
+automatically auto always to of with without in on for
 """.split())
 
 

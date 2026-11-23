@@ -942,6 +942,9 @@ MONITORING = [
      [("open", "hold the bot PRs"), ("handback", ""),
       ("open", "remember that sre bot fixes which don't influence user prod and have been validated should be merged"),
       ("handback", ""), ("open", "look at the other alert")], [PASS_C], merge(401, extra=" --squash"), False, ""),
+    ("a conditional merge of another named PR is no hold on the bot PRs",
+     [("open", "ok merge 1373 if it's ready to deploy and safe to merge to prod"), ("handback", ""),
+      ("open", "look at the other alert")], [PASS_C], merge(401, extra=" --squash"), False, ""),
     ("'hold the bot PRs' holds", [("open", "hold the bot PRs"), ("handback", ""), ("open", "look at the other alert")],
      [PASS_C], merge(401), True, "hold on merging still stands"),
     ("'wait before merging' holds", [("open", "wait before merging"), ("handback", ""),
@@ -2188,7 +2191,9 @@ def main() -> int:
                  "SRE bot fixes should be merged if Bob consents.", "SRE bot fixes should be merged by Bob alone.",
                  "SRE bot fixes should be merged next month.", "SRE bot fixes should be merged before noon.",
                  "It is false that SRE bot fixes should be merged.", "no bot fixes should be merged",
-                 "not all bot fixes should be merged", "sre bot fixes should be merged once i checked them")
+                 "not all bot fixes should be merged", "sre bot fixes should be merged once i checked them",
+                 "monitoring bot fixes should be merged only when users are ready",
+                 "monitoring bot fixes should be merged once production is done")
         if fresh._lifts(STANDING, "1405") and not any(fresh._lifts(m, "1405") for m in gated):
             passes += 1
         else:
@@ -2210,7 +2215,7 @@ def main() -> int:
                     "Closing that out.", "It froze.", "status_**wa**it", "2prs", "m-e-r-g-e",
                     "Keep the incident open", "The alerts are blocked by the rate limit", "The dashboard needs review",
                     "Stop alerting", "Don't stop merging", "why is 1296 not merged yet?",
-                    STANDING)
+                    STANDING, "ok merge 1373 if it's ready to deploy and safe to merge to prod")
         held = [m for m in ordinary if fresh._is_hold(m, "1405")]
         if not held:
             passes += 1
