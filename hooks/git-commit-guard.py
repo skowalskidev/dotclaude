@@ -2874,6 +2874,29 @@ def _unclean_names(text: str) -> set:
     return unclean
 
 
+def _brace_unexpanded(text: str, a: int, p: int) -> bool:
+    """True when the `{` at offset p, in the simple command starting at offset a, is inside quotes or escaped
+    by a backslash, so the shell passes it on as written rather than expanding it. Any `$(`, `$'`, `$"` or
+    backquote before it in the command opens a context this scan does not model, so the brace counts."""
+    if re.search(r"\$[('\"]|`", text[a:p]):
+        return False
+    quote, i = None, a
+    while i < p:
+        ch = text[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+        elif ch == "\\":
+            if i + 1 == p:
+                return True
+            i += 1
+        elif quote:
+            quote = None if ch == '"' else quote
+        elif ch in "'\"":
+            quote = ch
+        i += 1
+    return quote is not None
+
+
 def _data_dynamics(text: str) -> set:
     """Start offsets in text of each DYNAMIC_RE construct that can only hand data to a command, so it builds
     no gh command or merge however the rest of the input reads. Judged per simple command:
@@ -2884,6 +2907,9 @@ def _data_dynamics(text: str) -> set:
       - `tool note "$f"`: a simple parameter in an argument of a literal command word that is no runner
         (RUNNERS), in a command naming neither gh nor merge, when the text never sets the variable to a value
         that could spell a command (`_unclean_names`; an inherited variable such as $HOME counts as data).
+      - `grep -o 'x\\{0,3\\}'`: a quoted or escaped brace (`_brace_unexpanded`) in an argument of an inert
+        command, or of a literal non-runner command naming neither gh nor merge. (the fix for a read-only
+        `grep -n "gh pr merge" f | grep -o 'x\\{0,3\\}'` denied as a run-time-built merge)
     Anything else (a built command word, a backquote, eval, a shell or interpreter, gh or git, a value built
     by printf or echo) stays a possible hidden merge. (the fix for a read-only `gh api graphql` query
     denied because a later `f=$(mktemp) && printf '... merge ...' > "$f"` named merge and built a temp path)"""
@@ -2892,6 +2918,15 @@ def _data_dynamics(text: str) -> set:
     for m in DYNAMIC_RE.finditer(text):
         p = m.start()
         a, b = next(((a, b) for a, b in spans if a <= p < b), (p, p))
+        if m.group().startswith("{"):
+            # A brace the shell never expands, quoted or escaped (`grep -o 'x\{0,3\}'`), reaches the command as
+            # written: data for an inert command, and for a literal non-runner naming neither gh nor merge.
+            if _brace_unexpanded(text, a, p):
+                head = _literal_head(text[a:b])
+                if head in INERT_COMMANDS or (head is not None and not _is_runner(head)
+                                              and not NAMES_GH_OR_MERGE_RE.search(text[a:b])):
+                    benign.add(p)
+            continue
         if m.group() == "$(" and not text.startswith("$((", p):
             close = _simple_command_end(text, p + 2)
             if (ASSIGN_PREFIX_RE.fullmatch(text[a:p]) and text[close:close + 1] == ")"
