@@ -13,8 +13,7 @@ inside one path segment; `**` spans segments. A workflow file is never matched b
 listed as its literal path, and only when that workflow belongs to the bot alone. `offlineTests`
 are the bot's own suites, run as part of the monitoring-only bar (references/git-pr-deploy.md
 § Monitoring-only changes); `requiredChecks` names the bot's own CI checks ("<workflow> / <job>"), each
-of which must succeed for the merge path; optional `names` lists the words people use for the bot, so
-a message using them counts as a hold until a plain lift. The guard reads a listed workflow's path, never its content.
+of which must succeed for the merge path. The guard reads a listed workflow's path, never its content.
 The project values live in the local overlay, never in this repo.
 
 Readers:
@@ -123,12 +122,7 @@ def validate(raw):
             isinstance(c, str) and re.fullmatch(r"[^/]+ / [^/]+", c) for c in checks):
         return None, ("monitoringOnly.requiredChecks must list the bot's own CI checks as "
                       "\"<workflow> / <job>\", each of which must pass")
-    names = raw.get("names", [])
-    if not isinstance(names, list) or not all(isinstance(n, str) and re.fullmatch(r"[A-Za-z][\w -]{1,40}", n)
-                                             for n in names):
-        return None, "monitoringOnly.names must list the words people use for the bot"
-    return {"paths": list(paths), "offlineTests": list(tests), "requiredChecks": list(checks),
-            "names": list(names)}, ""
+    return {"paths": list(paths), "offlineTests": list(tests), "requiredChecks": list(checks)}, ""
 
 
 def path_matches(path, spec):
