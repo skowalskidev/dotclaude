@@ -771,6 +771,10 @@ minutes, and a lower timeout kills the run while it still waits for admission, s
 `local-capacity.py` or `native-slot.sh`) that breaks this and names the timeout it needs. (the fix for a simulator test run started with a
 60-minute timeout and `--wait-min 60 --max-min 30`, killed unrun in the queue, and for default-timeout
 native runs killed while queued, whose leases then blocked the owner's next run.)
+**DON'T run a capacity `run` in the foreground with a `timeout` above 600000:** the tool moves it to
+the background at 600 s with the 30-minute default, which kills it while it still queues. Start it as
+`run_in_background` with the timeout above (the fix for a preview build queued in the foreground with a
+1-hour timeout, killed unstarted at 30 minutes under machine load); the same guard denies it.
 TEST: no `run_in_background` task wraps a capacity-gated command or chain whose summed `--wait-min`
 plus `--max-min` reaches 120, and none sets a `timeout` below that sum.
 

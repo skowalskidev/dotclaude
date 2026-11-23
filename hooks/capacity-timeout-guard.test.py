@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Both directions for hooks/capacity-timeout-guard.py: it must deny a capacity-gated background task
-whose timeout ends before its queue and run can, and must stay silent on foreground calls, adequate
+whose timeout ends before its queue and run can, and a foreground call whose timeout passes the 10-minute foreground cap, and must stay silent on
+other foreground calls, adequate
 timeouts, the detached launcher and text that merely names the command.
 
 Drives the hook the way the harness does (a tool_use JSON payload on stdin). Nothing is run.
@@ -19,6 +20,8 @@ HOUR = 3600000
 
 # (label, command, run_in_background, timeout, reason fragment)
 MUST_FIRE = [
+    ("a foreground run expecting more than the 10-minute foreground cap is moved to a 30-minute background",
+     f"{LC} run --owner s -- npm run build", False, HOUR, "set run_in_background"),
     ("the incident: default budget on the 30-minute default",
      f"{LC} run --owner s -- xcodebuild test", True, None, "set timeout to at least 4020000"),
     ("simulator test with --wait-min 60 --max-min 30 under a 60-minute timeout",
@@ -38,6 +41,7 @@ MUST_FIRE = [
 
 MUST_PASS = [
     ("foreground run", f"{LC} run --owner s -- x", False, None),
+    ("foreground run within the 10-minute foreground cap", f"{LC} run --owner s -- x", False, 600000),
     ("adequate timeout", f"{LC} run --owner s -- x", True, 4020000),
     ("adequate timeout, wrapper", f"{NS} run --for ui --wait-min 10 --max-min 40 -- x", True, 3120000),
     ("non-literal at the cap", f'{LC} run --owner s --max-min "$M" -- x', True, 2 * HOUR),

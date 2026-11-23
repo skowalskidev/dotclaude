@@ -9,6 +9,8 @@ started as background tasks on the 30-minute default were killed while still wai
 and each kill left a lease that blocked the owner's next run. This guard is the mechanical backstop.
 
 WHAT IT JUDGES: a Bash call with `run_in_background: true` whose shell runs `local-capacity.py run`
+(or a foreground call with a timeout above the 10-minute foreground cap, which the tool moves to a
+30-minute background)
 or `native-slot.sh run` (also inside sh/bash -c, eval, $(...), chains). Each run counts its literal
 `--wait-min` (default 5) plus `--max-min` (default 60); a chain sums them.
 
@@ -37,6 +39,7 @@ DEFAULT_MAX_MIN = 60    # --max-min default in both
 CLEANUP_MIN = 2         # supervisor cleanup retries for up to 30 s, plus simulator shutdown
 CAP_MS = 2 * 60 * 60 * 1000   # the Bash tool's longest run_in_background timeout
 DEFAULT_MS = 30 * 60 * 1000   # the Bash tool's background default when `timeout` is absent
+FOREGROUND_MS = 10 * 60 * 1000  # the Bash tool's longest foreground timeout
 GLOBAL_VALUE_OPTS = {"--root"}
 
 
@@ -99,8 +102,22 @@ def collect(P, cmds, found, depth=0):
 
 def verdict(command, background, timeout):
     """The deny reason for this Bash call, else None."""
-    if not background or not re.search(r"(local-capacity\.py|native-slot\.sh)", command):
+    if not re.search(r"(local-capacity\.py|native-slot\.sh)", command):
         return None
+    if not background:
+        # A foreground call past the tool's 10-minute foreground cap is moved to the background at 600 s
+        # with the 30-minute background default, which kills a run still queued for capacity.
+        long = isinstance(timeout, (int, float)) and not isinstance(timeout, bool) and timeout > FOREGROUND_MS
+        if not long:
+            return None
+        P = _load_parser()
+        found = []
+        collect(P, P.parse(command), found)
+        if not found:
+            return None
+        return ("a capacity run in the foreground with timeout %d ms passes the 10-minute foreground cap, so the "
+                "tool moves it to the background at 600 s with the 30-minute default and kills it while it "
+                "still queues; set run_in_background: true with the timeout it needs" % timeout)
     P = _load_parser()
     found = []
     collect(P, P.parse(command), found)
