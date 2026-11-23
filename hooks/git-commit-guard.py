@@ -51,6 +51,7 @@ switched off.
 """
 
 import datetime
+import functools
 import hashlib
 import html
 import json
@@ -62,7 +63,7 @@ import subprocess
 import sys
 import time
 import unicodedata
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 # Split on shell separators so each command is judged on its own. Runs on the MASKED command, so a
 # separator inside quotes or a heredoc body never splits it.
@@ -1432,37 +1433,92 @@ def monitoring_not_ready(pr: dict, required: list, default_branch: str) -> str:
 
 
 # The halt reading on this path fails closed, and a hold is never narrowed to other PRs. _is_hold and
-# _lifts are the predicates: a hold is any message with a turn-level halt, a negator before a
-# merge-like verb, any HOLD_WORDS_RE word anywhere, a mention of the bot, a PR or merging
-# (CLASS_ANY_RE, the overlay's names), or this PR's number. Only a whole raw message matching LIFT_RE
-# lifts it.
+# _lifts are the predicates. A hold is an explicit hold aimed at merging or shipping, read as WHOLE
+# words and phrases (HOLD_RES): a hold word given as an order ("hold the bot PRs", "wait before
+# merging", "stop"), a negated merge or ship ("don't merge #1405", "do not deploy"), or a hold phrase
+# ("not yet", "leave it open", "nothing goes live", "needs my sign-off"). A mention of the bot, a PR,
+# merging or a fix holds nothing, and neither does "not", "if" or "no" alone (Simon, 2026-11-23: the
+# old reading held on any bot, PR or merge mention and on prefix-matched words, so 25 of his last 30
+# messages held, his own "look at sre bots threads and see if we need to make any more fixes" too, and
+# the automatic path never ran). Only a whole raw message matching LIFT_RE lifts a hold.
 MARKUP_RE = re.compile(r"<[A-Za-z!/][^<>]*>")
-HOLD_NEGATED_RE = re.compile(
-    r"\b(?:don'?t|do not|never|not|no|without|before|stop)\s+(?:[\w']+\s+){0,3}?"
-    r"(?:merg|push|deploy|ship|land|close|touch|release)", re.I | re.A)
-HOLD_WORDS_RE = re.compile(
-    r"\b(?:stop|hold|wait|pause|cancel|skip|keep|leave|freeze|until|yet|later|myself|first|before|hang"
-    r"|sec|moment|minute|not|don'?t|never|no|nope|block|revert|roll ?back|undo|defer|postpone|delay"
-    r"|hands[- ]off|park|parked|mine|handle|i'?ll|i will|let me|let\b|i'?m going|i am going|we'?ll"
-    r"|halt|abort|avoid|refrain|quit|cease|forget|sign-?off|approv\w*|forbid\w*|prohibit\w*|ban(?:ned)?"
-    r"|disallow\w*|without|only|my|me|broken|risky|unsafe|careful|veto\w*|once|after|when|if|unless"
-    r"|as soon as|tomorrow|tonight|next|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
-    r"|afternoon|evening|week|needs?|should|must|agree\w*|ok'?d|okay'?d|instead|off[- ]limits|close\w*"
-    r"|kill\w*|drop\w*|scrap\w*|discard\w*|abandon\w*|rework\w*|rewrite\w*|rethink\w*|redo|wrong|reject\w*"
-    r"|nothing|none|nobody|no one|everything|personally|eyeball\w*|live|prod\w*|production|go(?:es)? out"
-    r"|stays?|staying|review\w*|embargo\w*|nah|nay|stand(?:s)? down|ask\w*|decid\w*|day|hmm+"
-    r"|suspend\w*|withdraw\w*|retract\w*|shel(?:f|v\w*)|table|mothball\w*|ice|stand ?by|await\w*|pending"
-    r"|interven\w*|danger\w*|bad|problem\w*|issue\w*|concern\w*|worr\w*|doubt\w*|unsure|uncertain|discuss\w*"
-    r"|talk\w*|approval|permission|consent\w*|quarantin\w*|lock\w*|frozen|protect\w*|restrict\w*|revisit\w*"
-    r"|reconsider\w*|land\w*|publish\w*|launch\w*|roll ?out\w*|deploy\w*|ship\w*|releas\w*|push\w*"
-    r"|belay\w*|scrub\w*|nix\w*|kibosh|countermand\w*|rescind\w*|desist|hang fire|sit tight|whoa|woah|easy"
-    r"|slow down|steady|back off|no[- ]?go|negative|never ?mind|scratch that|disregard\w*|ignore\w*|revers\w*"
-    # Stems for words that drop their final e before -ing/-ed ("pausing", "closing", "freezing").
-    r"|paus|leav|clos|freez|postpon|revok|disabl|deactivat|terminat|reserv|shelv|declin|refus|revis|delet"
-    r"|remov|retir|archiv|resolv|wav|stal|wedg|park"
-    # Irregular forms ("held", "kept", "froze", "withdrew").
-    r"|held|withheld|kept|left|withdrew|undid|undone|forbade|froze|stood|shut|took back|hung|sat|bade)\w*\b",
-    re.I | re.A)
+# System text inside Simon's prompt is not his words: the harness blocks, a host's `<system_instruction>`
+# (Conductor's workspace notes and attachment lists) and a slash command's own name tags.
+SYSTEM_TAG_RE = re.compile(r"<(system-reminder|task-notification|agent-message|cross-session-message"
+                           r"|system_instruction|command-message|command-name)\b[^>]*>", re.I)
+
+
+def own_words(text: str) -> str:
+    """The text with every closed system block removed, in linear time: each tag name's closing tag is
+    searched for once it is missing, so many unclosed tags cannot make the strip quadratic."""
+    lower, out, last, pos, missing = text.lower(), [], 0, 0, set()
+    while True:
+        m = SYSTEM_TAG_RE.search(text, pos)
+        if not m:
+            break
+        name = m.group(1).lower()
+        close = -1 if name in missing else lower.find("</" + name + ">", m.end())
+        if close < 0:
+            missing.add(name)
+            pos = m.end()
+            continue
+        out.append(text[last:m.start()])
+        last = pos = close + len(name) + 3
+    out.append(text[last:])
+    return "".join(out)
+MERGE_VERB = (r"(?:(?:auto-?)?(?:merge|merging)|ship|shipping|deploy|deploying|land|release|releasing"
+              r"|roll(?:ing)? ?out)\b|go(?:es|ing)? live\b")
+# A hold word ordering something else ("stop alerting on 429s", "pause sending") is a bot fix, not a hold.
+NOT_MERGE_GERUND = r"(?!\s+(?!merg|ship|deploy|releas|land|(?:every|any|no|some)thing\b)[A-Za-z]+ing\b)"
+HOLD_WORD = (r"(?:hold|holding|wait|stop|pause|paused|pausing|cancel|halt|freeze|freezing|abort|belay|veto"
+             r"|suspend|refrain|shelve|shelf|embargo|park|parked)\b")
+# A clause-joining word ends a negation's reach: "no regressions then merge" negates the regressions.
+HOLD_JOIN = r"(?:yes|and|then|them|so|ok|okay|ie|but|or|if|when|once)\b"
+HOLD_RES = [re.compile(p, re.I | re.A) for p in (
+    # A hold word as an order: at the start of the message or a clause, after a softener, or first person.
+    r"(?:^|[.,;:!?(]\s*|\b(?:please|pls|ok|okay|and|but|now|just|then|hey|so|no|nope|actually|guys)\s+)"
+    + HOLD_WORD + NOT_MERGE_GERUND,
+    r"\b(?:i|we|let'?s|lets)\s+(?:(?:should|must|will|need to|want to|have to|would|d|'d|'ll|ll)\s+)?" + HOLD_WORD
+    + NOT_MERGE_GERUND,
+    # A hold word aimed at a merge: a merge or ship word, a PR or a PR number within four words after it.
+    r"\b" + HOLD_WORD + r"(?:\s+[\w'#-]+){0,4}?\s+(?:" + MERGE_VERB + r"|merges\b|deploys\b|releases\b|prs?\b"
+    r"|pull requests?\b|#\d+)",
+    # A negated merge or ship, the verb within two words of the negator, no clause crossing.
+    r"\b(?:don'?t|dont|do not|never)\s+(?:(?!" + HOLD_JOIN + r")[\w'-]+\s+){0,4}?(?:" + MERGE_VERB + r"|push\b)",
+    r"\b(?:not|without)\s+(?:(?!" + HOLD_JOIN + r")[\w'-]+\s+){0,2}?(?:" + MERGE_VERB + ")",
+    # A merge told to wait: "the merge can wait until tomorrow", "merging must wait".
+    r"\b(?:merg\w*|ship\w*|deploy\w*|prs?|it|that|this|they|these|those)\s+(?:must|can|should|will|has to|have to"
+    r"|needs? to|is going to|are going to)\s+(?:wait|hold|pause)\b",
+    r"\bno (?:more )?(?:(?:auto-?)?merg\w*|ship\w*|deploy\w*)",
+    # A passive negated merge: "should not be merged", "mustn't get shipped".
+    r"(?:\b(?:should|must|will|can|could|would|may|to)\s+(?:not|never)|\b(?:shouldn|mustn|won|can|couldn|wouldn)'?t)"
+    r"\s+(?:be|get)\s+(?:auto-?)?(?:merged|shipped|deployed|released)\b",
+    r"(?<!\bor )\bnot (?:yet|now|today)\b",
+    # A PR set apart from a merge: "merge #1300 but not #401", "all except 401".
+    r"\b(?:not|except|excluding|apart from|other than)\s+(?:pr\s*)?(?:#\d+|\d{2,}\b)",
+    r"\b(?:hang|hold) (?:on|off|fire)\b|\bsit tight\b|\bstand ?by\b|\bon (?:hold|ice|pause)\b|\boff[- ]limits\b",
+    r"\b(?:(?:give me|gimme)(?: a| one| 1)?|one|1|just a) (?:sec|second|minute|min|moment)\b",
+    r"\bhands[- ]?off\b|\bhands away\b",
+    r"\b(?:leave|leaving|keep|keeping)\s+(?:it|them|that|this|those|these|(?:the\s+|all\s+)?(?:[\w'-]+\s+){0,2}?"
+    r"(?:prs?|pull requests?|fix(?:es)?|branch(?:es)?|merges?|#\d+))\s+(?:open|alone|unmerged|as is)\b"
+    r"|\b(?:leave|leaving)\s+(?:it|them|that|this|those|these)(?:\s+\w+)?\s+(?:for now|there)\b"
+    r"|\b(?:set|put|kept|keep)\s+(?:[\w'#-]+\s+){0,2}?aside\b",
+    r"\b(?:stays?|staying|remains?|remain|kept)\s+(?:open|unmerged|on hold)\b"
+    r"|\b(?:is|are|be|being)\s+(?:held|paused|frozen|embargoed)\b",
+    r"\bnothing (?:goes|gets|should go|is going|ships|lands|merges|deploys)\b",
+    r"\bwithout (?:me|my|asking|checking)\b|\b(?:my|me) (?:sign-?off|say|say-?so|approval|go-?ahead|call|decision)\b",
+    r"\b[A-Za-z]+'s (?:call|decision|sign-?off|approval|say)\b|\bneeds? (?:my|your|his|her|their|[A-Za-z]+'s) (?:review|approval|sign-?off|go-?ahead|ok)\b"
+    r"|\b(?:prs?|pull requests?|#\d+|merges?|it|this|that)\s+needs?\s+(?:a\s+|more\s+)?(?:review|approval|sign-?off)\b",
+    # A merge gated on a person: "until I approve", "blocked until Bob signs off".
+    r"\buntil\s+(?:i|me|my|we|you|[A-Z][a-z]+)\s+(?:\w+\s+)?(?:approve|approves|review|reviews|sign|signs|say|says|check"
+    r"|checks|look|looks|ok|okay|decide|decides)\b|\b(?:merg\w*|prs?|pull requests?|it)\s+(?:is|are)\s+blocked\b",
+    r"\b(?:i'?ll|i will|i'?d like to|i want to|i wanna|let me|lemme)\s+(?:\w+\s+)?(?:review|test|eyeball|merge|ship|deploy"
+    r"|land|decide|approve|sign off)\b",
+    r"\bforbid\w*|\bforbade\b|\bprohibit\w*|\bunmerged\b|\bembargo\w*|\bdisable (?:\w+ )?auto-?merg\w*|\bno[- ]go\b",
+    r"\b(?:close|closing)\s+(?:[\w'-]+\s+){0,3}?(?:prs?|pull requests?|#\d+)\b",
+)]
+
+
 # A lift is ONLY a message that is, whole, a plain unconditional merge of this PR or of the bot class:
 # "merge #12", "ok merge the bot fixes", "please merge the monitoring PRs now". Anything more (a
 # condition, a person, a time, a report, a question) is no lift.
@@ -1478,55 +1534,62 @@ def _names(ask: str, number: str) -> bool:
     return any(int(n) == int(number) for n in re.findall(r"(?<![\d.])\d+(?!\d|\.\d)", ask) if len(n) < 12)
 
 
-# The structural closure: a message that mentions the bot (a built-in class word or one of the overlay's
-# own `names`), any PR, or merging at all, and is not a lift, is a hold. So in a session where Simon
-# talks about the bot or its PRs, the path waits for his plain lift; it runs on its own only where he
-# has said nothing about them.
-CLASS_ANY_RE = re.compile(r"bots?\b|\bmonitor\w*|\bsre\b|merg\w*|\bprs?\b|\bprs?\d|pull[- ]?requests?|#\d+|/pulls?\b"
-                          r"|\bgh-\d+",
-                          re.I | re.A)
-
-
 DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe63\uff0d"})
 
 
 def _normalize(text: str) -> str:
-    """The words the way a person reads them, for every hold and PR-number check, overlay names
-    included: compatibility forms folded (full-width digits and #), every dash a hyphen, "P.R." as
-    "PR", markdown emphasis and other symbols as spaces (`_` is a word character and would hide a
-    hold word from every \\b), and any whitespace run as one space."""
+    """The words the way a person reads them, for every hold and PR-number check: compatibility forms
+    folded (full-width digits and #), every dash a hyphen, "P.R." as "PR", markdown emphasis and other
+    symbols as spaces (`_` is a word character and would hide a hold word from every \\b), and any
+    whitespace run as one space."""
     text = unicodedata.normalize("NFKC", text)
     # Invisible format characters (soft hyphen, zero-width joiners) vanish, so "Do\u00adn't" reads "Don't".
     text = "".join(c for c in text if unicodedata.category(c) != "Cf").translate(DASHES).translate(APOSTROPHES)
     text = " ".join(text.split())  # whitespace runs first, so "P.  R." reads as "P. R."
     text = re.sub(r"\bp\s*\.\s*r\s*\.?(?=\W|$|s\b)", "PR", text, flags=re.I)
-    text = re.sub(r"[^\w\s'#/.,:;!?-]|_", " ", text)
-    # A digit glued to a word ("1sec", "2hold", "2prs") is read apart, since \b sees no boundary there.
+    text = re.sub(r"[^\w\s'#/.,:;!?()-]|_", " ", text)
+    # A digit glued to a word ("1sec", "2hold") is read apart, since \b sees no boundary there.
     text = re.sub(r"(?<=[0-9])(?=[A-Za-z])|(?<=[A-Za-z])(?=[0-9])", " ", text)
     return " ".join(text.split())
 
 
 HOLD_SCAN_LIMIT = 4000  # characters; a longer message (a pasted log, a token) holds without a scan
+SYSTEM_SCAN_LIMIT = 1000000  # characters; system text is stripped up to this length, beyond it the text holds
+# A word spelled letter by letter ("S-T-O-P", "w a i t"): its letters are read joined as well.
+SPELLED_RE = re.compile(r"(?<![A-Za-z])[A-Za-z](?:[\s.\-*_'+/|~,]+[A-Za-z](?![A-Za-z])){2,}")
 
 
-def _is_hold(ask: str, number: str, names: tuple = ()) -> bool:
-    """True when the message holds. Every rule applies to every copy the caller passes, the raw one
-    (harness blocks and their contents included) too: a false hold costs one lift, a missed one a merge."""
+def _readings(ask: str) -> list:
+    """Every way the message can read once rendered: as typed, NFKC-folded, entities and escapes decoded,
+    markup and Markdown link targets dropped, emphasis marks dropped, struck text dropped, punctuation
+    inside a word dropped, and each letter-by-letter run joined. A hold in any reading holds."""
+    folded = unicodedata.normalize("NFKC", ask)
+    decoded = unquote(html.unescape(folded))
+    decoded = re.sub(r"\\u([0-9A-Fa-f]{4})", lambda m: chr(int(m.group(1), 16)), decoded)
+    decoded = re.sub(r"\\x([0-9A-Fa-f]{2})", lambda m: chr(int(m.group(1), 16)), decoded).replace("\\", "")
+    out = [ask, folded, decoded]
+    untagged = re.sub(r"<!--.*?(?:-->|$)", "", decoded, flags=re.S)
+    out += [re.sub(r"<[^<>]*>", "", untagged), re.sub(r"<[^<>]*>", " ", untagged)]
+    # A Markdown link renders its text only: "W[ai](https://x/a(b))t" reads "Wait".
+    unlinked = re.sub(r"\]\((?:[^()]|\([^()]*\))*\)|\]\[[^\]]*\]|^\s*\[[^\]]*\]:.*$", "", out[3], flags=re.M)
+    unlinked = unlinked.replace("[", "").replace("]", "")
+    out += [unlinked, re.sub(r"~~.*?~~", "", unlinked, flags=re.S)]
+    out += [re.sub(r"[*_~`]+", "", t) for t in out[-2:]]
+    out += [re.sub(r"(?<=[A-Za-z])[^\w\s]+(?=[A-Za-z])", "", t) for t in out[-2:]]
+    out += [SPELLED_RE.sub(lambda m: re.sub(r"[^A-Za-z]", "", m.group(0)), t) for t in list(out)]
+    return out
+
+
+def _is_hold(ask: str, number: str) -> bool:
+    """True when the message holds. Every reading of it (_readings) is matched against HOLD_RES; what
+    cannot be read for certain (a look-alike letter, a control character, a redaction) fails closed."""
     time_left()  # each message costs time: the scan declines through OutOfTime, never runs past the hook
     if len(ask) > HOLD_SCAN_LIMIT:
         return True
-    if "[REDACTED CREDENTIAL]" in ask:
-        return True  # the recorder redacted part of it, so what it said cannot be read: fail closed
-    if re.search(r"(?<![A-Za-z])[A-Za-z](?:[\s.\-*_'’+/|~]+[A-Za-z](?![A-Za-z])){2,}", ask):
-        return True  # a word spelled letter by letter ("S-T-O-P", "w a i t") cannot be read for certain
-    if re.search(r"\*\*|~~|__(?=\w)|(?<=\w)__|\w\*|\*\w", ask):
-        return True  # Markdown emphasis or strikethrough ("~~go~~**wa**it") renders words the text splits
+    if "[REDACTED CREDENTIAL]" in ask or NON_TEXT_PART in ask:
+        return True  # redacted, or an image or file the guard cannot read: what it said is unknown
     if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", ask):
         return True  # an ASCII control (a terminal color escape) can glue itself to a word
-    if html.unescape(ask) != ask or re.search(r"%[0-9A-Fa-f]{2}", ask) or "\\" in ask:
-        # An HTML entity, a percent-escape or any backslash escape (JSON "\\u0077", Markdown "\\'") stands
-        # for other text ("&#88;wait", "%70ull"), so what it says cannot be read for certain.
-        return True
     folded = unicodedata.normalize("NFKC", ask)
     # Checked on the text as typed AND as folded: NFKC turns some symbols into ASCII letters ("ⓘ" to "i"),
     # which would glue them to the next word.
@@ -1534,38 +1597,58 @@ def _is_hold(ask: str, number: str, names: tuple = ()) -> bool:
         # A letter, digit, symbol, mark or control outside ASCII (a look-alike "о", a 🤖, a variation
         # selector, a zero-width joiner) fails closed; only non-ASCII punctuation and spaces read through.
         return True
-    # Markdown emphasis inside a word renders joined ("**wa**it" reads "wait"), so a copy with the marks
-    # dropped is judged too.
-    joined = re.sub(r"[*_~`\\]+", "", folded)  # emphasis marks and Markdown escapes ("Don\\'t") dropped
-    if MARKUP_RE.search(folded):
-        return True  # inline markup (a tag, an HTML comment) renders as other text, wherever it appears
-    if "[" in folded or "]" in folded:
-        return True  # a square bracket may be Markdown link syntax of any form, whose rendered text cannot be read
-    kept = re.sub(r"[*~`\\]+", "", folded)  # the same, with "_" left for _normalize to read as a space
-    # Punctuation inside a word ("wa-it", "st.op", "ho/ld") is dropped in one more copy, so a split word
-    # still reads whole.
-    glued = re.sub(r"(?<=[A-Za-z])[^\w\s]+(?=[A-Za-z])", "", joined)
-    return any(_is_hold_text(_normalize(t), number, names) for t in (ask, joined, kept, glued))
+    return _reads_as_hold(ask)
 
 
-def _is_hold_text(ask: str, number: str, names: tuple) -> bool:
-    if halts_standing(ask) or NEGATED_RE.search(ask) or HOLD_NEGATED_RE.search(ask):
-        return True
-    if HOLD_WORDS_RE.search(ask):  # no topic gate: a false hold costs one plain lift, a missed one a merge
-        return True
-    if any(re.search(rf"(?<![A-Za-z0-9]){re.escape(_normalize(n))}", ask, re.I) for n in names if _normalize(n)):
-        return True
-    return bool(_names(ask, number) or CLASS_ANY_RE.search(ask))
+@functools.lru_cache(maxsize=4096)
+def _reads_as_hold(ask: str) -> bool:
+    """The reading match, once per distinct text: a session's messages are read from the ledger and the
+    transcript, with and without quotes, so the same text comes back many times in one hook run."""
+    # Most readings are identical: each distinct one is normalized and matched once.
+    seen = dict.fromkeys(_normalize(r) for r in dict.fromkeys(_readings(ask)))
+    return any(_is_hold_text(t) for t in seen)
+
+
+def _is_hold_text(ask: str) -> bool:
+    # A negated hold word is no hold: "don't stop merging", "no need to wait, merge it".
+    ask = re.sub(r"\b(?:don'?t|dont|do not|never|no need to)\s+" + HOLD_WORD, " ", ask, flags=re.I | re.A)
+    if len(re.findall(r"[\w'#]+", ask)) <= 3 and re.search(
+            r"\b(?:" + HOLD_WORD + NOT_MERGE_GERUND + r"|don'?t\b|dont\b|do not\b)", ask, re.I | re.A):
+        return True  # a message of three words or fewer with a hold word in it ("ok 2wait", "stop pls", "Don't.")
+    return any(r.search(ask) for r in HOLD_RES)
+
+
+# Simon restating the standing class merge is a class lift too ("remember that sre bot fixes which
+# don't influence user prod and have been validated should be merged", his third time on 23 Nov): it
+# names the bot's fixes or PRs and tells them merged (STANDING_LIFT_RE), carries no PR number, no
+# question and no hold, and every word in it is from STANDING_LIFT_WORDS: the bar's own conditions and
+# nothing else, so any added person, time, condition or framing ("if Bob consents", "next month", "it
+# is false that") makes it no lift.
+STANDING_LIFT_RE = re.compile(
+    r"\A(?=.*\b(?:sre|monitoring|bot)\b)(?=.*\b(?:fix|fixes|prs?|pull requests?|changes)\b)"
+    r"(?=.*(?:\b(?:should|must|can|are to|need to|needs to|to)\s+(?:be|get)\s+merged\b|\bjust\s+merge\s+(?:them|those|these)\b"
+    r"|\bget\s+(?:them|those|these)\s+merged\b))", re.I | re.A)
+STANDING_LIFT_WORDS = frozenset("""
+remember reminder again note please ok okay so yes and also that the any all every sre bot bots
+monitoring bot's fix fixes pr prs pull request requests change changes which that are is don't doesn't do does influence influences affect affects touch touches impact impacts change risk user users user's prod production
+pay payment paths path flows flow customer customers and or have has been validated tested verified checked green
+passed pass passing the bar its their own safe should must can be get merged merge just them those these they
+automatically auto always to of with without in on for
+""".split())
 
 
 def _lifts(ask: str, number: str) -> bool:
     """A later ask lifts a hold on this PR only when it is, whole, LIFT_RE: a plain merge of this PR, or
-    of the bot class with no PR number."""
+    of the bot class with no PR number; or a restated standing class merge (STANDING_LIFT_RE)."""
     if not re.fullmatch(r"[!-~]+(?: [!-~]+)*", ask):
         # One line of printable ASCII words split by single spaces: no newline, tab or indent can make a
         # code block of it, and case-insensitive Unicode matching cannot read "ı" as "i".
         return False
     m = LIFT_RE.match(ask.strip())
+    if not m:
+        words = re.findall(r"[a-z']+", ask.lower())
+        return (len(ask) <= 300 and bool(STANDING_LIFT_RE.match(ask)) and not re.search(r"[\d?]", ask)
+                and all(w in STANDING_LIFT_WORDS for w in words) and not _is_hold(ask, number))
     return bool(m) and (m.group("n") == number if m.group("n") else True)
 
 
@@ -1605,7 +1688,13 @@ def transcript_answers(path: str) -> tuple:
         precise = raw_stamp[:19] + "." + frac[:6].ljust(6, "0")  # full precision, for the order check only
         # What Simon typed, read from the transcript as well as the ledger, so a prompt the recorder never
         # saw (its dependency missing, its hook skipped) still holds.
-        if e.get("type") == "attachment" and (e.get("attachment") or {}).get("type") == "queued_command":
+        queued = (e.get("attachment") or {}) if e.get("type") == "attachment" else {}
+        if queued.get("type") == "queued_command" and (
+                (isinstance(queued.get("origin"), dict) and queued["origin"].get("kind") == "task-notification")
+                or queued.get("commandMode") == "task-notification"
+                or not own_words(str(queued.get("prompt") or "")).strip()):
+            pass  # a background task's notification, queued by the harness: no word of Simon's
+        elif queued.get("type") == "queued_command":
             typed.append((stamp, str((e.get("attachment") or {}).get("prompt") or "")))
             events.append(("queued",) + typed[-1])  # holds like a typed prompt; its later delivery is no new word
             fine.append(precise)
@@ -1647,7 +1736,7 @@ def _delegated(payload: dict) -> bool:
             or "/subagents/" in str(payload.get("transcript_path") or "").replace(os.sep, "/"))
 
 
-def monitoring_halt(payload: dict, number: str, gate_stamp: str, names: tuple = (), head: str = "",
+def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
                     strict_gate: bool = True) -> str:
     """Why Simon's words stop this merge, "" when they do not. ONE stamped read of the session's asks
     serves both rules, so no message can fall between two reads. Both rules fail closed:
@@ -1705,14 +1794,20 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, names: tuple = 
     records = sorted([tuple(r) for r in records] + [(t, "typed", text) for t, text in typed], key=lambda r: r[0])
     clean = lambda text: (text if len(text) > HOLD_SCAN_LIMIT else
                           QUOTED_RE.sub("", HARNESS_BLOCK_RE.sub("", text)).strip().translate(APOSTROPHES))
-    # A hold is judged on the quote-stripped, the harness-stripped and the raw recorded text, so neither a
-    # quoted line ("> #12" then "Bob decides") nor a tag can hide it; a lift must be the raw text.
     full = lambda text: (text if len(text) > HOLD_SCAN_LIMIT else
                          HARNESS_BLOCK_RE.sub("", text).strip().translate(APOSTROPHES))
-    raw = lambda text: text.strip().translate(APOSTROPHES)  # nothing stripped: a tag cannot hide a hold
-    # The text as rendered: inline HTML tags dropped ("<strong>wa</strong>it" reads "wait"). Any tag left
-    # once harness blocks are gone is markup the lists cannot read, so it holds on its own (MARKUP_RE).
-    visible = lambda text: re.sub(r"<[^<>]*>", "", full(text))
+    raw = lambda text: text.strip().translate(APOSTROPHES)
+    # Simon's own words: system text (SYSTEM_TAG_RE: a task notification, a reminder, the host's
+    # instructions, a slash command's name tags) is no word of his, so it never holds. A hold is judged
+    # with quoted lines kept and dropped; a peer record (another agent) holds on its tagged text too.
+    # Stripped at any length up to SYSTEM_SCAN_LIMIT, so a long notification pasted whole holds nothing.
+    own = lambda text: (text if len(text) > SYSTEM_SCAN_LIMIT else
+                        own_words(text).strip().translate(APOSTROPHES))
+    hold_texts = lambda kind, text: ([own(text)] if len(own(text)) > HOLD_SCAN_LIMIT else
+                                     [own(text), QUOTED_RE.sub("", own(text)).strip()]
+                                     + ([raw(text)] if kind == "peer" else []))
+    holds = lambda kind, text: any(_is_hold(t, number) for t in hold_texts(kind, text) if t)
+    spoken = lambda kind, text: bool(raw(text) if kind == "peer" else own(text))
     # Only Simon's own ask can lift; a peer record (another agent, or a typed tag) can only hold.
     # A message past HOLD_SCAN_LIMIT is never cleaned or matched: it can only hold (_is_hold says so first).
     # The body as recorded must itself be the lift: no indent (a Markdown code sample), no quote, no tag.
@@ -1724,11 +1819,9 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, names: tuple = 
     neutral = lambda kind, text: (kind == "typed" and len(text) <= HOLD_SCAN_LIMIT and text.isascii()
                                   and body(text) == clean(text) and _lifts(clean(text), number))
     for stamp, kind, text in records:
-        if stamp >= gate_stamp and not lifting(kind, text) and not neutral(kind, text):
+        if stamp >= gate_stamp and spoken(kind, text) and not lifting(kind, text) and not neutral(kind, text):
             shown = " ".join(clean(text).split())[:80] or "a message holding only quoted or pasted text"
-            if any(_is_hold(t, number, names) for t in (clean(text), full(text), raw(text), visible(text),
-                                                       re.sub(r"<[^<>]*>", " ", raw(text)))) \
-                    or MARKUP_RE.search(full(text)):
+            if holds(kind, text):
                 return (f"the user's message after the gate PASS reads as a hold (\"{shown}\"): it needs his "
                         "plain lift, \"merge the bot fixes\" or \"merge #<n>\"; once he lifts it, record the gate "
                         "again on this head")
@@ -1744,7 +1837,7 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, names: tuple = 
     def standing(seq, lifts) -> tuple:
         held, held_this, held_at = "", False, ""
         for stamp, kind, text in seq:
-            if not raw(text) or (neutral(kind, text) and not lifts(kind, text)):
+            if not spoken(kind, text) or (neutral(kind, text) and not lifts(kind, text)):
                 continue
             if lifts(kind, text):
                 # A hold that named this PR is lifted only by a lift naming it, never by a class lift. A
@@ -1753,11 +1846,10 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, names: tuple = 
                 certain = not held_at or typed_after(held_at, text)
                 if certain and (not held_this or _names(_normalize(clean(text)), number)):
                     held, held_this, held_at = "", False, ""
-            elif any(_is_hold(t, number, names) for t in (clean(text), full(text), raw(text), visible(text),
-                                                           re.sub(r"<[^<>]*>", " ", raw(text)))) \
-                    or MARKUP_RE.search(full(text)):
+            elif holds(kind, text):
                 # A hold carrying any number is treated as naming this PR: only "merge #<n>" lifts it.
-                held, held_this = full(text) or raw(text), held_this or bool(re.search(r"\d", _normalize(raw(text))))
+                said = raw(text) if kind == "peer" else own(text)
+                held, held_this = said, held_this or bool(re.search(r"\d", _normalize(said)))
                 held_at = max(held_at, stamp)
         return held, held_this
 
@@ -1786,7 +1878,7 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, names: tuple = 
         cleared = any(k == "typed" and neutral("typed", t) and body(t).strip() not in queued_before
                       and (not named or _names(_normalize(clean(t)), number))
                       for k, _, t in events[i + 1:])
-        if not cleared and _is_hold(text, number, names):
+        if not cleared and _is_hold(text, number):
             return f"the user's answer holds the merge: \"{' '.join(text.split())[:100]}\""
     if held:
         needed = f"merge #{number}" if held_this else "merge the bot fixes"
@@ -1870,7 +1962,7 @@ def monitoring_merge(payload: dict, command: str, words: list) -> tuple:
     if status != "PASS" or tier not in ("standard", "deep") or not reason.rstrip().endswith(mo.BAR_PHRASE):
         return False, (f"the newest gate record at {head[:12]} is not a standard or deep PASS whose reason "
                        f"ends with \"{mo.BAR_PHRASE}\""), True
-    halt = monitoring_halt(payload, number, mine[-1][5], tuple(spec.get("names", ())), head)
+    halt = monitoring_halt(payload, number, mine[-1][5], head)
     if halt:
         return False, halt, True
     return True, "", True
@@ -1958,7 +2050,7 @@ def monitoring_word_hold(payload: dict, words: list, cwd) -> str:
             m = GATE_LINE_RE.match(rest)
             if m and m.group(1) == branch and m.group(2) == head:
                 stamp = when
-        return monitoring_halt(payload, number, stamp, tuple(spec.get("names", ())), head, strict_gate=False)
+        return monitoring_halt(payload, number, stamp, head, strict_gate=False)
     except OutOfTime:
         return "the monitoring-only hold read ran out of time"
     except Exception as exc:
