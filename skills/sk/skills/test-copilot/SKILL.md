@@ -140,6 +140,10 @@ matrix (every feature enumerated, Stage-1 deterministic tests written + run over
 Stage-2 Claude-as-judge, saved and posted to the PR). Do NOT restate that method here; this skill is the
 human half, and the two are distinct.
 
+The machine pass includes `references/testing-strategy.md` § Edge-case hunt before every
+walkthrough: its rows that need a human's eyes join Phase 3's plan as scenarios, and Simon's own
+reported bug is one row of its class, never the whole hunt.
+
 What comes back IS his task list: every feature the matrix marks **NEEDS-DRIVING** — a rendered
 interaction a unit test structurally cannot reach — is what you pace him through in Phase 4. Loop the
 matrix to green (every GAP filled with a test) before his session starts, so his eyes are spent only on
