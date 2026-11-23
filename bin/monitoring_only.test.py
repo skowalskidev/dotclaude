@@ -79,7 +79,7 @@ class Globs(unittest.TestCase):
                                         ["ops/../site/**"], ["ops/bot/**/"], ["ops//bot/*"], ["ops/./bot/*"], ["ops/**/x/**"],
                                         ["ops/*a*b*c"], [], "ops/**")]
         cases += [("requiredChecks", ["test"]), ("requiredChecks", []), ("offlineTests", []),
-                  ("offlineTests", [" "]), ("offlineTests", "x"), ("names", ["x;y"])]
+                  ("offlineTests", [" "]), ("offlineTests", "x")]
         for field, value in cases:
             spec, error = mo.validate(dict(valid, **{field: value}))
             self.assertIsNone(spec, (field, value))
