@@ -2919,6 +2919,55 @@ def _without_api_reads(text: str) -> str:
     return text
 
 
+# A literal `git` command word at a command position (start, after `;&|(` or a newline, or after do/then/else),
+# with only path or pager options, then its merge subcommand: `git merge`, `git merge-base`, `git -C d merge-tree`.
+GIT_MERGE_SUBCOMMAND_RE = re.compile(
+    r"(?:^|(?<=[;&|(\n])|(?<=\bdo\s)|(?<=\bthen\s)|(?<=\belse\s))\s*git"
+    r"(?:\s+(?:-C\s+[^\s;&|()$`'\"\\{}]+|--no-pager|-P|--(?:git-dir|work-tree)=[^\s;&|()$`'\"\\{}]+))*"
+    r"\s+(merge(?:-[a-z]+)*)(?=[\s;&|)]|$)")
+
+
+def _unquoted_at(text: str, p: int) -> bool:
+    """True when offset p of text sits outside every quote and is not escaped."""
+    quote, i = None, 0
+    while i < p:
+        ch = text[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+        elif ch == "\\":
+            i += 1
+        elif quote:
+            quote = None if ch == '"' else quote
+        elif ch in "'\"":
+            quote = ch
+        i += 1
+    return quote is None and i == p
+
+
+def _without_git_merge_words(text: str, live: list) -> str:
+    """text with the merge subcommand of each plain, unquoted `git merge…` command blanked: git consumes that
+    word itself, so it never names or builds a gh merge (`$(git merge-base HEAD origin/main)` beside a
+    `gh pr list` read was denied as a hidden merge, 23 Nov 2026). Returned unchanged, so the word still
+    counts, when text has a heredoc, a backquote or a `${…}` expansion that can slice a word, or when any
+    live dynamic construct (offsets in live) sits in a command naming gh or in one with a built command word:
+    there git's output (`gh pr $(git merge-base -h 2>&1 | cut -c12-16) 12`) can still build the merge. A
+    variable assigned from a substitution (`t=$(git merge-tree …)`) is judged where it is used."""
+    if "<<" in text or "`" in text or "${" in text:
+        return text
+    spans = _command_spans(text)
+    for p in live:
+        a, b = next(((a, b) for a, b in spans if a <= p < b), (p, p))
+        if re.search(r"\bgh\b", text[a:b]):
+            return text
+        if _literal_head(text[a:b]) is None and not ASSIGN_PREFIX_RE.fullmatch(text[a:p]):
+            return text
+    out = text
+    for m in GIT_MERGE_SUBCOMMAND_RE.finditer(text):
+        if _unquoted_at(text, m.start(1)):
+            out = out[:m.start(1)] + "_" * len(m.group(1)) + out[m.end(1):]
+    return out
+
+
 def hidden_merge(command: str) -> bool:
     """A merge the shell would run but the masked parse cannot see: `'gh' pr merge`, `g\\h pr merge`,
     `gh pr me''rge`. The shell's own tokens decide, with no substring fast path."""
@@ -2926,11 +2975,13 @@ def hidden_merge(command: str) -> bool:
     text = shell_text(command)
     # A simple variable argument of a literal gh read (`gh pr view $n`) builds no command, nor does a
     # construct that only hands data to another command (`_data_dynamics`): neither ever counts, so a merge
-    # word in one command and a temp-file variable in another never make a gh read a merge.
+    # word in one command and a temp-file variable in another never make a gh read a merge. Nor does the
+    # merge subcommand of a plain git command (`git merge-base`): git consumes it, so it names no gh merge.
     dynamic = bool(re.search(r"\bgh\b", text) and re.search(r"\bmerge\b", text, re.I) and DYNAMIC_RE.search(text))
     if dynamic:
         benign = _read_argument_params(text) | _data_dynamics(text)
-        dynamic = any(m.start() not in benign for m in DYNAMIC_RE.finditer(text))
+        live = [m.start() for m in DYNAMIC_RE.finditer(text) if m.start() not in benign]
+        dynamic = bool(live) and bool(re.search(r"\bmerge\b", _without_git_merge_words(text, live), re.I))
     # A function or alias defined in the same input can turn any name, an inert one included, into a
     # runner of its arguments (`printf() { "$@"; }; printf gh pr merge 12`).
     defines = re.search(r"(?:^|[\s;&|(])(?:function\s+[\w.:-]+|[\w.:-]+\s*\(\s*\))|\balias\s+\S+=", text)
