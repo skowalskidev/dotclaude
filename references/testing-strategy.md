@@ -404,6 +404,12 @@ failure applied to production evidence: the reported case is one symptom of the 
    loop fix, re-read production evidence, research the residual, fix, until every symptom holds a verdict
    other than `in scope, not fixed`.
 Post the table `Symptom | Count / denominator | Window | Verdict | Evidence` under `## Prod data`.
+**DO run step 1's code half before the first push, at the work harness's root-cause step:** grep every
+other caller of the failing mechanism in the flow (e.g. each timer, retry or guard the same fault can
+reach), so an in-scope sibling ships in the first build. The prod-data stage then only confirms it.
+WHY: a sibling found at the ship harness's stage 6 moves the head after the other stages ran, and each
+of them reruns on the new head (the fix for a year-switch timer found by the late sweep, which forced 8
+ship stages to run again).
 **DON'T call a fix PR ready from the reported case alone, or from logs read before the last deploy.**
 TEST: a fix PR's `## Prod data` holds one row per non-success outcome of its flow in the window, each
 with a verdict, and zero `in scope, not fixed` rows (the fix for a checkout PR where Simon asked for the
