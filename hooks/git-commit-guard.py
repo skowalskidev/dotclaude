@@ -54,6 +54,7 @@ import datetime
 import functools
 import hashlib
 import html
+import itertools
 import json
 import os
 import re
@@ -575,6 +576,7 @@ API_MERGE_RE = re.compile(
 GH_MERGE_OPTS_WITH_VALUE = {"-R", "--repo", "-t", "--subject", "-b", "--body", "-F", "--body-file",
                             "-A", "--author-email", "--match-head-commit"}
 STATE_DIR = os.path.join(os.path.expanduser("~"), ".claude", ".intent-ledger")
+READ_ONLY = False  # set by the --explain dry-run: no state file is written
 
 
 def _run(args, timeout=None, **kw):
@@ -1393,51 +1395,74 @@ def monitoring_pr(number: str, slug: str) -> dict:
 CHECK_PAGE = 100  # gh reads at most this many contexts; a full page may be truncated
 
 
-def monitoring_not_ready(pr: dict, required: list, default_branch: str) -> str:
+def monitoring_not_ready(pr: dict, required: list, default_branch: str, collect: list = None) -> str:
     """Stricter than pr_not_ready, and local to this path. isDraft must be false, the base the default
     branch, and the check list complete and well formed. Nothing may be pending, and any failed or
     cancelled check declines, a rerun gone green included. Each of the overlay's requiredChecks must
-    have succeeded on every run on the head, so a rollup of skips alone never passes."""
+    have succeeded on every run on the head, so a rollup of skips alone never passes. The hook takes the
+    first failing check; the --explain dry-run passes `collect` to list every one."""
+    found = []
+    for why in itertools.chain(_monitoring_state_causes(pr, default_branch), _monitoring_check_causes(pr, required)):
+        if collect is None:
+            return why
+        found.append(why)
+    if collect is not None:
+        collect.extend(found)
+    return found[0] if found else ""
+
+
+def _monitoring_state_causes(pr: dict, default_branch: str):
+    """Each failing PR-state check of monitoring_not_ready, in its order."""
     if pr.get("state") != "OPEN":
-        return f"the PR is {str(pr.get('state', 'unknown')).lower()}"
+        yield f"the PR is {str(pr.get('state', 'unknown')).lower()}"
     if pr.get("isDraft") is not False:
-        return "the PR is a draft" if pr.get("isDraft") else "the PR's draft state could not be read"
+        yield "the PR is a draft" if pr.get("isDraft") else "the PR's draft state could not be read"
     if pr.get("mergeable") != "MERGEABLE":
-        return f"mergeable is {pr.get('mergeable') or 'unknown'}"
+        yield f"mergeable is {pr.get('mergeable') or 'unknown'}"
     # Only a PR GitHub would merge or enqueue at once: anything short of that (a review still required,
     # the branch behind, a blocked rule) makes `gh pr merge` turn on auto-merge, which merges later with
     # no further check.
     if pr.get("mergeStateStatus") not in ("CLEAN", "HAS_HOOKS"):
-        return f"the merge state is {pr.get('mergeStateStatus') or 'unknown'}, so the merge would not run at once"
+        yield f"the merge state is {pr.get('mergeStateStatus') or 'unknown'}, so the merge would not run at once"
     # No decision (null, or "" as gh prints it) or APPROVED; a missing key or any other value is unknown.
     if "reviewDecision" not in pr or pr["reviewDecision"] not in (None, "", "APPROVED"):
-        return f"the review decision is {pr.get('reviewDecision') or 'unreadable'}"
+        yield f"the review decision is {pr.get('reviewDecision') or 'unreadable'}"
     if not default_branch or pr.get("baseRefName") != default_branch:
-        return (f"the PR targets {pr.get('baseRefName') or 'an unknown branch'}, not the repository's "
+        yield (f"the PR targets {pr.get('baseRefName') or 'an unknown branch'}, not the repository's "
                 f"default branch {default_branch or '(unreadable)'}")
+
+
+def _monitoring_check_causes(pr: dict, required: list):
+    """Each failing check-list condition of monitoring_not_ready, in its order. An unreadable or possibly
+    truncated list ends the read; any other failure reads on, so the first yielded is the hook's cause."""
     rollup = pr.get("statusCheckRollup")
     if not isinstance(rollup, list) or not rollup or not all(isinstance(c, dict) for c in rollup):
-        return "the PR's checks could not be read"
+        yield "the PR's checks could not be read"
+        return
     if len(rollup) >= CHECK_PAGE:
-        return f"the PR reports {len(rollup)} checks, so the list may be truncated"
+        yield f"the PR reports {len(rollup)} checks, so the list may be truncated"
+        return
     runs = []
     for i, c in enumerate(rollup):
         if "state" in c and "status" not in c:  # a commit status context
             if not c.get("context"):
-                return "a check on the PR has no name or status"
-            if c.get("state") != "SUCCESS":
-                return f"{c['context']} is {str(c.get('state')).lower()}"
+                yield "a check on the PR has no name or status"
+            elif c.get("state") != "SUCCESS":
+                yield f"{c['context']} is {str(c.get('state')).lower()}"
             continue
         if not (c.get("name") and c.get("status")):
-            return "a check on the PR has no name or status"
+            yield "a check on the PR has no name or status"
+            continue
         if c.get("status") != "COMPLETED":
-            return f"{c['name']} is still {str(c.get('status')).lower()}"
+            yield f"{c['name']} is still {str(c.get('status')).lower()}"
+            continue
         stamp = _check_time(c)
         when = None
         if stamp:  # compared as instants, never as strings ("12:00:00Z" before "12:00:00.500Z")
             m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,6})\d*)?Z", stamp)
             if not m:
-                return f"{c['name']} carries an unreadable time ({stamp[:30]}), so the order of its runs is unknown"
+                yield f"{c['name']} carries an unreadable time ({stamp[:30]}), so the order of its runs is unknown"
+                continue
             when = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
                 microsecond=int((m.group(2) or "0").ljust(6, "0")))
         runs.append(((c.get("workflowName") or "", c["name"]), "", when, i, c))
@@ -1448,17 +1473,16 @@ def monitoring_not_ready(pr: dict, required: list, default_branch: str) -> str:
         verdict = c.get("conclusion")
         # Stricter than PASSED_CONCLUSIONS on purpose: a NEUTRAL check declines here too.
         if verdict not in ("SUCCESS", "SKIPPED"):
-            return f"{key[1]} concluded {str(verdict).lower()}"
+            yield f"{key[1]} concluded {str(verdict).lower()}"
     for name in required:
         workflow, job = name.split(" / ", 1)
         ran = [r for r in runs if r[0] == (workflow, job)]
         if any(not r[2] for r in ran):
-            return f"a run of the bot's own check {name} has no recorded time, so its latest run is unknown"
+            yield f"a run of the bot's own check {name} has no recorded time, so its latest run is unknown"
         # Every run of a required bot check on this head must succeed: which run is newest cannot be read
         # for certain from start and finish times that overlap, so an older success never masks a skip.
         if not ran or any(r[4].get("conclusion") != "SUCCESS" for r in ran):
-            return f"the bot's own check {name} has not succeeded on every run"
-    return ""
+            yield f"the bot's own check {name} has not succeeded on every run"
 
 
 # The halt reading on this path fails closed; a hold naming PRs holds only those (_hold_scope). _is_hold and
@@ -2009,10 +2033,26 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
     return ""
 
 
-def monitoring_merge(payload: dict, command: str, words: list) -> tuple:
+def monitoring_merge(payload: dict, command: str, words: list, collect: list = None, facts: dict = None) -> tuple:
     """(allowed, cause, declared): the monitoring-only merge path. `declared` is True when the
     command's repository declares monitoring-only paths (or its overlay could not be read), so the
-    deny message adds this path's own Cause line only where it applies."""
+    deny message adds this path's own Cause line only where it applies. The hook stops at the first
+    failing check; the --explain dry-run passes `collect` to read on and list every check that fails,
+    stopping only where a later check needs an earlier read. `facts["monitoring_only"]` is set True
+    once the PR's file list reads whole and inside the declared paths."""
+    facts = facts if facts is not None else {}
+    causes = []
+
+    def fail(cause: str) -> bool:
+        """Record a failed check; True when the caller must stop here (the hook, not the dry-run)."""
+        causes.append(cause)
+        return collect is None
+
+    def result() -> tuple:
+        if collect is not None:
+            collect.extend(causes)
+        return (False, causes[0], True) if causes else (True, "", True)
+
     selector, number, repo = merge_target(words)
     # Case is kept for the overlay lookup: the registry's work/personal boundary match is case-sensitive,
     # so a lowercased owner reads as the other boundary (the fix for a draft that denied every real merge).
@@ -2024,48 +2064,63 @@ def monitoring_merge(payload: dict, command: str, words: list) -> tuple:
         mo = _monitoring_module()
         spec, error = mo.spec_for(named)
     except Exception as exc:
-        return False, f"bin/monitoring_only.py could not be loaded ({exc})", True
+        fail(f"bin/monitoring_only.py could not be loaded ({exc})")
+        return result()
     if error.startswith("the connector overlay could not be read"):
-        return False, f"{error}, so whether this repo declares monitoring-only paths is unknown", True
+        fail(f"{error}, so whether this repo declares monitoring-only paths is unknown")
+        return result()
     if error:  # this repo's own entry is malformed
-        return False, error, True
+        fail(error)
+        return result()
     if not spec:
         return False, "", False
     number, slug, pinned, why = monitoring_shape(command.strip())
     if why:
-        return False, why, True
+        fail(why)
+        return result()
     if slug.lower() != named.lower():
-        return False, "the command names its repository more than once", True
+        fail("the command names its repository more than once")
+        return result()
     pr = monitoring_pr(number, slug)
     if not pr:
-        return False, "the PR lookup failed", True
+        fail("the PR lookup failed")
+        return result()
     read_back = re.search(r"github\.com/([^/]+/[^/]+)/pull/(\d+)$", str(pr.get("url", "")))
     if not read_back or read_back.group(1).lower() != slug.lower() or read_back.group(2) != number:
-        return False, f"the PR read back is not {slug}#{number}", True
-    not_ready = monitoring_not_ready(pr, spec["requiredChecks"], monitoring_default_branch(slug))
-    if not_ready:
-        return False, not_ready, True
+        fail(f"the PR read back is not {slug}#{number}")
+        return result()
     outside = mo.classify(pr.get("files"), pr.get("changedFiles"), spec)
-    if outside:
-        return False, outside, True
+    facts["monitoring_only"] = not outside
+    if collect is None:
+        not_ready = monitoring_not_ready(pr, spec["requiredChecks"], monitoring_default_branch(slug))
+        if not_ready and fail(not_ready):
+            return result()
+    else:
+        monitoring_not_ready(pr, spec["requiredChecks"], monitoring_default_branch(slug), collect=causes)
+    if outside and fail(outside):
+        return result()
     head, branch = str(pr.get("headRefOid") or "").lower(), str(pr.get("headRefName") or "")
     if not FULL_SHA_RE.fullmatch(head) or not branch:
-        return False, "the PR's head commit could not be read", True
-    if pinned != head:
-        return False, f"--match-head-commit {pinned[:12]} is not the PR's head {head[:12]}", True
+        fail("the PR's head commit could not be read")
+        return result()
+    facts["head"] = head
+    if pinned != head and fail(f"--match-head-commit {pinned[:12]} is not the PR's head {head[:12]}"):
+        return result()
     method = monitoring_merge_method(slug, str(pr.get("baseRefName") or ""), command)
-    if method:
-        return False, method, True
+    if method and fail(method):
+        return result()
     moved = monitoring_base_moves(slug, head, str(pr.get("baseRefName") or ""),
                                   {f.get("path") for f in pr.get("files") or [] if isinstance(f, dict)})
-    if moved:
-        return False, moved, True
+    if moved and fail(moved):
+        return result()
     if session_id(payload) == "unknown":
-        return False, "the session id is missing, so its gate records cannot be read", True
+        fail("the session id is missing, so its gate records cannot be read")
+        return result()
     ok, raw = _ledger_read(payload, "gates")
     if not ok:
-        return False, ("this session's ledger could not be read, or a prompt sits in its lock-contention "
-                       "fallback file"), True
+        fail("this session's ledger could not be read, or a prompt sits in its lock-contention "
+             "fallback file")
+        return result()
     # Split on the writer's own delimiter only: splitlines() also breaks on U+2028 and other separators
     # a one-line reason may carry, which could turn one BLOCKED record into a forged PASS.
     gates = []
@@ -2078,16 +2133,27 @@ def monitoring_merge(payload: dict, command: str, words: list) -> tuple:
     if not mine:
         older = [g for g in gates if g[0] == branch and g[2] == "PASS"]
         hint = f" (this session's newest PASS for it is on {older[-1][1][:12]})" if older else ""
-        return False, (f"no gate record from this session is on {branch} at the full head {head[:12]}{hint}. "
-                       "Run the monitoring-only bar on this head and record it with intent-ledger.sh gate"), True
+        if fail(f"no gate record from this session is on {branch} at the full head {head[:12]}{hint}. "
+                "Run the monitoring-only bar on this head and record it with intent-ledger.sh gate"):
+            return result()
+        # The dry-run reads the holds anyway, as a hold read with no gate record does.
+        halt = monitoring_halt(payload, number, "9999-12-31T23:59:59Z", head, strict_gate=False)
+        facts["hold_read"] = True
+        if halt:
+            facts["held"] = True
+            fail(halt)
+        return result()
     status, tier, reason = mine[-1][2], mine[-1][3] or "", mine[-1][4] or ""
     if status != "PASS" or tier not in ("standard", "deep") or not reason.rstrip().endswith(mo.BAR_PHRASE):
-        return False, (f"the newest gate record at {head[:12]} is not a standard or deep PASS whose reason "
-                       f"ends with \"{mo.BAR_PHRASE}\""), True
+        if fail(f"the newest gate record at {head[:12]} is not a standard or deep PASS whose reason "
+                f"ends with \"{mo.BAR_PHRASE}\""):
+            return result()
     halt = monitoring_halt(payload, number, mine[-1][5], head)
+    facts["hold_read"] = True
     if halt:
-        return False, halt, True
-    return True, "", True
+        facts["held"] = True
+        fail(halt)
+    return result()
 
 
 def pinned_head(words: list) -> str:
@@ -2179,19 +2245,28 @@ def monitoring_word_hold(payload: dict, words: list, cwd) -> str:
         return f"the monitoring-only hold read hit malformed data ({type(exc).__name__})"
 
 
-def merge_allowed(payload: dict, words: list, cwd, command: str = "") -> tuple:
+def merge_allowed(payload: dict, words: list, cwd, command: str = "", facts: dict = None) -> tuple:
     """(allowed, why_not, monitoring_cause): this turn's words authorize the merge, or a standing
     merge instruction from this session does and the PR is ready now, or the PR passes the
-    monitoring-only path. monitoring_cause is that path's reason when it applied and declined."""
+    monitoring-only path. monitoring_cause is that path's reason when it applied and declined.
+    `facts["words"]` names the word path that covered the PR when a later check declined it, and
+    `facts["monitoring_only"]` is set when the monitoring path read the PR as inside its class."""
+    facts = facts if facts is not None else {}
     if turn_merge_allowed(payload, words, cwd):
         held = monitoring_word_hold(payload, words, cwd)
-        return (False, "", held) if held else (True, "", "")
+        if held:
+            facts["words"] = "the user's merge words this turn"
+            return False, "", held
+        return True, "", ""
     allowed, why_not = standing_merge(payload, words, cwd)
     if allowed:
         held = monitoring_word_hold(payload, words, cwd)
-        return (False, "", held) if held else (True, "", "")
+        if held:
+            facts["words"] = "a standing merge instruction this session"
+            return False, "", held
+        return True, "", ""
     try:
-        ok, cause, declared = monitoring_merge(payload, command, words)
+        ok, cause, declared = monitoring_merge(payload, command, words, facts=facts)
     except OutOfTime:
         ok, cause, declared = False, "the monitoring-only checks ran out of time, so they declined", True
     except Exception as exc:  # malformed data from gh or the ledger declines, never crashes the hook
@@ -2199,6 +2274,58 @@ def merge_allowed(payload: dict, words: list, cwd, command: str = "") -> tuple:
     if ok:
         return True, "", ""
     return False, why_not, (cause if declared else "")
+
+
+# What already authorizes a merge the guard declined, so the deny never sends the agent back to the
+# user for words he already gave (the fix for four merge words on SRE-bot PRs, each answered with
+# "reply 'merge them'" because every deny ended on "ask", while the real causes were five guard
+# defects). Read-only, and it never widens the verdict: it only picks the deny's closing instruction.
+# The PR is authorized by: the word path that covered it before a later check declined it; a message
+# this session that says merge and names its number with no later message halting a standing merge
+# (halts_standing) or closing it; or the monitoring-only standing rule for a PR read as inside its class
+# with no hold read on it.
+def merge_authorization(payload: dict, words: list, facts: dict, cwd=None) -> str:
+    if facts.get("words"):
+        return facts["words"]
+    selector, number, repo = merge_target(words)
+    if number:
+        try:
+            asks = session_asks(payload)
+        except Exception:
+            asks = []
+        named = re.compile(rf"(?:#|\b(?:pr|pull|pull request)\s*#?\s*|/pull/|(?<![\d.#/]))0*{number}(?!\d)", re.I)
+        for i in range(len(asks) - 1, -1, -1):
+            ask = asks[i]
+            if not any(instructs(piece, "merge") and named.search(piece)
+                       for piece in re.split(r"(?<=[.!?;])\s+|\n+", link_labels(ask))):
+                continue  # names the PR only outside a sentence that says merge
+            if NEGATED_RE.search(ask) or excluded(ask, number):
+                break  # the newest message naming the PR negates its merge
+            stated = stated_repos(link_labels(ask))
+            if stated and (len(stated) > 1 or merge_target_repo(selector, repo, cwd) not in stated):
+                continue  # words for a PR of another repository
+            if instructs(ask, "merge"):
+                if not any(halts_standing(a) or (STANDING_CLOSE_RE.search(a) and named.search(a))
+                           for a in asks[i + 1:]):
+                    text = " ".join(ask.split())
+                    return f"the user's message \"{text[:100]}\""
+                break
+    if facts.get("monitoring_only") and not facts.get("held"):
+        # A hold suspends the standing rule; the hook stops before its hold read on an earlier failure, so
+        # read it here (a gate-free read, as monitoring_word_hold does).
+        if not facts.get("hold_read") and (not number or monitoring_halt(
+                payload, number, "9999-12-31T23:59:59Z", facts.get("head", ""), strict_gate=False)):
+            return ""
+        return "the monitoring-only standing rule (references/git-pr-deploy.md § Monitoring-only changes)"
+    return ""
+
+
+AUTHORIZED_CLOSE = (" The user already authorized this merge ({}); do not ask again. Fix the stated cause "
+                    "(a guard defect goes through /sk:claude-config-update under § Safeguard changes) and "
+                    "retry. Run `python3 ~/.claude/hooks/git-commit-guard.py --explain --repo <owner/name> "
+                    "--pr <n> --transcript <session .jsonl>` to list every failing check at once. If the "
+                    "cause is a hold the user really gave, report in one line that the PR waits for the lift "
+                    "it names.")
 
 
 # "merge and deploy" with no number authorizes ONE merge of a PR this session did not push: the first
@@ -2212,6 +2339,8 @@ def unnamed_merge_ok(payload: dict, ask: str, number: str) -> bool:
         with open(marker) as f:
             return f.read().strip() == number
     except FileNotFoundError:
+        if READ_ONLY:  # the --explain dry-run reads the verdict and never records the merge
+            return True
         try:
             os.makedirs(STATE_DIR, exist_ok=True)
             with open(marker, "w") as f:
@@ -3409,7 +3538,8 @@ def main() -> int:
         # a yes for a specific merge, so block unless the user's own words this turn cover THIS
         # merge. The deny message is what tells Claude to get that yes.
         try:
-            allowed, why_not, monitoring_cause = merge_allowed(payload, words, gh_cwd, command) if is_gh_merge else (True, "", "")
+            facts = {}
+            allowed, why_not, monitoring_cause = merge_allowed(payload, words, gh_cwd, command, facts) if is_gh_merge else (True, "", "")
         except Exception as exc:  # a crash would exit non-zero, which the harness treats as allow
             return deny(f"Blocked `gh pr merge`. Cause: the merge check raised {type(exc).__name__}, so it "
                         "declines. Rerun once; if it repeats, ask the user for the merge word.")
@@ -3424,10 +3554,19 @@ def main() -> int:
             if MONITORING_BUDGET_S - (time.monotonic() - HOOK_STARTED) < 6:
                 # Too little time is left to read the ledger again for the cause: deny now, before the
                 # hook's timeout turns the deny into a non-blocking error that lets the merge run.
-                return deny("Blocked `gh pr merge`. Cause: the merge checks ran long and declined. Rerun once; "
-                            "if it repeats, ask the user for the merge word."
+                return deny("Blocked `gh pr merge`. Cause: the merge checks ran long and declined. Rerun once;"
+                            + (AUTHORIZED_CLOSE.format(facts["words"]) if facts.get("words") else
+                               " if it repeats, ask the user for the merge word.")
                             + (f"\nCause (monitoring-only merge): {monitoring_cause}." if monitoring_cause else ""))
-            cause, ask_user = merge_deny_cause(payload, words, why_not, gh_cwd)
+            if facts.get("words") and monitoring_cause:
+                cause, ask_user = (f"{facts['words']} cover #{merge_target(words)[1]}, but the monitoring-only "
+                                   "hold read below declined it"), False
+            else:
+                cause, ask_user = merge_deny_cause(payload, words, why_not, gh_cwd)
+            try:
+                authorized = merge_authorization(payload, words, facts, gh_cwd)
+            except Exception:
+                authorized = ""
             return deny(
                 f"Blocked `gh pr merge`. Cause: {cause}.\n"
                 + (f"Cause (monitoring-only merge): {monitoring_cause}.\n" if monitoring_cause else "") +
@@ -3445,11 +3584,13 @@ def main() -> int:
                 "number>` per PR, never a loop or substitution. "
                 "A yes to a question you wrote, 'finish it', 'proceed', 'priority' or 'continue' "
                 "is never that. There is no override flag."
-                + (" If this PR is monitoring-only, it merges with no merge words once that cause is "
-                   "fixed (references/git-pr-deploy.md § Monitoring-only changes); otherwise ask."
-                   if monitoring_cause else "")
-                + (" Stop at a ready, green PR and ask: \"Say 'merge #<n>' to merge it.\""
-                   if ask_user else " Fix the cause above and retry; do not ask the user.")
+                + (AUTHORIZED_CLOSE.format(authorized) if authorized else
+                   (" If this PR is monitoring-only, it merges with no merge words once that cause is "
+                    "fixed (references/git-pr-deploy.md § Monitoring-only changes); otherwise ask."
+                    if monitoring_cause else "")
+                   + (" No message from the user this session authorizes this merge: stop at a ready, green "
+                      "PR and ask: \"Say 'merge #<n>' to merge it.\""
+                      if ask_user else " Fix the cause above and retry; do not ask the user."))
             )
 
         # 1. Default-branch protection. The override counts only from the hook's OWN env, i.e. the
@@ -3588,5 +3729,98 @@ def _supervise() -> int:
     return os.WEXITSTATUS(status) if os.WIFEXITED(status) else 0
 
 
+def _transcript_cwd(path: str) -> str:
+    """The newest working directory a session transcript records, "" when none."""
+    for line in reversed(_transcript(path)):
+        e = _entry(line)
+        if e and isinstance(e.get("cwd"), str) and e["cwd"]:
+            return e["cwd"]
+    return ""
+
+
+# The read-only dry-run of the whole merge decision (the fix for five guard defects on SRE-bot PRs found
+# one merge retry at a time, each retry surfacing only the next first-failing check). It runs the same
+# checks the hook runs for `gh pr merge <n> -R github.com/<owner/name> --match-head-commit <head> --squash`
+# in the given session, lists EVERY failing check on the word path and the monitoring path, and writes
+# no state (READ_ONLY). Exit 0 when the hook would allow the merge, 1 when it would deny, 2 on bad input.
+def explain(argv: list) -> int:
+    import argparse
+    ap = argparse.ArgumentParser(prog="git-commit-guard.py --explain",
+                                 description="Read-only dry-run of the merge guard: list every failing check.")
+    ap.add_argument("--explain", action="store_true")
+    ap.add_argument("--repo", required=True, help="owner/name")
+    ap.add_argument("--pr", required=True, help="PR number")
+    ap.add_argument("--transcript", required=True, help="the session's transcript .jsonl")
+    ap.add_argument("--session", default="", help="session id (default: the transcript's file name)")
+    ap.add_argument("--cwd", default="", help="the session's directory (default: the transcript's newest cwd)")
+    ap.add_argument("--head", default="", help="full head sha to pin (default: the PR's head now)")
+    a = ap.parse_args(argv)
+    number, repo = a.pr.lstrip("#"), re.sub(r"^(?:https?://)?github\.com/", "", a.repo).strip("/")
+    if not re.fullmatch(r"\d+", number) or not re.fullmatch(r"[\w.-]+/[\w.-]+", repo):
+        print("explain: --pr must be a number and --repo owner/name", file=sys.stderr)
+        return 2
+    global READ_ONLY, MONITORING_BUDGET_S, HOOK_STARTED
+    READ_ONLY, MONITORING_BUDGET_S, HOOK_STARTED = True, 600.0, time.monotonic()
+    session = a.session or os.path.splitext(os.path.basename(a.transcript))[0]
+    cwd = a.cwd or _transcript_cwd(a.transcript) or os.getcwd()
+    head = a.head.lower()
+    if not head:
+        try:
+            head = str(monitoring_pr(number, repo).get("headRefOid") or "").lower()
+        except Exception:
+            head = ""
+    failing = []
+    if not FULL_SHA_RE.fullmatch(head):
+        failing.append(("input", f"the PR's head sha could not be read ({head or 'empty'}); pass --head"))
+        head = "0" * 40
+    command = f"gh pr merge {number} -R github.com/{repo} --match-head-commit {head} --squash"
+    words = command.split()
+    payload = {"tool_name": "Bash", "tool_input": {"command": command}, "session_id": session,
+               "transcript_path": a.transcript, "cwd": cwd}
+
+    def guarded(fn):
+        try:
+            return fn()
+        except OutOfTime:
+            return "ran out of time"
+        except Exception as exc:
+            return f"raised {type(exc).__name__}: {exc}"
+
+    turn_ok = guarded(lambda: turn_merge_allowed(payload, words, cwd))
+    if turn_ok is not True:
+        cause = turn_ok if isinstance(turn_ok, str) else guarded(lambda: merge_deny_cause(payload, words, "", cwd)[0])
+        failing.append(("word path, this turn", cause))
+    standing = guarded(lambda: standing_merge(payload, words, cwd))
+    if isinstance(standing, str):
+        failing.append(("word path, standing merge", standing))
+    elif not standing[0]:
+        failing.append(("word path, standing merge",
+                        standing[1] or f"no standing merge instruction this session covers #{number}"))
+    held = guarded(lambda: monitoring_word_hold(payload, words, cwd))
+    if held:
+        failing.append(("word path, monitoring hold read", held))
+    collect, mfacts = [], {}
+    mon = guarded(lambda: monitoring_merge(payload, command, words, collect=collect, facts=mfacts))
+    if isinstance(mon, str):
+        collect.append(mon)
+    elif not mon[2]:
+        collect.append("not applicable: the repository declares no monitoring-only paths")
+    failing += [("monitoring path", c) for c in collect]
+    facts = {}
+    verdict = guarded(lambda: merge_allowed(payload, words, cwd, command, facts))
+    allowed = isinstance(verdict, tuple) and verdict[0]
+    authorized = guarded(lambda: merge_authorization(payload, words, facts, cwd)) or "none found"
+    print(f"merge dry-run (read-only): {repo}#{number} at {head[:12]}, session {session}")
+    print(f"hook verdict: {'ALLOW' if allowed else 'DENY'}"
+          + ("" if isinstance(verdict, tuple) else f" (the decision {verdict})"))
+    print(f"authorization: {authorized}")
+    print(f"failing checks: {len(failing)}")
+    for where, cause in failing:
+        print(f"- {where}: {cause}")
+    return 0 if allowed else 1
+
+
 if __name__ == "__main__":
+    if "--explain" in sys.argv[1:]:
+        sys.exit(explain(sys.argv[1:]))
     sys.exit(_supervise())

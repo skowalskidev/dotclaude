@@ -2389,6 +2389,13 @@ CONTRACTS: dict[str, dict] = {
             "it says the user's words are not the problem and not to ask him), no selector, a branch "
             "selector, a standing merge not ready, no merge instruction, a halt (quoting it), other "
             "PRs named, a plural not covering it, or the one-unnamed-merge-per-message limit.",
+            "A `gh pr merge` deny ends by asking the user only when nothing this session authorizes the "
+            "merge; when his words already do (the word path covered it before a later check declined, "
+            "a message saying merge and naming the PR in its repository with no later halting message, "
+            "or the monitoring-only standing rule for a PR inside its class), it names that authorization "
+            "and says not to ask again. `--explain --repo <owner/name> --pr <n> --transcript <path>` "
+            "runs the word and monitoring checks read-only, writes no state, lists every failing check "
+            "and exits 0 only when the hook would allow.",
             "A monitoring-only merge (references/git-pr-deploy.md § Monitoring-only changes; the exact "
             "conditions are the comment above monitoring_merge) runs with no merge words only for ONE plain "
             "printable-ASCII `gh pr merge <N> -R github.com/<owner>/<name> --match-head-commit <40-hex>` with at "

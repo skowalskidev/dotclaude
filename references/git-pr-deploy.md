@@ -463,8 +463,19 @@ declares for its monitoring bot merges without his merge word once it meets the 
 - **The bot keeps opening draft PRs and never merges its own.** WHY: nothing inside the bot reviews
   its fixes, and the bar's second judge is what caught their defects (`references/testing-strategy.md`).
   Deferred, not built: bot self-merge after N clean cycles in which both judges found nothing.
+- **DO dry-run every pending merge after a guard repair, and fix every cause it lists before calling
+  the merge ready:** `python3 ~/.claude/hooks/git-commit-guard.py --explain --repo <owner/name> --pr <n>
+  --transcript <session .jsonl>` runs the hook's word-path and monitoring-path checks read-only and
+  prints EVERY failing one, not just the first (exit 0 = the hook would allow, 1 = deny). Run it for
+  each PR the repair should unblock. DON'T tell Simon a merge will happen until its dry-run exits 0.
+  A deny for a merge Simon already authorized (his merge word naming or covering the PR, a standing
+  merge, or this section's standing rule) says so and ends "do not ask again": fix the cause, through
+  `/sk:claude-config-update` under `rules/self-healing-config.md` § Safeguard changes when it is a guard
+  defect. Only a deny reading "No message from the user this session authorizes this merge" means ask.
+  (the fix for SRE-bot PRs merged on Simon's fourth merge word: each deny ended "ask", so the agent
+  handed back "reply 'merge them'", while five guard defects surfaced one retry at a time.)
 TEST: each monitoring-only merge traces to a gate PASS whose reason ends with the bar phrase, on that exact head, and
-the hand-back reports it in one line.
+the hand-back reports it in one line; no hand-back asks Simon for a merge word his session already gave.
 
 ## Merging several PRs at once — one batch, one CI run, one deploy
 

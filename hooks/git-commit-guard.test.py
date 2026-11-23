@@ -662,11 +662,16 @@ DENY_CAUSES = [
     ("no selector names the missing PR", "merge 301", "gh pr merge --squash", "Cause: the command names no PR", None),
     ("a branch selector names the branch", "merge 301", "gh pr merge feature", "`feature` is a branch", None),
     ("no merge words names that check", "1 yes", "gh pr merge 301", "Cause: no message from the user", None),
+    ("with no authorizing words the deny says to ask", "merge 13 and 14", "gh pr merge 12",
+     "No message from the user this session authorizes this merge: stop at a ready, green PR and ask",
+     "already authorized"),
+    ("a negated merge naming the PR authorizes nothing", "don't merge 301 yet", "gh pr merge 301",
+     "Say 'merge #<n>'", "already authorized"),
     ("a halt names the halting message", "don't merge 301 yet", "gh pr merge 301",
      "reads as a halt after the merge ask: \"don't merge 301 yet\"", None),
     ("other numbers name those PRs", "merge 13 and 14", "gh pr merge 12", "name other PRs (#13, #14), not #12", None),
     ("a stated repository names itself as the cause", "merge #12 and #13 in zed/service", "gh pr merge 12 -R zed/web",
-     "merge words name repository zed/service, not zed/web", None),
+     "merge words name repository zed/service, not zed/web", "already authorized"),
     ("a longer slash path names the unreadable repository", "merge #12 and #13, it fixes zed/a/b",
      "gh pr merge 12 -R zed/web", "a path or URL no repository can be read from, not zed/web", None),
     ("the generic rule text still follows the cause", "1 yes", "gh pr merge 301", "OWN words this turn", None),
@@ -1607,6 +1612,86 @@ def monitoring_case(tmp: Path, own_home: Path, bin_dir: Path, i: int) -> str:
     return "" if ok else f"MONITORING: {label}: got {reason[:260]!r}"
 
 
+def authorized_scope(tmp: Path, own_home: Path, failures: list) -> int:
+    """A deny for a merge the user already authorized never sends the agent back to ask (the fix for SRE-bot
+    PRs merged on Simon's fourth merge word, each deny ending "ask"), and the --explain dry-run lists every
+    failing check at once, read-only."""
+    passes = 0
+    feature = repo(tmp, "auth-f", "feature")  # its own ledger: the shared one ends on an unfinished record
+    # Merge words from an earlier turn name the PR; a later turn says nothing about merging.
+    record_ask(feature, "authorized-earlier", "merge #12 #13 [#14](https://github.com/acme/web/pull/14)")
+    record_ask(feature, "authorized-earlier", "also check the logs")
+    for n in ("12", "14"):
+        reason = run(feature, f"gh pr merge {n} -R acme/web", own_home, "authorized-earlier")
+        if "The user already authorized this merge (the user's message" in reason and "do not ask again" in reason \
+                and "Say 'merge" not in reason:
+            passes += 1
+        else:
+            failures.append(f"AUTHORIZED: earlier merge words naming #{n} must not ask again, got {reason[-500:]!r}")
+    # A later halt or close naming it voids them, and a number outside the merge sentence is no merge word for
+    # it: the deny asks.
+    for session, asks in (("authorized-halted", ["merge #12", "wait"]),
+                          ("authorized-closed", ["merge #12", "close #12, it is superseded"]),
+                          ("authorized-other-sentence", ["merge #13. Also inspect #12", "thanks"])):
+        for ask in asks:
+            record_ask(feature, session, ask)
+        reason = run(feature, "gh pr merge 12", own_home, session)
+        if "already authorized" not in reason and "Say 'merge" in reason:
+            passes += 1
+        else:
+            failures.append(f"AUTHORIZED: {session} must not read as authorized, got {reason[-300:]!r}")
+    # A question about merging the PR beside a merge of another is no authorization of it.
+    record_ask(feature, "authorized-question", "should I merge #12? merge #13.")
+    record_ask(feature, "authorized-question", "thanks")
+    reason = run(feature, "gh pr merge 12", own_home, "authorized-question")
+    if reason and "already authorized" not in reason:
+        passes += 1
+    else:
+        failures.append(f"AUTHORIZED: a merge question naming #12 must not read as authorized, got {reason[-300:]!r}")
+    # The monitoring-only standing rule authorizes a PR inside its class: the deny names it and does not ask.
+    bin_dir = tmp / "fake-bin"
+    where = repo(tmp, "mo-auth", "bot-fix")
+    git_out(where, "remote", "add", "origin", "git@github.com:acme/bot.git")
+    transcript = write_turn(tmp, where, "mo-auth", WORK)
+    reason = run(where, f"gh pr merge 401 -R github.com/acme/bot --match-head-commit {C40} --squash",
+                 own_home, "mo-auth", transcript, bin_dir)
+    if "already authorized this merge (the monitoring-only standing rule" in reason and "Say 'merge" not in reason \
+            and "otherwise ask" not in reason:
+        passes += 1
+    else:
+        failures.append(f"AUTHORIZED: the monitoring-only rule must close without an ask, got {reason[-400:]!r}")
+    # A hold suspends the standing rule: the deny claims no authorization.
+    where = repo(tmp, "mo-hold", "bot-fix")
+    git_out(where, "remote", "add", "origin", "git@github.com:acme/bot.git")
+    transcript = write_turn(tmp, where, "mo-hold", [("open", "hold the bot PRs"), ("handback", ""),
+                                                    ("open", "look at the other alert")])
+    reason = run(where, f"gh pr merge 401 -R github.com/acme/bot --match-head-commit {C40} --squash",
+                 own_home, "mo-hold", transcript, bin_dir)
+    if reason and "already authorized" not in reason:
+        passes += 1
+    else:
+        failures.append(f"AUTHORIZED: a held monitoring PR must claim no authorization, got {reason[-400:]!r}")
+    # The dry-run lists every failing check (no gate record AND the hold), exits 1, and writes no state.
+    env = clean_env()
+    env["HOME"], env["PATH"] = str(own_home), f"{bin_dir}:{env.get('PATH', '')}"
+    state = own_home / ".claude" / ".intent-ledger"
+    before = sorted(p.name for p in state.iterdir()) if state.is_dir() else []
+    p = subprocess.run([sys.executable, str(GUARD), "--explain", "--repo", "acme/bot", "--pr", "401",
+                        "--transcript", str(transcript), "--session", "mo-hold", "--cwd", str(where)],
+                       text=True, capture_output=True, cwd=where, env=env)
+    after = sorted(p.name for p in state.iterdir()) if state.is_dir() else []
+    out = p.stdout
+    listed = [l for l in out.splitlines() if l.startswith("- monitoring path: ")]
+    if p.returncode == 1 and "hook verdict: DENY" in out and len(listed) >= 2 \
+            and any("no gate record" in l for l in listed) and any("hold on merging still stands" in l for l in listed) \
+            and "- word path, this turn: " in out and before == after:
+        passes += 1
+    else:
+        failures.append(f"EXPLAIN: must list every failing check read-only, got rc={p.returncode} "
+                        f"{out[-600:]!r} {p.stderr[-300:]!r}")
+    return passes
+
+
 def write_turn(tmp: Path, repo_dir: Path, session: str, turn: list, deferred: list = None) -> Path:
     """Write the transcript the harness keeps and the ledger asks hooks/intent-ledger.sh records. With
     `deferred`, the ledger text of "late" entries (stamped after the fixtures' gates) is collected there
@@ -1922,6 +2007,7 @@ def main() -> int:
             failures.append("OWN WORDS: a session with no recorded ask must be denied")
         passes += turn_scope(Path(tmp), own_home, failures)
         passes += monitoring_scope(Path(tmp), own_home, failures)
+        passes += authorized_scope(Path(tmp), own_home, failures)
         # The rules read fails closed on a rule with no type: "[{}]" is never "no merge queue".
         import importlib.util
         spec = importlib.util.spec_from_file_location("guard_unit", GUARD)
