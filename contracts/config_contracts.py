@@ -2370,7 +2370,11 @@ CONTRACTS: dict[str, dict] = {
             "command, time, nohup, sudo, exec, nice, timeout, xargs, with their options) and inside a "
             "`bash|sh|zsh|dash|ksh -c` string, to four levels, so a wrapped merge or push gets the "
             "same verdict as the bare one; a command behind xargs takes its arguments from stdin, so "
-            "its merge selector counts as non-literal and is denied. A push deny names the branch pushed TO. "
+            "its merge selector counts as non-literal and is denied. A heredoc body is data when every "
+            "command word reads its heredoc as data, except one an interpreter runs (`python3 - <<'EOF'`), "
+            "or when it is quoted and cat/tee writes it only to a document that no other part of the "
+            "command names or can reach (no runner, built command word, pattern or substitution beside "
+            "it); every other body is code. A push deny names the branch pushed TO. "
             "hooks/git-commit-guard.test.py pins both directions.",
             "A `gh pr merge` deny leads with `Cause:` naming the one failing check, read-only and "
             "without changing the verdict: a non-literal selector ($var, substitution, quoted value; "
