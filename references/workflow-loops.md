@@ -456,10 +456,28 @@ the source passes the copy. TEST: every `depicts product` row names a component 
 the build renders, and the build holds zero controls, labels or cards the product does not ship (the
 fix for a recreated competitor tour whose coach marks lit a Search button the app does not have).
 
+DO read "copy", "to a T", "exactly", "1:1", "pixel-perfect", "replicate", "clone" and "like the
+original", said of a design, screen, flow or document, as an exact replica of the source: every section,
+element, order, size, spacing, colour, image treatment, state and behaviour, measured and never judged by
+eye. DON'T drop, add, reorder, restyle, shorten or "improve" anything on your own judgement: a slot with
+"no true equivalent" still gets its closest truthful stand-in, a layout the source lacks (a pinned
+Continue) stays out, an element the source lacks (title, stars, label, padding where its text runs
+flush) stays out. A looser instruction elsewhere (e.g. "our own text") narrows only what it names.
+The only deviations are where the exact copy would be untrue or unlawful for us: a claim we cannot make
+(user counts, press coverage), a third party's trademark or logo, a real person's likeness or photo,
+copyrighted copy or images. Use the closest truthful equivalent with the same size, shape and position,
+never drop the slot, and list each in the hand-back with its reason. Any other deviation needs Simon's
+explicit yes BEFORE it ships, recorded with its date; a deviation list is not permission. TEST: the
+fidelity report has zero unexplained FAIL rows, each remaining FAIL cites a truth or legal reason or
+Simon's recorded yes, and no source section is missing from the build (the fix for a recreated
+competitor onboarding that kept shorter copy, dropped a press band, an expert quote and testimonial
+photos, kept a pinned Continue and added a review title and stars, until Simon said "copy means exactly").
+
 DO hold a copied design to near pixel-perfect by default: every row's box, anchor offset, z-order and
 overlap match the source within the Boxes tolerance below, and only the content inside a slot differs.
-Our copy and illustrations are `ours` rows: the source keeps the slot (box, offsets, type size, line
-count), we supply the words and pixels. DO re-anchor every element tied to an `ours` or `depicts
+Our copy and illustrations are `ours` rows only where the source's own would be untrue or unlawful for
+us (next paragraph): the source keeps the slot (box, offsets, type size, line count), we supply the
+closest truthful words and pixels. DO re-anchor every element tied to an `ours` or `depicts
 product` row when our content's size differs from the source's (a longer string, our component taller
 than their card): pointers, connectors, highlights and spotlight cutouts take their offsets from our
 element's measured box, then get re-measured. When the source lights a sub-part of its card, light the
@@ -549,7 +567,7 @@ data:
 
 DO loop fix, re-render, re-measure until the gate passes. Accept a remaining delta only as a recorded
 exception with one of seven causes: data the product cannot supply, a project gate or design-system
-ban, an asset that does not exist, an `ours` row holding our copy or illustration, a `depicts product`
+ban, an asset that does not exist, an `ours` row holding our truthful stand-in copy or illustration, a `depicts product`
 row drawn by our component, a `phone fit` fix, or a value Simon agreed (above). Each names its spec id,
 cause and evidence (the missing field, the gate output, the asset search, our string or image file, the
 component file, the failing phone-fit row). An `ours` or `depicts product` exception covers the pixels
