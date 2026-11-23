@@ -172,6 +172,7 @@ screenshot per distinct view type viewed. On any failure fix and re-run the WHOL
 passes; hand off with the pass table and screenshots path.
 Tool: `references/screenshot-review.md` § Hand-off check. DO apply § Refresh after the follow-up batch
 by default for UI ticket work.
+**DO view a phone-width screenshot of every changed section from this build before handing over a preview link, and name its path;** `references/screenshot-review.md` § Hand-off check.
 **DON'T count another file's render, one state, a DOM string or non-white pixels as the check** (a board opened
 blank, then a compare view cropped every phone).
 **DO measure a supplied-design build** (`references/workflow-loops.md` § Build from a supplied design

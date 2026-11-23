@@ -1015,6 +1015,14 @@ PEER_STOP = ('  <cross-session-message from="uds:/tmp/cc-socks/1.sock" from-name
              'Stop merging. Hold #401.\n</cross-session-message>')
 
 
+# Simon's own 18 Nov message, verbatim: a question proposing to cancel #1298, which must hold #1298 (and
+# the #1296 it names) and no other PR (the fix for it holding monitoring-only PR #1399 on 23 Nov).
+NOV18 = ("merge 1296. also the sre bot has another pr /sk:meta-dotclaude-copilot-start-here-for-any-task "
+         "/sk:work-does-this-make-sense-to-build /sk:ship-verify-with-prod-data \n\n"
+         "https://github.com/acme/bot/pull/1298 - should we not leave stripe to handle that for us ie "
+         "keep it outsourced as is and cancel this pr?")
+
+
 def merge(n, sha=C40, extra="", repo="github.com/acme/bot"):
     return f"gh pr merge {n} -R {repo} --match-head-commit {sha}{extra}"
 
@@ -1039,9 +1047,33 @@ MONITORING = [
     ("'wait before merging' holds", [("open", "wait before merging"), ("handback", ""),
                                      ("open", "look at the other alert")], [PASS_C], merge(401), True,
      "hold on merging still stands"),
-    ("'don't merge #1405' holds and needs a lift naming the PR",
-     [("open", "don't merge #1405"), ("handback", ""), ("open", "ok merge the bot fixes"), ("handback", ""),
+    ("'don't merge #401' holds and needs a lift naming the PR",
+     [("open", "don't merge #401"), ("handback", ""), ("open", "ok merge the bot fixes"), ("handback", ""),
       ("open", "look at the other alert")], [PASS_C], merge(401), True, "it lifts only on his plain \"merge #401\""),
+    ("'don't merge #1405' holds no other PR",
+     [("open", "don't merge #1405"), ("handback", ""), ("open", "look at the other alert")],
+     [PASS_C], merge(401, extra=" --squash"), False, ""),
+    ("Simon's 18 Nov question about cancelling #1298 holds no other PR",
+     [("open", NOV18), ("handback", ""), ("open", "look at the other alert")],
+     [PASS_C], merge(401, extra=" --squash"), False, ""),
+    ("Simon's 18 Nov question holds the PR it names",
+     [("open", NOV18.replace("/pull/1298", "/pull/401")), ("handback", ""), ("open", "ok merge the bot fixes"),
+      ("handback", ""), ("open", "look at the other alert")], [PASS_C], merge(401), True,
+     "it lifts only on his plain \"merge #401\""),
+    ("Simon's 18 Nov PR list cancelling one item holds no other PR",
+     [("open", "ok but my message was clear so fix the config to be rational ie merge 1294 1295 1296 \n1297 - "
+               "investigate to make sure that this will result in better alerts and no regresssions\n 1298 - "
+               "/sk:ship-full-detailed-workflow I want to see videos and scrennshots\n1306 - i think we should "
+               "cancel this because what we have now is good and the new change causes this to invite the user "
+               "to cancel\n\nis all self explanotary"), ("handback", ""), ("open", "look at the other alert")],
+     [PASS_C], merge(401, extra=" --squash"), False, ""),
+    ("a class hold whose numbers name no PR lifts on the class restatement",
+     [("open", "2 Should we not? Keep those for longer than 14 days"), ("handback", ""),
+      ("open", "remember that sre bot fixes which don't influence user prod and have been validated should be merged"),
+      ("handback", ""), ("open", "look at the other alert")], [PASS_C], merge(401, extra=" --squash"), False, ""),
+    ("a hold naming a PR beside a class hold still holds every PR",
+     [("open", "don't merge #1405. hold the rest"), ("handback", ""), ("open", "look at the other alert")],
+     [PASS_C], merge(401), True, "hold on merging still stands"),
     ("a deep PASS counts", WORK, [("bot-fix", C40, "PASS", f"deep {BAR}")], merge(401), False, ""),
     ("a reason that only quotes the bar phrase mid-text is denied", WORK,
      [("bot-fix", C40, "PASS", f"standard NOT {BAR}; legs skipped")], merge(401), True, "reason ends with"),
@@ -1093,9 +1125,9 @@ MONITORING = [
     ("a hold on 401 is not lifted by a merge of another PR",
      [("open", "don't merge 401 yet"), ("handback", ""), ("open", "merge 399"), ("handback", ""),
       ("open", "look at the other alert")], [PASS_C], merge(401), True, "hold on merging still stands"),
-    ("a hold naming another PR still holds every monitoring-only merge",
+    ("a hold naming another PR holds that PR only",
      [("open", "don't merge #399 yet"), ("handback", ""), ("open", "look at the other alert")],
-     [PASS_C], merge(401), True, "hold on merging still stands"),
+     [PASS_C], merge(401, extra=" --squash"), False, ""),
     ("a class hold conditioned on another PR holds this one",
      [("open", "hold all bot merges until #13 is reviewed"), ("handback", ""), ("open", "look at the other alert")],
      [PASS_C], merge(401), True, "hold on merging still stands"),
@@ -2345,6 +2377,22 @@ def main() -> int:
                     "bot fixes should not be merged", "Merging must wait until tomorrow", "Merging is on pause",
                     "Do not under any circumstances merge this PR", "Do not push the bot changes",
                     "Keep the merge open", "The PR needs review", "The merge is blocked until I approve")
+        # A hold naming PRs holds those only; one naming none, or speaking of the class, holds every PR.
+        scope_of = getattr(fresh, "_hold_scope", lambda m: "missing")
+        scopes = {m: scope_of(m) for m in (NOV18, "don't merge #1405", "hold the bot PRs", "stop",
+                                                     "wait before merging", "hold all bot merges until #13 is reviewed",
+                                                     "Hold the bot queue, including #1405.", "Hold #1405 and this PR.",
+                                                     "Do not merge the bot batch, starting with #1405.",
+                                                     "Don't merge #1405. Hold the rest.", "Hold #1405, and this PR.",
+                                                     "Hold this PR, and #1405.", "Hold #1405 and hold this PR.",
+                                                     "Hold #1405 and pause auto-merging for now.",
+                                                     "Hold #1405 and hold the PR we are working on.")}
+        if (fresh._is_hold(NOV18, "1298") and isinstance(scopes[NOV18], frozenset) and 1298 in scopes[NOV18]
+                and 1399 not in scopes[NOV18] and scopes["don't merge #1405"] == {1405}
+                and all(v is None for k, v in scopes.items() if k not in (NOV18, "don't merge #1405"))):
+            passes += 1
+        else:
+            failures.append(f"MONITORING: a hold naming PRs must hold those only, got {scopes!r}")
         missed = [m for m in explicit if not fresh._is_hold(m, "1405")]
         if not missed:
             passes += 1
