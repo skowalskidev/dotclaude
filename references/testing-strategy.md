@@ -644,6 +644,10 @@ the journey touches and fix each miss before he starts:
    installed app's build fingerprint receipt, `ios-simulator.md`) and match `git rev-parse HEAD`.
    Rebuild and re-serve on any mismatch, and repeat the read after every commit before he re-walks.
    (the fix for a walk run on an old build after later fixes were committed.)
+8. Every fixture account lasts its whole journey: read its lifecycle (reset on sign-in, expiry, one
+   trial per device, a nightly wipe) and check it against each step it walks; a step that needs kept
+   state (a returning member, a second sign-in) gets a persistent account. (the fix for a test phone
+   number that reset on every sign-in and broke a returning-member step mid-walk.)
 **DON'T blank, fake or strip a key, flag or service to save cost or time.** A degraded stack fails like
 a product bug and he cannot tell which. When cost is the concern, ask once in the front-loaded block
 whether the session runs on billable keys; his yes covers the actions he drives, and each billable call
