@@ -1432,7 +1432,7 @@ def monitoring_not_ready(pr: dict, required: list, default_branch: str) -> str:
     return ""
 
 
-# The halt reading on this path fails closed, and a hold is never narrowed to other PRs. _is_hold and
+# The halt reading on this path fails closed; a hold naming PRs holds only those (_hold_scope). _is_hold and
 # _lifts are the predicates. A hold is an explicit hold aimed at merging or shipping, read as WHOLE
 # words and phrases (HOLD_RES): a hold word given as an order ("hold the bot PRs", "wait before
 # merging", "stop"), a negated merge or ship ("don't merge #1405", "do not deploy"), or a hold phrase
@@ -1532,6 +1532,87 @@ LIFT_RE = re.compile(
 def _names(ask: str, number: str) -> bool:
     """The ask names this PR by value ("#012" names 12)."""
     return any(int(n) == int(number) for n in re.findall(r"(?<![\d.])\d+(?!\d|\.\d)", ask) if len(n) < 12)
+
+
+# A hold that names PRs holds those PRs only, never every monitoring-only PR (Simon, 18 Nov: "merge 1296.
+# also the sre bot has another pr .../pull/1298 - should we ... cancel this pr?" questioned #1298 alone,
+# yet it held PR #1399 on 23 Nov because any number in a hold made it need "merge #1399"). A PR is named
+# by "#<n>", "PR <n>", "pull request <n>", a /pull/<n> URL, "GH-<n>", a merge, close or cancel verb
+# before a run of numbers of three or more digits ("merge 1294 1295 1296"), or such a number opening a
+# line as a list item ("1306 - i think we should cancel this", his 18 Nov 10:02 list). The hold stays a
+# class hold, holding every PR, when no PR is named, when a holding sentence speaks of the class, a
+# related PR, a range or a condition ("all", "the bot queue, including #1405", "its sibling",
+# "PR10-PR20", "until #13 lands"), when a named PR sits near an unnamed one ("hold #1405, and this PR"),
+# when the sentences naming no PR hold on their own, or when no single sentence holds.
+PR_REF_RE = re.compile(r"(?:#|\bprs?\s*#?\s*|\bpull\s+requests?\s*#?\s*|/pulls?/|\bgh-)(\d+)\b"
+                       r"|\b(?:merge|merging|close|closing|cancel|cancell?ing|land|ship)\s+"
+                       r"((?:#?\d{3,}\b[\s,]*(?:(?:and|&)\s+)?)+)"
+                       r"|\A\s*[>*-]?\s*#?(\d{3,})\s*[-:)]\s", re.I | re.A)
+_DEICTIC_PR = (r"(?:this|that|the current|current|the other|these|those|your|my|our|it|its)"
+               r"(?:\s+(?:one|ones|prs?|pull requests?|fix|fixes|change|changes|branch|branches))?\b")
+CLASS_HOLD_RE = re.compile(r"\b(?:all|any|every\w*|anything|nothing|none|others?|rest|remaining|prs|pull requests"
+                           r"|fixes|merges|changes|until|unless|before|after|once|when|while|till|both|siblings?|related|linked|stack\w*"
+                           r"|dependents?|child|children|parents?|follow-?ups?|queue|batch|bunch|lot|set|group|series"
+                           r"|wave|round|including|incl|starting|such as|like|e\.?g|for example|among|also|too"
+                           r"|as well|plus|other|another|more)\b"
+                           # Merging itself held beside a named PR: "hold #1405 and pause auto-merging".
+                           r"|\b(?:auto-?)?merg(?:ing|es)\b(?!\s+(?:of\s+)?(?:pr\s*)?#?\d)|\bauto-?merge\b"
+                           # A range names PRs it does not spell out: "PR10-PR20", "#10 to #20".
+                           r"|\d\s*(?:-|to|through|thru|\.\.)\s*(?:prs?\s*)?#?\d"
+                           # A named PR joined to an unnamed one: "hold #1405 and this PR", "this one and #12".
+                           r"|(?:#\d+|/pulls?/\d+|\bprs?\s*#?\d+|\bgh-\d+|\d{3,})\s*(?:,|and|or|&|with|along with"
+                           r"|together with)\s+" + _DEICTIC_PR +
+                           r"|" + _DEICTIC_PR + r"\s*(?:,|and|or|&|with|along with|together with)\s+(?:prs?\s*)?#?\d",
+                           re.I | re.A)
+SENTENCE_END_RE = re.compile(r"(?<=[.!?;])\s+|\n+")
+
+
+_UNNAMED_PR_RE = re.compile(r"\b(?:this|that|the current|current|these|those|your|my|our|the)\s+(?:one|ones|prs?"
+                            r"|pull requests?|branch|branches|fix|fixes|change|changes)\b(?!\s*(?:pr\s*)?#?\d)",
+                            re.I | re.A)
+
+
+def _unnamed_pr_near_ref(sentence: str) -> bool:
+    """An unnamed PR ("this PR", "that one") within eight words of a named one is a second PR held beside it
+    ("Hold #1405, and hold this PR."). Farther off it is the named PR spoken of again: Simon's 18 Nov
+    "/pull/1298 - should we not leave stripe to handle that ... and cancel this pr?" puts 21 words between."""
+    def at(m) -> int:
+        return len(sentence[:m.start()].split())
+    refs = [at(m) for m in PR_REF_RE.finditer(sentence)]
+    return any(abs(at(u) - r) <= 8 for u in _UNNAMED_PR_RE.finditer(sentence) for r in refs)
+
+
+def _hold_scope(text: str):
+    """The PR numbers a hold is confined to, or None for a class hold (every PR). Fails toward None: text
+    the hold reading cannot read for certain (_is_hold's fail-closed cases) is a class hold."""
+    if (len(text) > HOLD_SCAN_LIMIT or not text.isascii() or "[REDACTED CREDENTIAL]" in text
+            or NON_TEXT_PART in text or re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", text)):
+        return None
+    named = lambda s: {int(n) for groups in PR_REF_RE.findall(_normalize(s)) for g in groups
+                       for n in re.findall(r"\d+", g) if len(n) < 12}
+    sentences = [s for s in SENTENCE_END_RE.split(text) if s.strip()]
+    refs, rest, scoped = set(), [], False
+    for s in sentences:
+        found = named(s)
+        refs |= found
+        if not found:
+            rest.append(s)
+        elif _is_hold(s, "0"):
+            if CLASS_HOLD_RE.search(_normalize(s)) or _unnamed_pr_near_ref(_normalize(s)):
+                return None
+            scoped = True
+    if not refs or not scoped or (rest and _is_hold("\n".join(rest), "0")):
+        return None
+    # Every other number in it counts as named too ("merge 1296 but not 1298"): the scope only grows.
+    return frozenset(refs | {int(n) for n in re.findall(r"\d{2,}", _normalize(text)) if len(n) < 12})
+
+
+def _numbered(hold: str, number: str) -> bool:
+    """A class hold that could name this PR: it carries this PR's number or names a PR (PR_REF_RE). A
+    number that names no PR ("1 but this pr can be cancelled?", "after 14 days") leaves it a class hold
+    his class restatement lifts (the fix for two numbered answers on 16-17 Nov outliving it on 23 Nov)."""
+    norm = _normalize(hold)
+    return _names(norm, number) or bool(PR_REF_RE.search(norm))
 
 
 DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe63\uff0d"})
@@ -1852,9 +1933,13 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
                 if certain and (not held_this or _names(_normalize(clean(text)), number)):
                     held, held_this, held_at = "", False, ""
             elif holds(kind, text):
-                # A hold carrying any number is treated as naming this PR: only "merge #<n>" lifts it.
+                # A hold naming other PRs only (_hold_scope) is no hold on this one. A class hold that could
+                # name this PR (_numbered), or one naming it, lifts only on "merge #<n>".
                 said = own(text)
-                held, held_this = said, held_this or bool(re.search(r"\d", _normalize(said)))
+                scope = _hold_scope(said)
+                if scope is not None and int(number) not in scope:
+                    continue
+                held, held_this = said, held_this or _numbered(said, number)
                 held_at = max(held_at, stamp)
         return held, held_this
 
@@ -1876,7 +1961,10 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
         if stamp >= gate_stamp:
             return ("the user answered a question or a denied tool call after the gate PASS: read it, and once "
                     "it is no halt, record the gate again on this head")
-        named = bool(re.search(r"\d", _normalize(text)))
+        scope = _hold_scope(text)
+        if scope is not None and int(number) not in scope:
+            continue  # an answer holding other named PRs only is no hold on this one
+        named = _numbered(text, number)
         # A prompt queued before the answer and delivered after it was typed before it: its delivery is
         # no lift given after the answer.
         queued_before = {body(t).strip() for k, _, t in events[:i] if k == "queued"}
