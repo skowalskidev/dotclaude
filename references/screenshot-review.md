@@ -623,6 +623,15 @@ DO view the PNG of every distinct view type (default, each variant layout, each 
 at least the default state. The tool proves content exists and is whole, not that it is right.
 DO, on any failing row, fix the artifact and re-run the whole command, never only the failed row, and loop
 until every row passes (the fix for a board that opened blank after one separate render passed).
+
+DO view, before any message that hands Simon a preview link or says a UI change is ready to walk, a
+screenshot of every new or changed screen and section at the phone width (402x750 default) captured from
+THIS build, by opening the image itself (a capture alone is not a view). Fix anything broken (text or a
+logo flush against a card edge, overlap, cut-off, wrong order) and re-capture. Name the viewed screenshot
+paths in the hand-back, one or more per changed section. DON'T let a fidelity comparator, scroll heights,
+unit tests, DOM strings or a walk log stand in for the look. TEST: every hand-back with a preview link
+cites viewed screenshot paths from that build covering each changed section (the fix for a preview link
+sent after metrics and tests only, whose new quote card ran text and logo flush into its edge).
 DO, for a live URL, also run the interactive check in `references/browser-debugging.md` (hydrated, a primary
 control responds, clean console, on the host Simon will use) after any worktree, server or config change; the pass table does not prove it.
 DO hand over the printed pass table (also at `<dir>/pass-table.md`) and the `<dir>` path with the artifact.
