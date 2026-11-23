@@ -14,7 +14,7 @@ on a diff overnight. It is DISTINCT from `/sk:test-copilot` (the human-driven jo
 THIS for its machine pass, then adds the human judgment on top.
 
 **Read `~/.claude/references/testing-strategy.md` § The full automated test matrix, § Defects first,
-§ Local time-driven simulations, § Pre-merge end-to-end on a local stack, § Old app builds against the
+§ Local time-driven simulations, § Edge-case hunt before every walkthrough, § Pre-merge end-to-end on a local stack, § Old app builds against the
 new backend and § Native simulator suites.** Apply their batch timing, evidence
 reuse, simulation assessment, local-stack walk and default native simulator runs to this flow.
 TEST: a diff the iPhone app reaches gets native runtime/UI evidence or a reason that section allows.
@@ -40,6 +40,8 @@ PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
    run for copy, examples and constants restating what another file computes (a static page quoting
    generated text, a constant typed twice), then derive each from its source or add a test comparing it
    to the source's real output. TEST: every such copy derives or has a binding test.
+   **DO run the edge-case hunt (§ Edge-case hunt before every walkthrough) first and add each
+   walkable row to the walk list.**
    **DO walk every changed screen and state autonomously on its real client (browser, or the iOS
    Simulator for a native screen) against the local stack,** on the final head with seeded test data
    and paid providers stubbed: screenshot each state beside its
@@ -53,7 +55,7 @@ PR records `Skipped (tier <tier>)` with its trigger instead of a matrix.
    (`references/testing-strategy.md` § Regression check).
    Redact token and cookie values; walk captures are diagnostics. Fix observed bugs and rerun affected
    scenarios. **DON'T count green suites or captured-but-uninspected images as this evidence.** TEST: the matrix holds a
-   `Real-environment walk:` line with the pass table and one verdict per source, backend mode `local`
+   `Real-environment walk:` line with the pass table, the hunt table and its counts and one verdict per source, backend mode `local`
    or `stubbed client` (the fix for a static page's example text left stale by a stacked PR: suites,
    reviews and screenshots passed, and only a real-stack walk found it).
 4. **Assemble the matrix, save + post.** Save it under the run's `.context/`; POST it to the PR's tests

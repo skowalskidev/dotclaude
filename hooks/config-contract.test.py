@@ -156,6 +156,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("matrix-binds-copies-and-walks-real-stack",
      "The matrix binds copied values to their source and walks every changed state on its real client against the local stack, "
      "judged per source criterion; the ship harness runs both on Standard PRs."),
+    ("edge-case-hunt-feeds-every-walk",
+     "Every walkthrough of a human-facing change starts from one edge-case hunt over entry points x states x "
+     "failure modes, owned by testing-strategy.md; the matrix, co-pilot, ship-report and pre-merge walk point at it."),
     ("design-diff-measures-changed-regions",
      "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
     ("dashboard-runtime-preserves-completion",
@@ -2791,6 +2794,26 @@ def check_value_safety_answers_four_questions() -> None:
           "The landing gate no longer owns a Value safety row")
     check("def check_lifecycle_matrix" in gate_src and "PROVIDER_CASES = 11" in gate_src,
           "The landing gate no longer checks the Provider lifecycle matrix")
+
+
+def check_edge_case_hunt_feeds_every_walk() -> None:
+    strategy = " ".join((ROOT / "references/testing-strategy.md").read_text().split())
+    heading = "Edge-case hunt before every walkthrough"
+    check("## " + heading in strategy, "testing-strategy.md lost § " + heading)
+    for required in ("Enumerate from the code's state machines", "revoked later in system settings",
+                     "killed or backgrounded mid-flow", "a second account on the same device",
+                     "midnight and DST", "over several cycles", "`Entry x state x failure | Expected | How walked`",
+                     "fake clock or a fake platform adapter", "Report every row, fine ones included",
+                     "DON'T treat Simon's reported bug as the scope of the hunt"):
+        check(required in strategy, "Edge-case hunt lost: " + required)
+    check("walkable row of its § " + heading + " table" in strategy,
+          "Pre-merge journey walk no longer walks the hunt rows")
+    check("from its § " + heading + " table" in strategy, "Deep scenario rounds no longer draw from the hunt")
+    for rel in ("skills/sk/skills/test-automated-full-matrix/SKILL.md",
+                "skills/sk/skills/test-copilot/SKILL.md",
+                "skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md"):
+        text = " ".join((ROOT / rel).read_text().split())
+        check(heading in text, rel + " no longer points at § " + heading)
 
 
 def check_matrix_binds_copies_and_walks_real_stack() -> None:

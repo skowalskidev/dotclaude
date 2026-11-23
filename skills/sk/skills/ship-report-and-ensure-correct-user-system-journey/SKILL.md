@@ -178,8 +178,9 @@ the overlap is real.
 How each one is built:
 
 - **The criteria supply the tests, the journeys supply the cases.** For each criterion take the
-  numbered user and system steps it touches, every early stop in Block 2 part 3, and the scenario
-  matrix in `references/testing-strategy.md`. An early stop asserts its reason code; "the guard
+  numbered user and system steps it touches, every early stop in Block 2 part 3, and the rows of
+  `references/testing-strategy.md` § Edge-case hunt before every walkthrough, run before this phase's
+  browser pass on a human-facing change. An early stop asserts its reason code; "the guard
   correctly did nothing" is unprovable any other way. Name each test after its criterion and assert
   the artifact rather than the interaction, per `references/contracts-and-outcomes.md`.
 - **Write the assertion from the criterion's words, before reading the implementation.** A test

@@ -1118,7 +1118,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, the pre-merge end-to-end walk on a local stack, the old app build walk against the new backend, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
+        "purpose": "Test structure, the edge-case hunt before every walkthrough, the pre-merge end-to-end walk on a local stack, the old app build walk against the new backend, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
             "A red CI run on a head is diagnosed by rerunning only its failed specs on that head first; the base is built only when the head fails, and CI-passed gates are not rerun.",
             "A change to a verdict several doors read carries one agreement test driving every door on the same fixture, failing when any two disagree.",
@@ -1143,6 +1143,7 @@ CONTRACTS: dict[str, dict] = {
             "Fix final-gate failures and rerun affected checks; broaden only when changed inputs invalidate coverage, and never count partial or skipped scope as a full pass.",
             "Own the pre-merge end-to-end walk: for every Standard or Deep change to a user flow or its backend, web or iPhone, run every suite the diff reaches, walk each changed journey on its real client against a hermetic local stack (local database or emulators, payment sandbox, stubbed paid and third-party providers), loop fix and rerun to a clean run with zero base-to-head regressions, and hand back a per-journey pass table with suite counts; zero production writes and zero paid calls.",
             "Own the old-build walk: build each in-use old release from its shipped commit, walk its main journeys against base and head local backends, and pass only with zero head-only 4xx/5xx and matching screens; no source is a blocker, never PASS.",
+            "Own the edge-case hunt: before every walk of a Standard or Deep human-facing change, enumerate entry points x code states x failure modes (permission, data timing, kill/background, network, races, accounts, locale/time, platform, repeated reminders), write each plausible case with its expected behaviour, walk it on the real client or prove it with a fake-clock/fake-platform unit test, fix failures and report every row with counts; a reported bug is one row of its class.",
             "Run iPhone/iOS simulator runtime tests, UI tests, the XCUITest journey walk and screen captures by default for every change the iPhone app reaches, against the local backend; skip only when the diff reaches no native screen or Simon says skip, with the reason recorded. Keep native compile checks and backend payment, auth and data tests; a compile never stands in for a runtime pass.",
             "Judge test design before final execution; fan out preparation and judgments, deduplicate suite runs, and report native runtime coverage skipped only with an allowed reason.",
             "Keep production export credentials outside the preview runtime; reject production destinations before creating write-capable clients and verify the refusal offline.",
@@ -1275,6 +1276,7 @@ CONTRACTS: dict[str, dict] = {
             "Keeps one walk surface, sweeps stale tabs before each step and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
             "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",
+            "Feeds the edge-case hunt's rows that need a human's eyes into the walk plan as scenarios; Simon's reported bug is one row of its class, never the whole hunt. Method lives in testing-strategy.md.",
         ],
     },
     "skills/sk/skills/test-automated-full-matrix/SKILL.md": {
@@ -1298,6 +1300,7 @@ CONTRACTS: dict[str, dict] = {
             "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
             "Bind every copied value in the diff and its stacked or sibling PRs to its source, and walk every changed state on its real client (browser, or the iOS Simulator for a native screen) against the local stack, judging each recorded source criterion from screenshots, requests and rows; the Real-environment walk line carries the pass table and backend mode.",
             "Inspect screenshots at each meaningful step, correlate actions with requests, responses and persisted state, fix observed bugs and rerun affected scenarios; captured images alone never prove the walk.",
+            "Runs the testing-strategy.md edge-case hunt before its real-client walk, walks each walkable row and carries the hunt table with counts on the Real-environment walk line.",
             "The real-stack walk also covers each existing screen a modified pre-existing file reaches and each screen reused in a new place beside its original, feeding the PR's regression check.",
         ],
     },
@@ -1513,6 +1516,7 @@ CONTRACTS: dict[str, dict] = {
             "A deliberately dropped, refuted or deferred part is part of the baseline and is never "
             "built back. The verdict names who decided and when.",
             "Simon's raw-ask clauses are always baseline: every clause gets a verdict, and an unfulfilled one is built or named with its blocker; the invented-criteria guard applies to criteria the agent derives, never to his words.",
+            "Journey tests take their cases from the edge-case hunt in testing-strategy.md.",
             "Consults the living plan (.context/<slug>-plan.md) from "
             "/sk:plan-stable-persistent-dynamic-complete-full-plan as a baseline source when present, per "
             "rules/living-plan.md.",

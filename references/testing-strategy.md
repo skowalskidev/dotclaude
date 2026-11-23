@@ -143,7 +143,7 @@ read each over one window, and list each data point a question about the feature
 still does not capture. TEST: the hand-back names every connector read, or its access gap, and the
 missing data points found or `none`.
 **DO run scenario rounds on every Deep change with a user path:** pick the 10 scenarios the user cares
-most about across the axes the change touches (new or returning account, device, payment outcome and
+most about from its § Edge-case hunt before every walkthrough table, across the axes the change touches (new or returning account, device, payment outcome and
 retry, return from a hosted page, each live arm, native bridge, embedded browser, a failing or offline
 dependency, § Local time-driven simulations clock cases, a shared device). Drive each through the real
 client, real server and an isolated local database. Report each round's BUGS and OPPORTUNITIES as two
@@ -1035,6 +1035,53 @@ suite only when a source, dependency, configuration or environment change invali
 TEST: no routine mid-batch run, no duplicate final suite from a later workflow stage, and every rerun
 names its failure or invalidated inputs. Every completion claim links the full relevant evidence.
 
+## Edge-case hunt before every walkthrough
+
+**DO run a read-only edge-case hunt before every walk a human-facing change gets, at the Standard and
+Deep tiers:** the full matrix's real-client walk, `/sk:test-copilot`'s machine pass and charter, the
+ship-report journey tests, step 2 of § Pre-merge end-to-end on a local stack and the scenarios of
+§ Deep-tier discovery rounds all start from its table. A Light change hunts its one changed state
+against the failure modes below that it reaches. WHY: a scripted walk proves only the steps someone
+wrote down; the practical bugs live in the combinations nobody scripted.
+1. **Enumerate from the code's state machines, not from the plan.** List every entry point a person
+   reaches the changed flow from (first run, re-entry after leaving, deep link, notification,
+   settings, a second device) and every state the code keeps for it (persisted flags, enum states,
+   permission and connection states, sync cursors). Cross each entry x state with each failure mode
+   the code can meet:
+   - a permission denied, partly granted, or revoked later in system settings;
+   - no data, late data (arriving after the screen rendered), the same data from two sources;
+   - the app killed or backgrounded mid-flow, relaunched, or reinstalled;
+   - offline, a 5xx, a slow backend, a timeout in the middle of a write;
+   - a double tap, back during a write, two tabs or devices racing;
+   - a second account on the same device, sign-out mid-flow;
+   - units and locale, timezone, midnight and DST boundaries;
+   - platform availability (an OS version or simulator without the capability);
+   - a reminder or notification over several cycles: first, repeat, after the action is done, after opt-out.
+2. **Write each plausible broken case into the walk list with its expected behaviour,** one row each:
+   `Entry x state x failure | Expected | How walked`. Expected names what the person sees: the flow
+   carries on, uses what it already knows (syncs in the background, prefills), says what is missing
+   and offers the next step. Drop an implausible combination only with its reason.
+3. **Walk each row on the real client where it is walkable** (a § Test gates route, the system
+   settings toggle, airplane mode, `xcrun simctl privacy` or `terminate`, a stubbed 5xx); prove the
+   rest with a unit test on a fake clock or a fake platform adapter. Fix every failure in the batch
+   and rerun its row.
+4. **Report every row, fine ones included,** as `FIXED`, `FINE`, `UNIT: <test>` or `DROPPED: <reason>`,
+   with the count of each, beside the walk's pass table.
+NUMBER: at least 1 row per entry point x failure-mode family above that the changed code reaches;
+zero rows left open at hand-back.
+**DON'T treat Simon's reported bug as the scope of the hunt.** It is one row of a class; hunt the
+rest of the table (`rules/process.md` § Fix the CLASS of failure).
+TEST: every walk hand-back on a Standard or Deep human-facing change carries the hunt table and its
+counts; a later-reported practical bug the table lacks is a missed enumeration, fixed at its source
+(the fix for a connect-a-health-data-source flow whose scripted walks and two code reviews passed
+while a hunt found 12 practical bugs, 3 high, among them a connect-then-continue that neither synced
+gracefully nor prefilled what the source already held).
+Sources (checked 2026-11-24). Term: "interrupt testing" for app kills, calls, network and lock
+([SmartBear](https://smartbear.com/blog/the-how-and-why-of-interrupt-tests-for-mobile-apps/),
+[Perforce](https://www.perforce.com/blog/perfecto/interruption-testing)); an exploratory charter
+treating denied and later-revoked permission as separate states
+([exploratory testing on mobile](https://dev.to/kelina_cowell_qa/exploratory-testing-on-mobile-the-messy-checks-that-find-real-bugs-2ldg)).
+
 ## Pre-merge end-to-end on a local stack
 
 **DO prove every change to a user-visible flow or its backend end to end before its PR is called
@@ -1042,7 +1089,8 @@ ready, web and iPhone alike, at the Standard and Deep tiers (a Light change keep
 BEFORE/AFTER pair), in four steps:**
 1. **Suites.** Run every automated suite the diff reaches (unit, integration, e2e), whole for each
    touched package, locally at the final batch gate; § Defects first owns timing and evidence reuse.
-2. **Journey walk.** Walk each changed user journey start to finish on its real client: the browser
+2. **Journey walk.** Walk each changed user journey start to finish, plus every walkable row of its
+   § Edge-case hunt before every walkthrough table, on its real client: the browser
    through the project's e2e runner (e.g. Playwright) for web, the iOS Simulator through an XCUITest
    walk under § Native simulator suites for the iPhone app. Point the client at a hermetic local
    stack: the local database or emulators, the payment provider's sandbox or test mode, and a stub for
