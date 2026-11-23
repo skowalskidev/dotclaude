@@ -104,6 +104,8 @@ MUST_FIRE = [
     ("curl -K inside a short-option cluster is an unread API call", "feature", "curl -sK ./request.conf",
      "through `gh api`"),
     ("curl reading its config from stdin is an unread API call", "feature", "cat cfg | curl -K-", "through `gh api`"),
+    ("curl's own --config after another tool's --config is still an unread API call", "feature",
+     "wrangler dev --config w.json && curl --config req.cfg", "through `gh api`"),
     ("a curl URL glob on a pulls path is an unread API call", "feature",
      "curl -X PUT 'https://api.github.com/repos/o/r/pulls/12/{merge,merge}'", "through `gh api`"),
     ("a dot-segment curl merge endpoint is still an API merge", "feature",
@@ -269,6 +271,11 @@ MUST_FIRE = [
 ]
 
 MUST_NOT_FIRE = [
+    ("another tool's --config beside a curl health check is no curl config", "feature",
+     "nohup npx wrangler dev --local --config ../w.json --port 56650 > w.log 2>&1 & "
+     "for i in 1 2; do c=$(curl -s -o /dev/null -w \"%{http_code}\" http://127.0.0.1:56650/); done"),
+    ("a -K flag on another command before curl is no curl config", "feature",
+     "sort -k2 -K x.txt; curl -s https://example.com/health"),
     ("a quoted note naming a push to main", "feature",
      f"printf -- '- next: Simon runs {PUSH} origin main; then verify\\n' > note.md"),
     ("a double-quoted echo naming commit -m", "feature", f'echo "use {COMMIT} -m never" > x'),
