@@ -384,3 +384,13 @@ Before a change that touches **more than about three files** (a refactor, a rena
 dependency bump), make a restore point FIRST. `/rewind` covers main-session edits only: a backgrounded
 forked skill (`context: fork`) edits outside the session's checkpoints, and nothing Bash writes is
 checkpointed. For those, commit the good state or branch before starting.
+
+## Fix the class of failure (moved from `rules/process.md`)
+
+- **Write the rule, not the example.** "The brand mark landed on the building instead of the crew's
+  vests" becomes "a stated placement is authoritative and overrides any default placement", never "put
+  brand marks on vests."
+- **Keep ONE concrete instance** (`e.g.` / "the fix for X") so the fix stays actionable; never let it
+  become the condition.
+- **Tell me which class you concluded and what you checked** to rule out a one-off, so I can judge
+  whether the generalization went too far or not far enough.
