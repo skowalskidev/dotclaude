@@ -211,8 +211,8 @@ TEST: every action in an experience walk traces to Simon or to a step he named, 
 each window stay up until his done (the fix for three scenarios scripted and torn down, rebuilt for him).
 
 **DO open every persona of a multi-persona walk (sender and friend, host and guest) yourself, first
-actor first, each in its own named isolated context with a fresh account and a persona-labelled tab
-title, per `browser-debugging.md` § The test browser (multi-persona walks and tab labels).** Never send
+actor first, each in its own named isolated context with a fresh account and a task-and-persona tab
+label, per `browser-debugging.md` § The test browser (multi-persona walks, tab labels and stale tabs).** Never send
 Simon a URL to open or ask him to manage incognito windows.
 TEST: a multi-persona walk sends Simon no URL, and every step message names its tab by persona label.
 
@@ -221,9 +221,9 @@ every step.** Attach the chrome-devtools MCP to the
 project's test browser (Chrome for Testing), reusing one already running on the project's profile
 (launch and attach per `browser-debugging.md` § The test browser). Keep to ONE walk surface per `browser-debugging.md` § The test browser: 1 walk tab
 (an isolated context only for a fresh-visitor or second-account need), the previous step's tab closed
-before a new one opens, every step naming the tab by title and host, a phone viewport that fits the window.
-Load the start URL there yourself. Simon types only the new inputs, in that tab.
-**DON'T close or navigate a tab you did not open.** Another session may own it.
+before a new one opens, stale tabs swept and every step naming the tab by its label and host, a phone
+viewport that fits the window. Load the start URL there yourself. Simon types only the new inputs, in that tab.
+**DON'T close or navigate another session's `live` or `unknown` tab.** Its walk holds it; close only `stale` tabs.
 **DO capture every web step yourself.** After your action, or after Simon finishes a new input,
 `take_screenshot` that tab with a
 `filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step
@@ -332,7 +332,7 @@ Order the fixes, his re-walk and the red tape per `references/testing-strategy.m
   fetching each share hostname (not by trusting the kill), sweep orphaned workers.
   **Close every tab, window and isolated context you opened, and the Chrome for Testing you launched
   unless Simon is still using it** (`browser-debugging.md` § The test browser).
-  TEST: `list_pages` shows only the tabs you found.
+  TEST: `list_pages` shows none of your tabs and no `stale` tab.
   Leaving a time-collapse flag on in a shared environment is a live incident waiting to happen.
 - **Commit** one logical commit per fix, per the standing commit rule.
 - **Report a results matrix**: step, result, evidence, severity — plus what was fixed, what

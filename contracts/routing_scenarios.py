@@ -430,10 +430,19 @@ HOOK_ROUTING: list[dict] = [
       )),
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},
-    # chrome-devtools tools fire the mcp__.* work guard (emulate also its viewport guard, below);
+    # chrome-devtools tools fire the mcp__.* work guard (navigate_page and emulate also their own guards, below);
     # UI self-verification is the default, so there is no browser-launch gate.
-    {"event": "PreToolUse", "tool": "mcp__chrome-devtools__navigate_page",
-     "expect": ["work-resource-guard.sh"]},
+    # The tab-label guard: a navigation without the label keeper as initScript is denied
+    # (references/browser-debugging.md § Tab labels and stale tabs).
+    *({"event": "PreToolUse", "tool": "mcp__chrome-devtools__navigate_page",
+       "expect": ["work-resource-guard.sh", "test-browser-label-guard.py"],
+       "tool_input": tool_input, "decides": {"test-browser-label-guard.py": decision}}
+      for tool_input, decision in (
+          ({"pageId": 1, "url": "http://127.0.0.1:3000/app"}, "deny"),
+          ({"pageId": 1, "type": "reload"}, "deny"),
+          ({"pageId": 1, "type": "reload", "initScript": "(() => { window.__claudeTabLabel; })();"}, "allow"),
+          ({"pageId": 1, "url": "about:blank"}, "allow"),
+      )),
     # The emulate viewport guard: an emulated viewport taller than the test window is denied
     # (references/browser-debugging.md § Fit the window). Landscape measures the width.
     *({"event": "PreToolUse", "tool": "mcp__chrome-devtools__emulate",

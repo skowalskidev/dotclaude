@@ -802,10 +802,11 @@ CONTRACTS: dict[str, dict] = {
             "Owns co-pilot visibility: headed Chrome for Testing from first to last step, verified visible before step 1, including zero-new-input walks; headless scripts and screenshots cannot substitute for the live walk.",
             "Verify observed native browser transitions and automation overrides; record before/after state and versions, remove overrides that prevent the transition, and label synthetic handler coverage separately from observed browser transitions and live-backend proof.",
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
-            "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
+            "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, another session's live or unknown tab untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
             "Owns the live-tab hand-over check: before handing a live UI tab to Simon, and after any worktree, server or config change, verify on the exact host he will use that the framework hydrated, a primary control responds and the console shows no blocked-origin or HMR error.",
             "Each message pointing Simon at a preview, repeats after a restart included, follows a same-turn list_pages hit, a 2xx per server and a fresh start-screen screenshot; a failed check means relaunch, never a substitute URL.",
-            "Owns multi-persona walks and tab labels: each persona opened by Claude in its own named isolated context, first actor first, fresh accounts, no URL handed to Simon; every walk tab titled '▶ PERSONA tail · page title' and kept across navigations, with step messages naming the tab by that label.",
+            "Owns multi-persona walks: each persona opened by Claude in its own named isolated context, first actor first, fresh accounts, no URL handed to Simon.",
+            "Owns tab labels and stale tabs: every test-browser tab Claude opens is labelled '▶ task · PERSONA tail · page title · @owner' through bin/test-browser-tabs.py, applied after new_page and as initScript on every navigate_page, never by setting document.title once; before step 1 and every later step message, sweep closes every stale tab whichever session opened it, and step messages name the tab by its label.",
         ],
     },
     "references/code-best-practices.md": {
@@ -1269,8 +1270,8 @@ CONTRACTS: dict[str, dict] = {
             "Reads the project's testing guide as task data (asking once when project instructions are ignored) and runs the dependency handshake after every stack start or restart; method lives in references.",
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
             "Runs visible web walks per browser-debugging.md, including zero-new-input walks; captures each step after its action or Simon's new input, never asks for pasted screenshots or touches another session's tab.",
-            "Opens every persona of a multi-persona walk itself, first actor first, each in a named isolated context with a fresh account and a persona-labelled tab title; sends Simon no URL. The rules live in browser-debugging.md.",
-            "Keeps one walk surface and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
+            "Opens every persona of a multi-persona walk itself, first actor first, each in a named isolated context with a fresh account and a task-and-persona tab label; sends Simon no URL. The rules live in browser-debugging.md.",
+            "Keeps one walk surface, sweeps stale tabs before each step and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
             "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",
         ],
@@ -2434,6 +2435,15 @@ CONTRACTS: dict[str, dict] = {
             "HOOK_ROUTING cases in contracts/routing_scenarios.py pin deny and allow decisions.",
         ],
     },
+    "hooks/test-browser-label-guard.py": {
+        "mission": "Every test-browser tab keeps its walk label after every navigation, so Simon can tell which window is the walk's.",
+        "purpose": "PreToolUse: denies mcp__chrome-devtools__navigate_page without the bin/test-browser-tabs.py label script as initScript, and records the label owner's heartbeat.",
+        "criteria": [
+            "Denies a url, reload, back or forward navigate_page whose initScript is missing or lacks the keeper's GLOBAL marker; the reason names the label command and references/browser-debugging.md § Tab labels and stale tabs.",
+            "Allows a labelled navigation and touches its owner's heartbeat; allows about:blank, other tools and a malformed payload (fail open).",
+            "hooks/test-browser-label-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
     "hooks/outbound-message-guard.py": {
         "mission": "A teammate or other reader gets a message Simon sends, or Claude sends for him, that they can act on from its first lines, without Simon asking for TLDR again.",
         "purpose": "PreToolUse: denies a Slack or Gmail send, reply, forward or draft over the TLDR cap for a message to someone else; --check measures a draft for routes the hook cannot see.",
@@ -2873,6 +2883,16 @@ CONTRACTS: dict[str, dict] = {
             "Never adopts a port held by another browser: exits 5 when the listener is not Chrome for Testing, and exits 4 with the install command when no build is cached.",
             "Reuses a Chrome for Testing already on the port instead of starting a second one, only when no --profile is given or the listener runs that profile; an explicit --profile on a port owned by another profile exits 5 without reusing it.",
             "stop signals only the Chrome for Testing listening on the port (and on --profile when given), exits 5 without signalling anything else, waits for the port to close and exits 7 if it stays open.",
+        ],
+    },
+    "bin/test-browser-tabs.py": {
+        "mission": "Simon sees only the test-browser windows the current step needs, each titled with its task and persona, so he never acts in the wrong window.",
+        "purpose": "Prints the label-keeper script for test-browser tabs, and lists or sweeps the test browser's pages by owner liveness.",
+        "criteria": [
+            "label prints one idempotent script that holds the title at '▶ task · PERSONA tail · page title · @owner' through the page rewriting, replacing or clearing its <title> and through reloads, and relabels in place when re-run.",
+            "sweep closes blank tabs, unlabelled tabs, tabs whose owner has no live session or no heartbeat for IDLE_MIN (30) minutes, and own tabs of another --task; it keeps own, live and unknown (session probe failed) tabs, and list never closes anything.",
+            "Refuses with exit 5 a port whose listener is not Chrome for Testing, before listing or closing; exits 3 when no browser answers.",
+            "bin/test-browser-tabs.test.py pins the label in real Chromium and every class against a fake DevTools endpoint.",
         ],
     },
     "bin/kill-orphan-workers.sh": {
