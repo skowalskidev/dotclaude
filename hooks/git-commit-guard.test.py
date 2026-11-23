@@ -78,6 +78,29 @@ MUST_FIRE = [
      "hides the merge"),
     ("a heredoc piped to a shell after a continuation is code", "feature",
      "cat <<'EOF' |\\\nbash\ngh pr merge 12\nEOF", "hides the merge"),
+    ("a merge in a sh -c string is judged", "feature", 'sh -c "gh pr merge 1"', "gh pr merge"),
+    # A heredoc an interpreter reads is its program, and a written file a later command can reach is code.
+    ("a quoted heredoc python3 - runs is code", "feature",
+     "python3 - <<'EOF'\nimport subprocess; subprocess.run(['gh', 'pr', 'merge', '1'])\nEOF", "hides the merge"),
+    ("a quoted heredoc node runs is code", "feature",
+     "node <<'EOF'\nrequire('child_process').execSync('gh pr merge 1')\nEOF", "hides the merge"),
+    ("a document a later command runs by name is code", "feature",
+     "cat > x.md <<'EOF'\ngh pr merge 1\nEOF\nchmod +x x.md && ./x.md", "hides the merge"),
+    ("a script file written beside another tool is code", "feature",
+     "cat > x.sh <<'EOF'\ngh pr merge 1\nEOF\n./tool.sh", "hides the merge"),
+    ("a document beside a runner is code", "feature", "cat > x.md <<'EOF'\ngh pr merge 1\nEOF\nmake",
+     "hides the merge"),
+    ("a document beside a built command word is code", "feature", "cat > x.md <<'EOF'\ngh pr merge 1\nEOF\n$T",
+     "hides the merge"),
+    ("a document beside a pattern that may name it is code", "feature",
+     "cat > a.md <<'EOF'\ngh pr merge 1\nEOF\n./tool.sh run *.md", "hides the merge"),
+    ("a document another heredoc's program opens is code", "feature",
+     "cat > n.md <<'EOF'\ngh pr merge 1\nEOF\n./tool.sh && python3 - <<'PY'\nimport os; os.system(open('n.md').read())"
+     "\nPY", "hides the merge"),
+    ("a quoted heredoc piped to another tool is code", "feature", "cat <<'EOF' | ./tool.sh\ngh pr merge 1\nEOF",
+     "hides the merge"),
+    ("an unquoted heredoc beside another tool is code", "feature",
+     "cat >> plan.md <<EOF\ngh pr merge 1\nEOF\n./tool.sh", "hides the merge"),
     ("a coprocess merge is judged", "feature", "coproc gh pr merge 42", "gh pr merge"),
     ("a pathname pattern as the gh command word counts", "feature", "/opt/homebrew/bin/g[h] pr merge 12 --squash",
      "hides the merge"),
@@ -345,6 +368,24 @@ MUST_NOT_FIRE = [
      "gh pr comment 5 --body-file - <<'EOF'\nIt's ready to merge\nEOF"),
     ("a comment with an apostrophe before a heredoc is data", "feature",
      "# don't run it\ncat <<EOF\ngh pr merge 1\nEOF"),
+    # A quoted heredoc cat or tee writes only to a document stays data beside any literal non-runner tool
+    # (the fix for two plan-note appends denied as hidden merges beside a ledger tool).
+    ("plan notes on a landing guard beside a ledger tool are data", "feature",
+     "cat >> .context/x-plan.md <<'EOF' && ~/.claude/hooks/intent-ledger.sh note reconcile /tmp/f\n"
+     "- landing guard denies gh pr merge without an ask\nEOF"),
+    ("plan notes listing git subcommands beside a tool are data", "feature",
+     "cat >> .context/x-plan.md <<'EOF' && ./tool.sh note x\n"
+     "- git subcommands: merge, merge-tree, rebase; gh pr merge 12 is gated\nEOF"),
+    ("a double-quoted heredoc to a document beside a tool is data", "feature",
+     "cat >> plan.md <<\"EOF\"\ngh pr merge 1 listed\nEOF\n./tool.sh note x"),
+    ("a tab-stripped quoted heredoc to a document beside a tool is data", "feature",
+     "cat >> plan.md <<-'EOF'\n\tgh pr merge 1 listed\n\tEOF\n./tool.sh note x"),
+    ("a tee to a document beside a tool is data", "feature",
+     "tee -a plan.md >/dev/null <<'EOF'\ngh pr merge 1\nEOF\n./tool.sh"),
+    ("a single-quoted printf to a document beside a tool is data", "feature",
+     "printf '%s\\n' '- landing guard: gh pr merge needs an ask' >> plan.md && ./tool.sh note x"),
+    ("two plan-note heredocs beside a tool are data", "feature",
+     "cat >> a.md <<'EOF' && ./tool.sh note x\ngh pr merge 1 is gated\nEOF\ncat >> b.md <<'EOF'\ngh pr merge 2 too\nEOF"),
     ("git log mentioning push and main", "feature", "git log --grep push main"),
     ("push to the feature branch", "feature", f"{PUSH} -u origin feature"),
     ("bash -c push to the feature branch", "feature", 'bash -c "git push -u origin feature"'),
@@ -1816,6 +1857,19 @@ def main() -> int:
             passes += 1
         else:
             failures.append(f"MONITORING: a git alias that merges must count, got {got_alias}")
+        # git runs its own commands before an alias of the same name, so a builtin outside the common list
+        # (merge-tree, a dry-run merge; merge-file) needs no alias lookup even where the directory is unknown,
+        # in a heredoc of plan text too. A deprecated command an alias still overrides keeps the lookup.
+        own = [guard.git_alias_merge(c, str(plain_dir)) for c in (
+            "cd $D && git merge-tree --write-tree origin/main HEAD", f"cd {plain_dir}; git merge-file -p a b c",
+            f"cd {plain_dir} && sed -n 1p x\ncat >> plan.md <<'E'\n- converge (git merge-tree dry run) first\nE",
+            "cd $D && git whatchanged", "cd $D && git frobnicate")]
+        subprocess.run(["git", "config", "alias.whatchanged", "!gh pr merge 12"], cwd=ga, check=True)
+        own.append(guard.git_alias_merge("git whatchanged", str(ga)))
+        if own == [False, False, False, True, True, True]:
+            passes += 1
+        else:
+            failures.append(f"a git builtin must need no alias lookup; an overridable one must, got {own}")
         # A message too long to clean in time is a halt, read in no time at all.
         fences = "".join("`" * (3 + i) + "\n" for i in range(400)) + "merge #12"
         t1 = _t2.monotonic() if "_t2" in dir() else 0

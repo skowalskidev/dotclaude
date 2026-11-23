@@ -2167,6 +2167,10 @@ SHELL_READER_RE = re.compile(r"(?:^|[\s;&|({\"'/])(?:bash|sh|zsh|dash|ksh|eval|s
 # program, which the guard cannot read anyway). Any other command word in the command keeps every body.
 HEREDOC_DATA_COMMANDS = {"cat", "tee", "gh", "git", "cd", "mkdir", "python", "python3", "node", "deno",
                          "echo", "printf", "grep", "wc", "jq", "head", "tail", "sort", "ls", "true", ":"}
+# Interpreters that run the heredoc they read as their program (`python3 - <<'EOF'`): that body is code.
+HEREDOC_PROGRAM_COMMANDS = {"python", "python3", "node", "deno"}
+# A file no command runs unless something names it: a document, or /dev/null.
+DOC_FILE_RE = re.compile(r"[^\s$`*?\[\]{}]*\.(?:md|markdown|txt|log|rst)|/dev/null", re.I)
 
 
 def _shell_lexer(command: str) -> list:
@@ -2179,45 +2183,109 @@ def _shell_lexer(command: str) -> list:
     return list(lexer)
 
 
-def _command_heads(text: str):
-    """The command word of every simple command in text, after prefixes, assignments, redirections
-    and wrappers; None when text cannot be tokenized."""
+def _simple_commands(text: str):
+    """The raw tokens of every simple command in text (split at `;&|()` and newlines); None when text
+    cannot be tokenized."""
     try:
         tokens = _shell_lexer(text)
     except ValueError:
         return None
-    heads, segment = [], []
+    out, segment = [], []
     for tok in tokens + [";"]:
         if tok and set(tok) <= set(";&|()\n"):
-            words, segment = _drop_redirections(segment), []
-            while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0]) or words[0] in ("{", "}")):
-                words = words[1:]
-            while words and os.path.basename(words[0]) in WRAPPERS:
-                words = _unwrap_options(words)
-                while words and ASSIGN_RE.match(words[0]):
-                    words = words[1:]
-            if words:
-                heads.append(os.path.basename(words[0]))
+            out.append(segment)
+            segment = []
+        else:
+            segment.append(tok)
+    return out
+
+
+def _head_words(segment: list) -> list:
+    """A simple command's words from its command word on: redirections, prefixes, assignments and
+    wrappers dropped."""
+    words = _drop_redirections(segment)
+    while words and (words[0] in PREFIX_WORDS or ASSIGN_RE.match(words[0]) or words[0] in ("{", "}")):
+        words = words[1:]
+    while words and os.path.basename(words[0]) in WRAPPERS:
+        words = _unwrap_options(words)
+        while words and ASSIGN_RE.match(words[0]):
+            words = words[1:]
+    return words
+
+
+def _doc_writes(segment: list):
+    """The files a `cat` or `tee` simple command writes when its standard output and every file it writes
+    is a literal document or /dev/null (DOC_FILE_RE), so its heredoc reaches no pipe and no program;
+    None for any other command, output, input or redirection."""
+    words = _head_words(segment)
+    if not words or words[0] not in ("cat", "tee"):
+        return None
+    files, stdout, i = [w for w in words[1:] if not w.startswith("-")] if words[0] == "tee" else [], False, 0
+    while i < len(segment):
+        tok = segment[i]
+        if tok and set(tok) <= set("<>&|") and set(tok) & set("<>"):
+            fd = segment[i - 1] if i and segment[i - 1].isdigit() else ""
+            if tok != "<<":
+                if tok not in (">", ">>", ">|", "&>", "&>>") or fd not in ("", "1", "2") or i + 1 >= len(segment):
+                    return None
+                files.append(segment[i + 1])
+                stdout = stdout or fd != "2"
+            i += 2
             continue
-        segment.append(tok)
-    return heads
+        i += 1
+    return files if stdout and all(DOC_FILE_RE.fullmatch(f) for f in files) else None
+
+
+def _data_heredocs(command: str, marks: list) -> set:
+    """Ordinals (in marks, as shell_text_once lists them) of the heredocs whose body is data, never run:
+      - every one, when every command word reads its heredoc as data (HEREDOC_DATA_COMMANDS), except one
+        an interpreter runs as its program (HEREDOC_PROGRAM_COMMANDS: `python3 - <<'EOF'`);
+      - otherwise, a quoted one that `cat`/`tee` writes only to documents (`_doc_writes`: `cat >>
+        plan.md <<'EOF'`), when every other command word outside HEREDOC_DATA_COMMANDS is literal and no
+        runner (`_is_runner`) and nothing else in the command, kept heredoc bodies included, names a file
+        it wrote or holds a pattern or substitution that could: no command left can run that file.
+        (the fix for plan notes naming `gh pr merge` in a `cat >> plan.md <<'EOF'` beside a ledger tool,
+        denied as a hidden merge)
+    Every other body stays code, and a command the parse cannot place keeps them all."""
+    segments = _simple_commands(shell_text_once(command, keep_delims=False))
+    if segments is None:
+        return set()
+    owners = [k for k, seg in enumerate(segments) for tok in seg if tok == "<<"]
+    if len(owners) != len(marks):
+        return set()
+    heads = [os.path.basename(w[0]) for w in map(_head_words, segments) if w]
+    owner_head = lambda k: (_head_words(segments[k]) or [""])[0]
+    if all(h in HEREDOC_DATA_COMMANDS for h in heads):
+        return {i for i, k in enumerate(owners) if os.path.basename(owner_head(k)) not in HEREDOC_PROGRAM_COMMANDS}
+    if any(re.search(r"[$`*?\[\]{}]", h) or _is_runner(h) for h in heads if h not in HEREDOC_DATA_COMMANDS):
+        return set()
+    writes = {k: _doc_writes(segments[k]) for k in set(owners)}
+    data = {i for i, k in enumerate(owners) if marks[i] and writes[k] is not None}
+    names = [os.path.basename(f) for k in {owners[i] for i in data} for f in writes[k] if f != "/dev/null"]
+    rest = shell_text_once(command, keep_bodies=True, keep_delims=False, drop=data)
+    if re.search(r"[*?\[`]|\$\(|\{[^{}\s]*(?:,|\.\.)[^{}\s]*\}", rest):
+        return set()  # a pattern or a substitution may name a written file at run time
+    return data if all(rest.count(b) == names.count(b) for b in names) else set()
 
 
 def shell_text(command: str) -> str:
-    """shell_text_once, keeping every heredoc body unless the command's every command word reads its
-    heredoc as data (HEREDOC_DATA_COMMANDS) and no shell reads one (SHELL_READER_RE)."""
-    text = shell_text_once(command)
-    heads = _command_heads(shell_text_once(command, keep_delims=False))
-    if SHELL_READER_RE.search(text) or heads is None or any(h not in HEREDOC_DATA_COMMANDS for h in heads):
+    """shell_text_once with every data heredoc body dropped (`_data_heredocs`) and every other kept, or
+    every body kept when a shell may read one (SHELL_READER_RE)."""
+    marks = []
+    if SHELL_READER_RE.search(shell_text_once(command, marks=marks)):
         return shell_text_once(command, keep_bodies=True)
-    return text
+    return shell_text_once(command, keep_bodies=True, drop=_data_heredocs(command, marks))
 
 
-def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool = True) -> str:
+def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool = True, drop=(),
+                    marks: list = None) -> str:
     """The command as bash reads it before splitting words: a backslash-newline outside single quotes
     joined away (`me\\<newline>rge` is `merge`), and the body of every heredoc whose marker sits outside
-    quotes dropped (data, never run). The closing delimiter line is kept, so mask() still finds it."""
+    quotes dropped (data, never run). The closing delimiter line is kept, so mask() still finds it.
+    keep_bodies keeps every body but those whose ordinal is in drop; marks collects, per heredoc in
+    order, whether its delimiter is quoted."""
     out, i, n, quote, pending, arith, esc_end = [], 0, len(command), None, [], [], -1
+    marks = [] if marks is None else marks
     while i < n:
         ch = command[i]
         if arith and not quote:  # inside $(( )), (( )) or $[ ]: `<<` is a shift, never a heredoc
@@ -2272,7 +2340,8 @@ def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool =
                 word = m.group(2)
                 delim, quoted = re.sub(r"[\\'\"]", "", word), bool(re.search(r"[\\'\"]", word))
                 # A body a shell reads is code (`bash <<EOF`, `cat <<EOF | sh`): it stays, so its merges count.
-                pending.append((delim, m.group(1) == "-", keep_bodies, quoted))
+                pending.append((delim, m.group(1) == "-", keep_bodies and len(marks) not in drop, quoted))
+                marks.append(quoted)
                 out.append(m.group(0))
                 i += m.end()
                 continue
@@ -2532,7 +2601,26 @@ cherry-pick clean clone commit commit-tree config describe diff diff-tree fetch 
 hash-object help init lfs log ls-files ls-remote ls-tree maintenance merge merge-base mv name-rev notes pull push
 range-diff read-tree rebase reflog remote reset restore rev-list rev-parse revert rm shortlog show show-ref
 sparse-checkout stash status submodule switch symbolic-ref tag update-index update-ref var verify-commit version
-worktree write-tree whatchanged filter-repo""".split())
+worktree write-tree filter-repo""".split())
+# Deprecated commands an alias of the same name still overrides (git-config(1) alias.*, checked on git 2.54).
+GIT_ALIAS_OVERRIDABLE = {"whatchanged", "pack-redundant"}
+_GIT_OWN = None
+
+
+def is_git_command(name: str) -> bool:
+    """git runs its own commands before any alias of the same name, so none needs an alias lookup: the
+    common list above plus every builtin and exec-path command `git --list-cmds` names (merge-tree, a
+    dry-run merge, was looked up as an alias and denied whenever the directory was unknown)."""
+    global _GIT_OWN
+    if _GIT_OWN is None:
+        try:
+            p = _run(["git", "--list-cmds=builtins,main"], capture_output=True, text=True, timeout=bounded(3))
+            _GIT_OWN = set(p.stdout.split()) if p.returncode == 0 else set()
+        except OutOfTime:
+            raise
+        except Exception:
+            _GIT_OWN = set()
+    return name not in GIT_ALIAS_OVERRIDABLE and (name in GIT_COMMANDS or name in _GIT_OWN)
 
 
 def git_alias_merge(command: str, cwd) -> bool:
@@ -2578,7 +2666,7 @@ def git_alias_merge(command: str, cwd) -> bool:
                                      if where and not re.search(r"[$`*?\[{]", value) else None)
                         elif opt in ("--git-dir", "--work-tree", "-c"):
                             where = where if opt == "-c" and not value.lower().startswith("include") else None
-                if rest and rest[0] not in GIT_COMMANDS:
+                if rest and not is_git_command(rest[0]):
                     uses.append((rest[0], where))
             continue
         segment.append(tok)
@@ -2604,7 +2692,7 @@ def git_alias_merge(command: str, cwd) -> bool:
                           or re.search(r"\bgh\b|\bcurl\b", value)):
                 return True
             first = value.split()[0] if value and not value.startswith("!") else ""
-            name = first if first and first not in GIT_COMMANDS else ""
+            name = first if first and not is_git_command(first) else ""
     return False
 
 
