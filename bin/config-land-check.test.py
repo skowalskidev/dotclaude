@@ -212,9 +212,36 @@ def test_main_change_to_the_reviewed_lines_needs_a_new_review():
         check(repo.origin_main() == before, "overlap: a conflicting head was pushed")
 
 
+def test_main_change_elsewhere_in_a_touched_file_keeps_the_review():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        seed = repo.worktree("eta", "shared.txt")
+        (seed / "shared.txt").write_text("".join(f"line {i}\n" for i in range(40)))
+        git(seed, "commit", "-q", "-am", "fix(eta): seed shared lines")
+        check(repo.run(seed, "--reviewed", repo.digest(seed)).returncode == 0, "elsewhere: seed landing failed")
+        mine, theirs = repo.worktree("theta", "t.txt"), repo.worktree("iota", "i.txt")
+        for wt, index, text in ((mine, 2, "mine"), (theirs, 35, "theirs")):
+            lines = (wt / "shared.txt").read_text().splitlines(keepends=True)
+            lines[index] = f"{text}\n"
+            (wt / "shared.txt").write_text("".join(lines))
+            git(wt, "commit", "-q", "-am", f"fix({text}): edit one shared line")
+        digest = repo.digest(mine)
+        check(repo.run(theirs, "--reviewed", repo.digest(theirs)).returncode == 0, "elsewhere: setup landing failed")
+        result = repo.run(mine, "--reviewed", digest)
+        check(result.returncode == 0, f"elsewhere: a main edit far from the reviewed lines forced a new review: "
+                                      f"{result.stderr!r}")
+        check(repo.origin_main() == git(mine, "rev-parse", "HEAD"), "elsewhere: the merged head did not land")
+        (mine / "shared.txt").write_text((mine / "shared.txt").read_text().replace("line 5\n", "edited\n"))
+        git(mine, "commit", "-q", "-am", "fix(theta): edit after review")
+        late = repo.run(mine, "--reviewed", digest)
+        check(late.returncode == 1 and "does not match" in late.stderr,
+              f"elsewhere: an edit after the review kept the old hash: {late.stderr!r}")
+
+
 def main():
     tests = [test_two_landers_serialize_and_both_land, test_timeout_ends_non_zero_and_names_holder,
-             test_killed_holder_releases_the_lock, test_main_change_to_the_reviewed_lines_needs_a_new_review]
+             test_killed_holder_releases_the_lock, test_main_change_to_the_reviewed_lines_needs_a_new_review,
+             test_main_change_elsewhere_in_a_touched_file_keeps_the_review]
     for test in tests:
         try:
             test()

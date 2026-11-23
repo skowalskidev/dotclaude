@@ -69,7 +69,7 @@ with no question to Simon and no `CLAUDE_ALLOW_MAIN_COMMIT` prefix:
    the contract suite and the range secret scan on that exact head, records it and pushes it to main.
    A second lander queues on the lock instead of racing: while it waits it prints the holder and since
    when, and after 30 min (`--lock-wait SECONDS`) it exits 75 naming the holder; rerun step 2 then.
-   Exit 1 on a merge conflict or a hash mismatch (main changed the reviewed files): resolve the
+   Exit 1 on a merge conflict or a hash mismatch (main changed the reviewed lines): resolve the
    conflict within the owned change, then steps 1-2 again. A new commit needs steps 1-2 again.
 A rejected push means something landed outside the lock: run steps 1-2 again; never force-push. Ask
 Simon only for an excluded decision under `rules/self-healing-config.md`. Verify

@@ -22,7 +22,8 @@ Checks, all on the exact HEAD that will be pushed:
   - no tracked change is uncommitted, so the suite runs against HEAD itself;
   - HEAD fast-forwards the freshly fetched remote main (merged inside the lock; a conflict stops);
   - the reviewed hash matches the diff after that merge, so a later edit, or a main change that
-    touches the reviewed lines, invalidates the review;
+    touches the reviewed lines, invalidates the review (the hash covers file headers and +/- lines,
+    not context, blob ids or hunk positions, so main work elsewhere in a touched file keeps it);
   - the contract suite passes: /usr/bin/python3 hooks/config-contract.test.py;
   - dotfiles/secret-scan.sh --range passes (gitleaks + the identity guard) on the landing commits.
 
@@ -79,11 +80,19 @@ def common_dir(root):
     return os.path.realpath(git(root, "rev-parse", "--path-format=absolute", "--git-common-dir"))
 
 
-def diff_text(root, base):
-    # Three-dot: the change HEAD adds since it left base. It equals the two-dot diff once base is
-    # merged, unless main touched the same files, so a clean merge of unrelated work keeps the review.
-    return subprocess.run(["git", "-C", root, "diff", f"{base}...HEAD"], capture_output=True,
+def diff_text(root, base, *extra):
+    # Three-dot: the change HEAD adds since it left base. It equals the two-dot diff once base is merged.
+    return subprocess.run(["git", "-C", root, "diff", *extra, f"{base}...HEAD"], capture_output=True,
                           check=True).stdout
+
+
+def review_digest(root, base):
+    """sha256 of the reviewed change itself: its file headers and +/- lines, with no context lines,
+    blob ids or hunk positions. A clean merge of main work elsewhere in a touched file keeps the
+    review; any change to an added or removed line, or a new file, needs a new one."""
+    raw = diff_text(root, base, "--unified=0")
+    kept = [ln for ln in raw.splitlines(keepends=True) if not ln.startswith((b"index ", b"@@"))]
+    return hashlib.sha256(b"".join(kept)).hexdigest()
 
 
 def describe_holder(path):
@@ -148,13 +157,12 @@ def merge_base_in(root, remote, base):
 
 def land(root, remote, reviewed, base):
     head = merge_base_in(root, remote, base)
-    raw = diff_text(root, base)
-    digest = hashlib.sha256(raw).hexdigest()
-    if not raw:
+    if not diff_text(root, base):
         fail(f"HEAD adds nothing to {remote}/main")
+    digest = review_digest(root, base)
     if reviewed != digest:
         fail("the reviewed hash does not match the current diff (an edit, or a merged main change to the "
-             "same files, changed it); run --diff and read it again")
+             "same lines, changed it); run --diff and read it again")
 
     suite = subprocess.run(["/usr/bin/python3", os.path.join(root, "hooks", "config-contract.test.py")],
                            cwd=root, capture_output=True, text=True)
@@ -215,9 +223,8 @@ def main():
     if args.diff:
         git(root, "fetch", "--quiet", args.remote, "main")
         git(root, "rev-parse", "--verify", base)
-        raw = diff_text(root, base)
-        sys.stdout.buffer.write(raw)
-        print(f"\ndiff-sha256: {hashlib.sha256(raw).hexdigest()}")
+        sys.stdout.buffer.write(diff_text(root, base))
+        print(f"\ndiff-sha256: {review_digest(root, base)}")
         return 0
 
     if git(root, "status", "--porcelain", "--untracked-files=no"):
