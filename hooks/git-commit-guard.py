@@ -1534,7 +1534,7 @@ def _names(ask: str, number: str) -> bool:
     return any(int(n) == int(number) for n in re.findall(r"(?<![\d.])\d+(?!\d|\.\d)", ask) if len(n) < 12)
 
 
-DASHES = str.maketrans({c: "-" for c in "‐‑‒–—―−﹣－"})
+DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe63\uff0d"})
 
 
 def _normalize(text: str) -> str:
@@ -1543,7 +1543,7 @@ def _normalize(text: str) -> str:
     symbols as spaces (`_` is a word character and would hide a hold word from every \\b), and any
     whitespace run as one space."""
     text = unicodedata.normalize("NFKC", text)
-    # Invisible format characters (soft hyphen, zero-width joiners) vanish, so "Do­n't" reads "Don't".
+    # Invisible format characters (soft hyphen, zero-width joiners) vanish, so "Do\u00adn't" reads "Don't".
     text = "".join(c for c in text if unicodedata.category(c) != "Cf").translate(DASHES).translate(APOSTROPHES)
     text = " ".join(text.split())  # whitespace runs first, so "P.  R." reads as "P. R."
     text = re.sub(r"\bp\s*\.\s*r\s*\.?(?=\W|$|s\b)", "PR", text, flags=re.I)
