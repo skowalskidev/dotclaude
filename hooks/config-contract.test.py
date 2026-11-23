@@ -1562,6 +1562,8 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               and "deep: Not run:" in reason and "sk:ship-verify-with-prod-data" in reason
               and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason,
               "The block did not list each tier's missing stage receipts for the head: " + reason[:600])
+        check("intent-ledger.sh receipt <stage> <checkout dir>" in reason,
+              "The block did not name the receipt fallback for a checkout outside the session cwd: " + reason[:300])
         check(stop() == "", "The gate block repeated for an unchanged push set.")
         check(stop(active=True) == "", "The gate block fired twice for one snapshot on a continuation.")
 

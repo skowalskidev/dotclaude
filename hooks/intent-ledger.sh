@@ -45,10 +45,12 @@
 #         skill                   PostToolUse (Skill) — record a stage receipt for the HEAD of the checkout
 #                                 the work runs in: a subagent's (agent_id) last explicit Bash checkout,
 #                                 else the payload cwd
-#         receipt <stage> [dir]   called by a delegated worker from its OWN checkout — record a stage
+#         receipt <stage> [dir]   called by a delegated worker from its OWN checkout, or by the main session
+#                                 for a branch whose checkout is not its cwd — record a stage
 #                                 receipt for the HEAD of <dir> (default: the shell's cwd), in the
 #                                 session's ledger. The fallback when a Skill receipt missed its checkout
-#                                 (a subagent that never ran a Bash `cd`/`git -C` into it).
+#                                 (a subagent that never ran a Bash `cd`/`git -C` into it, or a sibling
+#                                 worktree the session's Bash cwd cannot stay in). It still records <dir>'s HEAD.
 #         stages <tier> [sha|HEAD] [branch]
 #                                 read-only — print the tier's required stage skills; with a sha,
 #                                 print "All stages ran" (exit 0; "(carried from <sha>...)" when a
@@ -1253,7 +1255,9 @@ $list
 Before finishing, run /sk:ship-full-detailed-workflow on each at its tier (references/testing-strategy.md, \
 Size the checks to the change; rules/process.md, Prove every point of the ask was built): invoke each \
 stage listed under that tier above with the Skill tool, from the checkout at that head (each run records \
-its receipt; a receipt on an older head does not count), then record it:
+its receipt; a receipt on an older head does not count). When that branch's checkout is not this \
+session's cwd, record each stage you ran for it with \
+\`~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>\` (it records that dir's HEAD). Then record the gate:
   ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
 BLOCKED, N/A and a light or standard PASS need a reason: the exact blocker, why the harness does not \
 apply to this push, or the tier's trigger and skipped stages. A standard or deep BLOCKED \
