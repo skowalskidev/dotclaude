@@ -20,9 +20,9 @@ per step is the ceiling.
 - a progress count in the header ("Step 4 of 12", "Part 2 of 3") so they never wonder how much is left;
 - under ~40 words — more means the step is too big;
 - what you are watching or waiting for, so they know your side is covered.
-- the surface they act in, named by what they can see: a browser tab by title and host, a window by
-  its app name, a terminal by its directory. A browser walk follows `browser-debugging.md` § The test
-  browser (one walk tab, closed when done).
+- the surface they act in, named by what they can see: a browser tab by its `▶` label and host, a
+  window by its app name, a terminal by its directory. A browser walk follows `browser-debugging.md`
+  § The test browser (one walk tab, closed when done; stale tabs swept before every step).
 
 Never re-print an earlier or later step.
 
@@ -52,6 +52,11 @@ surface; zero step messages contain "what you see", "describe" or an unnamed scr
 **DO wait for "done" before the next step, and DON'T advance past a failed one.** Collecting N
 failures with one root cause means the later steps were never really tested.
 
+**DO send steps, setup steps included, in the plan file's order, and name any skip or reorder in that
+step's message with its reason** ("Skipping step 5: the seed already signed you in").
+TEST: the sent step numbers rise by 1 each time, or the message names the gap (the fix for setup
+steps sent out of order and steps skipped silently).
+
 **DO keep every edit out of the tree the human's dev server serves while they walk.** Build a fix in a
 separate worktree or hold it, and apply it only at a step boundary, after telling them the tab will
 reload and which step to redo. DON'T let a delegated worker commit into the served worktree: the dev
@@ -66,6 +71,9 @@ network, logs). Announce any action you take there as its own numbered step firs
 reply as release, and DON'T drive it while their step is open: two drivers in one live tab replay
 each other's actions. (the fix for a walk where "look let me pass" was read as quitting: Claude
 stopped the recording, swapped the preview commit and reloaded the tab mid-step)
+**DO drive only the step they name when they hand one back** ("do that for me", "you do it"): announce
+it, run that one step, then hand the surface back with the next step. DON'T read it as a release of
+the rest of the walk. TEST: each Claude action on their surface traces to a step they named.
 
 **DO queue every code refresh until the walk ends or the human releases it.** The served tree includes
 the preview's checked-out commit and its server process, for the whole walk.
