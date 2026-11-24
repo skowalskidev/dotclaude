@@ -323,6 +323,10 @@ open pushes, naming each tier's missing stages; a newer head re-opens it. A ligh
 receipt carries to a later head across a Light-sized delta of the PR's own commits, and an N/A
 quoting Simon's recorded waiver covers the branch's later non-Deep-path heads
 (`references/testing-strategy.md` § Follow-up pushes and waivers).
+This is what backs `rules/process.md` § Prove every point: Stop blocks once per pushed non-default
+branch head until `hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [tier] [reason]`
+records the result (the fix for two PRs handed back unreviewed; the harness then found a dropped
+consent event and a no-op column revoke).
 
 **Two shortfalls, two different homes.** A raw-ask clause, or a ratified criterion, that was not
 built is a Not-met criterion and is closed the way any gap is, by
@@ -343,6 +347,7 @@ adds a leak path and no information.
 **DO, before the first push of a build, adopt or rebuild (a push to an adopted PR's existing branch
 included), list every acceptance criterion of every ticket in `sources` (fetched whole, comments
 included, plus the stated scope of the PR being adopted or rebuilt) and every clause of every raw ask,
+one row per target the clause names (§ Every named part on every named target),
 and mark each MET or GAP against `git diff <base>...HEAD`.** Build each in-scope GAP before that push;
 route only another owner's item through `/sk:ship-check-merge-readiness`'s cross-owner discipline.
 Repeat the sweep for an ask that lands after the first push, before the next one.
@@ -351,6 +356,25 @@ pass proves the criteria with tests; this one keeps a gap from reaching the PR.
 NUMBER: one verdict per criterion and per clause; zero GAP rows unbuilt or unrouted at the push.
 TEST: the plan holds the sweep's verdicts, timestamped before the first push record (the fix for ticket
 criteria a rebuilt PR left out, found only by the late ship report and then asked for by Simon).
+
+## Every named part on every named target
+
+**DO grid the ask before building: each part it names against each target it names (surface,
+platform, audience), one cell per pair, in the plan.** Every cell holds the part the ask named.
+A recommended default fills only a choice the ask leaves open; a named part is never one.
+**DON'T keep a target's existing piece as a "same baseline" or "parity later" default when the ask
+names the new one,** however close the old piece looks or however much it saves.
+**DO carry a part that cannot move as-is by keeping it and changing only the piece that cannot** (a
+platform API, a payment rail, a screen size), and name that piece in its cell and in the hand-off.
+NUMBER: zero cells holding a substitute, an omission or an unnamed change.
+
+**DO walk the whole deliverable end to end on every target to its last stage yourself before handing
+Simon any step, link or "ready", and tick each cell from what you saw on screen there.** A walk that
+stops short of the last stage, covers one target, or reads the code is not the check. Each step of
+the walk follows `references/testing-strategy.md` § Human-driven sessions.
+TEST: at every hand-off each cell names the part the ask named and carries a seen-on-screen tick from
+a walk on the current build that reached that target's last stage (the fix for an ask naming a new flow on two platforms, where the
+second kept its old final screens as a default and three hand-offs each failed at a later stage).
 
 ## Verify foundation pillars before building
 - Identify the foundational assumptions the plan rests on (especially third-party platform capabilities) and do detailed research on each before building anything — building around a false assumption is the worst failure mode.
@@ -386,6 +410,11 @@ forked skill (`context: fork`) edits outside the session's checkpoints, and noth
 checkpointed. For those, commit the good state or branch before starting.
 
 ## Fix the class of failure (moved from `rules/process.md`)
+
+When Simon reports wrong output (a bad render, a wrong answer, a broken page), his example is evidence
+of a general failure mode, not the scope of the fix. **Don't patch the instance.** Name the rule that
+was violated, check whether it is a known class, and write the fix generically so it catches variants
+he hasn't hit.
 
 - **Write the rule, not the example.** "The brand mark landed on the building instead of the crew's
   vests" becomes "a stated placement is authoritative and overrides any default placement", never "put
