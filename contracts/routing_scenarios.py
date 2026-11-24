@@ -452,8 +452,9 @@ HOOK_ROUTING: list[dict] = [
           ({"pageId": 1, "viewport": "844x390x3,mobile,touch,landscape"}, "deny"),
           ({"pageId": 1, "viewport": "750x402x3,mobile,touch,landscape"}, "allow"),
       )),
-    # The outbound-message guard: a Slack or Gmail send/draft over the 5-line TLDR cap for a message
-    # to someone else is denied (references/tldr-report-formats.md § Message for someone else).
+    # The outbound-message guard: a Slack or Gmail send/draft over the 5-line TLDR cap, with a line
+    # over 25 words or 3+ unbulleted lines, for a message to someone else is denied
+    # (references/tldr-report-formats.md § Message for someone else).
     *({"event": "PreToolUse", "tool": tool,
        "expect": ["work-resource-guard.sh", "outbound-message-guard.py"],
        "tool_input": tool_input, "decides": {"outbound-message-guard.py": decision}}
@@ -464,6 +465,12 @@ HOOK_ROUTING: list[dict] = [
            {"channel_id": "C1", "message": "PR #812 is ready for your review.\nNeeds a yes by Monday."}, "allow"),
           ("mcp__slack__slack_reply_to_thread", {"text": "\n".join(f"line {i}" for i in range(7))}, "deny"),
           ("mcp__claude_ai_Gmail__create_draft", {"body": "\n".join(f"line {i}" for i in range(7))}, "deny"),
+          ("mcp__claude_ai_Slack__slack_send_message",
+           {"channel_id": "C1", "message": " ".join(["word"] * 30)}, "deny"),
+          ("mcp__claude_ai_Slack__slack_send_message",
+           {"channel_id": "C1", "message": "PR #812 is ready.\nIt adds one column.\nNeeds a yes by Monday."}, "deny"),
+          ("mcp__claude_ai_Slack__slack_send_message",
+           {"channel_id": "C1", "message": "PR #812 is ready.\n- Adds one column\n- Needs a yes by Monday"}, "allow"),
           ("mcp__claude_ai_Slack__slack_read_thread", {"channel_id": "C1"}, "allow"),
       )),
     {"event": "PreToolUse", "tool": "Agent", "expect": []},

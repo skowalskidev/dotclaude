@@ -827,7 +827,7 @@ CONTRACTS: dict[str, dict] = {
             "Diagnose exact-action capability through host catalog and native status, bounded authorized checks, tool schemas and CLI version support; distinguish authentication, unavailable tools, unreachable services, missing features and policy denials.",
             "Schema and route order here match what bin/connector_registry.py actually reads and returns, with primary sources for the layout.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
-            "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules; the codex-app send recipe runs the hooks/outbound-message-guard.py --check pre-send step on the draft before sending.",
+            "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules; the codex-app send recipe runs the bin/outbound_message.py check pre-send step on the draft before sending.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal route and its home in the work registry root, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
@@ -1192,7 +1192,7 @@ CONTRACTS: dict[str, dict] = {
             "check; rules/communication.md keeps where questions go and the human-facing message "
             "rule, with its example and WHYs held here.",
             "§ Automated message holds the example shape for a bot, alert or scheduled-job message; its rule and TEST stay in rules/copy-quality.md.",
-            "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the --check pre-send step for routes the hook cannot see and the one-shot length override.",
+            "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, one fact per bullet, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the bin/outbound_message.py check pre-send step for routes the hook cannot see and the one-shot length override.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
             "it does. A silent stop is invisible in the user journey and is the defect this catches.",
             "The two journeys are cross-checked and every mismatch is stated. Printing both and "
@@ -2449,14 +2449,24 @@ CONTRACTS: dict[str, dict] = {
     },
     "hooks/outbound-message-guard.py": {
         "mission": "A teammate or other reader gets a message Simon sends, or Claude sends for him, that they can act on from its first lines, without Simon asking for TLDR again.",
-        "purpose": "PreToolUse: denies a Slack or Gmail send, reply, forward or draft over the TLDR cap for a message to someone else; --check measures a draft for routes the hook cannot see.",
+        "purpose": "PreToolUse: denies a Slack or Gmail send, reply, forward or draft that fails bin/outbound_message.py, the TLDR shape for a message to someone else.",
         "criteria": [
-            "MAX_LINES (5, matching rules/communication.md § Answer first) and MAX_WORDS (100) are the one source of the cap; a leading greeting, a trailing sign-off (a thanks line alone or followed by a name line) and quoted reply lines are not counted.",
+            "Imports its measure from bin/outbound_message.py and holds no cap or line rule of its own; a failed import fails open.",
             "Fires only on a send-shaped Slack or Gmail action (send, reply, post, schedule, forward, draft); reads, searches, canvases, labels, deletes and a draft-id-only send pass. Plain text, forwardText and htmlBody are measured.",
-            "The deny reason names the fix (ask on line 1, at most 5 lines, cut rather than split), the one-shot override and references/tldr-report-formats.md § Message for someone else.",
+            "The deny reason names each problem, the bullet-shape Fix with an example, the one-shot override and references/tldr-report-formats.md § Message for someone else.",
             "A non-empty .context/long-message-ok under the call's cwd, holding Simon's own words asking for length, allows exactly one over-cap send and is deleted; an empty file allows nothing.",
-            "--check <file|-> prints ok and exits 0 within the cap, and prints the counts and exits 1 over it. Fails open on a malformed payload.",
+            "Called with arguments, it exits 2 naming bin/outbound_message.py check. Fails open on a malformed payload.",
             "hooks/outbound-message-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
+    "bin/outbound_message.py": {
+        "mission": "A teammate reads a message from Simon, or sent for him, as an ask on line 1 and one short fact per bullet, on every send route.",
+        "purpose": "The one measure of a message to someone else, imported by hooks/outbound-message-guard.py and run as `check <file|->` on routes the hook cannot see (codex-app, gh comments).",
+        "criteria": [
+            "MAX_LINES (5, matching rules/communication.md § Answer first), MAX_WORDS (100), MAX_LINE_WORDS (25, the rule's 20 plus slack) and BULLETS_FROM_LINES (3) are the one source of the shape; a leading greeting, a trailing sign-off and quoted reply lines are not counted.",
+            "A line's bullet marker is not a word and a URL-only line is exempt from the per-line cap; a message of 3+ counted lines with no bullet or numbered step after line 1 fails.",
+            "check prints ok and exits 0 when the draft fits; otherwise prints each problem plus the Fix shape and exits 1; a bad call exits 2.",
+            "hooks/outbound-message-guard.test.py pins it: the 24 Nov dense 3-line DM (generalized) fails, its bulleted version and a one-line verdict pass.",
         ],
     },
     "hooks/secret-echo-guard.py": {

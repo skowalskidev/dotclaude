@@ -110,7 +110,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("process-kill-guard-denies-pattern-kills-both-ways",
      "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
     ("outbound-message-guard-caps-messages-to-others",
-     "A Slack or Gmail send or draft over the 5-line TLDR cap is denied, while a short message, a read, a canvas, the one-shot override and the --check CLI behave as documented."),
+     "A Slack or Gmail send or draft over the 5-line TLDR cap, with a line over 25 words or with 3+ unbulleted lines is denied, while a short or bulleted message, a read, a canvas, the one-shot override and the bin/outbound_message.py check CLI behave as documented."),
     ("test-browser-tabs-stay-labelled-and-swept",
      "Every test-browser tab keeps its task, persona and owner label through the page's own title changes and reloads, an unlabelled navigate_page is denied, and sweep closes only blank, unlabelled, ended, idle or own earlier-task tabs while live walks' tabs stay open."),
     ("agent-setups-preserve-provider-choice",
