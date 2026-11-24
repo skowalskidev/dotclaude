@@ -347,6 +347,7 @@ CONTRACTS: dict[str, dict] = {
             "Before composing, fail a blank input in any colour (ink share below visual-check.py's 0.05%, pixels more than 8 off the most common colour): a blank screenshot, a clip's blank stretch of 0.5 s or more, or a blank last frame, naming each stretch and the external-page fix; a shorter transition passes.",
             "Exit non-zero with an install hint when Pillow or ffmpeg is missing or an input is absent; bin/pr-evidence.test.py passes in the contract suite.",
             "Refuse a shots or video pair whose before or after caption is blank, or whose two captions are identical, naming tldr-report-formats.md § Before/after unit.",
+            "size-images rewrites each uploaded Markdown image with alt text in a PR body to <img src width alt> with the URL and alt HTML-escaped (800 when the alt names Desktop, else --width), escapes a raw quote in an alt it already wrote, and leaves code, the empty-alt video form and local paths alone; it reads the posted-image rule from bin/pr-landing-gate.py.",
         ],
     },
     "bin/design-board.py": {
@@ -478,6 +479,7 @@ CONTRACTS: dict[str, dict] = {
             "On a deep-tier PR whose changed files (tests, docs and CI excluded) touch ios/ or android/ code or a PAYMENT_PATH file, fail a Real-environment walk that names no simulator or device walk (native) or no simulator, device, browser or local-stack walk (payment) with PASS, that rests on unit tests, or whose does-not-apply does not say why no user journey changed; a 'cannot run locally' N/A fails.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-visible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
+            "Fail when body_html renders fewer <img> than the body posts (Markdown images with alt text plus <img> tags, outside code and comments), naming the tags shown as text and the size-images fix; MD_IMAGE and prose_mask are the one home of what counts as a posted image.",
             "Fail a Screenshots or Verification runs no-surface or doesn't-apply line lacking a 'Checked outputs:' clause of 3+ words, so a bare 'No eligible frontend surface' never passes.",
             "Fail a Screenshots or Verification runs no-surface reason (the text before 'Checked outputs:') naming 'no new screen', 'no new copy', 'existing screen', 'existing step' or 'same screen', case-insensitive, pointing at screenshot-review.md § Visible surfaces.",
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",

@@ -9,6 +9,7 @@
                        [--layout auto|side|stack] [--fps 30] --out OUT.mp4
   pr-evidence.py run --clip RUN.webm --title SCENARIO --caption TEXT [--still 2] [--fps 30]
                        --out OUT.mp4
+  pr-evidence.py size-images BODY.md [--width 300|600|800] [--desktop-width 800]
 
 Every caption sits in a coloured band STACKED ABOVE its frame (never overlaid on the UI): red
 BEFORE band titled with the base, green AFTER band titled with the PR number. Portrait (phone)
@@ -30,11 +31,23 @@ blank screen passed it (the fix for an AFTER clip that ended on 5.5 s of light g
 left for a hosted checkout the recorder could not capture). `video --before-blank REASON` is the one
 exception: when the change under review removes a blank screen, the BEFORE clip may show it; the gate
 still reports each stretch and prints the reason, and the AFTER clip stays fully gated.
+
+`size-images` rewrites a saved PR body in place after upload: every uploaded Markdown image with alt text
+becomes `<img src="URL" width="N" alt="ALT">`, N being --desktop-width when the alt names Desktop and
+--width otherwise, with the URL and alt HTML-escaped. A raw double quote in an alt ("Add your cards")
+ends the attribute and GitHub shows the whole tag as text (the fix for 2 of 17 PR images that never
+rendered). It also escapes the alt of an `<img>` this conversion already wrote with a raw quote. Code,
+an empty-alt `![](url)` (the video form) and a local path awaiting upload are left as they are. Which
+text counts as a posted image is bin/pr-landing-gate.py's MD_IMAGE and prose_mask, the one home both
+read; that gate fails a body whose body_html renders fewer <img> than it posts.
 """
 from __future__ import annotations
 
 import argparse
+import html
+import importlib.util
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -387,6 +400,52 @@ def cmd_run(args) -> int:
     return 0
 
 
+# An <img> tag the size-images conversion writes, with everything to the line's last `">` as its alt, so
+# a raw quote inside the alt is found and escaped.
+WRITTEN_IMG = re.compile(r'<img src="([^"\s]+)" width="(\d+)" alt="([^\n]*)">')
+
+
+def landing_gate():
+    spec = importlib.util.spec_from_file_location("pr_landing_gate", Path(__file__).resolve().parent / "pr-landing-gate.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def cmd_size_images(args) -> int:
+    path = Path(args.body)
+    if not path.is_file():
+        die(f"size-images: no body file at {path}")
+    gate = landing_gate()
+    text = path.read_text()
+    mask = gate.prose_mask(text)
+    edits, sized, desktop, local, repaired = [], 0, 0, 0, 0
+    for m in gate.MD_IMAGE.finditer(mask):
+        alt = re.sub(r"\\(.)", r"\1", text[m.start(1):m.end(1)])
+        url = text[m.start(2):m.end(2)]
+        if not alt.strip():
+            continue  # `![](url)` is the video form
+        if not re.match(r"https?://", url):
+            local += 1  # a local path still awaiting upload; --attach rewrites only the Markdown form
+            continue
+        wide = bool(re.search(r"\bdesktop\b", alt, re.I))
+        desktop += wide
+        sized += 1
+        edits.append((m.start(), m.end(), f'<img src="{html.escape(url, quote=True)}" '
+                      f'width="{args.desktop_width if wide else args.width}" alt="{html.escape(alt, quote=True)}">'))
+    for m in WRITTEN_IMG.finditer(mask):
+        alt = text[m.start(3):m.end(3)]
+        if '"' in alt and "<img" not in alt:  # one tag on its line; two would read as one alt
+            repaired += 1
+            edits.append((m.start(3), m.end(3), html.escape(html.unescape(alt), quote=True)))
+    for a, b, new in sorted(edits, reverse=True):
+        text = text[:a] + new + text[b:]
+    path.write_text(text)
+    print(f"size-images: {sized} sized ({desktop} desktop at {args.desktop_width}, the rest at {args.width}), "
+          f"{repaired} alt repaired, {local} local left for upload: {path}")
+    return 0
+
+
 def common(p) -> None:
     p.add_argument("--before", required=True)
     p.add_argument("--after", required=True)
@@ -423,7 +482,15 @@ def main(argv=None) -> int:
     w.add_argument("--fps", type=int, default=30)
     w.add_argument("--preset", default="medium", help="libx264 preset")
     w.add_argument("--out", required=True)
+    z = sub.add_parser("size-images", help="uploaded Markdown images in a PR body -> sized <img> with escaped alt")
+    z.add_argument("body", help="the saved PR body markdown, rewritten in place")
+    z.add_argument("--width", type=int, choices=(300, 600, 800), default=600,
+                   help="300 a single phone frame, 600 a phone pair (default), 800 desktop")
+    z.add_argument("--desktop-width", type=int, choices=(300, 600, 800), default=800,
+                   help="width for an image whose alt names Desktop")
     args = ap.parse_args(argv)
+    if args.cmd == "size-images":
+        return cmd_size_images(args)
     if args.cmd == "video" and not (10 <= args.target <= 15 and 4 <= args.hold <= 5):
         die("--target must be 10-15 s and --hold 4-5 s")
     if args.cmd in ("shots", "video"):

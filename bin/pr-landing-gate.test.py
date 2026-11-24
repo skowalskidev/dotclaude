@@ -125,7 +125,8 @@ Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and requ
 ### Settings
 <img src="https://github.com/user-attachments/assets/00000000-0000-0000-0000-000000000000" width="800" alt="Settings">
 """
-HTML = '<h2>TLDR</h2><details open=""><summary>video</summary></details>'
+HTML = ('<h2>TLDR</h2><details open=""><summary>video</summary></details><a href="#"><img '
+        'src="https://private-user-images.githubusercontent.com/1/settings.png" width="800" alt="Settings"></a>')
 
 
 def section(body, heading, replacement):
@@ -237,6 +238,21 @@ check(any("NEEDS-DRIVING" in m for m in gate.check_body(bare, HTML, 0)),
 # A collapsed <details> fails; one carrying open passes.
 collapsed = gate.check_body(PASSING, "<details><summary>Screens</summary></details>" + HTML, 0)
 check(rows(collapsed) == {"Visible sections"}, f"A collapsed <details> did not fail alone: {collapsed}")
+
+# Every posted image renders: an alt holding a raw double quote ends the attribute and GitHub shows the
+# tag as text, so body_html renders fewer <img> than the body posts (2 of 17 images in one PR body).
+quoted = PASSING.replace('alt="Settings">', 'alt="Step "Add your cards" before and after">')
+as_text = HTML.split("<a ")[0] + "<p>&lt;img src=&quot;https://github.com/user-attachments/assets/0&quot;</p>"
+broken = gate.check_body(quoted, as_text, 0)
+check(rows(broken) == {"Images"} and "show as text" in broken[0] and "size-images" in broken[0],
+      f"An <img> GitHub showed as text did not fail alone, naming the fix: {broken}")
+escaped = PASSING.replace('alt="Settings">', 'alt="Step &quot;Add your cards&quot; before and after">')
+check(gate.check_body(escaped, HTML, 0) == [], "An escaped alt that rendered failed")
+md_shot = PASSING + "\n![Mobile before and after](https://github.com/user-attachments/assets/1)\n"
+check(rows(gate.check_body(md_shot, HTML, 0)) == {"Images"}, "A Markdown image missing from body_html passed")
+check(gate.check_body(md_shot, HTML + '<img src="x">', 0) == [], "A rendered Markdown image failed")
+coded = PASSING + "\n`![x](https://h/x)` and `<img>`\n```\n<img src=\"y\">\n```\n<!-- <img> -->\n![](https://h/video)\n"
+check(gate.check_body(coded, HTML, 0) == [], "Code, a comment or the empty-alt video form counted as a posted image")
 
 # A missing TLDR fails on the TLDR row; a TLDR with no Do line or no Before/After table fails too.
 no_tldr = PASSING[PASSING.index("## 🚀 Deploy TLDR"):]

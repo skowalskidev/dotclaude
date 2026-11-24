@@ -247,8 +247,9 @@ Apply `rules/connectors.md` before an auth question or an unsupported-capability
    raw HTML `<img src="/local/path.png">`; it can leave that broken and append a duplicate upload.
    After upload, fetch the saved body and map each returned native URL to its point/platform, then
    replace EVERY image's Markdown with `<img src="<returned-url>" width="<300|600|800>" alt="...">`
-   per `references/screenshot-review.md` § PR evidence template (300 for a mobile or iOS frame, 600
-   for a phone pair, 800 for desktop); this step is not optional, a bare Markdown phone image fills
+   by running `python3 ~/.claude/bin/pr-evidence.py size-images body.md --width <300|600>` (alts naming
+   Desktop get 800), per `references/screenshot-review.md` § PR evidence template; it HTML-escapes the
+   alt, never hand-write the tag. This step is not optional, a bare Markdown phone image fills
    the reviewer's screen. Remove only uploader-appended duplicates proven by the saved before/after bodies;
    preserve unrelated text and automation footers. Before completion verify zero local media refs,
    exactly the intended media counts and no duplicate appended media. A video reference within a sentence renders

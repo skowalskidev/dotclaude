@@ -211,6 +211,8 @@ verified the user + system journey, then handed back with it never posted to the
   one carries `open` (GitHub wraps every attached video in its own open `<details>`); every row
   above is a visible `##`/`###` heading (rule: `/sk:ship-pr` § The rest of the body). A collapsed
   section fails even when its content loads.
+- Images (every stage): the fetched `body_html` renders an `<img>` for every image the body posts
+  (`references/screenshot-review.md` § PR evidence template).
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
 empty or suspiciously short → STOP. When behaviour or base moved after the body was written, re-derive
 every section and capture under `/sk:ship-pr` § Rewrite the body when the PR changes, then rerun this gate.

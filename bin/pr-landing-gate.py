@@ -44,6 +44,10 @@ evidence and a judge column per provider, with a primary-source link in every ro
 written before it existed still passes; the work harness's TEST requires it on Standard and Deep build,
 adopt and rebuild PRs. A Light PR's Part verdicts section is never checked: its judges are not required
 (references/research.md § Independent judges).
+Every posted image renders: body_html holds at least one <img> per image the body references (a Markdown
+image with alt text, or an <img> tag, outside code). An <img> whose alt holds a raw double quote ends the
+attribute early, so GitHub shows the whole tag as text (references/screenshot-review.md § PR evidence
+template; `bin/pr-evidence.py size-images` writes the tags with the alt escaped).
 
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
@@ -164,6 +168,10 @@ HEAD_NAMED = re.compile(r"\bhead\W{0,3}([0-9a-f]{7,40})\b", re.I)
 REGRESSION_BAD = re.compile(r"\b(?:FAIL|REGRESSED)\b")
 PRE_EXISTING = ("modified", "renamed", "removed", "changed")
 COLLAPSED = re.compile(r"<details(?![^>]*\bopen\b)[^>]*>", re.I)
+# A posted image in the body markdown: a Markdown image (group 1 its alt, group 2 its URL) or an <img> tag.
+# An empty-alt `![](url)` is the attachment form of a video (references/screenshot-review.md), never counted.
+MD_IMAGE = re.compile(r"!\[((?:\\.|[^\]\\\n])*)\]\(\s*<?([^\s)>]+)>?(?:\s+\"[^\"\n]*\")?\s*\)")
+IMG_TAG = re.compile(r"<img\b", re.I)
 THREADS_QUERY = """query($owner:String!,$name:String!,$pr:Int!,$after:String){
   repository(owner:$owner,name:$name){pullRequest(number:$pr){
     reviewThreads(first:100,after:$after){nodes{isResolved} pageInfo{hasNextPage endCursor}}}}}"""
@@ -586,9 +594,48 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
     collapsed = len(COLLAPSED.findall(body_html or ""))
     if collapsed:
         missing.append(f"Visible sections: {collapsed} collapsed <details> in body_html (add open)")
+    missing += check_images(body, body_html)
     if unresolved:
         missing.append(f"Review threads: {unresolved} unresolved")
     return missing
+
+
+def prose_mask(body):
+    """body with every fenced code block, inline code span and HTML comment blanked to spaces, the same
+    length, so offsets of a match in it point into body."""
+    out, fence = [], None
+    for line in body.splitlines(keepends=True):
+        m = re.match(r"^\s{0,3}(`{3,}|~{3,})", line)
+        if m:
+            mark = m.group(1)
+            if fence is None:
+                fence = mark
+            elif mark[0] == fence[0] and len(mark) >= len(fence):
+                fence = None
+            out.append(re.sub(r"[^\n]", " ", line))
+            continue
+        out.append(re.sub(r"[^\n]", " ", line) if fence else line)
+    blank = lambda m: re.sub(r"[^\n]", " ", m.group(0))
+    text = re.sub(r"<!--.*?-->", blank, "".join(out), flags=re.S)
+    return re.sub(r"(`+)(?!`).+?(?<!`)\1(?!`)", blank, text)
+
+
+def posted_images(body):
+    """How many images the body posts: Markdown images with alt text plus <img> tags, outside code."""
+    mask = prose_mask(body)
+    return sum(1 for m in MD_IMAGE.finditer(mask) if m.group(1).strip()) + len(IMG_TAG.findall(mask))
+
+
+def check_images(body, body_html):
+    """A FAIL row when body_html renders fewer <img> than the body posts: one did not render."""
+    posted, rendered = posted_images(body), len(IMG_TAG.findall(body_html or ""))
+    if rendered >= posted:
+        return []
+    as_text = len(re.findall(r"&lt;img\b", body_html or "", re.I))
+    return [f"Images: the body posts {posted} images but body_html renders {rendered}"
+            + (f"; {as_text} <img> tags show as text" if as_text else "")
+            + ". A raw double quote in an alt ends the attribute: escape it (python3 ~/.claude/bin/pr-evidence.py "
+            "size-images BODY.md) and save the body again"]
 
 
 def gh_out(*args):
@@ -653,7 +700,7 @@ def main():
         print(f"pr-landing-gate: FAIL {args.repo}#{args.pr} {row}")
     if missing:
         return 1
-    print(f"pr-landing-gate: PASS {args.repo}#{args.pr}: all {len(SECTIONS) + 2} landing-gate rows present")
+    print(f"pr-landing-gate: PASS {args.repo}#{args.pr}: all {len(SECTIONS) + 3} landing-gate rows present")
     return 0
 
 
