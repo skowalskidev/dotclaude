@@ -3356,6 +3356,47 @@ def _without_git_merge_words(text: str, live: list) -> str:
     return out
 
 
+def _without_data_merge_words(text: str) -> str:
+    """text with the word `merge` blanked inside a command that only prints or stores it: echo, printf,
+    git, a gh read or edit (`gh pr edit --body "merge notes"`), or one of this config's own hook and bin
+    scripts, when the word is inside quotes. Such a command never runs its arguments, so a merge word there names no gh merge, and an
+    unrelated `$b` elsewhere in the input must not make it one (a loop's `echo "$b needs merge"` and a
+    ledger call quoting `ship-check-merge-readiness` were denied as hidden merges, 24 Nov 2026). Left as
+    is: a command with a substitution, a heredoc, a gh word in a non-gh command (`echo "gh pr merge 1" | sh`),
+    or a gh command that is `pr merge`, an api call, an alias or an extension."""
+    if "<<" in text:
+        return text
+    own = tuple(os.path.expanduser(f"~/.claude/{d}/") for d in ("hooks", "bin"))
+    built = r"[$`{}*?\[\]]"
+    out = text
+    for a, b in _command_spans(text):
+        span = text[a:b]
+        if not re.search(r"merge", span, re.I) or re.search(r"`|\$\(|[<>]\(|\$\{", span):
+            continue
+        words = _span_words(span)
+        if not words or re.search(built, words[0]):
+            continue
+        head = os.path.basename(words[0])
+        if head == "gh":
+            w = gh_pr_words(words)
+            if (len(w) < 3 or w[1] not in ("pr", "issue", "run", "workflow", "release", "repo", "label")
+                    or re.search(built, w[1] + w[2]) or w[2] == "merge"):
+                continue
+        elif head in ("echo", "printf", "git"):
+            if re.search(r"\bgh\b", span):
+                continue
+        elif os.path.abspath(os.path.expanduser(words[0])).startswith(own) and ".." not in words[0]:
+            if re.search(r"\bgh\b", span):
+                continue
+        else:
+            continue
+        # Only a quoted occurrence is data; a bare `echo merge` beside a built word stays suspect.
+        span = re.sub(r"(?i)merge", lambda m: m.group(0) if _unquoted_at(span, m.start())
+                      else "_" * len(m.group(0)), span)
+        out = out[:a] + span + out[b:]
+    return out
+
+
 def hidden_merge(command: str) -> bool:
     """A merge the shell would run but the masked parse cannot see: `'gh' pr merge`, `g\\h pr merge`,
     `gh pr me''rge`. The shell's own tokens decide, with no substring fast path."""
@@ -3369,7 +3410,8 @@ def hidden_merge(command: str) -> bool:
     if dynamic:
         benign = _read_argument_params(text) | _data_dynamics(text)
         live = [m.start() for m in DYNAMIC_RE.finditer(text) if m.start() not in benign]
-        dynamic = bool(live) and bool(re.search(r"\bmerge\b", _without_git_merge_words(text, live), re.I))
+        dynamic = bool(live) and bool(re.search(
+            r"\bmerge\b", _without_data_merge_words(_without_git_merge_words(text, live)), re.I))
     # A function or alias defined in the same input can turn any name, an inert one included, into a
     # runner of its arguments (`printf() { "$@"; }; printf gh pr merge 12`).
     defines = re.search(r"(?:^|[\s;&|(])(?:function\s+[\w.:-]+|[\w.:-]+\s*\(\s*\))|\balias\s+\S+=", text)

@@ -318,9 +318,28 @@ MUST_FIRE = [
      "git merge-base a b; x=\"a;git merge\"; gh pr $(echo $x | cut -c7-) 12", "hides the merge"),
     ("a variable merge beside git merge-base counts", "feature",
      "git merge-base a b; x=merge; gh pr $x 12", "hides the merge"),
+    # A merge word in a data-only command (echo, a gh edit, an own script) never excuses a built command
+    # word elsewhere in the input: these stay hidden merges.
+    ("a merge word in echo beside a built gh subcommand still counts", "feature",
+     "echo \"merge notes\"; gh pr $x 12", "hides the merge"),
+    ("a merge word in echo piped to a shell with a variable still counts", "feature",
+     "for b in a; do echo \"gh pr merge 12\" | sh; echo $b; done", "hides the merge"),
+    ("a merge word in a gh edit beside a built gh command word still counts", "feature",
+     "gh pr edit 5 --body \"merge notes\"; $G pr merge 13", "hides the merge"),
 ]
 
 MUST_NOT_FIRE = [
+    # A merge word that only a data-only command prints or stores (echo, a gh read or edit, an own hook
+    # script) is no merge, even beside a loop variable (the fix for two denies on 24 Nov 2026).
+    ("git merge-base then an echo with a merge word and a loop variable, then a gh read, is no merge", "feature",
+     "for b in a b; do git merge-base --is-ancestor origin/$b HEAD && echo \"$b ok\" || echo \"$b needs merge\"; "
+     "done; gh pr view 942 -R Owner/repo --json mergeable,mergeStateStatus,isDraft "
+     "--jq '\"\\(.mergeable) \\(.isDraft)\"'"),
+    ("a gh edit then an own ledger script quoting a merge-readiness name beside a variable is no merge", "feature",
+     "gh pr edit 942 -R Owner/repo --body-file /p/body.md >/dev/null && cd /d && x=$(date) && "
+     "~/.claude/hooks/intent-ledger.sh gate branch HEAD BLOCKED deep \"Not run: sk:ship-check-merge-readiness, y\""),
+    ("a gh edit body naming merge beside a command substitution is no merge", "feature",
+     "gh pr edit 942 --body \"see merge notes\" && echo $(date)"),
     # `merge` as a plain git subcommand or inside one (`git merge-base`) names no gh merge, so a `$(...)`, a
     # loop or a redirection beside a gh read never makes the read a hidden merge (the fix for two read-only
     # branch checks denied on 23 Nov 2026).
