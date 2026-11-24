@@ -2755,9 +2755,12 @@ def _shell_merge(command: str, depth: int = 0) -> int:
             built = lambda w: bool(re.search(r"[$`]|\{[^{}]*(?:,|\.\.)[^{}]*\}", w))
             # A pathname pattern as the command word (`/opt/homebrew/bin/g[h]`) is expanded by the shell.
             globbed_head = bool(re.search(r"[*?\[]", words[0])) and "merge" in words[1:]
+            # A literal `gh api` sends every later word to the API, never to `gh pr merge`: its built path
+            # (`gh api "repos/o/r/compare/a...$b"`) is api_merge_call's to judge, not a hidden CLI merge.
+            gh_api = head == "gh" and words[1:2] == ["api"]
             built_merge = names_merge and (built(words[0]) or (
                 head == "gh" and _gh_subcommand(words) != ("pr", "merge") and not _gh_literal_read(words)
-                and any(built(w) for w in words[1:4])))
+                and not gh_api and any(built(w) for w in words[1:4])))
             if globbed_head or built_merge:
                 count += 99
             # A pathname pattern in gh's command or subcommand place (`gh pr m*` beside a file named
@@ -2771,7 +2774,7 @@ def _shell_merge(command: str, depth: int = 0) -> int:
                 count += 99
             if head == "gh" and _gh_subcommand(words) == ("pr", "merge"):
                 count += 1
-            elif head == "gh" and fills and names_merge:
+            elif head == "gh" and fills and names_merge and not gh_api:
                 count += 99  # `echo merge 42 | xargs gh pr`, `xargs -I{} gh pr {} 42`: the subcommand comes later
             elif head not in INERT_COMMANDS and head != "gh" and not (
                     head == "git" and not any(w == "-c" or w.startswith(("-c", "--config", "--exec-path"))
@@ -3095,11 +3098,14 @@ def _span_words(span: str):
 
 def _read_argument_params(text: str) -> set:
     """Start offsets in text of each simple parameter (`$n`, `${n}`) that is an argument of a literal gh
-    read (`_gh_literal_read`), per `_command_spans` command."""
+    read (`_gh_literal_read`) or of a literal `gh api` call, per `_command_spans` command. Every argument of
+    `gh api` goes to the API, never to `gh pr merge`; an API merge it may build is api_merge_call's to judge."""
     benign = set()
     for a, b in _command_spans(text):
         words = _span_words(text[a:b])
-        if words and _gh_literal_read(words):
+        if words and (_gh_literal_read(words) or (
+                os.path.basename(words[0]) == "gh" and not re.search(r"[$`{*?\[]", words[0])
+                and words[1:2] == ["api"])):
             benign.update(a + m.start() for m in SIMPLE_PARAM_RE.finditer(text[a:b]))
     return benign
 
@@ -3559,6 +3565,256 @@ def _without_data_merge_words(text: str, sealed: bool = False, heredocs_inert: b
     return out
 
 
+# ---- API merges: each call judged on its own words ----
+# A word that names an HTTP client in a command's text, read with quotes and escapes removed.
+API_CLIENT_RE = re.compile(r"\bgh\b|\bcurl\b|\bwget\b|\bhttp\b|api\.github\.com")
+# Command words that send an API request themselves (`gh` only as `gh api`).
+API_CLIENT_HEADS = {"curl", "wget", "http", "https", "xh"}
+# Text that, once it leaves a data command (a pipe, a file, a variable, a stored setting), could become an API
+# call or its merge target: a client, the API host, GraphQL, or a merge endpoint or mutation itself.
+NAMES_API_RE = re.compile(r"\bgh\s*api\b|\bcurl\b|\bwget\b|api\.github\.com|graphql|(?:^|\s)(?:https?|xh)\s|"
+                          + API_MERGE_RE.pattern, re.I)
+# Words that only open or close shell syntax before a command word: `if`, `do`, `{`, `!`.
+SYNTAX_WORDS = (PREFIX_WORDS - WRAPPERS) | {"}", "fi", "done", "esac"}
+# A request whose body or options come from a file or stdin: the guard cannot read what it sends.
+API_FROM_FILE_RE = re.compile(r"=@|(?:^|\s)-[dF]\s*@|--data[\w-]*[\s=]+@|--json[\s=]+@|--input\b|--upload-file\b"
+                              r"|--post-file\b|--body-file\b|(?:^|\s)-T\s|--config\b")
+# A request that changes state (a write method, a field or a body), as the legacy check reads it.
+API_WRITE_RE = re.compile(r"-X\s*(?:PUT|POST|PATCH)|--request[\s=]*(?:PUT|POST|PATCH)|--method[\s=]*(?:PUT|POST|PATCH)"
+                          r"|(?:^|\s)-(?:d|F|f|T)\b|--data|--json|--input|--upload-file|\bwget\b.*--post", re.I)
+# A GraphQL body the hook cannot read: from a file, stdin or a JSON body.
+GRAPHQL_UNREAD_RE = re.compile(r"@|--input\b|--json\b|\s-d\s*-|--data[\w-]*[\s=]+-(?:\s|$)|<|\s-T\s|--upload-file")
+
+
+def _plain(text: str) -> str:
+    """text with quotes and backslashes removed: `'gh' api`, `me''rge` and `g\\h` read as the shell joins them."""
+    return re.sub(r"['\"\\]", "", text)
+
+
+def _resolved_api_path(tok: str) -> str:
+    """A URL or path as the client resolves it: %-escapes decoded and dot segments removed
+    (`pulls/12/x/../merge` is the merge endpoint)."""
+    import posixpath
+    t = unquote(unquote(tok))
+    head, sep, path = t.partition("://")
+    host, _, rest = path.partition("/") if sep else ("", "", t)
+    norm = posixpath.normpath("/" + rest.split("?", 1)[0].split("#", 1)[0])
+    return f"{head}{sep}{host}{norm}"
+
+
+def _names_merge_endpoint(plain: str) -> bool:
+    """plain (quotes removed) names a merge endpoint or mutation, a pulls path resolving to one included."""
+    return bool(API_MERGE_RE.search(plain)) or any(
+        API_MERGE_RE.search(_resolved_api_path(t)) for t in plain.split() if "pull" in t.lower() or "%" in t)
+
+
+def _xargs_unwrap(words: list) -> tuple:
+    """(placeholder or None, the command xargs runs) for `xargs -I{} cmd`, `xargs -J % cmd`, `xargs -i cmd`."""
+    rest, placeholder = list(words[1:]), None
+    while rest and rest[0].startswith("-") and rest[0] != "--":
+        w = rest.pop(0)
+        if w in ("-I", "-J") and rest:
+            placeholder = rest.pop(0)
+        elif w.startswith(("-I", "-J")):
+            placeholder = w[2:]
+        elif w in ("-i", "--replace"):
+            placeholder = "{}"
+        elif w.startswith("--replace="):
+            placeholder = w.partition("=")[2]
+        elif w.startswith("-i"):
+            placeholder = w[2:]
+        elif w in WRAPPER_OPTS_WITH_VALUE and rest:
+            rest.pop(0)
+    if rest and rest[0] == "--":
+        rest.pop(0)
+    return placeholder or None, rest
+
+
+def _shell_script(words: list):
+    """The script of `sh -c SCRIPT` (or `bash -lc SCRIPT`); None when the shell reads a file or stdin."""
+    for i, w in enumerate(words[1:], 1):
+        if SHELL_C_RE.match(w):
+            return words[i + 1] if i + 1 < len(words) else None
+        if not w.startswith("-"):
+            return None
+    return None
+
+
+def _api_calls(text: str, depth: int = 0):
+    """[(call text, client, built by xargs)] for every API client call in text, with `sh -c` scripts and
+    wrappers (xargs, timeout, env, sudo) unwrapped and a literal gh api read (`_gh_api_read`) left out; None
+    when the guard cannot tell what some command sends: a command word built at run time, a substitution
+    inside quotes, a span the lexer cannot read, or a data command that hands on text naming an API client
+    or a merge endpoint (NAMES_API_RE) through a pipe, a file, a variable or its own arguments. An inert
+    command (echo, printf) that only prints such text to the terminal hands nothing on."""
+    if depth > MAX_UNWRAP:
+        return None
+    text = _without_api_reads(text)
+    calls = []
+    for a, b in _command_spans(text):
+        span = text[a:b]
+        if not span.strip():
+            continue
+        if "`" in span or re.search(r"[$<>]\(", span):
+            return None
+        try:
+            words = _drop_redirections(_shell_lexer(span))
+        except ValueError:
+            return None
+        if any(w and set(w) <= set(";&|()\n") for w in words):
+            return None
+        call, via_xargs, placeholder, head = span, False, None, ""
+        for _ in range(MAX_UNWRAP + 1):
+            while words and (words[0] in SYNTAX_WORDS or ASSIGN_RE.match(words[0])):
+                words = words[1:]
+            if not words:
+                break
+            if re.search(r"[$`{}*?\[\]]", words[0]):
+                return None
+            head = os.path.basename(words[0])
+            if head == "xargs":
+                via_xargs = True
+                found, words = _xargs_unwrap(words)
+                placeholder = found or placeholder
+            elif head in WRAPPERS:
+                words = _unwrap_options(words)
+            else:
+                break
+        if placeholder:
+            call = call.replace(placeholder, "$XARGS")
+        if words and head == "gh" and words[1:2] == ["api"]:
+            calls.append((call, "gh", via_xargs))
+            continue
+        if words and head in API_CLIENT_HEADS:
+            calls.append((call, head, via_xargs))
+            continue
+        script = _shell_script(words) if words and head in SHELLS else None
+        if script is not None:
+            inner = _api_calls(script.replace(placeholder, "$XARGS") if placeholder else script, depth + 1)
+            if inner is None:
+                return None
+            calls += [(c, h, x or via_xargs) for c, h, x in inner]
+            continue
+        # A data command, or a runner whose own text names no API: judged by what it carries.
+        if NAMES_API_RE.search(_plain(span)) and not (
+                words and head in INERT_COMMANDS and not via_xargs and _sealed_output(text, a, b)):
+            return None
+    return calls
+
+
+def _api_call_merges(call: str, client: str) -> bool:
+    """One API call's own words name a merge, enqueue or auto-merge, or a request the hook cannot read:
+    a merge endpoint or mutation, a GraphQL body from a file or stdin (or none written out), a URL curl
+    globs itself (gh fills only {owner}, {repo} and {branch}), or curl options from a config file."""
+    plain = _plain(call)
+    if _names_merge_endpoint(call) or _names_merge_endpoint(plain):
+        return True
+    if re.search(r"graphql", plain, re.I) and (GRAPHQL_UNREAD_RE.search(plain) or not re.search(r"\bquery\b", plain)):
+        return True
+    toks = plain.split()
+    if client == "gh":
+        toks = [re.sub(r"\{(?:owner|repo|branch)\}", "", t) for t in toks]
+    if any(re.search(r"[{}\[\]]", t) for t in toks if re.search(r"pull|repos/|api\.github\.com|graphql", t, re.I)):
+        return True
+    return client == "curl" and bool(re.search(r"(?:^|\s)(?:-(?!-)[A-Za-z0-9#:]*K\S*|--config\b\S*)", plain))
+
+
+def _api_call_built(call: str, client: str) -> bool:
+    """The call's target, options or body come from outside its own words: an expansion, a substitution,
+    a glob, a file or stdin, or curl's config or upload options."""
+    unq = _unquoted(call)
+    plain = _plain(call)
+    return (unq is None or "<" in unq or bool(API_FROM_FILE_RE.search(plain))
+            or (client == "curl" and bool(re.search(r"(?:^|\s)-(?!-)[A-Za-z0-9#:]*[KT]", plain))))
+
+
+def _api_call_splits(call: str) -> bool:
+    """The call holds an expansion the shell may split into several words (`$n` outside double quotes) or one
+    that begins a word (`"$M"`): either can add an option such as `-XPUT` to the call."""
+    quote, word_start, i = None, True, 0
+    while i < len(call):
+        ch = call[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+            word_start = False
+        elif ch == "\\":
+            i += 1
+            word_start = False
+        elif ch in "$`":
+            if quote is None or word_start:
+                return True
+            word_start = False
+        elif quote == '"':
+            quote = None if ch == '"' else quote
+            word_start = False
+        elif ch in "'\"":
+            quote = ch
+        else:
+            word_start = ch in " \t"
+        i += 1
+    return False
+
+
+def _api_merge_legacy(command: str) -> bool:
+    """The whole-input API check, for an input whose calls `_api_calls` cannot separate: a merge endpoint,
+    an unread GraphQL body, a glob, a curl config, or a built write target beside a merge, pulls or GraphQL
+    word anywhere in the input."""
+    api_text = _without_api_reads(shell_text(command))
+    plain_api = _plain(api_text)
+    if not API_CLIENT_RE.search(plain_api):
+        return False
+    unread_graphql = re.search(r"graphql", plain_api, re.I) and (re.search(
+        r"@|--input\b|--json\b|\s-d\s*-|--data[\w-]*[\s=]+-(?:\s|$)|<|\s-T\s|--upload-file", plain_api)
+        or not re.search(r"\bquery\b", plain_api))
+    pulls_paths = [_resolved_api_path(t) for t in plain_api.split() if "pull" in t.lower() or "%" in t]
+    globbed = any(re.search(r"[{}\[\]]", t) for t in plain_api.split()
+                  if re.search(r"pull|repos/|api\.github\.com|graphql", t, re.I))
+    curl_config = any(re.search(r"(?:^|\s)(?:-(?!-)[A-Za-z0-9#:]*K\S*|--config\b\S*)", call)
+                      for call in re.findall(r"\bcurl\b([^;&|\n]*)", plain_api))
+    api_client = re.search(r"\bcurl\b|\bwget\b|\bhttp\b|\bgh\s+api\b", plain_api)
+    built_target = (api_client and API_WRITE_RE.search(plain_api) and re.search(r"[$`]", plain_api)
+                    and re.search(r"merge|pulls|graphql", plain_api, re.I))
+    raw_merge = any(os.path.basename(w[0]) == "gh" and w[1:2] == ["api"] for _, w, _ in expand_command(command)
+                    if w) and API_MERGE_RE.search(_without_api_reads(command))
+    return bool(API_MERGE_RE.search(api_text) or API_MERGE_RE.search(plain_api) or unread_graphql
+                or any(API_MERGE_RE.search(t) for t in pulls_paths) or globbed or curl_config or built_target
+                or raw_merge)
+
+
+def api_merge_call(command: str) -> bool:
+    """A merge, enqueue or auto-merge sent through the API (`gh api`, curl, wget, httpie), however gh is
+    spelled. Each call is judged on its OWN words (`_api_call_merges`): a merge word in a printf, a heredoc,
+    a quoted string or another command of the input never makes a read-only call (compare/, git/ref, a
+    pulls GET) a merge. Only a call whose target, options or body are built at run time (`_api_call_built`)
+    is judged against the whole input, since its value may come from there: a merge endpoint anywhere; for
+    a write, a merge, pulls or GraphQL word anywhere; for an expansion that may split into an option
+    (`_api_call_splits`), a merge or enqueue word anywhere. An input whose calls cannot be separated
+    (`_api_calls` is None) keeps the whole-input check (`_api_merge_legacy`).
+    The fix for `gh api .../git/ref/... | xargs -I{} sh -c 'gh api "repos/.../compare/a...{}"'` beside
+    `printf '... merge all four PRs ...' > f`, denied as an API merge (25 Nov 2026)."""
+    try:
+        text = _without_api_reads(shell_text(command))
+        if not API_CLIENT_RE.search(_plain(text)):
+            return False
+        calls = _api_calls(text)
+        if calls is None:
+            return _api_merge_legacy(command)
+        everything = _plain(text + "\n" + _without_api_reads(command))
+        for call, client, via_xargs in calls:
+            if _api_call_merges(call, client):
+                return True
+            if via_xargs or _api_call_built(call, client):
+                if _names_merge_endpoint(everything):
+                    return True
+                if API_WRITE_RE.search(_plain(call)) and re.search(r"merge|pulls|graphql", everything, re.I):
+                    return True
+                if _api_call_splits(call) and re.search(r"merge|enqueue", everything, re.I):
+                    return True
+        return False
+    except Exception:
+        return _api_merge_legacy(command)
+
+
 def hidden_merge(command: str) -> bool:
     """A merge the shell would run but the masked parse cannot see: `'gh' pr merge`, `g\\h pr merge`,
     `gh pr me''rge`. The shell's own tokens decide, with no substring fast path."""
@@ -3632,52 +3888,14 @@ def main() -> int:
                     "escapes, builds it at run time, runs it through a gh alias, another command or a shell's "
                     "input, or puts a redirection before it, which hides the merge from this guard. Rerun it "
                     "as a plain `gh pr merge <n>`.")
-    # A merge through the API, however gh is spelled ('gh', g\h) or whatever client sends it (curl), is
-    # read from the text as bash sees it, before any word parse can miss it. A literal gh api read (a
-    # GraphQL query, a REST GET) is blanked first: its braces and fields are no glob or write.
-    if isinstance(command, str):
-        api_text = _without_api_reads(shell_text(command))
-        plain_api = api_text.replace("'", "").replace('"', "").replace("\\", "")
-        client = re.search(r"\bgh\b|\bcurl\b|\bwget\b|\bhttp\b|api\.github\.com", plain_api)
-        # A GraphQL body read from a file or stdin is a request the hook cannot read: it may be a merge.
-        # Only a query written out in the command is read; any file, stdin or JSON body form is not.
-        unread_graphql = re.search(r"graphql", plain_api, re.I) and (re.search(
-            r"@|--input\b|--json\b|\s-d\s*-|--data[\w-]*[\s=]+-(?:\s|$)|<|\s-T\s|--upload-file", plain_api)
-            or not re.search(r"\bquery\b", plain_api))
-        # Each URL or path as the client resolves it: %-escapes decoded and dot segments removed
-        # (`pulls/12/x/../merge` is the merge endpoint); a pulls path the guard cannot normalize counts.
-        def resolved(tok):
-            import posixpath
-            from urllib.parse import unquote
-            t = unquote(unquote(tok))
-            head, sep, path = t.partition("://")
-            host, _, rest = path.partition("/") if sep else ("", "", t)
-            norm = posixpath.normpath("/" + rest.split("?", 1)[0].split("#", 1)[0])
-            return f"{head}{sep}{host}{norm}"
-        pulls_paths = [resolved(t) for t in plain_api.split() if "pull" in t.lower() or "%" in t]
-        # curl expands {a,b} and [1-3] in a URL itself, quoted or not: a pulls URL holding one is unread.
-        globbed = any(re.search(r"[{}\[\]]", t) for t in plain_api.split()
-                      if re.search(r"pull|repos/|api\.github\.com|graphql", t, re.I))
-        # curl reading its options from a config file or stdin (-K f, --config=f, -K-) sends a request the
-        # hook cannot read.
-        # Only curl's own arguments count: each curl call up to the next command separator, so another
-        # tool's --config in the same line (wrangler dev --config w.json && curl …) is no curl config.
-        curl_config = any(re.search(r"(?:^|\s)(?:-(?!-)[A-Za-z0-9#:]*K\S*|--config\b\S*)", call)
-                          for call in re.findall(r"\bcurl\b([^;&|\n]*)", plain_api))  # -K alone or in a cluster: -sK
-        # A state-changing request whose target the shell builds at run time ($U/merge, `cmd`) beside a
-        # merge, a pulls path or GraphQL named anywhere is unread too.
-        writes = re.search(r"-X\s*(?:PUT|POST|PATCH)|--request[\s=]*(?:PUT|POST|PATCH)|--method[\s=]*(?:PUT|POST|PATCH)"
-                           r"|(?:^|\s)-(?:d|F|f|T)\b|--data|--json|--input|--upload-file|\bwget\b.*--post", plain_api, re.I)
-        api_client = re.search(r"\bcurl\b|\bwget\b|\bhttp\b|\bgh\s+api\b", plain_api)
-        built_target = (api_client and writes and re.search(r"[$`]", plain_api)
-                        and re.search(r"merge|pulls|graphql", plain_api, re.I))
-        if client and (API_MERGE_RE.search(api_text) or API_MERGE_RE.search(plain_api) or unread_graphql
-                       or any(API_MERGE_RE.search(t) for t in pulls_paths) or globbed or curl_config or built_target):
-            return deny(
-                "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
-                "Use `gh pr merge <n>` with the bare PR number, one command per PR, which runs only "
-                "when the user's own words this turn say \"merge\" and cover the PR."
-            )
+    # A merge through the API, however gh is spelled ('gh', g\h) or whatever client sends it (curl): each
+    # call is judged on its own words (api_merge_call).
+    if isinstance(command, str) and api_merge_call(command):
+        return deny(
+            "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
+            "Use `gh pr merge <n>` with the bare PR number, one command per PR, which runs only "
+            "when the user's own words this turn say \"merge\" and cover the PR."
+        )
     if not isinstance(command, str) or ("git" not in command and not re.search(r"\bgh\b", command)):
         return 0
     cwd = payload.get("cwd") or os.getcwd()
@@ -3727,13 +3945,6 @@ def main() -> int:
             return deny("Blocked `gh pr merge`. Cause: the command sets GH_REPO, GH_HOST or an enterprise "
                         "token, which can point the merge at another repository than the one checked. Name the "
                         "repository with -R instead and rerun.")
-        is_gh_api = bool(words) and os.path.basename(words[0]) == "gh" and words[1:2] == ["api"]
-        if is_gh_api and API_MERGE_RE.search(_without_api_reads(command)):
-            return deny(
-                "Blocked: a merge, enqueue or auto-merge through `gh api` bypasses the merge check. "
-                "Use `gh pr merge <n>` with the bare PR number, one command per PR, which runs only "
-                "when the user's own words this turn say \"merge\" and cover the PR."
-            )
         if not (is_commit or is_push or is_gh_merge):
             continue
 

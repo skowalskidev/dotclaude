@@ -119,6 +119,27 @@ MUST_FIRE = [
     ("an API merge with a variable PR number is still an API merge", "feature",
      'curl -X PUT "https://api.github.com/repos/o/r/pulls/$N/merge"', "through `gh api`"),
     ("a GraphQL body from a file may be a merge", "feature", "gh api graphql --input /tmp/q.json", "through `gh api`"),
+    # Each API call is judged on its own words, and a call whose target is built at run time against the
+    # whole input: these stay API merges after the per-call fix (25 Nov 2026).
+    ("a REST PUT on a pulls merge path is an API merge", "feature", "gh api -X PUT repos/o/r/pulls/1/merge",
+     "through `gh api`"),
+    ("a GraphQL mergePullRequest mutation is an API merge", "feature",
+     "gh api graphql -f query='mutation{mergePullRequest(input:{pullRequestId:\"x\"}){clientMutationId}}'",
+     "through `gh api`"),
+    ("an API merge beside a read and a printf is still an API merge", "feature",
+     "gh api repos/o/r/compare/a...b --jq .ahead_by; printf 'note\\n' > n.md; "
+     "gh api -X PUT repos/o/r/pulls/7/merge -f merge_method=squash", "through `gh api`"),
+    ("an API merge inside sh -c behind xargs is still an API merge", "feature",
+     "echo 12 | xargs -I{} sh -c 'gh api -X PUT \"repos/o/r/pulls/{}/merge\"'", "through `gh api`"),
+    ("an xargs-built PUT target beside a pulls path is an API merge", "feature",
+     "echo 12/merge | xargs -I{} gh api -X PUT repos/o/r/pulls/{}", "through `gh api`"),
+    ("a printf-written merge path fed to a built PUT is an API merge", "feature",
+     "printf 'repos/o/r/pulls/1/merge' > p; gh api -X PUT \"$(cat p)\"", "through `gh api`"),
+    ("a merge path held in a variable for a built PUT is an API merge", "feature",
+     "P=repos/o/r/pulls/1/merge; gh api -X PUT \"$P\"", "through `gh api`"),
+    ("an auto-merge mutation inside bash -c is an API merge", "feature",
+     "bash -c \"gh api graphql -f query='mutation{enablePullRequestAutoMerge(input:{pullRequestId:\\\"x\\\"})"
+     "{clientMutationId}}'\"", "through `gh api`"),
     ("a quote-split REST merge endpoint is still an API merge", "feature",
      "gh api -X PUT repos/o/r/pulls/12/'mer'ge", "through `gh api`"),
     ("curl reading a config file is an unread API call", "feature", "curl -K /tmp/req.cfg", "through `gh api`"),
@@ -175,7 +196,8 @@ MUST_FIRE = [
     ("a merge run as rg's preprocessor counts", "feature", "rg --pre 'gh pr merge 42' x .", "hides the merge"),
     ("an empty parameter between pr and merge counts", "feature", "gh pr $X merge 42 --squash", "hides the merge"),
     # The read exemption covers a variable ARGUMENT only: a variable command word, command or subcommand,
-    # a substitution, or a gh api path stays a possible merge beside a merge word.
+    # or a substitution stays a possible merge beside a merge word. A gh api argument never builds a `gh pr
+    # merge`; an unquoted one may split into an API write option, so the API check denies it instead.
     ("a variable subcommand beside a merge word counts", "feature", "gh pr $verb $n; echo merge", "hides the merge"),
     ("a variable command word beside a gh read and a merge word counts", "feature",
      "gh pr view 5; $GH pr view $n; echo merge", "hides the merge"),
@@ -185,7 +207,11 @@ MUST_FIRE = [
     ("a substitution in a read's arguments beside a merge word counts", "feature",
      "gh pr view $(echo 5); echo merge", "hides the merge"),
     ("a variable gh api path beside a merge word counts", "feature", "gh api repos/o/r/pulls/$n; echo merge",
-     "hides the merge"),
+     "through `gh api`"),
+    ("an unquoted variable splitting into a write option on a merge path counts", "feature",
+     "n='1/merge -XPUT'; gh api repos/o/r/pulls/$n", "through `gh api`"),
+    ("a quoted variable that may begin an option word beside a merge word counts", "feature",
+     "M=-XPUT; gh api \"$M\" repos/o/r/pulls/1/merg\"e\"", "through `gh api`"),
     # The data exemption covers a variable that only reaches a non-runner as data: one that names, or may
     # hold, gh or merge, reaches a runner, or builds a command word stays a possible merge.
     ("a variable gh argument to an unknown command beside a merge counts", "feature", "G=gh; ./run.sh $G pr merge 1",
@@ -458,6 +484,22 @@ MUST_NOT_FIRE = [
     ("a git log searching for a merge command is no merge", "feature", 'git log --grep "gh pr merge"'),
     ("a literal GraphQL read is no merge", "feature", "gh api graphql -f query='{ viewer { login } }'"),
     ("a read of a variable-built pulls URL is no merge", "feature", "gh api repos/o/r/pulls/$N/files"),
+    # A merge word in a printf, an echo or another command never makes a read-only gh api call a merge:
+    # each call is judged on its own words (the fix for a compare/ and git/ref read denied as an API merge
+    # beside a printf note saying "merge", 25 Nov 2026).
+    ("a tag read piped through xargs into a compare read beside a printf merge note is no merge", "feature",
+     "gh api repos/Acme-Org/backend/git/ref/tags/v1.43.0 --jq .object.sha | head -1 | xargs -I{} sh -c "
+     "'gh api \"repos/Acme-Org/backend/compare/production...{}\" --jq \".ahead_by, .behind_by\"'; "
+     "gh run view 123456789 --json status,conclusion; printf 'Ask 148: verdict so he can merge all four PRs "
+     "himself\\n' > scratch.md && ~/.claude/hooks/intent-ledger.sh note reconcile scratch.md"),
+    ("a printf merge note beside a gh api GET is no merge", "feature",
+     "gh api repos/o/r/compare/main...feature --jq .ahead_by; printf 'ready to merge\\n' > notes.md"),
+    ("a heredoc merge note beside a gh api GET is no merge", "feature",
+     "cat > notes.md <<'EOF'\nmerge all four PRs after review\nEOF\ngh api repos/o/r/pulls/12 --jq .mergeable"),
+    ("an echo merge word in a loop beside gh api GETs is no merge", "feature",
+     "for b in a b; do gh api \"repos/o/r/compare/main...$b\" --jq .behind_by || echo \"$b needs merge\"; done"),
+    ("a variable-built gh api GET beside a printf merge note is no merge", "feature",
+     "gh api \"repos/o/r/pulls/$n\" --jq .state; printf 'merge after CI\\n' >> notes.md"),
     # A literal gh api read on a PR is no merge, whatever braces or fields it carries (the fix for the merge
     # queue watch and review-thread reads denied as merges after 7e746b5/6795713).
     ("a GraphQL merge-queue query on a PR is no merge", "feature",
