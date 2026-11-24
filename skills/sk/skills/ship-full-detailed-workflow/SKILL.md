@@ -133,7 +133,7 @@ word and the whole queue is built.
    `cd <worktree path> && ...` in its Bash call before each stage, so the receipt follows that
    checkout; a stage `stages <tier> <sha>` still lists after its Skill call gets
    `~/.claude/hooks/intent-ledger.sh receipt <stage skill> <worktree path>` (stage as
-   `sk:ship-review`)**, which records the receipt on that checkout's HEAD; the gate then matches it to the PR head. **DO record a receipt only right
+   `sk:ship-review`)**, which records the receipt on that checkout's HEAD; the gate then matches it to the PR head. **When the session's own working directory is not the PR's checkout, a Skill-tool run records its receipt against the session cwd's HEAD and the gate reports every stage `Not run`: DO run `~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>` right after each such stage.** **DO record a receipt only right
    after invoking that stage with the Skill tool on that head; DO list a stage done by hand as `Not run:
    <stage>`, never receipted.** TEST: each receipt follows its own Skill call. Every PASS names its tier, and the gate refuses it with
    `Not run: <stage>, ...` until each stage that tier requires has a receipt on the recorded sha;

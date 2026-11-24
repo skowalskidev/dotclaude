@@ -413,19 +413,15 @@ HOOK_ROUTING: list[dict] = [
             "run_in_background": True, "timeout": 4020000}, "allow"),
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test"}, "allow"),
       )),
-    # The background-process guard: the auto-resume installer loads a LaunchAgent itself, so an
+    # The background-process guard: a service loader writes a LaunchAgent, so an
     # agent's call is denied, the inline override included (only the session's starting environment
-    # passes); status and uninstall pass (references/session-auto-resume.md § Install).
+    # passes).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
                   "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
        "tool_input": {"command": command}, "decides": {"background-process-guard.py": decision}}
       for command, decision in (
-          ("/usr/bin/python3 ~/.claude/bin/session-auto-resume.py install", "deny"),
-          ("CLAUDE_ALLOW_DAEMON=1 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py install", "deny"),
           ("env CLAUDE_ALLOW_DAEMON=1 launchctl bootstrap gui/501 x.plist", "deny"),
-          ("/usr/bin/python3 ~/.claude/bin/session-auto-resume.py status", "allow"),
-          ("/usr/bin/python3 ~/.claude/bin/session-auto-resume.py uninstall", "allow"),
           ("echo CLAUDE_ALLOW_DAEMON=1 && launchctl bootstrap gui/501 x.plist", "deny"),
       )),
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
@@ -494,9 +490,6 @@ HOOK_ROUTING: list[dict] = [
     # Stop is the one event where a wrong matcher is unrecoverable from inside the session it hits,
     # so it is pinned even though it currently has a single hook.
     {"event": "Stop", "tool": None, "expect": ["intent-ledger.sh"]},
-    # A turn that ends on an API error leaves a documented stop marker for the auto-resume watchdog,
-    # so detection survives a change in the internal transcript format.
-    {"event": "StopFailure", "tool": None, "expect": ["session-auto-resume.py"]},
     # SessionStart hooks carry no matcher, so every one of them fires on every session. Pinned
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,

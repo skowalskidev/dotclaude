@@ -62,8 +62,8 @@ want the work/personal boundary in the cloud (never commit real accounts).
 | `hooks/git-commit-guard.test.py` | Both directions for the commit/push/merge guard. The must-NOT-fire cases pin that a quoted note, heredoc body or filename naming a push is never a block |
 | `hooks/git-commit-guard.py` | PreToolUse Bash guard — blocks a commit/push on `main`/`master` and a `git commit` with `-m`/heredoc (the `-F`-only rule). In this config repo a commit passes and a main push passes when `bin/config-land-check.py` verified the head. A monitoring-only PR merges with no merge words once its gate PASS names the monitoring-only bar on its head. Overrides: `CLAUDE_ALLOW_MAIN_COMMIT=1`, `CLAUDE_ALLOW_COMMIT_M=1`, each in the session's starting environment only; an inline prefix in the command is denied, so an agent cannot approve its own default-branch commit or push |
 | `bin/config-land-check.py` (+ `bin/config-land-check.test.py`) | Lands a config head: holding a machine-wide `fcntl.flock` landing lock (`claude-config-land.lock` in the shared Git directory), merges the fresh `origin/main`, verifies the head (contract suite, range secret scan, hash-bound diff review, fast-forward), records it for the guard and pushes it, so concurrent landers queue instead of racing. A waiter prints the holder and exits 75 after `--lock-wait` (30 min). Python standard library |
-| `hooks/background-process-guard.py` | PreToolUse Bash guard — blocks installing a persistent process (crontab install, `launchctl load`, `systemctl enable`, LaunchAgents/Daemons writes, `session-auto-resume.py install`). Override: `CLAUDE_ALLOW_DAEMON=1` in the session's starting environment only; an inline prefix in the command is denied, so an agent cannot approve its own install |
-| `bin/session-auto-resume.py` (+ `bin/session-auto-resume.test.py`, `dotfiles/session-auto-resume.plist`) | Hourly launchd watchdog: resumes, in place with `claude -p --resume`, a session stopped by a usage limit, API/network error or crash that still has unfinished work; zero model calls for the check. `install`, `uninstall`, `status`, `run --dry-run`, `ignore <id>`; `record-stop` is its `StopFailure` hook. Runtime state in `state/session-auto-resume/`, log in `~/Library/Logs/session-auto-resume.log`. How and why: `references/session-auto-resume.md`. Python standard library |
+| `hooks/background-process-guard.py` | PreToolUse Bash guard — blocks installing a persistent process (crontab install, `launchctl load`, `systemctl enable`, LaunchAgents/Daemons writes). Override: `CLAUDE_ALLOW_DAEMON=1` in the session's starting environment only; an inline prefix in the command is denied, so an agent cannot approve its own install |
+| `references/usage-limits.md` | Usage pacing: read the claude.ai usage meter through Claude in Chrome, check at task boundaries and every 30-60 minutes, pause agents at 90-95 percent and wait for the reset; never click a reset or buy credits. Replaced the hourly resume watchdog |
 | `hooks/emulate-viewport-guard.py` | PreToolUse `mcp__chrome-devtools__emulate` guard — denies an emulated viewport taller than the test window (height, or width when landscape) above its `MAX_VIEWPORT_H` cap. Override for a taller window: `CLAUDE_TEST_VIEWPORT_MAX_H` |
 | `hooks/test-browser-label-guard.py` | PreToolUse `mcp__chrome-devtools__navigate_page` guard — denies a navigation whose `initScript` is not the `bin/test-browser-tabs.py` label keeper, so every test-browser tab keeps its `▶ task · persona · title · @owner` label; records the owner's heartbeat on each labelled one |
 | `hooks/outbound-message-guard.py` | PreToolUse Slack/Gmail guard — denies a send, reply, forward or draft over the 5-line, 100-word TLDR cap for a message to someone else. `--check <file>` measures a draft for routes it cannot see (`codex exec`, `gh pr comment`). One-shot override: Simon's words in `.context/long-message-ok` |
@@ -325,7 +325,7 @@ Native adapter details and verified upstream references live in `references/agen
    Playwright: run them as `uv run --with playwright python3 bin/mockup-shell.test.py`.
    The SessionStart sync-reminder hook is already wired in `settings.json` (no separate install). There is
    **no sync daemon** — syncing runs at task completion or on demand via the `/sk:claude-config-sync` skill.
-   The one LaunchAgent this config installs is the opt-in auto-resume watchdog (step 7).
+   This config installs no LaunchAgent.
 5. **Install the third-party skill packs** (intentionally NOT tracked here — they're other people's
    repos, ~1.6 GB, and reinstallable):
    ```bash
@@ -346,15 +346,8 @@ Native adapter details and verified upstream references live in `references/agen
    ```
    Global rather than per-repo on purpose: one line covers every repo, personal and work, with no
    per-repo setup and nothing in anyone's committed `.gitignore`.
-7. **Install the hourly auto-resume watchdog (ask the user first: it is a LaunchAgent).** It resumes a
-   session stopped by a usage limit, an API or network error or a crash that still has unfinished
-   work, with zero model calls for the hourly check (`references/session-auto-resume.md`). The user
-   runs `install` in their own terminal; an agent's Bash call is denied by the daemon guard:
-   ```bash
-   /usr/bin/python3 ~/.claude/bin/session-auto-resume.py install
-   /usr/bin/python3 ~/.claude/bin/session-auto-resume.py status    # expect: launchd: state=not running, ...
-   ```
-   Remove it with `session-auto-resume.py uninstall` before deleting or moving `~/.claude`.
+7. **Nothing to install for usage pacing.** Agents read the plan meter through Claude in Chrome
+   (`references/usage-limits.md`); sign in to claude.ai in the personal Chrome profile.
 8. **Secrets — see the next section. Stop and ask the user; do not fabricate.**
 9. **Verify (idempotent checks — all should pass):**
    ```bash
@@ -393,8 +386,7 @@ These live **outside** this repo and are **not** committed. Prompt the user for 
 ## Staying in sync (no daemon)
 
 The GitHub repo is the single source of truth. Syncing is **event-driven / on-demand — there is no
-background sync daemon** (deliberately, to avoid idle CPU; the only scheduled job is the hourly
-auto-resume watchdog, which does nothing when no session needs it):
+background sync daemon** (deliberately, to avoid idle CPU; there is no scheduled job):
 
 - **One source of truth locally:** `~/.claude` *is* the git working tree, so every config file lives in
   exactly one place. The one file that used to live outside (`~/.zsh-work-codex.zsh`) is a **symlink**

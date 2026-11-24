@@ -168,6 +168,8 @@ failure from a support banner that counted the new beacon.)
 generation, any metered model or third-party call — is mocked or stubbed by default, so the ordinary
 command is always safe to run, in a loop, in CI, by anyone.
 
+**DO name, in every automated walk agent's brief, each app control that triggers a paid AI call (e.g. a "build my plan" button backed by a paid model) and the free alternative (a seeded record, a stub or the mocked path).** DON'T let a walk agent on a shared test server press such a control. TEST: the brief lists each paid control by label, and the walk's network log shows zero paid-provider requests (`rules/spend-approval.md`).
+
 Real-call coverage is worth having, and it lives behind an explicit environment gate that is off by
 default, so reaching it is a decision rather than an accident. Where a whole class of call must never
 escape, mock it globally in the test setup file rather than per-test: a per-test mock protects the

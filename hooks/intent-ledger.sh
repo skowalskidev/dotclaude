@@ -102,7 +102,7 @@ CRED_RE='(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]
 # supervisor owns this ledger.
 [ "${CLAUDE_INTENT_LEDGER:-on}" = "off" ] && exit 0
 [ "${AGENT_DELEGATED_WORKER:-}" = "1" ] && exit 0
-# A session the auto-resume watchdog continues (bin/session-auto-resume.py) gets a fixed machine
+# A session the a by-hand resume continues gets a fixed machine
 # prompt. Recording it as an ask would forge Simon's words; the watchdog writes its own `note plan`
 # line instead, and every other mode keeps working for the resumed session.
 [ "$MODE" = "submit" ] && [ "${AGENT_SESSION_RESUMED:-}" = "1" ] && exit 0

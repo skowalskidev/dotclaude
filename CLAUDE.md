@@ -24,7 +24,7 @@ This file is deliberately thin. My instructions are split for SRP/DRY and to kee
   - `ios-simulator.md` — simulator preflight, staged execution, local-backend safety, Claude opening the GUI and driving/capturing with XCUITest, preview evidence, bounded hand-back and recovery.
   - `workflow-loops.md` — continuous request reconciliation, modular execution, independent judgement, the shared plan/mockup dashboard, the shareable design board for mockup variants, building a screen 1:1 from a supplied design source, and draft mode (the default while I give feedback: quick answers and visible changes, the rest queued, every check once on "done").
   - `session-performance.md` — after-task reports (Stop-hook backed), bounded measurements, the all-sessions aggregate pass and asynchronous coordinator review.
-  - `session-auto-resume.md` — the hourly launchd watchdog (the one sanctioned persistent job) that resumes a session stopped by a usage limit, API/network error or crash with unfinished work: qualification rules, quota waits, install/status/uninstall, research.
+  - `usage-limits.md` — read the plan usage meter (claude.ai/settings/usage) through Claude in Chrome, check at task boundaries and every 30-60 min, pause agents at 90-95% and wait for the shown reset; never click a reset or buy credits; a crashed session is no longer auto-resumed.
   - `agent-hosts.md` — native host wiring, subscription-only Codex billing and update timing.
   - `project-instructions.md` — per-project instruction boundary and the required policy check before loading repo guidance.
   - `config-writing-standard.md` — how every line of this config is written: DO-led, banned hedge words, the DEFAULT/NUMBER/TEST rule, the mission format. Enforced by `hooks/config-contract.test.py`.

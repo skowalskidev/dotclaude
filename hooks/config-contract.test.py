@@ -128,8 +128,8 @@ CRITERIA: list[tuple[str, str]] = [
      "The daily pulse only reads, never prints a key, flags a tanking paywall arm, a dropped webhook and a jump in failures, and keeps noise green."),
     ("ci-gate-list-counts-every-pr-run-step",
      "The local CI gate list is derived from the workflow files: every pull-request run step counted, container needs marked, an empty list never passes."),
-    ("session-auto-resume-resumes-only-stopped-unfinished-work",
-     "The hourly watchdog resumes a session only after an API-error stop or a crash with recorded unfinished work, never a running, archived, interrupted or other-account one, and the installer stays behind the daemon guard."),
+    ("usage-limits-pacing-reads-meter-and-never-spends",
+     "Long runs read the plan usage meter at task boundaries and every 30-60 minutes, stop launching and pause agents at 90-95 percent until the shown reset, and never click a reset or buy credits."),
     ("daemon-guard-refuses-inline-self-approval",
      "The persistent-process guard passes only an override set in the session's starting environment; an agent-typed CLAUDE_ALLOW_DAEMON=1 prefix is denied and no doc advertises one."),
     ("main-commit-guard-refuses-inline-self-approval",
@@ -2615,7 +2615,7 @@ def check_daemon_guard_refuses_inline_self_approval() -> None:
         except Exception:  # noqa: BLE001
             return "allow"
 
-    install = "/usr/bin/python3 ~/.claude/bin/session-auto-resume.py install"
+    install = "launchctl bootstrap gui/501 y.plist"
     for command in (install, "CLAUDE_ALLOW_DAEMON=1 " + install, "env CLAUDE_ALLOW_DAEMON=1 " + install,
                     "  CLAUDE_ALLOW_DAEMON=1 launchctl bootstrap gui/501 x.plist",
                     "export CLAUDE_ALLOW_DAEMON=1 && crontab job.cron"):
@@ -2625,7 +2625,7 @@ def check_daemon_guard_refuses_inline_self_approval() -> None:
           "background-process-guard.py denied an install in a session Simon started with CLAUDE_ALLOW_DAEMON=1.")
     check("INLINE_OVERRIDE" not in guard.read_text(),
           "background-process-guard.py carries an inline-override matcher again.")
-    for relative in ("README.md", "AGENTS.md", "references/session-auto-resume.md", "rules/process.md"):
+    for relative in ("README.md", "AGENTS.md", "rules/process.md"):
         text = read(relative)
         check(re.search(r"CLAUDE_ALLOW_DAEMON=1 +(?:/usr/bin/)?python3?\b", text) is None
               and "inline assignment" not in text,
@@ -2707,17 +2707,15 @@ def check_kill_guard_refuses_inline_self_approval() -> None:
     _check_no_inline_doc(var, guard)
 
 
-def check_session_auto_resume_resumes_only_stopped_unfinished_work() -> None:
-    result = run(["/usr/bin/python3", str(ROOT / "bin" / "session-auto-resume.test.py")])
-    check(result.returncode == 0, "Auto-resume watchdog regression: " + result.stdout + result.stderr)
-    plist = read("dotfiles/session-auto-resume.plist")
-    check("StartCalendarInterval" in plist and "StartInterval" not in plist.replace("StartCalendarInterval", ""),
-          "dotfiles/session-auto-resume.plist must schedule with StartCalendarInterval, which launchd "
-          "runs on wake after a missed hour; StartInterval skips intervals the Mac slept through.")
-    check("/Users/" not in plist, "dotfiles/session-auto-resume.plist hardcodes a home directory.")
-    check("references/session-auto-resume.md" in read("rules/process.md"),
-          "rules/process.md must name the sanctioned auto-resume LaunchAgent through its reference.")
-
+def check_usage_limits_pacing_reads_meter_and_never_spends() -> None:
+    text = read("references/usage-limits.md")
+    for required in ("claude.ai/settings/usage", "90 to 95 percent", "PAUSE", "Reset for free",
+                     "Buy usage credits", "no longer resumed hourly", "30 to 60"):
+        check(required in text, "references/usage-limits.md lost: " + required)
+    check("references/usage-limits.md" in read("rules/process.md"),
+          "rules/process.md must point at references/usage-limits.md as the pacing method.")
+    for gone in ("bin/%s.py", "dotfiles/%s.plist", "references/%s.md"):
+        check(not (ROOT / (gone % "session-auto-resume")).exists(), (gone % "session-auto-resume") + " is back.")
 
 def check_monitoring_only_class_holds() -> None:
     result = run(["/usr/bin/python3", str(ROOT / "bin" / "monitoring_only.test.py")])
