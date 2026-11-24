@@ -2422,8 +2422,10 @@ REPO_ENV_RE = re.compile(r"\b(?:GH_REPO|GH_HOST|GH_ENTERPRISE_TOKEN|GITHUB_ENTER
 
 # A shell word anywhere outside heredoc bodies (`} | bash`, `| /bin/sh`, `| "sh"`, `coproc`, `.`): any
 # heredoc body in the command may be what it reads, so every body is kept as code.
-SHELL_READER_RE = re.compile(r"(?:^|[\s;&|({\"'/])(?:bash|sh|zsh|dash|ksh|eval|source|coproc)(?=[\s;&|)}\"']|$)"
-                             r"|(?:^|[\s;&|({])\.(?=\s)")
+SHELL_READER_WORD = r"(?:^|[\s;&|({\"'/])(?:bash|sh|zsh|dash|ksh|eval|source|coproc)(?=[\s;&|)}\"']|$)"
+SHELL_READER_RE = re.compile(SHELL_READER_WORD + r"|(?:^|[\s;&|({])\.(?=\s)")
+# A `.` in command position: one after a space is an argument (`--root .`), never a file a shell reads.
+DOT_COMMAND_RE = re.compile(r"(?:^|[;&|({\n]|\b(?:do|then|else)[ \t])[ \t]*\.(?=\s)")
 # Command words whose heredoc is data to the shell (a file's text, a message, another language's
 # program, which the guard cannot read anyway). Any other command word in the command keeps every body.
 HEREDOC_DATA_COMMANDS = {"cat", "tee", "gh", "git", "cd", "mkdir", "python", "python3", "node", "deno",
@@ -2529,22 +2531,67 @@ def _data_heredocs(command: str, marks: list) -> set:
     return data if all(rest.count(b) == names.count(b) for b in names) else set()
 
 
-def shell_text(command: str) -> str:
+def shell_text(command: str, inert: bool = False) -> str:
     """shell_text_once with every data heredoc body dropped (`_data_heredocs`) and every other kept, or
-    every body kept when a shell may read one (SHELL_READER_RE)."""
+    every body kept when a shell may read one (SHELL_READER_RE). inert drops, as well, each program body
+    that cannot name a gh merge (`_inert_heredocs`): for the merge-word checks only, never the API checks."""
     marks = []
+    inert = _inert_heredocs(command) if inert else set()
     if SHELL_READER_RE.search(shell_text_once(command, marks=marks)):
-        return shell_text_once(command, keep_bodies=True)
-    return shell_text_once(command, keep_bodies=True, drop=_data_heredocs(command, marks))
+        return shell_text_once(command, keep_bodies=True, drop=inert)
+    return shell_text_once(command, keep_bodies=True, drop=_data_heredocs(command, marks) | inert)
+
+
+def _stdin_program(words: list) -> bool:
+    """True when an interpreter's words read its program from standard input: options with no inline-code
+    or module flag (-c, -e, -m, -p, --eval, --print), then nothing or `-` and that program's own arguments
+    (`python3 - "$dir" <<'EOF'`). A script path or a subcommand (`deno run`) is no stdin program."""
+    for w in words[1:]:
+        if w == "-":
+            return True
+        if not w.startswith("-") or w in ("--eval", "--print") or (
+                not w.startswith("--") and re.search(r"[cemp]", w[1:])):
+            return False
+    return True
+
+
+@functools.lru_cache(maxsize=64)
+def _inert_heredocs(command: str) -> frozenset:
+    """Ordinals of the heredocs an interpreter reads as its whole program (`python3 - <<'EOF'`,
+    `_stdin_program`) whose delimiter is quoted, whose body names no `gh` (quotes, escapes and `+` joins removed)
+    and whose program prints only to the terminal (`_sealed_output`), when no shell reads any input
+    (SHELL_READER_WORD, DOT_COMMAND_RE). Such a body is another language's text: a merge word in its strings names no command
+    the shell runs, and its apostrophes are no shell quotes (the fix for a PR-body edit in `python3 -
+    <<'EOF'` with "Safe to merge" and "first-flow's" in its strings, denied as a hidden merge, 24 Nov 2026).
+    Its own call of a merge is still judged: a body naming gh is never inert."""
+    marks, bodies = [], []
+    outer = shell_text_once(command, marks=marks, bodies=bodies)
+    if re.search(SHELL_READER_WORD, outer) or DOT_COMMAND_RE.search(outer) or len(bodies) != len(marks):
+        return frozenset()
+    flat = shell_text_once(command, keep_delims=False)
+    ops = [i for i, ch in _unquoted_chars(flat) if flat.startswith("<<", i) and not flat.startswith("<<<", i)
+           and (i == 0 or flat[i - 1] != "<")]
+    owners = [next(((a, b) for a, b in _command_spans(flat) if a <= i < b), None) for i in ops]
+    if len(owners) != len(marks) or None in owners:
+        return frozenset()
+    inert = set()
+    for k, ((a, b), (quoted, body)) in enumerate(zip(owners, bodies)):
+        words = _span_words(flat[a:b])
+        if (quoted and words and os.path.basename(words[0]) in HEREDOC_PROGRAM_COMMANDS
+                and _stdin_program(words)
+                and not re.search(r"\bgh\b", re.sub(r"['\"\\+]", "", body))
+                and _sealed_output(flat, a, b)):
+            inert.add(k)
+    return frozenset(inert)
 
 
 def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool = True, drop=(),
-                    marks: list = None) -> str:
+                    marks: list = None, bodies: list = None) -> str:
     """The command as bash reads it before splitting words: a backslash-newline outside single quotes
     joined away (`me\\<newline>rge` is `merge`), and the body of every heredoc whose marker sits outside
     quotes dropped (data, never run). The closing delimiter line is kept, so mask() still finds it.
     keep_bodies keeps every body but those whose ordinal is in drop; marks collects, per heredoc in
-    order, whether its delimiter is quoted."""
+    order, whether its delimiter is quoted; bodies collects (quoted, body text) per heredoc read."""
     out, i, n, quote, pending, arith, esc_end = [], 0, len(command), None, [], [], -1
     marks = [] if marks is None else marks
     while i < n:
@@ -2614,6 +2661,8 @@ def shell_text_once(command: str, keep_bodies: bool = False, keep_delims: bool =
                 body_end = re.compile(rf"^\t*{re.escape(delim)}$" if tabs else rf"^{re.escape(delim)}$", re.M)
                 found = body_end.search(command, i)
                 body = command[i:found.start() if found else n]
+                if bodies is not None:
+                    bodies.append((quoted, body))
                 code = code or (not quoted and bool(re.search(r"\$\(|`", body)))
                 while i < n:
                     j = command.find("\n", i)
@@ -2646,7 +2695,11 @@ def _shell_merge(command: str, depth: int = 0) -> int:
     """True when the shell, with its own quoting resolved, would run `gh ... pr ... merge` in command
     position (after env assignments and wrappers), directly or inside a `bash -c` string. A command it
     cannot tokenize counts when it names gh and merge."""
-    command = shell_text(command)
+    raw, bodies = command, []
+    shell_text_once(raw, bodies=bodies)
+    # Tokens come from the text with inert program bodies dropped (their apostrophes are no shell quotes);
+    # a merge word anywhere, those bodies included, still marks a built command word as a possible merge.
+    full, command = shell_text(command), shell_text(command, inert=True)
     try:
         tokens = _shell_lexer(command)
     except ValueError:
@@ -2655,10 +2708,29 @@ def _shell_merge(command: str, depth: int = 0) -> int:
         plain = re.sub(r"['\"\\]", "", command)
         return int(bool(re.search(r"\bgh\b", plain) and re.search(r"\bmerge\b", plain))) * 99
     segment, count, piped = [], 0, False
-    names_merge = bool(re.search(r"\bgh\b", command) and re.search(r"\bmerge\b", command))
+    names_merge = bool(re.search(r"\bgh\b", full) and re.search(r"\bmerge\b", full))
+    # What a reader of a pipe or a redirection may receive: a quoted merge word that a data-only command
+    # prints straight to the terminal (`_without_data_merge_words` with sealed output) never reaches it
+    # (a poll loop's `gh pr checks | awk` beside a ledger call quoting `merge-readiness`, 24 Nov 2026).
+    names_fed = names_merge and bool(re.search(r"\bmerge\b", _without_data_merge_words(
+        command, sealed=True, heredocs_inert=_all_heredocs_inert(raw))))
+    # A heredoc an interpreter runs as its program (`python3 - <<'EOF'`) is text the guard reads: it can
+    # run a merge only when a body names gh and merge, or an unquoted body expands a value that may
+    # (a body editing a PR description with "merge" in its prose was denied, 24 Nov 2026).
+    bodies_merge = any(
+        (re.search(r"\bgh\b", re.sub(r"['\"\\+]", "", b)) and re.search(r"merge", b, re.I))
+        or (not quoted and re.search(r"[$`]", b)) for quoted, b in bodies)
+    # Outside the bodies, gh and merge named where the program can read them (a file `echo "gh pr merge 1"
+    # > f` wrote) keep every heredoc program suspect.
+    if bodies and not bodies_merge:
+        outside = _without_data_merge_words(re.sub(r"<<-?[ \t]*\S+", " ", shell_text_once(raw, keep_delims=False)),
+                                            sealed=True)
+        bodies_merge = bool(re.search(r"\bgh\b", outside) and re.search(r"\bmerge\b", outside))
     for tok in tokens + [";"]:
         if tok and set(tok) <= set(";&|()\n"):
-            fed = piped or any(t and set(t) <= set("<>&") and "<" in t for t in segment)
+            feeds = [t for t in segment if t and set(t) <= set("<>&") and "<" in t]
+            fed = piped or bool(feeds)
+            heredoc_only = not piped and bool(feeds) and all(t == "<<" for t in feeds)
             piped = tok in ("|", "|&")
             words = _drop_redirections(segment)
             segment = []
@@ -2734,7 +2806,8 @@ def _shell_merge(command: str, depth: int = 0) -> int:
             # A command reading a pipe or a redirection that may run what it reads (`printf 'gh pr merge 12' |
             # sh`, `| fish`, `sh <<< "..."`, `sh < f`) runs text no parser here reads: with gh and merge named
             # anywhere in the command, that text may be a merge. Only known readers of data are exempt.
-            if fed and names_merge and head not in STDIN_DATA_COMMANDS and not (
+            program_heredoc = heredoc_only and head in HEREDOC_PROGRAM_COMMANDS and not bodies_merge
+            if fed and names_fed and head not in STDIN_DATA_COMMANDS and not program_heredoc and not (
                     head in SHELLS and any(SHELL_C_RE.match(w) for w in words[1:])):
                 count += 99
             continue
@@ -3356,15 +3429,102 @@ def _without_git_merge_words(text: str, live: list) -> str:
     return out
 
 
-def _without_data_merge_words(text: str) -> str:
+# Commands that only pass their input on to their output: a pipe into them reaches no program.
+PASSTHROUGH_COMMANDS = {"tail", "head", "wc", "grep", "egrep", "fgrep", "cat", "uniq", "cut", "tr", "jq"}
+# A redirection that writes no file a later command can read: stderr into stdout, or /dev/null.
+HARMLESS_REDIRECT_RE = re.compile(r"(?:[0-9&]?>&[0-9]|[0-9&]?>>?[ \t]*/dev/null)(?![^\s;&|()])")
+
+
+def _unquoted_chars(text: str, a: int = 0, b: int = None):
+    """(offset, char) of every character of text[a:b] outside quotes and escapes; a is a command start."""
+    b = len(text) if b is None else b
+    quote, i = None, a
+    while i < b:
+        ch = text[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+        elif ch == "\\":
+            i += 1
+        elif quote:
+            quote = None if ch == '"' else quote
+        elif ch in "'\"":
+            quote = ch
+        else:
+            yield i, ch
+        i += 1
+
+
+def _sealable(text: str) -> bool:
+    """False when one command's output may reach another past what `_sealed_output` reads: an `exec`
+    redirection, or a group, loop, conditional or subshell whose output is piped or redirected
+    (`{ echo merge; } | awk ...`, `done > f`)."""
+    bare = {i for i, _ in _unquoted_chars(text)}
+    plain = "".join(ch if i in bare else " " for i, ch in enumerate(text))
+    return not re.search(r"\bexec\b|(?:\}|\bdone|\bfi|\besac|\))[ \t]*(?:[0-9&]?>|\|)", plain)
+
+
+def _sealed_output(text: str, a: int, b: int) -> bool:
+    """True when the command at text[a:b] (a `_command_spans` span) prints only to the terminal: it sits in
+    no subshell or substitution, writes no file, and its pipeline, if any, runs only PASSTHROUGH_COMMANDS
+    that write no file either (`ledger gate ... "merge-readiness" 2>&1 | tail -2`)."""
+    depth = 0
+    for _, ch in _unquoted_chars(text, 0, a):
+        depth += {"(": 1, ")": -1}.get(ch, 0)
+    if depth:
+        return False
+    # The pipeline from this command on: up to `;`, a newline, `&&`, `||`, a background `&` or the end.
+    parts, start, end, prev = [], a, len(text), ""
+    for i, ch in _unquoted_chars(text, a):
+        nxt = text[i + 1:i + 2]
+        if ch in ";\n()" or (ch == "&" and prev not in "<>" and nxt != ">" and not (prev == "&" or nxt == "&")):
+            end = i
+            if ch in "()":
+                return False
+            break
+        if ch == "&" and nxt == "&":
+            end = i
+            break
+        if ch == "|" and nxt == "|":
+            end = i
+            break
+        if ch == "|" and prev != "|":
+            parts.append((start, i))
+            start = i + 2 if nxt == "&" else i + 1
+        prev = ch
+    parts.append((start, end))
+    for k, (s, e) in enumerate(parts):
+        seg = text[s:e]
+        bare = HARMLESS_REDIRECT_RE.sub(" ", seg)
+        if any(ch == ">" for _, ch in _unquoted_chars(bare)):
+            return False
+        if k:
+            words = _span_words(seg)
+            if not words or os.path.basename(words[0]) not in PASSTHROUGH_COMMANDS:
+                return False
+    return True
+
+
+
+def _all_heredocs_inert(command: str) -> bool:
+    """True when command has heredocs and every one is `_inert_heredocs`: shell_text(inert=True) holds
+    none of their bodies, so a `<<` left in it feeds no command the merge-word checks must read."""
+    marks = []
+    shell_text_once(command, marks=marks)
+    return bool(marks) and _inert_heredocs(command) == set(range(len(marks)))
+
+
+def _without_data_merge_words(text: str, sealed: bool = False, heredocs_inert: bool = False) -> str:
     """text with the word `merge` blanked inside a command that only prints or stores it: echo, printf,
     git, a gh read or edit (`gh pr edit --body "merge notes"`), or one of this config's own hook and bin
     scripts, when the word is inside quotes. Such a command never runs its arguments, so a merge word there names no gh merge, and an
     unrelated `$b` elsewhere in the input must not make it one (a loop's `echo "$b needs merge"` and a
     ledger call quoting `ship-check-merge-readiness` were denied as hidden merges, 24 Nov 2026). Left as
     is: a command with a substitution, a heredoc, a gh word in a non-gh command (`echo "gh pr merge 1" | sh`),
-    or a gh command that is `pr merge`, an api call, an alias or an extension."""
-    if "<<" in text:
+    or a gh command that is `pr merge`, an api call, an alias or an extension. sealed keeps, as well, every
+    command whose output another command can read (`_sealed_output`), so the result is what a pipe or a
+    redirection may carry to a reader. heredocs_inert (`_all_heredocs_inert`) lets a text whose heredocs
+    are all inert programs be read like one with none."""
+    if ("<<" in text and not heredocs_inert) or (sealed and not _sealable(text)):
         return text
     own = tuple(os.path.expanduser(f"~/.claude/{d}/") for d in ("hooks", "bin"))
     built = r"[$`{}*?\[\]]"
@@ -3372,6 +3532,8 @@ def _without_data_merge_words(text: str) -> str:
     for a, b in _command_spans(text):
         span = text[a:b]
         if not re.search(r"merge", span, re.I) or re.search(r"`|\$\(|[<>]\(|\$\{", span):
+            continue
+        if sealed and not _sealed_output(text, a, b):
             continue
         words = _span_words(span)
         if not words or re.search(built, words[0]):
@@ -3401,7 +3563,7 @@ def hidden_merge(command: str) -> bool:
     """A merge the shell would run but the masked parse cannot see: `'gh' pr merge`, `g\\h pr merge`,
     `gh pr me''rge`. The shell's own tokens decide, with no substring fast path."""
     shell = _shell_merge(command)
-    text = shell_text(command)
+    text = shell_text(command, inert=True)
     # A simple variable argument of a literal gh read (`gh pr view $n`) builds no command, nor does a
     # construct that only hands data to another command (`_data_dynamics`): neither ever counts, so a merge
     # word in one command and a temp-file variable in another never make a gh read a merge. Nor does the
@@ -3410,8 +3572,8 @@ def hidden_merge(command: str) -> bool:
     if dynamic:
         benign = _read_argument_params(text) | _data_dynamics(text)
         live = [m.start() for m in DYNAMIC_RE.finditer(text) if m.start() not in benign]
-        dynamic = bool(live) and bool(re.search(
-            r"\bmerge\b", _without_data_merge_words(_without_git_merge_words(text, live)), re.I))
+        dynamic = bool(live) and bool(re.search(r"\bmerge\b", _without_data_merge_words(
+            _without_git_merge_words(text, live), heredocs_inert=_all_heredocs_inert(command)), re.I))
     # A function or alias defined in the same input can turn any name, an inert one included, into a
     # runner of its arguments (`printf() { "$@"; }; printf gh pr merge 12`).
     defines = re.search(r"(?:^|[\s;&|(])(?:function\s+[\w.:-]+|[\w.:-]+\s*\(\s*\))|\balias\s+\S+=", text)

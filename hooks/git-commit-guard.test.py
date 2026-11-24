@@ -326,9 +326,70 @@ MUST_FIRE = [
      "for b in a; do echo \"gh pr merge 12\" | sh; echo $b; done", "hides the merge"),
     ("a merge word in a gh edit beside a built gh command word still counts", "feature",
      "gh pr edit 5 --body \"merge notes\"; $G pr merge 13", "hides the merge"),
+    # A quoted merge word reaches a pipe or redirection reader whenever its command's output can: piped,
+    # captured, grouped, written to a file or behind `exec`. Each stays a hidden merge.
+    ("a quoted merge word piped into awk that runs gh counts", "feature",
+     "gh pr checks 1 | awk '{print $2}'; echo \"merge 12\" | awk '{system(\"gh pr \" $0)}'", "hides the merge"),
+    ("a quoted merge word through tail into awk that runs gh counts", "feature",
+     "echo \"merge 12\" 2>&1 | tail -1 | awk '{system(\"gh pr \" $0)}'", "hides the merge"),
+    ("a grouped echo piped into awk that runs gh counts", "feature",
+     "{ echo \"merge 12\"; } | awk '{system(\"gh pr \" $0)}'", "hides the merge"),
+    ("a loop's echo piped into awk that runs gh counts", "feature",
+     "for x in 1; do echo \"merge 12\"; done | awk '{system(\"gh pr \" $0)}'", "hides the merge"),
+    ("a captured echo fed to awk that runs gh counts", "feature",
+     "x=$(echo \"merge 12\"; true); echo $x | awk '{system(\"gh pr \" $0)}'", "hides the merge"),
+    ("an echo written to a file awk reads and runs counts", "feature",
+     "echo \"merge 12\" 1>/tmp/f; awk '{system(\"gh pr \" $0)}' < /tmp/f", "hides the merge"),
+    ("an echo behind exec redirection awk reads and runs counts", "feature",
+     "exec > /tmp/f; echo \"merge\"; awk '{system(\"gh pr \" $0 \" 1\")}' < /tmp/f", "hides the merge"),
+    # A heredoc program is judged by its body: naming gh and merge, expanding a value, reading a file a
+    # command wrote with gh and merge, or printing into a pipe keeps it a hidden merge.
+    ("a python heredoc running gh pr merge counts", "feature",
+     "python3 - <<'EOF'\nimport subprocess\nsubprocess.run(['gh','pr','merge','12'])\nEOF", "hides the merge"),
+    ("a node heredoc running gh pr merge counts", "feature",
+     "node - <<'EOF'\nrequire('child_process').execSync('gh pr merge 12')\nEOF", "hides the merge"),
+    ("an unquoted python heredoc expanding a merge variable counts", "feature",
+     "x=merge; python3 - <<EOF\nimport os\nos.system(\"gh pr $x 12\")\nEOF", "hides the merge"),
+    ("a python heredoc running a file echo wrote with gh pr merge counts", "feature",
+     "echo \"gh pr merge 1\" > /tmp/x; python3 - <<'EOF'\nimport os; os.system(open('/tmp/x').read())\nEOF",
+     "hides the merge"),
+    ("a python heredoc printing a merge word into xargs gh counts", "feature",
+     "python3 - <<'EOF' | xargs gh pr\nprint(\"merge 12\")\nEOF", "hides the merge"),
+    ("a python heredoc's merge word beside a built gh subcommand counts", "feature",
+     "python3 - <<'EOF'\nprint(\"merge 12\")\nEOF\ngh pr $x 12", "hides the merge"),
 ]
 
 MUST_NOT_FIRE = [
+    # A merge word quoted in a data-only command whose output reaches only the terminal is no merge, even
+    # beside a pipe into a reader (awk, sort) or a python heredoc whose strings say "merge" (the fix for
+    # three read-only checks denied on 24 Nov 2026).
+    ("a receipt loop, a graphql read and a ledger gate quoting merge-readiness is no merge", "feature",
+     "D=/w/x; for s in sk:ship-resolve-pr-comments sk:ship-pr; do ~/.claude/hooks/intent-ledger.sh receipt $s $D "
+     "2>&1 | tail -1; done; gh api graphql -f query='{ repository(owner:\"O\",name:\"r\"){ pullRequest(number:1426)"
+     "{ reviewThreads(first:50){ nodes{ isResolved } } } } }' --jq '[.data.repository.pullRequest.reviewThreads."
+     "nodes[]|select(.isResolved|not)]|length' 2>/dev/null; cd $D && ~/.claude/hooks/intent-ledger.sh gate br "
+     "f83f3f9 PASS standard \"All stages ran on f83f3f9: plan, merge-readiness (3 PRs compose cleanly)\" 2>&1 | tail -2"),
+    ("a python heredoc editing a PR body with merge in its strings, then gh edit and the landing gate, is no merge",
+     "feature",
+     "gh pr view 1426 --repo O/r --json body -q .body > .context/b.md 2>/dev/null && python3 - <<'EOF'\n"
+     "p='.context/b.md'; s=open(p).read()\nold=\"Safe to merge alone.\"\n"
+     "s=s.replace(old, old+\" Uses first-flow's own style.\")\n"
+     "s=s.replace(s[s.index('## Verification runs'):s.index('## Part verdicts')], '## Verification runs\\n\\n')\n"
+     "open(p,'w').write(s)\nEOF\ngh pr edit 1426 --repo O/r --body-file .context/b.md >/dev/null 2>&1; "
+     "python3 ~/.claude/bin/pr-landing-gate.py --repo O/r --pr 1426 2>&1 | tail -3"),
+    ("a python heredoc with an argument and merge in its strings, then gh edit, is no merge", "feature",
+     "M=/tmp/s && gh pr view 942 -R O/r --json body --jq .body > $M/b.md 2>/dev/null && python3 - \"$M\" <<'EOF'\n"
+     "import sys\np=sys.argv[1]+'/b.md'; s=open(p).read()\ns=s.replace('ready to merge','ready',1)\n"
+     "open(p,'w').write(s)\nEOF\ngh pr edit 942 -R O/r --body-file $M/b.md >/dev/null && "
+     "~/.claude/hooks/intent-ledger.sh gate br HEAD BLOCKED deep \"Not run: sk:ship-check-merge-readiness\" 2>&1 | tail -1"),
+    ("a gh pr checks poll through awk then a ledger gate quoting merge-readiness is no merge", "feature",
+     "for i in $(seq 1 30); do s=$(gh pr checks 1272 2>/dev/null | awk -F'\\t' '$1==\"PR title issue ID\"{print $2}'); "
+     "[ \"$s\" != pending ] && break; sleep 10; done; echo \"title=$s\"; [ \"$s\" = pass ] && "
+     "~/.claude/hooks/intent-ledger.sh gate br HEAD PASS deep \"All stages ran on 884098c: merge-readiness, "
+     "ship-review\" 2>&1 | tail -3"),
+    ("a gh pr checks loop through awk and sort beside a ledger gate quoting merge-readiness is no merge", "feature",
+     "for i in 1 2 3; do s=$(gh pr checks 1426 --repo O/r | awk '{print $2}' | sort -u); echo $s; done; "
+     "~/.claude/hooks/intent-ledger.sh gate br HEAD PASS standard \"plan; merge-readiness; review\""),
     # A merge word that only a data-only command prints or stores (echo, a gh read or edit, an own hook
     # script) is no merge, even beside a loop variable (the fix for two denies on 24 Nov 2026).
     ("git merge-base then an echo with a merge word and a loop variable, then a gh read, is no merge", "feature",
