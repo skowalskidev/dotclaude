@@ -392,5 +392,9 @@ checkpointed. For those, commit the good state or branch before starting.
   brand marks on vests."
 - **Keep ONE concrete instance** (`e.g.` / "the fix for X") so the fix stays actionable; never let it
   become the condition.
+- **Grep every test in the repo for the old key before claiming suites green after renaming a
+  persisted or saved shape;** the feature's own suites are not the scope (the fix for a renamed saved
+  answer key where five tests in two other directories still saved the old shape). TEST: the evidence
+  names the repo-wide grep and its zero remaining hits.
 - **Tell me which class you concluded and what you checked** to rule out a one-off, so I can judge
   whether the generalization went too far or not far enough.

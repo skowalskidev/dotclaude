@@ -96,6 +96,9 @@ action" or a dashboard queue that puts a heavy check ahead of open build or revi
 convergence instead; on resume the remaining build and review/fix stages go first
 (`references/workflow-loops.md` § Handoff and resume). (the fix for a resumed ship run whose handoff
 named a full converge run first; the review then raised 12 findings and the whole run was wasted.)
+DO hold a base-branch merge while a heavy check runs on the same tree; if one lands anyway, discard
+that check's result and rerun only the failing files (the fix for a merge 22 s into a full suite that
+failed 101 tests whose 17 files passed 434/434 on rerun).
 DO stop an in-flight heavy check the moment pending fixes supersede its head, and record it as
 stopped-stale with that head. DON'T let it finish for partial evidence.
 DO run the whole set ONCE on the final head, launching every independent item in parallel: full suites,

@@ -258,7 +258,12 @@ above every migration on the base). TEST: the first CI run after a base merge fa
 a local command.
 
 **DO finish five steps after merging the base, before the next commit:**
-1. Reinstall dependencies with the project's lockfile command.
+1. Reinstall dependencies with the project's lockfile command. List the lockfiles the merge changed
+   (`git diff --name-only ORIG_HEAD HEAD -- '*package-lock.json'`, plus any other lockfile) and run
+   `npm ci` in each affected app before any heavy check; `npm ls --depth=0` must list nothing invalid.
+   TEST: no heavy check after a base merge ran on packages the lockfile does not name (the fix for a
+   full unit suite, a preview build and an e2e run repeated after stale packages, a framework one patch
+   behind and a test-DOM matcher one major behind, surfaced only when an admin suite failed).
 2. Re-download the test browsers and pinned binaries (a base dependency bump can change the browser a
    test tool needs).
 3. After any migration rename, compare the local stack's applied migrations with the files by name and
