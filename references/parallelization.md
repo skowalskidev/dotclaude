@@ -519,13 +519,16 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   shutdown all` closed another session's simulator, and one that stashed in the stack every worktree
   shares). TEST: every dispatch prompt that boots, kills, resets or sets work aside names an id or a
   path, and none says `all`, `killall` or `git stash`.
-- **DO tell a worker that ships a PR from its own worktree to `cd <worktree path> && ...` in the Bash
-  call before each stage skill, then check `intent-ledger.sh stages <tier> <pr-head-sha>`.** A
-  subagent's Skill receipt records the HEAD of the checkout its last Bash `cd`/`git -C` named. Only a
-  stage still listed after its Skill call gets `~/.claude/hooks/intent-ledger.sh receipt <stage skill>
-  <worktree path>`. It reports `All stages ran` or the `Not run:` list.
-  TEST: the gate accepts a PASS on the worker's head, and refuses one on a sha with no receipt (the fix
-  for five PRs refused PASS after every stage had run).
+- **DO write this line into every brief for a worker that runs a ship stage on its own checkout:
+  "Right after each stage's Skill call, run `~/.claude/hooks/intent-ledger.sh receipt <stage skill>
+  <checkout dir>` (stage as `sk:ship-review`), then `intent-ledger.sh stages <tier> <pr-head-sha>`."**
+  A subagent's automatic Skill receipt lands on the HEAD of whatever checkout its last Bash `cd`/`git -C`
+  named, often the parent's, so the parent ledger reads `Not run` for work that ran. A duplicate
+  receipt is harmless; a missing one costs a BLOCKED gate. Also tell it to `cd <checkout dir> && ...`
+  in the Bash call before each stage skill. `stages` reports `All stages ran` or the `Not run:` list.
+  TEST: every ship-worker brief carries the receipt line verbatim, and the gate accepts a PASS on the
+  worker's head (the fix for three PRs recorded BLOCKED "Not run" after their workers ran review,
+  judges, CI and the landing checker; the one brief that carried the line receipted cleanly).
 - **DO tell a worker to run `intent-ledger.sh receipt <stage> <dir>` only right after invoking that
   stage with the Skill tool on that head.** The receipt is self-attested; the gate's "All stages ran"
   rests on it. **DO list work done by hand as `Not run: <stage>`.** DON'T receipt a stage whose skill

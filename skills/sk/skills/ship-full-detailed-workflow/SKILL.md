@@ -134,11 +134,9 @@ word and the whole queue is built.
    moves a stage's place and time, never whether it runs: `references/dev-server-hygiene.md`
    § Machine-wide capacity. Each Skill-tool run of a stage
    records a receipt for the HEAD of the checkout the work runs in, so run it from the PR's
-   checkout at that head. **A delegated subagent in its own worktree (e.g. `/tmp/<name>`) runs
-   `cd <worktree path> && ...` in its Bash call before each stage, so the receipt follows that
-   checkout; a stage `stages <tier> <sha>` still lists after its Skill call gets
-   `~/.claude/hooks/intent-ledger.sh receipt <stage skill> <worktree path>` (stage as
-   `sk:ship-review`)**, which records the receipt on that checkout's HEAD; the gate then matches it to the PR head. **When the session's own working directory is not the PR's checkout, a Skill-tool run records its receipt against the session cwd's HEAD and the gate reports every stage `Not run`: DO run `~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>` right after each such stage.** **DO record a receipt only right
+   checkout at that head. **A delegated subagent in its own worktree (e.g. `/tmp/<name>`) receipts every stage it runs on that
+   checkout; its brief carries the receipt line from `references/parallelization.md` § Give every agent
+   a precise, self-contained spec**, and the gate then matches the receipt to the PR head. **When the session's own working directory is not the PR's checkout, a Skill-tool run records its receipt against the session cwd's HEAD and the gate reports every stage `Not run`: DO run `~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>` right after each such stage.** **DO record a receipt only right
    after invoking that stage with the Skill tool on that head; DO list a stage done by hand as `Not run:
    <stage>`, never receipted.** TEST: each receipt follows its own Skill call. Every PASS names its tier, and the gate refuses it with
    `Not run: <stage>, ...` until each stage that tier requires has a receipt on the recorded sha;
