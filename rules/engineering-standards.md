@@ -24,10 +24,8 @@ security risk, not a recommendation.
 - **Name the mainstream alternative you rejected and why**, so I can judge the call.
 - If the honest mainstream choice is genuinely worse for my specific case, say so and recommend the fit
   anyway — but the burden is on justifying the deviation from the popular default.
-- **The same bar applies to a SOLUTION adopted from research**, not just to a tool — a pattern, a
-  workaround, a config, a technique. Prefer the community-proven answer (heavily upvoted, officially
-  documented, or from a high-adoption project) over a clever fix from an obscure or low-star source.
-  Read SEVERAL sources before settling, and prefer the vendor's own docs over a blog restating them.
+- **The same bar applies to a SOLUTION adopted from research**, not just to a tool:
+  `references/research.md` § Source order.
 - **DO research the name before the first new artifact exists** (folder, module, skill, workflow,
   channel, app, key, ticket title): tally the term each major vendor's own page uses for the category,
   name from the majority, and record term, tally and links in the plan. Method:

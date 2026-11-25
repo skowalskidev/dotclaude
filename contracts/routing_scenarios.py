@@ -133,7 +133,7 @@ SCENARIOS: list[dict] = [
 
     # --- Deciding whether to build at all -------------------------------------------
     # Sits UPSTREAM of every building skill: it runs before there is a plan, and its output is a
-    # verdict rather than work. Overlap with the proving skill below is declared, not accidental --
+    # verdict rather than work (inside work Simon asked to have done, BUILD verdicts go on to the build). Overlap with the proving skill below is declared, not accidental --
     # "can the platform do it" and "should we do it" are different questions about the same ticket.
     {"phrase": "does this make sense to build", "expect": "work-does-this-make-sense-to-build"},
     {"phrase": "does this ticket make sense", "expect": "work-does-this-make-sense-to-build"},

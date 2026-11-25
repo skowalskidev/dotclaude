@@ -22,6 +22,12 @@ never have to ask for it separately; asking is the signal it was already skipped
 4. Community write-ups **only to find candidates**. Never cite one. Verify what it claims against the
    primary source, and if that fails, the claim does not exist.
 
+**The same bar applies to a SOLUTION adopted from research** (moved from
+`rules/engineering-standards.md` § Choose mainstream), not just to a tool — a pattern, a
+workaround, a config, a technique. Prefer the community-proven answer (heavily upvoted, officially
+documented, or from a high-adoption project) over a clever fix from an obscure or low-star source.
+Read SEVERAL sources before settling, and prefer the vendor's own docs over a blog restating them.
+
 Date-stamp anything version-sensitive and cite the adoption signal, per the bar in
 `rules/engineering-standards.md`. `rules/process.md` owns the rule this pass leans on and does not
 restate: research before the second retry.

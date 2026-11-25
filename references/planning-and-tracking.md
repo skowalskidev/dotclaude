@@ -179,6 +179,27 @@ Durability tiers, most durable first: the ticket/tracker outlives everything; th
 the ticket before teardown (§ Promotion before teardown below). The survives-a-restart guarantee and
 the no-`/tmp` rule are process.md's, above.
 
+## Asked-for work ends built
+
+Owned by `rules/process.md` § "Run to completion". This section holds the detail.
+
+DO read the verb Simon used before choosing the deliverable. "Do", "build", "fix", "ship", "the queued
+tasks" and "for each of the queued tasks, use skill X" ask for the work done; the skills he names are
+the method, never the scope.
+DO run a named evaluation skill (`/sk:work-does-this-make-sense-to-build`, `/sk:plan-research`,
+`/sk:ship-verify-with-prod-data`, a plan) as one stage of each item, then carry each BUILD or
+BUILD-CHANGED part on through `/sk:work-full-detailed-workflow` to its done state in the same run: a
+pushed, ready PR for code, a landed commit for config, the applied change for anything else.
+DO dispatch independent items in parallel (`references/parallelization.md` § Parallelize across tasks
+AND stages); DON'T serialize them into "one at a time, later" or hand back a queue for Simon to start.
+DON'T end the turn on a table of verdicts or plans. A REFUTED, ALREADY-DONE or DEFER verdict closes its
+item with the evidence; a DECIDE verdict waits on Simon while every other item keeps building.
+NUMBER: an item may be listed as not done at hand-back only with one named Simon-only blocker: a
+decision, a credential, a production write or a paid call.
+TEST: every item Simon asked to have done is, at hand-back, done or blocked by a named Simon-only step;
+a verdict alone is never a completed item (the fix for a batch of asked-for follow-ups handed back as
+verdicts and plans).
+
 ## Close the session
 
 Owned by `rules/communication.md` § Close the session. Detail:

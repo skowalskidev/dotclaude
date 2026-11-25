@@ -694,6 +694,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep every role on the actual chat provider except GPT design work on the Fable tier and the read-only cross-provider judge; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
             "Keeps an always-on line sending every money, access or data call, and every verdict Simon acts on, to 2+ judges besides the author, one per provider; references/research.md holds the panel.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
+            "An evaluation skill inside work Simon asked to have done is a stage, never the deliverable: a build verdict proceeds to the built item in the same run, and an item ends not done only on a named Simon-only blocker.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "A branch backing an open PR or shared for review gets each finished commit pushed to its own remote branch (fetch and merge first, never rebase or force), so the remote never trails local; every other PR or remote operation, and any default-branch push, stays gated, and a branch with no remote PR stays commit-only.",
             "Owns research-before-the-second-retry and the always-on trigger for third-party claims; references/research.md holds the claim rules.",
@@ -1061,6 +1062,7 @@ CONTRACTS: dict[str, dict] = {
             "Names the durability tiers — the ticket outlives all, .context/ survives a restart but "
             "dies with the worktree — and promotes decisions and human input to the ticket before teardown.",
             "A feature is scoped across discoverability and docs, not just its mechanism.",
+            "Holds the asked-for-work detail: named skills are the method, never the scope; independent items run in parallel; a verdict or plan never closes an item Simon asked to have done.",
             "Every plan opens with BOTH the user journey AND the system journey (a ticket and PR body "
             "too), above the technical detail, reflecting the plan's current trajectory (confirmed "
             "decisions + recommended defaults for open questions) and kept in sync on every change. The "
@@ -1313,7 +1315,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work not worth building dies before it is built, with the evidence attached.",
         "purpose": "Decides whether proposed work should be built at all, part by part, on evidence.",
         "criteria": [
-            "Proposes, never builds. Read-only: no prod writes, no ticket edits, no posted comments.",
+            "Run alone, proposes and never builds; run as a stage of work Simon asked to have done, hands every BUILD part straight to the build. Read-only: no prod writes, no ticket edits, no posted comments.",
             "Splits the proposal into separately-decidable parts and verdicts each one independently. "
             "Killing one part while building the others is the useful outcome, and judging the ticket "
             "as one lump hides it.",

@@ -102,6 +102,12 @@ can give (a credential, a prod authorization, a decision where guessing wrong wa
 interrupt. On a blocker, do every other item first and stop with that one named. If you find yourself
 writing "say the word and I'll continue" — that's the bug. Continue.
 
+**DO run an evaluation skill (a verdict, research, a prod-data check, a plan) as a stage of work I asked
+done, never its deliverable:** a build verdict builds that item to done (a PR for code) in the same run,
+independent items in parallel: `references/planning-and-tracking.md` § Asked-for work ends built.
+TEST: each asked-for item ends done or blocked by a Simon-only reason above; a verdict alone is never
+done (the fix for a batch of asked-for follow-ups handed back as verdicts and plans).
+
 **Work in fix → verify → fix loops until a clean pass**, using the batch timing above. Re-run the affected
 check after a failure; preserve passing evidence for unaffected scope. If a loop stops converging (the
 same failure recurs, or a fix needs a decision only I can make), stop and tell me where it stands.
@@ -169,15 +175,12 @@ Before a change touching more than about three files, commit the good state or b
 ### Self-verify every visual deliverable before handing back — the default
 **DO open the exact artifact a human will open (web UI in Chrome for Testing, `browser-debugging.md`;
 or the built mockup, board, dashboard, report, image, PR media) and check every
-state he can switch to,** at most 24 variant x viewport x toggle rows: not blank (ink above 0.05%), key
-strings present, key elements fully visible (cut by no overflow-hidden or scroll ancestor), one
-screenshot per distinct view type viewed. On any failure fix and re-run the WHOLE check until every row
-passes; hand off with the pass table and screenshots path.
-Tool: `references/screenshot-review.md` § Hand-off check. DO apply § Refresh after the follow-up batch
+state he can switch to for blank and clipped content,** viewing one screenshot per view type. On any
+failure fix and re-run the WHOLE check until every row passes; hand off with the pass table and
+screenshots path. Thresholds and tool: `references/screenshot-review.md` § Hand-off check. DO apply § Refresh after the follow-up batch
 by default for UI ticket work.
 **DO view a phone-width screenshot of every changed section from this build before handing over a preview link, and name its path;** `references/screenshot-review.md` § Hand-off check.
-**DON'T count another file's render, one state, a DOM string or non-white pixels as the check** (a board opened
-blank, then a compare view cropped every phone).
+**DON'T count another file's render, one state, a DOM string or non-white pixels as the check.**
 **DO measure a supplied-design build** (`references/workflow-loops.md` § Build from a supplied design
 source); hand off its report, never an eye comparison.
 TEST: a visual hand-off with no pass table over every switchable state of the file actually opened, a
