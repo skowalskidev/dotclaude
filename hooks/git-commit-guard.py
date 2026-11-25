@@ -3450,6 +3450,33 @@ def _unquoted(span: str):
     return None if re.search(r"[*?\[]|\{[^{}]*(?:,|\.\.)[^{}]*\}", text) else text
 
 
+# Mutations that only take a PR OUT of the merge queue or auto-merge. A call naming any other mutation, or a
+# merge or enqueue name anywhere, stays with the merge checks.
+REMOVAL_MUTATIONS = {"dequeuepullrequest", "disablepullrequestautomerge"}
+
+
+def _only_removal_mutations(text: str) -> bool:
+    """Every GraphQL field called with arguments in `text` that names a pull request, merge or queue is a
+    removal (REMOVAL_MUTATIONS), at least one is, and no merge or enqueue name appears (API_MERGE_RE)."""
+    if API_MERGE_RE.search(text):
+        return False
+    called = {m.lower() for m in re.findall(r"\b([A-Za-z_]\w*)\s*\(", text)}
+    pr_mutations = {m for m in called if "pullrequest" in m or "merge" in m or "queue" in m}
+    return bool(pr_mutations) and pr_mutations <= REMOVAL_MUTATIONS
+
+
+def _only_disables_auto(words: list) -> bool:
+    """The merge subcommand with --disable-auto and nothing that merges: only turns auto-merge off. Any
+    method, --auto, --admin or body option makes it a merge again."""
+    rest = words[3:]
+    if "--disable-auto" not in rest:
+        return False
+    merging = {"--auto", "--admin", "--merge", "-m", "--squash", "-s", "--rebase", "-r", "--delete-branch", "-d",
+               "--subject", "-t", "--body", "-b", "--body-file", "-F", "--author-email", "-A",
+               "--match-head-commit"}
+    return not any(w.split("=", 1)[0] in merging for w in rest)
+
+
 def _gh_api_read(span: str) -> bool:
     """`gh api graphql -f query='{...}'` or `gh api -X GET repos/o/r/pulls/12/comments -f per_page=100`: a
     literal gh api call that only reads. gh and api are written plainly, nothing in it expands, no field
@@ -3497,8 +3524,9 @@ def _gh_api_read(span: str) -> bool:
     if path == "graphql":
         # `mutation` is read in the words as the shell joins them (`mu''tation`) and as written; gh fills a
         # {owner}, {repo} or {branch} placeholder into a field, so a field holding one is unread.
+        joined = span + "".join(words)
         return (method in ("", "POST") and any(f.startswith("query=") for f in fields)
-                and not re.search(r"mutation", span + "".join(words), re.I)
+                and (not re.search(r"mutation", joined, re.I) or _only_removal_mutations(joined))
                 and not any(re.search(r"\{(?:owner|repo|branch)\}", f) for f in fields))
     placeholders = re.sub(r"\{(?:owner|repo|branch)\}", "", path)  # gh fills these in; no other brace
     return ((method == "GET" or (not method and not fields)) and not re.search(r"merge|graphql", path, re.I)
@@ -4068,6 +4096,10 @@ def main() -> int:
         is_push = sub == "push"
         words = gh_pr_words(words)
         is_gh_merge = bool(words) and os.path.basename(words[0]) == "gh" and words[1:3] == ["pr", "merge"]
+        if is_gh_merge and _only_disables_auto(words):
+            # `--disable-auto` turns auto-merge off and takes the PR out of the merge queue: the opposite of
+            # a merge, so it runs whenever asked (Simon's "dequeue" was blocked twice, 25 Nov, #1476/#1477).
+            is_gh_merge = False
         if is_gh_merge and REPO_ENV_RE.search(command):
             return deny("Blocked `gh pr merge`. Cause: the command sets GH_REPO, GH_HOST or an enterprise "
                         "token, which can point the merge at another repository than the one checked. Name the "
