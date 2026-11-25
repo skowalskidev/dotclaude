@@ -2716,6 +2716,10 @@ CONTRACTS: dict[str, dict] = {
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
+            "Record a turn as a peer entry when, after removing <agent-message> and <cross-session-message> "
+            "blocks, nothing is left or it opens with another session's attribution (\"From the <name> session\", "
+            "\"From <name> (session <id>)\", \"Another Claude session\"), whatever it quotes Simon as saying; "
+            "Simon's own lowercase opener or a later quoted relay stays his ask.",
             "gate refuses a branch or reason holding a line break and stamps its heading with the session "
             "id; the read-only gates mode prints only this session's fence-free gate lines, exits 3 when "
             "no ledger resolves and 4 while a lock-contention fallback file holds this session's prompts, "
