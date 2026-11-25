@@ -343,13 +343,18 @@ they grow with the config, so this is part of applying the edit, not a follow-up
   `settings.json` matcher needs a `HOOK_ROUTING` case, including the awkward variants (the
   `mcp__*__AskUserQuestion` form is in there because missing it deadlocked a whole session).
 
-**Then run it, and loop until clean:**
+**Then run it as a double tap** (`references/testing-strategy.md` § Double tap):
 
 ```bash
-/usr/bin/python3 ~/.claude/hooks/config-contract.test.py
+/usr/bin/python3 <worktree>/hooks/config-contract.test.py                # full run: every failure, no fail-fast
+/usr/bin/python3 <worktree>/hooks/config-contract.test.py --last-failed  # while fixing: the failed criteria only
 ```
 
-Zero model calls, milliseconds, so run it freely. A failure is the point of the exercise: fix the
+Zero model calls, but its child suites take minutes. Run the worktree's copy: the live `~/.claude`
+copy tests main, not the draft. Settle every edit and expected outcome first, run the full suite once,
+fix every failure in one batch, then confirm once on the COMMITTED tree: a clean full pass there is
+recorded for `HEAD^{tree}`, and `bin/config-land-check.py` reuses it instead of running it a third
+time. A failure is the point of the exercise: fix the
 config, not the test. Only change a criterion when the guarantee genuinely moved, and say so out loud
 in the same breath.
 
@@ -359,9 +364,9 @@ satisfied by accident in any long description. That was fixed by narrowing the C
 cries wolf gets switched off, so a false positive is a defect in the check, not something to work
 around with an exception.
 
-**Looping raises adherence.** Running the suite, fixing what it surfaces, and running again is what
-converts a written rule into one that actually holds. Stop when a full pass is clean, not after the
-first fix.
+**Fix the batch, then confirm once.** Running the suite, fixing everything it surfaces, and running it
+once more is what converts a written rule into one that actually holds. Stop when the confirming pass
+is clean; a third full run needs a stated new cause.
 
 ## Step 7 · Land, activate and clean up
 

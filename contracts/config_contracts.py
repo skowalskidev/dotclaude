@@ -98,7 +98,9 @@ CONTRACTS: dict[str, dict] = {
             "Records the head sha in the shared Git directory and pushes it to the remote main only after the contract suite and dotfiles/secret-scan.sh --range both pass on that exact head; a new commit needs a new run, and a rejected push exits 1, never forces.",
             "Holds an fcntl.flock on claude-config-land.lock in the shared Git directory from the fetch and merge of the remote main through the checks to the push, so concurrent landers on one machine queue instead of rerunning the suite after a lost race.",
             "A waiting lander prints the holder's pid, branch, root and start time; after --lock-wait seconds (default 1800) it exits 75 naming the holder and pushes nothing. The kernel releases the lock when its holder exits, killed included.",
-            "bin/config-land-check.test.py drives serialization, the named holder, the timeout, a killed holder, a conflicting main and a kept review after a main edit elsewhere in a touched file against a temp repo with stub checks; hooks/git-commit-guard.test.py drives its refusals.",
+            "Runs the contract suite at most once per tree: a clean full pass recorded for the exact merged HEAD^{tree} in the shared Git directory within 24 h, by the suite itself or an earlier landing, is reused and named; a pass on another tree or an older one is not.",
+            "The suite's timeout scales with host load (1800 s idle, times 1-minute load per CPU, capped at 3600 s) and kills the suite's process group; a whole-suite timeout, or a suite exit 75 meaning only load timeouts failed, says it timed out under load and gets exactly one retry (the --last-failed criteria for exit 75), while a real failure gets none. The secret scan and the merge with the remote main are unchanged.",
+            "bin/config-land-check.test.py drives serialization, the named holder, the timeout, a killed holder, a conflicting main, a kept review after a main edit elsewhere in a touched file, the same-tree pass reuse, the other-tree and stale passes, and both load-timeout retries against a temp repo with stub checks; hooks/git-commit-guard.test.py drives its refusals.",
         ],
     },
     "bin/session-performance.py": {
@@ -684,6 +686,7 @@ CONTRACTS: dict[str, dict] = {
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
             "Start every heavy check only after every build item and review/fix round lands on one head; a recorded plan or handoff order never moves one earlier, and each heavy check names its head, which equals the pushed head or records why.",
+            "Keeps an always-on double-tap line: settle the design and expected outcomes, run a suite once collecting every failure, fix all, rerun once; at most 2 full runs of a suite per batch, with testing-strategy.md § Double tap holding the detail.",
             "Default to draft mode while Simon gives feedback, pointing at references/workflow-loops.md for its detail; no check runs per feedback message.",
             "Size every check to the change's tier through testing-strategy.md, which owns the tiers; the ship harness runs on every open PR at that tier.",
             "Preserve required hooks and CI without bypassing them to impose batch timing; native compile and backend payment, auth and data tests live in testing-strategy.md.",
@@ -1134,6 +1137,7 @@ CONTRACTS: dict[str, dict] = {
             "A gate row needing a tool the workflow installs runs locally with that tool at the workflow's pinned version, fetched on demand (npx, brew or a pinned download) without changing the repo; a fetchable missing tool is never a skip reason.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
+            "Own the Double tap: settle every design step and moved expectation before the first run, run the full suite once with no fail-fast flag and read every failure, fix all in one batch, confirm once (full, or the failed set plus touched files' tests then one full run); at most 2 full runs of a suite per batch, a third naming its new cause; cite only the primary docs opened for pytest, pytest-xdist, Jest and Vitest.",
             "Own the heavy-check start gate: name what counts as heavy, start one only after every planned build item and review/fix round lands on one head, bar early discovery runs, run a recorded heavy step at convergence, stop a superseded in-flight run as stopped-stale, and name each run's head.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
             "Fix final-gate failures and rerun affected checks; broaden only when changed inputs invalidate coverage, and never count partial or skipped scope as a full pass.",
@@ -2315,7 +2319,9 @@ CONTRACTS: dict[str, dict] = {
             "Surfaces anything else the change needs from Simon, with copy-paste steps to get it, in "
             "the same gate block, then waits.",
             "Updates config_contracts.py and routing_scenarios.py alongside the edit, then runs the "
-            "suite and loops until clean. Tests that do not grow with the config stop protecting it.",
+            "worktree's suite as a double tap: one full run collecting every failure, one fix batch, one "
+            "confirming run on the committed tree whose recorded pass the land check reuses. Tests that "
+            "do not grow with the config stop protecting it.",
             "Records a late or deferred lesson in the worktree's .context/config-lessons.md, folds every "
             "open entry on a branch's concern into that branch before it lands, and gives each entry a verdict.",
         ],

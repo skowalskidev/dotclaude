@@ -19,6 +19,8 @@ DO start each heavy check (builds, full suites, typecheck, device walks, capture
 CI) ONCE, after every build item and review/fix round lands on one head; a plan or handoff order never
 moves one earlier. Between edits only the affected test file and analyze on touched files; allow a
 concrete diagnostic or Simon's ask. Keep hooks/CI. Detail: `references/testing-strategy.md` § Verify once, at convergence.
+DO double-tap a suite: settle the design and expected outcomes, run it once collecting every failure,
+fix all, rerun once (same file, § Double tap).
 DO default to draft mode while Simon gives feedback: `references/workflow-loops.md` § Draft mode.
 DO size each check to the change's tier, then walk each changed journey e2e on a local stack, iOS
 Simulator included, before PR-ready: `references/testing-strategy.md` §§ Size the checks to the
@@ -28,7 +30,8 @@ DO push a finished fix rather than wait on a local slot, name the real blocker i
 launch every ready stage at once on a priority ask: `references/parallelization.md` §§ Parallelize
 verification, across tasks AND stages.
 TEST: no routine per-edit/feature/commit/feedback runs; each heavy check names its head, which equals
-the pushed head or records why; at most 1 full judge round plus 2 delta passes per PR.
+the pushed head or records why; at most 1 full judge round plus 2 delta passes per PR; at most 2
+full runs of a suite per batch.
 
 ### Claims about third parties must come from primary sources
 DO apply `references/research.md` § Claims about third parties to every factual claim about another
@@ -228,8 +231,7 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
 - **Never install a persistent background process** (login item, LaunchAgent/LaunchDaemon, cron,
   always-on watcher) without asking first — and if you add one for a task, remove it AND its
   registration when done. No persistent job is sanctioned; pace long runs with `references/usage-limits.md`.
-- **Prefer on-demand / event-driven over always-on.** An idle CPU-burning daemon is rarely right;
-  reach for a hook, a manual command, or a session-start check instead.
+- **Prefer on-demand / event-driven over always-on:** `references/dev-server-hygiene.md` § Track what you started.
 
 ## Project documentation rule
 

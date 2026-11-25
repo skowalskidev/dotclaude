@@ -24,7 +24,12 @@ Checks, all on the exact HEAD that will be pushed:
   - the reviewed hash matches the diff after that merge, so a later edit, or a main change that
     touches the reviewed lines, invalidates the review (the hash covers file headers and +/- lines,
     not context, blob ids or hunk positions, so main work elsewhere in a touched file keeps it);
-  - the contract suite passes: /usr/bin/python3 hooks/config-contract.test.py;
+  - the contract suite passes: /usr/bin/python3 hooks/config-contract.test.py. A clean full pass
+    already recorded for this exact tree (`git rev-parse HEAD^{tree}`, in <git-common-dir>/
+    claude-config-suite-pass.json, written by the suite itself or an earlier landing) within
+    SUITE_PASS_MAX_AGE_S is reused instead of run a second time. The run's timeout scales with host
+    load; a whole-suite timeout, or a suite that failed only on its children's load timeouts (exit 75),
+    says "timed out under load" and gets ONE retry (the timed-out criteria only, for exit 75);
   - dotfiles/secret-scan.sh --range passes (gitleaks + the identity guard) on the landing commits.
 
 The push goes to <remote> main for that sha only and is verified on the remote. The guard still
@@ -39,6 +44,7 @@ import fcntl
 import hashlib
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -50,6 +56,12 @@ LOCK_WAIT_S = 1800
 LOCK_POLL_S = 0.5
 LOCK_NOTE_EVERY_S = 60
 EXIT_LOCK_TIMEOUT = 75
+SUITE_PASS = "claude-config-suite-pass.json"
+SUITE_PASS_MAX_AGE_S = 24 * 3600
+SUITE_PASS_KEEP = 40
+EXIT_LOAD_TIMEOUT = 75  # the contract suite's exit when every failed criterion only timed out under load
+SUITE_TIMEOUT_BASE_S = 1800
+SUITE_TIMEOUT_CAP_S = 3600
 
 
 class LockTimeout(Exception):
@@ -139,6 +151,110 @@ def landing_lock(path, wait_s, owner):
         os.close(fd)  # closing the descriptor releases the flock; process death does the same
 
 
+def tree_of(root):
+    return git(root, "rev-parse", "HEAD^{tree}")
+
+
+def host_load():
+    try:
+        load1 = os.getloadavg()[0]
+    except OSError:
+        load1 = 0.0
+    return load1, os.cpu_count() or 1
+
+
+def suite_timeout(load1, cpus):
+    """1800 s on an idle host, times 1-minute load per CPU above 1, capped at 3600 s. It catches a hung
+    suite; a healthy suite on a loaded host (load 20-170 on 8 CPUs) must never fail on it.
+    CLAUDE_LAND_SUITE_TIMEOUT_S sets it exactly, for bin/config-land-check.test.py."""
+    fixed = os.environ.get("CLAUDE_LAND_SUITE_TIMEOUT_S", "")
+    try:
+        if fixed:
+            return max(0.1, float(fixed))
+    except ValueError:
+        pass
+    return int(min(SUITE_TIMEOUT_CAP_S, SUITE_TIMEOUT_BASE_S * max(1.0, load1 / max(1, cpus))))
+
+
+def _read_passes(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            entries = json.load(f).get("passes", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [e for e in entries if isinstance(e, dict) and isinstance(e.get("tree"), str)]
+
+
+def recorded_suite_pass(root, tree, now=None):
+    """The newest recorded clean full pass of the contract suite on this exact tree, if still fresh."""
+    now = time.time() if now is None else now
+    for entry in reversed(_read_passes(os.path.join(common_dir(root), SUITE_PASS))):
+        if entry["tree"] == tree and 0 <= now - float(entry.get("epoch", 0)) <= SUITE_PASS_MAX_AGE_S:
+            return entry
+    return None
+
+
+def record_suite_pass(root, tree, by):
+    """Append a clean full pass for tree; the suite and the land check share this one writer."""
+    path = os.path.join(common_dir(root), SUITE_PASS)
+    entries = [e for e in _read_passes(path) if e["tree"] != tree]
+    entries.append({"tree": tree, "by": by, "at": now_iso(), "epoch": time.time()})
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"passes": entries[-SUITE_PASS_KEEP:]}, f, indent=1)
+    os.replace(tmp, path)
+
+
+def run_suite(root, *extra, timeout):
+    """Run the suite in its own process group, so a timeout kills its child suites too and returns at
+    once instead of waiting on a grandchild that still holds the output pipes."""
+    cmd = ["/usr/bin/python3", os.path.join(root, "hooks", "config-contract.test.py"), *extra]
+    child = subprocess.Popen(cmd, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        out, err = child.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.killpg(child.pid, signal.SIGKILL)
+        child.communicate()
+        raise
+    return subprocess.CompletedProcess(cmd, child.returncode, out, err)
+
+
+def contract_suite(root, tree):
+    """Pass the contract suite on tree: reuse a recorded pass, else run it with one retry under load."""
+    seen = recorded_suite_pass(root, tree)
+    if seen:
+        note(f"contract suite already passed on tree {tree[:12]} ({seen.get('by', 'unknown')} at "
+             f"{seen.get('at', 'an unknown time')}); not run again")
+        return
+    load1, cpus = host_load()
+    budget = suite_timeout(load1, cpus)
+    try:
+        suite = run_suite(root, timeout=budget)
+    except subprocess.TimeoutExpired:
+        load_now, _ = host_load()
+        note(f"the contract suite timed out under load after {budget:g} s (1-min load {load_now:.1f} on "
+             f"{cpus} CPUs); retrying it once")
+        try:
+            suite = run_suite(root, timeout=min(2 * SUITE_TIMEOUT_CAP_S, 2 * budget))
+        except subprocess.TimeoutExpired:
+            fail(f"the contract suite timed out under load twice ({budget:g} s, then {2 * budget:g} s); "
+                 f"land again once the host is quieter")
+    if suite.returncode == EXIT_LOAD_TIMEOUT:
+        note("the contract suite failed only on children that timed out under load; retrying those "
+             "criteria once")
+        try:
+            suite = run_suite(root, "--last-failed", timeout=budget)
+        except subprocess.TimeoutExpired:
+            fail("the contract suite's retry of its timed-out criteria timed out under load")
+    if suite.returncode:
+        sys.stderr.write(suite.stdout[-4000:] + suite.stderr[-2000:])
+        fail("the contract suite failed" + (" (timed out under load twice)"
+                                            if suite.returncode == EXIT_LOAD_TIMEOUT else ""))
+    record_suite_pass(root, tree, "config-land-check")
+
+
 def merge_base_in(root, remote, base):
     """Merge the fetched remote main into HEAD when HEAD does not already contain it."""
     head = git(root, "rev-parse", "HEAD")
@@ -164,11 +280,7 @@ def land(root, remote, reviewed, base):
         fail("the reviewed hash does not match the current diff (an edit, or a merged main change to the "
              "same lines, changed it); run --diff and read it again")
 
-    suite = subprocess.run(["/usr/bin/python3", os.path.join(root, "hooks", "config-contract.test.py")],
-                           cwd=root, capture_output=True, text=True)
-    if suite.returncode:
-        sys.stderr.write(suite.stdout[-4000:] + suite.stderr[-2000:])
-        fail("the contract suite failed")
+    contract_suite(root, tree_of(root))
     scan = subprocess.run(["bash", os.path.join(root, "dotfiles", "secret-scan.sh"),
                            "--range", f"{base}..{head}"], cwd=root, capture_output=True, text=True)
     if scan.returncode:
