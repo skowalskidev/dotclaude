@@ -244,6 +244,13 @@ CASES = [
         answer=yes("merge")), False, "", True),
     ("FB 'from this session i mean' is Simon's own words, not a relayed note", dict(command=f"{M} 1186", turn=[
         ("open", "from this session i mean: merge #1186")]), False, "", False),
+    ("FB git merge-base inside a quoted substitution is git's own", dict(
+        command='echo "main: $(git rev-parse HEAD | cut -c1-8) base: $(git merge-base HEAD origin/main | cut -c1-8)" '
+                '&& gh pr list --json number | python3 -c "import json,sys; print(len(json.load(sys.stdin)))"'),
+     False, "", False),
+    ("FB escaped backquotes in an unquoted PR-body heredoc are data", dict(
+        command=f"cat > body.md <<EOF\nRun \\`{M} 12\\` after review\nEOF\ngh pr create --body-file body.md"),
+     False, "", False),
     ("FB dequeue: --disable-auto runs", dict(command=f"{M} 1186 --disable-auto"), False, "", False),
     ("FB dequeue through the API runs", dict(
         command="gh api graphql -f query='mutation { dequeuePullRequest(input:{id:\"x\"}) { clientMutationId } }'"),
@@ -325,6 +332,8 @@ CASES = [
 
     # ---- what the shell runs: obfuscations still deny
     ("OBF a quoted or escaped gh is still a merge", dict(command=f"'gh' pr me''rge 1186", turn=[("open", "x")]),
+     True, "gh pr merge 1186", None),
+    ("OBF a backquote substitution inside quotes runs", dict(command=f'echo "`{M} 1186`"', turn=[("open", "x")]),
      True, "gh pr merge 1186", None),
     ("OBF a built command word", dict(command="$GH pr merge 1186"), True, "built at run time", False),
     ("OBF eval", dict(command=f"eval \"{M} 1186\"", turn=[("open", "x")]), True, "gh pr merge 1186", None),

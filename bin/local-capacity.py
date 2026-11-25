@@ -9,7 +9,7 @@ heavy-slot cap. Only CPU decides admission: memory pressure is never read, becau
 absorbs it and a memory-warning gate refused builds with ample CPU headroom.
 Explicitly pause-safe foreground runs yield their own group under primary contention.
 Local Docker dev stacks take a
-separate stack lease capped by max_stacks(). `status` and `watchdog` flag hot processes, unleased
+separate stack lease capped by max_stacks(), derived from measured Docker VM memory. `status` and `watchdog` flag hot processes, unleased
 simulators, idle simulator claims and extra test browsers; `reclaim-sim` shuts down and unclaims an
 unleased simulator only when its claim owner has no live session. Admission, `status` and `watchdog`
 automatically release a provably dead heavy lease (reap_dead_leases), a simulator lease once simctl reads
@@ -60,8 +60,10 @@ MAX_BOOTED_SIMULATORS = 1  # the one simulator ceiling: claimed, leased or boote
 HOT_CPU_PERCENT = 200  # watchdog: ps %cpu at or above this...
 HOT_MIN_SECONDS = 120  # ...on a process at least this old (younger is boot or startup)
 MAX_TEST_BROWSERS = 1  # watchdog: more Chrome for Testing instances than this is flagged
-STACK_GIB_EACH = 3  # Docker VM memory budgeted per local dev stack
-STACK_CEILING = 2  # most local dev stacks at once, whatever the VM size
+STACK_GIB_EACH = 3  # Docker VM memory budgeted per local dev stack when no running stack can be measured
+STACK_CEILING = 2  # most local dev stacks at once on that unmeasured budget
+STACK_MIN_GIB = 1  # smallest per-stack memory a measurement may claim (a stack still booting reads low)
+STACK_RESERVE = 1  # stacks' worth of Docker VM memory kept free beyond the measured use
 STACK_IDLE_MIN = 60  # a stack with no live session and no change for this long is idle
 STACK_KEEP_MAX_HOURS = 24  # longest keep-until marker a stack owner may set
 STACK_START_GRACE_MIN = 15  # a stack lease counts this long before its containers appear
@@ -1081,24 +1083,29 @@ def canonical_workspace(workspace):
 
 
 def observe_stacks():
-    """Running local dev stacks keyed by canonical workspace: {workspace: {"project", "supabase"}}."""
+    """Running local dev stacks keyed by canonical workspace: {workspace: {"project", "supabase", "ids"}},
+    where "ids" holds the stack's short container ids."""
     try:
         fixture = host_fixture("stacks", [])
         if fixture is None:
-            text = docker_json_lines(["ps", "--format", "{{json .Labels}}"])
+            text = docker_json_lines(["ps", "--format", "{{json .}}"])
             fixture = []
             for line in text.splitlines():
-                labels = dict(item.split("=", 1) for item in json.loads(line).split(",") if "=" in item)
+                row = json.loads(line)
+                labels = dict(item.split("=", 1) for item in str(row.get("Labels", "")).split(",") if "=" in item)
                 project = labels.get(SUPABASE_LABEL) or labels.get("com.docker.compose.project")
                 if not project:
                     continue
                 workdir = (labels.get("com.supabase.cli.workdir") or
                            labels.get("com.docker.compose.project.working_dir") or project)
-                fixture.append({"project": project, "workdir": workdir, "supabase": SUPABASE_LABEL in labels})
+                fixture.append({"project": project, "workdir": workdir, "supabase": SUPABASE_LABEL in labels,
+                                "id": str(row.get("ID", ""))[:12]})
         stacks = {}
         for item in fixture:
-            stacks[canonical_workspace(item["workdir"])] = {"project": item["project"],
-                                                            "supabase": bool(item["supabase"])}
+            stack = stacks.setdefault(canonical_workspace(item["workdir"]), {
+                "project": item["project"], "supabase": bool(item["supabase"]), "ids": []})
+            if item.get("id"):
+                stack["ids"].append(item["id"])
         return stacks
     except FileNotFoundError:
         return {}  # no docker CLI: no stack can run
@@ -1116,11 +1123,69 @@ def docker_vm_gib():
         return None
 
 
-def max_stacks(vm_gib):
-    """floor(Docker VM GiB / STACK_GIB_EACH), at least 1, at most STACK_CEILING; unknown VM -> 1."""
+MEM_UNITS = {"B": 1, "KIB": 2 ** 10, "MIB": 2 ** 20, "GIB": 2 ** 30, "TIB": 2 ** 40,
+             "KB": 10 ** 3, "MB": 10 ** 6, "GB": 10 ** 9, "TB": 10 ** 12}
+
+
+def mem_usage_gib(text):
+    """GiB from the used half of a `docker stats` MemUsage cell, e.g. "1.45GiB / 7.75GiB" -> 1.45."""
+    match = re.match(r"\s*([0-9]+(?:\.[0-9]+)?)\s*([A-Za-z]+)", str(text))
+    if not match or match.group(2).upper() not in MEM_UNITS:
+        raise ValueError("unreadable memory usage %r" % text)
+    return float(match.group(1)) * MEM_UNITS[match.group(2).upper()] / 2 ** 30
+
+
+def stack_usage(running):
+    """Measured Docker VM memory: {"total": GiB used by every running container, "stacks": {workspace: GiB}},
+    or None when it cannot be measured (no docker stats, or a running stack with no measured container)."""
+    try:
+        fixture = host_fixture("stack_usage", None)
+        if fixture is not None:
+            return {"total": float(fixture["total"]),
+                    "stacks": {canonical_workspace(ws): float(gib) for ws, gib in fixture["stacks"].items()}}
+        if HOST_FIXTURE is not None or not running or not all(stack.get("ids") for stack in running.values()):
+            return None  # nothing measurable: no docker stats call
+        per_id = {}
+        for line in docker_json_lines(["stats", "--no-stream", "--format", "{{json .}}"]).splitlines():
+            row = json.loads(line)
+            per_id[str(row.get("ID") or row.get("Container", ""))[:12]] = mem_usage_gib(row.get("MemUsage", ""))
+        stacks = {}
+        for workspace, stack in running.items():
+            ids = [cid for cid in stack.get("ids", []) if cid in per_id]
+            if not ids:
+                return None
+            stacks[workspace] = sum(per_id[cid] for cid in ids)
+        return {"total": sum(per_id.values()), "stacks": stacks}
+    except (OSError, subprocess.TimeoutExpired, ValueError, KeyError, TypeError, AttributeError):
+        return None
+
+
+def stack_gib_each(usage):
+    """Memory one more stack needs: the largest measured running stack, at least STACK_MIN_GIB."""
+    return max(STACK_MIN_GIB, max(usage["stacks"].values()))
+
+
+def max_stacks(vm_gib, usage=None, starting=0):
+    """How many dev stacks may run at once. Measured (usage of at least one running stack): the running and
+    starting stacks, plus as many more as fit in the VM memory left free after every container's measured use,
+    each starting stack's share and STACK_RESERVE stacks' worth, at the largest running stack's size.
+    Unmeasured: floor(Docker VM GiB / STACK_GIB_EACH), at most STACK_CEILING. At least 1; unknown VM -> 1."""
     if vm_gib is None or not math.isfinite(vm_gib):
         return 1
-    return max(1, min(STACK_CEILING, int(vm_gib // STACK_GIB_EACH)))
+    if not usage or not usage.get("stacks"):
+        return max(1, min(STACK_CEILING, int(vm_gib // STACK_GIB_EACH)))
+    each = stack_gib_each(usage)
+    free = vm_gib - usage["total"] - starting * each
+    more = int(free // each) - STACK_RESERVE
+    return max(1, len(usage["stacks"]) + starting + max(0, more))
+
+
+def stack_ceiling(running, use):
+    """(ceiling, VM GiB, measured usage or None) for the stacks in `use` (running plus starting leases)."""
+    vm_gib = docker_vm_gib()
+    usage = stack_usage(running)
+    starting = len([ws for ws in use if ws not in running])
+    return max_stacks(vm_gib, usage, starting), vm_gib, usage
 
 
 def live_session_cwds():
@@ -1318,7 +1383,7 @@ def stack_acquire(root, owner, workspace, keep_hours=None):
         leases = read_stack_leases(root)
         if workspace not in running:
             others = {ws: text for ws, text in stacks_in_use(leases, running).items() if ws != workspace}
-            ceiling = max_stacks(docker_vm_gib())
+            ceiling = stack_ceiling(running, others)[0]
             if len(others) >= ceiling:
                 raise Busy("stack start deferred: %d of %d local dev stacks in use: %s; stop one you own, or retry when "
                            "one stops" % (len(others), ceiling, "; ".join("%s (%s)" % item for item in sorted(others.items()))))
@@ -2310,10 +2375,12 @@ def print_stacks(leases):
     except GateError as exc:
         print("dev stacks: %s" % exc)
         return
-    vm_gib = docker_vm_gib()
     use = stacks_in_use(leases, running)
-    print("dev stacks: %d of %d (Docker VM %s GiB)%s" % (
-        len(use), max_stacks(vm_gib), "unknown" if vm_gib is None else "%.1f" % vm_gib,
+    ceiling, vm_gib, usage = stack_ceiling(running, use)
+    measured = (", %.1f GiB used, %.1f GiB per stack measured" % (usage["total"], stack_gib_each(usage))
+                if usage and usage.get("stacks") else ", %d GiB per stack budgeted" % STACK_GIB_EACH)
+    print("dev stacks: %d of %d (Docker VM %s GiB%s)%s" % (
+        len(use), ceiling, "unknown" if vm_gib is None else "%.1f" % vm_gib, measured,
         (": " + "; ".join("%s (%s)" % item for item in sorted(use.items()))) if use else ""))
     try:
         for line in stack_sweep(False, leases=leases):
