@@ -51,6 +51,12 @@ COMMIT = "git " + "commit"
 
 # (label, "feature"|"main", command, substring the deny reason must contain)
 MUST_FIRE = [
+    ("a live backquote merge in an unquoted heredoc body still runs", "feature",
+     "cat > /tmp/r.md <<EOF\nrun `gh pr merge 12`\nEOF", "gh pr merge"),
+    ("a backquote after an even backslash run is live", "feature",
+     "echo \"x \\\\`gh pr merge 12`\"", "gh pr merge"),
+    ("a heredoc fed to sh -s with merge text still denies", "feature",
+     "sh -s <<EOF\ngh pr merge 12 \\`x\\`\nEOF", "gh pr merge"),
     ("push to main from a feature branch", "feature", f"{PUSH} origin main", "push to the default branch (main)"),
     ("push names master", "feature", f"{PUSH} origin master", "(master)"),
     ("git -C <path> push to main", "feature", f"git -C /tmp/x push origin main", "(main)"),
@@ -388,6 +394,24 @@ MUST_FIRE = [
 ]
 
 MUST_NOT_FIRE = [
+    # Merge words that are only heredoc body text, a quoted search pattern or file content, never an
+    # executed gh merge (the fix for three false positives, 26 Nov 2026).
+    ("a PR body heredoc with backticks, then gh pr create --body-file, is no merge", "feature",
+     "cat > .context/pr-body.md <<'EOF' && gh pr create --draft --base main --head feat --title \"Fix it\" "
+     "--body-file .context/pr-body.md\n## Deploy\nMerge this PR; the Deploy workflow redeploys the functions.\n"
+     "Run `gh pr merge 12` only after review, see `$HOME/notes`.\nEOF"),
+    ("an unquoted PR body heredoc with escaped backquotes is no merge", "feature",
+     "cat > .context/pr-body.md <<EOF && gh pr create --draft --base main --head feat --title \"Fix it\" "
+     "--body-file .context/pr-body.md\nMerge this PR, then run \\`gh pr merge 12\\` by hand.\nEOF"),
+    ("a report heredoc naming gh pr merge in escaped backquotes, then a publish script, is no merge", "feature",
+     "cat > /tmp/r.md <<EOF\nThe guard blocked \\`gh pr merge\\` on a heredoc.\nEOF\n"
+     "python3 ~/.claude/bin/session-performance.py publish --id abc --file /tmp/r.md"),
+    ("a report heredoc naming gh pr merge, then a publish script, is no merge", "feature",
+     "cat > /tmp/r.md <<'EOF'\nThe guard blocked `gh pr merge` on a heredoc.\nEOF\n"
+     "python3 ~/.claude/bin/session-performance.py publish --id abc --file /tmp/r.md"),
+    ("a grep for quoted merge patterns is no merge", "feature",
+     "grep -rln \"hides the merge from this guard\\|Blocked \\`gh pr merge\\`\\|gh pr merge\" "
+     "~/.claude/hooks ~/.claude/bin ~/.claude/settings.json"),
     # A merge word quoted in a data-only command whose output reaches only the terminal is no merge, even
     # beside a pipe into a reader (awk, sort) or a python heredoc whose strings say "merge" (the fix for
     # three read-only checks denied on 24 Nov 2026).
