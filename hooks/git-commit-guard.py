@@ -2839,8 +2839,13 @@ def _shell_merge(command: str, depth: int = 0) -> int:
     # What a reader of a pipe or a redirection may receive: a quoted merge word that a data-only command
     # prints straight to the terminal (`_without_data_merge_words` with sealed output) never reaches it
     # (a poll loop's `gh pr checks | awk` beside a ledger call quoting `merge-readiness`, 24 Nov 2026).
+    # A plain `git merge-base` is git's own subcommand, never a gh merge a reader could run, even inside a
+    # command substitution (`echo "base: $(git merge-base a b)" && gh pr list | python3 -c ...`, 26 Nov 2026);
+    # `_without_git_merge_words` keeps the word when a live construct could still build a gh merge from it.
+    benign_dyn = _read_argument_params(command) | _data_dynamics(command)
+    live_dyn = [m.start() for m in DYNAMIC_RE.finditer(command) if m.start() not in benign_dyn]
     names_fed = names_merge and bool(re.search(r"\bmerge\b", _without_data_merge_words(
-        command, sealed=True, heredocs_inert=_all_heredocs_inert(raw))))
+        _without_git_merge_words(command, live_dyn), sealed=True, heredocs_inert=_all_heredocs_inert(raw))))
     # A heredoc an interpreter runs as its program (`python3 - <<'EOF'`) is text the guard reads: it can
     # run a merge only when a body names gh and merge, or an unquoted body expands a value that may
     # (a body editing a PR description with "merge" in its prose was denied, 24 Nov 2026).
@@ -3574,6 +3579,37 @@ def _unquoted_at(text: str, p: int) -> bool:
     return quote is None and i == p
 
 
+def _command_position_unquoted(text: str, p: int) -> bool:
+    """_unquoted_at, except that the inside of a `$( )` is its own unquoted context even when the
+    substitution sits in double quotes (`echo "$(git merge-base a b)"` runs git there). Single quotes and
+    escapes still hide a word; a `$(` inside single quotes opens nothing. Parentheses inside a
+    substitution nest, and a substitution still open at p keeps p inside it."""
+    stack, quote, depth, i = [], None, 0, 0
+    while i < p:
+        ch = text[i]
+        if quote == "'":
+            quote = None if ch == "'" else quote
+        elif ch == "\\":
+            i += 1
+        elif ch == "$" and text.startswith("$(", i) and not text.startswith("$((", i):
+            stack.append((quote, depth))
+            quote, depth = None, 0
+            i += 1
+        elif quote == '"':
+            quote = None if ch == '"' else quote
+        elif ch in "'\"":
+            quote = ch
+        elif stack and ch == "(":
+            depth += 1
+        elif stack and ch == ")":
+            if depth:
+                depth -= 1
+            else:
+                quote, depth = stack.pop()
+        i += 1
+    return quote is None and i == p
+
+
 def _without_git_merge_words(text: str, live: list) -> str:
     """text with the merge subcommand of each plain, unquoted `git merge…` command blanked: git consumes that
     word itself, so it never names or builds a gh merge (`$(git merge-base HEAD origin/main)` beside a
@@ -3593,7 +3629,7 @@ def _without_git_merge_words(text: str, live: list) -> str:
             return text
     out = text
     for m in GIT_MERGE_SUBCOMMAND_RE.finditer(text):
-        if _unquoted_at(text, m.start(1)):
+        if _command_position_unquoted(text, m.start(1)):
             out = out[:m.start(1)] + "_" * len(m.group(1)) + out[m.end(1):]
     return out
 

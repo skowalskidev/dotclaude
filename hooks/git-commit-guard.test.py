@@ -51,6 +51,10 @@ COMMIT = "git " + "commit"
 
 # (label, "feature"|"main", command, substring the deny reason must contain)
 MUST_FIRE = [
+    ("a gh merge beside git merge-base in a quoted substitution still denies", "feature",
+     "echo \"x $(git merge-base HEAD main; gh pr merge 12)\" && gh pr list", "gh pr merge"),
+    ("a quoted git merge-base word next to a built gh word still denies", "feature",
+     "echo \"$(git merge-base HEAD main)\" && gh pr $x 12", "hides the merge"),
     ("a live backquote merge in an unquoted heredoc body still runs", "feature",
      "cat > /tmp/r.md <<EOF\nrun `gh pr merge 12`\nEOF", "gh pr merge"),
     ("a backquote after an even backslash run is live", "feature",
@@ -394,6 +398,14 @@ MUST_FIRE = [
 ]
 
 MUST_NOT_FIRE = [
+    # git merge-base inside a double-quoted command substitution is git's own subcommand, no gh merge
+    # (the fix for a branch-state echo beside a gh pr list read, denied 26 Nov 2026).
+    ("git merge-base in a quoted substitution beside a gh pr list pipe is no merge", "feature",
+     "cd /tmp/repo && git fetch -q origin && echo \"main: $(git rev-parse --short origin/main) base: "
+     "$(git merge-base HEAD origin/main | cut -c1-8)\" && gh pr list --state open --json "
+     "number,title,isDraft,headRefName --limit 30 | python3 -c \"import json,sys; print(len(json.load(sys.stdin)))\""),
+    ("git merge-base in a quoted substitution beside a plain gh read is no merge", "feature",
+     "echo \"base: $(git merge-base HEAD origin/main)\" && gh pr list"),
     # Merge words that are only heredoc body text, a quoted search pattern or file content, never an
     # executed gh merge (the fix for three false positives, 26 Nov 2026).
     ("a PR body heredoc with backticks, then gh pr create --body-file, is no merge", "feature",
