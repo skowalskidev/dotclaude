@@ -346,11 +346,14 @@ they grow with the config, so this is part of applying the edit, not a follow-up
 **Then run it as a double tap** (`references/testing-strategy.md` § Double tap):
 
 ```bash
-/usr/bin/python3 <worktree>/hooks/config-contract.test.py                # full run: every failure, no fail-fast
-/usr/bin/python3 <worktree>/hooks/config-contract.test.py --last-failed  # while fixing: the failed criteria only
+L="python3 $HOME/.claude/bin/local-capacity.py run --owner <session-id> --"
+$L /usr/bin/python3 <worktree>/hooks/config-contract.test.py                # full run: every failure, no fail-fast
+$L /usr/bin/python3 <worktree>/hooks/config-contract.test.py --last-failed  # while fixing: the failed criteria only
 ```
 
-Zero model calls, but its child suites take minutes. Run the worktree's copy: the live `~/.claude`
+Zero model calls, but its child suites take minutes and saturate the CPU, so each run holds a
+heavy lease (`rules/process.md` § Clean up after yourself; an unleased run drove machine load to
+about 280 while other sessions built). Run it as a background task. Run the worktree's copy: the live `~/.claude`
 copy tests main, not the draft. Settle every edit and expected outcome first, run the full suite once,
 fix every failure in one batch, then confirm once on the COMMITTED tree: a clean full pass there is
 recorded for `HEAD^{tree}`, and `bin/config-land-check.py` reuses it instead of running it a third
