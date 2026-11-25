@@ -282,35 +282,26 @@ touches or renumbers a migration: `/sk:ship-pr` § Rewrite the body when the PR 
 Outside the own-config exception (`/sk:claude-config-sync` lands a head verified by
 `bin/config-land-check.py` with no confirmation) and § Monitoring-only changes, **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
-specific irreversible merge. `hooks/git-commit-guard.py` runs `gh pr merge <n>` only when the user's
-OWN words this turn (every ask `hooks/intent-ledger.sh latest-ask --since` recorded since his newest
-typed turn-opening prompt, queued mid-turn messages included) say "merge" with no later
-stop/hold/wait, and either name `<n>` anywhere, or cover it as an open PR this session pushed (no PR
-number, or "all"/"both"/"them"), or name no PR at all for ONE other PR per turn. A plural covers a PR
-this session did not push only when the hand-back he is answering lists it on its `Merge list:` line
-(the fix for "merge and deploy both" refused for a stack's base PR another session pushed), and a
-number names only that PR. A default-branch push needs
-`CLAUDE_ALLOW_MAIN_COMMIT=1` in the session's starting environment (an inline prefix in the command
-is denied) AND the user's words this turn saying "push". No flag the model sets
-authorizes a merge, and `gh api` merge, enqueue or auto-merge calls are denied.
+specific irreversible merge.
+**The guard (`hooks/git-commit-guard.py`, rebuilt 26 Nov on Simon's "bare-bones, not a bottleneck"):**
+it judges only commands the shell runs, so text that names a merge (a note, a heredoc body, a PR body,
+a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and a GraphQL dequeue run.
+A merge passes on Simon's own typed "merge #N" with no later hold word, or else on one haiku call
+(subscription, no tools) that reads his last 20 typed messages and must answer YES with a quote found
+verbatim in a message naming the PR, naming no PR while this session pushed it, or answering a
+hand-back whose `Merge list:` names it. Peer notes, harness blocks, tool answers and Claude's text never
+count, and a delegated worker never merges. A deny is one line ending "Say 'merge #N' to merge it": relay
+that ask only when the cause is about his words; any other cause (a variable selector, a missing
+`--match-head-commit` in a repo with a bot class, GH_REPO in the command) is yours to fix. A
+default-branch push needs `CLAUDE_ALLOW_MAIN_COMMIT=1` in the session's starting environment (an inline
+prefix is denied) AND his typed "push" this turn. API merge, enqueue and auto-merge calls are denied.
 **DO run one `gh pr merge <bare number>` per PR; DON'T loop over a variable or substitute the number:**
-the guard reads the PR from the command text, so `gh pr merge $n` denies whatever the user said. Read
-the deny's `Cause:` line first and fix that check; never ask the user to resend clear words (the fix
-for a `for n in ...` merge loop misread as a halt word, with Simon asked twice to resend).
-**DO stop at a ready, green PR and ask "merge #<n>?"; a plain "merge it" / "merge and deploy" answers it.** DON'T read "finish it",
-"priority", "1 yes" to a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged
-on "1 yes" to a model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").
-TEST: every merge traces to a user message this turn containing "merge" and that PR's number, or
-plural/unnumbered wording over PRs this session pushed or the answered hand-back's merge list, or to a standing merge below (the fix for "merge and deploy" covering one
-of two session PRs and a queued "from this session i mean" voiding "merge all that's ready").
-**DO treat a standing merge as the yes for every PR it covers, for the rest of the session:**
-"merge" plus a future condition ("merge and deploy all when they're ready", "merge #12 once CI is
-green") or a plain "merge all" / "merge them all" / "merge everything", which covers only open PRs
-this session pushed. The guard reads every ask this session, honours the newest such ask with no later
-stop/hold/wait/cancel or "don't merge/deploy", and runs the merge only when the PR is open, not a
-draft, mergeable and every check passed. Watch CI and merge each covered PR as it goes green; on a
-"not ready" deny, wait and retry, never re-ask. A single-PR "merge #12" or "merge it" still lasts
-one turn (the fix for a green PR blocked after an unrelated later message followed "merge all when ready").
+the guard reads the PR from the command, so `gh pr merge $n` denies whatever the user said.
+**DO stop at a ready, green PR and ask "merge #<n>?".** DON'T read "finish it", "priority", "1 yes" to
+a numbered question you wrote, or "ok" as a merge (the fix for #1121 merged on "1 yes" to a
+model-written "Merge #1121?" and #1127 enqueued on "this is priority, finish it").
+TEST: every merge traces to a typed message of the user's that the guard verified, or to the
+monitoring-only bar.
 **DON'T treat a yes to an AskUserQuestion option or plan YOU authored as that confirmation, and DON'T
 author an option that pushes/merges a remote default branch in the first place.** The confirmation must
 be the user's OWN unprompted "push"/"merge" for THAT action; offering "push to main" as a pickable
@@ -402,63 +393,21 @@ declares for its monitoring bot merges without his merge word once it meets the 
   Any failed, cancelled or neutral check on the head declines, a rerun gone green included (two jobs can share a
   name), so after a rerun the PR waits for Simon's merge word or a fresh push. A check outside
   `requiredChecks` that turns red between the read and the merge is not seen; GitHub enforces the rest. **With a
-  queue, stay with the PR until it merges:** any message or peer record that is no plain lift, arriving
-  while it waits, means dequeue it at once (`gh api graphql` `dequeuePullRequest`) and report; the
-  guard cannot see past the enqueue, and the base can also move while the PR waits. A message or peer record recorded in or after the gate
-  record's second declines the merge, unless it is Simon's own plain lift, until you read it and, if it
-  is no hold (the guard bullet below), record the gate again. Where a hold stands, report in one line
-  that #N passed the bar and waits for the lift the deny names. Verify any deploy the
+  queue, stay with the PR until it merges:** the base can move while it waits; dequeue it
+  (`gh api graphql` `dequeuePullRequest`) when Simon says to. Verify any deploy the
   merge triggers (§ Shipping is not done until the deploy is verified) and report in one line:
   `#N merged at <sha>; deploy <verified|none>`.
-- **The guard (25 Nov, Simon: "bot fixes are always auto merge"):** at the bar, a monitoring-only PR always merges; no message of his or anyone's holds it. The bar is the whole check. `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
-  lists them); any read error declines, and any hold Simon gave this session stands for every
-  monitoring-only PR unless it names PRs: a hold naming PRs ("#1298", "PR 1405", a `/pull/<n>` URL,
-  "merge 1296") holds those PRs only, a question proposing to cancel one included (`_hold_scope`); one
-  that also speaks of the class or a condition ("all", "the bot PRs", "until #13 lands") stays a class
-  hold. A hold is an explicit hold aimed at merging or shipping, read as whole words and
-  phrases (`HOLD_RES`): a hold word given as an order ("hold the bot PRs", "wait before merging",
-  "stop"), a negated merge or ship ("don't merge #1405", "do not deploy"), or a hold phrase ("not yet",
-  "leave it open", "nothing goes live", "needs my sign-off", "I'll review it first"). A mention of the
-  bot, a PR, merging or a fix holds nothing, nor does "not", "if" or "no" alone ("look at sre bots
-  threads and see if we need to make any more fixes" and "are you almost done or not yet?" pass).
-  System text is no word of Simon's: a background task's notification, a `<system-reminder>`, the
-  host's `<system_instruction>` and a slash command's name tags are never read for a hold; a peer
-  agent's record still holds. A look-alike letter, a control character, a redaction or an image fails
-  closed; an emoji, arrow or zero-width character that folds to no letter is dropped and the rest read (`_drop_symbols`). It stands until a later message from Simon himself that is only a plain
-  merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"), or that restates the standing
-  class merge with no PR number ("remember that sre bot fixes which don't influence user prod and have
-  been validated should be merged", or "also automerge any sre bot fixes", `STANDING_LIFT_RE`), and his order of the class merged in any mood, a reproach or an opening "wait" included ("didn't I tell you to merge in the SRE bot fixes?", `_orders_class_merge`), unless it negates, delays, conditions or extends the merge; a class hold naming only OTHER PRs (a quoted "#1356") is lifted by either; a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A bare work pause, whole ("pause", "pause at a good point", "stop for now"), also lifts on his later whole-message "resume", "continue" or "carry on" (`RESUME_RE`); a resume never lifts a merge hold. A hold that names this PR, or a
-  class hold that also names a PR, lifts only on "merge #N"; a number naming no PR ("1 but", "14
-  days") leaves it a class hold. So the path runs unasked in any session where Simon
-  gave no explicit hold, a session about the bot and its PRs included. A deny adds a `Cause (monitoring-only merge):` line: fix that check, or stop and ask for
-  the merge word when the PR is outside the class. Residual, by
-  design: the head pin is server-enforced but the base is not, so someone retargeting the PR in the
-  second between the check and the merge sends it to that other, non-default branch (the guard first
-  reads the repository's real default branch and requires it as the base). Two more residuals: the
-  bar's legs are attested by the gate reason, backed by the tier's stage receipts, not by their own
-  receipts (a PR changing a listed bot workflow also changes the check that gates it, so the judges
-  confirm that check still tests the bot); a halt typed in another session is not read, so tell the session doing the merge; and a
-  prompt made only of harness tags (`<system-reminder>`, `<task-notification>`) is never recorded, by
-  the ledger's contract, so a halt typed entirely inside one is not read either; a message recorded in
-  the milliseconds between the guard's read and the command's start is not read, as for every
-  PreToolUse guard, nor is a queued message that has reached neither the ledger nor the transcript;
-  and a hold worded only with words outside the guard's list (`HOLD_RES`), with no hold word or negated
-  merging ("Pat takes it from here"), is not read: an open vocabulary has no complete list, so say
-  "hold" or "don't merge". A prompt the harness submits from a schedule Claude wrote (a wakeup,
-  a loop) is recorded as Simon's ask, so never schedule a lift. In a declaring repo, Simon's own merge
-  words on a monitoring-only PR pass the same hold reading: only a plain "merge #N" merges it ("merge
-  #12 and deploy" holds), and an unreadable PR lookup declines. Every merge, in any repo, must name
-  its repository with -R when it runs beside other commands, and never sets or clears GH_REPO, GH_HOST
-  or Git's discovery variables for any owner with a declared repo
-  (a remote may carry a renamed repo's old name; a repo moved to another owner is the gap). A merge there of a PR outside the class
-  must pin its head with `--match-head-commit <full sha>` (the deny prints it), so a push that makes it
-  monitoring-only cannot merge past a hold the read skipped. GitHub's file list carries no file
-  mode, so a symlink or submodule added under a bot path is the judges' to catch; and the guard trusts the ledger
-  file, as the word path does, so never write it except through `hooks/intent-ledger.sh`. The guard
-  reads the Bash command text only: a merge run from a script file or an interpreter (`python3 x.py`),
-  or set up in machine config it does not read (a gh extension, `~/.curlrc`), is never seen, so run
-  every merge as its own plain `gh pr merge`. An approved plan (ExitPlanMode)
-  reads as an answer holding the path, so after one the merge waits for a plain lift.
+- **The guard (25 Nov, Simon: "bot fixes are always auto merge"):** at the bar, a monitoring-only PR always
+  merges; no message of his or anyone's holds it. The bar is the whole check: `hooks/git-commit-guard.py`
+  `monitoring_merge` owns the exact conditions (its comment lists them), and any read error declines. A
+  deny adds a `Cause (monitoring-only merge):` line: fix that check, or ask for the merge word when the PR
+  is outside the class. In a repo that declares the paths, a merge of any PR on Simon's words must pin
+  `--match-head-commit <full sha>` (the deny prints it). Residuals, by design: the head pin is
+  server-enforced but the base is not (the guard requires the repository's real default branch as the
+  base); the bar's legs are attested by the gate reason; GitHub's file list carries no file mode, so a
+  symlink or submodule under a bot path is the judges' to catch; the guard trusts the ledger file, so
+  write it only through `hooks/intent-ledger.sh`; and a merge run from a script file or machine config
+  (a gh extension, `~/.curlrc`) is never seen, so run every merge as its own plain `gh pr merge`.
 - **DON'T merge anything else on this path.** A PR with one file outside the paths, or one that fails
   the bar, waits for Simon's merge word as before.
 - **A delegated subagent never merges on this path; it hands the merge back to the parent session.**
@@ -468,17 +417,9 @@ declares for its monitoring bot merges without his merge word once it meets the 
 - **The bot keeps opening draft PRs and never merges its own.** WHY: nothing inside the bot reviews
   its fixes, and the bar's second judge is what caught their defects (`references/testing-strategy.md`).
   Deferred, not built: bot self-merge after N clean cycles in which both judges found nothing.
-- **DO dry-run every pending merge after a guard repair, and fix every cause it lists before calling
-  the merge ready:** `python3 ~/.claude/hooks/git-commit-guard.py --explain --repo <owner/name> --pr <n>
-  --transcript <session .jsonl>` runs the hook's word-path and monitoring-path checks read-only and
-  prints EVERY failing one, not just the first (exit 0 = the hook would allow, 1 = deny). Run it for
-  each PR the repair should unblock. DON'T tell Simon a merge will happen until its dry-run exits 0.
-  A deny for a merge Simon already authorized (his merge word naming or covering the PR, a standing
-  merge, or this section's standing rule) says so and ends "do not ask again": fix the cause, through
-  `/sk:claude-config-update` under `rules/self-healing-config.md` § Safeguard changes when it is a guard
-  defect. Only a deny reading "No message from the user this session authorizes this merge" means ask.
-  (the fix for SRE-bot PRs merged on Simon's fourth merge word: each deny ended "ask", so the agent
-  handed back "reply 'merge them'", while five guard defects surfaced one retry at a time.)
+- **DO dry-run a monitoring-only merge that declines:** `python3 ~/.claude/hooks/git-commit-guard.py
+  --explain --repo <owner/name> --pr <n> --transcript <session .jsonl>` runs the bar checks read-only and
+  prints EVERY failing one (exit 0 = it would merge at the bar). Fix each before calling the merge ready.
 TEST: each monitoring-only merge traces to a gate PASS whose reason ends with the bar phrase, on that exact head, and
 the hand-back reports it in one line; no hand-back asks Simon for a merge word his session already gave.
 

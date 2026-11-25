@@ -1275,11 +1275,8 @@ This fires at most once per set of open pushes."
   ;;
 
 latest-ask)
-  # The merge guard (hooks/git-commit-guard.py) asks this for Simon's own words, so a merge is
-  # authorized by what he typed, never by a flag the model can set. Same resolution as `submit`,
-  # silent, read-only; no ledger or no ask for this session prints nothing, which the guard denies.
-  # `--since <ts>` returns every ask from that second on: the guard passes the second the current
-  # turn opened, so a merge ask followed by a queued clarification keeps its authority.
+  # This session's recorded asks, verbatim. Same resolution as `submit`, silent, read-only; no ledger
+  # or no ask for this session prints nothing. `--since <ts>` returns every ask from that second on.
   QUIET=1
   since=""; stamped=0
   if [ "${2:-}" = "--stamped" ]; then stamped=1; shift; fi

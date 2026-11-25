@@ -79,7 +79,7 @@ DON'T pipe the landing through `tail`/`head` or chain cleanup behind it with `&&
 rejected push (the fix for a non-fast-forward push whose worktree and remote branch were deleted anyway
 and had to be recovered from a dangling merge). TEST: no cleanup command runs in the same shell line as
 the landing. A manual `git -C <literal path> push origin HEAD:main` of a recorded head still passes
-`hooks/git-commit-guard.py`; a `$VAR`, pipe or force keeps its block.
+`hooks/git-commit-guard.py`; a `$VAR` or force keeps its block.
 
 DO activate in `~/.claude` only with a clean tracked tree and no merge/rebase in progress. Preserve its
 branch: fast-forward to `origin/main` when possible; otherwise merge it without discarding unrelated

@@ -133,7 +133,7 @@ DO fix ALL of them in one batch, then confirm ONCE: rerun the full suite, or rer
 (`pytest --lf`, `jest --onlyFailures`, or a config suite's own `--last-failed`) plus the touched files'
 tests, then one full run at the end.
 DO use a suite's `--only <substring>` and `--last-failed` while fixing, and its parallel workers for a
-full run (`hooks/git-commit-guard.test.py` and `hooks/config-contract.test.py` take both).
+full run (`hooks/config-contract.test.py` takes both; `hooks/git-commit-guard.test.py` takes `--only`).
 DON'T walk a policy change one step per full run (the fix for an 863-case guard suite run six times in
 one session, 4-7 min each, while its policy moved one step at a time).
 DON'T rerun a suite that already passed on the same tree: `bin/config-land-check.py` reuses the

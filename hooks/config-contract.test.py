@@ -2035,10 +2035,7 @@ def check_codex_subscription_only_inference() -> None:
     result = run(["python3", str(ROOT / "hooks/work-resource-guard.test.py")])
     check(result.returncode == 0,
           f"Subscription/resource guard regressions failed:\n{result.stdout}\n{result.stderr}")
-    # Its 856 cases took 184-329 s serially at load 7-23 on an 8-core host; run as parallel sections
-    # (its --workers, default CPUs capped at 8) they took 81 s. The 360 s floor still catches a hang.
-    result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")],
-                 timeout=max(360, RUN_TIMEOUT_S))
+    result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")], timeout=max(180, RUN_TIMEOUT_S))
     check(result.returncode == 0,
           f"Git commit/push guard regressions failed:\n{result.stdout}\n{result.stderr}")
     result = run(["python3", str(ROOT / "hooks/worktree-path-guard.test.py")])
@@ -2755,10 +2752,12 @@ def check_daemon_guard_refuses_inline_self_approval() -> None:
           "rules/security.md no longer routes guard changes through § Safeguard changes.")
 
 
-def _guard_decision(guard: Path, command: str, env: dict, cwd=None) -> str:
+def _guard_decision(guard: Path, command: str, env: dict, cwd=None, transcript=None) -> str:
     payload = {"tool_name": "Bash", "tool_input": {"command": command}}
     if cwd is not None:
         payload["cwd"] = str(cwd)
+    if transcript is not None:
+        payload["transcript_path"] = str(transcript)
     result = subprocess.run(["/usr/bin/python3", str(guard)], input=json.dumps(payload), text=True,
                             capture_output=True, timeout=20, env=env, cwd=cwd)
     try:
@@ -2796,13 +2795,15 @@ def check_main_commit_guard_refuses_inline_self_approval() -> None:
         for args in (["init", "-q", "-b", "main"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit",
                                                      "-q", "--allow-empty", "--allow-empty-message", "-F", "/dev/null"]):
             subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
-        commit = "git " + "commit -F msg.txt"  # assembled so this file's source is never a guarded command
-        for command in (commit, f"{var}=1 {commit}", f"env {var}=1 {commit}", f"  {var}=1 {commit}",
-                        f"export {var}=1 && {commit}", f"{var}=1 git push origin main"):
-            check(_guard_decision(guard, command, base, repo) == "deny",
-                  f"git-commit-guard.py let an agent self-approve a default-branch commit/push: {command!r}")
-        check(_guard_decision(guard, commit, {**base, var: "1"}, repo) == "allow",
-              f"git-commit-guard.py denied a main commit in a session Simon started with {var}=1.")
+        push = "git " + "push origin main"  # assembled so this file's source is never a guarded command
+        said = Path(tmp) / "t.jsonl"  # Simon's own typed "push" this turn, which the session flag also needs
+        said.write_text(json.dumps({"type": "user", "message": {"role": "user", "content": "ok push it"}}) + "\n")
+        for command in (push, f"{var}=1 {push}", f"env {var}=1 {push}", f"  {var}=1 {push}",
+                        f"export {var}=1 && {push}"):
+            check(_guard_decision(guard, command, base, repo, said) == "deny",
+                  f"git-commit-guard.py let an agent self-approve a default-branch push: {command!r}")
+        check(_guard_decision(guard, push, {**base, var: "1"}, repo, said) == "allow",
+              f"git-commit-guard.py denied a main push Simon asked for in a session he started with {var}=1.")
     check(re.search(r"\\b" + var + r"=1", guard.read_text()) is None,
           "git-commit-guard.py carries an inline-override matcher again.")
     _check_no_inline_doc(var, guard)

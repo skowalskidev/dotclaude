@@ -2368,99 +2368,42 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/git-commit-guard.py": {
-        "mission": "Claude never commits or pushes on the default branch, never merges a PR into it off a general instruction, and never commits with -m or a heredoc.",
-        "purpose": "PreToolUse: blocks a default-branch commit/push, a gh pr merge, and an inline -m/heredoc commit.",
+        "mission": "Simon is never slowed by a false block, and no PR merges into a remote default branch, nor does a push land on one, unless his own words or a monitoring-only PR's bar authorize it.",
+        "purpose": "PreToolUse Bash: guards a PR merge or enqueue into the default branch and a direct default-branch push; everything else runs.",
         "criteria": [
-            "Blocks `gh pr merge` (into the remote default branch) unless the user's OWN words this "
-            "turn (every ask hooks/intent-ledger.sh latest-ask --since recorded from his newest typed "
-            "turn-opening prompt in the transcript, queued mid-turn asks included; assistant text, "
-            "tool results, isMeta entries, harness and peer blocks and pasted quotes never count) say "
-            "merge after the turn's last halt, and either name that PR's number anywhere, or cover "
-            "it as an open PR whose head branch this session pushed (no number, or all/both/them), or "
-            "name no PR (one other PR per turn). A plural covers a PR this session did not push only "
-            "when the hand-back Simon is answering lists it under 'Merge list:'; no flag the model sets authorizes it, a branch-name target, a failed PR lookup or "
-            "a missing ledger denies, and gh api merge/enqueue/auto-merge calls are denied outright.",
-            "A standing merge Simon typed earlier in the same session (merge plus a future condition: "
-            "when/once/as/after/if ... ready/green/passes/done/safe, before or after the verb, with or "
-            "without then/them, or a plain merge all/them all/both/everything) also authorizes `gh pr merge` "
-            "in a later turn, when it names the PR or covers it as an open PR this session pushed, no "
-            "later ask negates merging/pushing/deploying/shipping or says stop/hold/wait/cancel/pause, "
-            "and one read-only gh pr view shows the PR open, not a draft, MERGEABLE, with at least one "
-            "check and every check passed, judged on the latest run per check (CheckRun workflowName "
-            "plus name, StatusContext context; by completedAt, else startedAt, else list order; a "
-            "pending run always counts as latest), so a superseded cancelled or failed run never "
-            "blocks and a check whose latest run failed still does; otherwise it denies and names the "
-            "failed condition. A "
-            "single-PR merge with no condition (merge #12, merge it) never carries past its turn. "
-            "A negator crossing a clause join (yes/and/then/them/so/ok/ie) never negates the verb "
-            "(no regressions then merge), and a sentence that asks or supposes the merge (ends in ?, "
-            "a modal I|we|you question such as would you, what if, whether) authorizes nothing on either path; "
-            "a polite can/could/will you or please request still does. A typographic apostrophe (don’t) "
-            "reads as the ASCII one on every path, everything from a `>` quote line on stays pasted material as "
-            "before while a negated merge inside it still halts (clean_asks), and a number after "
-            "not/except/skip/without is never covered (merge #13 but not #12 merges #13 only).",
-            "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
-            "in the session's starting environment AND the user's words this turn saying push after its last halt.",
-            "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
-            "session's starting environment, which Simon sets; a CLAUDE_ALLOW_MAIN_COMMIT=1 prefix, env "
-            "or export assignment inside the command is denied. In the ~/.claude config repo and its "
-            "worktrees (identified by shared Git storage) a commit passes, and a push to main passes "
-            "with no confirmation only when every pushed head was recorded by bin/config-land-check.py "
-            "and fast-forwards the remote main; a forced, deleting, piped, variable-path, mixed or "
-            "unverified push keeps the block. Every other repository keeps the unchanged guard.",
-            "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
-            "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
-            "Reads `gh pr -R <repo> merge` (the repository option before the subcommand) as a merge too, and "
-            "denies a merge the shell would run but quoting or escapes hide from the masked parse ('gh' pr "
-            "merge, g\\\\h pr merge, inside bash -c too). "
-            "Matches the plain Bash tool and parses the command; fails open on a malformed payload, but a crash "
-            "on a payload that names gh and merge denies.",
-            "Judges only what the shell runs: the command word (after env assignments and prefixes) "
-            "must be git/gh, with quoted strings and heredoc bodies masked, so a note or printf that "
-            "merely names a push never fires. The command word is also read behind a wrapper (env, "
-            "command, time, nohup, sudo, exec, nice, timeout, xargs, with their options) and inside a "
-            "`bash|sh|zsh|dash|ksh -c` string, to four levels, so a wrapped merge or push gets the "
-            "same verdict as the bare one; a command behind xargs takes its arguments from stdin, so "
-            "its merge selector counts as non-literal and is denied. A heredoc body is data when every "
-            "command word reads its heredoc as data, except one an interpreter runs (`python3 - <<'EOF'`), "
-            "or when it is quoted and cat/tee writes it only to a document that no other part of the "
-            "command names or can reach (no runner, built command word, pattern or substitution beside "
-            "it); every other body is code. A push deny names the branch pushed TO. "
-            "hooks/git-commit-guard.test.py pins both directions.",
-            "A `gh pr merge` deny leads with `Cause:` naming the one failing check, read-only and "
-            "without changing the verdict: a non-literal selector ($var, substitution, quoted value; "
-            "it says the user's words are not the problem and not to ask him), no selector, a branch "
-            "selector, a standing merge not ready, no merge instruction, a halt (quoting it), other "
-            "PRs named, a plural not covering it, or the one-unnamed-merge-per-message limit.",
-            "A `gh pr merge` deny ends by asking the user only when nothing this session authorizes the "
-            "merge; when his words already do (the word path covered it before a later check declined, "
-            "a message saying merge and naming the PR in its repository with no later halting message, "
-            "or the monitoring-only standing rule for a PR inside its class), it names that authorization "
-            "and says not to ask again. `--explain --repo <owner/name> --pr <n> --transcript <path>` "
-            "runs the word and monitoring checks read-only, writes no state, lists every failing check "
-            "and exits 0 only when the hook would allow.",
-            "A monitoring-only merge (references/git-pr-deploy.md § Monitoring-only changes; the exact "
-            "conditions are the comment above monitoring_merge) runs with no merge words only for ONE plain "
-            "printable-ASCII `gh pr merge <N> -R github.com/<owner>/<name> --match-head-commit <40-hex>` with at "
-            "most --squash, on a base whose queue (if any) squashes (never --merge, --rebase, --delete-branch, --auto, --admin, an env assignment, a "
-            "wrapper or a compound), when: the overlay lists that exact repo and declares the paths; gh reads "
-            "the PR open, not a draft, MERGEABLE with merge state CLEAN or HAS_HOOKS and a review decision of none or APPROVED (so gh never turns on auto-merge), on the repo's real default branch, with a complete file list "
-            "of ADDED/MODIFIED/DELETED files inside the paths and a head equal to the pin; checks pass as "
-            "monitoring_not_ready reads them (times compared as instants, requiredChecks SUCCESS); the base "
-            "renamed, copied or removed nothing under a PR path's folders since it branched; the merge queue "
-            "squashes or merges (rules and GraphQL); this session's newest gate record on that branch and full "
-            "head is a standard or deep PASS holding BAR_PHRASE; and monitoring_halt finds no hold. "
-            "monitoring_halt reads the ledger (one stamped read, peer records included) and the transcript "
-            "(typed and queued prompts as hold-only records, tool answers and denied-call feedback), each "
-            "running forward in time (the ledger's own gate records included in that order); any record from the gate's second on that is no lift declines; a hold "
-            "is any hold word in any inflection, a mention of the bot, a PR or merging, a negated merge-like "
-            "verb, or any text it cannot read for certain (non-ASCII letters, marks or controls, ASCII "
-            "controls, HTML entities, percent-escapes, backslash escapes or markup, any square bracket (Markdown links of every form), redaction, over 4000 characters); only a "
-            "whole raw ASCII ask matching LIFT_RE lifts, and a hold naming this PR, or a class hold also naming a PR, only a lift naming this PR by "
-            "value; a hold naming PRs holds those PRs only (_hold_scope), unless a holding sentence names none or speaks of the class or a condition. Any read error, unrecorded-prompt marker, timeout or exception declines; a declining repo "
-            "that declares (or malforms) the paths gets a `Cause (monitoring-only merge):` line, and a repo "
-            "with no exact declaration makes no extra gh call; the shared PR_FIELDS view is unchanged. A monitoring-only PR merged on Simon's own words (turn or standing) also passes monitoring_halt's hold reading, so a later hold stops an earlier merge word; a PR with one listed path outside, or a repo declaring nothing, is untouched (the repository is the one GitHub reports for the PR, read once and cached, so an old name or a remote alias resolves to the current repo), and an unreadable overlay, PR or file list in a declaring repo, or a repo mismatch, holds.",
-            "A git invocation naming one of git's own commands (the common list plus every builtin and exec-path command `git --list-cmds` names) needs no alias lookup, since git runs its own command before an alias, so a dry-run `git merge-tree` passes where the directory is unknown; a deprecated command an alias still overrides (whatchanged, pack-redundant) and any other word keep the lookup, and an unknown directory or unreadable alias still denies.",
+            "Judges only commands the shell runs, from its own lexer: wrappers, bash -c, eval, command "
+            "substitutions, functions, gh and git aliases, find -exec, xargs and a heredoc or here-string a "
+            "shell reads are unwrapped; a heredoc body another command reads, a quoted argument, file "
+            "content and a script file are data. A command word built at run time beside a merge word, an "
+            "inline program starting a merge, and code a shell reads from a pipe or a built string that "
+            "names a merge or default push deny.",
+            "Passes reads, PR create/edit/comment (CLI or API), `gh pr merge --disable-auto`, a GraphQL "
+            "dequeue and a GraphQL read; denies a REST merge (non-GET pulls/N/merge, merges, a "
+            "refs/heads/main write) and a GraphQL mergePullRequest, enqueuePullRequest, "
+            "enablePullRequestAutoMerge or mergeBranch, names inside string literals excluded.",
+            "A monitoring-only PR merges with no message read only on today's bar, unchanged: monitoring_merge "
+            "(its comment lists the conditions), BAR_PHRASE on the pinned head's gate PASS, required checks, "
+            "CLEAN, declared paths and a parent (not delegated) session.",
+            "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
+            "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
+            "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
+            "typed words decide: a plain \"merge #N\" with no later hold word allows with no model call; "
+            "otherwise `claude -p --model haiku` on the subscription (API-key env stripped, --safe-mode, no "
+            "tools) reads his last 20 typed messages and must answer YES with a quote found verbatim in one, "
+            "not negated where he wrote it, holding a merge verb, from a message naming the PR, or naming no "
+            "PR while this session pushed it, or answering a hand-back whose Merge list names it. Any failure, "
+            "timeout or unverifiable quote denies with one line ending \"Say 'merge #N' to merge it\".",
+            "Only the transcript's typed user turns and queued prompts count: system blocks, pasted fences "
+            "and quote lines are stripped; peer envelopes, turns opening with another session's attribution, "
+            "isMeta and task-notification turns, tool answers and Claude's text never count.",
+            "A default-branch push (by name, HEAD, bare push, delete, --all, --mirror) needs "
+            "CLAUDE_ALLOW_MAIN_COMMIT set to 1 in the session's starting environment and Simon's typed, "
+            "un-negated \"push\" this turn; an inline prefix is denied. In the ~/.claude config repo a push "
+            "to main passes only when bin/config-land-check.py verified every pushed head and it fast-forwards.",
+            "A stall past the watchdog or a crash on a command naming merge or push declines; malformed "
+            "input naming neither passes. hooks/git-commit-guard.test.py runs every false-block example "
+            "(allowed) and every real hold (denied) with a stub model; GIT_COMMIT_GUARD_LIVE=1 adds the "
+            "live haiku smoke.",
         ],
     },
     "hooks/background-process-guard.py": {
@@ -2652,8 +2595,7 @@ CONTRACTS: dict[str, dict] = {
             "safe only because of that ordering; without it the model creates the ledger by hand.",
             "Keep full prompts and remind the agent to reconcile each into the gauntlet plan; preserve requirements beyond 6000 characters.",
             "`latest-ask` prints this session's newest recorded ask verbatim, read-only and silent "
-            "(with `--since <ts>`, every ask from that second, RS-separated), so "
-            "hooks/git-commit-guard.py authorizes a merge or default-branch push from Simon's own words.",
+            "(with `--since <ts>`, every ask from that second, RS-separated).",
             "Combine simultaneous submit notices into one valid hook JSON document for native host parsing.",
             "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "The Stop reconciliation reason tells the model to open the final message by answering each question and point of the prompt that started the work, before status (rules/communication.md § Answer first). A reminder only: it never judges whether an answer is present and adds no extra block.",
