@@ -40,6 +40,15 @@ CONTRACTS: dict[str, dict] = {
             "Verify login and non-login shells, directory independence, numeric patch ordering and repeated sourcing in temporary fixtures.",
         ],
     },
+    "bin/skill-context.py": {
+        "mission": "Every sk skill's dynamic-context line loads inside a worktree-isolated agent, so a delegated worker can run the skill.",
+        "purpose": "One read-only subcommand per git fact a skill's `!` line needs, so the line names no git.",
+        "criteria": [
+            "origin prints the origin URL or (no git remote); diff-scope prints the last --stat line against the merge-base with origin/master, else origin/main, else HEAD~1.",
+            "Every git call runs in the cwd and reads only; an unknown subcommand exits 2 with usage.",
+            "Every `!` line in skills/sk names no git, or is one literal git command with no shell operator, expansion or glob; each line exits 0 with output inside a linked worktree.",
+        ],
+    },
     "bin/local-capacity.py": {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
         "purpose": "Bounded foreground scheduling for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",

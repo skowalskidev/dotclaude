@@ -332,6 +332,12 @@ CRITERIA: list[tuple[str, str]] = [
      "ones the previous run recorded as failed in the worktree's git dir (every criterion when none "
      "are recorded), so a fix batch is confirmed without a full run; only a full unfiltered pass "
      "on a clean checkout records its tree for the land check to reuse."),
+    ("skill-context-lines-load-in-isolated-worktrees",
+     "Every dynamic-context (`!`) line in an sk skill loads inside a worktree-isolated agent: it names "
+     "no git (git facts come from bin/skill-context.py), or it is one literal git command with no "
+     "substitution, chain, pipe, redirect, variable or glob, and it exits 0 with output inside a linked "
+     "worktree. Claude Code refuses the compound form with \"names git in a form too complex\", the "
+     "skill then fails to load, and a delegated worker cannot run it."),
     ("metrics-inventory-matches-contract-coverage",
      "The metrics aggregator derives its parts list from config_contracts.py, never a hardcoded "
      "copy, so a part added via /sk:claude-config-update is scored automatically. Parity with the "
@@ -2561,6 +2567,67 @@ def check_session_performance_and_capacity() -> None:
             for path in sorted((ROOT / folder).rglob("*.md"))
             if re.search(r"local-capacity\.py run(?! --owner)", path.read_text())]
     check(not bare, "Documented local-capacity.py run lacks --owner: " + ", ".join(bare))
+
+
+# Claude Code's worktree-isolation check is compiled into its binary, so this mirrors the forms it
+# names as unverifiable ("names git in a form too complex to verify that it stays inside the worktree"):
+# command substitution, backticks, chains, pipes, redirects, $ expansions, globs, ~ and brace lists.
+SKILL_CONTEXT_LINE = re.compile(r"!`([^`]+)`")
+GIT_WORD = re.compile(r"(?<![\w./-])git(?![\w.-])")
+UNVERIFIABLE_SHELL = re.compile(r"[$`|;&()<>*?\[\]{}~\n]")
+
+
+def _skill_context_commands() -> list[tuple[str, str]]:
+    found = []
+    # Simon's own plugins: sk, sk-work and any later sk-<group> (a symlink into work/ included).
+    plugins = sorted(p for p in (ROOT / "skills").iterdir() if re.fullmatch(r"sk(-[a-z]+)?", p.name) and p.is_dir())
+    for base in plugins:
+        plugin = f"skills/{base.name}"
+        for path in sorted(base.resolve().rglob("SKILL.md")):
+            for command in SKILL_CONTEXT_LINE.findall(path.read_text()):
+                found.append((f"{plugin}/{path.parent.name}", command.strip()))
+    return found
+
+
+def skill_context_refusal(command: str) -> str:
+    """Why an isolated worktree would refuse this context command, or '' when it loads."""
+    if GIT_WORD.search(command) and UNVERIFIABLE_SHELL.search(command):
+        return "names git in a compound form (substitution, chain, pipe, variable, glob or ~)"
+    script = re.search(r"~/\.claude/bin/([\w.-]+)", command)
+    if script and not os.access(ROOT / "bin" / script.group(1), os.X_OK):
+        return f"names bin/{script.group(1)}, which is missing or not executable"
+    return ""
+
+
+def check_skill_context_lines_load_in_isolated_worktrees() -> None:
+    # The mirror refuses the exact lines the worktree check refused, and accepts their replacement.
+    for bad in ('git remote get-url origin 2>/dev/null || echo "(no git remote)"',
+                'base=$(git merge-base origin/main HEAD); git diff --stat "$base"...HEAD | tail -1'):
+        check(skill_context_refusal(bad) != "", f"mirror accepts a line the isolation check refuses: {bad}")
+    for good in ("python3 ~/.claude/bin/skill-context.py origin", "git status --short"):
+        check(skill_context_refusal(good) == "", f"mirror refuses a loadable line: {good}")
+    commands = _skill_context_commands()
+    for skill, command in commands:
+        why = skill_context_refusal(command)
+        check(not why, f"{skill} context line `{command}` {why}; move the git fact into bin/skill-context.py")
+    if not commands:
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, linked = Path(tmp) / "repo", Path(tmp) / "linked"
+        quiet = ["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=Fixture",
+                 "-c", "user.email=fixture@example.invalid"]
+        subprocess.run(quiet + ["init", "-q", str(repo)], check=True, capture_output=True, timeout=30)
+        (repo / "a.txt").write_text("a\n")
+        subprocess.run(quiet + ["-C", str(repo), "add", "a.txt"], check=True, capture_output=True, timeout=30)
+        subprocess.run(quiet + ["-C", str(repo), "commit", "-q", "-m", "a"], check=True, capture_output=True, timeout=30)
+        subprocess.run(quiet + ["-C", str(repo), "worktree", "add", "-q", "--detach", str(linked)],
+                       check=True, capture_output=True, timeout=30)
+        for skill, command in commands:
+            # Test this checkout's scripts, never the live ~/.claude copy.
+            local = command.replace("~/.claude/bin/", str(ROOT / "bin") + "/")
+            result = run(["/bin/bash", "-c", local], cwd=str(linked))
+            check(result.returncode == 0 and result.stdout.strip(),
+                  f"{skill} context line `{command}` fails in a linked worktree: {result.stderr.strip()[:200]}")
 
 
 def check_heavy_checks_start_at_convergence() -> None:

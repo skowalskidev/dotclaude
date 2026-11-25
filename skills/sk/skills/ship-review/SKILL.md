@@ -12,8 +12,8 @@ user-journey pass. When the ask is only "walk this as a user" (no code review wa
 its own and say that is what you did — don't spend the model passes to get there.
 
 ## Step 1 — Detect context (required)
-- Repo origin: !`git remote get-url origin 2>/dev/null || echo "(no git remote)"`
-- Diff scope: !`base=$(git merge-base origin/master HEAD 2>/dev/null || git merge-base origin/main HEAD 2>/dev/null || echo HEAD~1); git diff --stat "$base"...HEAD 2>/dev/null | tail -1`
+- Repo origin: !`python3 ~/.claude/bin/skill-context.py origin`
+- Diff scope: !`python3 ~/.claude/bin/skill-context.py diff-scope`
 
 Rule: if the origin matches your work org (workOrgMatch in your identity overlay) → **WORK** repo. Otherwise → **PERSONAL** repo.
 Before reviewing, state in one line the detected context and exactly which reviewers/resources you will use.
