@@ -166,8 +166,9 @@ inputs check out") goes last. End on the suggestion, never a question, and name 
 confirms (the fix for an ads-scoreboard reply that opened "Agreed on your table" and closed "Can we use
 the after-costs query?").
 
-DO measure a draft before sending it by any route the hook cannot see (a `codex-app` run,
-`gh pr comment`, `gh api .../replies`):
+DO measure a draft for someone else when you write it, before you show it to Simon for approval,
+and again before sending it by any route the hook cannot see (a `codex-app` run, `gh pr comment`,
+`gh api .../replies`); an approved draft over the cap otherwise goes out with words he never saw:
 `python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`. Expect `ok` and exit 0;
 exit 1 prints the counts. Cut the draft; DON'T split it into several messages.
 `hooks/outbound-message-guard.py` denies a Slack or Gmail send, reply, forward or draft over the cap.
