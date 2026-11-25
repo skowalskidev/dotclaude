@@ -625,8 +625,15 @@ python3 ~/.claude/bin/local-capacity.py stack-acquire --owner <session-id> --wor
 python3 ~/.claude/bin/local-capacity.py stack-release --workspace "$(git rev-parse --show-toplevel)"
 ```
 
-At most `max_stacks()` stacks run at once: floor(Docker VM GiB / 3) (`STACK_GIB_EACH`), at least 1 and
-at most 2 (`STACK_CEILING`); an unknown VM size admits 1. Running stacks are read from container labels
+DEFAULT: `max_stacks()` derives the cap from measured Docker VM memory. With at least one running stack
+measured (`docker stats`, summed per stack's containers), it admits the running and starting stacks plus
+as many more as fit in the VM memory every container leaves free, each sized as the largest running stack
+(at least 1 GiB, `STACK_MIN_GIB`), keeping one stack's worth free (`STACK_RESERVE`). NUMBER: 2.9 GiB used
+by two stacks in a 7.8 GiB VM admits 4. With nothing measurable it falls back to floor(Docker VM GiB / 3)
+(`STACK_GIB_EACH`), at most 2 (`STACK_CEILING`); an unknown VM size admits 1. `status` prints the
+measured or budgeted per-stack figure. TEST: `bin/local-capacity.test.py` StackTests admits a third stack
+at 2.9 of 7.75 GiB and refuses a fourth at 6.4 GiB (the fix for a buyer walk held at "2 of 2" while two
+stacks used 2.9 of 7.8 GiB). Running stacks are read from container labels
 (`com.supabase.cli.workdir`, `com.docker.compose.project.working_dir`), so an unleased stack still
 counts; a lease counts for 15 minutes (`STACK_START_GRACE_MIN`) before its containers appear. Start
 Supabase with `-x` excluding every service the task does not use. WHY: the `supabase start` docs (supabase/cli
