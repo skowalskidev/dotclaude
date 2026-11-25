@@ -622,6 +622,28 @@ side by side, matching or with the difference stated (the fix for a walk planned
 had stopped dealing days earlier, and for a second platform handed over with no arms dealt locally
 because its settings table was empty).
 
+### Tester access path: every user-facing variant ships one
+
+DO ship every change to what real users see (an experiment arm, a new onboarding or paywall, a gated
+flow) with a tester access path in the same PR: a code-gated link or a test-account list that lets
+Simon or an agent reach that variant on production on demand. Hold it to all five:
+1. **No change without the code.** A request without the code makes no database read; a wrong code
+   reads only the code check and writes nothing.
+2. **Fresh test device only.** It takes over a fresh, signed-out test device; it never re-deals a
+   person's own browser, account or existing enrollment.
+3. **The real happy path.** Same prices, same payment and confirm path, every step real users take.
+   DON'T add a shortcut that skips a step: a tester walk is proof of the real path only without one.
+4. **Out of every readout.** The walked device's deal carries a test marker that every readout and
+   experiment metric filters out.
+5. **One rollback.** Clearing the code switches it off, documented in the Deploy TLDR.
+WHY: a path that leaks to one real visitor skews the experiment it exists to prove.
+TEST: the PR carries a test that a request without the code makes zero database reads and a wrong
+code writes zero rows, and a test that the walked device's deal is marked and excluded from the
+readout; its Deploy TLDR names the code-set step, its smoke and its rollback
+(`references/git-pr-deploy.md` § Deploy safety, check 3). (the fix for a guided-onboarding experiment
+arm Simon could not reach on production: a walk code stored in its switch row, set right after
+deploy, let him walk it with normal visitors untouched.)
+
 ## Human-driven sessions — prove the environment and the provider identity
 
 A person clicking through a journey while Claude watches logs only works when both sit on the SAME

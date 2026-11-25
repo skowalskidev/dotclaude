@@ -752,6 +752,12 @@ precondition check, post-step smoke with its expected result, rollback.
 sat on an older approved sender; the safe order, the per-step rollback and the merge-train run were
 only written after the user asked.)
 
+**DO write a tester access path's code-set as its own Deploy TLDR step**
+(`references/testing-strategy.md` § Live variants): the production write that sets the code, a smoke
+that the coded link reaches the arm on a fresh signed-out device while the bare link shows today's
+screen, and the rollback that clears the code. The write waits for Simon's per-write yes.
+TEST: a PR shipping a tester access path names its code-set step, smoke and rollback in its Deploy TLDR.
+
 **DO name a `Smoke:` signal only after tracing its writer to the code path production takes for the
 changed behaviour** (grep the writer of the row, log line or field). Prefer the changed side effect
 itself (a paid run no longer starts, a field now set) over an audit row one branch writes.

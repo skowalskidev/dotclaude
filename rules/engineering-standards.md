@@ -132,6 +132,7 @@ extraction that leaves each call site re-wiring its own state has not done the j
   every loser AND the selection mechanism (toggle, branch, dead CSS/storage, persisted setting + its
   strip-migration, loser-only test) in THAT change, never a later pass. TEST: a grep for the switch or
   any dropped variant returns only the kept value.
+- **DO ship each live experiment arm with a tester access path:** `references/testing-strategy.md` § Live variants.
 
 ## Data deletion — soft-archive, never hard-delete (default for user-facing deletes)
 
