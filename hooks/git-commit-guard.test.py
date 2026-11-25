@@ -3166,6 +3166,39 @@ def parent(workers: int) -> tuple:
     return [results[i] for i, _, _ in chosen], [n for _, n, _ in chosen]
 
 
+# The guard's fail-closed deny when its own time budget runs out. A shared host at load 100+ makes a
+# single hook run take that long, so a case failing with it is retried once, serially, before it
+# counts (the fix for 1 of 863 cases failing a contract run at load 186 while 862 passed).
+LOAD_MARK = "the merge checks ran long and declined"
+
+
+def retry_load_declines(results: list) -> list:
+    """Rerun, one section at a time, each table case whose failure is the guard's load decline; its
+    first result is replaced by the retry's, so a clean retry leaves the counts of a clean run."""
+    global ONLY, SELECT_IDS
+    slow = [c for r in results for c in r["failed"]
+            if any(f.startswith(c + ":") and LOAD_MARK in f for f in r["failures"])]
+    if not slow:
+        return results
+    try:
+        load = os.getloadavg()[0]
+    except OSError:
+        load = 0.0
+    print(f"retrying {len(slow)} case(s) the guard declined as running long under load "
+          f"(1-min load {load:.1f}), one section at a time")
+    saved, (SELECT_IDS, ONLY) = (SELECT_IDS, ONLY), (set(slow), [])
+    try:
+        again, _ = parent(1)
+    finally:
+        SELECT_IDS, ONLY = saved
+    kept = []
+    for r in results:
+        drop = [c for c in r["failed"] if c in slow]
+        kept.append(dict(r, failed=[c for c in r["failed"] if c not in drop],
+                         failures=[f for f in r["failures"] if not any(f.startswith(c + ":") for c in drop)]))
+    return kept + again
+
+
 def main() -> int:
     import argparse
     global ONLY, SELECT_IDS
@@ -3195,6 +3228,7 @@ def main() -> int:
     full = SELECT_IDS is None and not ONLY
     try:
         results, names = parent(max(1, args.workers))
+        results = retry_load_declines(results)
     finally:
         cleanup()
     if not results:
