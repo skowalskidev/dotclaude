@@ -427,7 +427,7 @@ declares for its monitoring bot merges without his merge word once it meets the 
   closed. It stands until a later message from Simon himself that is only a plain
   merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"), or that restates the standing
   class merge with no PR number ("remember that sre bot fixes which don't influence user prod and have
-  been validated should be merged", `STANDING_LIFT_RE`); a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A hold that names this PR, or a
+  been validated should be merged", `STANDING_LIFT_RE`); a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A bare work pause, whole ("pause", "pause at a good point", "stop for now"), also lifts on his later whole-message "resume", "continue" or "carry on" (`RESUME_RE`); a resume never lifts a merge hold. A hold that names this PR, or a
   class hold that also names a PR, lifts only on "merge #N"; a number naming no PR ("1 but", "14
   days") leaves it a class hold. So the path runs unasked in any session where Simon
   gave no explicit hold, a session about the bot and its PRs included. A deny adds a `Cause (monitoring-only merge):` line: fix that check, or stop and ask for

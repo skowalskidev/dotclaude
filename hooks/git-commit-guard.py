@@ -1493,7 +1493,8 @@ def _monitoring_check_causes(pr: dict, required: list):
 # merging or a fix holds nothing, and neither does "not", "if" or "no" alone (Simon, 2026-11-23: the
 # old reading held on any bot, PR or merge mention and on prefix-matched words, so 25 of his last 30
 # messages held, his own "look at sre bots threads and see if we need to make any more fixes" too, and
-# the automatic path never ran). Only a whole raw message matching LIFT_RE lifts a hold.
+# the automatic path never ran). Only a whole raw message matching LIFT_RE lifts a hold, except that a
+# whole-message resume (RESUME_RE) lifts a bare work pause (BARE_PAUSE_RE) and nothing else.
 MARKUP_RE = re.compile(r"<[A-Za-z!/][^<>]*>")
 # System text inside Simon's prompt is not his words: the harness blocks, a host's `<system_instruction>`
 # (Conductor's workspace notes and attachment lists) and a slash command's own name tags.
@@ -1786,6 +1787,33 @@ def _lifts(ask: str, number: str) -> bool:
     return bool(m) and (m.group("n") == number if m.group("n") else True)
 
 
+# A bare work pause is a hold that pauses the session, not merging: a message that is, whole, "pause",
+# "pause now", "pause at a good point" or "stop for now" (a bare "stop" stays a merge hold). Simon's own
+# later message that is, whole, a resume ("resume", "continue", "unpause", "resume now", "carry on")
+# lifts every bare pause standing before it, and nothing else: a merge hold ("don't merge #1425", "hold
+# the bot PRs", "wait before merging") still needs LIFT_RE or STANDING_LIFT_RE, a resume inside a longer
+# message lifts nothing, and a resume is no merge word on the word path (the fix for PRs #1425/#1423 held
+# on 24 Nov by "pause", typed to switch subscriptions, after his "resume").
+_PAUSE_TAIL = (r"(?:\s+(?:now|here|for now|for a (?:bit|sec|second|moment|minute)|at a good (?:point|spot|place)"
+               r"|when you can|please|pls))?")
+BARE_PAUSE_RE = re.compile(r"(?:(?:ok|okay|please|pls)\s+)?(?:pause" + _PAUSE_TAIL
+                           + r"|stop\s+(?:now|here|for now|at a good (?:point|spot|place))(?:\s+(?:please|pls))?)"
+                           r"[\s.!]*", re.I | re.A)
+RESUME_RE = re.compile(r"(?:(?:ok|okay|please|pls)\s+)?(?:resume|continue|unpause|carry on|keep going)"
+                       r"(?:\s+(?:now|please|pls))?[\s.!]*", re.I | re.A)
+
+
+def _bare_pause(said: str) -> bool:
+    """The hold is, whole, a bare work pause: one line of plain ASCII matching BARE_PAUSE_RE."""
+    return bool(re.fullmatch(r"[!-~]+(?: [!-~]+)*", said.strip())) and bool(BARE_PAUSE_RE.fullmatch(said.strip()))
+
+
+def _resumes(ask: str) -> bool:
+    """The message is, whole, a resume (RESUME_RE) and holds nothing: it lifts bare pauses only."""
+    return (bool(re.fullmatch(r"[!-~]+(?: [!-~]+)*", ask)) and bool(RESUME_RE.fullmatch(ask.strip()))
+            and not _is_hold(ask, "0"))
+
+
 ANSWER_TOOL_RE = re.compile(r"(?:^|__)(?:AskUserQuestion|ExitPlanMode)$")
 # The harness's own wording for a user's denial, at the start of the result: never a hook's own deny, nor a
 # failed command whose output happens to quote these words.
@@ -1973,8 +2001,9 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
         return any(t > when and body(x) == body(text) and (k == "queued" or body(x).strip() not in early)
                    for k, t, x in events if k in ("typed", "queued"))
 
-    def standing(seq, lifts) -> tuple:
-        held, held_this, held_at = "", False, ""
+    def standing(seq, lifts, own_kind) -> tuple:
+        # Each standing hold as (text, numbered, stamp, bare pause), oldest first.
+        stand = []
         for stamp, kind, text in seq:
             if not spoken(kind, text) or (neutral(kind, text) and not lifts(kind, text)):
                 continue
@@ -1982,9 +2011,15 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
                 # A hold that named this PR is lifted only by a lift naming it, never by a class lift. A
                 # record is stamped when written, and a lift's record can be written long after Simon typed
                 # it, so a hold lifts only on a lift the transcript shows typed in a later second.
+                held_at = max((h[2] for h in stand), default="")
                 certain = not held_at or typed_after(held_at, text)
-                if certain and (not held_this or _names(_normalize(clean(text)), number)):
-                    held, held_this, held_at = "", False, ""
+                if certain and (not any(h[1] for h in stand) or _names(_normalize(clean(text)), number)):
+                    stand = []
+            elif (kind == own_kind and len(text) <= HOLD_SCAN_LIMIT and text.isascii()
+                  and body(text) == clean(text) and _resumes(clean(text))):
+                # Simon's whole-message resume lifts the bare work pauses before it (_bare_pause), only
+                # those typed in an earlier second, and never a merge hold.
+                stand = [h for h in stand if not (h[3] and typed_after(h[2], text))]
             elif holds(kind, text):
                 # A hold naming other PRs only (_hold_scope) is no hold on this one. A class hold that could
                 # name this PR (_numbered), or one naming it, lifts only on "merge #<n>".
@@ -1992,17 +2027,18 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
                 scope = _hold_scope(said)
                 if scope is not None and int(number) not in scope:
                     continue
-                held, held_this = said, held_this or _numbered(said, number)
-                held_at = max(held_at, stamp)
-        return held, held_this
+                stand.append((said, _numbered(said, number), stamp, _bare_pause(said)))
+        if not stand:
+            return "", False, False
+        return stand[-1][0], any(h[1] for h in stand), all(h[3] for h in stand)
 
     # Read twice, and a hold either reading leaves standing stands: in the time-sorted records (ledger
     # asks, where only Simon's own recorded ask lifts), and in the transcript's own file order
     # of what he typed (where his typed lift lifts). The ledger stamps a record when its writer takes the
     # lock, so two prompts can be appended in the opposite order to the one he typed them in.
-    held, held_this = standing(records, lifting)
+    held, held_this, paused = standing(records, lifting, "ask")
     if not held:
-        held, held_this = standing([(t, "typed", text) for t, text in typed], neutral)
+        held, held_this, paused = standing([(t, "typed", text) for t, text in typed], neutral, "typed")
     # Answers given through a tool (a question, a plan, a denied call) never reach the ledger: one at or
     # after the gate declines, and an earlier one that holds stands unless a lift Simon typed AFTER it in the
     # transcript's own file order clears it. The ledger's append time is no order for an answer (the recorder
@@ -2028,6 +2064,7 @@ def monitoring_halt(payload: dict, number: str, gate_stamp: str, head: str = "",
             return f"the user's answer holds the merge: \"{' '.join(text.split())[:100]}\""
     if held:
         needed = f"merge #{number}" if held_this else "merge the bot fixes"
+        needed = f"resume\" or \"{needed}" if paused else needed
         return (f"the user's hold on merging still stands: \"{' '.join(held.split())[:100]}\"; it lifts only "
                 f"on his plain \"{needed}\"")
     return ""
