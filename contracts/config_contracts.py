@@ -958,6 +958,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "An open PR merges its base once, at merge prep, after review rounds converge; a mid-review base move is no reason to merge unless a file the PR touches conflicts or the fix needs the change.",
+            "An authorized merge runs as soon as its required gates pass (required CI, the three same-turn reads, the tier's landing-gate stages, Simon's named conditions); self-added checks run beside or after it, a red one stops it, and a required-gate wait past 10 minutes is reported with its bound.",
             "A stack takes the default branch through its bottom: merge it into the bottom PR's branch, then each base into its child; git diff <base-branch>...<child> then lists only the child's own files.",
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Owns worktree config detail: no repository config write from a worktree; one process is sandboxed with git -c or GIT_CONFIG_COUNT.",

@@ -337,6 +337,18 @@ migration timestamped after the PR's, so the deploy refuses the PR's older one).
 TEST: each readiness claim cites the three reads, all made this turn (the fix for "nothing will
 break" said from a 3-day-old read while one PR conflicted and the base carried newer migrations).
 
+**DO merge a PR Simon authorized the moment its required gates pass, and run every self-added check
+beside or after the merge, never in series before it.** Required gates: the required CI checks, the
+three reads above, the PR's landing-gate stages for its tier and any condition Simon's merge word
+names. A self-added check is any other one chosen on your own (a local walk after CI is green, an
+extra judge, a fresh capture). Start it in parallel with the merge queue; a defect it finds becomes a
+fix PR or a revert proposal to Simon. NUMBER: 0 minutes of serial wait on a self-added check; a wait
+on a required gate past 10 minutes is reported to Simon with what it waits on and its bound. A
+self-added check that already returned red stops the merge and goes to Simon. TEST: for each
+authorized merge, the merge command follows the last required gate, and no self-added check's run
+sits between the two (the fix for authorized merges held behind a local walk started after CI was
+green).
+
 **DO re-verify the ASSEMBLED result when several PRs touching the same file merge together.** Each
 PR's own CI is green against its base, not against the others: a textual auto-merge can duplicate a
 symbol (two PRs each adding the same `const` or object key → a TS "cannot redeclare"/TS1117 that fails
