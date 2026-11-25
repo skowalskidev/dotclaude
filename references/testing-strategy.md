@@ -877,6 +877,9 @@ new place. A diff modifying no pre-existing file states that with its reason.
 `bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
 pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
 INTENDED, or a row records FAIL.
+**DO run `/sk:work-verify-regressions-against-original` for the flow-level half when the diff
+touches an existing user flow:** it records each vanilla flow on base and head on one local stack and
+posts its `### Flow walk` table under the same heading.
 TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).

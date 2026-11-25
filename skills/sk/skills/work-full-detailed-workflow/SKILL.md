@@ -142,7 +142,10 @@ current, reconcile against it.
    and evidence-reuse policy in `rules/process.md` § Fan out verification. Apply the testing reference
    sections Defects first and Native simulator suites. When the diff changes a stored-data figure or a
    gate that depends on stored data, run `/sk:ship-verify-with-prod-data` here, unprompted. TEST: such a
-   hand-back cites its population and reconciled figures. Push the branch and open its draft PR with
+   hand-back cites its population and reconciled figures. When the diff touches an existing user
+   flow (a screen, route, onboarding, paywall or pay step that exists on the base), run
+   `/sk:work-verify-regressions-against-original` here, unprompted, at the Standard and Deep tiers.
+   TEST: such a hand-back holds its Flow walk table with zero `regression` rows. Push the branch and open its draft PR with
    `/sk:ship-pr` (the ticket the repo's commit hook needs is filed here), tear down scratch, track deploy steps.
 10. **Ship, unprompted — the final stage.** DO run `/sk:ship-full-detailed-workflow` on every PR this
     run opened or pushed to, before hand-back, without Simon asking. Hand it steps 7-9's evidence for
