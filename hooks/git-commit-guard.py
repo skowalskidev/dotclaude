@@ -1662,11 +1662,11 @@ def _hold_scope(text: str):
 
 
 def _numbered(hold: str, number: str) -> bool:
-    """A class hold that could name this PR: it carries this PR's number or names a PR (PR_REF_RE). A
-    number that names no PR ("1 but this pr can be cancelled?", "after 14 days") leaves it a class hold
-    his class restatement lifts (the fix for two numbered answers on 16-17 Nov outliving it on 23 Nov)."""
-    norm = _normalize(hold)
-    return _names(norm, number) or bool(PR_REF_RE.search(norm))
+    """A class hold that names THIS PR by its own number, so only "merge #<n>" lifts it. A class hold that
+    names other PRs only ("i dont want to deploy ... add it to #1356", quoting Claude) or a number that names
+    no PR is lifted by his class lift too (the fix for PRs #1425/#1423 held on 25 Nov by a 24 Nov message
+    quoting #1356, after he had ordered the SRE bot fixes merged four times)."""
+    return _names(_normalize(hold), number)
 
 
 DASHES = str.maketrans({c: "-" for c in "\u2010\u2011\u2012\u2013\u2014\u2015\u2212\ufe63\uff0d"})
@@ -1798,9 +1798,51 @@ def _lifts(ask: str, number: str) -> bool:
     m = LIFT_RE.match(ask.strip())
     if not m:
         words = re.findall(r"[a-z']+", ask.lower())
-        return (len(ask) <= 300 and bool(STANDING_LIFT_RE.match(ask)) and not re.search(r"[\d?]", ask)
-                and all(w in STANDING_LIFT_WORDS for w in words) and not _is_hold(ask, number))
+        return ((len(ask) <= 300 and bool(STANDING_LIFT_RE.match(ask)) and not re.search(r"[\d?]", ask)
+                 and all(w in STANDING_LIFT_WORDS for w in words) and not _is_hold(ask, number))
+                or _orders_class_merge(ask))
     return bool(m) and (m.group("n") == number if m.group("n") else True)
+
+
+# Simon ordering the bot class merged, in his own words and mood, is a class lift: "wait Didn't I fucking
+# tell you time and fucking time again to merge in the SRE bought fixes? ... Fix the config" (25 Nov, his
+# fifth time, read by the guard as a hold because it opens with "wait"). It names the class merge
+# (CLASS_MERGE_ORDER_RE, one stray word allowed before fix/fixes/PRs for a typo), carries no number, no
+# negated or delayed merge (NEGATED_MERGE_RE) and no condition word, asks no question unless it is a reproach
+# ("didn't I tell you to ..."), and what is left once the order, the reproach and a leading interjection are
+# taken out holds nothing.
+CLASS_MERGE_ORDER_RE = re.compile(
+    r"\b(?:auto[- ]?)?merge(?:\s+in)?\s+(?:(?:all|any|every|the|those|these|my|our|of)\s+)*(?:sre|bot|bots|monitoring)"
+    r"(?:'s)?(?:\s+[a-z']+)?\s+(?:fix|fixes|prs?|pull requests?|changes)\b", re.I | re.A)
+REPROACH_RE = re.compile(r"\b(?:didn'?t|did|haven'?t|have)\s+i\s+(?:[a-z']+\s+){0,3}?(?:tell|told|ask|asked|say|said)"
+                         r"\s+you\b(?:\s+[a-z']+){0,6}?\s+to\b|\bi\s+(?:already\s+)?(?:told|asked)\s+you\b(?:\s+[a-z']+){0,6}?\s+to\b",
+                         re.I | re.A)
+NEGATED_MERGE_RE = re.compile(r"\b(?:don'?t|dont|do not|never|not|no|stop|without|wait\s+(?:before|to|until|on|for))"
+                              r"\s+(?:[\w'-]+\s+){0,3}?(?:auto[- ]?)?merg", re.I | re.A)
+CONDITION_RE = re.compile(r"\b(?:after|until|till|once|when|whenever|if|unless|tomorrow|tonight|later|next|before|except"
+                          r"|but not|only)\b", re.I | re.A)
+
+
+def _orders_class_merge(ask: str) -> bool:
+    """The message orders the bot class merged (see CLASS_MERGE_ORDER_RE above) and holds nothing else."""
+    order = CLASS_MERGE_ORDER_RE.search(ask)
+    if (not order or len(ask) > 600 or re.search(r"\d", ask) or NEGATED_MERGE_RE.search(ask)
+            or CONDITION_RE.search(ask)):
+        return False
+    # Nothing may extend the order within its sentence ("merge the bot fixes again", "... for me"), and a
+    # first-person merge ("I'll merge the bot PR") is his own, so a hold.
+    if (re.match(r"\s*(?:already|now|please|pls|asap)?\s*(?:[?.!]|\Z)", ask[order.end():], re.I) is None
+            or re.search(r"\b(?:i'?ll|i will|i'?m going to|let me|lemme|i want to|i'?d like to)\s+(?:[\w'-]+\s+){0,2}?"
+                         r"(?:auto[- ]?)?merge", ask, re.I)):
+        return False
+    reproach = REPROACH_RE.search(ask[:order.start()] + " to")
+    if "?" in ask and not reproach:
+        return False
+    rest = ask[:order.start()] + " " + ask[order.end():]
+    if reproach:
+        rest = REPROACH_RE.sub(" ", rest, count=1)
+    rest = re.sub(r"\A\s*(?:wait|hey|ok|okay|so|um|uh|look|also|and)\b[\s,!.:-]*", "", rest, flags=re.I)
+    return not rest.strip(" ?.!,") or not _is_hold(rest, "0")
 
 
 # A bare work pause is a hold that pauses the session, not merging: a message that is, whole, "pause",
