@@ -410,7 +410,7 @@ declares for its monitoring bot merges without his merge word once it meets the 
   that #N passed the bar and waits for the lift the deny names. Verify any deploy the
   merge triggers (§ Shipping is not done until the deploy is verified) and report in one line:
   `#N merged at <sha>; deploy <verified|none>`.
-- **The guard (simplified 25 Nov, Simon: "the guard should not be a bottleneck"):** at the bar, a monitoring-only PR merges unless Simon's own message about merging (merge, ship, deploy, land, production, the bot PRs or this PR) holds it and no later order of his lifts it (`monitoring_explicit_hold`); a bare pause, "not yet", "Stop" or a message after the gate no longer holds a bot PR. `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
+- **The guard (25 Nov, Simon: "bot fixes are always auto merge"):** at the bar, a monitoring-only PR always merges; no message of his or anyone's holds it. The bar is the whole check. `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
   lists them); any read error declines, and any hold Simon gave this session stands for every
   monitoring-only PR unless it names PRs: a hold naming PRs ("#1298", "PR 1405", a `/pull/<n>` URL,
   "merge 1296") holds those PRs only, a question proposing to cancel one included (`_hold_scope`); one

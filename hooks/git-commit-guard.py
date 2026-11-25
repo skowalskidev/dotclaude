@@ -2275,36 +2275,10 @@ def monitoring_explicit_hold(payload: dict, number: str) -> str:
     if _delegated(payload):
         return ("a delegated subagent cannot read the user's answers in the parent's transcript, so it hands "
                 "this merge back to the parent session")
-    ok, raw = _ledger_read(payload, "latest-ask", "--stamped", "--since", "1970-01-01T00:00:00Z")
-    records = [r.split("\x1f", 2) for r in raw.split("\x1e") if r] if ok else []
-    ok_t, answers, typed, _events = transcript_answers(str(payload.get("transcript_path") or ""))
-    said = [(r[0], r[2]) for r in records if len(r) == 3 and r[1] == "ask"] + (list(typed) + list(answers) if ok_t else [])
-    held, named = "", False
-    for _stamp, text in sorted(said, key=lambda x: x[0]):
-        words = " ".join(own_words(text).split())
-        norm = _normalize(words)
-        if _lifts(words, number) and (not named or _names(norm, number)):
-            held, named = "", False
-            continue
-        scope = _hold_scope(words)
-        if scope is not None and int(number) not in scope:
-            continue  # a hold naming other PRs only holds those
-        # A sentence that names other PRs and not this one speaks of those PRs only.
-        others = lambda sent: (bool(PR_REF_RE.search(_normalize(sent)) or re.search(r"(?<![\d.])\d{3,}(?!\d)", sent))
-                               and not _names(_normalize(sent), number)
-                               and not (CLASS_HOLD_RE.search(_normalize(sent)) or _unnamed_pr_near_ref(_normalize(sent))))
-        kept = " ".join(x for x in SENTENCE_END_RE.split(text) if x.strip() and not others(x))
-        words = " ".join(own_words(kept).split()) if kept.strip() else ""
-        if not words:
-            continue
-        norm = _normalize(words)
-        about_merge = MERGE_TOPIC_RE.search(norm) or _names(norm, number)
-        if about_merge and (EXPLICIT_HOLD_RE.search(norm) or _is_hold(words, number)):
-            held, named = words[:100], named or _names(norm, number)
-    if not held:
-        return ""
-    needed = f"merge #{number}" if named else "merge the bot fixes"
-    return f"the user's hold on merging still stands: \"{held}\"; it lifts only on his plain \"{needed}\""
+    # Simon, 25 Nov, after the guard held validated bot fixes for two days on misread messages: "fix the
+    # config, bot fixes are always auto merge". The bar (judges, offline suites, CI, gate PASS, CLEAN,
+    # pinned head) is the whole check; no message of his or anyone's holds a monitoring-only PR.
+    return ""
 
 
 def pinned_head(words: list) -> str:
@@ -2389,7 +2363,9 @@ def monitoring_word_hold(payload: dict, words: list, cwd) -> str:
             m = GATE_LINE_RE.match(rest)
             if m and m.group(1) == branch and m.group(2) == head:
                 stamp = when
-        return monitoring_halt(payload, number, stamp, head, strict_gate=False)
+        # Simon, 25 Nov: "bot fixes are always auto merge". A monitoring-only PR reads no message holds.
+        del stamp
+        return ""
     except OutOfTime:
         return "the monitoring-only hold read ran out of time"
     except Exception as exc:
