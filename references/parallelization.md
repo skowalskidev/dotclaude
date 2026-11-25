@@ -559,6 +559,13 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   worker that sees it stops and reruns under its own id. TEST: no brief contains a literal owner id (the
   fix for a ship agent that ran builds and the simulator under the priority holder's id and blocked the
   priority task twice).
+- **DO scope a worker's outward actions to its own PR, and write that scope into the brief.** It
+  pushes, comments and replies only on the PR or branch the brief names. A remark about any other PR,
+  issue or ticket (superseded, duplicate, suggest closing) goes back to the parent in the hand-back as
+  a `Note for parent:` line, never posted; the parent applies `rules/process.md`, which reserves every
+  other PR operation for Simon. TEST: every outward write in a worker's transcript names the brief's PR
+  number or branch (the fix for a builder that posted "superseded, suggest closing" on Simon's own PR
+  unasked).
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
   signals only those at cleanup. DON'T let it kill by port, name or pattern. TEST: every brief that has

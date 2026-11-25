@@ -1043,6 +1043,7 @@ CONTRACTS: dict[str, dict] = {
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
             "Every brief for a worker that runs a ship stage carries the line: right after each stage's Skill call, run intent-ledger.sh receipt <stage skill> <checkout dir>; the ship harness points here and does not restate it.",
             "A brief holds no literal capacity owner id; the worker passes its own agent id as --owner to local-capacity.py and native-slot.sh.",
+            "A worker's outward writes name only the brief's PR or branch; a remark on any other PR, issue or ticket returns to the parent as a Note for parent line.",
             "Never trust a subagent's self-report; verify on disk.",
             "A multi-stage worker continues past each skill report to its final report, and its brief never lists the built-in /security-review, which the orchestrator owns.",
             "Give each independent deliverable its own isolated worktree worker in parallel; the orchestrator edits no product code, checks head, clean status and owned-file diff on disk, and captures the screen itself.",
