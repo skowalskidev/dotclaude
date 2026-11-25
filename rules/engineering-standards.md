@@ -8,12 +8,8 @@ newest version it **actually supports** — verify against its current docs, don
 LTS for runtimes.
 
 **Before adding or upgrading a major dependency** (React, Node, Firebase, Next.js, Tailwind,
-TypeScript), **research the latest-stable version online first** — training-data version numbers drift.
-Confirm it exists, is stable (not alpha/RC), and is compatible with the stack and deploy target before
-pinning.
-
-DO encode the pinned versions in the repo and verify each bump: `references/code-best-practices.md`
-§ Pin versions in the repo.
+TypeScript), **research the latest-stable version online first**, then encode it in the repo and verify
+each bump: `references/code-best-practices.md` § Pin versions in the repo.
 
 ## Choose mainstream, widely-adopted tools
 

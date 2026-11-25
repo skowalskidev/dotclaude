@@ -7,6 +7,9 @@ Reference catalog for engineering-quality standards: code quality (DRY/SRP, reus
 `rules/engineering-standards.md` § Versions owns the latest-stable default; this section holds the
 pinning detail.
 
+**Research before pinning:** training-data version numbers drift. Confirm the version exists, is stable
+(not alpha/RC), and is compatible with the stack and deploy target before pinning.
+
 **Encode the versions in the repo so they're reproducible:**
 - **Node:** a `.nvmrc` pinning the exact version (e.g. `24.18.0`) for `nvm use`, plus `engines.node` as
   a floor (e.g. `>=22`). Keep local dev, `.nvmrc`, and any serverless pin (Firebase
