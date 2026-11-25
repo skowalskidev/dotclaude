@@ -2243,12 +2243,68 @@ def monitoring_merge(payload: dict, command: str, words: list, collect: list = N
         if fail(f"the newest gate record at {head[:12]} is not a standard or deep PASS whose reason "
                 f"ends with \"{mo.BAR_PHRASE}\""):
             return result()
-    halt = monitoring_halt(payload, number, mine[-1][5], head)
+    # Simon, 25 Nov: "the guard should not be a bottleneck" and SRE bot PRs merge automatically. A PR at
+    # its bar merges unless his own message says, in so many words, not to merge the bot PRs (or this PR)
+    # and no later order of his lifts it (monitoring_explicit_hold); no other wording, pause or message
+    # after the gate holds it any more (the fix for #1425/#1423 held for a day by free-text readings).
+    halt = monitoring_explicit_hold(payload, number)
     facts["hold_read"] = True
     if halt:
         facts["held"] = True
         fail(halt)
     return result()
+
+
+EXPLICIT_HOLD_RE = re.compile(
+    r"\b(?:don'?t|dont|do not|never|stop|hold|pause|no)\b(?:\s+[\w'#-]+){0,4}?\s+(?:auto[- ]?)?(?:merg\w*|ship\w*|deploy\w*)"
+    r"|\b(?:hold|pause|freeze|park|leave)\s+(?:all\s+|the\s+|any\s+)*(?:sre\s+|bot\s+|monitoring\s+)+(?:fix(?:es)?|prs?|pull requests?)\b",
+    re.I | re.A)
+# A hold counts only when it is about merging or shipping: it names merging, shipping, deploying, landing,
+# going live or production, the bot or SRE or monitoring PRs, or this PR. A bare "pause", "not yet",
+# "Stop" or "freeze" pauses work, never these merges.
+MERGE_TOPIC_RE = re.compile(r"\b(?:auto[- ]?)?(?:merg\w*|unmerged|ship\w*|deploy\w*|land\w*|release\w*|go(?:es|ing)? live"
+                            r"|production|prod|(?:sre|bot|bots|monitoring|alerting)\b(?:\s+[\w'-]+){0,3}?\s+(?:fix(?:es)?|prs?"
+                            r"|pull[- ]?requests?|changes?|stuff))\b|\b(?:prs?|pull[- ]?requests?)\b|/pulls?/", re.I | re.A)
+EXPLICIT_SCOPE_RE = re.compile(r"\b(?:sre|bot|bots|monitoring|everything|anything|all|prs?|pull requests?|any)\b", re.I | re.A)
+
+
+def monitoring_explicit_hold(payload: dict, number: str) -> str:
+    """The one hold left on the monitoring-only path: Simon's newest own message that explicitly says not
+    to merge the bot PRs, anything, or this PR (EXPLICIT_HOLD_RE plus a scope or this PR's number), not
+    lifted by a later order of his to merge them (_lifts). Peer and Claude text never hold."""
+    if _delegated(payload):
+        return ("a delegated subagent cannot read the user's answers in the parent's transcript, so it hands "
+                "this merge back to the parent session")
+    ok, raw = _ledger_read(payload, "latest-ask", "--stamped", "--since", "1970-01-01T00:00:00Z")
+    records = [r.split("\x1f", 2) for r in raw.split("\x1e") if r] if ok else []
+    ok_t, answers, typed, _events = transcript_answers(str(payload.get("transcript_path") or ""))
+    said = [(r[0], r[2]) for r in records if len(r) == 3 and r[1] == "ask"] + (list(typed) + list(answers) if ok_t else [])
+    held, named = "", False
+    for _stamp, text in sorted(said, key=lambda x: x[0]):
+        words = " ".join(own_words(text).split())
+        norm = _normalize(words)
+        if _lifts(words, number) and (not named or _names(norm, number)):
+            held, named = "", False
+            continue
+        scope = _hold_scope(words)
+        if scope is not None and int(number) not in scope:
+            continue  # a hold naming other PRs only holds those
+        # A sentence that names other PRs and not this one speaks of those PRs only.
+        others = lambda sent: (bool(PR_REF_RE.search(_normalize(sent)) or re.search(r"(?<![\d.])\d{3,}(?!\d)", sent))
+                               and not _names(_normalize(sent), number)
+                               and not (CLASS_HOLD_RE.search(_normalize(sent)) or _unnamed_pr_near_ref(_normalize(sent))))
+        kept = " ".join(x for x in SENTENCE_END_RE.split(text) if x.strip() and not others(x))
+        words = " ".join(own_words(kept).split()) if kept.strip() else ""
+        if not words:
+            continue
+        norm = _normalize(words)
+        about_merge = MERGE_TOPIC_RE.search(norm) or _names(norm, number)
+        if about_merge and (EXPLICIT_HOLD_RE.search(norm) or _is_hold(words, number)):
+            held, named = words[:100], named or _names(norm, number)
+    if not held:
+        return ""
+    needed = f"merge #{number}" if named else "merge the bot fixes"
+    return f"the user's hold on merging still stands: \"{held}\"; it lifts only on his plain \"{needed}\""
 
 
 def pinned_head(words: list) -> str:
