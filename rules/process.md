@@ -49,7 +49,7 @@ unfamiliar library or opaque error. Detail:
 
 ### Agent-written shell fails fast and loud
 DO chain dependent tool-shell steps with `&&` or `bash -c` (bare `set -e` is inert), abort on
-empty loop input, end waits non-zero on timeout; read first output in 2 min. Detail:
+empty loop input, end waits non-zero on timeout, run a wait over 60 s in the background. Detail:
 `references/code-best-practices.md` § Agent-written shell. TEST: no `;` after `cd`, no silenced release.
 
 ### Fix the CLASS of failure, not the one instance I reported

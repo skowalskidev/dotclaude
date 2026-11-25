@@ -121,6 +121,15 @@ starts:** `[ -n "$RUN" ] || { echo "no run for $SHA" >&2; exit 1; }`. An empty o
 with what was looked up; it never reaches the poll.
 TEST: no loop body uses a lookup result that was not checked non-empty first.
 
+**DO run every wait expected to last over 60 seconds (CI, a deploy, a queued landing, a build, a
+suite, a sleep-poll) as a background task and keep answering Simon while it runs;** react to its
+completion notification instead of sleeping. A foreground wait blocks his messages until it ends.
+Primary sources: Claude Code background tasks notify on completion
+(https://code.claude.com/docs/en/sub-agents); the GitHub CLI's `run watch --exit-status` is the
+vendor's own completion wait (https://cli.github.com/manual/gh_run_watch).
+TEST: no foreground tool call waits over 60 seconds while Simon has written in the last 30 minutes
+(the fix for a 9-minute foreground CI wait that left Simon unable to talk to the session).
+
 **DO give every background wait or poll an exit condition, a timeout, and a non-zero exit printing the
 last state it saw on timeout or on any state it does not recognise.** The completion notification then
 carries the problem. Keep the loop's summed waits at least 5 minutes under the background tool's cap (2
