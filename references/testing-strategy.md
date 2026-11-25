@@ -678,7 +678,9 @@ Claude in that state this session, and what rendered matches the step's Expect l
 
 **DO run every later step yourself before you send it, the same way:** in your own browser, from the state
 he is in (same storage, same account), and send it only when the Expect screen appears. DON'T write a
-step from the code's happy path. TEST: each step sent has a run by Claude from his state with its Expect
+step from the code's happy path. A step-ahead run is not the whole-journey walk: before step 1, walk
+every target to its last stage per `references/planning-and-tracking.md` § Every named part on every
+named target. TEST: each step sent has a run by Claude from his state with its Expect
 line observed (the fix for three steps that bounced to another screen, reused storage in a "new" private
 window, or made an account outside the plan, each costing him a round trip).
 

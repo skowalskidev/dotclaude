@@ -50,11 +50,8 @@ empty loop input, end waits non-zero on timeout; read first output in 2 min. Det
 `references/code-best-practices.md` § Agent-written shell. TEST: no `;` after `cd`, no silenced release.
 
 ### Fix the CLASS of failure, not the one instance I reported
-When I report wrong output (a bad render, a wrong answer, a broken page), my example is evidence of a
-general failure mode, not the scope of the fix. **Don't patch the instance.** Name the rule that was
-violated, check whether it is a known class, and write the fix generically so it catches variants I
-haven't hit.
-DO write the rule, keep one concrete instance, and name the class and what you checked:
+DO fix the class behind a reported wrong output, never only the instance: write the rule, keep one
+concrete instance, and name the class and what you checked:
 `references/planning-and-tracking.md` § Fix the class of failure.
 
 ### Front-load everything you need from me — at the START of a session
@@ -114,12 +111,15 @@ ANY repo — this config included — unprompted.** What it proves: `references/
 runs. A summary proves you can describe it. Neither proves point four of a five-point ask was built.
 TEST: every ask clause in the ledger has a verdict against it. A missing verdict is a missing feature.
 
+**DO ship each part the ask names on every target it names (surface, platform, audience), and walk the
+whole deliverable to its last stage on each target yourself before handing Simon a step, link or
+"ready".** A recommended default fills only what the ask leaves open. Detail and TEST:
+`references/planning-and-tracking.md` § Every named part on every named target.
+
 **DO run `/sk:ship-full-detailed-workflow` at the PR's tier on every open PR the work opened or pushed
 to, before hand-back.** Ship-report proves the journeys; the harness reviews and verifies the pushed PR and lands
-its gate. The Stop hook backs this: it blocks once per pushed non-default branch head until
-`hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [tier] [reason]` records the result.
-TEST: a hand-back naming an open PR from this run cites that PR's landing-gate result. (the fix for two
-PRs handed back unreviewed; the harness then found a dropped consent event and a no-op column revoke.)
+its gate; the Stop hook blocks until `intent-ledger.sh gate` records it.
+TEST: a hand-back naming an open PR from this run cites that PR's landing-gate result.
 
 ### Commit when a task is finished (durable authorization)
 **When a task is complete and verified, commit it — you do NOT need to ask first.** This is standing

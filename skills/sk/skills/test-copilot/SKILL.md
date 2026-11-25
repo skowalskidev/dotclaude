@@ -184,8 +184,9 @@ After every start or restart, run the dependency handshake in `dev-server-hygien
 the job: Claude's only view of Simon's session is what the server prints.
 
 ### 4.1b Prove he is on YOUR server, before step 1
-Apply `testing-strategy.md` § Human-driven sessions. Drive each step yourself before you send it, from
-the state he is in, as that section sets out. Load the start URL in his walk tab yourself (web,
+Apply `testing-strategy.md` § Human-driven sessions. Walk the whole journey to its last stage on every
+target first, then drive each step yourself before you send it, from the state he is in, as that
+section sets out. Load the start URL in his walk tab yourself (web,
 below), or give him the exact URL (for a phone, the verified share from `/sk:work-preview-on-phone`),
 and say which host the address bar must show.
 Find his first request in the watched log. Absent after one retry: stop, because he is on another

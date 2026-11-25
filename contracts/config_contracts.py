@@ -699,6 +699,7 @@ CONTRACTS: dict[str, dict] = {
             "New UI is seeded up to, never through: he types the new inputs himself.",
             "Route UI ticket work to the screenshot reference's default final-batch refresh lifecycle, including explicit waivers and current-source evidence.",
             "Point every change to a user flow or its backend at testing-strategy.md's pre-merge end-to-end walk on a local stack, iOS Simulator included, before PR-ready; web UI and native simulator verification are both default-on.",
+            "Keeps an always-on line that every part the ask names ships on every target it names, a recommended default filling only what the ask leaves open, and that the whole deliverable is walked to its last stage on each target before any hand-off to Simon; planning-and-tracking.md holds the grid and TEST.",
             "Before handing over ANY visual artifact (UI, mockup or board, dashboard, report, stitched image, PR media), open the exact artifact in its entry state, check every switchable state for blank and clipped content, view the screenshots, loop fix then re-check until clean, and hand over the pass table.",
             "A build of a supplied design source runs the measured match in references/workflow-loops.md and hands off its PASS report; an eye comparison never passes it.",
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; the rule lives in references/browser-debugging.md and is pointed at, not restated.",
@@ -1059,6 +1060,7 @@ CONTRACTS: dict[str, dict] = {
             "required, not what it looks like.",
             "Every ticket the plan names is a full clickable Linear link, never a bare id.",
             "Before the first push of a build, adopt or rebuild, every ticket criterion and raw-ask clause gets MET or GAP against the diff and each in-scope GAP is built; the end ship report proves, it does not discover.",
+            "Owns the parts x targets grid: each named part sits in every named target's cell, never a default substitute, and each cell is ticked from Claude's own walk to that target's last stage before any step, link or ready reaches Simon.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every proposed check lists its prerequisites from the code and the provider, each confirmed found or missing, before any time estimate or any ask for an input.",
