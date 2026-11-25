@@ -1758,17 +1758,19 @@ def _is_hold_text(ask: str) -> bool:
 # names the bot's fixes or PRs and tells them merged (STANDING_LIFT_RE), carries no PR number, no
 # question and no hold, and every word in it is from STANDING_LIFT_WORDS: the bar's own conditions and
 # nothing else, so any added person, time, condition or framing ("if Bob consents", "next month", "it
-# is false that") makes it no lift.
+# is false that") makes it no lift. An imperative automerge of the class reads the same ("also automerge
+# any sre bot fixes", his 24 Nov restatement that came after every older hold on PRs #1425/#1423);
+# "don't automerge the bot fixes" holds, so it never lifts.
 STANDING_LIFT_RE = re.compile(
     r"\A(?=.*\b(?:sre|monitoring|bot)\b)(?=.*\b(?:fix|fixes|prs?|pull requests?|changes)\b)"
     r"(?=.*(?:\b(?:should|must|can|are to|need to|needs to|to)\s+(?:be|get)\s+merged\b|\bjust\s+merge\s+(?:them|those|these)\b"
-    r"|\bget\s+(?:them|those|these)\s+merged\b))", re.I | re.A)
+    r"|\bget\s+(?:them|those|these)\s+merged\b|\bauto[- ]?merge\b))", re.I | re.A)
 STANDING_LIFT_WORDS = frozenset("""
 remember reminder again note please ok okay so yes and also that the any all every sre bot bots
 monitoring bot's fix fixes pr prs pull request requests change changes which that are is don't doesn't do does influence influences affect affects touch touches impact impacts change risk user users user's prod production
 pay payment paths path flows flow customer customers and or have has been validated tested verified checked green
 passed pass passing the bar its their own safe should must can be get merged merge just them those these they
-automatically auto always to of with without in on for
+automatically auto automerge always to of with without in on for
 """.split())
 
 
