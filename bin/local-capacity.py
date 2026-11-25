@@ -765,6 +765,9 @@ def claim_sim(root, udid, owner):
     if not UDID.fullmatch(udid) or not OWNER.fullmatch(owner):
         raise GateError("claim-sim needs a UUID simulator ID and a safe owner label")
     udid = udid.upper()
+    warning = copied_owner_warning(root, owner)
+    if warning:
+        print("capacity warning: " + warning, file=sys.stderr)
     admission_guard("simulator claim")
     with locked(root):
         legacy = legacy_claims()
@@ -1531,6 +1534,9 @@ def deferral_text(reason, priority, is_priority, child_pending, allowance_holder
 def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False, second_slot_only=False,
             compute_only=False, admission=None, sample=None):
     """Admit one heavy lease; a displaced priority owner reads its replacement on every attempt."""
+    warning = copied_owner_warning(root, owner)
+    if warning:
+        print("capacity warning: " + warning, file=sys.stderr)
     try:
         token = _acquire(root, owner, pid, simulator, child_pending, allow_bridge, second_slot_only,
                          compute_only, admission, sample)
@@ -1543,6 +1549,31 @@ def acquire(root, owner, pid, simulator, child_pending=False, allow_bridge=False
     if notice:
         print("capacity notice: " + notice, file=sys.stderr)
     return token
+
+
+def copied_owner_warning(root, owner):
+    """Warn, never refuse: --owner names a label registered to another checkout (a live priority grant or a
+    simulator claim) while this command runs outside it, the shape of an id copied from a message. '' when
+    nothing matches or any probe fails (the fix for a ship agent that ran under another agent's owner id and
+    blocked that agent's priority work twice)."""
+    try:
+        registered = []
+        with locked(root):
+            priority = read_priority(root)
+            if priority and priority["owner"] == owner and priority["workspaces"]:
+                registered.extend(priority["workspaces"])
+            registered.extend(record["workspace"] for record in read_claim_records(root).values()
+                              if isinstance(record, dict) and record["owner"] == owner)
+        registered = list(dict.fromkeys(registered))
+        if not registered:
+            return ""
+        here = checkout_path(Path.cwd())
+        if here in registered or session_owns_workspace(here, registered):
+            return ""
+        return ("--owner %s is registered to %s, not this checkout %s; pass your own agent id as --owner, "
+                "never an id copied from a message or brief" % (owner, ", ".join(registered), here))
+    except Exception:  # noqa: BLE001 - a warning never blocks admission
+        return ""
 
 
 def displaced_priority_notice(root, owner):

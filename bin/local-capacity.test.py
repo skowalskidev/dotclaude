@@ -2692,6 +2692,25 @@ class SessionOwnershipTests(unittest.TestCase):
             with mock.patch.object(gate.Path, "cwd", return_value=workspace):
                 self.assertFalse(gate.priority_matches(record, "session"), "a copied label cannot grant session priority")
 
+    def test_copied_owner_id_warns_outside_its_registered_checkout_and_never_refuses(self):
+        gate.prioritize(self.root, "session", 30, False, str(self.checkout))
+        for workspace in (self.checkout, self.nested):
+            with mock.patch.object(gate.Path, "cwd", return_value=workspace):
+                self.assertEqual(gate.copied_owner_warning(self.root, "session"), "")
+        with mock.patch.object(gate.Path, "cwd", return_value=self.sibling):
+            self.assertEqual(gate.copied_owner_warning(self.root, "own-agent"), "")
+            warning = gate.copied_owner_warning(self.root, "session")
+            self.assertIn("--owner session is registered to " + str(self.checkout), warning)
+            self.assertIn("pass your own agent id", warning)
+            with mock.patch.object(gate, "observe_booted", return_value=[]), \
+                    mock.patch.object(gate, "host_reading", return_value=(None, "")), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+                token = gate.acquire(self.root, "session", os.getpid(), None)
+            self.assertIn("capacity warning: --owner session is registered to", err.getvalue())
+            gate.release(self.root, token)
+        with mock.patch.object(gate, "read_priority", side_effect=gate.GateError("corrupt")):
+            self.assertEqual(gate.copied_owner_warning(self.root, "session"), "")
+
     def test_priority_multiple_workspaces_and_mismatch_hint(self):
         gate.prioritize(self.root, "session", 30, False, [str(self.checkout), str(self.sibling)])
         record = gate.read_priority(self.root)

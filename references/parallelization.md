@@ -421,7 +421,8 @@ the same gate, and a busy gate defers only the heavy step.
   starts before cache warming ends, and each child resolves the required runtime before its batch begins.
 - **Admit native work through the shared capacity lease named in each worker prompt.** Use
   `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <command>` or the
-  `bin/native-slot.sh` compatibility frontend. Exit 75 defers
+  `bin/native-slot.sh` compatibility frontend, the worker's own id as owner (§ Give every agent a
+  precise, self-contained spec). Exit 75 defers
   only the heavy step; keep edits and permitted diagnostics moving. Do not nest leases or wait
   without a deadline. TEST: prompts for native workers name the shared engine, a worker cap,
   and the scoped command it will run.
@@ -549,6 +550,15 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   mid-review merge is a new head that resets every stage receipt and CI. TEST: no brief tells a worker to
   merge the base on its own judgement (the fix for two Deep PRs rerun through all nine stages five more
   times after briefs said "merge main first if it moved").
+- **DO tell every worker that runs heavy work or claims a simulator to pass `--owner <your own agent
+  id>` to `local-capacity.py` and `native-slot.sh`** (when it cannot read its id, the unique label the
+  brief assigns it, `<parent-session-id>-<slice>`). **DON'T paste any owner id into a brief, and tell the
+  worker never to reuse one copied from a message, status line or another agent's output:** one owner
+  holds one lease, so a copied id queues the real owner behind its own name. `local-capacity.py` prints
+  `capacity warning:` when `--owner` names another checkout's priority grant or simulator claim; a
+  worker that sees it stops and reruns under its own id. TEST: no brief contains a literal owner id (the
+  fix for a ship agent that ran builds and the simulator under the priority holder's id and blocked the
+  priority task twice).
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
   signals only those at cleanup. DON'T let it kill by port, name or pattern. TEST: every brief that has
