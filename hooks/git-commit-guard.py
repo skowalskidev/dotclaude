@@ -3389,6 +3389,14 @@ def _data_dynamics(text: str) -> set:
                                               and not NAMES_GH_OR_MERGE_RE.search(text[a:b])):
                     benign.add(p)
             continue
+        if m.group() == "`":
+            # A backquote an odd run of backslashes escapes is a literal character (`grep "\`gh pr merge\`"`,
+            # a heredoc line naming a command in escaped backquotes): it opens no substitution. The run is
+            # adjacent to the backquote, so it sits in one quoting context and no quote can end between.
+            run = len(text[:p]) - len(text[:p].rstrip("\\"))
+            if run % 2 == 1:
+                benign.add(p)
+            continue
         if m.group() == "$(" and not text.startswith("$((", p):
             close = _simple_command_end(text, p + 2)
             if (ASSIGN_PREFIX_RE.fullmatch(text[a:p]) and text[close:close + 1] == ")"
