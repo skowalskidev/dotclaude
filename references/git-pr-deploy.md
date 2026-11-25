@@ -424,7 +424,7 @@ declares for its monitoring bot merges without his merge word once it meets the 
   System text is no word of Simon's: a background task's notification, a `<system-reminder>`, the
   host's `<system_instruction>` and a slash command's name tags are never read for a hold; a peer
   agent's record still holds. A look-alike letter, a control character, a redaction or an image fails
-  closed. It stands until a later message from Simon himself that is only a plain
+  closed; an emoji, arrow or zero-width character that folds to no letter is dropped and the rest read (`_drop_symbols`). It stands until a later message from Simon himself that is only a plain
   merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"), or that restates the standing
   class merge with no PR number ("remember that sre bot fixes which don't influence user prod and have
   been validated should be merged", or "also automerge any sre bot fixes", `STANDING_LIFT_RE`); a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A bare work pause, whole ("pause", "pause at a good point", "stop for now"), also lifts on his later whole-message "resume", "continue" or "carry on" (`RESUME_RE`); a resume never lifts a merge hold. A hold that names this PR, or a

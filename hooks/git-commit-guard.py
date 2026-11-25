@@ -1725,14 +1725,28 @@ def _is_hold(ask: str, number: str) -> bool:
         return True  # redacted, or an image or file the guard cannot read: what it said is unknown
     if re.search(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", ask):
         return True  # an ASCII control (a terminal color escape) can glue itself to a word
-    folded = unicodedata.normalize("NFKC", ask)
-    # Checked on the text as typed AND as folded: NFKC turns some symbols into ASCII letters ("ⓘ" to "i"),
-    # which would glue them to the next word.
-    if any(ord(c) > 127 and unicodedata.category(c)[0] in "LNSMC" for c in ask + folded):
-        # A letter, digit, symbol, mark or control outside ASCII (a look-alike "о", a 🤖, a variation
-        # selector, a zero-width joiner) fails closed; only non-ASCII punctuation and spaces read through.
-        return True
-    return _reads_as_hold(ask)
+    # A non-ASCII symbol or format character that folds to no letter or digit (an emoji, "→", a word
+    # joiner, a zero-width joiner) is dropped, read both as nothing and as a space, so a pasted page or a
+    # 👍 is read rather than failing closed (the fix for a pasted GitHub Actions page holding PRs
+    # #1425/#1423 on 24 Nov with no hold word in it). A hold in either reading, or in the text as typed,
+    # still holds: "do🎭n't merge" holds.
+    variants = [_drop_symbols(ask, ""), _drop_symbols(ask, " ")]
+    for text in variants:
+        folded = unicodedata.normalize("NFKC", text)
+        # Checked on the text as typed AND as folded: NFKC turns some symbols into ASCII letters ("ⓘ" to
+        # "i"), which would glue them to the next word, so such a symbol is never dropped.
+        if any(ord(c) > 127 and unicodedata.category(c)[0] in "LNSMC" for c in text + folded):
+            # A letter, digit, mark, control or letter-like symbol outside ASCII (a look-alike "о", a
+            # variation selector, "ⓘ", "™") fails closed; only non-ASCII punctuation and spaces read through.
+            return True
+    return any(_reads_as_hold(t) for t in dict.fromkeys([ask] + variants))
+
+
+def _drop_symbols(text: str, by: str) -> str:
+    """The text with each non-ASCII symbol (So, Sk, Sm) or format character (Cf) replaced by `by`, when its
+    NFKC form holds no letter or digit; every other character is kept as typed."""
+    return "".join(by if ord(c) > 127 and unicodedata.category(c) in ("So", "Sk", "Sm", "Cf")
+                   and not any(f.isalnum() for f in unicodedata.normalize("NFKC", c)) else c for c in text)
 
 
 @functools.lru_cache(maxsize=4096)
