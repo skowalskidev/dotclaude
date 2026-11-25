@@ -614,9 +614,14 @@ expected result (an agent told only what to do cannot tell you it failed), and n
 - **DO quote the raw-ask clauses and recorded Simon decisions a brief serves**, per
   `references/workflow-loops.md` § Continuous request reconciliation, including a brief built from an
   investigation's findings.
-- **DO write an unverified cause into a brief as a hypothesis plus the check that would confirm it**,
-  and have the worker run that check first. DON'T state a suspected root cause as fact: the worker
-  builds on it (the fix for a video codec blamed in a brief before playback had been tested).
+- **DO verify a cause before a brief names it:** one evidence read (the log line, row, run record or
+  diff that shows it) or the premise verdict (`/sk:work-investigate-and-fix` § 1b,
+  `/sk:work-does-this-make-sense-to-build`), cited in the brief beside the cause. **When neither has run,
+  write it as `Unverified hypothesis: <cause>. Confirm first with: <check>.`** and have the worker run
+  that check before it builds. DON'T state a suspected root cause as fact, a relayed one included: the
+  worker builds on it. TEST: every cause in a brief carries its evidence citation or the literal
+  `Unverified hypothesis:` label (the fix for a video codec blamed in a brief before playback had been
+  tested, and for a builder handed "the judge failed", which the premise check then refuted).
 - **Precise, not long.** Anthropic's own worked spec is four sentences. An orchestrator that hasn't
   read the code is the node LEAST able to prescribe implementation, so specify the boundary and the
   acceptance test, then stop.

@@ -1039,7 +1039,7 @@ CONTRACTS: dict[str, dict] = {
             "Inspect delegated diffs on disk without routine test execution; no per-feature, per-commit or per-worker-batch checks override the shared policy.",
             "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
-            "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; an unverified cause is written as a hypothesis with its confirming check.",
+            "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; a cause in a brief cites its evidence read or premise verdict, or is labelled `Unverified hypothesis:` with its confirming check, which the worker runs first.",
             "A brief quotes the raw-ask clauses and recorded Simon decisions it serves, per workflow-loops, including a brief built from an investigation's findings.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
             "Every brief for a worker that runs a ship stage carries the ship-worker receipt block verbatim: right after each stage's Skill call, run intent-ledger.sh receipt <stage skill> <checkout dir>, and on the final pushed head run stages <tier> <final head sha> and return its output; the contract suite fails a block missing either command or the final head; the ship harness points here and does not restate it.",
