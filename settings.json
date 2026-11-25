@@ -49,6 +49,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/capacity-timeout-guard.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/formatter-scope-guard.py",
+            "timeout": 10
           }
         ]
       },

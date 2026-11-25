@@ -2514,6 +2514,30 @@ CONTRACTS: dict[str, dict] = {
             "hooks/capacity-timeout-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
+    "hooks/formatter-scope-guard.py": {
+        "mission": "A formatter or auto-fixer run never reflows files outside the change it belongs to.",
+        "purpose": "PreToolUse: denies a write-mode formatter or auto-fixer run aimed at a directory, `.`, a glob, a tree lister's output or no path.",
+        "criteria": [
+            "Judges dart format, flutter format, dart fix --apply, prettier --write/-w, black, ruff format, "
+            "ruff check --fix/--fix-only, gofmt -w, swiftformat, ktlint -F/--format and eslint --fix, also "
+            "behind npx, pnpm/yarn exec, uv/poetry run, python -m and fvm.",
+            "Denies a path argument that is a directory relative to the payload cwd (a cd earlier in the "
+            "chain counts), `.`, a trailing slash or a name with no extension that is not a file; a glob; "
+            "find, fd, ls, tree, git ls-files or rg --files feeding it through xargs or $(...); and no path "
+            "unless stdin feeds it.",
+            "Allows explicit files (dart format lib/a.dart test/b_test.dart), option values (-l 100, "
+            "--select E,F), $(git diff --name-only ...), git diff piped to xargs, $VAR words, check-only "
+            "modes (dart format --output=none --set-exit-if-changed, prettier --check, black --check, "
+            "ruff check without --fix, gofmt -l, swiftformat --lint) and help/version flags.",
+            "Judges what the shell runs through hooks/secret-echo-guard.py's parser: sh/bash -c, eval, "
+            "timeout and env prefixes, &&, ; and pipes; echo, grep, a quoted string or a heredoc naming a "
+            "command never fires.",
+            "The deny reason names references/code-best-practices.md § Scope discipline and the fix "
+            "`dart format $(git diff --name-only --diff-filter=AM <base> -- '*.dart')` in the tool's own "
+            "form. No override; fails open on a malformed payload.",
+            "hooks/formatter-scope-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
         "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",

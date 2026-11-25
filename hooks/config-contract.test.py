@@ -107,6 +107,8 @@ CRITERIA: list[tuple[str, str]] = [
      "A Bash command that prints a credential value is denied, awkward variants included, while a consumed value, a help verb and text that names a command all pass."),
     ("capacity-timeout-guard-covers-background-queues-both-ways",
      "A capacity-gated run_in_background task whose timeout ends before its summed queue and run budget is denied, a 2-hour budget is sent detached, and foreground calls, adequate timeouts and named-only text pass."),
+    ("formatter-scope-guard-denies-whole-tree-runs-both-ways",
+     "A formatter or auto-fixer run aimed at a directory, `.`, a glob, a tree lister or no path is denied, wrappers and chains included, while explicit files, the git-diff substitution and check-only modes pass."),
     ("process-kill-guard-denies-pattern-kills-both-ways",
      "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
     ("outbound-message-guard-caps-messages-to-others",
@@ -2028,6 +2030,16 @@ def check_capacity_timeout_guard_covers_background_queues_both_ways() -> None:
     result = run(["python3", str(ROOT / "hooks/capacity-timeout-guard.test.py")])
     check(result.returncode == 0,
           f"Capacity-timeout guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_formatter_scope_guard_denies_whole_tree_runs_both_ways() -> None:
+    settings_cmds = [h.get("command", "") for g in settings().get("hooks", {}).get("PreToolUse", [])
+                     if g.get("matcher") == "Bash" for h in g.get("hooks", [])]
+    check(any(c.endswith("hooks/formatter-scope-guard.py") for c in settings_cmds),
+          "settings.json must wire hooks/formatter-scope-guard.py on the Bash PreToolUse matcher.")
+    result = run(["python3", str(ROOT / "hooks/formatter-scope-guard.test.py")])
+    check(result.returncode == 0,
+          f"Formatter-scope guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_test_browser_tabs_stay_labelled_and_swept() -> None:

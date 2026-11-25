@@ -377,14 +377,16 @@ HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Bash",
      "expect": ["work-resource-guard.sh",
                 "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py",
-                "process-kill-guard.py", "capacity-timeout-guard.py"]},
+                "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"]},
     # The process-kill guard: a pattern kill that can signal other sessions' processes is denied,
     # an agent-typed override prefix included (only the session's starting environment passes);
     # a kill by pid or a pkill -f scoped to the caller's own path passes
     # (references/dev-server-hygiene.md § Private process inspection).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": {"command": command}, "decides": {"process-kill-guard.py": decision}}
       for command, decision in (
           ('pkill -f "local-capacity.py run"', "deny"),
@@ -402,7 +404,8 @@ HOOK_ROUTING: list[dict] = [
     # (references/dev-server-hygiene.md § Waiting on a background job).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": tool_input, "decides": {"capacity-timeout-guard.py": decision}}
       for tool_input, decision in (
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test",
@@ -413,12 +416,31 @@ HOOK_ROUTING: list[dict] = [
             "run_in_background": True, "timeout": 4020000}, "allow"),
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test"}, "allow"),
       )),
+    # The formatter-scope guard: a formatter or auto-fixer aimed at a directory, `.`, a glob or no
+    # path is denied; explicit files, the git-diff substitution and check-only modes pass
+    # (references/code-best-practices.md § Scope discipline).
+    *({"event": "PreToolUse", "tool": "Bash",
+       "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                  "formatter-scope-guard.py"],
+       "tool_input": {"command": command}, "decides": {"formatter-scope-guard.py": decision}}
+      for command, decision in (
+          ("dart format lib test", "deny"),
+          ("dart format .", "deny"),
+          ("npx prettier --write 'src/**/*.ts'", "deny"),
+          ("cd app && bash -c 'black src'", "deny"),
+          ("dart format lib/a.dart test/b_test.dart", "allow"),
+          ("dart format $(git diff --name-only --diff-filter=AM main -- '*.dart')", "allow"),
+          ("dart format --output=none --set-exit-if-changed lib test", "allow"),
+          ("git status", "allow"),
+      )),
     # The background-process guard: a service loader writes a LaunchAgent, so an
     # agent's call is denied, the inline override included (only the session's starting environment
     # passes).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": {"command": command}, "decides": {"background-process-guard.py": decision}}
       for command, decision in (
           ("env CLAUDE_ALLOW_DAEMON=1 launchctl bootstrap gui/501 x.plist", "deny"),

@@ -399,7 +399,9 @@ again.
   **DON'T point it at a whole directory** (`dart format lib test`, `prettier .`): it reflows files the task never
   touched, they land in the feature commit, and a "restore formatting" commit plus extra review follows.
   TEST: a feature commit's diff holds no file whose only change is whitespace or reflow outside the task's scope
-  (the fix for three whole-folder format runs, each needing a restore commit).
+  (the fix for four whole-folder format runs, each needing a restore commit). `hooks/formatter-scope-guard.py`
+  is the backstop: it denies a write-mode formatter or auto-fixer aimed at a directory, `.`, a glob or no path,
+  and its deny names the scoped form `dart format $(git diff --name-only --diff-filter=AM <base> -- '*.dart')`.
 - **DO make at most one small, reversible change for a defect in code outside your task that you cannot
   reproduce** (a screen on the tester's device), then write the finding up with its evidence and stop.
   A second unconfirmed attempt is a ticket, not a fix. DON'T iterate on the tester's device by guesswork:
