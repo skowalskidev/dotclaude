@@ -1041,7 +1041,7 @@ CONTRACTS: dict[str, dict] = {
             "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; an unverified cause is written as a hypothesis with its confirming check.",
             "A brief quotes the raw-ask clauses and recorded Simon decisions it serves, per workflow-loops, including a brief built from an investigation's findings.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
-            "Every brief for a worker that runs a ship stage carries the line: right after each stage's Skill call, run intent-ledger.sh receipt <stage skill> <checkout dir>; the ship harness points here and does not restate it.",
+            "Every brief for a worker that runs a ship stage carries the ship-worker receipt block verbatim: right after each stage's Skill call, run intent-ledger.sh receipt <stage skill> <checkout dir>, and on the final pushed head run stages <tier> <final head sha> and return its output; the contract suite fails a block missing either command or the final head; the ship harness points here and does not restate it.",
             "A brief holds no literal capacity owner id; the worker passes its own agent id as --owner to local-capacity.py and native-slot.sh.",
             "A worker's outward writes name only the brief's PR or branch; a remark on any other PR, issue or ticket returns to the parent as a Note for parent line.",
             "Never trust a subagent's self-report; verify on disk.",

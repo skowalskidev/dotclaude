@@ -233,6 +233,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("intake-opens-no-plan-for-peer-or-harness-blocks",
      "A prompt that is only an <agent-message>, <cross-session-message>, <task-notification> or <system-reminder> block opens no "
      "skeleton plan and emits no routing; a real ask behind a banner still gets its one record."),
+    ("ship-worker-brief-carries-stage-receipts",
+     "parallelization.md's ship-worker receipt block names the receipt command, the stages call and the final "
+     "pushed head, and the ship harness points at that block instead of restating it."),
     ("intake-reuses-mid-run-plan", "New requests preserve the active plan and do not depend on approval stamps."),
     ("intake-has-an-off-switch", "CLAUDE_INTAKE_GATE=off skips duplicate plan initialization for delegated headless work."),
     ("delegated-worker-leaves-supervisor-record-alone",
@@ -923,6 +926,30 @@ def check_intake_opens_no_plan_for_peer_or_harness_blocks() -> None:
           "A real ask behind a banner got no session record.")
     intake("submit", {**sid, "prompt": fyi})
     check(len(list((root / ".context").glob("*-plan.md"))) == 1, "A peer FYI opened a second plan beside the record.")
+
+
+def ship_worker_block_gaps(text: str) -> list[str]:
+    """What a ship-worker receipt block lacks; [] when complete. The parent can record a PASS only on a sha
+    the worker receipted, so a brief without these lines ships heads the gate reads as Not run."""
+    m = re.search(r"<!-- ship-worker-receipt-block -->(.*?)<!-- /ship-worker-receipt-block -->", text, re.S)
+    if not m:
+        return ["the marked block"]
+    block = m.group(1)
+    need = {"the receipt command": "~/.claude/hooks/intent-ledger.sh receipt <stage skill> <checkout dir>",
+            "the stages call": "intent-ledger.sh stages <tier> <final head sha>",
+            "the final pushed head": "final pushed head"}
+    return [name for name, line in need.items() if line not in re.sub(r"\s+", " ", block)]
+
+
+def check_ship_worker_brief_carries_stage_receipts() -> None:
+    text = read("references/parallelization.md")
+    gaps = ship_worker_block_gaps(text)
+    check(not gaps, "parallelization.md's ship-worker receipt block lacks: " + ", ".join(gaps))
+    stripped = text.replace("intent-ledger.sh receipt <stage skill> <checkout dir>", "")
+    check(ship_worker_block_gaps(stripped) == ["the receipt command"],
+          "The ship-worker block check did not fail a block without the receipt command.")
+    check("ship-worker receipt block" in read("skills/sk/skills/ship-full-detailed-workflow/SKILL.md"),
+          "The ship harness does not point at the ship-worker receipt block.")
 
 
 def check_intake_reuses_mid_run_plan() -> None:
