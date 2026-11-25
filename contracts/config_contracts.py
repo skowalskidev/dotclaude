@@ -78,7 +78,7 @@ CONTRACTS: dict[str, dict] = {
             "Reserve the first slot for one legacy bridge or old slot directory in compute mode; reject ambiguous multiple lanes. Use at most two remaining slots without the mutex; reject compute simulator/stage use and retain all host guards.",
             "Retain paused leases and memory; count paused wall time toward the command deadline and end a 5-minute pause. Continue a stopped owned group after TERM for cleanup; reject simulator, stage and legacy-bridge pause-safe runs.",
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
-            "Cap Docker dev stacks at floor(VM GiB / 3), at least 1 and at most 2, counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
+            "Cap Docker dev stacks from measured Docker VM memory: running and starting stacks plus as many more as fit in the memory every container leaves free at the largest running stack's size, one stack's worth kept free; with nothing measurable, floor(VM GiB / 3), at most 2; counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
             "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
             "Never sweep a stack whose lease is held by a live owner or carries a future keep_until marker (stack-acquire --keep-hours or stack-keep, at most 24 hours); only unleased or abandoned stacks are swept.",
             "Use port-registry ownership for idle-stack decisions: live Claude/Codex sessions protect their checkout and physically nested linked worktrees of the same repository; sibling and unrelated repositories remain reclaimable. A failed session or ownership probe stops no stack and never fails the asking command.",
@@ -850,6 +850,7 @@ CONTRACTS: dict[str, dict] = {
             "Schema and route order here match what bin/connector_registry.py actually reads and returns, with primary sources for the layout.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
             "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules; the codex-app send recipe runs the hooks/outbound-message-guard.py --check pre-send step on the draft before sending.",
+            "A thread delegated to a worker is the worker's alone, and every thread reply first reads the thread and skips it when any reply by the same signed-in human identity is newer than the message answered, never deduping by draft wording.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal route and its home in the work registry root, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
@@ -957,6 +958,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "An open PR merges its base once, at merge prep, after review rounds converge; a mid-review base move is no reason to merge unless a file the PR touches conflicts or the fix needs the change.",
+            "An authorized merge runs as soon as its required gates pass (required CI, the three same-turn reads, the tier's landing-gate stages, Simon's named conditions); self-added checks run beside or after it, a red one stops it, and a required-gate wait past 10 minutes is reported with its bound.",
             "A stack takes the default branch through its bottom: merge it into the bottom PR's branch, then each base into its child; git diff <base-branch>...<child> then lists only the child's own files.",
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Owns worktree config detail: no repository config write from a worktree; one process is sandboxed with git -c or GIT_CONFIG_COUNT.",
@@ -1038,10 +1040,10 @@ CONTRACTS: dict[str, dict] = {
             "Inspect delegated diffs on disk without routine test execution; no per-feature, per-commit or per-worker-batch checks override the shared policy.",
             "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
-            "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; an unverified cause is written as a hypothesis with its confirming check.",
+            "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; a cause in a brief cites its evidence read or premise verdict, or is labelled `Unverified hypothesis:` with its confirming check, which the worker runs first.",
             "A brief quotes the raw-ask clauses and recorded Simon decisions it serves, per workflow-loops, including a brief built from an investigation's findings.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
-            "Every brief for a worker that runs a ship stage carries the line: right after each stage's Skill call, run intent-ledger.sh receipt <stage skill> <checkout dir>; the ship harness points here and does not restate it.",
+            "Every brief for a worker that runs a ship stage carries the ship-worker receipt block verbatim: right after each stage's Skill call, run intent-ledger.sh receipt <stage skill> <checkout dir>, and on the final pushed head run stages <tier> <final head sha> and return its output; the contract suite fails a block missing either command or the final head; the ship harness points here and does not restate it.",
             "A brief holds no literal capacity owner id; the worker passes its own agent id as --owner to local-capacity.py and native-slot.sh.",
             "A worker's outward writes name only the brief's PR or branch; a remark on any other PR, issue or ticket returns to the parent as a Note for parent line.",
             "Never trust a subagent's self-report; verify on disk.",
@@ -2716,6 +2718,10 @@ CONTRACTS: dict[str, dict] = {
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
+            "Record a turn as a peer entry when, after removing <agent-message> and <cross-session-message> "
+            "blocks, nothing is left or it opens with another session's attribution (\"From the <name> session\", "
+            "\"From <name> (session <id>)\", \"Another Claude session\"), whatever it quotes Simon as saying; "
+            "Simon's own lowercase opener or a later quoted relay stays his ask.",
             "gate refuses a branch or reason holding a line break and stamps its heading with the session "
             "id; the read-only gates mode prints only this session's fence-free gate lines, exits 3 when "
             "no ledger resolves and 4 while a lock-contention fallback file holds this session's prompts, "

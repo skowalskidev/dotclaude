@@ -520,16 +520,27 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   shutdown all` closed another session's simulator, and one that stashed in the stack every worktree
   shares). TEST: every dispatch prompt that boots, kills, resets or sets work aside names an id or a
   path, and none says `all`, `killall` or `git stash`.
-- **DO write this line into every brief for a worker that runs a ship stage on its own checkout:
-  "Right after each stage's Skill call, run `~/.claude/hooks/intent-ledger.sh receipt <stage skill>
-  <checkout dir>` (stage as `sk:ship-review`), then `intent-ledger.sh stages <tier> <pr-head-sha>`."**
+- **DO paste this ship-worker receipt block verbatim into every brief for a worker that runs a ship
+  stage on its own checkout:**
+
+  <!-- ship-worker-receipt-block -->
+  ```text
+  Stage receipts (required): `cd <checkout dir> && ...` in the Bash call before each stage skill.
+  Right after each stage's Skill call, run
+  `~/.claude/hooks/intent-ledger.sh receipt <stage skill> <checkout dir>` (stage as `sk:ship-review`).
+  A new commit resets every receipt: on the final pushed head, run
+  `~/.claude/hooks/intent-ledger.sh stages <tier> <final head sha>`, re-run and receipt each stage it
+  lists, and return its output (`All stages ran` or `Not run: ...`) with that sha.
+  ```
+  <!-- /ship-worker-receipt-block -->
+
   A subagent's automatic Skill receipt lands on the HEAD of whatever checkout its last Bash `cd`/`git -C`
   named, often the parent's, so the parent ledger reads `Not run` for work that ran. A duplicate
-  receipt is harmless; a missing one costs a BLOCKED gate. Also tell it to `cd <checkout dir> && ...`
-  in the Bash call before each stage skill. `stages` reports `All stages ran` or the `Not run:` list.
-  TEST: every ship-worker brief carries the receipt line verbatim, and the gate accepts a PASS on the
-  worker's head (the fix for three PRs recorded BLOCKED "Not run" after their workers ran review,
-  judges, CI and the landing checker; the one brief that carried the line receipted cleanly).
+  receipt is harmless; a missing one costs a BLOCKED gate. The parent records PASS only on a sha whose
+  `stages` output the worker returned. TEST: every ship-worker brief carries the block verbatim, and
+  `hooks/config-contract.test.py` fails a block missing the `receipt` command, the `stages` call or the
+  final head (the fix for three PRs recorded BLOCKED "Not run" after their workers ran review, judges,
+  CI and the landing checker, and for two more whose workers shipped a fix head with no receipt on it).
 - **DO tell a worker to run `intent-ledger.sh receipt <stage> <dir>` only right after invoking that
   stage with the Skill tool on that head.** The receipt is self-attested; the gate's "All stages ran"
   rests on it. **DO list work done by hand as `Not run: <stage>`.** DON'T receipt a stage whose skill
@@ -563,8 +574,9 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   pushes, comments and replies only on the PR or branch the brief names. A remark about any other PR,
   issue or ticket (superseded, duplicate, suggest closing) goes back to the parent in the hand-back as
   a `Note for parent:` line, never posted; the parent applies `rules/process.md`, which reserves every
-  other PR operation for Simon. TEST: every outward write in a worker's transcript names the brief's PR
-  number or branch (the fix for a builder that posted "superseded, suggest closing" on Simon's own PR
+  other PR operation for Simon. A message thread the brief hands the worker is its alone: the parent
+  stops posting there (`references/connectors-setup.md` § Official account connectors and completion messages). TEST: every outward
+  write in a worker's transcript names the brief's PR number, branch or thread (the fix for a builder that posted "superseded, suggest closing" on Simon's own PR
   unasked).
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and
@@ -602,9 +614,14 @@ expected result (an agent told only what to do cannot tell you it failed), and n
 - **DO quote the raw-ask clauses and recorded Simon decisions a brief serves**, per
   `references/workflow-loops.md` § Continuous request reconciliation, including a brief built from an
   investigation's findings.
-- **DO write an unverified cause into a brief as a hypothesis plus the check that would confirm it**,
-  and have the worker run that check first. DON'T state a suspected root cause as fact: the worker
-  builds on it (the fix for a video codec blamed in a brief before playback had been tested).
+- **DO verify a cause before a brief names it:** one evidence read (the log line, row, run record or
+  diff that shows it) or the premise verdict (`/sk:work-investigate-and-fix` § 1b,
+  `/sk:work-does-this-make-sense-to-build`), cited in the brief beside the cause. **When neither has run,
+  write it as `Unverified hypothesis: <cause>. Confirm first with: <check>.`** and have the worker run
+  that check before it builds. DON'T state a suspected root cause as fact, a relayed one included: the
+  worker builds on it. TEST: every cause in a brief carries its evidence citation or the literal
+  `Unverified hypothesis:` label (the fix for a video codec blamed in a brief before playback had been
+  tested, and for a builder handed "the judge failed", which the premise check then refuted).
 - **Precise, not long.** Anthropic's own worked spec is four sentences. An orchestrator that hasn't
   read the code is the node LEAST able to prescribe implementation, so specify the boundary and the
   acceptance test, then stop.

@@ -304,11 +304,20 @@ command in its `recipe`; the record holds the app id. Every `codex-app` run (ver
 3. Measures the draft first: `python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`;
    expect `ok`, and cut the draft on exit 1. The PreToolUse guard does not see a `codex exec` prompt.
 4. Verifies the workspace by display name OR URL subdomain (a workspace-list tool can return either)
-   and the signed-in identity, checks the target conversation for an existing copy, sends exactly once,
-   never retries, and returns the permalink. Check the conversation before any retry.
+   and the signed-in identity, runs the thread dedupe check below, sends exactly once, never retries,
+   and returns the permalink. Check the conversation before any retry.
 5. Sets `AGENT_ALLOW_CROSS_PROVIDER=1`, authorized for a resolver-ordered `codex-app` route by Simon's
    standing instruction (2026-11-06) as well as by a named-host ask (`references/agent-hosts.md`).
 The per-message authorization above still gates every send, on every route.
+
+DEFAULT: one reply per thread per alert per human identity, on every route. **DO leave a thread you
+delegated to a worker to that worker:** the parent never posts in it, and sends a missing point to the
+worker or Simon. **DO run the dedupe check right before each thread reply:** read the thread and skip
+it when ANY reply posted by the same signed-in human identity is newer than the alert or message being
+answered, whatever its wording or which agent wrote it. DON'T dedupe by matching your own draft text.
+TEST: every send's transcript shows the thread read with no newer reply from that identity, and no
+delegated thread holds a parent post (the fix for a worker and its parent both answering the same 6
+alert threads, because the parent's dedupe matched only its own exact wording).
 
 DO apply `rules/communication.md` and `rules/copy-quality.md` to every outgoing message, before the
 send call, on every route. Use those existing TL;DR and actionable-copy standards; do not define
