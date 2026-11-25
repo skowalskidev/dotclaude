@@ -117,6 +117,40 @@ run records why an earlier head was needed (a concrete diagnostic Simon or a fai
 hand-back shows the same full suite or stage run on two heads of one PR except after a Deep-path change,
 and the judge cap holds.
 
+## Double tap
+
+The owner of how often ONE suite runs per change batch (`rules/process.md` § Fan out verification).
+§ Verify once, at convergence owns when the heavy set starts; this owns the runs of a suite inside it.
+
+DEFAULT: tap twice. One full run finds every failure, one run confirms every fix.
+DO settle the whole design before the first run: every policy step of the change decided, and every
+test expectation it moves written into the tests, so the run tests a finished design rather than one
+step of it.
+DO run the full suite ONCE collecting every failure. DON'T pass a fail-fast flag (`pytest -x`,
+`--maxfail`, `jest --bail`, `vitest --bail <n>`) and DON'T stop reading at the first red: list every
+failure before the first edit.
+DO fix ALL of them in one batch, then confirm ONCE: rerun the full suite, or rerun only the failed set
+(`pytest --lf`, `jest --onlyFailures`, or a config suite's own `--last-failed`) plus the touched files'
+tests, then one full run at the end.
+DO use a suite's `--only <substring>` and `--last-failed` while fixing, and its parallel workers for a
+full run (`hooks/git-commit-guard.test.py` and `hooks/config-contract.test.py` take both).
+DON'T walk a policy change one step per full run (the fix for an 863-case guard suite run six times in
+one session, 4-7 min each, while its policy moved one step at a time).
+DON'T rerun a suite that already passed on the same tree: `bin/config-land-check.py` reuses the
+contract suite's pass recorded for that `HEAD^{tree}`.
+NUMBER: at most 2 full runs of a suite per change batch. A third needs a stated new cause written next
+to it: a merge from main that touched the suite's files, a finding outside the batch, or a timeout
+under load.
+TEST: the transcript shows at most 2 full runs of each suite per batch, and every third run names its
+cause.
+
+Sources (each opened 2026-11-25): pytest `-x` stops after the first failure only when asked
+(https://docs.pytest.org/en/stable/how-to/failures.html); `--lf` reruns only the last failures
+(https://docs.pytest.org/en/stable/how-to/cache.html); pytest-xdist `-n auto` runs one worker per
+physical core (https://pytest-xdist.readthedocs.io/en/stable/distribution.html); Jest
+`--onlyFailures`, `--bail` and `--maxWorkers` (https://jestjs.io/docs/cli); Vitest `--bail` defaults
+to 0 (run everything) and `--changed` runs the tests changed files affect (https://vitest.dev/guide/cli).
+
 ## Follow-up pushes and waivers
 
 **DO carry a light or standard head's stage receipts to a later push of the SAME branch whose own delta
@@ -899,6 +933,9 @@ new place. A diff modifying no pre-existing file states that with its reason.
 `bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
 pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
 INTENDED, or a row records FAIL.
+**DO run `/sk:work-verify-regressions-against-original` for the flow-level half when the diff
+touches an existing user flow:** it records each vanilla flow on base and head on one local stack and
+posts its `### Flow walk` table under the same heading.
 TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).

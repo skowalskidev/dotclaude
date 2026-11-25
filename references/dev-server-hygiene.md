@@ -709,6 +709,9 @@ own. Not restated here.
 teardown and signal discipline. They moved out of the always-on rule, which was at 69,993 bytes of a
 70,000 ceiling and could not afford to carry them.
 
+**DO prefer on-demand / event-driven over always-on.** An idle CPU-burning daemon is rarely right;
+reach for a hook, a manual command, or a session-start check instead.
+
 ### Private process inspection
 
 DO inspect processes with names and metadata only. Use `pgrep -l <name>` for discovery and

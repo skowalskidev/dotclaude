@@ -100,6 +100,11 @@ word and the whole queue is built.
    included, on the final head after stage 3-6 fixes;** its base screenshots reuse stage 7's
    base-branch BEFORE capture. TEST: every PR body holds `## Regression check` with one row per
    modified pre-existing file.
+   **DO invoke `/sk:work-verify-regressions-against-original` on EVERY Standard or Deep PR whose diff
+   touches an existing user flow, unprompted, on the final head after stage 3-6 fixes, as a parallel
+   background agent on that same fan-out;** a Light PR records `Flow walk: skipped (tier light)`.
+   The landing gate waits on it. TEST: such a PR's `## Regression check`
+   holds a `### Flow walk` table with zero `regression` rows, or the skip line.
 7. **`/sk:ship-screenshot-changes`** — at the PR's tier, on EVERY PR in the run, unprompted, capture each
    changed visible surface under `references/screenshot-review.md` § Visible surfaces (screens,
    server-rendered answers, team-facing bot posts and admin output) and native surfaces, captured on
@@ -186,7 +191,8 @@ verified the user + system journey, then handed back with it never posted to the
   per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines (a Light
   PR: the not-reached line alone).
 - Regression check (stage 6), on every PR: one row per modified pre-existing file with PASS or
-  INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors.
+  INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors;
+  on a Standard or Deep PR touching an existing user flow, the `### Flow walk` table.
 - Part verdicts (`/sk:work-full-detailed-workflow`), on every Standard or Deep build, adopt or rebuild
   PR: the table from `references/tldr-report-formats.md` § Part verdicts, re-derived on the final head.
 - Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard

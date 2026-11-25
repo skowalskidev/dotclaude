@@ -25,7 +25,15 @@ them; a renumber silently orphans the mapping the coverage test relies on.
 
 HOW TO RUN
 
-    /usr/bin/python3 ~/.claude/hooks/config-contract.test.py
+    /usr/bin/python3 <checkout>/hooks/config-contract.test.py                 # every criterion
+    /usr/bin/python3 <checkout>/hooks/config-contract.test.py --only <text>   # ids containing <text>
+    /usr/bin/python3 <checkout>/hooks/config-contract.test.py --last-failed   # last run's failures
+
+Run it as a double tap (references/testing-strategy.md § Double tap): one full run that collects
+every failure, one batch of fixes, one confirming run. --last-failed reads the failed ids the last
+run wrote to <worktree git dir>/claude-config-contract-lastfailed.json and runs every criterion when
+none are recorded. A full run that passes on a clean checkout records HEAD^{tree} for
+bin/config-land-check.py, which then reuses that pass instead of running the suite again.
 
 Zero dependencies beyond the stdlib and /usr/bin/python3, both of which the config already requires.
 No network, no cost, no API calls. It is safe to run on every session and in a pre-commit hook.
@@ -316,7 +324,14 @@ CRITERIA: list[tuple[str, str]] = [
      "The suite's default child timeout is 120 s on an idle host, scales with 1-minute load per CPU "
      "above 1, and stops at 600 s; an explicit per-call timeout wins. The timeout catches a hung "
      "child; a fixed 120 s also failed a healthy guard test while other sessions' builds held the "
-     "load at 40-63, and that false failure cost a full land-check rerun."),
+     "load at 40-63, and that false failure cost a full land-check rerun. A child that times out "
+     "gets one retry at double its budget, then fails saying it timed out under load, and a run "
+     "whose only failures are such timeouts exits 75 so the land check retries just those."),
+    ("suite-reruns-only-named-or-last-failed-criteria",
+     "--only <text> runs just the criteria whose id contains it, and --last-failed runs just the "
+     "ones the previous run recorded as failed in the worktree's git dir (every criterion when none "
+     "are recorded), so a fix batch is confirmed without a full run; only a full unfiltered pass "
+     "on a clean checkout records its tree for the land check to reuse."),
     ("metrics-inventory-matches-contract-coverage",
      "The metrics aggregator derives its parts list from config_contracts.py, never a hardcoded "
      "copy, so a part added via /sk:claude-config-update is scored automatically. Parity with the "
@@ -361,15 +376,38 @@ def _host_load1() -> float:
 RUN_TIMEOUT_S = load_scaled_timeout(_host_load1(), os.cpu_count())
 
 
+class LoadTimeout(subprocess.TimeoutExpired):
+    """A child that timed out on its budget and again on one retry at double it."""
+
+    def __init__(self, cmd, first: float, second: float, output=None, stderr=None):
+        super().__init__(cmd, second, output, stderr)
+        self.first = first
+
+    def __str__(self) -> str:
+        return (f"{self.cmd!r} timed out under load twice ({self.first:g} s, then {self.timeout:g} s; "
+                f"1-min load {_host_load1():.1f} on {os.cpu_count()} CPUs)")
+
+
 def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
     # A child test that reads stdin (a stub doing `$(cat)`) must see EOF, not the caller's open
     # pipe: inherited stdin hung superspeed-dispatch.test.sh until the default timeout. The default
     # scales with host load (load_scaled_timeout) so it still catches a hang without failing a slow
-    # child; an explicit per-call timeout is kept as given.
+    # child; an explicit per-call timeout is kept as given. A timeout gets ONE retry at double the
+    # budget, because load can climb after the budget was set; a second timeout raises LoadTimeout,
+    # which says "timed out under load" (the fix for a guard suite that had just passed on the same
+    # tree failing a landing on a 360 s timeout at load 20-170).
     if "input" not in kw:
         kw.setdefault("stdin", subprocess.DEVNULL)
     kw.setdefault("timeout", RUN_TIMEOUT_S)
-    return subprocess.run(cmd, capture_output=True, text=True, **kw)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, **kw)
+    except subprocess.TimeoutExpired:
+        first = kw["timeout"]
+    kw["timeout"] = 2 * first
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, **kw)
+    except subprocess.TimeoutExpired as e:
+        raise LoadTimeout(e.cmd, first, e.timeout, e.output, e.stderr) from None
 
 
 def check(cond: bool, msg: str) -> None:
@@ -1991,8 +2029,8 @@ def check_codex_subscription_only_inference() -> None:
     result = run(["python3", str(ROOT / "hooks/work-resource-guard.test.py")])
     check(result.returncode == 0,
           f"Subscription/resource guard regressions failed:\n{result.stdout}\n{result.stderr}")
-    # Its 705 cases measured 141-175 s at load below 1 per CPU on an 8-core host, over the 120 s
-    # default, so this one call gets a 360 s floor that still catches a hang.
+    # Its 856 cases took 184-329 s serially at load 7-23 on an 8-core host; run as parallel sections
+    # (its --workers, default CPUs capped at 8) they took 81 s. The 360 s floor still catches a hang.
     result = run(["python3", str(ROOT / "hooks/git-commit-guard.test.py")],
                  timeout=max(360, RUN_TIMEOUT_S))
     check(result.returncode == 0,
@@ -3039,11 +3077,141 @@ def check_suite_timeout_scales_with_host_load() -> None:
             pass
         result = run(["sleep", "0.5"], timeout=10)
         check(result.returncode == 0, "run() overrode an explicit per-call timeout with the default")
+        RUN_TIMEOUT_S = 0.2
+        try:
+            run(["sleep", "1"])
+        except LoadTimeout as e:
+            check(e.first == 0.2 and e.timeout == 0.4 and "timed out under load" in str(e),
+                  f"a second timeout must say it timed out under load after a doubled retry, got {e}")
+        except subprocess.TimeoutExpired:
+            check(False, "a child timing out twice must raise LoadTimeout, not a bare TimeoutExpired")
+        with tempfile.TemporaryDirectory() as tmp:
+            mark = Path(tmp) / "first"
+            slow_once = f"if [ -e {mark} ]; then exit 0; fi; touch {mark}; sleep 2"
+            RUN_TIMEOUT_S = 0.5
+            result = run(["bash", "-c", slow_once])
+            check(result.returncode == 0, "a child slow only on its first try must pass on the retry")
     finally:
         RUN_TIMEOUT_S = saved
 
 
+def check_suite_reruns_only_named_or_last_failed_criteria() -> None:
+    cheap = "structure-rules-stay-within-budget"
+    with tempfile.TemporaryDirectory() as tmp:
+        cache = Path(tmp) / "lastfailed.json"
+        env = {**os.environ, "CLAUDE_CONTRACT_CACHE": str(cache), "CLAUDE_CONFIG_ROOT": str(ROOT)}
+        me = [sys.executable, str(Path(__file__).resolve())]
+        only = run([*me, "--only", cheap], env=env)
+        passed = [ln for ln in only.stdout.splitlines() if ln.startswith("PASS  ")]
+        check(only.returncode == 0 and passed == [f"PASS  {cheap}"] and f"1 of {len(CRITERIA)} criteria" in only.stdout,
+              f"--only must run just the matching criterion: rc={only.returncode} {only.stdout[-300:]!r}")
+        check("recorded a clean full pass" not in only.stdout, "a filtered run must never record a full pass")
+        cache.write_text(json.dumps({"failed": [cheap, "no-such-criterion"]}))
+        again = run([*me, "--last-failed"], env=env)
+        passed = [ln for ln in again.stdout.splitlines() if ln.startswith("PASS  ")]
+        check(again.returncode == 0 and passed == [f"PASS  {cheap}"] and "1 recorded failure" in again.stdout,
+              f"--last-failed must run just the recorded failures: {again.stdout[-300:]!r}")
+        check(read_last_failed(cache) == ["no-such-criterion"],
+              f"a passing rerun must clear its own ids and keep the others, got {read_last_failed(cache)}")
+        cache.write_text(json.dumps({"failed": []}))
+        empty = run([*me, "--last-failed", "--only", cheap], env=env)
+        check(empty.returncode == 0 and "no recorded failures, running every criterion" in empty.stdout,
+              f"--last-failed with nothing recorded must fall back to every criterion: {empty.stdout[-300:]!r}")
+        none = run([*me, "--only", "zz-no-criterion-has-this"], env=env)
+        check(none.returncode == 2, f"an --only matching nothing must exit 2, got {none.returncode}")
+        chosen, _ = select_criteria([], True, Path(tmp) / "absent.json")
+        check(len(chosen) == len(CRITERIA), "--last-failed with no cache file must select every criterion")
+
+
+EXIT_LOAD_TIMEOUT = 75  # every failed criterion only timed out under load; bin/config-land-check.py retries
+LAST_FAILED_NAME = "claude-config-contract-lastfailed.json"
+
+
+def _git_in_root(*args: str) -> tuple[bool, str]:
+    r = subprocess.run(["git", "-C", str(ROOT), *args], capture_output=True, text=True,
+                       stdin=subprocess.DEVNULL)
+    return r.returncode == 0, r.stdout.strip()
+
+
+def last_failed_path() -> Path:
+    """Per checkout and outside the tree: the worktree's own git dir, else the temp dir."""
+    if os.environ.get("CLAUDE_CONTRACT_CACHE"):
+        return Path(os.environ["CLAUDE_CONTRACT_CACHE"])
+    ok, git_dir = _git_in_root("rev-parse", "--absolute-git-dir")
+    if ok and git_dir:
+        return Path(git_dir) / LAST_FAILED_NAME
+    import hashlib
+    return Path(tempfile.gettempdir()) / f"{hashlib.sha1(str(ROOT).encode()).hexdigest()[:12]}-{LAST_FAILED_NAME}"
+
+
+def read_last_failed(path: Path) -> list[str]:
+    try:
+        got = json.loads(path.read_text(encoding="utf-8")).get("failed", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [x for x in got if isinstance(x, str)]
+
+
+def write_last_failed(path: Path, failed: list[str]) -> None:
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps({"failed": failed, "at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}),
+                       encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as e:
+        print(f"note: could not write the last-failed cache {path}: {e}", file=sys.stderr)
+
+
+def clean_tree() -> str:
+    """HEAD's tree when git shows no tracked or untracked change in the checkout, else ''."""
+    ok, status = _git_in_root("status", "--porcelain")
+    if not ok or status:
+        return ""
+    ok, tree = _git_in_root("rev-parse", "HEAD^{tree}")
+    return tree if ok else ""
+
+
+def record_clean_pass(tree_before: str) -> None:
+    """Record a full clean pass for bin/config-land-check.py through its own writer (one format)."""
+    if not tree_before or clean_tree() != tree_before:
+        return
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("config_land_check", ROOT / "bin" / "config-land-check.py")
+    try:
+        land = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(land)
+        land.record_suite_pass(str(ROOT), tree_before, "config-contract.test.py")
+        print(f"recorded a clean full pass for tree {tree_before[:12]}")
+    except (Exception, SystemExit) as e:  # noqa: BLE001  a missing record only costs a rerun
+        print(f"note: could not record the pass for tree {tree_before[:12]}: {e}", file=sys.stderr)
+
+
+def select_criteria(only: list[str], last_failed: bool, cache: Path) -> tuple[list, str]:
+    """The criteria to run and a one-line note on why: --last-failed (all when none are recorded),
+    narrowed by any --only substrings."""
+    chosen, why = list(CRITERIA), ""
+    if last_failed:
+        recorded = set(read_last_failed(cache))
+        if recorded:
+            chosen = [c for c in chosen if c[0] in recorded]
+            why = f"--last-failed: {len(chosen)} recorded failure(s)"
+        else:
+            why = "--last-failed: no recorded failures, running every criterion"
+    if only:
+        chosen = [c for c in chosen if any(o in c[0] for o in only)]
+        why = (why + "; " if why else "") + f"--only {' '.join(only)}"
+    return chosen, why
+
+
 def main() -> int:
+    import argparse
+    ap = argparse.ArgumentParser(description="Config acceptance criteria.")
+    ap.add_argument("--only", action="append", default=[], metavar="TEXT",
+                    help="run only criteria whose id contains TEXT (repeatable)")
+    ap.add_argument("--last-failed", action="store_true",
+                    help="run only the criteria the last run recorded as failed (all when none)")
+    args = ap.parse_args()
     module = sys.modules[__name__]
     checks = {n[len("check_"):]: fn for n, fn in inspect.getmembers(module, inspect.isfunction)
               if n.startswith("check_")}
@@ -3062,11 +3230,24 @@ def main() -> int:
     if missing or orphan:
         return 1
 
+    cache = last_failed_path()
+    selected, why = select_criteria(args.only, args.last_failed, cache)
+    if not selected:
+        print(f"no criterion matches ({why})", file=sys.stderr)
+        return 2
+    full = len(selected) == len(CRITERIA) and not args.only
+    tree_before = clean_tree() if full else ""
+    if why:
+        print(f"{why}: {len(selected)} of {len(CRITERIA)} criteria")
     failed_ids: list[str] = []
-    for cid, statement in CRITERIA:
+    load_timeouts: set[str] = set()
+    for cid, statement in selected:
         before = len(FAILURES)
         try:
             checks[cid.replace("-", "_")]()
+        except LoadTimeout as e:
+            FAILURES.append(f"check for {cid} {e}")
+            load_timeouts.add(cid)
         except Exception as e:  # noqa: BLE001
             FAILURES.append(f"check for {cid} raised {type(e).__name__}: {e}")
         if len(FAILURES) > before:
@@ -3077,9 +3258,24 @@ def main() -> int:
         else:
             print(f"PASS  {cid}")
 
-    print(f"\n{len(CRITERIA) - len(failed_ids)} pass / {len(failed_ids)} fail "
-          f"({len(CRITERIA)} criteria)")
-    return 1 if failed_ids else 0
+    ran = {cid for cid, _ in selected}
+    if full:
+        write_last_failed(cache, failed_ids)
+    else:
+        kept = [cid for cid in read_last_failed(cache) if cid not in ran]
+        write_last_failed(cache, kept + failed_ids)
+    print(f"\n{len(selected) - len(failed_ids)} pass / {len(failed_ids)} fail "
+          f"({len(selected)} of {len(CRITERIA)} criteria)" if not full else
+          f"\n{len(CRITERIA) - len(failed_ids)} pass / {len(failed_ids)} fail ({len(CRITERIA)} criteria)")
+    if not failed_ids:
+        if full:
+            record_clean_pass(tree_before)
+        return 0
+    if set(failed_ids) <= load_timeouts:
+        print(f"every failure timed out under load; exit {EXIT_LOAD_TIMEOUT} "
+              f"(rerun them with --last-failed)", file=sys.stderr)
+        return EXIT_LOAD_TIMEOUT
+    return 1
 
 
 if __name__ == "__main__":
