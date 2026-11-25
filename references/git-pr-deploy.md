@@ -410,7 +410,7 @@ declares for its monitoring bot merges without his merge word once it meets the 
   that #N passed the bar and waits for the lift the deny names. Verify any deploy the
   merge triggers (§ Shipping is not done until the deploy is verified) and report in one line:
   `#N merged at <sha>; deploy <verified|none>`.
-- **The guard:** `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
+- **The guard (simplified 25 Nov, Simon: "the guard should not be a bottleneck"):** at the bar, a monitoring-only PR merges unless Simon's own message about merging (merge, ship, deploy, land, production, the bot PRs or this PR) holds it and no later order of his lifts it (`monitoring_explicit_hold`); a bare pause, "not yet", "Stop" or a message after the gate no longer holds a bot PR. `hooks/git-commit-guard.py` `monitoring_merge` owns the exact conditions (its comment
   lists them); any read error declines, and any hold Simon gave this session stands for every
   monitoring-only PR unless it names PRs: a hold naming PRs ("#1298", "PR 1405", a `/pull/<n>` URL,
   "merge 1296") holds those PRs only, a question proposing to cancel one included (`_hold_scope`); one
@@ -427,7 +427,7 @@ declares for its monitoring bot merges without his merge word once it meets the 
   closed; an emoji, arrow or zero-width character that folds to no letter is dropped and the rest read (`_drop_symbols`). It stands until a later message from Simon himself that is only a plain
   merge of that PR or of the bot ("merge #12", "ok merge the bot fixes"), or that restates the standing
   class merge with no PR number ("remember that sre bot fixes which don't influence user prod and have
-  been validated should be merged", or "also automerge any sre bot fixes", `STANDING_LIFT_RE`); a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A bare work pause, whole ("pause", "pause at a good point", "stop for now"), also lifts on his later whole-message "resume", "continue" or "carry on" (`RESUME_RE`); a resume never lifts a merge hold. A hold that names this PR, or a
+  been validated should be merged", or "also automerge any sre bot fixes", `STANDING_LIFT_RE`), and his order of the class merged in any mood, a reproach or an opening "wait" included ("didn't I tell you to merge in the SRE bot fixes?", `_orders_class_merge`), unless it negates, delays, conditions or extends the merge; a class hold naming only OTHER PRs (a quoted "#1356") is lifted by either; a person, a time, a review or an approval in it makes it no lift, and a peer or tagged message never lifts. A bare work pause, whole ("pause", "pause at a good point", "stop for now"), also lifts on his later whole-message "resume", "continue" or "carry on" (`RESUME_RE`); a resume never lifts a merge hold. A hold that names this PR, or a
   class hold that also names a PR, lifts only on "merge #N"; a number naming no PR ("1 but", "14
   days") leaves it a class hold. So the path runs unasked in any session where Simon
   gave no explicit hold, a session about the bot and its PRs included. A deny adds a `Cause (monitoring-only merge):` line: fix that check, or stop and ask for
