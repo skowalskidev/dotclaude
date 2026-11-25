@@ -574,8 +574,9 @@ expected result (an agent told only what to do cannot tell you it failed), and n
   pushes, comments and replies only on the PR or branch the brief names. A remark about any other PR,
   issue or ticket (superseded, duplicate, suggest closing) goes back to the parent in the hand-back as
   a `Note for parent:` line, never posted; the parent applies `rules/process.md`, which reserves every
-  other PR operation for Simon. TEST: every outward write in a worker's transcript names the brief's PR
-  number or branch (the fix for a builder that posted "superseded, suggest closing" on Simon's own PR
+  other PR operation for Simon. A message thread the brief hands the worker is its alone: the parent
+  stops posting there (`references/connectors-setup.md` § Official account connectors and completion messages). TEST: every outward
+  write in a worker's transcript names the brief's PR number, branch or thread (the fix for a builder that posted "superseded, suggest closing" on Simon's own PR
   unasked).
 - **DO name the parent session's live processes and ports in the brief as NOT the worker's** (pid files,
   port numbers, the walk or preview server Simon is using). A worker records its own PIDs at start and

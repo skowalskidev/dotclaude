@@ -850,6 +850,7 @@ CONTRACTS: dict[str, dict] = {
             "Schema and route order here match what bin/connector_registry.py actually reads and returns, with primary sources for the layout.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
             "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules; the codex-app send recipe runs the hooks/outbound-message-guard.py --check pre-send step on the draft before sending.",
+            "A thread delegated to a worker is the worker's alone, and every thread reply first reads the thread and skips it when any reply by the same signed-in human identity is newer than the message answered, never deduping by draft wording.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal route and its home in the work registry root, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
