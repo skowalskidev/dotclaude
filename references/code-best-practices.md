@@ -341,6 +341,13 @@ now fails on a paragraph that appears in two config files.
   a wrong answer, not a degraded one. TEST: each such timeout names its sibling wait and a production
   cold-start timing (the fix for a 1.5 s read that sent new invitees to the wrong first screen while a
   sibling read on the same path waited longer).
+- DO read two things before starting a write-bearing request earlier than the step that used to send
+  it (prefetch, register ahead, warm-up): how the server answers a repeat call (first write wins,
+  upsert, refuse) and which of its inputs can still change after the new start point. When a repeat
+  keeps the first value and an input can still change, fix the server to take the latest uncommitted
+  (unpaid, unsubmitted) value first, or start the call where the inputs are final.
+  TEST: the PR names the repeat-call behaviour of every request it moves earlier, with file:line (the
+  fix for an early register whose first saved request was kept when the visitor changed their answer).
 
 ## Payment paths
 

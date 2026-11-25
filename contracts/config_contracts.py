@@ -826,6 +826,7 @@ CONTRACTS: dict[str, dict] = {
             "Holds the version-pinning detail (.nvmrc, engines floor, toolchain quirks, peer ceilings); rules/engineering-standards.md keeps the latest-stable default.",
             "Holds the payment-path method (refusal reasons, fail-open rule, retry statuses and timings, idempotency, retry UX, one owner) with primary sources; rules/engineering-standards.md keeps the always-on line.",
             "A paywall starts its quote or session read on open through the shared retry owner and renders priced, tappable buttons at once; a spinner appears only on the button when a tap beats the read, never a page-level loader.",
+            "A write-bearing request moved earlier names the server's repeat-call behaviour with file:line; when a repeat keeps the first value, the server takes the latest uncommitted value or the call starts where inputs are final.",
             "Formatters and auto-fixers run only on the files the change modified, never a whole directory; a feature commit holds no whitespace-only file outside its scope.",
             "A new or replacement screen reuses the existing component whose style fits, or is composed from the same shared parts as the screen it replaces or sits beside, proven by a design-diff panel against that sibling in the Regression check.",
         ],
