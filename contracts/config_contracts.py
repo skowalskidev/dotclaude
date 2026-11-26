@@ -2453,6 +2453,16 @@ CONTRACTS: dict[str, dict] = {
             "hooks/outbound-message-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
+    "hooks/bare-reference-guard.py": {
+        "mission": "Simon can click every PR, issue and ticket a final message names, without asking for the links.",
+        "purpose": "Stop: blocks once when the final assistant message names a PR, issue or ticket by a bare id outside a link, and says how to link it.",
+        "criteria": [
+            "Blocks on a bare #NN (two or more digits), owner/repo#N or ticket key (ABC-123) outside fenced code, inline code spans, markdown links (labels included), autolinks and bare URLs; shas and the NOT_TICKETS standards (UTF-8, SHA-256, ISO-8601, GPT-5) pass.",
+            "The reason lists the ids, gives the link form from the cwd's GitHub origin (https://github.com/<owner>/<repo>/pull/N) and keeps the Merge list line parseable by hooks/git-commit-guard.py.",
+            "Blocks at most once per stop chain: a stop_hook_active continuation after its own block passes and clears the marker; a fresh stop re-arms. Skips AGENT_DELEGATED_WORKER=1 and fails open on a malformed payload.",
+            "hooks/bare-reference-guard.test.py and the Stop HOOK_ROUTING case in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
     "hooks/secret-echo-guard.py": {
         "mission": "A credential value never lands in the transcript because a command printed it, while using that credential stays frictionless.",
         "purpose": "PreToolUse: denies a command whose normal output is a credential value, unless the output is consumed.",
