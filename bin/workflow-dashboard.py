@@ -179,7 +179,7 @@ def read_raw_plan(path):
 def read_plan(path):
     content, match, raw = read_raw_plan(path)
     try:
-        return content, match, validate(raw)
+        return content, match, validate(migrate_state(raw)[0])
     except (ValueError, KeyError, TypeError) as exc:
         raise ValueError(f'{exc}. On-disk plan is invalid; {REPAIR_HINT}') from None
 
@@ -293,6 +293,50 @@ def after_run_section():
     }
 
 
+# Wording an older engine wrote into the reserved item and its skeleton task line. A plan created
+# before the end-of-session learning step carries it; migrate_state rewrites it to the current wording
+# so the exact-text reservation check and the retain-on-update check cannot both refuse that plan.
+LEGACY_AFTER_RUN_TEXTS = (
+    'Publish the local performance report or record unavailable evidence and its retry action.',
+)
+LEGACY_AFTER_RUN_TASK_LINES = (
+    '- Retain after-run-analysis after the requested work; apply references/session-performance.md.',
+)
+AFTER_RUN_TASK_LINE = ("- Retain after-run-analysis: the end-of-session learning on Simon's go "
+                       '(references/session-performance.md).')
+
+
+def migrate_state(raw):
+    """Return (state, changed): a legacy after-run-analysis item rewritten to the current wording.
+
+    Only an item whose single criterion carries a known legacy text is touched; its status, passed
+    flag, evidence and judge are kept, so the migration never marks work done or undone."""
+    sections = raw.get('sections') if isinstance(raw, dict) else None
+    if not isinstance(sections, list):
+        return raw, False
+    current = after_run_section()
+    state, changed = copy.deepcopy(raw), False
+    for section in state['sections']:
+        if not (isinstance(section, dict) and section.get('id') == 'after-run-analysis'):
+            continue
+        checks = section.get('criteria')
+        if not (isinstance(checks, list) and len(checks) == 1 and isinstance(checks[0], dict) and
+                checks[0].get('id') == 'after-run-analysis-1' and checks[0].get('text') in LEGACY_AFTER_RUN_TEXTS):
+            continue
+        for key in ('title', 'summary', 'next'):
+            section[key] = current[key]
+        checks[0]['text'] = current['criteria'][0]['text']
+        changed = True
+    return state, changed
+
+
+def migrate_content(content):
+    """The plan prose with a legacy skeleton task line replaced by the current one."""
+    for line in LEGACY_AFTER_RUN_TASK_LINES:
+        content = content.replace(line, AFTER_RUN_TASK_LINE)
+    return content
+
+
 def initial_plan(title, plan, root):
     title = re.sub(r'\s+', ' ', title).strip()[:120] or 'Session task'
     try:
@@ -335,7 +379,7 @@ def initial_plan(title, plan, root):
         '## Goal & user journey (current trajectory)\n\nPending task intake.\n\n'
         '## System journey (current trajectory)\n\nThe session will replace this skeleton with the approved task flow.\n\n'
         '## Tasks\n\n- Record the approved scope and acceptance criteria.\n'
-        '- Retain after-run-analysis: the end-of-session learning on Simon\'s go (references/session-performance.md).\n\n'
+        + AFTER_RUN_TASK_LINE + '\n\n'
         '## Decisions & rationale\n\n- Ordinary task tracking starts with the independent judge off.\n\n'
         '## Risks & assumptions\n\n- This skeleton is not an approved implementation plan.\n\n'
         '## Sources\n\n- Task intake; replace with the real prompt, tickets and references.\n\n'
@@ -362,8 +406,11 @@ def initialize(root, title='Session task', slug='session-task'):
                 '\n'.join(str(path) for path, _ in active))
         if active:
             plan, state = active[0]
+            legacy = migrate_state(read_raw_plan(plan)[2])[1]
             if not any(section['id'] == 'after-run-analysis' for section in state['sections']):
                 state['sections'].append(after_run_section())
+                legacy = True
+            if legacy:
                 update(plan, state, state['revision'])
             created = False
         else:
@@ -440,7 +487,8 @@ def update(path, replacement, expected):
                 'On-disk plan has no valid revision; restore its revision number, then retry')
         require(old['revision'] == expected, 'Revision conflict; re-read plan before updating')
         require(isinstance(replacement, dict), 'dashboard-state must be a JSON object')
-        new = copy.deepcopy(replacement)
+        old = migrate_state(old)[0]
+        new = migrate_state(replacement)[0]
         new.pop('record', None)
         new['revision'] = old['revision'] + 1
         new['updatedAt'] = now()
@@ -462,7 +510,8 @@ def update(path, replacement, expected):
         # Validate and render every referenced file BEFORE advancing the canonical state.
         rendered = render_spec(public_spec(path, state=new))
         block = '```dashboard-state\n' + json.dumps(new, indent=2) + '\n```\n'
-        atomic_write(path, content[:match.start()] + block + content[match.end():])
+        # Block offsets index the unmigrated text, so migrate the prose on each side of the block.
+        atomic_write(path, migrate_content(content[:match.start()]) + block + migrate_content(content[match.end():]))
         return new, rendered
 
 
