@@ -109,6 +109,10 @@ CRITERIA: list[tuple[str, str]] = [
      "(deep never carries), each commit diffed once however many heads reach it; "
      "a waiver records only quoting Simon's recorded words and covers later non-Deep-path heads; "
      "the refusal and the Stop block name each missing stage."),
+    ("runtime-asks-met-only-in-production",
+     "A deployed system's runtime clause is Met only by a production run after its deploy: the rule, the "
+     "reference, the ship report and the Stop hook say so, and Stop blocks once per ledger snapshot while the "
+     "newest reconcile holds a runtime: open line outside a fence, and clears once it reads observed or blocked."),
     ("codex-subscription-only-inference",
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("secret-echo-guard-denies-printed-credentials-both-ways",
@@ -697,6 +701,69 @@ def check_after_run_report_owed_once_per_ask() -> None:
         subprocess.run([sys.executable, str(tool), "publish", "--id", reg["id"], "--file", str(report)],
                        env=env, capture_output=True, check=True)
         check(invoke("stop") == "", "A window already covered by a published report was analysed again.")
+
+
+def check_runtime_asks_met_only_in_production() -> None:
+    process = read("rules/process.md")
+    ref = read("references/planning-and-tracking.md")
+    skill = read("skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md")
+    section = "Runtime asks"
+    check("§ " + section in process, "rules/process.md lost its pointer to the runtime-asks section.")
+    check("a merge" in process.split("### Prove every point", 1)[-1].split("###", 1)[0],
+          "rules/process.md § Prove every point no longer rejects a merge as proof.")
+    body = ref.split("## " + section, 1)[-1].split("\n## ", 1)[0] if ("## " + section) in ref else ""
+    for need in ("started AFTER the change", "live acceptance list", "runtime: open", "gh run watch",
+                 "DON'T poll in a tight loop, install a cron", "2 consecutive production runs", "TEST:"):
+        check(need in body, f"planning-and-tracking.md § {section} lost: {need}")
+    check("runtime clause still `open`" in ref.split("## Close the session", 1)[-1].split("\n## ", 1)[0],
+          "Close the session no longer lists an open runtime clause as a blocker of the archive line.")
+    for need in ("| Awaiting production run |", "production-observed evidence", "runtime: observed"):
+        check(need in skill, f"ship-report skill lost the runtime verdict rule: {need}")
+
+    with tempfile.TemporaryDirectory(prefix="runtime-asks-test-") as tmp:
+        base = Path(tmp)
+        home, repo = base / "home", base / "repo"
+        home.mkdir()
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+        (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+        env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
+               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo)}
+        env.pop("AGENT_DELEGATED_WORKER", None)
+        hook = ROOT / "hooks" / "intent-ledger.sh"
+
+        def invoke(mode, prompt=None, active=False):
+            payload = {"cwd": str(repo), "session_id": "runtime-contract", "stop_hook_active": active}
+            if prompt is not None:
+                payload["prompt"] = prompt
+            result = subprocess.run(["bash", str(hook), mode], input=json.dumps(payload),
+                                    text=True, capture_output=True, cwd=repo, env=env)
+            check(result.returncode == 0, "Ledger hook failed: " + result.stderr)
+            return result.stdout
+
+        def note(text):
+            scratch = base / "note.md"
+            scratch.write_text(text)
+            subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], text=True,
+                           capture_output=True, cwd=repo, env=env, check=True)
+
+        def blocks_runtime(out):
+            return '"block"' in out and "runtime clauses still open" in out
+
+        invoke("submit", "Make the deployed bot merge its own fixes.")
+        note("- C1 bot merges its own fixes · runtime: open · waits on the next scheduled run")
+        out = invoke("stop", active=True)
+        check(blocks_runtime(out) and "C1 bot merges its own fixes" in out,
+              "An open runtime clause, on the continuation a reconciliation block caused, did not block Stop.")
+        check(not blocks_runtime(invoke("stop", active=True)) and not blocks_runtime(invoke("stop")),
+              "The runtime gate re-blocked an unchanged ledger snapshot.")
+        note("- C1 · runtime: open · run 2 failed the same way; fix deployed, waiting on run 3")
+        check(blocks_runtime(invoke("stop")), "A newer reconcile still holding an open runtime clause did not re-arm Stop.")
+        note("- C1 · runtime: observed <run 3 link>\n```\n- C9 · runtime: open\n```")
+        check(not blocks_runtime(invoke("stop")),
+              "An observed clause, or a runtime: open line inside a fence, blocked Stop.")
+        note("- C1 · runtime: blocked waiting on Simon's production write approval")
+        check(not blocks_runtime(invoke("stop")), "A runtime clause blocked on a Simon-only reason blocked Stop.")
 
 
 def check_intent_ledger_retains_and_rechecks_new_asks() -> None:

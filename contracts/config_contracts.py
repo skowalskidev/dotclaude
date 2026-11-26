@@ -720,6 +720,7 @@ CONTRACTS: dict[str, dict] = {
             "Route UI ticket work to the screenshot reference's default final-batch refresh lifecycle, including explicit waivers and current-source evidence.",
             "Point every change to a user flow or its backend at testing-strategy.md's pre-merge end-to-end walk on a local stack, iOS Simulator included, before PR-ready; web UI and native simulator verification are both default-on.",
             "Keeps an always-on line that every part the ask names ships on every target it names, a recommended default filling only what the ask leaves open, and that the whole deliverable is walked to its last stage on each target before any hand-off to Simon; planning-and-tracking.md holds the grid and TEST.",
+            "Keeps an always-on line that a deployed system's runtime clause stays open until a production run after its deploy shows it, and that a merge is no proof of an ask; planning-and-tracking.md § Runtime asks holds the detail.",
             "Before handing over ANY visual artifact (UI, mockup or board, dashboard, report, stitched image, PR media), open the exact artifact in its entry state, check every switchable state for blank and clipped content, view the screenshots, loop fix then re-check until clean, and hand over the pass table.",
             "A build of a supplied design source runs the measured match in references/workflow-loops.md and hands off its PASS report; an eye comparison never passes it.",
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; the rule lives in references/browser-debugging.md and is pointed at, not restated.",
@@ -1093,6 +1094,7 @@ CONTRACTS: dict[str, dict] = {
             "Every ticket the plan names is a full clickable Linear link, never a bare id.",
             "Before the first push of a build, adopt or rebuild, every ticket criterion and raw-ask clause gets MET or GAP against the diff and each in-scope GAP is built; the end ship report proves, it does not discover.",
             "Owns the parts x targets grid: each named part sits in every named target's cell, never a default substitute, and each cell is ticked from Claude's own walk to that target's last stage before any step, link or ready reaches Simon.",
+            "Owns runtime asks: a deployed system's runtime clause is Met only by evidence from a production run that started after its deploy, tracked on a live acceptance list re-checked event-driven after each deploy and scheduled run, never a cron or tight poll; it stops early only on 2 identical failures, a Simon-only step or a flake, and an open row blocks the archive line.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every proposed check lists its prerequisites from the code and the provider, each confirmed found or missing, before any time estimate or any ask for an input.",
@@ -1550,6 +1552,7 @@ CONTRACTS: dict[str, dict] = {
             "Simon's raw-ask clauses are always baseline: every clause gets a verdict, and an unfulfilled one is built or named with its blocker; the invented-criteria guard applies to criteria the agent derives, never to his words.",
             "Journey tests take their cases from the edge-case hunt in testing-strategy.md.",
             "A question-form clause is Met only by Simon's own decision or the build he asked about; an agent's answer leaves it Open for Simon in the questions block, never covered.",
+            "A runtime clause about a deployed system is Met only with production-observed evidence from a run after its deploy; code, a merge or a green test leaves it Awaiting production run, the loop re-checks it after each deploy and run, and the reconcile line carries its runtime: tag for the Stop hook.",
             "Consults the living plan (.context/<slug>-plan.md) from "
             "/sk:plan-stable-persistent-dynamic-complete-full-plan as a baseline source when present, per "
             "rules/living-plan.md.",
@@ -2613,6 +2616,7 @@ CONTRACTS: dict[str, dict] = {
             "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "The Stop reconciliation reason tells the model to open the final message by answering each question and point of the prompt that started the work, before status (rules/communication.md § Answer first). A reminder only: it never judges whether an answer is present and adds no extra block.",
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
+            "At Stop, block once per ledger snapshot while the newest reconcile holds a `runtime: open` line outside a prompt fence, also on a stop_hook_active continuation (its own marker bounds it), naming each open line; it reads only that model-written tag, never judges the evidence.",
             "At Stop, block once per request with decision block to run the after-run analysis when session-performance.py due reports enough new work since the workspace's last published report; only after reconciliation, and on a stop_hook_active continuation only when this hook's own reconciliation block caused it. A model-set marker never decides it.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "

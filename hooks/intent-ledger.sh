@@ -385,6 +385,14 @@ section_lines() { # section_lines KIND FILE — every line under a "## <ts> · K
   ' "$2"
 }
 
+runtime_open() { # every `runtime: open` line of the NEWEST reconcile entry, outside prompt fences
+  awk "$FENCE_AWK"'
+    !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ / · reconcile$/); if (insec) n=0; next }
+    !fence && insec && /(^|[^A-Za-z])runtime: open([^A-Za-z]|$)/ { buf[++n]=$0 }
+    END { for (i=1; i<=n; i++) print buf[i] }
+  ' "$1"
+}
+
 gate_pairs() { # branch and sha of every recorded gate, outside prompt fences
   section_lines gate "$1" | awk '/^gate: [^ ]+ [0-9a-f]+ (PASS|BLOCKED|N\/A)( |$)/ { print $2, $3 }'
 }
@@ -1221,6 +1229,30 @@ stop)
   # Unreconciled work comes first: the turn is mid-task, so the after-run analysis waits for a
   # boundary and only the reconciliation below can block.
   if [ "$pending" != 1 ]; then
+    # Runtime asks (references/planning-and-tracking.md § Runtime asks): a
+    # deployed system's clause is met only by a production run after its deploy. While the newest
+    # reconcile still lists one as `runtime: open`, block once per ledger snapshot, also on a
+    # stop_hook_active continuation (its own marker bounds it), so hand-back waits on the next run.
+    # It marks reconblock so the after-run analysis may still follow on the continuation it causes.
+    ropen="$(runtime_open "$LEDGER")"
+    if [ -n "$ropen" ]; then
+      rsnap="$(cksum < "$LEDGER")"
+      if [ "$(cat "$STATE/$SID.runtimegate" 2>/dev/null)" != "$rsnap" ]; then
+        printf '%s\n' "$rsnap" > "$STATE/$SID.runtimegate" 2>/dev/null || exit 0
+        [ -n "$ask_ts" ] && printf '%s\n' "$ask_ts" > "$STATE/$SID.reconblock" 2>/dev/null
+        jq -cn --arg l "$ropen" --arg r "The newest reconciliation in $LEDGER lists runtime clauses still open:" \
+          --arg t "A deployed system's runtime clause is met only by a production run that started after its \
+deploy (references/planning-and-tracking.md, Runtime asks). Before finishing: wait \
+event-driven for the next deploy or scheduled run (gh run watch <id>, or a run_in_background wait with a \
+timeout; never a cron or a tight poll), read its output against each open clause, fix and deploy what \
+failed, then append a reconcile whose line for each clause reads runtime: observed <evidence link> or \
+runtime: blocked <Simon-only reason>. Stop early only for the same failure in 2 consecutive runs, a \
+Simon-only decision, or a flake, naming the clause, runs and next step; no archive line while one is open. \
+This fires at most once per ledger snapshot." \
+          '{decision:"block",reason:($r + "\n" + $l + "\n" + $t)}'
+        exit 0
+      fi
+    fi
     # After-run analysis, run automatically. The helper owns the decision from facts the model does
     # not set: published reports (their publish time is the watermark, so a window is never analysed
     # twice), new tool calls, failures and corrections since that watermark, this turn's own work,
