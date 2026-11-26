@@ -154,6 +154,8 @@ CRITERIA: list[tuple[str, str]] = [
      "The process-kill guard passes a pattern kill only on a CLAUDE_ALLOW_PATTERN_KILL=1 set in the session's starting environment; every agent-typed inline, env or export form is denied and no doc advertises one."),
     ("pr-ci-wait-refuses-quiet-states",
      "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
+    ("config-branch-ownership",
+     "A config-update branch is claimed at worktree add, its owner is blocked at Stop until it lands or a blocker with a next action or a supersede record exists, an idle ownerless branch is named adoptable, and two same-file landings both survive."),
     ("config-landing-serializes-concurrent-landers",
      "Two config landers on one machine queue on one landing lock held from the merge of the remote "
      "main to the push: both land with no lost race, a waiter names the holder, the wait ends with "
