@@ -2408,7 +2408,7 @@ CONTRACTS: dict[str, dict] = {
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
             "typed words decide by one deterministic rule, no model call: among every message he typed in the session (no count window) the "
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
-            "or uses a referent (both, it, them) while it names #N or answers a hand-back that asked a merge "
+            "or uses a referent (both, it, them) in an imperative aimed at it (the verb within 3 words of the referent or starting its clause, the sentence not defining or generalising merging) while it names #N or answers a hand-back that asked a merge "
             "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "
             "verb, and no later typed message holds merges (a standalone hold of at most 4 words, 'hold #N', a "
             "hold word within 3 words before a merge verb, 'hold off' or a dequeue; a hold word about other "
