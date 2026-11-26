@@ -33,14 +33,30 @@ escalation and its cause, run the added checks and keep the evidence already tak
 **DO apply a tier or check Simon names** ("just screenshot it", "run the full matrix"); when it sits
 below a trigger present in the diff, name that trigger once and run what he named.
 **DO record the tier, its trigger and every skipped stage, in one line each,** in the PR body's
-`## Test matrix` section (each skipped section's heading stays, holding `Skipped (tier light): <trigger>`)
-and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`;
+`## Test matrix` section (a Standard PR keeps each skipped section's heading, holding
+`Skipped (tier standard): <trigger>`) and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`;
 a Standard or Deep BLOCKED reason names its unrun required stages as `Not run: <stages>` or states
 `All stages ran`; a Standard or Deep PASS states `All stages ran` and the gate refuses one with a
 `Not run:` list (a tier-skipped stage goes in the `skipped:` line, never under `Not run:`). Every PASS
 names its tier, and the gate refuses it until each stage that tier requires has a receipt on the gated
 sha (`hooks/intent-ledger.sh` owns the per-tier stage list; `intent-ledger.sh stages <tier> HEAD`
 prints what is missing).
+**DO post a Light PR body with only the sections Light runs:** TLDR, Deploy TLDR, both journeys,
+`## Test matrix` (tier, trigger, skip line, results table), `## Regression check` (one row per modified
+pre-existing file with PASS or INTENDED; no Base-vs-head column) and `## Screenshots` (the BEFORE/AFTER
+pair, two images, or the no-surface line with `Checked outputs:`). It has no `## Prod data` heading, no
+`## Deploy safety` merge train and no `Real-environment walk:` line. In a native-app repo it adds the
+app build line and § Deploy safety check 4's lines (`Installed builds: not reached, <why>` alone passes)
+only when the diff reaches a file an installed build calls or loads; a path the project's
+`installedBuilds.pathsIgnore` lists (`references/connectors-setup.md` § Registry schema) reaches none.
+With the PR open, the gate drops two Light stage receipts: `sk:ship-screenshot-changes`, because
+`bin/pr-landing-gate.py` checks that Screenshots section, and `sk:ship-resolve-pr-comments` while the PR
+holds zero reviews, review comments and comments by a person. A Light label on a diff touching native app
+code or a payment or entitlement path keeps every Standard row: those paths are Deep triggers.
+TEST: a Light marketing-page PR passes the gate with the sections above and two receipts fewer on a PR
+with no feedback; a Light PR reaching an installed build still needs its app build and installed-build
+lines (the fix for a one-rule CSS fix to a separate marketing Worker that took two body rewrites and two
+extra skill runs).
 **DON'T skip a stage silently, or drop the gates every tier keeps:** CI and required hooks, the gate
 list in § Defects first, § Regression check, PR feedback handling, the Deploy TLDR, read-only production, spend approval
 (`rules/spend-approval.md`) and `references/git-pr-deploy.md` § Prod check after every production deploy.
@@ -935,15 +951,34 @@ TEST: the PR's `## Regression check` holds the `kept / new / lost` counts with t
 pre-existing file, Result `PASS` (outside paths unchanged) or `INTENDED: <change>`; then one row per
 newly mounted shared part naming the caller it mirrored, and one measured row per screen reused in a
 new place. A diff modifying no pre-existing file states that with its reason.
-`bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
-pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
-INTENDED, or a row records FAIL.
+`bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column (a Light PR
+needs none: its Screenshots pair is the comparison), a modified pre-existing file has no row, its row has
+an empty evidence cell, a row holds neither PASS nor INTENDED, or a row records FAIL.
 **DO run `/sk:work-verify-regressions-against-original` for the flow-level half when the diff
 touches an existing user flow:** it records each vanilla flow on base and head on one local stack and
 posts its `### Flow walk` table under the same heading.
 TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).
+
+## Prove each test fails without the change
+
+**DO show every COVERED row's test failing without the change, on every Standard and Deep PR, on the
+final head:** run it on a base worktree (`base fails`), and for each rule the row guards beyond "it
+exists" (a threshold, a cap, an order, a keep or skip rule, a rollback), apply one deliberate break to
+the changed code, run the test, record `mutant <break>: FAILED` and restore the file per
+`references/code-best-practices.md` § Agent-written shell (copy it aside first).
+NUMBER: one mutant per guarded rule; a mutant the test passes is a GAP row until the test is
+strengthened and the mutant fails. A row with no behaviour of its own (an ordering or manifest check)
+holds `n/a: <why>`.
+**DO post it as the `Fails without the change` column of the `## Test matrix` table.**
+`bin/pr-landing-gate.py` fails a Standard or Deep matrix whose COVERED rows lack the column or a filled
+cell, or whose cell records a surviving mutant.
+WHY: a test written beside its code can pass on both versions; only a seen failure proves it guards
+the rule.
+TEST: every COVERED row on a Standard or Deep PR names `base fails`, a FAILED mutant or `n/a: <why>`
+(e.g. a scheduled-job log purge PR whose mutants for a shorter keep window, a start-time fallback, a
+raised per-run cap and a rollback that kept the job each failed their test).
 
 ## Reproduce a reported bug first, then prove the root cause
 
@@ -1331,7 +1366,8 @@ from `git diff <base>...HEAD` cross-referenced with the plan's acceptance criter
 (`/sk:plan-stable-persistent-dynamic-complete-full-plan`) and the Linear tickets — code with no
 criterion, or a criterion with no code, is itself a finding. The deliverable is a MATRIX: one row per
 feature — `feature · layer (frontend/backend) · simulation applicability/evidence · Stage-1 test(file) ·
-Stage-2 judgment · verdict (COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Apply § Local time-driven simulations
+fails without the change (§ Prove each test fails without the change) · Stage-2 judgment · verdict
+(COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Apply § Local time-driven simulations
 to its simulation subrow. Every feature ends with a verdict; a feature with no row is a hole.
 Cover the WHOLE diff — every changed file's features, backend, frontend, tests and docs included; never
 sample down to the "high-risk" files and eyeball the rest. TEST: the matrix's row set equals the diff's
