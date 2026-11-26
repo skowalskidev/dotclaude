@@ -721,7 +721,11 @@ for a smoke keyed on skip-audit rows only an older reply path wrote, so a 2-hour
 
 Applies to every PR whose diff changes a server route, API, database function or policy, hosted web
 page or shared contract (schema, enum, remote config value) that a shipped native app build (iOS,
-Android, desktop) calls or renders. The backend goes live at merge; the matching app build reaches
+Android, desktop) calls or renders. **DO list a project's paths no installed build calls or loads in its
+registry entry's `installedBuilds.pathsIgnore` globs** (e.g. `"marketing/**"` for a separate
+marketing-site Worker; `references/connectors-setup.md` § Registry schema): a diff inside them skips this
+check. Name follows GitHub Actions' `paths-ignore` filter, the mainstream term for paths a check skips
+([workflow syntax](https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#onpushpull_requestpull_request_targetpathspaths-ignore)). The backend goes live at merge; the matching app build reaches
 users days later through store review and a phased rollout, and some users never update.
 
 **DO treat every app version still in use as a client of the new backend, from deploy until the new
@@ -752,19 +756,21 @@ be made additive; a forced update blocks people mid-task and is the last resort.
 - `Waits for the new build:` each behaviour old builds must not get yet and the signal gating it, or `none`.
 **DO order the Deploy TLDR backend first, then the app build's release;** never release an app build
 that needs a backend change not yet live.
-**DO put the app build line above step 1 of the Deploy TLDR on every PR in a repo that ships a native
-app, a PR that changes only web or only native files included:** `No app build needed: <why>` (e.g.
+**DO put the app build line above step 1 of the Deploy TLDR on every Standard or Deep PR in a repo that
+ships a native app, a PR that changes only web or only native files included, and on a Light PR whose
+diff reaches an installed build:** `No app build needed: <why>` (e.g.
 every changed file is hosted web, so installed builds load it on the next page load) or `Needs an app
 build: <which parts wait for it>`, consistent with the `Waits for the new build:` line. Every chat
 hand-back naming the PR repeats it (`references/tldr-report-formats.md` § App build line).
 `bin/pr-landing-gate.py` fails a Deploy TLDR with neither line in a repo with a top-level `ios/` or
-`android/` directory.
+`android/` directory, a Light PR reaching no installed build excepted.
 **`bin/pr-landing-gate.py` enforces these lines:** in a repo with a top-level `ios/` or `android/`
 directory, a PR that changes any other runtime file fails the gate without the version table, an
 old-build line per version (or the not-reached line) and the waits-for line, and an
 `Old build <version> against the new backend: BLOCKED, <why>` line fails it too, so the harness
 records the gate BLOCKED rather than PASS. A Light PR (`references/testing-strategy.md` § Size the checks to the
-change) records the not-reached line alone, with no version table or waits-for line.
+change) records the not-reached line alone, with no version table or waits-for line, and only when its
+diff reaches an installed build; it has no merge-train or rollback row.
 TEST: every PR touching a surface a shipped build calls carries the version table, one PASS line per
 walked version or a not-reached reason, the waits-for list and a backend-first Deploy TLDR; every PR in
 a native-app repo carries the app build line in its Deploy TLDR and its hand-back; a removed,

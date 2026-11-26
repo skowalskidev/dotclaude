@@ -468,11 +468,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/monitoring_only.py": {
         "mission": "A monitoring-bot fix that touches nothing else lands without Simon's merge word, and nothing outside the bot ever does.",
-        "purpose": "Owns the monitoring-only change class: overlay validation, path globs, the PR file check and the per-session pending list.",
+        "purpose": "Owns the monitoring-only change class: overlay validation, path globs, the PR file check and the per-session pending list; also the strict project-entry read and glob rules pr-landing-gate.py shares.",
         "criteria": [
             "Read monitoringOnly only through bin/connector_registry.py; project values stay in the local overlay, never in this repo.",
             "`*` and `?` stay inside one path segment and `**`, a whole segment only, spans segments; reject an absolute, escaping or wildcard-led entry, and a workflow entry that is not a literal .github/workflows/<file>.yml path.",
-            "spec_for takes an exact owner/name listed in the project's match, case-insensitively and looked up in the entry's own spelling (never a substring) and returns any registry read error instead of treating it as undeclared.",
+            "project_manifest (spec_for's lookup, shared with bin/pr-landing-gate.py for installedBuilds.pathsIgnore) takes an exact owner/name listed in the project's match, case-insensitively and looked up in the entry's own spelling (never a substring) and returns any registry read error instead of treating it as undeclared.",
             "classify fails closed: an empty, unreadable, repeated or incomplete file list (files shorter than changedFiles), a change type outside ADDED/MODIFIED/DELETED (CHANGED, a mode or type change, declines), or one path outside the globs; a .github/ path (nested ones included), a package manifest, lockfile, composite action, extensionless runner or .pth file matches only a literal entry.",
             "validate requires a non-empty offlineTests and requiredChecks as <workflow> / <job>, rejects [ ] and a wildcard in the first segment of a path. pending makes one gh call per session, failed or not, pinned to github.com, and only where the overlay declares the paths; it prints nothing when none match or gh fails. bin/monitoring_only.test.py pins globs, validation, the listing and task-intake's line.",
             "Python 3.9 standard library only.",
@@ -488,7 +488,10 @@ CONTRACTS: dict[str, dict] = {
             "When the fetched PR carries a head sha, fail a Test matrix heading that names no head sha or names one the PR head does not start with, so a body written for an earlier head never passes.",
             "Fail a Test matrix that names no tier, or with no results table or no number beside each of COVERED, GAP, NEEDS-DRIVING and SKIPPED.",
             "Accept a Light or Standard PR's `Skipped (tier light|standard): <trigger>` line, trigger of three or more words, in place of the matrix, prod-data and deploy-safety legs.",
-            "Fail a Test matrix with no Real-environment walk line, or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
+            "Fail a Test matrix with no Real-environment walk line (a Light PR may omit it), or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
+            "A PR is Light only when its Test matrix's first named tier is light, it names no deep tier, and no changed file is ios/ or android/ code or a PAYMENT_PATH file; a Light PR needs no Prod data or Deploy safety heading, no merge-train or rollback row, no Base-vs-head column (its rows still need PASS or INTENDED), and posts at least LIGHT_PAIR images when its Screenshots section posts any.",
+            "Subtract the project entry's installedBuilds.pathsIgnore globs (local overlay, validated like monitoringOnly.paths) from the files that reach installed builds; an unreadable overlay or malformed value ignores nothing and prints a note on stderr.",
+            "--feedback-count prints the PR's reviews plus review comments plus non-bot issue comments, exiting 2 on a failed read.",
             "On a deep-tier PR whose changed files (tests, docs and CI excluded) touch ios/ or android/ code or a PAYMENT_PATH file, fail a Real-environment walk that names no simulator or device walk (native) or no simulator, device, browser or local-stack walk (payment) with PASS, that rests on unit tests, or whose does-not-apply does not say why no user journey changed; a 'cannot run locally' N/A fails.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-visible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
@@ -501,7 +504,7 @@ CONTRACTS: dict[str, dict] = {
             "On a deep-tier PR, fail a Value safety section lacking any of Happy path, Failure re-enacted, Wrong recipient, Incident replay (N/N or reasoned N/A), Provider lifecycle and Residual risk lines; unless the Provider lifecycle line is a reasoned does-not-apply with no counts, fail a missing ### Provider lifecycle table, fewer than PROVIDER_CASES rows, a row with no doc link or no SAFE, GAP or N/A in its Verdict column, and any GAP row.",
             "Check a posted Part verdicts section: fail one with no table, a header lacking Verdict, Mainstream or Regression or two judge columns, or a row with no link; an absent section passes, so older bodies need no migration; a Light PR's section is never checked.",
             "On a Light PR (its Test matrix names the light tier) accept a reasoned 'Installed builds: not reached, <why>' line alone, with no version table or waits-for line; a Standard or Deep PR keeps every installed-build line.",
-            "In a repo with a top-level ios/ or android/ directory, fail every PR, native-only and web-only ones included, whose Deploy TLDR section holds no 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line with a reason of at least three words on the same line.",
+            "In a repo with a top-level ios/ or android/ directory, fail every Standard or Deep PR, native-only and web-only ones included, and every Light PR whose diff reaches an installed build, whose Deploy TLDR section holds no 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line with a reason of at least three words on the same line.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -2642,7 +2645,11 @@ CONTRACTS: dict[str, dict] = {
             "older head never counts. 'All stages ran' in any record needs the same receipts, and a standard or deep "
             "BLOCKED names every stage without one. Receipts are read fence-aware, and `note` refuses a source carrying "
             "a gate, receipt or ask heading, so none can be forged. Stop's ship-gate block lists each tier's missing "
-            "stages per pushed head; `stages <tier> [sha]` prints the list or the missing ones, read-only.",
+            "stages per pushed head; `stages <tier> [sha]` prints the list or the missing ones, read-only. For a light "
+            "tier only, `gate` and `stages light <sha> <branch>` drop sk:ship-screenshot-changes when the branch has an "
+            "open PR on a GitHub origin (the landing gate checks its Screenshots section) and sk:ship-resolve-pr-comments "
+            "when pr-landing-gate.py --feedback-count reads 0; no origin, no PR or a failed read drops nothing, "
+            "LIGHT_WAIVED is never read from the environment, and a gate reason names the stages dropped.",
             "Receipt carry: a light or standard receipt on an earlier head counts for a later head, computed from git on "
             "every read, when the head descends from it and the PR's own commits since (base commits excluded, a merge "
             "counted by its conflict resolution) change at most CARRY_MAX_LINES (200) product lines, touch no product "
