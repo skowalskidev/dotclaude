@@ -150,8 +150,15 @@ Every criterion comes back with one verdict, provisional until Phase 4 puts a te
 | Superseded | Another decision replaced it | what replaced it |
 | Undecidable from code | Needs a run, a service, or Simon | what would settle it, for Phase 4 to try |
 | Open for Simon | A question-form clause only an agent has answered | the recommendation, listed in Phase 7's questions block |
+| Awaiting production run | A runtime clause the code supports, not yet seen in a production run after its deploy | the deploy, the next run and its event-driven wait; tag `runtime: open` |
 
 An agent's choice to skip one of his clauses is Not met, never Deliberately dropped.
+
+**DO judge a runtime clause** (`references/planning-and-tracking.md` § Runtime asks are met in
+production) **Met only with production-observed evidence:** the run link, artifact, posted message or
+PR from a run that started after the change deployed, tagged `runtime: observed`. **DON'T accept a
+`file:line`, a merged PR or a green test for one:** the best those earn is Awaiting production run.
+TEST: every runtime row's Met cites a production run newer than its deploy.
 
 Then run it the other way: **code on this branch that no criterion asked for.** List it with evidence.
 Scope creep is a finding here, not a note for later.
@@ -297,7 +304,10 @@ baseline proof; missing evidence means unknown origin. A proven pre-existing fai
 by name, with one exception: one sitting on a criterion under judgement blocks that criterion, so
 it becomes a gap like any other. You cannot evidence a verdict through a test that was already red.
 
-Repeat until it comes back with nothing actionable. Four stop conditions that are not done:
+Repeat until it comes back with nothing actionable. **An Awaiting production run row keeps the loop
+open across deploys and scheduled runs:** after each, re-check it from that run's output per
+§ Runtime asks are met in production, whose stop conditions apply to it. Four stop conditions that are
+not done:
 
 - **The same finding survives two consecutive rounds.** The loop is not converging. Stop, and say
   where it stands and what you tried.
@@ -321,7 +331,8 @@ Repeat until it comes back with nothing actionable. Four stop conditions that ar
 - What is left, and why: a decision he owes, a blocker, or something out of scope.
 - **Reconcile the ledger and promote it out**, because the worktree is disposable and it dies there.
   Append one verdict per clause of each recorded ask, tagged with its source, via
-  `~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>`. Then put the reconciliation and the
+  `~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>`; each runtime clause's line carries
+  `runtime: observed`, `runtime: open` or `runtime: blocked`, which the Stop hook reads. Then put the reconciliation and the
   plan-vs-sources delta where each part belongs: each source's verdicts on its own ticket, anything
   cross-cutting on the primary (the ticket the branch is named for, else the PR title prefix, else
   the first source) with the rest linked, and a ticket with no verdicts gets no comment. With no
