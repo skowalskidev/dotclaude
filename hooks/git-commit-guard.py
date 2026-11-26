@@ -1593,6 +1593,9 @@ def parse_answer(out: str) -> tuple:
     answer = re.search(r"^\W*(?:answer\W*)?(YES|NO)\b", out or "", re.I | re.M)
     quote = re.search(r"^\W*quote\W*:?\s*(.+)$", out or "", re.I | re.M)
     q = quote.group(1).strip().strip("\"'`“”‘’").rstrip(".!") if quote else ""
+    # The model sees each message as "[N] text" and sometimes quotes the label with it ("[20] …", "20] …"):
+    # the label is ours, not Simon's words, so it is dropped before the verbatim check.
+    q = re.sub(r"^\[?\d{1,3}\]\s*(?:\(answers a hand-back[^)]*\)\s*)?", "", q).strip().strip("\"'`“”‘’")
     return bool(answer and answer.group(1).upper() == "YES"), q
 
 
@@ -1626,15 +1629,21 @@ def words_allow(payload: dict, number: str, window: list, pr_facts) -> tuple:
     if not yes:
         return False, "the user's messages do not ask for this merge now" + (f" (\"{shown}\")" if shown else "")
     q = _norm(quote)
-    verb = MERGE_VERB_RE.search(q)
-    if not verb:
-        return False, f"the quoted words (\"{shown}\") give no merge order"
     for text, merge_list, _ in reversed(window):
         nt = _norm(text)
         at = nt.find(q)
         if at < 0:
             continue
-        if _negated_before(nt, at + verb.start()):
+        # The merge order is read in the quoted message itself: the quote proves which message decides, and the
+        # model may quote only part of it ("…a simple log to close" from "…, then merge this").
+        verb = MERGE_VERB_RE.search(q)
+        pos = at + verb.start() if verb else None
+        if pos is None:
+            later = MERGE_VERB_RE.search(nt, at)
+            pos = later.start() if later else None
+        if pos is None:
+            return False, f"the quoted message (\"{shown}\") gives no merge order"
+        if _negated_before(nt, pos):
             return False, f"the quoted words are negated where the user wrote them (\"{shown}\")"
         if names_pr(text, number) or number in merge_list:
             return True, ""
