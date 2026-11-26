@@ -16,9 +16,14 @@ are the bot's own suites, run as part of the monitoring-only bar (references/git
 of which must succeed for the merge path. The guard reads a listed workflow's path, never its content.
 The project values live in the local overlay, never in this repo.
 
+It also owns the strict per-repository project-entry read (project_manifest) and the path globs
+(validate_globs, matches_any) that bin/pr-landing-gate.py shares for the entry's
+`installedBuilds.pathsIgnore`: the paths no installed native build calls or loads.
+
 Readers:
   hooks/git-commit-guard.py   the monitoring-only merge path (spec_for, classify, BAR_PHRASE)
   hooks/task-intake.sh        `pending`: the open monitoring-only PRs, once per session
+  bin/pr-landing-gate.py      project_manifest, validate_globs, matches_any (installedBuilds.pathsIgnore)
 
 Usage:
   monitoring_only.py pending --cwd DIR --session SID   one line naming open monitoring-only PRs, or nothing
@@ -87,6 +92,39 @@ def _glob_match(pattern, path):
             and all(seg(p, x) for p, x in zip(post, xs[len(xs) - len(post):])))
 
 
+def validate_globs(paths, field):
+    """"" when paths is a non-empty list of bounded, repo-relative globs; else the error naming field."""
+    if not isinstance(paths, list) or not paths or not all(isinstance(p, str) and p for p in paths):
+        return f"{field} must be a non-empty list of path globs"
+    for p in paths:
+        if p.startswith(("/", "*", "?")) or {"", ".", ".."} & set(p.split("/")) or "\\" in p:
+            return f"{field} entry {p!r} is absolute, escapes, or starts with a wildcard"
+        if GLOB_CHARS & set(p.split("/")[0]):
+            return f"{field} entry {p!r}: the first path segment must be a literal directory"
+        if "[" in p or "]" in p:
+            return f"{field} entry {p!r}: only *, ? and ** are wildcards; [ ] are not allowed"
+        # Bounded matching: one ** per entry and at most two * or ? per segment keep the compiled pattern
+        # polynomial in a short path, far inside the hook's time budget.
+        if p.split("/").count("**") > 1 or any(seg.count("*") + seg.count("?") > 2
+                                                for seg in p.split("/") if seg != "**"):
+            return f"{field} entry {p!r}: at most one ** and two * or ? per path segment"
+        if any("**" in seg and seg != "**" for seg in p.split("/")):
+            return f"{field} entry {p!r}: ** must be a whole path segment"
+    return ""
+
+
+def _safe_path(path):
+    """A repo-relative path short enough to match in bounded time; anything else is never inside."""
+    if not isinstance(path, str) or not path or path.startswith("/") or {"", ".", ".."} & set(path.split("/")):
+        return False
+    return len(path) <= 4096 and all(len(seg) <= 255 for seg in path.split("/"))
+
+
+def matches_any(path, globs):
+    """Whether a repo-relative path matches one of globs (validated by validate_globs)."""
+    return _safe_path(path) and any(_glob_match(p, path) for p in globs)
+
+
 def validate(raw):
     """(spec, error). spec is {"paths", "offlineTests", "requiredChecks"} or None when undeclared.
 
@@ -96,22 +134,10 @@ def validate(raw):
     if not isinstance(raw, dict):
         return None, "monitoringOnly must be an object"
     paths = raw.get("paths")
-    if not isinstance(paths, list) or not paths or not all(isinstance(p, str) and p for p in paths):
-        return None, "monitoringOnly.paths must be a non-empty list of path globs"
+    error = validate_globs(paths, "monitoringOnly.paths")
+    if error:
+        return None, error
     for p in paths:
-        if p.startswith(("/", "*", "?")) or {"", ".", ".."} & set(p.split("/")) or "\\" in p:
-            return None, f"monitoringOnly.paths entry {p!r} is absolute, escapes, or starts with a wildcard"
-        if GLOB_CHARS & set(p.split("/")[0]):
-            return None, f"monitoringOnly.paths entry {p!r}: the first path segment must be a literal directory"
-        if "[" in p or "]" in p:
-            return None, f"monitoringOnly.paths entry {p!r}: only *, ? and ** are wildcards; [ ] are not allowed"
-        # Bounded matching: one ** per entry and at most two * or ? per segment keep the compiled pattern
-        # polynomial in a short path, far inside the hook's time budget.
-        if p.split("/").count("**") > 1 or any(seg.count("*") + seg.count("?") > 2
-                                                for seg in p.split("/") if seg != "**"):
-            return None, f"monitoringOnly.paths entry {p!r}: at most one ** and two * or ? per path segment"
-        if any("**" in seg and seg != "**" for seg in p.split("/")):
-            return None, f"monitoringOnly.paths entry {p!r}: ** must be a whole path segment"
         if p.startswith(WORKFLOWS) and (GLOB_CHARS & set(p) or not re.fullmatch(r"\.github/workflows/[^/]+\.ya?ml", p)):
             return None, f"monitoringOnly.paths entry {p!r}: a workflow is listed by its literal file path only"
     tests = raw.get("offlineTests")
@@ -126,9 +152,7 @@ def validate(raw):
 
 
 def path_matches(path, spec):
-    if not isinstance(path, str) or not path or path.startswith("/") or {"", ".", ".."} & set(path.split("/")):
-        return False
-    if len(path) > 4096 or any(len(seg) > 255 for seg in path.split("/")):  # bounded match time: never inside
+    if not _safe_path(path):
         return False
     base = path.rsplit("/", 1)[-1]
     if (path.startswith(WORKFLOWS) or "/.github/" in path or base in LITERAL_ONLY or base.startswith(".")
@@ -139,7 +163,7 @@ def path_matches(path, spec):
         # A workflow, or a file other tooling runs (a package manifest, a composite action, an extensionless
         # runner such as a justfile, a .pth), counts only when listed literally, whatever a glob could reach.
         return path in spec["paths"]
-    return any(_glob_match(p, path) for p in spec["paths"])
+    return matches_any(path, spec["paths"])
 
 
 def classify(files, changed, spec):
@@ -197,7 +221,15 @@ def _strict_roots(reg):
 
 
 def spec_for(slug):
-    """(spec, error) for one GitHub repository, given as owner/name.
+    """(spec, error) for one GitHub repository, given as owner/name: its validated monitoringOnly entry."""
+    manifest, error = project_manifest(slug)
+    if error or manifest is None:
+        return None, error
+    return validate(manifest.get("monitoringOnly"))
+
+
+def project_manifest(slug):
+    """(project entry, error) for one GitHub repository, given as owner/name; (None, "") when none lists it.
 
     The project entry must list that exact owner/name in its `match` (case-insensitive): the loader
     matches substrings, which would hand one repo's paths to another whose name extends it. Every
@@ -236,7 +268,7 @@ def spec_for(slug):
     if slug.lower() not in {str(m).lower() for m in manifest.get("match", [])}:
         # The loader matched another project by substring: the declaring entry is not the one read.
         return None, f"the connector overlay picked another project for {slug}, so its declaration is unknown"
-    return validate(manifest.get("monitoringOnly"))
+    return manifest, ""
 
 
 def declared_owners():

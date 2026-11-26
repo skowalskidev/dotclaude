@@ -211,6 +211,7 @@ Owned by `rules/communication.md` § Close the session. Detail:
   - an open PR or branch this session produced that still needs Simon's merge or deploy;
   - a promised follow-up: a deploy smoke, a reply to a reporter, or a decision awaiting his answer
     that blocks shipped value.
+  - a runtime clause still `open` on the live acceptance list (§ Runtime asks).
 - **Unresolved findings block the line too.** Before it, list every item the session found or created
   that is unresolved: a ticket it created or adopted not Done or Canceled, a defect it found and neither
   fixed nor ticketed, a residual risk or follow-up check it promised. One row each: link, status, one
@@ -224,7 +225,7 @@ Owned by `rules/communication.md` § Close the session. Detail:
   self-created Backlog tickets and an unticketed defect.)
 - **When the only remaining step is Simon's own merge or deploy, end with the merge list and no
   archive line:** each PR to merge, in order, and that this session holds the post-deploy smoke and
-  follow-ups. e.g. two open PRs with CI running on the last push end "Merge #A, then #B; I run the
+  follow-ups. e.g. two open PRs with CI running on the last push end "Merge [#A](url), then [#B](url); I run the
   smoke and reply to the reporter after deploy", never the archive line. (the fix for a session that
   said the line with CI running and two PRs awaiting merge, then had to be asked what to merge.)
 - **After merge and deploy, production is proven live** before the archive line: the deploy run for
@@ -285,6 +286,9 @@ TEST: at any point mid-run, the last finished stage is a commit AND the `.contex
 it, so a fresh session resumes from git alone with no lost stage.
 
 ## The intent ledger — the record of what was asked, and whether it got built
+
+WHY: a gate proves the code runs. A summary proves you can describe it. Neither proves point four of
+a five-point ask was built.
 
 `hooks/intent-ledger.sh` appends every prompt verbatim to `.context/intent-ledger.md` at the worktree
 root, under a lock, and announces `INTENT LEDGER ACTIVE` once per session. **No announcement means no
@@ -396,6 +400,34 @@ the walk follows `references/testing-strategy.md` § Human-driven sessions.
 TEST: at every hand-off each cell names the part the ask named and carries a seen-on-screen tick from
 a walk on the current build that reached that target's last stage (the fix for an ask naming a new flow on two platforms, where the
 second kept its old final screens as a default and three hand-offs each failed at a later stage).
+
+## Runtime asks
+
+Owned by `rules/process.md` § Prove every point. A runtime clause asks what a deployed system does when
+it runs on its own: a bot, a scheduled job, a pipeline, an alert, an agent (e.g. "it merges its own
+fixes", "no false alarms", "its posts stay short").
+
+**DO mark a runtime clause Met only with evidence from a production run that started AFTER the change
+deployed:** the run URL or log line, the artifact it wrote, the message it posted, the PR it opened or
+merged. **DON'T count a merged PR, green CI, a passing test or a local replay:** each leaves it `open`.
+**DO keep a live acceptance list in the plan, one row per runtime clause:** the clause, the deploy it
+waits on (sha and run), the next production run, and `observed <evidence link>`, `open` or
+`blocked <Simon-only reason>`. Copy each row into every reconcile note as one line holding
+`runtime: observed`, `runtime: open` or `runtime: blocked`; `hooks/intent-ledger.sh stop` blocks once
+per ledger snapshot while the newest reconcile holds a `runtime: open` line.
+**DO re-check after each deploy and each scheduled run of that system, waiting event-driven:**
+`gh run watch <id>`, or a `run_in_background` wait with a timeout that ends non-zero, until the run
+finishes or its next scheduled slot passes. Read that run's output against every open row, fix what
+failed at its owning source, deploy, and wait for the next run. Start a run by hand only through a
+trigger the system already offers (e.g. `workflow_dispatch`) and only when the ask covers running it.
+**DON'T poll in a tight loop, install a cron, or hand back "done" while a row is `open`.**
+NUMBER: stop early only on one of 3 conditions, each named with its row, runs and next step: the same
+failure in 2 consecutive production runs after a fix; a decision, credential, production write or paid
+call only Simon gives; a result that flips between runs on unchanged code (a flake, both runs linked).
+TEST: every runtime row reads `observed` with a run that started after its deploy finished, or
+`blocked` with a Simon-only reason; zero `open` rows at a hand-back that says done (the fix for a
+deployed bot whose auto-merge, PR-structure and no-false-alarm asks were marked done at merge, then
+failed in its next production runs until Simon spotted it).
 
 ## Verify foundation pillars before building
 - Identify the foundational assumptions the plan rests on (especially third-party platform capabilities) and do detailed research on each before building anything — building around a false assumption is the worst failure mode.

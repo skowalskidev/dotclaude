@@ -468,11 +468,11 @@ CONTRACTS: dict[str, dict] = {
     },
     "bin/monitoring_only.py": {
         "mission": "A monitoring-bot fix that touches nothing else lands without Simon's merge word, and nothing outside the bot ever does.",
-        "purpose": "Owns the monitoring-only change class: overlay validation, path globs, the PR file check and the per-session pending list.",
+        "purpose": "Owns the monitoring-only change class: overlay validation, path globs, the PR file check and the per-session pending list; also the strict project-entry read and glob rules pr-landing-gate.py shares.",
         "criteria": [
             "Read monitoringOnly only through bin/connector_registry.py; project values stay in the local overlay, never in this repo.",
             "`*` and `?` stay inside one path segment and `**`, a whole segment only, spans segments; reject an absolute, escaping or wildcard-led entry, and a workflow entry that is not a literal .github/workflows/<file>.yml path.",
-            "spec_for takes an exact owner/name listed in the project's match, case-insensitively and looked up in the entry's own spelling (never a substring) and returns any registry read error instead of treating it as undeclared.",
+            "project_manifest (spec_for's lookup, shared with bin/pr-landing-gate.py for installedBuilds.pathsIgnore) takes an exact owner/name listed in the project's match, case-insensitively and looked up in the entry's own spelling (never a substring) and returns any registry read error instead of treating it as undeclared.",
             "classify fails closed: an empty, unreadable, repeated or incomplete file list (files shorter than changedFiles), a change type outside ADDED/MODIFIED/DELETED (CHANGED, a mode or type change, declines), or one path outside the globs; a .github/ path (nested ones included), a package manifest, lockfile, composite action, extensionless runner or .pth file matches only a literal entry.",
             "validate requires a non-empty offlineTests and requiredChecks as <workflow> / <job>, rejects [ ] and a wildcard in the first segment of a path. pending makes one gh call per session, failed or not, pinned to github.com, and only where the overlay declares the paths; it prints nothing when none match or gh fails. bin/monitoring_only.test.py pins globs, validation, the listing and task-intake's line.",
             "Python 3.9 standard library only.",
@@ -488,7 +488,10 @@ CONTRACTS: dict[str, dict] = {
             "When the fetched PR carries a head sha, fail a Test matrix heading that names no head sha or names one the PR head does not start with, so a body written for an earlier head never passes.",
             "Fail a Test matrix that names no tier, or with no results table or no number beside each of COVERED, GAP, NEEDS-DRIVING and SKIPPED.",
             "Accept a Light or Standard PR's `Skipped (tier light|standard): <trigger>` line, trigger of three or more words, in place of the matrix, prod-data and deploy-safety legs.",
-            "Fail a Test matrix with no Real-environment walk line, or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
+            "Fail a Test matrix with no Real-environment walk line (a Light PR may omit it), or one recording FAIL, or one with no PASS, reasoned doesn't-apply or skip line.",
+            "A PR is Light only when its Test matrix's first named tier is light, it names no deep tier, and no changed file is ios/ or android/ code or a PAYMENT_PATH file; a Light PR needs no Prod data or Deploy safety heading, no merge-train or rollback row, no Base-vs-head column (its rows still need PASS or INTENDED), and posts at least LIGHT_PAIR images when its Screenshots section posts any.",
+            "Subtract the project entry's installedBuilds.pathsIgnore globs (local overlay, validated like monitoringOnly.paths) from the files that reach installed builds; an unreadable overlay or malformed value ignores nothing and prints a note on stderr.",
+            "--feedback-count prints the PR's reviews plus review comments plus non-bot issue comments, exiting 2 on a failed read.",
             "On a deep-tier PR whose changed files (tests, docs and CI excluded) touch ios/ or android/ code or a PAYMENT_PATH file, fail a Real-environment walk that names no simulator or device walk (native) or no simulator, device, browser or local-stack walk (payment) with PASS, that rests on unit tests, or whose does-not-apply does not say why no user journey changed; a 'cannot run locally' N/A fails.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-visible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
@@ -497,11 +500,12 @@ CONTRACTS: dict[str, dict] = {
             "Fail a Screenshots or Verification runs no-surface reason (the text before 'Checked outputs:') naming 'no new screen', 'no new copy', 'existing screen', 'existing step' or 'same screen', case-insensitive, pointing at screenshot-review.md § Visible surfaces.",
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
             "Fail a body with no Regression check heading, a row recording FAIL, or a modified, renamed or removed file from the PR's fetched file list with no row or no PASS or INTENDED result; a PR modifying no pre-existing file needs a table or a stated reason, and a failed file-list fetch exits 2.",
+            "On a Standard or Deep PR, fail a Test matrix whose table of COVERED rows has no 'Fails without the change' column, a COVERED row with an empty cell there, or a cell recording a surviving mutant; a Light matrix is exempt.",
             "In a repo with a top-level ios/ or android/ directory, fail a PR changing any other runtime file (tests, docs and CI excluded) whose Deploy safety lacks the installed-version table, an 'Old build <version> against the new backend: PASS' or 'Installed builds: not reached, <why>' line, or the 'Waits for the new build:' line; fail any 'Old build ... BLOCKED' line.",
             "On a deep-tier PR, fail a Value safety section lacking any of Happy path, Failure re-enacted, Wrong recipient, Incident replay (N/N or reasoned N/A), Provider lifecycle and Residual risk lines; unless the Provider lifecycle line is a reasoned does-not-apply with no counts, fail a missing ### Provider lifecycle table, fewer than PROVIDER_CASES rows, a row with no doc link or no SAFE, GAP or N/A in its Verdict column, and any GAP row.",
             "Check a posted Part verdicts section: fail one with no table, a header lacking Verdict, Mainstream or Regression or two judge columns, or a row with no link; an absent section passes, so older bodies need no migration; a Light PR's section is never checked.",
             "On a Light PR (its Test matrix names the light tier) accept a reasoned 'Installed builds: not reached, <why>' line alone, with no version table or waits-for line; a Standard or Deep PR keeps every installed-build line.",
-            "In a repo with a top-level ios/ or android/ directory, fail every PR, native-only and web-only ones included, whose Deploy TLDR section holds no 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line with a reason of at least three words on the same line.",
+            "In a repo with a top-level ios/ or android/ directory, fail every Standard or Deep PR, native-only and web-only ones included, and every Light PR whose diff reaches an installed build, whose Deploy TLDR section holds no 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line with a reason of at least three words on the same line.",
             "Exit 0 with one PASS line, 1 with one FAIL line per missing row, 2 on bad arguments, a gh failure or a body under 200 characters.",
             "Python 3.9+, standard library only; keep bin/pr-landing-gate.test.py passing under /usr/bin/python3.",
         ],
@@ -716,6 +720,7 @@ CONTRACTS: dict[str, dict] = {
             "Route UI ticket work to the screenshot reference's default final-batch refresh lifecycle, including explicit waivers and current-source evidence.",
             "Point every change to a user flow or its backend at testing-strategy.md's pre-merge end-to-end walk on a local stack, iOS Simulator included, before PR-ready; web UI and native simulator verification are both default-on.",
             "Keeps an always-on line that every part the ask names ships on every target it names, a recommended default filling only what the ask leaves open, and that the whole deliverable is walked to its last stage on each target before any hand-off to Simon; planning-and-tracking.md holds the grid and TEST.",
+            "Keeps an always-on line that a deployed system's runtime clause stays open until a production run after its deploy shows it, and that a merge is no proof of an ask; planning-and-tracking.md § Runtime asks holds the detail.",
             "Before handing over ANY visual artifact (UI, mockup or board, dashboard, report, stitched image, PR media), open the exact artifact in its entry state, check every switchable state for blank and clipped content, view the screenshots, loop fix then re-check until clean, and hand over the pass table.",
             "A build of a supplied design source runs the measured match in references/workflow-loops.md and hands off its PASS report; an eye comparison never passes it.",
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; the rule lives in references/browser-debugging.md and is pointed at, not restated.",
@@ -980,6 +985,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns deploy safety: a local merge train of the default branch plus every dependent or overlapping open PR in merge order, affected suites run once, conflicts fixed on the owning branch, never only on the train.",
             "Each migration records its number above every open PR's, the pipeline's real apply order, compatibility with live and new code under either deploy order, and its backfill reach counted read-only on production.",
             "Each data-rewriting migration records its runtime measured read-only at production volume against the pipeline statement timeout read from the repo; at half the timeout or more it is batched before merge, never given a raised timeout.",
+            "A change deleting, purging or expiring stored rows, or adding or moving a scheduled job, posts every reader with its lookback (retention at 2x the longest or more), production deleted, kept and must-stay counts with 0 must-stay rows deleted, a capped run timed at production volume with its locks and timeouts, the job role's reach and a live-schedule slot read, a rollback tested twice and a first-run Deploy TLDR step.",
             "Require complete paginated PR/file inventories with stable base/head SHAs and matching file counts, or complete verified Git diffs, before reserving sequential numbers; API failures, caps and moving refs never prove availability.",
             "A live-traffic move is mapped from the provider's read-only API, gated on its prerequisite confirmed live, one step at a time with a rollback; the deploy alone moves no traffic and no provider write runs without a per-write yes.",
             "Before changing an external value shipped clients read, grep the clients for hard-coded checks; on a hit, a release accepting the new value, or a new key keeping the old live, ships first.",
@@ -1088,6 +1094,7 @@ CONTRACTS: dict[str, dict] = {
             "Every ticket the plan names is a full clickable Linear link, never a bare id.",
             "Before the first push of a build, adopt or rebuild, every ticket criterion and raw-ask clause gets MET or GAP against the diff and each in-scope GAP is built; the end ship report proves, it does not discover.",
             "Owns the parts x targets grid: each named part sits in every named target's cell, never a default substitute, and each cell is ticked from Claude's own walk to that target's last stage before any step, link or ready reaches Simon.",
+            "Owns runtime asks: a deployed system's runtime clause is Met only by evidence from a production run that started after its deploy, tracked on a live acceptance list re-checked event-driven after each deploy and scheduled run, never a cron or tight poll; it stops early only on 2 identical failures, a Simon-only step or a flake, and an open row blocks the archive line.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every proposed check lists its prerequisites from the code and the provider, each confirmed found or missing, before any time estimate or any ask for an input.",
@@ -1182,6 +1189,7 @@ CONTRACTS: dict[str, dict] = {
             "Compare an existing screen rendered in a new place with its original place by measured control top, bottom, distance to the viewport bottom and container scroll height; above 2 CSS px is a finding unless stated INTENDED.",
             "Check every web platform API a diff newly reaches on a user path, including through a new argument into an existing helper, against the project's browser floor (browserslist, framework default, else its oldest analytics versions) in MDN browser-compat-data; newer than the floor needs a feature check with a working fallback or a polyfill, proven by an API-deleted test, recorded on a Platform APIs line.",
             "Post the regression check under ## Regression check: one row per modified pre-existing file with PASS or INTENDED, one row per newly mounted shared part naming its mirrored caller; green unit, type or e2e suites never prove a rendered path.",
+            "Every COVERED row on a Standard or Deep PR shows its test failing without the change: base fails, one FAILED mutant per guarded rule, or n/a with a reason; a surviving mutant is a GAP until the test is strengthened.",
             "A full suite run triggers zero billable API calls.",
             "Never-must-escape calls are mocked globally in setup, not per test.",
             "Time every new or changed time budget on a read against production, read-only, before release; record the measured figure beside the constant, and a budget under 2x that figure is a finding.",
@@ -1225,6 +1233,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns shape only. rules/copy-quality.md keeps the writing standard and the Five Ws "
             "check; rules/communication.md keeps where questions go and the human-facing message "
             "rule, with its example and WHYs held here.",
+            "§ Data table owns how a table for Slack, chat or email is sent (a rendered PNG with a before/after what-changed table, an evidence table and a date/source/exclusion line, never markdown) and the reconciliation TEST: one table per question, every money column named by its source, a buyer column per revenue source, no row with 0 buyers and revenue above 0 unless a column names that source.",
             "§ Automated message holds the example shape for a bot, alert or scheduled-job message; its rule and TEST stay in rules/copy-quality.md.",
             "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the --check pre-send step for routes the hook cannot see and the one-shot length override.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
@@ -1543,6 +1552,7 @@ CONTRACTS: dict[str, dict] = {
             "Simon's raw-ask clauses are always baseline: every clause gets a verdict, and an unfulfilled one is built or named with its blocker; the invented-criteria guard applies to criteria the agent derives, never to his words.",
             "Journey tests take their cases from the edge-case hunt in testing-strategy.md.",
             "A question-form clause is Met only by Simon's own decision or the build he asked about; an agent's answer leaves it Open for Simon in the questions block, never covered.",
+            "A runtime clause about a deployed system is Met only with production-observed evidence from a run after its deploy; code, a merge or a green test leaves it Awaiting production run, the loop re-checks it after each deploy and run, and the reconcile line carries its runtime: tag for the Stop hook.",
             "Consults the living plan (.context/<slug>-plan.md) from "
             "/sk:plan-stable-persistent-dynamic-complete-full-plan as a baseline source when present, per "
             "rules/living-plan.md.",
@@ -2460,12 +2470,23 @@ CONTRACTS: dict[str, dict] = {
             "hooks/outbound-message-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
+    "hooks/bare-reference-guard.py": {
+        "mission": "Simon can click every PR, issue and ticket a final message names, without asking for the links.",
+        "purpose": "Stop: blocks once when the final assistant message names a PR, issue or ticket by a bare id outside a link, and says how to link it.",
+        "criteria": [
+            "Blocks on a bare #NN (two or more digits), owner/repo#N or ticket key (ABC-123) outside fenced code, inline code spans, markdown links (labels included), autolinks and bare URLs; shas and the NOT_TICKETS standards (UTF-8, SHA-256, ISO-8601, GPT-5) pass.",
+            "The reason lists the ids, gives the link form from the cwd's GitHub origin (https://github.com/<owner>/<repo>/pull/N) and keeps the Merge list line parseable by hooks/git-commit-guard.py.",
+            "Blocks at most once per stop chain: a stop_hook_active continuation after its own block passes and clears the marker; a fresh stop re-arms. Skips AGENT_DELEGATED_WORKER=1 and fails open on a malformed payload.",
+            "hooks/bare-reference-guard.test.py and the Stop HOOK_ROUTING case in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
     "hooks/secret-echo-guard.py": {
         "mission": "A credential value never lands in the transcript because a command printed it, while using that credential stays frictionless.",
         "purpose": "PreToolUse: denies a command whose normal output is a credential value, unless the output is consumed.",
         "criteria": [
             "Denies only commands that print a value, each verified against the tool's own help or docs: "
-            "stripe config --list and listen --print-secret, gh auth token and status --show-token, "
+            "stripe config --list, listen --print-secret and any stripe listen whose stdout or stderr is "
+            "not redirected to a file (it prints the whsec_ signing secret on start), gh auth token and status --show-token, "
             "gcloud auth print-access-token and print-identity-token, aws configure export-credentials "
             "and get of a secret key or session token, firebase login:ci, security find-generic-password "
             "-w/-g and dump-keychain -d, op read and item get --reveal, a bare env/printenv dump.",
@@ -2610,6 +2631,7 @@ CONTRACTS: dict[str, dict] = {
             "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "The Stop reconciliation reason tells the model to open the final message by answering each question and point of the prompt that started the work, before status (rules/communication.md § Answer first). A reminder only: it never judges whether an answer is present and adds no extra block.",
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
+            "At Stop, block once per ledger snapshot while the newest reconcile holds a `runtime: open` line outside a prompt fence, also on a stop_hook_active continuation (its own marker bounds it), naming each open line; it reads only that model-written tag, never judges the evidence.",
             "At Stop, block once per request with decision block to run the after-run analysis when session-performance.py due reports enough new work since the workspace's last published report; only after reconciliation, and on a stop_hook_active continuation only when this hook's own reconciliation block caused it. A model-set marker never decides it.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "
@@ -2649,7 +2671,11 @@ CONTRACTS: dict[str, dict] = {
             "older head never counts. 'All stages ran' in any record needs the same receipts, and a standard or deep "
             "BLOCKED names every stage without one. Receipts are read fence-aware, and `note` refuses a source carrying "
             "a gate, receipt or ask heading, so none can be forged. Stop's ship-gate block lists each tier's missing "
-            "stages per pushed head; `stages <tier> [sha]` prints the list or the missing ones, read-only.",
+            "stages per pushed head; `stages <tier> [sha]` prints the list or the missing ones, read-only. For a light "
+            "tier only, `gate` and `stages light <sha> <branch>` drop sk:ship-screenshot-changes when the branch has an "
+            "open PR on a GitHub origin (the landing gate checks its Screenshots section) and sk:ship-resolve-pr-comments "
+            "when pr-landing-gate.py --feedback-count reads 0; no origin, no PR or a failed read drops nothing, "
+            "LIGHT_WAIVED is never read from the environment, and a gate reason names the stages dropped.",
             "Receipt carry: a light or standard receipt on an earlier head counts for a later head, computed from git on "
             "every read, when the head descends from it and the PR's own commits since (base commits excluded, a merge "
             "counted by its conflict resolution) change at most CARRY_MAX_LINES (200) product lines, touch no product "
