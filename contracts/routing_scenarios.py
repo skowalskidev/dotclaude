@@ -56,6 +56,7 @@ SCENARIOS: list[dict] = [
     {"phrase": "investigate X and fix it", "expect": "work-investigate-and-fix"},
     {"phrase": "pasted Slack alert", "expect": "work-investigate-and-fix"},
     {"phrase": "is prod ok", "expect": "work-investigate-and-fix"},
+    {"phrase": "prod is broken, ship a hotfix", "expect": "work-investigate-and-fix"},
     {"phrase": "any regressions since the deploy", "expect": "work-investigate-and-fix"},
     {"phrase": "a teammate's pasted production defect report, take a look and file it", "expect": "work-investigate-and-fix"},
     {"phrase": "is this really happening", "expect": "work-investigate-and-fix"},

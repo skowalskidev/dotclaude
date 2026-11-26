@@ -1729,7 +1729,8 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         # The block names, per tier, the stages with no receipt on the pushed head, from the one stage list.
         check("standard: Not run: sk:plan-stable-persistent-dynamic-complete-full-plan, sk:ship-check-merge-readiness" in reason
               and "deep: Not run:" in reason and "sk:ship-verify-with-prod-data" in reason
-              and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason,
+              and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason
+              and "hotfix: Not run: sk:ship-resolve-pr-comments, sk:ship-pr" in reason,
               "The block did not list each tier's missing stage receipts for the head: " + reason[:600])
         check("intent-ledger.sh receipt <stage> <checkout dir>" in reason,
               "The block did not name the receipt fallback for a checkout outside the session cwd: " + reason[:300])
@@ -1780,6 +1781,11 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         check(gate("feature/x", "HEAD", "N/A").returncode == 2, "An N/A gate without a reason was accepted.")
         check(gate("feature/x", "HEAD", "PASS", "light").returncode == 2,
               "A light PASS without its trigger and skipped stages was accepted.")
+        check(gate("feature/x", "HEAD", "PASS", "hotfix").returncode == 2,
+              "A hotfix PASS without its trigger and skipped stages was accepted.")
+        r = gate("feature/x", "HEAD", "PASS", "hotfix", "one allowlist file; skipped: matrix, prod data")
+        check(r.returncode == 2 and "Not run: sk:ship-resolve-pr-comments, sk:ship-pr" in r.stderr,
+              "A hotfix PASS with no receipts was accepted or named stages outside the hotfix list: " + r.stderr)
         check(gate("feature/x", "HEAD", "PASS", "standard").returncode == 2,
               "A standard PASS without its trigger and skipped stages was accepted.")
         # A PASS names its tier, because the tier decides which stage receipts it needs.
@@ -1804,6 +1810,12 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "`stages` did not report a complete tier.")
         check(gate("feature/x", "HEAD", "PASS", "Light", light).returncode == 0,
               "A light PASS with a reason and every light receipt was not recorded.")
+        # references/testing-strategy.md § Hotfix tier: its receipts are a subset, so no Standard stage blocks it.
+        check(stages("hotfix", "HEAD").stdout.strip() == "All stages ran"
+              and stages("hotfix").stdout.split() == ["sk:ship-resolve-pr-comments", "sk:ship-pr"],
+              "`stages hotfix` did not list exactly the hotfix stages: " + stages("hotfix", "HEAD").stdout)
+        check(gate("feature/x", "HEAD", "PASS", "hotfix", "one allowlist file; skipped: matrix, prod data").returncode == 0,
+              "A hotfix PASS with its reason and both hotfix receipts was refused.")
         check(stop() == "", "A gate record for the pushed head did not clear Stop.")
         # A standard or deep PASS or BLOCKED names its unrun stages, so none hides behind the status.
         check(gate("feature/x", "HEAD", "PASS", "deep").returncode == 2,

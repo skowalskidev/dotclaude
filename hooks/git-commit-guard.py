@@ -1070,7 +1070,7 @@ MONITORING_ENV = ("GH_REPO", "GH_HOST", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRIS
 MONITORING_FIELDS = ("number,headRefName,headRefOid,baseRefName,state,url,isDraft,mergeable,"
                      "mergeStateStatus,reviewDecision,statusCheckRollup,files,changedFiles")
 
-GATE_LINE_RE = re.compile(r"\Agate: ([^\s]+) ([0-9a-f]+) (PASS|BLOCKED|N/A)(?: (light|standard|deep)(?= |$))?([^\n]*)\Z")
+GATE_LINE_RE = re.compile(r"\Agate: ([^\s]+) ([0-9a-f]+) (PASS|BLOCKED|N/A)(?: (hotfix|light|standard|deep)(?= |$))?([^\n]*)\Z")
 
 FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
 

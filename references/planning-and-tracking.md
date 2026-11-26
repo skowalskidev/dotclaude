@@ -334,7 +334,7 @@ fulfilled each ask. Its stop feedback is bounded to once per unchanged ledger sn
 
 **Ship gate.** `hooks/intent-ledger.sh push` (PostToolUse) records each successful `git push` of a
 non-default branch from a repo other than `~/.claude`. After `/sk:ship-full-detailed-workflow` runs on
-the pushed head, record it with `intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]`
+the pushed head, record it with `intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [hotfix|light|standard|deep] [reason]`
 (BLOCKED, N/A and a light or standard PASS need a reason; a standard or deep BLOCKED reason
 holds `All stages ran` or `Not run: <stage>, <stage>`, a standard or deep PASS holds `All stages ran`
 and no `Not run:` list; tiers: `references/testing-strategy.md`
