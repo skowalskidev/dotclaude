@@ -52,8 +52,17 @@ When it does, the installed-build rows above still apply, and the `Installed bui
 line alone passes: no version table or Waits line. A Light Screenshots section that posts images posts
 the BEFORE/AFTER pair, two images or more: with the PR open, it stands in for the
 sk:ship-screenshot-changes stage receipt (hooks/intent-ledger.sh).
+A Hotfix PR (the Test matrix's first named tier is hotfix and it names no deep tier) is sized by
+references/testing-strategy.md § Hotfix tier: it fails when its changed files hold more than
+HOTFIX_MAX_FILES product file (tests, docs and CI excluded) or any migration, schema or SQL file. Its
+Test matrix holds the Root cause, Mainstream practice (a link, or departs: <why>) and Judge lines and
+the Fails without the change column; its Regression check holds the Base-vs-head column and the Happy
+paths and Paid paths lines; its Deploy TLDR holds Check:, Smoke: and Rollback:. It needs no Prod data
+heading, no merge-train or rollback row and no Part verdicts. The safety rows stay when the diff touches
+them: a payment, entitlement or auth file (VALUE_PATH) needs Value safety, native app code or a payment
+path needs the Real-environment walk, and a file installed builds load needs the installed-build lines.
 `--feedback-count` prints the PR's reviews, review comments and non-bot comments, so the gate can tell
-a Light PR with nothing to resolve (hooks/intent-ledger.sh light_waivers).
+a Light or Hotfix PR with nothing to resolve (hooks/intent-ledger.sh light_waivers).
 A posted Part verdicts section holds a table whose header names Verdict, Mainstream practice, Regression
 evidence and a judge column per provider, with a primary-source link in every row
 (references/tldr-report-formats.md § Part verdicts). The section is checked when present, so a PR body
@@ -103,12 +112,13 @@ NEEDS = {
                     "a 'No app build needed: <why>' or 'Needs an app build: <which parts wait>' line"),
     "User journey": "what the user goes through",
     "System journey": "what the system does, in steps",
-    "Test matrix": ("a tier named (light, standard or deep) with its trigger; counts for "
+    "Test matrix": ("a tier named (hotfix, light, standard or deep) with its trigger; counts for "
                     + ", ".join(MATRIX_COUNTS) + "; a results table; a 'Real-environment walk:' line "
                     "with PASS, a reasoned does-not-apply or a skip line; on a deep PR touching native app "
                     "code or a payment or entitlement path, the simulator, device or local-stack walks with "
                     "PASS, or a does-not-apply naming why no user journey changed; on a standard or deep PR, "
-                    "a 'Fails without the change' column filled on every COVERED row, no mutant surviving"),
+                    "a 'Fails without the change' column filled on every COVERED row, no mutant surviving; "
+                    "on a hotfix PR, the Root cause:, Mainstream practice: and Judge: lines"),
     "Regression check": ("a table with a Base-vs-head evidence column; a row per modified pre-existing file, "
                          "each with evidence and PASS or INTENDED"),
     "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply; not on a Light PR",
@@ -148,9 +158,19 @@ ROUTE_MSG = ("{}: the no-surface reason names a new-screen or new-copy test; a c
              "or step a person reaches is visible (references/screenshot-review.md § Visible surfaces)")
 # references/testing-strategy.md § Size the checks to the change: a Light or Standard PR keeps each
 # skipped heading with this line, and its trigger is at least three words.
-TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
+TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:hotfix|light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
 DEEP_TIER = re.compile(r"\btier\b\W{0,3}deep\b|\bdeep\W{0,3}tier\b", re.I)
 LIGHT_TIER = re.compile(r"\btier\b\W{0,3}light\b|\blight\W{0,3}tier\b", re.I)
+HOTFIX_TIER = re.compile(r"\btier\b\W{0,3}hotfix\b|\bhotfix\W{0,3}tier\b", re.I)
+# references/testing-strategy.md § Hotfix tier: one product file, no migration, schema or SQL file.
+HOTFIX_MAX_FILES = 1
+MIGRATION_PATH = re.compile(r"(^|/)(migrations?|db|schemas?)/|\.sql$|(^|/)schema\.[a-z]+$|\.prisma$", re.I)
+# The lines a Hotfix PR states in place of the stages it skips, each with three or more words after it.
+HOTFIX_MATRIX_LINES = ("Root cause", "Mainstream practice", "Judge")
+HOTFIX_REGRESSION_LINES = ("Happy paths", "Paid paths")
+HOTFIX_DEPLOY_LINES = ("Check", "Smoke", "Rollback")
+# A hotfix touching auth or access keeps Value safety beside the payment paths.
+AUTH_PATH = re.compile(r"auth|login|sign-?in|permission|polic(?:y|ies)", re.I)
 # references/testing-strategy.md § Size the checks to the change: one BEFORE/AFTER pair at Light.
 LIGHT_PAIR = 2
 # references/testing-strategy.md § Value safety: the labelled lines, in order.
@@ -160,7 +180,7 @@ VALUE_LABELS = ("Happy path", "Failure re-enacted", "Wrong recipient", "Incident
 PROVIDER_CASES = 11
 LIFECYCLE_HEADING = re.compile(r"^#{3,6}\W*provider lifecycle\b", re.I | re.M)
 LIFECYCLE_VERDICT = re.compile(r"\b(SAFE|GAPS?|N/A)\b")
-TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:light|standard|deep)\b|\b(?:light|standard|deep)\W{0,3}tier\b", re.I)
+TIER_NAMED = re.compile(r"\btier\b\W{0,3}(?:hotfix|light|standard|deep)\b|\b(?:hotfix|light|standard|deep)\W{0,3}tier\b", re.I)
 # /sk:test-automated-full-matrix's real-environment walk: one line in the Test matrix section.
 WALK = re.compile(r"^.*real[- ]environment walk.*$", re.I | re.M)
 # references/testing-strategy.md § Pre-merge end-to-end: a deep PR touching native app code or a payment or
@@ -573,6 +593,51 @@ def is_light(matrix, changed=()):
     return bool(named and LIGHT_TIER.fullmatch(named.group(0))) and not walk_trigger(changed or ())
 
 
+def is_hotfix(matrix):
+    """Whether the Test matrix's first named tier is hotfix and it names no deep tier."""
+    if matrix is None or DEEP_TIER.search(matrix):
+        return False
+    named = TIER_NAMED.search(matrix)
+    return bool(named and HOTFIX_TIER.fullmatch(named.group(0)))
+
+
+def labelled(text, label):
+    """Whether text holds a `label:` line with three or more words after the colon."""
+    return re.search(r"(?:^|\n)[\s*_>-]*" + re.escape(label) + r"\W{0,3}:\**\s*\S+(?:[ \t]+\S+){2,}",
+                     text or "", re.I) is not None
+
+
+def check_hotfix(found, changed):
+    """Missing-row strings for a Hotfix PR (references/testing-strategy.md § Hotfix tier)."""
+    out = []
+    served = [f for f in changed if not NOT_SERVED.search(f) and not NATIVE_TEST.search(f)]
+    if len(served) > HOTFIX_MAX_FILES:
+        out.append(f"Test matrix: the hotfix tier fits {HOTFIX_MAX_FILES} product file and this PR changes "
+                   f"{len(served)} ({', '.join(served[:5])}); size it light, standard or deep")
+    moved = [f for f in changed if MIGRATION_PATH.search(f)]
+    if moved:
+        out.append("Test matrix: the hotfix tier holds no migration, schema or SQL file; this PR changes "
+                   + ", ".join(moved[:5]) + "; size it at its Deep trigger")
+    matrix, regression, deploy = found.get("Test matrix"), found.get("Regression check"), found.get("Deploy TLDR")
+    absent = [label for label in HOTFIX_MATRIX_LINES if not labelled(matrix, label)]
+    if absent:
+        out.append("Test matrix: a hotfix PR has no " + ", ".join(f"'{a}:'" for a in absent) + " line")
+    mainstream = re.search(r"mainstream practice\W{0,3}:([^\n]*)", matrix or "", re.I)
+    if mainstream and not LINK.search(mainstream.group(1)) and not re.search(r"\bdeparts?\b", mainstream.group(1), re.I):
+        out.append("Test matrix: the hotfix 'Mainstream practice:' line has no primary-source link and no "
+                   "'departs: <why>'")
+    if regression is not None:
+        absent = [label for label in HOTFIX_REGRESSION_LINES if not labelled(regression, label)]
+        if absent:
+            out.append("Regression check: a hotfix PR has no " + ", ".join(f"'{a}:'" for a in absent)
+                       + " line (each path with its test on base and head, or 'none: <why>')")
+    if deploy is not None:
+        absent = [label for label in HOTFIX_DEPLOY_LINES if not re.search(re.escape(label) + r"\W{0,3}:", deploy, re.I)]
+        if absent:
+            out.append("Deploy TLDR: a hotfix PR's steps carry no " + ", ".join(f"'{a}:'" for a in absent) + " line")
+    return out
+
+
 def check_matrix_head(order, head):
     """Missing-row strings when the Test matrix heading does not name the PR's current head sha."""
     title = next((text for _, text, _ in order if matches(text, SECTIONS["Test matrix"])), "")
@@ -603,6 +668,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
     heads = [text for _, text, _ in order]
     matrix = found.get("Test matrix")
     light = is_light(matrix, changed)
+    hotfix = is_hotfix(matrix)
+    trigger = walk_trigger(changed or ())
 
     tldr = found.get("TLDR")
     tldr_first = bool(heads) and matches(heads[0], SECTIONS["TLDR"])
@@ -631,7 +698,7 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
         missing.append(no_heading("Test matrix") + "; a summary row elsewhere does not count")
     else:
         if not TIER_NAMED.search(matrix):
-            missing.append("Test matrix: no tier named (light, standard or deep, with its trigger)")
+            missing.append("Test matrix: no tier named (hotfix, light, standard or deep, with its trigger)")
         if not TIER_SKIP.search(matrix):
             absent = [label for label in MATRIX_COUNTS if not count_of(matrix, label)]
             if absent:
@@ -640,16 +707,18 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
                 missing.append("Test matrix: no results table")
         walk = WALK.findall(matrix)
         if not walk:
-            if not light:
+            if not light and not (hotfix and not trigger):
                 missing.append("Test matrix: no Real-environment walk line")
         elif any(re.search(r"\bFAIL", w) for w in walk):
             missing.append("Test matrix: the Real-environment walk records a FAIL")
         elif not any(re.search(r"\bPASS\b", w) or reasoned_na(w) or TIER_SKIP.search(w) for w in walk):
             missing.append("Test matrix: the Real-environment walk has no PASS, doesn't-apply reason or skip line")
-        elif DEEP_TIER.search(matrix) and walk_trigger(changed or ()):
-            missing += check_walk_required(walk, walk_trigger(changed or ()))
-        if not TIER_SKIP.search(matrix) and not light:
+        elif (DEEP_TIER.search(matrix) or hotfix) and trigger:
+            missing += check_walk_required(walk, trigger)
+        if hotfix or (not TIER_SKIP.search(matrix) and not light):
             missing += check_fails_without(matrix)
+    if hotfix:
+        missing += check_hotfix(found, list(changed or ()))
 
     if matrix is not None and head:
         missing += check_matrix_head(order, head)
@@ -658,7 +727,7 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
 
     prod = found.get("Prod data")
     if prod is None:
-        if not light:
+        if not light and not hotfix:
             missing.append(no_heading("Prod data"))
     elif not TIER_SKIP.search(prod):
         if not re.search(r"\b(PASS|FAIL)\b", prod) and not DOES_NOT_APPLY.search(prod):
@@ -666,21 +735,24 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
         if not has_table(prod) and not reasoned_na(prod):
             missing.append("Prod data: no cohort table and no doesn't-apply reason")
 
-    missing += check_value_safety(found.get("Value safety"), matrix is not None and DEEP_TIER.search(matrix) is not None)
+    value_path = any(PAYMENT_PATH.search(f) or AUTH_PATH.search(f) for f in changed or ()
+                     if not NOT_SERVED.search(f) and not NATIVE_TEST.search(f))
+    missing += check_value_safety(found.get("Value safety"), matrix is not None and (
+        DEEP_TIER.search(matrix) is not None or (hotfix and value_path)))
 
     safety = found.get("Deploy safety")
     if safety is None:
-        if not light:
+        if not light and not hotfix:
             missing.append(no_heading("Deploy safety"))
     else:
-        # Light skips the merge train: its Deploy safety section holds only the installed-build lines.
-        na = light or reasoned_na(safety) or TIER_SKIP.search(safety) is not None
+        # Light and Hotfix skip the merge train: their Deploy safety section holds the installed-build lines.
+        na = light or hotfix or reasoned_na(safety) or TIER_SKIP.search(safety) is not None
         if not re.search(r"merge[- ]train", safety, re.I) and not na:
             missing.append("Deploy safety: no merge-train result and no doesn't-apply reason")
         if not re.search(r"roll ?back", safety, re.I) and not na:
             missing.append("Deploy safety: no rollback and no doesn't-apply reason")
     if installed:
-        missing += check_installed_builds(safety, light)
+        missing += check_installed_builds(safety, light or (hotfix and trigger != "native"))
 
     shots = found.get("Screenshots")
     if shots is None:
@@ -716,7 +788,7 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
         if absent:
             missing.append("Verification runs: no " + ", ".join(absent) + " line")
 
-    if not light:
+    if not light and not hotfix:
         missing += check_part_verdicts(found.get("Part verdicts"))
 
     collapsed = len(COLLAPSED.findall(body_html or ""))

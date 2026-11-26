@@ -492,6 +492,7 @@ CONTRACTS: dict[str, dict] = {
             "A PR is Light only when its Test matrix's first named tier is light, it names no deep tier, and no changed file is ios/ or android/ code or a PAYMENT_PATH file; a Light PR needs no Prod data or Deploy safety heading, no merge-train or rollback row, no Base-vs-head column (its rows still need PASS or INTENDED), and posts at least LIGHT_PAIR images when its Screenshots section posts any.",
             "Subtract the project entry's installedBuilds.pathsIgnore globs (local overlay, validated like monitoringOnly.paths) from the files that reach installed builds; an unreadable overlay or malformed value ignores nothing and prints a note on stderr.",
             "--feedback-count prints the PR's reviews plus review comments plus non-bot issue comments, exiting 2 on a failed read.",
+            "A Hotfix PR fails on more than HOTFIX_MAX_FILES product file or any migration, schema or SQL file; it needs the Root cause, Mainstream practice (link or departs) and Judge lines, the Fails without the change column, the Happy and Paid paths lines, Check/Smoke/Rollback in its Deploy TLDR, and Value safety or the walk when it touches a payment, auth or native file; no Prod data, merge train or Part verdicts.",
             "On a deep-tier PR whose changed files (tests, docs and CI excluded) touch ios/ or android/ code or a PAYMENT_PATH file, fail a Real-environment walk that names no simulator or device walk (native) or no simulator, device, browser or local-stack walk (payment) with PASS, that rests on unit tests, or whose does-not-apply does not say why no user journey changed; a 'cannot run locally' N/A fails.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-visible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
@@ -981,6 +982,7 @@ CONTRACTS: dict[str, dict] = {
             "Allow authorized task-owned current ref retirement in any repository at unchanged detached HEAD with entire-tip proof; preserve workspace files, registration, app lifecycle and foreign sessions. Create a fresh branch before further edits.",
             "Refresh each actual remote counterpart tip, prove its disposition and bind authorized deletion to that SHA; retain moved refs rather than renewing a lease without renewed ownership and merge proof.",
             "Shipping is not done at merge; the deploy is watched and looped on.",
+            "Within 10 minutes of every production switch, flag, arm or rollout change, read production for each new or changed endpoint's status codes against the pre-flip window and the feature's own success records; a new 401, 403 or 5xx or zero records past 20 requests is a FAIL reported with its rollback, read again at 30 minutes or 100 requests.",
             "Owns the merge-word scope: Simon's merge or deploy word runs every step of that PR's Deploy TLDR in order with its checks, as the per-write yes for those listed writes only; a step is held only on his quoted keep-off or a Simon-only blocker, rolled back on a failed check, reported as ran or held, never re-asked; a PR body's second-approval wording is never a hold.",
             "Owns CI timing: a work PR stays draft with CI off until merge prep; a failing run finishes first, every failed job's log is read at once, fixed in one batch, the local gate list rerun, then one push.",
             "Independent PRs, stacked ones included, run merge prep in parallel with one worktree and capacity owner each; a stacked child waits only for its parent's base merge, and each PR pushes once its own pass is green.",
@@ -1135,7 +1137,7 @@ CONTRACTS: dict[str, dict] = {
             "A verdict naming the change behind a reported visible defect cites the copy key or string match that identified the component, names the introducing and the reachability change, and labels its evidence as code read, failing test or reproduction.",
             "Holds the third-party claim rules: primary sources, every vendor surface before a negative, dated arithmetic, no competitor hyperlink, concede an honest loss.",
             "A vendor-behaviour claim from any human or bot source is checked against the vendor's own page, or labelled unverified, before a commit or plan builds on it.",
-            "Owns the independent-judge panel: 2+ judges besides the author, one per provider on subscriptions only, raw evidence without the author's call, own positions before reconciling against data and primary sources, each position recorded; a single-answer lookup and a Light change's build, review or ship verdict need none.",
+            "Owns the independent-judge panel: 2+ judges besides the author, one per provider on subscriptions only, raw evidence without the author's call, own positions before reconciling against data and primary sources, each position recorded; a single-answer lookup and a Light change's build, review or ship verdict need none; a Hotfix diff's ship verdict takes one judge from the provider that did not write it.",
             "A judge's verdict is read only from its final message after its process exits, never from a marker grepped in its streamed transcript.",
             "Points a design-fidelity judge at the workflow-loops design-source section for its inputs and pass bar and restates none of them.",
         ],
@@ -1160,6 +1162,7 @@ CONTRACTS: dict[str, dict] = {
             "Own Value safety: a PR moving money, credits, entitlements, auth or ownership answers happy path, re-enacted failure, wrong recipient with residual risk, an N/N incident replay over production rows and live definitions, and a provider lifecycle case matrix.",
             "A PR granting, revoking or moving provider-backed paid access posts, unprompted, a ### Provider lifecycle matrix sourced from the provider's own docs: 11+ rows covering purchase outcomes, renewals, refunds and chargebacks, transfers, trials, sandbox, shared access, restore, outage and stale reads, concurrent events and plan changes, each with a doc link and SAFE, GAP or N/A plus file:line; zero GAP at hand-back; the cross-provider judges read the same matrix.",
             "Own the Light, Standard and Deep verification tiers: classify from the diff before any check, take the deeper tier when unclear, escalate on an unexpected finding, and record tier, trigger and skipped stages on the PR and gate.",
+            "Own the Hotfix tier: production broken now by a production read, one product file, no migration, schema, SQL or new surface; mitigate first when a switch-off restores service; run only the reproduction, root-cause chain, module suite, one other-provider judge, happy and paid path regression, PR rows, CI, merge word and prod check; keep the safety rows the diff touches.",
             "Light covers a change of at most 200 changed product lines on one or a team-only surface with no Deep trigger, API-contract or native-build change, a behaviour-preserving shared UI component edit or extraction included; Deep keeps money, price, entitlement, auth, stored data, migrations, native builds and a behaviour change in a part 2+ customer-facing surfaces render.",
             "Own Follow-up pushes and waivers: a light or standard head's receipts carry across a Light-sized delta of the PR's own commits (no Deep path, no base merge on a PR file) and only the delta's checks run; Deep never carries; Simon's waiver is an N/A quoting his recorded words that covers the branch's later non-Deep-path heads.",
             "Every tier keeps CI, required hooks, the project gate list, PR feedback handling, read-only production, spend approval and the post-deploy prod check; a Deep trigger always gets the full harness.",
@@ -1372,7 +1375,9 @@ CONTRACTS: dict[str, dict] = {
             "Prove the outcome changed for users with denominators where authorized; a silenced alert alone is never reported as a fix.",
             "Sweep every deploy in the window with per-surface before/after rates and denominators through a read-only parallel agent; fold in-scope fixes into the same PR.",
             "Compose work-full-detailed-workflow, work-does-this-make-sense-to-build, ship-pr and ship-full-detailed-workflow by name; restate none of their methods.",
-            "After merge, verify the deploy run for the merge sha and run a read-only production smoke before reporting done.",
+            "Hotfix mode: when production is broken and the fix meets the Hotfix trigger, run testing-strategy.md § Hotfix tier as the build-and-ship path, skip the build verdict skill and every Standard or Deep stage, run the deploy sweep after the merge, and re-size the PR when it grows.",
+            "Every fix states its root cause as an evidence chain from the production symptom to the changed line, each link sourced; checks happy and paid paths on base and head; cites the mainstream practice with a primary-source link or a departs reason; and names its class, the siblings checked and the class test.",
+            "After merge, verify the deploy run for the merge sha and run a read-only production smoke before reporting done; after any switch flip, read the live request path per git-pr-deploy.md.",
         ],
     },
     "skills/sk/skills/plan-research/SKILL.md": {
@@ -1413,7 +1418,8 @@ CONTRACTS: dict[str, dict] = {
             "Verifies EVERY ticket's acceptance criteria against the merged diff with a committed test "
             "per verdict, and fans the per-ticket verification out when it splits into 3-5+ independent "
             "tickets.",
-            "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, and Deep runs every stage as written.",
+            "Classify each PR's tier at stage 0 under testing-strategy.md and run every stage at it; a stage the tier skips records its skip line, Deep runs every stage as written, and a Hotfix PR runs the Hotfix tier section in place of stages 1-7.",
+            "A Deploy TLDR step that flips a production switch carries git-pr-deploy.md's live request path read as its smoke, run after the flip before anyone is told it is live.",
             "Invoke /sk:test-automated-full-matrix and /sk:ship-verify-with-prod-data on every Deep PR in the run, in parallel and non-blocking; a Standard PR runs prod-data Phase 1; never substitute ad-hoc suites or queries.",
             "Record the landing-gate PASS only through bin/pr-landing-gate.py on each fetched PR; it owns the section headings.",
             "Require every CI check on the recorded head green at the landing gate; a check failing by design is a finding to fix in that PR, never a PASS reason.",
@@ -1481,6 +1487,9 @@ CONTRACTS: dict[str, dict] = {
             "A gap inside the PR's own scope is built in the PR while it is a draft. A ticket is for "
             "another owner's work, a step release order forces into a later release, or a deferral "
             "Simon stated, and each ticket names which.",
+            "Until merge prep it checks the assembly with a trial merge that writes nothing; the base is "
+            "merged into the branch once, at merge prep, or earlier only for a named conflict or a base "
+            "change the fix needs, never because the branch reads behind.",
             "Re-reads the project's working rules and deploy docs after every merge of the default "
             "branch that changed them, and re-checks the PR and its Deploy TLDR against the new rule.",
             "Runs safely one-per-branch when several execute at once: each touches only its own "
@@ -2665,7 +2674,7 @@ CONTRACTS: dict[str, dict] = {
             "Ship gate, the mechanical backstop for rules/process.md's harness-on-every-pushed-PR rule: "
             "PostToolUse `push` records the repo, branch and head of a successful `git push` to a non-default "
             "branch in session state, and records nothing for main or master, a delete, tags, a repo inside "
-            "the config repo, or a delegated worker. `gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]` "
+            "the config repo, or a delegated worker. `gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [hotfix|light|standard|deep] [reason]` "
             "appends the result to the ledger (BLOCKED, N/A and a light or standard PASS need a reason; a standard or deep "
             "PASS or BLOCKED is refused with exit 2 unless its reason holds 'All stages ran' or 'Not run:', a standard or deep PASS "
             "is refused with exit 2 when its reason holds 'Not run:' or names a stage run on an earlier head, while N/A and light "
@@ -2676,7 +2685,7 @@ CONTRACTS: dict[str, dict] = {
             "record of the branch from another checkout or a gate on the branch that descends from it (checked in "
             "the push's checkout, or the session root when that checkout is gone), else by origin's tip read with "
             "ls-remote inside a 3 s budget; a superseded head never blocks once its newer head is gated.",
-            "Stage receipts: the hook's STAGES_LIGHT/STANDARD/DEEP list is the one home of the stage skills each tier "
+            "Stage receipts: the hook's STAGES_HOTFIX/LIGHT/STANDARD/DEEP list is the one home of the stage skills each tier "
             "requires. PostToolUse `skill` (Skill tool), a typed leading /sk:<stage> prompt, and a Codex read of a stage "
             "SKILL.md mapped by bin/agent_runtime.py append `receipt: <skill> <branch> <head>` for the HEAD of the checkout "
             "the work runs in: the payload cwd, or for a subagent (agent_id, whose cwd resets) the checkout its last "
@@ -2689,7 +2698,7 @@ CONTRACTS: dict[str, dict] = {
             "stages per pushed head; `stages <tier> [sha]` prints the list or the missing ones, read-only. For a light "
             "tier only, `gate` and `stages light <sha> <branch>` drop sk:ship-screenshot-changes when the branch has an "
             "open PR on a GitHub origin (the landing gate checks its Screenshots section) and sk:ship-resolve-pr-comments "
-            "when pr-landing-gate.py --feedback-count reads 0; no origin, no PR or a failed read drops nothing, "
+            "when pr-landing-gate.py --feedback-count reads 0, and a hotfix head drops that feedback stage the same way; no origin, no PR or a failed read drops nothing, "
             "LIGHT_WAIVED is never read from the environment, and a gate reason names the stages dropped.",
             "Receipt carry: a light or standard receipt on an earlier head counts for a later head, computed from git on "
             "every read, when the head descends from it and the PR's own commits since (base commits excluded, a merge "

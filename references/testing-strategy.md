@@ -20,6 +20,7 @@ rule, skill and gate that runs checks applies it and restates none of it.
 | Light | A small change: at most 200 changed product lines (tests, fixtures, snapshots, docs and lockfiles not counted) on ONE surface or a team-only surface (an admin page, an internal tool); zero Deep trigger, API-contract change or native-build change. Editing or extracting a shared UI component stays Light while every existing caller keeps its behaviour and its tests pass | The affected unit tests; one BEFORE/AFTER pair of the changed state at the default phone viewport (390×844); the project's gate list; CI; one verdict per ask clause in the ledger | Full matrix, prod data, deploy-safety merge train, ship-report journey tests, multi-model and security review, videos, multi-width and multi-state captures |
 | Standard | Logic inside one feature past the Light size, an API-contract change, or a change to a shared component that alters what an existing caller does (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, § Pre-merge end-to-end on a local stack for each changed journey, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
 | Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, a behaviour change in a component or helper that 2+ customer-facing surfaces render, a native build, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, § Pre-merge end-to-end on a local stack, prod data, § Deep-tier discovery rounds, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
+| Hotfix | Production is broken now, shown by production evidence, and the fix changes ONE product file (tests excluded) with no schema, migration or SQL file and no new surface. Sized by this trigger, so a money or auth path does not lift it to Deep | § Hotfix tier below | Full matrix, prod-data stage, merge train, flow walks, videos, multi-round and multi-model review, ship-report and Standard or Deep stage receipts |
 
 **DO take the deeper tier when a trigger is unclear.** WHY: a missed regression costs more than one
 extra pass. A shared-component extraction whose callers' tests pass, or a team-only page, is not
@@ -90,6 +91,47 @@ bot post, else records its `Checked outputs:` line. WHY: judges stay mandatory b
 judge found real defects in every one of five bot PRs; the Deep legs found nothing a monitoring-only
 diff can break.
 TEST: every monitoring-only gate PASS names both judges' SHIP, the offline suites and the replay.
+
+### Hotfix tier
+
+**DO take the Hotfix tier only when its trigger in the table above holds,** proven by a production
+read (status codes, an error rate, failing records); a bigger diff takes the tier its triggers name.
+**DO mitigate first when a switch-off or rollback restores service:** propose it to Simon as a
+production write with its rollback, and build the hotfix beside it
+([Google SRE workbook, Incident Response](https://sre.google/workbook/incident-response/): stop the
+impact first, then find the root cause).
+DO run these, in order, and no other stage:
+1. The reproduction with its control, failing on the base: § Reproduce a reported bug first.
+2. The root cause: the evidence chain from the production symptom to the line that causes it, each
+   link with its source.
+3. The class: every sibling caller of the fixed rule (`git grep` its key, list or check), and a test
+   that fails when a sibling misses the guard (`rules/process.md` § Fix the CLASS of failure).
+4. The touched module's own suite plus every § Defects first gate-list row the file reaches.
+5. One judge from the other provider on the diff, with the blocking bar, and one delta pass on its
+   fixes (`references/research.md` § Independent judges).
+6. § Regression check over the happy paths and paid paths running through the touched file, its
+   pay-path pass included: a test passing on base and head per path.
+7. The PR body: TLDR; Deploy TLDR whose steps each carry `Check:`, `Smoke:` and `Rollback:`; both
+   journeys; `## Test matrix` with `Tier: hotfix (<trigger>)`, the `Fails without the change` column
+   and the lines `Root cause:`, `Mainstream practice:` (a primary-source link, or `departs: <why>`) and
+   `Judge:` (provider, verdict, head sha); `## Regression check` with its per-file table and the lines
+   `Happy paths:` and `Paid paths:` (each path and its test, or `none: <why>`); `## Screenshots` (the
+   pair, or the no-surface line with `Checked outputs:`).
+8. Green CI; `intent-ledger.sh gate <branch> HEAD PASS hotfix "<trigger>; skipped: <stages>"`; merge
+   on Simon's word; then `references/git-pr-deploy.md` § Prod check after every production deploy.
+**DO keep each safety row the diff touches:** a payment, entitlement or auth file keeps
+`## Value safety`, and a payment path its Real-environment walk; a file installed builds load keeps
+`references/git-pr-deploy.md` § Deploy safety check 4's lines. `bin/pr-landing-gate.py` enforces them
+and refuses the label on a diff past one product file or holding a migration, schema or SQL file.
+**DON'T run a skipped stage on a hotfix:** full matrix, `/sk:ship-verify-with-prod-data`, merge train,
+`/sk:work-verify-regressions-against-original`, videos, verification runs, multi-width captures,
+ship-report, a review round past the delta pass. `hooks/intent-ledger.sh` requires only the Hotfix
+stage receipts.
+WHY: each skipped stage adds minutes to hours while production stays broken; the kept ones catch a
+wrong or regressing fix.
+TEST: a hotfix PR passes the landing gate with the rows above and only the Hotfix receipts, and one
+touching two product files or a migration fails on its tier label (the fix for a one-line allowlist
+miss that answered 403 in production for about 20 minutes).
 
 ## Verify once, at convergence
 

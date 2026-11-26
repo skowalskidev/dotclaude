@@ -215,7 +215,10 @@ converged** (zero BLOCKING findings and the stage evidence written), then renumb
 run CI and the stage receipts on that one head. A base that moves mid-review is no reason to merge:
 each merge is a new head, so it resets every stage receipt and the CI run, and the next base move
 makes it stale again. Merge earlier only for a conflict in a file the PR's own diff touches or a base
-change the fix needs, and say which.
+change the fix needs, and say which. Until merge prep, check the assembly with a trial merge that
+writes nothing (`git merge-tree --write-tree --name-only origin/<default> HEAD`); a BEHIND merge state,
+a SessionStart "N behind" note or a migration number below the base's newest is never a reason to
+merge (renumber migrations only in the merge-prep merge).
 NUMBER: one base merge per PR per merge prep; a second only when the base moved again before the merge
 itself, then merge prep repeats on that head alone.
 TEST: no PR in a run has a base merge between two review rounds without a named conflict or needed
@@ -938,7 +941,8 @@ before reporting done.** "Merged" is not "live".
    § Production source fidelity).
    When the change launches or switches on a member-facing feature, the smoke also opens its entry
    point as a signed-in member on each landing screen (`references/user-journey-review.md`); a public
-   endpoint answering is not that proof.
+   endpoint answering is not that proof. A switch flipped after the deploy runs § Live request path
+   after every switch flip.
 4. **Verdict.** Report pass or fail with the evidence (run url, build id, smoke output). On a fail,
    report it with the PR's `Rollback:` line and diagnose per step 3 above.
 
@@ -952,3 +956,28 @@ The loop exists because the interesting failures only appear here: environment v
 set, a runtime that differs from local, a build step that drops an asset, a permission that was never
 granted. None of them can fail locally. If a loose end is left, say which one plainly rather than
 reporting the deploy as done.
+
+### Live request path after every switch flip
+
+**DO read the live request path within 10 minutes of every production switch, flag, arm or rollout
+percentage change** (a Deploy TLDR switch step, an arm moved to 100%, a remote-config value), before
+calling the feature live or telling anyone it is done. Read production read-only:
+1. **Status codes.** Count each new or changed endpoint, server action or function the switched path
+   calls, by status code, since the flip. Expect no 401, 403 or 5xx share above the same-length window
+   before the flip; a new endpoint's baseline is zero.
+2. **The feature's own records.** Count the rows, events or log lines the feature writes on success
+   since the flip, from the writer traced under § Live-traffic cutover's `Smoke:` rule. Expect at
+   least 1 once 20 requests reached the path, or name why none arrived.
+3. **Verdict.** A new 401, 403 or 5xx, or zero records past 20 requests, is a FAIL: report it at once
+   and start `/sk:work-investigate-and-fix`. A flip that was a Deploy TLDR step runs its `Rollback:`
+   under § A merge word runs the Deploy TLDR; any other flip's switch-off waits for Simon's yes.
+4. **Again.** Repeat steps 1-2 once at 30 minutes or 100 requests, whichever comes first; a
+   percentage rollout repeats them at every step.
+**DON'T rest a switch-on on the pre-flip prod check, a green deploy or a page that loads:** the flip
+moves traffic onto a path no earlier check ran, for cohorts a local walk did not cover.
+WHY: a rollout is judged by the switched traffic's error rate against a control, and a feature flag
+is canaried like a binary ([Google SRE workbook, Canarying Releases](https://sre.google/workbook/canarying-releases/)).
+TEST: every switch-on hand-back names, per new endpoint or action, its status-code counts with the
+window and the feature's record count; a "live" or "done" with neither fails (the fix for a switched-on
+feature whose new server action answered 403 to every call for about 20 minutes, found only when Simon
+asked whether it was all done).

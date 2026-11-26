@@ -711,6 +711,97 @@ check(any("BEFORE/AFTER pair" in m for m in gate.check_body(one, HTML_MIN, 0, (S
                                                             changed=(SITE,))),
       "A Light PR posting one image passed without its pair")
 
+# A Hotfix PR (references/testing-strategy.md § Hotfix tier): one product file, the rows it keeps, and the
+# safety rows its diff touches. The fix for a one-line allowlist miss that answered 403 for ~20 minutes.
+ACTION = "site/web/app/signup/router.ts"
+HOTFIX_FILES = (ACTION, "site/web/app/signup/router.test.ts")
+HOTFIX = """## TLDR
+
+| Change | Before | After | Why |
+|---|---|---|---|
+| Upgrade bar action | Every call answered 403 | It answers 200 | The router allowlist missed it |
+
+**Do:** merge on your word; the Deploy TLDR's smoke reads the live status codes.
+
+## Deploy TLDR
+
+1. Merge. Check: the deploy run for the merge sha succeeds. Smoke: the action's status codes since the deploy hold no 403. Rollback: revert the merge commit.
+
+## User journey
+
+1. A member taps the upgrade bar and reaches the plan screen.
+
+## System journey
+
+1. The router admits the action through its allowlist.
+
+## Test matrix
+
+Tier: hotfix (production answers 403 on one server action; one router file).
+
+**2 COVERED · 0 GAP · 0 NEEDS-DRIVING · 0 SKIPPED**
+
+| # | Feature | Evidence | Fails without the change | Verdict |
+|---|---|---|---|---|
+| 1 | the action passes the router | router.test.ts | base fails | COVERED |
+| 2 | every routed action is allowlisted | router.test.ts | base fails | COVERED |
+
+Root cause: production logs show 412 calls answered 403 since the flip; the router sends them to checkout because the action is missing from its allowlist.
+Mainstream practice: an explicit allowlist with a test over every route, per [the framework docs](https://example.com/docs/allowlist).
+Judge: OpenAI via Codex, SHIP, head 1234567.
+
+## Regression check
+
+| File | Hunks | Existing callers checked | Base-vs-head evidence | Result |
+|---|---|---|---|---|
+| `site/web/app/signup/router.ts` | 1 | sign-up, checkout | router suite passes on base and head | PASS |
+
+Happy paths: sign-up then search, router.test.ts passes on base and head.
+Paid paths: checkout from the paywall, router.test.ts checkout case passes on base and head.
+
+## Screenshots
+
+No visible surface: the change is one allowlist entry. Checked outputs: the action's response status and the router's redirect on base and head.
+"""
+HOTFIX_HTML = "<h2>TLDR</h2>"
+hot = gate.check_body(HOTFIX, HOTFIX_HTML, 0, (ACTION,), False, changed=HOTFIX_FILES)
+check(hot == [], f"A Hotfix PR with its rows failed: {hot}")
+two = gate.check_body(HOTFIX, HOTFIX_HTML, 0, (ACTION,), False, changed=HOTFIX_FILES + ("site/web/app/a.ts",))
+check(any("hotfix tier fits 1 product file" in m for m in two), f"A two-file Hotfix PR passed: {two}")
+mig = gate.check_body(HOTFIX, HOTFIX_HTML, 0, (ACTION,), False, changed=("db/20261126_fix.sql",))
+check(any("no migration, schema or SQL file" in m for m in mig), f"A Hotfix PR holding a migration passed: {mig}")
+for line in ("Root cause:", "Judge:"):
+    cut = "\n".join(ln for ln in HOTFIX.splitlines() if not ln.startswith(line)) + "\n"
+    check(any(f"'{line}' line" in m for m in gate.check_body(cut, HOTFIX_HTML, 0, (ACTION,), False, changed=HOTFIX_FILES)),
+          f"A Hotfix PR with no {line} line passed")
+unlinked = HOTFIX.replace("per [the framework docs](https://example.com/docs/allowlist)", "as most teams do it")
+check(any("no primary-source link" in m for m in gate.check_body(unlinked, HOTFIX_HTML, 0, (ACTION,), False,
+                                                                  changed=HOTFIX_FILES)),
+      "A Hotfix Mainstream practice line with no link and no departs passed")
+no_paid = HOTFIX.replace("Paid paths: checkout from the paywall, router.test.ts checkout case passes on base and head.\n", "")
+check(any("'Paid paths:'" in m for m in gate.check_body(no_paid, HOTFIX_HTML, 0, (ACTION,), False, changed=HOTFIX_FILES)),
+      "A Hotfix PR with no Paid paths line passed")
+no_rollback = HOTFIX.replace(" Rollback: revert the merge commit.", "")
+check(any("'Rollback:'" in m for m in gate.check_body(no_rollback, HOTFIX_HTML, 0, (ACTION,), False, changed=HOTFIX_FILES)),
+      "A Hotfix Deploy TLDR with no Rollback line passed")
+no_fail = HOTFIX.replace("| router.test.ts | base fails | COVERED |", "| router.test.ts |  | COVERED |")
+check(any("empty 'Fails without the change' cell" in m for m in gate.check_body(no_fail, HOTFIX_HTML, 0, (ACTION,), False,
+                                                                                 changed=HOTFIX_FILES)),
+      "A Hotfix PR whose reproduction never failed on the base passed")
+# The Hotfix label keeps the safety rows a payment or auth file needs; a bare Light label would drop none.
+pay_fix = "site/web/app/checkout/pay.ts"
+pay_hot = gate.check_body(HOTFIX.replace(ACTION, pay_fix), HOTFIX_HTML, 0, (pay_fix,), False, changed=(pay_fix,))
+check("Value safety" in rows(pay_hot) and any("Real-environment walk" in m for m in pay_hot)
+      and not {"Prod data", "Deploy safety", "Part verdicts"} & rows(pay_hot),
+      f"A Hotfix on a payment path did not keep exactly its safety rows: {pay_hot}")
+auth_fix = "site/web/lib/auth-session.ts"
+auth_hot = gate.check_body(HOTFIX.replace(ACTION, auth_fix), HOTFIX_HTML, 0, (auth_fix,), False, changed=(auth_fix,))
+check("Value safety" in rows(auth_hot), f"A Hotfix on an auth path dropped Value safety: {auth_hot}")
+# The same body labelled Standard keeps every Standard row.
+as_standard = gate.check_body(HOTFIX.replace("Tier: hotfix", "Tier: standard"), HOTFIX_HTML, 0, (ACTION,), False,
+                              changed=HOTFIX_FILES)
+check({"Prod data", "Deploy safety"} <= rows(as_standard), f"A Standard body with the Hotfix rows passed: {as_standard}")
+
 # Unresolved review threads fail.
 check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
 
@@ -917,6 +1008,19 @@ with tempfile.TemporaryDirectory() as tmp:
     r = stages_light()
     check(r.stdout.strip() == "Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr",
           f"A Light head with no open PR waived a stage: {r.stdout}{r.stderr}")
+    # A Hotfix head needs only its own receipts; the open PR stands in for the feedback stage alone.
+    serve(stub, PASSING, feedback=())
+    r = subprocess.run(["bash", str(HOOK), "stages", "hotfix", "HEAD", "feature/x"], text=True,
+                       capture_output=True, cwd=repo, env=env)
+    check(r.returncode == 1 and r.stdout.splitlines()[-1] == "Not run: sk:ship-pr"
+          and "Stood in for by the open PR: sk:ship-resolve-pr-comments" in r.stdout
+          and "sk:ship-screenshot-changes" not in r.stdout,
+          f"A Hotfix head did not need exactly sk:ship-pr: {r.stdout}{r.stderr}")
+    serve(stub, None, prs=())
+    r = subprocess.run(["bash", str(HOOK), "stages", "hotfix", "HEAD", "feature/x"], text=True,
+                       capture_output=True, cwd=repo, env=env)
+    check(r.stdout.strip() == "Not run: sk:ship-resolve-pr-comments, sk:ship-pr",
+          f"A Hotfix head with no open PR waived a stage: {r.stdout}{r.stderr}")
     serve(stub, PASSING, feedback=())
     r = subprocess.run(["bash", str(HOOK), "stages", "standard", "HEAD", "feature/x"], text=True,
                        capture_output=True, cwd=repo, env=env)
