@@ -225,7 +225,7 @@ Owned by `rules/communication.md` § Close the session. Detail:
   self-created Backlog tickets and an unticketed defect.)
 - **When the only remaining step is Simon's own merge or deploy, end with the merge list and no
   archive line:** each PR to merge, in order, and that this session holds the post-deploy smoke and
-  follow-ups. e.g. two open PRs with CI running on the last push end "Merge #A, then #B; I run the
+  follow-ups. e.g. two open PRs with CI running on the last push end "Merge [#A](url), then [#B](url); I run the
   smoke and reply to the reporter after deploy", never the archive line. (the fix for a session that
   said the line with CI running and two PRs awaiting merge, then had to be asked what to merge.)
 - **After merge and deploy, production is proven live** before the archive line: the deploy run for

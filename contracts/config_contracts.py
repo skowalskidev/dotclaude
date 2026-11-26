@@ -2398,10 +2398,15 @@ CONTRACTS: dict[str, dict] = {
             "A monitoring-only PR merges with no message read only on today's bar, unchanged: monitoring_merge "
             "(its comment lists the conditions), BAR_PHRASE on the pinned head's gate PASS, required checks, "
             "CLEAN, declared paths and a parent (not delegated) session.",
+            "Any failed or cancelled check on the head declines that bar, except a cancel superseded_cancels "
+            "proves replaced: its run id reads from detailsUrl and a later-created run of the same workflow, "
+            "started no earlier, ran the same job name to SUCCESS with every check SUCCESS or SKIPPED. A "
+            "failure, a same-run duplicate name or an unreadable run id or time still declines; "
+            "hooks/git-commit-guard.test.py drives both directions.",
             "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
             "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
-            "typed words decide by one deterministic rule, no model call: among his last 20 typed messages the "
+            "typed words decide by one deterministic rule, no model call: among every message he typed in the session (no count window) the "
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
             "or uses a referent (both, it, them) while it names #N or answers a hand-back that asked a merge "
             "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "
@@ -2473,6 +2478,16 @@ CONTRACTS: dict[str, dict] = {
             "A line's bullet marker is not a word and a URL-only line is exempt from the per-line cap; a message of 3+ counted lines with no bullet or numbered step after line 1 fails.",
             "check prints ok and exits 0 when the draft fits; otherwise prints each problem plus the Fix shape and exits 1; a bad call exits 2.",
             "hooks/outbound-message-guard.test.py pins it: the 24 Nov dense 3-line DM (generalized) fails, its bulleted version and a one-line verdict pass.",
+        ],
+    },
+    "hooks/bare-reference-guard.py": {
+        "mission": "Simon can click every PR, issue and ticket a final message names, without asking for the links.",
+        "purpose": "Stop: blocks once when the final assistant message names a PR, issue or ticket by a bare id outside a link, and says how to link it.",
+        "criteria": [
+            "Blocks on a bare #NN (two or more digits), owner/repo#N or ticket key (ABC-123) outside fenced code, inline code spans, markdown links (labels included), autolinks and bare URLs; shas and the NOT_TICKETS standards (UTF-8, SHA-256, ISO-8601, GPT-5) pass.",
+            "The reason lists the ids, gives the link form from the cwd's GitHub origin (https://github.com/<owner>/<repo>/pull/N) and keeps the Merge list line parseable by hooks/git-commit-guard.py.",
+            "Blocks at most once per stop chain: a stop_hook_active continuation after its own block passes and clears the marker; a fresh stop re-arms. Skips AGENT_DELEGATED_WORKER=1 and fails open on a malformed payload.",
+            "hooks/bare-reference-guard.test.py and the Stop HOOK_ROUTING case in contracts/routing_scenarios.py pin both directions.",
         ],
     },
     "hooks/secret-echo-guard.py": {
