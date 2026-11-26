@@ -47,8 +47,16 @@ GREEN = [{"__typename": "CheckRun", "workflowName": "CI", "name": "ci", "status"
 BOT = [{"path": "ops/bot/bot.py", "changeType": "MODIFIED"}]
 apps = {"1186": ("feat-b", "acme/web", "New onboarding"), "77": ("theirs", "acme/web", "Docs cleanup"),
         "402": ("bot-fix", "acme/bot", "Bot plus app")}
+def meta(run, conclusion, started):
+    return {"__typename": "CheckRun", "workflowName": "PR metadata", "name": "PR title issue ID",
+            "status": "COMPLETED", "conclusion": conclusion, "startedAt": started, "completedAt": started,
+            "detailsUrl": f"https://github.com/acme/bot/actions/runs/{run}/job/{run}1"}
+# 404: the concurrency cancel-in-progress shape (run 100 cancelled, then run 101 of the same workflow green);
+# 405: the same cancel with no later run.
+RACED = [meta(100, "CANCELLED", "2026-03-01T10:00:00Z"), meta(101, "SUCCESS", "2026-03-01T10:00:06Z")]
 bots = {"401": (False, BOT, 1), "402": (False, BOT + [{"path": "site/app.ts", "changeType": "MODIFIED"}], 2),
-        "403": (True, BOT, 1)}
+        "403": (True, BOT, 1), "404": (False, BOT, 1), "405": (False, BOT, 1)}
+rollups = {"404": GREEN + RACED, "405": GREEN + RACED[:1]}
 if a[:2] == ["alias", "list"]:
     print("pm: pr merge\nco: pr checkout")
     sys.exit(0)
@@ -72,7 +80,7 @@ if a[:2] == ["pr", "view"]:
         print(json.dumps({"number": int(n), "headRefName": "bot-fix", "headRefOid": "c" * 40, "state": "OPEN",
                           "isDraft": draft, "baseRefName": "main", "url": f"https://github.com/acme/bot/pull/{n}",
                           "mergeable": "MERGEABLE", "mergeStateStatus": "CLEAN", "reviewDecision": None,
-                          "statusCheckRollup": GREEN, "files": files, "changedFiles": changed,
+                          "statusCheckRollup": rollups.get(n, GREEN), "files": files, "changedFiles": changed,
                           "title": "Bot fix"}))
         sys.exit(0)
     if n in apps:
@@ -230,6 +238,12 @@ CASES = [
     ("FB escaped backquotes in an unquoted PR-body heredoc are data", dict(
         command=f"cat > body.md <<EOF\nRun \\`{M} 12\\` after review\nEOF\ngh pr create --body-file body.md"),
      False, ""),
+    ("FB an order 30 typed messages back with no hold still stands", dict(command=f"{M} 1186", turn=[
+        ("open", "merge #1186"), ("handback", "")] + [("open", f"check the logs for item {k}") for k in range(30)]),
+     False, ""),
+    ("HOLD an old order with a hold 25 messages later denies", dict(command=f"{M} 1186", turn=[
+        ("open", "merge #1186"), ("handback", "")] + [("open", f"check the logs for item {k}") for k in range(25)]
+        + [("open", "don't merge #1186")]), True, "holds merging"),
     ("FB dequeue: --disable-auto runs", dict(command=f"{M} 1186 --disable-auto"), False, ""),
     ("FB dequeue through the API runs", dict(
         command="gh api graphql -f query='mutation { dequeuePullRequest(input:{id:\"x\"}) { clientMutationId } }'"),
@@ -272,11 +286,49 @@ CASES = [
         ("open", "merge #1487 #1297")]), False, ""),
     ("FB 'merge #1487 #1297' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
         ("open", "merge #1487 #1297")]), False, ""),
+    ("FB his 13:05 'merge #1487 #1297' after a noun 'merge' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "i fixed the merge guard a million times it needs to be rewritten merge #1487 #1297")]), False, ""),
+    ("FB his 13:05 'merge #1487 #1297' after a noun 'merge' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "i fixed the merge guard a million times it needs to be rewritten merge #1487 #1297")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1499", dict(command=f"{M} 1499 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge 1487 and 1297' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "merge 1487 and 1297")]), False, ""),
+    ("FB 'merge 1487 and 1297' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge 1487 and 1297")]), False, ""),
     ("FB an end-block merge step covers 'merge it'", dict(command=f"{M} 1490 -R acme/web", turn=[
         ("handback", "Action needed (2): read #1479's video\n\n- done\n\nYour call\n1. Read #1479's video.\n"
                      "2. Reply \"merge #1490\"."), ("open", "merge it")]), False, ""),
 
+    ("FB his 12:54 'doesn't stop till ... work' after 'merge #1297' is no merge hold", dict(
+        command=f"{M} 1297 -R acme/web", turn=[("open", "merge #1297"), ("handback", ""), ("open", "also look at the sre bots own prs it was supposed to merge did it use the skills from my dotclaude? i don't think so because the pr doesnt look like my structure so i think it's not using dotclaude fully as ii am"),
+                                              ("handback", ""), ("open", "debug in a loop to fix the sre bot to do what i've asked you for it to do /sk:ship-report-and-ensure-correct-user-system-journey and fix the config so that it automatically loops and checks for that and doesn't stop till the things ive asked for work and are all implemented /sk:meta-dotclaude-copilot-start-here-for-any-task")]), False, ""),
+    ("FB 'stop the bot posting alerts' is no merge hold", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "stop the bot posting alerts")]), False, ""),
+    ("FB 'pause the walker' is no merge hold", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "pause the walker while you fix it")]), False, ""),
+    ("FB a hold of another PR does not hold this one", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "don't merge #77 yet")]), False, ""),
+
     # ---- real holds: each must deny
+    ("HOLD 'don't merge #1297' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "don't merge #1297")]), True, "holds merging"),
+    ("HOLD 'hold #1297' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "hold #1297 until the walker is back")]),
+     True, "holds merging"),
+    ("HOLD 'ok wait before merging, CI first' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "ok wait before merging, I want CI first")]),
+     True, "holds merging"),
+    ("HOLD 'dequeue it' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "dequeue it please")]), True, "holds merging"),
+    ("HOLD 'pause for now' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "pause for now")]), True, "holds merging"),
+    ("HOLD a slash command naming ship is no order", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("handback", ASK_HANDBACK), ("open", "/sk:ship-full-detailed-workflow on it")]), True, NONE),
     ("HOLD 'don't merge #1186'", dict(command=f"{M} 1186", turn=[("open", "don't merge #1186")]),
      True, "holds merging"),
     ("HOLD a bare 'pause' after 'merge #N'", dict(command=f"{M} 1186", turn=[
@@ -291,6 +343,17 @@ CASES = [
         ("handback", ASK_HANDBACK), ("open", "don't merge both")]), True, "holds merging"),
     ("HOLD a question after a merge-ask hand-back gives no order", dict(command=f"{M} 1487 -R acme/web", turn=[
         ("handback", ASK_HANDBACK), ("open", "what does 1487 do?")]), True, NONE),
+    ("HOLD a statement about config is no referent order (#1479)", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "it's crazy that you didn't turn it on fix that in config a "
+         "deploy/merge means merge and deploy anything that's required not leave it off")]), True, NONE),
+    ("HOLD 'a merge should deploy' is a rule, not an order", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "a merge should deploy everything it needs")]), True, NONE),
+    ("FB 'then merge if it's ok' answers a merge-list hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "then merge if it's ok")]), False, ""),
+    ("FB 'ok do that and merge' answers a merge-list hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "ok do that and merge")]), False, ""),
+    ("FB 'merge once ready <PR url>' names the PR", dict(command=f"{M} 1512 -R acme/web", turn=[
+        ("open", "merge once ready https://github.com/acme/web/pull/1512")]), False, ""),
     ("HOLD 'should we merge both' is a question", dict(command=f"{M} 1487 -R acme/web", turn=[
         ("handback", ASK_HANDBACK), ("open", "so should we merge both")]), True, NONE),
     ("HOLD a past-tense 'we merged those' is no order", dict(command=f"{M} 1487 -R acme/web", turn=[
@@ -417,6 +480,11 @@ CASES = [
                                       gates=[PASS_C]), True, "the PR is a draft"),
     (f"{G} from a delegated worker declines", dict(command=BOT_MERGE, cwd=BOTREPO, turn=[("open", "x")],
                                                    gates=[PASS_C], sub_path="subagents/"), True, "delegated"),
+    (f"{G} with a cancel a later green run of its workflow replaced merges", dict(
+        command=BOT_MERGE.replace("401", "404"), cwd=BOTREPO, turn=[("open", "x")], gates=[PASS_C]), False, ""),
+    (f"{G} with a cancel and no later run declines", dict(
+        command=BOT_MERGE.replace("401", "405"), cwd=BOTREPO, turn=[("open", "x")], gates=[PASS_C]),
+     True, "PR title issue ID concluded cancelled"),
     (f"{G} repo: an app PR outside the class merges on 'merge #N' with the head pinned", dict(
         command=f"{M} 402 -R github.com/acme/bot --match-head-commit {C40} --squash", cwd=BOTREPO,
         turn=[("open", "merge #402")]), False, ""),
@@ -426,9 +494,69 @@ CASES = [
 ]
 
 
+def _guard_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("git_commit_guard", GUARD)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _job(run, conclusion, started, name="PR title issue ID", workflow="PR metadata", job=None, url=None):
+    return {"__typename": "CheckRun", "workflowName": workflow, "name": name, "status": "COMPLETED",
+            "conclusion": conclusion, "startedAt": started, "completedAt": started,
+            "detailsUrl": url if url is not None else f"https://github.com/o/r/actions/runs/{run}/job/{job or run}"}
+
+
+BOT_GREEN = [_job(900, "SUCCESS", "2026-03-01T10:00:00Z", name="test", workflow="Bot")]
+T0, T1 = "2026-03-01T10:00:00Z", "2026-03-01T10:00:06Z"
+# (label, rollup, expected cause substring or "" for none): the superseded-cancel rule's both directions.
+SUPERSEDE = [
+    ("cancelled run, later run of the same workflow all green: not a decline",
+     BOT_GREEN + [_job(100, "CANCELLED", T0), _job(101, "SUCCESS", T1)], ""),
+    ("later run also holds a skipped job: still not a decline",
+     BOT_GREEN + [_job(100, "CANCELLED", T0), _job(101, "SUCCESS", T1),
+                  _job(101, "SKIPPED", T1, name="other", job=2)], ""),
+    ("cancelled with no later run declines", BOT_GREEN + [_job(100, "CANCELLED", T0)], "concluded cancelled"),
+    ("later run failed declines", BOT_GREEN + [_job(100, "CANCELLED", T0), _job(101, "FAILURE", T1)],
+     "concluded cancelled"),
+    ("later run has a failed sibling job declines",
+     BOT_GREEN + [_job(100, "CANCELLED", T0), _job(101, "SUCCESS", T1),
+                  _job(101, "FAILURE", T1, name="other", job=2)], "concluded cancelled"),
+    ("a failure beside a later success declines", BOT_GREEN + [_job(100, "FAILURE", T0), _job(101, "SUCCESS", T1)],
+     "concluded failure"),
+    ("two jobs of one name in one run, one cancelled, declines",
+     BOT_GREEN + [_job(100, "CANCELLED", T0, job=1), _job(100, "SUCCESS", T1, job=2)], "concluded cancelled"),
+    ("an unreadable run id on the cancel declines",
+     BOT_GREEN + [_job(100, "CANCELLED", T0, url=""), _job(101, "SUCCESS", T1)], "concluded cancelled"),
+    ("a later run with a lower run id declines", BOT_GREEN + [_job(101, "CANCELLED", T0), _job(100, "SUCCESS", T1)],
+     "concluded cancelled"),
+    ("a later run that started before the cancelled run declines",
+     BOT_GREEN + [_job(100, "CANCELLED", T1), _job(101, "SUCCESS", T0)], "concluded cancelled"),
+    ("a green run of another workflow does not supersede",
+     BOT_GREEN + [_job(100, "CANCELLED", T0), _job(101, "SUCCESS", T1, workflow="Other")], "concluded cancelled"),
+    ("a later run without the cancelled job's name declines",
+     BOT_GREEN + [_job(100, "CANCELLED", T0), _job(101, "SUCCESS", T1, name="other")], "concluded cancelled"),
+    ("a later run with no start time declines",
+     BOT_GREEN + [_job(100, "CANCELLED", T0), dict(_job(101, "SUCCESS", T1), startedAt="")], "concluded cancelled"),
+]
+
+
+def supersede_failures(only: str) -> tuple:
+    guard, failures, ran = _guard_module(), [], 0
+    for label, rollup, expect in SUPERSEDE:
+        if only and only not in label:
+            continue
+        ran += 1
+        causes = list(guard._monitoring_check_causes({"statusCheckRollup": rollup}, ["Bot / test"]))
+        if (expect and not any(expect in c for c in causes)) or (not expect and causes):
+            failures.append(f"supersede {label}: causes={causes!r}")
+    return failures, ran
+
+
 def main() -> int:
     only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else ""
-    failures, ran = [], 0
+    failures, ran = supersede_failures(only)
     for label, kw, denied, expect in CASES:
         if only and only not in label:
             continue

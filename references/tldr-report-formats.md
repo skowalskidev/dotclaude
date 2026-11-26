@@ -24,13 +24,13 @@ example and the WHYs moved out of `rules/` to keep the always-on budget.
 DO copy this shape for a chat reply, Slack/DM, PR comment or message sent for Simon:
 
 ```
-Action needed: approve the migration in PR #812
+Action needed: approve the migration in [PR #812](https://github.com/org/repo/pull/812)
 - Search results now cached 6 h, so a repeat search makes no API call
 - Dates past the provider's 330-day horizon skip the call
 - Migration 705 adds one nullable column; nothing else touches prod
 
 Your call
-1. Approve `db/705_add_cache_column.sql` in PR #812
+1. Approve `db/705_add_cache_column.sql` in [PR #812](https://github.com/org/repo/pull/812)
 ```
 
 WHY, one per rule:
@@ -70,13 +70,14 @@ sent mid-run (text between tool calls is collapsed, so only the final message co
 heads and the end block follow the answers.
 
 ```
-Action needed: say merge for PR #812
+Action needed: say merge for [PR #812](https://github.com/org/repo/pull/812)
 - No: a returning buyer never restarts the quiz; Back now reopens checkout
 - You're right: anyone who reaches the paywall can pay; the extra gate is gone
-- PR #812 is green and its preview serves the new build
+- [PR #812](https://github.com/org/repo/pull/812) is green and its preview serves the new build
 
 Your call
-1. Say merge for PR #812
+1. Say merge for [PR #812](https://github.com/org/repo/pull/812)
+Merge list: [#812](https://github.com/org/repo/pull/812)
 ```
 
 **DO end the final reply to a check ask** ("ensure everything works", "see if X happened", "is it ok")
@@ -120,9 +121,9 @@ word for word.
 **DON'T write one verdict for a set of PRs whose verdicts differ, and DON'T leave it for Simon to ask.**
 
 ```
-Action needed (2): say merge for PR #812, then retarget PR #813 and say merge
-- PR #812 No app build needed: only hosted web files change; installed builds load them on next open
-- PR #813 Needs an app build: the new paywall header waits for 1.5.0; the price fix is live at deploy
+Action needed (2): say merge for [PR #812](https://github.com/org/repo/pull/812), then retarget [PR #813](https://github.com/org/repo/pull/813) and say merge
+- [PR #812](https://github.com/org/repo/pull/812) No app build needed: only hosted web files change; installed builds load them on next open
+- [PR #813](https://github.com/org/repo/pull/813) Needs an app build: the new paywall header waits for 1.5.0; the price fix is live at deploy
 ```
 
 TEST: every hand-back naming a mergeable PR in such a repo holds a `No app build needed` or `Needs an
@@ -136,16 +137,23 @@ the pre-send check and the override. It covers every message read by anyone but 
 email to a teammate, a PR or ticket comment, and a draft Simon sends as himself.
 
 DO write it as:
-1. Line 1: the ask or the fact the reader needs, naming the real thing (PR number, screen, date).
-2. At most 4 more lines, each one fact, link or step the reader acts on.
+1. Line 1: the ask, or the verdict when it answers their report, naming the real thing (PR number,
+   screen, date).
+2. At most 4 bullets (`- `) or numbered steps, ONE fact, link or step each, at most 20 words.
+3. A figure the reader needs gets its own bullet. DON'T pack figures into parentheses or chain two
+   facts with "and"/"so" on one line.
 
 **DON'T** open with a greeting run-up or context the reader already has, add the `Action needed`
 line (that shape is for Simon), recap, or close with "let me know if you have questions". Offer
 detail in one clause ("details on request") only when it exists.
-NUMBER: at most 5 non-blank lines and 100 words, a one-line greeting and a short sign-off excluded.
+NUMBER: at most 5 non-blank lines and 100 words, a one-line greeting and a short sign-off excluded;
+at most 20 words a line. The guard denies a line over 25 words (a URL-only line exempt) and 3+ lines
+with no bullet.
+TEST: count each line's words and the facts per line before sending (the fix for a 99-word teammate
+DM of 3 lines at 21 to 46 words, figures in parentheses, that passed the 100-word cap).
 
 ```
-Hey, PR #812 (search cache) is ready for your review.
+Hey, [PR #812](https://github.com/org/repo/pull/812) (search cache) is ready for your review.
 - Adds one nullable column; nothing else touches prod
 - Needs your yes before Monday's deploy
 ```
@@ -168,10 +176,11 @@ the after-costs query?").
 
 DO measure a draft for someone else when you write it, before you show it to Simon for approval,
 and again before sending it by any route the hook cannot see (a `codex-app` run, `gh pr comment`,
-`gh api .../replies`); an approved draft over the cap otherwise goes out with words he never saw:
-`python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`. Expect `ok` and exit 0;
-exit 1 prints the counts. Cut the draft; DON'T split it into several messages.
-`hooks/outbound-message-guard.py` denies a Slack or Gmail send, reply, forward or draft over the cap.
+`gh api .../replies`); an approved draft that fails the measure otherwise goes out with words he never saw.
+Use the same measure the hook uses: `python3 ~/.claude/bin/outbound_message.py check <draft-file|->`.
+Expect `ok` and exit 0; exit 1 prints each problem and the bullet shape. Cut the draft; DON'T split it
+into several messages. `hooks/outbound-message-guard.py` denies a Slack or Gmail send, reply, forward or
+draft that fails it.
 When Simon's own message asked for the length ("send the team the full write-up"), write his words
 into `.context/long-message-ok` in the working directory; the guard allows the next send only and
 deletes the file.
@@ -179,6 +188,33 @@ WHY: a teammate reads the notification preview and the first lines; a long messa
 as a long instruction from him.
 TEST: every message to someone else has at most 5 lines and 100 words, with an ask or verdict on line 1, or traces to a
 `.context/long-message-ok` quoting Simon's request for length.
+
+## Data table
+
+The pointer lives in `rules/communication.md` § Answer first. This section owns the shape of any table
+that goes to Slack, a chat or an email, and of any figures table shown to Simon.
+
+DO render a table sent to Slack, a chat or an email as a friendly table IMAGE, never a markdown table
+(Slack does not render one). Build it as HTML, screenshot it to PNG with headless Chrome for Testing
+(binary: `~/.claude/bin/test-browser.sh path`), and use the dataviz skill's palette and status rules.
+The image holds two tables:
+1. WHAT CHANGED: before and after per row, the changed cells highlighted, plus a text label ("Cut",
+   "Up", "Same") beside the highlight. Never color alone.
+2. THE EVIDENCE: the figures that justify the change, the deciding rows highlighted, the best value per
+   group in bold.
+Under them, one footer line: the date window, the source, and what is excluded (test devices, a
+named offer). Keep the width near 880 px so a phone shows it without zooming.
+DO view the rendered PNG yourself and fix clipping before use, then show Simon the image and the
+message text for preview before sending; the message text carries the ask on line 1 per § Message for
+someone else, and the image carries the numbers.
+
+DO keep ONE table per question. Name every money column by its source (card sales, a named offer,
+refunds), and give a buyer column for every source the revenue counts, plus an "All buyers" column
+drawn from the same sources as the revenue. Reconcile each row before sending: re-derive one revenue
+and one buyer cell by hand from the raw rows.
+TEST: no row shows 0 buyers with revenue above 0 unless a column names that revenue's source, and no
+rate column contradicts a count column in the same row (the fix for a readout whose "bought 0" row
+carried revenue from an offer the buyer column left out, which a reader caught twice).
 
 ## Automated message
 
@@ -464,8 +500,14 @@ Every PR, issue, ticket, Slack thread, CI run or doc a message to Simon mentions
 with its full URL, e.g. `[#123](https://github.com/org/repo/pull/123)`, in bullets, steps and the end
 block, on every mention. He cannot click a bare "#123" or "POI-123", so either one fails. Resolve the URL (`gh pr view
 --json url`, the ticket's own link) before sending; if none exists, say so in place of the id.
+A `Merge list:` line follows the same rule: `Merge list: [#812](https://github.com/org/repo/pull/812),
+[#813](https://github.com/org/repo/pull/813)`; `hooks/git-commit-guard.py` still reads each `#N` from the label.
 TEST: grep the message for `#\d+` and ticket-id patterns outside a link; any hit fails (the fix for a
 status message that named six PRs and tickets as bare ids).
+Backstop: `hooks/bare-reference-guard.py` blocks Stop once when the final message holds a bare `#NN`,
+`owner/repo#N` or ticket key outside a link, code span or URL, and names the origin's link form
+(the fix for hand-backs ending on "Merge list: #1297, #1497" until Simon asked for the links).
+`python3 ~/.claude/hooks/bare-reference-guard.py --check <draft-file>` measures a draft; expect `ok`.
 
 ## Pasted example (moved from `rules/communication.md`)
 

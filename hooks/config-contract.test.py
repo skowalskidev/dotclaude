@@ -109,6 +109,10 @@ CRITERIA: list[tuple[str, str]] = [
      "(deep never carries), each commit diffed once however many heads reach it; "
      "a waiver records only quoting Simon's recorded words and covers later non-Deep-path heads; "
      "the refusal and the Stop block name each missing stage."),
+    ("runtime-asks-met-only-in-production",
+     "A deployed system's runtime clause is Met only by a production run after its deploy: the rule, the "
+     "reference, the ship report and the Stop hook say so, and Stop blocks once per ledger snapshot while the "
+     "newest reconcile holds a runtime: open line outside a fence, and clears once it reads observed or blocked."),
     ("codex-subscription-only-inference",
      "Codex workers and reviewers run their own inference on subscription authentication; `pal` is the one model-API route."),
     ("secret-echo-guard-denies-printed-credentials-both-ways",
@@ -120,7 +124,9 @@ CRITERIA: list[tuple[str, str]] = [
     ("process-kill-guard-denies-pattern-kills-both-ways",
      "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
     ("outbound-message-guard-caps-messages-to-others",
-     "A Slack or Gmail send or draft over the 5-line TLDR cap is denied, while a short message, a read, a canvas, the one-shot override and the --check CLI behave as documented."),
+     "A Slack or Gmail send or draft over the 5-line TLDR cap, with a line over 25 words or with 3+ unbulleted lines is denied, while a short or bulleted message, a read, a canvas, the one-shot override and the bin/outbound_message.py check CLI behave as documented."),
+    ("bare-reference-guard-links-every-id",
+     "A final message to Simon naming a PR, issue or ticket by a bare id blocks Stop once with a reason giving the origin's link form, while linked ids, code, URLs, shas and standards pass and a continuation never loops."),
     ("test-browser-tabs-stay-labelled-and-swept",
      "Every test-browser tab keeps its task, persona and owner label through the page's own title changes and reloads, an unlabelled navigate_page is denied, and sweep closes only blank, unlabelled, ended, idle or own earlier-task tabs while live walks' tabs stay open."),
     ("agent-setups-preserve-provider-choice",
@@ -148,18 +154,27 @@ CRITERIA: list[tuple[str, str]] = [
      "The process-kill guard passes a pattern kill only on a CLAUDE_ALLOW_PATTERN_KILL=1 set in the session's starting environment; every agent-typed inline, env or export form is denied and no doc advertises one."),
     ("pr-ci-wait-refuses-quiet-states",
      "A PR CI wait after a push exits distinctly on a conflicting PR, a missing run and its own timeout, and passes only when every check for the head is terminal and green."),
+    ("config-branch-ownership",
+     "A config-update branch is claimed at worktree add, its owner is blocked at Stop until it lands or a blocker with a next action or a supersede record exists, an idle ownerless branch is named adoptable, and two same-file landings both survive."),
     ("config-landing-serializes-concurrent-landers",
      "Two config landers on one machine queue on one landing lock held from the merge of the remote "
      "main to the push: both land with no lost race, a waiter names the holder, the wait ends with "
      "exit 75 at its bound, and a killed holder frees the lock."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
+    ("merge-word-runs-deploy-tldr",
+     "Simon's merge or deploy word runs the merged PR's whole Deploy TLDR, switch turn-ons included, unless he "
+     "says keep it off; ship-pr never writes a step as waiting on a second approval and the landing gate fails one."),
     ("monitoring-only-class-holds",
      "A monitoring-only PR merges with no merge word only at its bar and only inside the overlay's bot paths: "
      "the class tests pass, and the merge policy, the bar and the rule pointer keep their one home each."),
     ("regression-check-runs-on-every-pr",
      "Every PR proves its modified pre-existing files left outside paths alone and names the caller each newly "
      "mounted shared part mirrors; the ship harness, review, matrix and capture scope all invoke that one method."),
+    ("destructive-changes-prove-readers-and-failing-tests",
+     "A PR deleting or expiring stored rows or scheduling a job names every reader and lookback, the production "
+     "deleted and must-stay counts, the timed capped run, its slot and a tested rollback; every Standard or Deep "
+     "COVERED row shows its test failing without the change, and the landing gate refuses the matrix otherwise."),
     ("value-safety-answers-four-questions",
      "A deep PR that moves money, credits, entitlements, auth or ownership answers the happy-path, re-enacted "
      "failure, wrong-recipient and production incident-replay questions on the PR, and the gate refuses it otherwise."),
@@ -693,6 +708,69 @@ def check_after_run_report_owed_once_per_ask() -> None:
         subprocess.run([sys.executable, str(tool), "publish", "--id", reg["id"], "--file", str(report)],
                        env=env, capture_output=True, check=True)
         check(invoke("stop") == "", "A window already covered by a published report was analysed again.")
+
+
+def check_runtime_asks_met_only_in_production() -> None:
+    process = read("rules/process.md")
+    ref = read("references/planning-and-tracking.md")
+    skill = read("skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md")
+    section = "Runtime asks"
+    check("§ " + section in process, "rules/process.md lost its pointer to the runtime-asks section.")
+    check("a merge" in process.split("### Prove every point", 1)[-1].split("###", 1)[0],
+          "rules/process.md § Prove every point no longer rejects a merge as proof.")
+    body = ref.split("## " + section, 1)[-1].split("\n## ", 1)[0] if ("## " + section) in ref else ""
+    for need in ("started AFTER the change", "live acceptance list", "runtime: open", "gh run watch",
+                 "DON'T poll in a tight loop, install a cron", "2 consecutive production runs", "TEST:"):
+        check(need in body, f"planning-and-tracking.md § {section} lost: {need}")
+    check("runtime clause still `open`" in ref.split("## Close the session", 1)[-1].split("\n## ", 1)[0],
+          "Close the session no longer lists an open runtime clause as a blocker of the archive line.")
+    for need in ("| Awaiting production run |", "production-observed evidence", "runtime: observed"):
+        check(need in skill, f"ship-report skill lost the runtime verdict rule: {need}")
+
+    with tempfile.TemporaryDirectory(prefix="runtime-asks-test-") as tmp:
+        base = Path(tmp)
+        home, repo = base / "home", base / "repo"
+        home.mkdir()
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+        (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+        env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
+               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo)}
+        env.pop("AGENT_DELEGATED_WORKER", None)
+        hook = ROOT / "hooks" / "intent-ledger.sh"
+
+        def invoke(mode, prompt=None, active=False):
+            payload = {"cwd": str(repo), "session_id": "runtime-contract", "stop_hook_active": active}
+            if prompt is not None:
+                payload["prompt"] = prompt
+            result = subprocess.run(["bash", str(hook), mode], input=json.dumps(payload),
+                                    text=True, capture_output=True, cwd=repo, env=env)
+            check(result.returncode == 0, "Ledger hook failed: " + result.stderr)
+            return result.stdout
+
+        def note(text):
+            scratch = base / "note.md"
+            scratch.write_text(text)
+            subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], text=True,
+                           capture_output=True, cwd=repo, env=env, check=True)
+
+        def blocks_runtime(out):
+            return '"block"' in out and "runtime clauses still open" in out
+
+        invoke("submit", "Make the deployed bot merge its own fixes.")
+        note("- C1 bot merges its own fixes · runtime: open · waits on the next scheduled run")
+        out = invoke("stop", active=True)
+        check(blocks_runtime(out) and "C1 bot merges its own fixes" in out,
+              "An open runtime clause, on the continuation a reconciliation block caused, did not block Stop.")
+        check(not blocks_runtime(invoke("stop", active=True)) and not blocks_runtime(invoke("stop")),
+              "The runtime gate re-blocked an unchanged ledger snapshot.")
+        note("- C1 · runtime: open · run 2 failed the same way; fix deployed, waiting on run 3")
+        check(blocks_runtime(invoke("stop")), "A newer reconcile still holding an open runtime clause did not re-arm Stop.")
+        note("- C1 · runtime: observed <run 3 link>\n```\n- C9 · runtime: open\n```")
+        check(not blocks_runtime(invoke("stop")),
+              "An observed clause, or a runtime: open line inside a fence, blocked Stop.")
+        note("- C1 · runtime: blocked waiting on Simon's production write approval")
+        check(not blocks_runtime(invoke("stop")), "A runtime clause blocked on a Simon-only reason blocked Stop.")
 
 
 def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
@@ -1656,7 +1734,8 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         # The block names, per tier, the stages with no receipt on the pushed head, from the one stage list.
         check("standard: Not run: sk:plan-stable-persistent-dynamic-complete-full-plan, sk:ship-check-merge-readiness" in reason
               and "deep: Not run:" in reason and "sk:ship-verify-with-prod-data" in reason
-              and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason,
+              and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason
+              and "hotfix: Not run: sk:ship-resolve-pr-comments, sk:ship-pr" in reason,
               "The block did not list each tier's missing stage receipts for the head: " + reason[:600])
         check("intent-ledger.sh receipt <stage> <checkout dir>" in reason,
               "The block did not name the receipt fallback for a checkout outside the session cwd: " + reason[:300])
@@ -1707,6 +1786,11 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         check(gate("feature/x", "HEAD", "N/A").returncode == 2, "An N/A gate without a reason was accepted.")
         check(gate("feature/x", "HEAD", "PASS", "light").returncode == 2,
               "A light PASS without its trigger and skipped stages was accepted.")
+        check(gate("feature/x", "HEAD", "PASS", "hotfix").returncode == 2,
+              "A hotfix PASS without its trigger and skipped stages was accepted.")
+        r = gate("feature/x", "HEAD", "PASS", "hotfix", "one allowlist file; skipped: matrix, prod data")
+        check(r.returncode == 2 and "Not run: sk:ship-resolve-pr-comments, sk:ship-pr" in r.stderr,
+              "A hotfix PASS with no receipts was accepted or named stages outside the hotfix list: " + r.stderr)
         check(gate("feature/x", "HEAD", "PASS", "standard").returncode == 2,
               "A standard PASS without its trigger and skipped stages was accepted.")
         # A PASS names its tier, because the tier decides which stage receipts it needs.
@@ -1731,6 +1815,12 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "`stages` did not report a complete tier.")
         check(gate("feature/x", "HEAD", "PASS", "Light", light).returncode == 0,
               "A light PASS with a reason and every light receipt was not recorded.")
+        # references/testing-strategy.md § Hotfix tier: its receipts are a subset, so no Standard stage blocks it.
+        check(stages("hotfix", "HEAD").stdout.strip() == "All stages ran"
+              and stages("hotfix").stdout.split() == ["sk:ship-resolve-pr-comments", "sk:ship-pr"],
+              "`stages hotfix` did not list exactly the hotfix stages: " + stages("hotfix", "HEAD").stdout)
+        check(gate("feature/x", "HEAD", "PASS", "hotfix", "one allowlist file; skipped: matrix, prod data").returncode == 0,
+              "A hotfix PASS with its reason and both hotfix receipts was refused.")
         check(stop() == "", "A gate record for the pushed head did not clear Stop.")
         # A standard or deep PASS or BLOCKED names its unrun stages, so none hides behind the status.
         check(gate("feature/x", "HEAD", "PASS", "deep").returncode == 2,
@@ -2154,6 +2244,17 @@ def check_outbound_message_guard_caps_messages_to_others() -> None:
     result = run(["python3", str(ROOT / "hooks/outbound-message-guard.test.py")])
     check(result.returncode == 0,
           f"Outbound-message guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_bare_reference_guard_links_every_id() -> None:
+    groups = settings().get("hooks", {}).get("Stop", [])
+    wired = any(h.get("command", "").endswith("hooks/bare-reference-guard.py")
+                for g in groups for h in g.get("hooks", []))
+    check(wired, "settings.json must wire hooks/bare-reference-guard.py on Stop.")
+    links = (ROOT / "references" / "tldr-report-formats.md").read_text()
+    check("hooks/bare-reference-guard.py" in links, "references/tldr-report-formats.md § Links must name its backstop.")
+    result = run(["python3", str(ROOT / "hooks/bare-reference-guard.test.py")])
+    check(result.returncode == 0, f"Bare-reference guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_agent_setups_preserve_provider_choice() -> None:
@@ -2866,6 +2967,18 @@ def check_monitoring_only_class_holds() -> None:
           "hooks/git-commit-guard.py no longer requires the gate to name the monitoring-only bar")
 
 
+def check_config_branch_ownership() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "config_branches.test.py")])
+    check(result.returncode == 0, "Config branch ownership regression: " + result.stdout + result.stderr)
+    settings = (ROOT / "settings.json").read_text()
+    check(settings.count("hooks/config-branch-gate.py") >= 2,
+          "settings.json must wire hooks/config-branch-gate.py on Stop and on PostToolUse Bash.")
+    check("config_branches.py" in (ROOT / "hooks/config-status.sh").read_text(),
+          "hooks/config-status.sh no longer names adoptable branches via bin/config_branches.py.")
+    skill = " ".join((ROOT / "skills/sk/skills/claude-config-update/SKILL.md").read_text().split())
+    check("config_branches.py" in skill, "claude-config-update no longer points at the ownership and adoption flow.")
+
+
 def check_config_landing_serializes_concurrent_landers() -> None:
     result = run(["/usr/bin/python3", str(ROOT / "bin" / "config-land-check.test.py")],
                  timeout=max(180, RUN_TIMEOUT_S))
@@ -2884,6 +2997,28 @@ def check_pr_landing_gate_refuses_missing_rows() -> None:
               f"{path} does not point at bin/pr-landing-gate.py for the landing-gate rows")
     check('landing_check "$branch"' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
           "intent-ledger.sh gate PASS no longer runs the landing-gate checker")
+
+
+def check_merge_word_runs_deploy_tldr() -> None:
+    deploy = " ".join((ROOT / "references/git-pr-deploy.md").read_text().split())
+    for required in ("### A merge word runs the Deploy TLDR", "run every step of that PR's Deploy TLDR in its order",
+                     "feature-switch or flag turn-ons", "only when its `Check:` or `Smoke:` fails",
+                     "only when Simon said to keep it off", "the PR text is ours, not his",
+                     "outside the merged PR's Deploy TLDR", "never as a new ask"):
+        check(required in deploy, "references/git-pr-deploy.md lost the merge-word scope: " + required)
+    section = "§ A merge word runs the Deploy TLDR"
+    for path in ("rules/process.md", "rules/connectors.md", "skills/sk/skills/ship-pr/SKILL.md",
+                 "references/planning-and-tracking.md", "bin/pr-landing-gate.py"):
+        check(section in " ".join((ROOT / path).read_text().split()), f"{path} does not point at {section}")
+    process = " ".join((ROOT / "rules/process.md").read_text().split())
+    check("switch turn-ons included" in process and "unless he says keep it off" in process,
+          "rules/process.md lost the always-on merge-word line")
+    ship = " ".join((ROOT / "skills/sk/skills/ship-pr/SKILL.md").read_text().split())
+    check("normal numbered step that runs on Simon's merge word" in ship and "trigger condition" in ship,
+          "ship-pr no longer writes activation as a normal Deploy TLDR step")
+    gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
+    check("SECOND_APPROVAL" in gate_src and "not part of" in gate_src,
+          "The landing gate no longer fails a Deploy TLDR step held for a second approval")
 
 
 def check_regression_check_runs_on_every_pr() -> None:
@@ -2907,6 +3042,29 @@ def check_regression_check_runs_on_every_pr() -> None:
           "ship-review's caller-parity lens no longer points at the mounting rule")
     gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
     check('"Regression check": "Regression check"' in gate_src, "The landing gate no longer owns a Regression check row")
+
+
+def check_destructive_changes_prove_readers_and_failing_tests() -> None:
+    method = " ".join((ROOT / "references/testing-strategy.md").read_text().split())
+    for required in ("## Prove each test fails without the change", "on every Standard and Deep PR",
+                     "`base fails`", "`mutant <break>: FAILED`", "one mutant per guarded rule",
+                     "a mutant the test passes is a GAP row", "`n/a: <why>`", "`Fails without the change` column",
+                     "fails without the change (§ Prove each test fails without the change)"):
+        check(required in method, "Fails-without-the-change method lost: " + required)
+    deploy = " ".join((ROOT / "references/git-pr-deploy.md").read_text().split())
+    for required in ("deletes, purges or expires stored rows, or adds or moves a scheduled job, migration or not",
+                     "`Reader | Lookback it needs | Source`", "2x the longest reader's lookback",
+                     "0 must-stay rows deleted", "every row still in flight", "time the capped run at production volume",
+                     "set a lock timeout and a statement timeout", "no client role can call it",
+                     "pick a slot no other job uses", "a rollback the tests apply twice", "after the first scheduled run"):
+        check(required in deploy, "Destructive-change checks lost: " + required)
+    for path in ("skills/sk/skills/ship-review/SKILL.md", "skills/sk/skills/ship-full-detailed-workflow/SKILL.md"):
+        text = " ".join((ROOT / path).read_text().split())
+        check("§ Prove each test fails without the change" in text,
+              f"{path} does not point at testing-strategy.md § Prove each test fails without the change")
+    gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
+    check("def check_fails_without" in gate_src and "FAILS_COLUMN" in gate_src and "SURVIVED" in gate_src,
+          "The landing gate no longer checks the Fails without the change column")
 
 
 def check_value_safety_answers_four_questions() -> None:

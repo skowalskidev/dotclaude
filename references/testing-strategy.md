@@ -20,6 +20,7 @@ rule, skill and gate that runs checks applies it and restates none of it.
 | Light | A small change: at most 200 changed product lines (tests, fixtures, snapshots, docs and lockfiles not counted) on ONE surface or a team-only surface (an admin page, an internal tool); zero Deep trigger, API-contract change or native-build change. Editing or extracting a shared UI component stays Light while every existing caller keeps its behaviour and its tests pass | The affected unit tests; one BEFORE/AFTER pair of the changed state at the default phone viewport (390×844); the project's gate list; CI; one verdict per ask clause in the ledger | Full matrix, prod data, deploy-safety merge train, ship-report journey tests, multi-model and security review, videos, multi-width and multi-state captures |
 | Standard | Logic inside one feature past the Light size, an API-contract change, or a change to a shared component that alters what an existing caller does (one pair per surface it renders on); no Deep trigger | Light, plus a test per changed behaviour, § Pre-merge end-to-end on a local stack for each changed journey, one review pass, `/sk:ship-verify-with-prod-data` Phase 1 applicability, ship-report with a test per criterion, a pair per changed state, a video and a verification run only for a changed journey | Full matrix, multi-model review, captures at widths no breakpoint in the diff touches |
 | Deep | Money, price, charge, entitlement, auth, stored data, migration, a § Production compatibility gates decision, a behaviour change in a component or helper that 2+ customer-facing surfaces render, a native build, cross-platform, release or production-gate change, or a blast radius the diff cannot bound | The whole `/sk:ship-full-detailed-workflow`: full matrix, § Pre-merge end-to-end on a local stack, prod data, § Deep-tier discovery rounds, deploy safety, § Value safety, journeys, videos, verification runs, multi-model and security review, the full screenshot matrix | Nothing |
+| Hotfix | Production is broken now, shown by production evidence, and the fix changes ONE product file (tests excluded) with no schema, migration or SQL file and no new surface. Sized by this trigger, so a money or auth path does not lift it to Deep | § Hotfix tier below | Full matrix, prod-data stage, merge train, flow walks, videos, multi-round and multi-model review, ship-report and Standard or Deep stage receipts |
 
 **DO take the deeper tier when a trigger is unclear.** WHY: a missed regression costs more than one
 extra pass. A shared-component extraction whose callers' tests pass, or a team-only page, is not
@@ -33,14 +34,30 @@ escalation and its cause, run the added checks and keep the evidence already tak
 **DO apply a tier or check Simon names** ("just screenshot it", "run the full matrix"); when it sits
 below a trigger present in the diff, name that trigger once and run what he named.
 **DO record the tier, its trigger and every skipped stage, in one line each,** in the PR body's
-`## Test matrix` section (each skipped section's heading stays, holding `Skipped (tier light): <trigger>`)
-and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`;
+`## Test matrix` section (a Standard PR keeps each skipped section's heading, holding
+`Skipped (tier standard): <trigger>`) and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`;
 a Standard or Deep BLOCKED reason names its unrun required stages as `Not run: <stages>` or states
 `All stages ran`; a Standard or Deep PASS states `All stages ran` and the gate refuses one with a
 `Not run:` list (a tier-skipped stage goes in the `skipped:` line, never under `Not run:`). Every PASS
 names its tier, and the gate refuses it until each stage that tier requires has a receipt on the gated
 sha (`hooks/intent-ledger.sh` owns the per-tier stage list; `intent-ledger.sh stages <tier> HEAD`
 prints what is missing).
+**DO post a Light PR body with only the sections Light runs:** TLDR, Deploy TLDR, both journeys,
+`## Test matrix` (tier, trigger, skip line, results table), `## Regression check` (one row per modified
+pre-existing file with PASS or INTENDED; no Base-vs-head column) and `## Screenshots` (the BEFORE/AFTER
+pair, two images, or the no-surface line with `Checked outputs:`). It has no `## Prod data` heading, no
+`## Deploy safety` merge train and no `Real-environment walk:` line. In a native-app repo it adds the
+app build line and § Deploy safety check 4's lines (`Installed builds: not reached, <why>` alone passes)
+only when the diff reaches a file an installed build calls or loads; a path the project's
+`installedBuilds.pathsIgnore` lists (`references/connectors-setup.md` § Registry schema) reaches none.
+With the PR open, the gate drops two Light stage receipts: `sk:ship-screenshot-changes`, because
+`bin/pr-landing-gate.py` checks that Screenshots section, and `sk:ship-resolve-pr-comments` while the PR
+holds zero reviews, review comments and comments by a person. A Light label on a diff touching native app
+code or a payment or entitlement path keeps every Standard row: those paths are Deep triggers.
+TEST: a Light marketing-page PR passes the gate with the sections above and two receipts fewer on a PR
+with no feedback; a Light PR reaching an installed build still needs its app build and installed-build
+lines (the fix for a one-rule CSS fix to a separate marketing Worker that took two body rewrites and two
+extra skill runs).
 **DON'T skip a stage silently, or drop the gates every tier keeps:** CI and required hooks, the gate
 list in § Defects first, § Regression check, PR feedback handling, the Deploy TLDR, read-only production, spend approval
 (`rules/spend-approval.md`) and `references/git-pr-deploy.md` § Prod check after every production deploy.
@@ -74,6 +91,47 @@ bot post, else records its `Checked outputs:` line. WHY: judges stay mandatory b
 judge found real defects in every one of five bot PRs; the Deep legs found nothing a monitoring-only
 diff can break.
 TEST: every monitoring-only gate PASS names both judges' SHIP, the offline suites and the replay.
+
+### Hotfix tier
+
+**DO take the Hotfix tier only when its trigger in the table above holds,** proven by a production
+read (status codes, an error rate, failing records); a bigger diff takes the tier its triggers name.
+**DO mitigate first when a switch-off or rollback restores service:** propose it to Simon as a
+production write with its rollback, and build the hotfix beside it
+([Google SRE workbook, Incident Response](https://sre.google/workbook/incident-response/): stop the
+impact first, then find the root cause).
+DO run these, in order, and no other stage:
+1. The reproduction with its control, failing on the base: § Reproduce a reported bug first.
+2. The root cause: the evidence chain from the production symptom to the line that causes it, each
+   link with its source.
+3. The class: every sibling caller of the fixed rule (`git grep` its key, list or check), and a test
+   that fails when a sibling misses the guard (`rules/process.md` § Fix the CLASS of failure).
+4. The touched module's own suite plus every § Defects first gate-list row the file reaches.
+5. One judge from the other provider on the diff, with the blocking bar, and one delta pass on its
+   fixes (`references/research.md` § Independent judges).
+6. § Regression check over the happy paths and paid paths running through the touched file, its
+   pay-path pass included: a test passing on base and head per path.
+7. The PR body: TLDR; Deploy TLDR whose steps each carry `Check:`, `Smoke:` and `Rollback:`; both
+   journeys; `## Test matrix` with `Tier: hotfix (<trigger>)`, the `Fails without the change` column
+   and the lines `Root cause:`, `Mainstream practice:` (a primary-source link, or `departs: <why>`) and
+   `Judge:` (provider, verdict, head sha); `## Regression check` with its per-file table and the lines
+   `Happy paths:` and `Paid paths:` (each path and its test, or `none: <why>`); `## Screenshots` (the
+   pair, or the no-surface line with `Checked outputs:`).
+8. Green CI; `intent-ledger.sh gate <branch> HEAD PASS hotfix "<trigger>; skipped: <stages>"`; merge
+   on Simon's word; then `references/git-pr-deploy.md` § Prod check after every production deploy.
+**DO keep each safety row the diff touches:** a payment, entitlement or auth file keeps
+`## Value safety`, and a payment path its Real-environment walk; a file installed builds load keeps
+`references/git-pr-deploy.md` § Deploy safety check 4's lines. `bin/pr-landing-gate.py` enforces them
+and refuses the label on a diff past one product file or holding a migration, schema or SQL file.
+**DON'T run a skipped stage on a hotfix:** full matrix, `/sk:ship-verify-with-prod-data`, merge train,
+`/sk:work-verify-regressions-against-original`, videos, verification runs, multi-width captures,
+ship-report, a review round past the delta pass. `hooks/intent-ledger.sh` requires only the Hotfix
+stage receipts.
+WHY: each skipped stage adds minutes to hours while production stays broken; the kept ones catch a
+wrong or regressing fix.
+TEST: a hotfix PR passes the landing gate with the rows above and only the Hotfix receipts, and one
+touching two product files or a migration fails on its tier label (the fix for a one-line allowlist
+miss that answered 403 in production for about 20 minutes).
 
 ## Verify once, at convergence
 
@@ -783,6 +841,11 @@ account per key is normal, so equal vendor name proves nothing.
 not identity-checked.** A hash comparison against the wrong account's listener reports a healthy
 config as broken, and the "fix" then breaks delivery. Re-check any finding built on an unverified
 counterpart before reporting it.
+**DO start a listener that prints a credential on start with both streams in a file, and read that log
+redacted:** `stripe listen --forward-to <url> >"$LOG" 2>&1 &`, then
+`sed -E "s/whsec_[A-Za-z0-9]+/whsec_[redacted]/" "$LOG"`; hand the app its secret with
+`export STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret 2>/dev/null)"`. `hooks/secret-echo-guard.py`
+denies a `stripe listen` with visible output. TEST: no `whsec_` value appears in the transcript.
 **DO replay a missed event instead of re-running the action** (Stripe `events resend <evt>` reaches a
 running listener).
 
@@ -936,15 +999,34 @@ TEST: the PR's `## Regression check` holds the `kept / new / lost` counts with t
 pre-existing file, Result `PASS` (outside paths unchanged) or `INTENDED: <change>`; then one row per
 newly mounted shared part naming the caller it mirrored, and one measured row per screen reused in a
 new place. A diff modifying no pre-existing file states that with its reason.
-`bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
-pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
-INTENDED, or a row records FAIL.
+`bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column (a Light PR
+needs none: its Screenshots pair is the comparison), a modified pre-existing file has no row, its row has
+an empty evidence cell, a row holds neither PASS nor INTENDED, or a row records FAIL.
 **DO run `/sk:work-verify-regressions-against-original` for the flow-level half when the diff
 touches an existing user flow:** it records each vanilla flow on base and head on one local stack and
 posts its `### Flow walk` table under the same heading.
 TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).
+
+## Prove each test fails without the change
+
+**DO show every COVERED row's test failing without the change, on every Standard and Deep PR, on the
+final head:** run it on a base worktree (`base fails`), and for each rule the row guards beyond "it
+exists" (a threshold, a cap, an order, a keep or skip rule, a rollback), apply one deliberate break to
+the changed code, run the test, record `mutant <break>: FAILED` and restore the file per
+`references/code-best-practices.md` § Agent-written shell (copy it aside first).
+NUMBER: one mutant per guarded rule; a mutant the test passes is a GAP row until the test is
+strengthened and the mutant fails. A row with no behaviour of its own (an ordering or manifest check)
+holds `n/a: <why>`.
+**DO post it as the `Fails without the change` column of the `## Test matrix` table.**
+`bin/pr-landing-gate.py` fails a Standard or Deep matrix whose COVERED rows lack the column or a filled
+cell, or whose cell records a surviving mutant.
+WHY: a test written beside its code can pass on both versions; only a seen failure proves it guards
+the rule.
+TEST: every COVERED row on a Standard or Deep PR names `base fails`, a FAILED mutant or `n/a: <why>`
+(e.g. a scheduled-job log purge PR whose mutants for a shorter keep window, a start-time fallback, a
+raised per-run cap and a rollback that kept the job each failed their test).
 
 ## Reproduce a reported bug first, then prove the root cause
 
@@ -1332,7 +1414,8 @@ from `git diff <base>...HEAD` cross-referenced with the plan's acceptance criter
 (`/sk:plan-stable-persistent-dynamic-complete-full-plan`) and the Linear tickets — code with no
 criterion, or a criterion with no code, is itself a finding. The deliverable is a MATRIX: one row per
 feature — `feature · layer (frontend/backend) · simulation applicability/evidence · Stage-1 test(file) ·
-Stage-2 judgment · verdict (COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Apply § Local time-driven simulations
+fails without the change (§ Prove each test fails without the change) · Stage-2 judgment · verdict
+(COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Apply § Local time-driven simulations
 to its simulation subrow. Every feature ends with a verdict; a feature with no row is a hole.
 Cover the WHOLE diff — every changed file's features, backend, frontend, tests and docs included; never
 sample down to the "high-risk" files and eyeball the rest. TEST: the matrix's row set equals the diff's

@@ -58,10 +58,10 @@ concrete instance, and name the class and what you checked:
 `references/planning-and-tracking.md` § Fix the class of failure.
 
 ### Front-load everything you need from me — at the START of a session
-Assume I may hand the session over and walk away. Before starting substantial work, survey what the
-WHOLE task will need from me and ask for it ALL in one block up front: auth or logins for any tool or
-MCP server, credentials, approval for anything touching production (a deploy, a data migration, a
-schema or rules change), and any decision that forks the implementation. Then run to completion.
+Before starting substantial work, survey what the WHOLE task will need from me and ask for it ALL
+in one block up front: auth or logins for any tool or MCP server, credentials, approval for anything
+touching production (a deploy, a data migration, a schema or rules change), and any decision
+that forks the implementation. Then run to completion.
 
 Front-load what is PREDICTABLE; ask later for an unforeseen blocker or fork. Detail:
 `references/planning-and-tracking.md` § Capture the inputs the code cannot show you.
@@ -116,8 +116,9 @@ same failure recurs, or a fix needs a decision only I can make), stop and tell m
 
 **DO run `/sk:ship-report-and-ensure-correct-user-system-journey` at the end of any substantial ask, in
 ANY repo — this config included — unprompted.** What it proves: `references/planning-and-tracking.md` § The intent ledger.
-**DON'T treat a green gate or a written summary as proof the ask was covered.** A gate proves the code
-runs. A summary proves you can describe it. Neither proves point four of a five-point ask was built.
+**DON'T treat a green gate, a merge or a written summary as proof the ask was covered.**
+**DO hold a deployed system's runtime clause open until production shows it after deploy:**
+`references/planning-and-tracking.md` § Runtime asks.
 TEST: every ask clause in the ledger has a verdict against it. A missing verdict is a missing feature.
 
 **DO ship each part the ask names on every target it names (surface, platform, audience), and walk the
@@ -148,6 +149,8 @@ Merge needs an explicit ask; **'merge to main' is a LOCAL merge. Never push or `
 default branch (origin `main`/`master`) without my own unprompted 'push'** (a yes to an option YOU
 authored is not it). Exception: a monitoring-only PR at its bar merges unasked,
 `references/git-pr-deploy.md` § Monitoring-only changes.
+**DO run a merged PR's whole Deploy TLDR, switch turn-ons included, on Simon's merge or deploy word**
+unless he says keep it off: `references/git-pr-deploy.md` § A merge word runs the Deploy TLDR.
 
 **DEFAULT: push each finished commit to its tracking branch when it backs an open PR or is shared for
 review or testing** (a teammate's PR counts); no PR outside the harness: commit only. "wait"/"hold"
@@ -196,8 +199,7 @@ too, names the tab and start screen seen that turn.
 ### Git worktree discipline
 In a git worktree (e.g. `.claude/worktrees/<name>/`), **use the worktree path prefix for every file
 operation** (Read/Edit/Write/Bash). Never write to the main checkout, and **never revert, commit, or
-disturb my uncommitted WIP** in the main repo. **DON'T write repository config from a worktree**:
-every checkout shares it; sandbox with `git -c` or `GIT_CONFIG_COUNT`
+disturb my uncommitted WIP** in the main repo. **DON'T write repository config from a worktree**
 (`references/git-pr-deploy.md` § Worktrees share one config).
 TEST: no task runs `git remote set-url` or a `git config` write inside a worktree.
 
@@ -210,13 +212,10 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   `references/dev-server-hygiene.md` § Private process inspection. TEST: zero exposed values;
   signal only proven owned processes or candidates passing the existing orphan gate.
 - **Claim a port lane and heavy lease before binding, building or booting.** Use `bin/port-slot.sh`
-  and `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <cmd>`. Fill spare
-  capacity beside the primary; wait/resume automatically and yield at safe command boundaries.
-  Exit 75 → record the retry and keep editing.
-  Run `prioritize` only when Simon names the task to go first ("don't defer" counts); after, `--clear --owner <own>`.
+  and `python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <cmd>`.
   Every heavy step holds a lease. Act on a `watchdog:` line naming this session at once.
   Never kill a live owner's build or simulator; only a printed `reclaim-sim` frees an ended owner's.
-  Protocol: `references/dev-server-hygiene.md`.
+  Spare capacity, yielding, exit 75 and `prioritize`: `references/dev-server-hygiene.md` § Machine-wide capacity.
 - **Resolve the session-start orphan report before the task.** Apply the existing guarded
   `bin/kill-orphan-workers.sh` procedure in that reference; preserve active owners.
   TEST at hand-back: recorded owned PIDs/groups are stopped and their ports are free.

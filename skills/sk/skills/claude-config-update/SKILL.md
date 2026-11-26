@@ -292,6 +292,13 @@ DO inspect pending work on the same concern before branching. Reuse the owning s
 it is active; never stage or land another session's WIP. Validate the final change and commit with
 `-F`. Review `git diff origin/main...config-update/<slug>` before sync. Preserve the live checkout
 until the validated change lands. A branch name is not proof of authorization or readiness.
+DO own landing of the branch you draft: `hooks/config-branch-gate.py` claims it at `git worktree add -b`
+(or run `python3 ~/.claude/bin/config_branches.py claim config-update/<slug>`) and blocks hand-back
+until it lands, or `config_branches.py block <branch> "<blocker; next action>"` / `supersede <branch>
+"<evidence>"` records why not. DO adopt an ADOPTABLE branch named at session start (no live owner, idle
+over 4 h): `config_branches.py adopt <branch>`, merge origin/main into it (never rebase), keep both sides'
+intent, run its leased suite, land it; or supersede it with evidence. DON'T drop or ignore it.
+Detail: `references/session-performance.md` § Finish a config repair.
 TEST: each draft has recorded evidence, one owner and an authorization verdict; a ready in-scope
 change reaches sync in the same run instead of waiting for a generic approval question.
 

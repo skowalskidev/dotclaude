@@ -78,9 +78,10 @@ resources. The resolver returns only the session boundary's root; a fallback nev
 ## Prod / live safety (never write unless I ask for that specific write)
 
 Prod is READ-ONLY by default, whatever a route's key could do (catalog § Prod-write pathway). Never
-attempt a prod/live write unless I explicitly ask for that exact change. When a task needs one, surface
-it up front: the write pathway is SEPARATE — enabled on demand, confirmed per write, torn down after.
-No prod data is touched until both happen. A fallback route inherits the same gate: a gated send or
+attempt a prod/live write unless I explicitly ask for that exact change; my merge word asks for its
+PR's Deploy TLDR writes (`references/git-pr-deploy.md` § A merge word runs the Deploy TLDR).
+When a task needs one, surface it up front: the write pathway is SEPARATE — enabled on demand,
+confirmed per write, torn down after. No prod data is touched until both happen. A fallback route inherits the same gate: a gated send or
 write still needs its per-message or per-write yes on every route.
 
 ## Registry convention (one loader, one file per provider)

@@ -110,7 +110,8 @@ anything from Step 3, verify each finding empirically:
      type breaks the chain). Do NOT fix; record the refuting evidence in the report so the
      finding doesn't resurface next review.
 3. **Fix everything VERIFIED (and justified LATENT).** One logical fix per commit, each with a
-   test that fails against the unfixed code (mutation-check when cheap). Schedule all checks in
+   test that fails against the unfixed code (`references/testing-strategy.md` § Prove each test fails
+   without the change). Schedule all checks in
    Steps 4–6 under `references/testing-strategy.md` § Defects first and § Native simulator suites.
    Pure product/ops decisions (semantics changes, new kill-switches, spec changes) are NOT
    auto-fixed — present them with the prod evidence

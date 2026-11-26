@@ -135,6 +135,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/intent-ledger.sh push",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/config-branch-gate.py",
+            "timeout": 5
           }
         ]
       },
@@ -155,6 +160,16 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/intent-ledger.sh stop",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/bare-reference-guard.py",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/config-branch-gate.py",
             "timeout": 5
           }
         ]

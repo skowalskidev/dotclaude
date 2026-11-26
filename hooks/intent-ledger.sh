@@ -51,13 +51,13 @@
 #                                 session's ledger. The fallback when a Skill receipt missed its checkout
 #                                 (a subagent that never ran a Bash `cd`/`git -C` into it, or a sibling
 #                                 worktree the session's Bash cwd cannot stay in). It still records <dir>'s HEAD.
-#         stages <tier> [sha|HEAD] [branch]
+#         stages <hotfix|light|standard|deep> [sha|HEAD] [branch]
 #                                 read-only — print the tier's required stage skills; with a sha,
 #                                 print "All stages ran" (exit 0; "(carried from <sha>...)" when a
 #                                 light or standard receipt carried) or "Not run: <stage>, ..." (exit 1).
 #                                 Receipts carry only within <branch>: default the checkout's branch
 #                                 when <sha> is its HEAD, else every branch
-#         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]
+#         gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [hotfix|light|standard|deep] [reason]
 #                                 called by the model — record the landing-gate result for that head;
 #                                 a PASS names its tier and every stage that tier requires has a
 #                                 receipt on <sha>, else exit 2 printing "Not run: <stage>, ...";
@@ -310,24 +310,45 @@ record_pushed_output() {
   done
 }
 
+# open_pr BRANCH — set repo (owner/name of a GitHub origin, else empty) and num (BRANCH's open PR
+# there, else empty). 1 when gh is missing or its lookup failed, with the reason in open_pr_error.
+open_pr() {
+  repo=""; num=""; open_pr_error=""
+  url="$(git remote get-url origin 2>/dev/null)" || return 0
+  repo="$(printf '%s' "$url" | sed -nE 's#^(https://([^@/]+@)?|ssh://git@|git@)github\.com[:/]([^/]+/[^/]+)$#\3#p')"
+  repo="${repo%/}"; repo="${repo%.git}"
+  [ -n "$repo" ] || return 0                                  # not a GitHub origin: no PR
+  if ! command -v gh >/dev/null 2>&1; then
+    open_pr_error="gh is missing, so open PRs for $1 on $repo cannot be checked"; return 1
+  fi
+  prs="$(gh pr list --repo "$repo" --head "$1" --state open --json number,url 2>/dev/null)" || {
+    open_pr_error="gh pr list failed for $1 on $repo (a fetch failure never passes)"; return 1; }
+  num="$(printf '%s' "$prs" | jq -r '.[0].number // empty' 2>/dev/null)"
+  return 0
+}
+
+# light_waivers BRANCH — the Light stages BRANCH's open PR itself stands in for, space-separated
+# (references/testing-strategy.md § Size the checks to the change). sk:ship-screenshot-changes: the PR is
+# open, so the landing gate checks its Screenshots section (a rendered BEFORE/AFTER pair, or a
+# no-surface line with its Checked outputs clause). sk:ship-resolve-pr-comments: the open PR holds zero
+# reviews, review comments and comments by a person (bin/pr-landing-gate.py --feedback-count). No
+# GitHub origin, no open PR, or any failed read waives nothing.
+light_waivers() {
+  open_pr "$1" || return 0
+  [ -n "$num" ] || return 0
+  out="sk:ship-screenshot-changes"
+  fb="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" --feedback-count 2>/dev/null)"
+  [ "$fb" = 0 ] && out="$out sk:ship-resolve-pr-comments"
+  printf '%s' "$out"
+}
+
 # landing_check BRANCH SHA — 0 when the branch has no open PR on a GitHub origin, or when
 # bin/pr-landing-gate.py passes on that PR AND bin/pr-ci-wait.py --once finds every check on SHA
 # succeeded or skipped. Otherwise prints why and fails, so `gate PASS` records nothing. A PR that
 # cannot be looked up or fetched fails: a fetch failure never passes. No reason text bypasses red CI.
 landing_check() {
-  url="$(git remote get-url origin 2>/dev/null)" || return 0
-  repo="$(printf '%s' "$url" | sed -nE 's#^(https://([^@/]+@)?|ssh://git@|git@)github\.com[:/]([^/]+/[^/]+)$#\3#p')"
-  repo="${repo%/}"; repo="${repo%.git}"
-  [ -n "$repo" ] || return 0                                  # not a GitHub origin: no PR to check
-  if ! command -v gh >/dev/null 2>&1; then
-    echo "gate: PASS refused: gh is missing, so open PRs for $1 on $repo cannot be checked" >&2
-    return 1
-  fi
-  prs="$(gh pr list --repo "$repo" --head "$1" --state open --json number,url 2>/dev/null)" || {
-    echo "gate: PASS refused: gh pr list failed for $1 on $repo (a fetch failure never passes)" >&2
-    return 1; }
-  num="$(printf '%s' "$prs" | jq -r '.[0].number // empty' 2>/dev/null)"
-  [ -n "$num" ] || return 0                                   # no open PR: unchanged behaviour
+  open_pr "$1" || { echo "gate: PASS refused: $open_pr_error" >&2; return 1; }
+  [ -n "$num" ] || return 0                                   # not a GitHub origin, or no open PR
   out="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" 2>&1)" || {
     printf '%s\n' "$out" >&2
     echo "gate: PASS refused for $1: $repo#$num fails the landing gate above. Post each missing \
@@ -364,6 +385,14 @@ section_lines() { # section_lines KIND FILE — every line under a "## <ts> · K
   ' "$2"
 }
 
+runtime_open() { # every `runtime: open` line of the NEWEST reconcile entry, outside prompt fences
+  awk "$FENCE_AWK"'
+    !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ / · reconcile$/); if (insec) n=0; next }
+    !fence && insec && /(^|[^A-Za-z])runtime: open([^A-Za-z]|$)/ { buf[++n]=$0 }
+    END { for (i=1; i<=n; i++) print buf[i] }
+  ' "$1"
+}
+
 gate_pairs() { # branch and sha of every recorded gate, outside prompt fences
   section_lines gate "$1" | awk '/^gate: [^ ]+ [0-9a-f]+ (PASS|BLOCKED|N\/A)( |$)/ { print $2, $3 }'
 }
@@ -377,9 +406,33 @@ STAGES_STANDARD="sk:plan-stable-persistent-dynamic-complete-full-plan sk:ship-ch
 sk:ship-review sk:ship-resolve-pr-comments sk:ship-report-and-ensure-correct-user-system-journey \
 sk:ship-screenshot-changes sk:ship-pr"
 STAGES_DEEP="$STAGES_STANDARD sk:test-automated-full-matrix sk:ship-verify-with-prod-data"
+# Hotfix (references/testing-strategy.md § Hotfix tier): a broken-production fix in one product file.
+# bin/pr-landing-gate.py checks its PR body rows (root cause, judge, happy and paid paths, the safety
+# rows the diff touches) and refuses the label on a bigger diff, so only these receipts are required.
+STAGES_HOTFIX="sk:ship-resolve-pr-comments sk:ship-pr"
 
+# LIGHT_WAIVED: the light or hotfix stages `gate` and `stages` found the open PR standing in for
+# (tier_waivers); empty everywhere else, so the Stop message lists each whole list.
+LIGHT_WAIVED=""
+waive() { # waive LIST — LIST without the stages in LIGHT_WAIVED
+  local s out=""
+  for s in $1; do case " $LIGHT_WAIVED " in *" $s "*) ;; *) out="${out:+$out }$s" ;; esac; done
+  echo "$out"
+}
 tier_stages() {
-  case "$1" in light) echo "$STAGES_LIGHT" ;; standard) echo "$STAGES_STANDARD" ;; deep) echo "$STAGES_DEEP" ;; esac
+  case "$1" in
+    light) waive "$STAGES_LIGHT" ;; hotfix) waive "$STAGES_HOTFIX" ;;
+    standard) echo "$STAGES_STANDARD" ;; deep) echo "$STAGES_DEEP" ;;
+  esac
+}
+# tier_waivers TIER BRANCH — the stages of TIER's list that BRANCH's open PR stands in for; light and
+# hotfix only, every other tier none.
+tier_waivers() {
+  local s w out="" list
+  case "$1" in light) list="$STAGES_LIGHT" ;; hotfix) list="$STAGES_HOTFIX" ;; *) return 0 ;; esac
+  w="$(light_waivers "$2")"
+  for s in $w; do case " $list " in *" $s "*) out="${out:+$out }$s" ;; esac; done
+  printf '%s' "$out"
 }
 
 stage_name() { # stage_name NAME — print the canonical stage skill for a Skill name or typed command, or fail
@@ -795,7 +848,7 @@ never with Edit or Write.
 Mechanics: ~/.claude/references/planning-and-tracking.md. The Stop hook checks for reconciliation
 after the newest recorded input. After a push to a non-default branch, run /sk:ship-full-detailed-workflow
 on it and record the result with
-  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
+  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [hotfix|light|standard|deep] [reason]
 (a standard or deep PASS holds \"All stages ran\"; a BLOCKED holds it or \"Not run: <stage>, <stage>\")
 or Stop blocks once for the missing gate. A PASS names its tier and needs a receipt on that head for
 every stage the tier requires; each Skill-tool run of a stage records one for the HEAD of the checkout
@@ -1011,8 +1064,8 @@ receipt)
 
 stages)
   tier="$(printf '%s' "${2:-}" | tr '[:upper:]' '[:lower:]')"
-  case "$tier" in light|standard|deep) ;; *)
-    echo "stages: usage: stages <light|standard|deep> [sha|HEAD] [branch]" >&2; exit 2 ;;
+  case "$tier" in hotfix|light|standard|deep) ;; *)
+    echo "stages: usage: stages <hotfix|light|standard|deep> [sha|HEAD] [branch]" >&2; exit 2 ;;
   esac
   [ -n "${3:-}" ] || { tier_stages "$tier"; exit 0; }
   sha="$(git rev-parse --verify -q "$3^{commit}" 2>/dev/null)" || sha="$(printf '%s' "$3" | tr '[:upper:]' '[:lower:]')"
@@ -1023,8 +1076,10 @@ stages)
   if [ -z "$sbr" ] && sha_match "$(git rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null)" "$sha"; then
     sbr="$(git symbolic-ref -q --short HEAD 2>/dev/null)"
   fi
+  [ -n "$sbr" ] && LIGHT_WAIVED="$(tier_waivers "$tier" "$sbr")"
   st="$(stage_status "$tier" "$sha" "$sbr")"
   miss="$(printf '%s\n' "$st" | sed -n 1p)"; from="$(printf '%s\n' "$st" | sed -n 2p)"
+  [ -n "$LIGHT_WAIVED" ] && echo "Stood in for by the open PR: $LIGHT_WAIVED"
   if [ -n "$miss" ]; then echo "Not run: $miss"; exit 1; fi
   if [ -n "$from" ]; then echo "All stages ran (carried from $from: a Light-sized follow-up delta)"; exit 0; fi
   echo "All stages ran"
@@ -1036,8 +1091,8 @@ gate)
   # Optional tier (references/testing-strategy.md, Size the checks to the change). A light or
   # standard PASS skipped stages, so it needs a reason naming its trigger and the skips.
   tier="$(printf '%s' "${5:-}" | tr '[:upper:]' '[:lower:]')"
-  case "$tier" in light|standard|deep) reason="${*:6}" ;; *) tier=""; reason="${*:5}" ;; esac
-  usage="gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [light|standard|deep] [reason]"
+  case "$tier" in hotfix|light|standard|deep) reason="${*:6}" ;; *) tier=""; reason="${*:5}" ;; esac
+  usage="gate: usage: gate <branch> <sha|HEAD> <PASS|BLOCKED|N/A> [hotfix|light|standard|deep] [reason]"
   case "$status" in PASS|BLOCKED|N/A) ;; *) echo "$usage" >&2; exit 2 ;; esac
   if [ -z "$branch" ] || [ -z "$ref" ]; then echo "$usage" >&2; exit 2; fi
   # One record is one line: a line break in the branch or reason would append a second, forged gate line.
@@ -1056,9 +1111,9 @@ gate)
   # A PASS names its tier, because the tier decides which stage receipts it needs; an untiered PASS
   # would skip that check.
   if [ "$status" = PASS ] && [ -z "$tier" ]; then
-    echo "gate: a PASS names its tier (light|standard|deep), which decides the stage receipts it needs" >&2; exit 2
+    echo "gate: a PASS names its tier (hotfix|light|standard|deep), which decides the stage receipts it needs" >&2; exit 2
   fi
-  if [ "$status" = PASS ] && [ -z "$reason" ] && { [ "$tier" = light ] || [ "$tier" = standard ]; }; then
+  if [ "$status" = PASS ] && [ -z "$reason" ] && { [ "$tier" = light ] || [ "$tier" = standard ] || [ "$tier" = hotfix ]; }; then
     echo "gate: a $tier PASS needs a reason: its trigger and the stages it skipped" >&2; exit 2
   fi
   # A standard or deep PASS means every stage the tier requires ran as its own skill on this head.
@@ -1099,6 +1154,7 @@ Quote his own words verbatim, or run the tier's stages." >&2; exit 2
   # Stage receipts on this exact head back the stage statement, so neither a PASS nor "All stages ran"
   # rests on reason text alone. A receipt on an older head never counts.
   if [ -n "$tier" ] && [ "$status" != N/A ]; then
+    LIGHT_WAIVED="$(tier_waivers "$tier" "$branch")"
     miss="$(missing_stages "$tier" "$sha" "$branch")"
     fix="Invoke each with the Skill tool (e.g. Skill sk:ship-review) while the session's working \
 directory (a subagent: the directory its last Bash cd'd into) is the checkout at ${sha:0:7}; each run \
@@ -1130,6 +1186,7 @@ Use \"Not run: $miss\"." >&2; exit 2
     fi
   fi
   [ -n "$tier" ] && reason="$tier${reason:+ $reason}"
+  [ -n "$LIGHT_WAIVED" ] && reason="$reason; stood in for by the open PR: $LIGHT_WAIVED"
   if [ "$status" = PASS ]; then landing_check "$branch" "$sha" || exit 1; fi
   acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
@@ -1188,6 +1245,30 @@ stop)
   # Unreconciled work comes first: the turn is mid-task, so the after-run analysis waits for a
   # boundary and only the reconciliation below can block.
   if [ "$pending" != 1 ]; then
+    # Runtime asks (references/planning-and-tracking.md § Runtime asks): a
+    # deployed system's clause is met only by a production run after its deploy. While the newest
+    # reconcile still lists one as `runtime: open`, block once per ledger snapshot, also on a
+    # stop_hook_active continuation (its own marker bounds it), so hand-back waits on the next run.
+    # It marks reconblock so the after-run analysis may still follow on the continuation it causes.
+    ropen="$(runtime_open "$LEDGER")"
+    if [ -n "$ropen" ]; then
+      rsnap="$(cksum < "$LEDGER")"
+      if [ "$(cat "$STATE/$SID.runtimegate" 2>/dev/null)" != "$rsnap" ]; then
+        printf '%s\n' "$rsnap" > "$STATE/$SID.runtimegate" 2>/dev/null || exit 0
+        [ -n "$ask_ts" ] && printf '%s\n' "$ask_ts" > "$STATE/$SID.reconblock" 2>/dev/null
+        jq -cn --arg l "$ropen" --arg r "The newest reconciliation in $LEDGER lists runtime clauses still open:" \
+          --arg t "A deployed system's runtime clause is met only by a production run that started after its \
+deploy (references/planning-and-tracking.md, Runtime asks). Before finishing: wait \
+event-driven for the next deploy or scheduled run (gh run watch <id>, or a run_in_background wait with a \
+timeout; never a cron or a tight poll), read its output against each open clause, fix and deploy what \
+failed, then append a reconcile whose line for each clause reads runtime: observed <evidence link> or \
+runtime: blocked <Simon-only reason>. Stop early only for the same failure in 2 consecutive runs, a \
+Simon-only decision, or a flake, naming the clause, runs and next step; no archive line while one is open. \
+This fires at most once per ledger snapshot." \
+          '{decision:"block",reason:($r + "\n" + $l + "\n" + $t)}'
+        exit 0
+      fi
+    fi
     # After-run analysis, run automatically. The helper owns the decision from facts the model does
     # not set: published reports (their publish time is the watermark, so a window is never analysed
     # twice), new tool calls, failures and corrections since that watermark, this turn's own work,
@@ -1248,7 +1329,7 @@ the new fact: rules/communication.md forbids re-printing an unchanged block. Thi
   list="$(printf '%s\n' "$open" | while IFS="$(printf '\t')" read -r oroot obranch osha; do
     printf '  %s (%s) at %s\n' "$obranch" "$oroot" "${osha:0:7}"
     CARRY_DIR="$oroot"; carry="$(carriable_heads "$osha" "$obranch")"
-    for t in light standard deep; do
+    for t in hotfix light standard deep; do
       st="$(stage_status "$t" "$osha" "$obranch" "$carry")"
       m="$(printf '%s\n' "$st" | sed -n 1p)"; f="$(printf '%s\n' "$st" | sed -n 2p)"
       if [ -n "$m" ]; then printf '    %s: Not run: %s\n' "$t" "$m"
@@ -1264,8 +1345,8 @@ stage listed under that tier above with the Skill tool, from the checkout at tha
 its receipt; a receipt on an older head does not count). When that branch's checkout is not this \
 session's cwd, record each stage you ran for it with \
 \`~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>\` (it records that dir's HEAD). Then record the gate:
-  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
-BLOCKED, N/A and a light or standard PASS need a reason: the exact blocker, why the harness does not \
+  ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [hotfix|light|standard|deep] [reason]
+BLOCKED, N/A and a hotfix, light or standard PASS need a reason: the exact blocker, why the harness does not \
 apply to this push, or the tier's trigger and skipped stages. A standard or deep BLOCKED \
 reason holds \"All stages ran\" or \"Not run: <stage>, <stage>\" naming each stage not invoked as its own \
 skill on that head; a standard or deep PASS holds \"All stages ran\" and is refused with any \"Not run:\" list. \
@@ -1273,7 +1354,9 @@ A PASS names its tier and is refused while any stage that tier requires has no r
 Run every stage the tier requires first, on the newest head, unprompted, even when an external blocker makes it BLOCKED. A gate \
 recorded for an older head does not count once a newer head is pushed; only each branch's latest head is listed. A light or standard tier reading \"carried from\" \
 needs only the follow-up delta's own checks (its affected tests, one screenshot if it is visible, the PR body's head) before \
-the gate (references/testing-strategy.md, Follow-up pushes). When Simon waived the checks for this PR, record \
+the gate (references/testing-strategy.md, Follow-up pushes). On a light head with an open PR, \`gate\` and \`stages light <sha> <branch>\` \
+drop sk:ship-screenshot-changes (the landing gate checks the PR's Screenshots section) and, when the PR has no review or \
+comment, sk:ship-resolve-pr-comments; a hotfix head drops the latter the same way. When Simon waived the checks for this PR, record \
 gate <branch> <sha> N/A <tier> \"waived by Simon: <his words verbatim>\"; it covers the branch's later heads. \
 This fires at most once per set of open pushes."
   jq -cn --arg r "$msg" '{decision:"block",reason:$r}'

@@ -62,7 +62,8 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
 ```
 <root>/index.json             {"boundary": "work", "match": ["YourOrg/"]}
 <root>/projects/<project>.json {"match": [...], "ignoreProjectInstructions": false, "monitor": {...},
-                               "monitoringOnly": {"paths": [...], "offlineTests": [...], "requiredChecks": [...]}}
+                               "monitoringOnly": {"paths": [...], "offlineTests": [...], "requiredChecks": [...]},
+                               "installedBuilds": {"pathsIgnore": [...]}}
 <root>/<provider>.json        {"provider", "capabilities", "scope", "routes": [route, ...]}
 <root>/health.json            {"<provider>/<route id>": {"lastSuccess": {...}, "lastFailure": {...}}}
 ```
@@ -76,7 +77,11 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
   optional `monitor` (the daily health pulse's probes and project SQL, `references/production-monitoring.md`),
   optional `monitoringOnly` (the monitoring bot's own path globs, offline suites, required CI checks as
   GitHub Actions `<workflow> / <job>` names, never a commit-status context, read only by
-  `bin/monitoring_only.py`; `references/git-pr-deploy.md` § Monitoring-only changes).
+  `bin/monitoring_only.py`; `references/git-pr-deploy.md` § Monitoring-only changes), optional
+  `installedBuilds.pathsIgnore` (globs, same rules as `monitoringOnly.paths`, of files no installed
+  native build calls or loads, e.g. a separate marketing-site Worker; read by `bin/pr-landing-gate.py`
+  through `bin/monitoring_only.py`; `references/git-pr-deploy.md` § Deploy safety check 4; an unreadable
+  or malformed value ignores nothing).
   The project's root decides its boundary; it must agree with the identity overlay.
 - `<provider>.json` — one file per provider: `provider`, `capabilities` (e.g. `slack.send`,
   `supabase.read`), `scope` (default for its routes), `routes` in PREFERENCE order, optional `notes`.
@@ -301,7 +306,7 @@ command in its `recipe`; the record holds the app id. Every `codex-app` run (ver
 2. Passes `-C <dir>` and absolute file paths (exec otherwise runs in the repo directory and relative
    paths break), and `-s workspace-write -c sandbox_workspace_write.network_access=true` when the run
    uploads bytes with `curl`.
-3. Measures the draft first: `python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`;
+3. Measures the draft first: `python3 ~/.claude/bin/outbound_message.py check <draft-file>`;
    expect `ok`, and cut the draft on exit 1. The PreToolUse guard does not see a `codex exec` prompt.
 4. Verifies the workspace by display name OR URL subdomain (a workspace-list tool can return either)
    and the signed-in identity, runs the thread dedupe check below, sends exactly once, never retries,

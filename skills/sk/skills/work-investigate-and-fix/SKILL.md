@@ -1,6 +1,6 @@
 ---
 name: work-investigate-and-fix
-description: Front door for production alerts and error reports. Takes pasted alerts, an error report, a Slack alert link, a teammate's or bot's pasted report of a production defect ("take a look and file it"), a provider-outage side effect or "investigate X and fix it"; checks the report's premise and whether an open or merged PR already fixes it; gives every symptom a verdict, finds the root cause from corroborated production data, logs, provider records, git history and the ticket's stated intent, fixes it at the owning source with a regression test, ships the PR, proves users gain from the fix, sweeps the recent deploys for regressions and verifies the deploy. Use for "investigate these alerts and fix them", "investigate X and fix it", a pasted Slack alert, "why is this failing in production", "is this really happening", "do we already have a PR for this", "is prod ok", or "any regressions since the deploy". Composes /sk:work-full-detailed-workflow as the build spine; does not restate it.
+description: Front door for production alerts and error reports. Takes pasted alerts, an error report, a Slack alert link, a teammate's or bot's pasted report of a production defect ("take a look and file it"), a provider-outage side effect or "investigate X and fix it"; checks the report's premise and whether an open or merged PR already fixes it; gives every symptom a verdict, finds the root cause from corroborated production data, logs, provider records, git history and the ticket's stated intent, fixes it at the owning source with a regression test, ships the PR, proves users gain from the fix, sweeps the recent deploys for regressions and verifies the deploy. Use for "investigate these alerts and fix them", "investigate X and fix it", "hotfix this", "prod is broken, ship a hotfix", a pasted Slack alert, "why is this failing in production", "is this really happening", "do we already have a PR for this", "is prod ok", or "any regressions since the deploy". Composes /sk:work-full-detailed-workflow as the build spine; does not restate it.
 argument-hint: "the pasted alerts, error report, alert link, or the symptom to investigate"
 ---
 
@@ -9,6 +9,19 @@ argument-hint: "the pasted alerts, error report, alert link, or the symptom to i
 DO run this as the front door, then hand the fix to `/sk:work-full-detailed-workflow` as the spine.
 It composes the owners below and does not restate them. Prod stays read-only (`rules/connectors.md`);
 a paid provider call follows `rules/spend-approval.md`.
+
+## 0 · Hotfix mode
+
+DO switch to hotfix mode when production is broken now and the fix meets the Hotfix trigger in
+`references/testing-strategy.md` § Size the checks to the change; run § Hotfix tier there as the
+whole build-and-ship path, and say so in the first reply.
+DO keep steps 1-4 and 5's fix evidence, and cut what that section skips:
+`/sk:work-does-this-make-sense-to-build`, the spine's planning and ticket stages, and every Standard
+or Deep stage. Run step 7 after the merge, never before it.
+DON'T let a hotfix grow: a second product file, a migration or a new surface ends hotfix mode and
+re-sizes the PR at its new tier.
+TEST: a hotfix run's PR records `Tier: hotfix`, its gate names `hotfix`, and no skipped stage ran
+before the merge.
 
 ## 1 · One item per symptom
 
@@ -62,6 +75,13 @@ TEST: a "bug" verdict cites the commit and the ticket intent it contradicts; an 
 names the runtime identifiers it was compared against.
 DO reproduce each "bug" verdict, with its control, before step 5's fix:
 `references/testing-strategy.md` § Reproduce a reported bug first, then prove the root cause.
+DO write each root cause as an evidence chain, one link per line, from the production symptom (the
+status code, error or wrong record, with its count) through each hop to the line that causes it,
+every link citing its source (log query, row, commit, file:line).
+DON'T stop at the line that raises the error when another line decides it (e.g. a 403 raised by an
+allowlist check whose cause is the new caller missing from the list).
+TEST: every chain ends at the line the fix changes, and the reproduction fails on the base at that
+link.
 
 ## 4 · Check for an existing fix, then judge the rest
 
@@ -78,6 +98,8 @@ DO then judge the fix before building it.
 
 DO run `/sk:work-does-this-make-sense-to-build` on the proposed fix and research the mainstream
 practice (`references/research.md`), citing primary sources.
+TEST: the PR body's `Mainstream practice:` line holds at least 1 primary-source link, or `departs:`
+with the reason this fix differs.
 
 ## 5 · Fix at the root and ship it
 
@@ -85,6 +107,14 @@ DO fix the single owner of the value or behaviour (`rules/engineering-standards.
 of truth) and the class of failure (`rules/process.md` § Fix the CLASS of failure).
 DO keep step 3's reproduction and control as the regression tests; the hand-back carries that
 section's old-code and fixed-code results.
+DO check the happy paths AND the paid paths the touched code serves, on base and head:
+`references/testing-strategy.md` § Regression check, its pay-path pass included.
+TEST: the PR body's `## Regression check` holds `Happy paths:` and `Paid paths:` lines, each path
+with a test passing on base and head, or `none: <why>`.
+DO sweep the class: the sibling callers of the fixed rule (`git grep` its key, list or check) and
+the sibling symptoms of the same flow (`references/testing-strategy.md` § Production compatibility
+gates); a guard each sibling needs lands in this PR or a test that fails when a sibling misses it.
+TEST: the hand-back names the class, the siblings checked with their count, and the class test.
 DO run the repo's local gates (`references/testing-strategy.md` § Defects first), open the PR with
 `/sk:ship-pr` and run `/sk:ship-full-detailed-workflow` on it.
 
@@ -105,7 +135,8 @@ TEST: every deploy in the window has a per-surface before/after line or a stated
 ## 8 · After merge
 
 DO verify the deploy run for the merge sha and run a read-only production smoke against the changed
-behaviour (`references/git-pr-deploy.md` § Shipping is not done until the deploy is verified).
+behaviour (`references/git-pr-deploy.md` § Shipping is not done until the deploy is verified), and
+§ Live request path after every switch flip after any switch the fix or its Deploy TLDR flips.
 Reply to the alert channel only when Simon asks (`references/connectors-setup.md` § Official account
 connectors and completion messages).
 TEST: the report names the deploy run, the live build and the smoke result for each fixed item.

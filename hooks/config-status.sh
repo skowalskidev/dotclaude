@@ -51,6 +51,14 @@ if [ -n "$pending" ]; then
   msg="${msg}NOTE: config change(s) drafted by /sk:claude-config-update are NOT on main yet:
 ${pending}
 Inspect each branch's owner, evidence and current purpose. Resume ready authorized repairs; preserve active, superseded or blocked work until its disposition is established. Do not present a generic land-or-drop question."
+  adopt="$(python3 "$REPO/bin/config_branches.py" --root "$REPO" adoptable 2>/dev/null)"
+  if [ -n "$adopt" ]; then
+    msg="${msg}
+
+ADOPTABLE (no live owner, idle past the adoption window; adopting is standing self-healing authority):
+${adopt}
+In the next config-touching session: \`python3 ~/.claude/bin/config_branches.py adopt <branch>\`, merge origin/main into it (never rebase), keep both sides' intent, run its leased suite, then land it with bin/config-land-check.py. If a landed change already replaces it, run \`config_branches.py supersede <branch> \"<evidence>\"\`. Never drop it silently."
+  fi
 fi
 
 if command -v jq >/dev/null 2>&1; then
