@@ -2388,6 +2388,11 @@ CONTRACTS: dict[str, dict] = {
             "A monitoring-only PR merges with no message read only on today's bar, unchanged: monitoring_merge "
             "(its comment lists the conditions), BAR_PHRASE on the pinned head's gate PASS, required checks, "
             "CLEAN, declared paths and a parent (not delegated) session.",
+            "Any failed or cancelled check on the head declines that bar, except a cancel superseded_cancels "
+            "proves replaced: its run id reads from detailsUrl and a later-created run of the same workflow, "
+            "started no earlier, ran the same job name to SUCCESS with every check SUCCESS or SKIPPED. A "
+            "failure, a same-run duplicate name or an unreadable run id or time still declines; "
+            "hooks/git-commit-guard.test.py drives both directions.",
             "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
             "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
