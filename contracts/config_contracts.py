@@ -2391,12 +2391,12 @@ CONTRACTS: dict[str, dict] = {
             "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
             "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
-            "typed words decide: a plain \"merge #N\" with no later hold word allows with no model call; "
-            "otherwise `claude -p --model haiku` on the subscription (API-key env stripped, --safe-mode, no "
-            "tools) reads his last 20 typed messages and must answer YES with a quote found verbatim in one, "
-            "not negated where he wrote it, holding a merge verb, from a message naming the PR, or naming no "
-            "PR while this session pushed it, or answering a hand-back whose Merge list names it. Any failure, "
-            "timeout or unverifiable quote denies with one line ending \"Say 'merge #N' to merge it\".",
+            "typed words decide by one deterministic rule, no model call: among his last 20 typed messages the "
+            "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
+            "or uses a referent (both, it, them) while it names #N or answers a hand-back that asked a merge "
+            "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "
+            "verb, and no later typed message holds merges. Anything else denies with one line ending "
+            "\"Say 'merge #N' to merge it\".",
             "Only the transcript's typed user turns and queued prompts count: system blocks, pasted fences "
             "and quote lines are stripped; peer envelopes, turns opening with another session's attribution, "
             "isMeta and task-notification turns, tool answers and Claude's text never count.",
@@ -2406,8 +2406,7 @@ CONTRACTS: dict[str, dict] = {
             "to main passes only when bin/config-land-check.py verified every pushed head and it fast-forwards.",
             "A stall past the watchdog or a crash on a command naming merge or push declines; malformed "
             "input naming neither passes. hooks/git-commit-guard.test.py runs every false-block example "
-            "(allowed) and every real hold (denied) with a stub model; GIT_COMMIT_GUARD_LIVE=1 adds the "
-            "live haiku smoke.",
+            "(allowed) and every real hold (denied) with no model call.",
         ],
     },
     "hooks/background-process-guard.py": {

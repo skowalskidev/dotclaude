@@ -13,14 +13,14 @@ wrappers, `bash -c`, eval, command substitutions, gh and git aliases and stdin a
 unwrapped. A command word built at run time beside a merge word, or a shell reading code it cannot
 see (a pipe, a built string) that names a merge, is denied.
 
-A merge passes on one of three paths, in this order:
+A merge passes on one of two paths, in this order:
   - a monitoring-only PR at its bar (monitoring_merge; references/git-pr-deploy.md § Monitoring-only
     changes). No message is read.
-  - "merge #N" in Simon's own typed words, with no later hold word: deterministic, no model call.
-  - one small reasoning step: `claude -p --model haiku` on the subscription, no tools, reads his last
-    20 typed messages and must answer YES with a quote that appears verbatim in one of them, from a
-    message that names the PR, or names no PR while this session pushed it, or answers a hand-back
-    whose Merge list names it. Any failure, timeout or unverifiable answer denies with one line.
+  - Simon's own words, one deterministic rule (words_allow), no model call: among his last 20 typed
+    messages, the newest that orders #N merged (a present-tense merge verb, not negated, not a question,
+    naming #N, or a referent such as "both" or "it" while the message answers a hand-back that asked a
+    merge word for #N on its Merge list, Action needed line or an end-block numbered step) with no later
+    message holding merges. The hand-back only resolves the referent: his words still give the order.
 Only user turns of the transcript count; a peer envelope, a harness block, a tool answer and a
 delegated worker's brief never do. There is no override flag.
 
@@ -38,11 +38,9 @@ import json
 import os
 import re
 import shlex
-import shutil
 import signal
 import subprocess
 import sys
-import tempfile
 import time
 from urllib.parse import quote, unquote
 
@@ -861,6 +859,23 @@ PEER_OPENER_RE = re.compile(r"\A\W*(?:from (?!this\b|that\b|my\b|our\b|the curre
                             r"|another claude session sent a message"
                             r"|this came from another claude session|\[?(?:peer|agent) message\b)", re.I)
 MERGE_LIST_RE = re.compile(r"^[\s>*_`-]*merge list\b[^\n]*", re.I | re.M)
+# The hand-back's mandated ask lines (rules/communication.md § Answer first): line 1 `Action needed…`, and the numbered
+# steps under the closing `Your call` / `Questions` block.
+ACTION_LINE_RE = re.compile(r"^[\s>*_`-]*action needed\b[^\n]*", re.I | re.M)
+END_BLOCK_RE = re.compile(r"^[\s>*_`#-]*(?:your call|questions)\b[^\n]*$", re.I | re.M)
+ASK_STEP_RE = re.compile(r"^[ \t>*_`-]*\d+[.)][ \t]+[^\n]*", re.M)
+
+
+def handback_merge_list(text: str) -> set:
+    """The PRs a hand-back asks Simon to give a merge word for: its `Merge list` line, else every #N on an
+    `Action needed` line or an end-block numbered step that carries a merge verb. It only names the referent of
+    his own reply ("merge both"); his typed words still have to give the order."""
+    found = MERGE_LIST_RE.search(text)
+    if found:
+        return set(re.findall(r"#(\d+)\b", found.group(0)))
+    ends = list(END_BLOCK_RE.finditer(text))
+    asks = ACTION_LINE_RE.findall(text) + (ASK_STEP_RE.findall(text, ends[-1].end()) if ends else [])
+    return {n for line in asks if MERGE_VERB_RE.search(line) for n in re.findall(r"#(\d+)\b", line)}
 
 
 def own_text(text: str) -> str:
@@ -882,8 +897,7 @@ def typed_messages(path: str) -> tuple:
         kind, message = e.get("type"), e.get("message") or {}
         if kind == "assistant" and message.get("stop_reason") == "end_turn":
             handbacks += 1
-            found = MERGE_LIST_RE.search(part_text(message.get("content")))
-            merge_list = set(re.findall(r"#(\d+)\b", found.group(0))) if found else set()
+            merge_list = handback_merge_list(part_text(message.get("content")))
             continue
         text = None
         if kind == "attachment":
@@ -1494,36 +1508,21 @@ def monitoring_merge(payload: dict, command: str, words: list, collect: list = N
 
 # ---------------------------------------------------------------- the merge decision
 
-STATE_DIR = os.path.join(os.path.expanduser("~"), ".claude", ".intent-ledger")
-WINDOW = 20  # Simon's newest typed messages the reasoning step reads
-MODEL_TIMEOUT_S = 15.0
-MODEL_CMD_ENV = "GIT_COMMIT_GUARD_MODEL_CMD"  # the tests' stand-in for the claude CLI; the hook's own env only
-# Never --bare (it bills the API) and never an API key: the call runs on the Claude subscription login.
-BILLING_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK",
-               "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "CLAUDE_CODE_SIMPLE")
+WINDOW = 20  # Simon's newest typed messages the check reads
 MERGING_FLAGS = {"--auto", "--admin", "--merge", "-m", "--squash", "-s", "--rebase", "-r", "--delete-branch", "-d",
                  "--subject", "-t", "--body", "-b", "--body-file", "-F", "--author-email", "-A", "--match-head-commit"}
 MERGE_VERB_RE = re.compile(r"\b(?:merg\w*|ship\w*|deploy\w*|land\w*|releas\w*|push\w*|enqueue\w*|go(?:es|ing)? live"
                            r"|roll(?:ing)? (?:it |them )?out)\b", re.I)
 HOLD_WORD_RE = re.compile(r"\b(?:stop|hold|wait|pause|cancel|halt|freeze|don'?t|dont|do not|never|not now|not yet"
                           r"|revert|undo)\b", re.I)
-CONDITION_RE = re.compile(r"\b(?:after|once|when|whenever|if|unless|until|till|tomorrow|tonight|later|but|except)\b",
-                          re.I)
+# A message opening with one of these holds every merge ("wait", "hold off on that", "not yet").
+BARE_HOLD_RE = re.compile(r"^\W*(?:stop|hold|wait|pause|cancel|halt|freeze|not now|not yet)\b", re.I)
 PR_REF_RE = re.compile(r"(?:#|\bprs?\s*#?\s*|\bpull requests?\s*#?\s*|/pulls?/)(\d+)\b", re.I)
+# Words in an order that point at PRs named elsewhere: in the same message, else in the hand-back it answers.
+REFERENT_RE = re.compile(r"\b(?:both|all|them|these|those|it|this|that|the prs|yes|ok(?:ay)?|go|do it)\b", re.I)
+QUESTION_RE = re.compile(r"^\W*(?:(?:so|ok|okay|and|but|then)\W+)?(?:should|shall|can|could|would|is|are|was|what|why|how|which|who|does|did"
+                         r"|do (?:we|you|i))\b", re.I)
 APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'", "“": '"', "”": '"'})
-MODEL_SYSTEM = (
-    "You check one thing for a git safety hook. Reply in exactly two lines:\n"
-    "ANSWER: YES or NO\n"
-    "QUOTE: one contiguous span of Simon's words, copied exactly, that decides it (no ellipsis)\n"
-    "Only the numbered messages are Simon's typed words. YES only when his words ask for this PR to be merged, "
-    "deployed, shipped or landed: by its number, as the work this session did, or as part of a set he asks to "
-    "merge. A conditional order (\"merge when CI is green\", \"if there are no regressions\") is YES; the "
-    "condition is checked elsewhere. A later message of his that holds, pauses or cancels merging overrides an "
-    "earlier order; a pause of other work does not. A question, a hypothetical or a hold is NO. When unsure, NO.")
-
-
-def _norm(text: str) -> str:
-    return " ".join((text or "").translate(APOSTROPHES).casefold().split())
 
 
 def names_pr(text: str, number: str) -> bool:
@@ -1532,15 +1531,43 @@ def names_pr(text: str, number: str) -> bool:
                 or (len(n) >= 3 and re.search(rf"(?<![\w.#/:-]){n}(?![\w:]|\.\d)", text)))
 
 
-def plain_merge(text: str, number: str) -> bool:
-    """A sentence saying "merge #N" with no hold word, condition or question in it."""
-    n = number.lstrip("0") or "0"
-    for sentence in re.split(r"(?<=[.!?;])\s+|\n+", text.translate(APOSTROPHES)):
-        m = re.search(rf"\bmerge\s+(?:(?:pr|pull request)\s*)?#?0*{n}(?!\d)", sentence, re.I)
-        if m and not (sentence.rstrip().endswith("?") or HOLD_WORD_RE.search(sentence)
-                      or CONDITION_RE.search(sentence)):
-            return True
-    return False
+def _gives_order(sentence: str) -> bool:
+    """A merge verb used as one: not past tense, not a noun after a determiner ("the merge guard"), not
+    negated, in a sentence that is not a question."""
+    if sentence.rstrip().endswith("?") or QUESTION_RE.match(sentence):
+        return False
+    return any(not m.group(0).lower().endswith("ed") and not _negated_before(sentence, m.start())
+               and not re.search(r"\b(?:the|a|an|this|that|my|our|your|its)\W+$", sentence[:m.start()], re.I)
+               for m in MERGE_VERB_RE.finditer(sentence))
+
+
+def orders(text: str, number: str, asked: set) -> bool:
+    """One sentence of this typed message orders #N merged: by its number, or by a referent ("both", "it")
+    while the message names #N, or names no PR and answers a hand-back that asked a merge word for #N."""
+    text = text.translate(APOSTROPHES)
+    covered = names_pr(text, number) or (not PR_REF_RE.search(text) and number in asked)
+    return any(_gives_order(s) and (names_pr(s, number) or (covered and REFERENT_RE.search(s)))
+               for s in re.split(r"(?<=[.!?;])\s+|\n+", text) if s.strip())
+
+
+def holds(text: str, number: str) -> bool:
+    """A typed message that holds merging #N: a bare hold, or a hold word beside a merge verb aimed at #N or
+    at no PR in particular ("don't merge anything yet")."""
+    text = text.translate(APOSTROPHES)
+    if BARE_HOLD_RE.match(text):
+        return True
+    return bool(HOLD_WORD_RE.search(text) and MERGE_VERB_RE.search(text)
+                and (names_pr(text, number) or not PR_REF_RE.search(text)))
+
+
+def words_allow(number: str, window: list) -> tuple:
+    """(allowed, cause): the newest of Simon's typed messages that orders #N merged, with no hold after it."""
+    for text, asked, _ in reversed(window):
+        if orders(text, number, asked):
+            return True, ""
+        if holds(text, number):
+            return False, f"the user's later message (\"{' '.join(text.split())[:80]}\") holds merging"
+    return False, f"no message the user typed says merge #{number}"
 
 
 def pr_view(number: str, slug: str, where) -> dict:
@@ -1555,104 +1582,6 @@ def pr_view(number: str, slug: str, where) -> dict:
         pr = {}
     got = re.search(r"/pull/(\d+)/?$", str(pr.get("url", ""))) if isinstance(pr, dict) else None
     return pr if got and got.group(1) == number else {}
-
-
-def session_pushed(payload: dict, pr: dict, where) -> bool:
-    """The PR is open and its head branch is one this session pushed to its repository (hooks/intent-ledger.sh
-    `push` records each branch push); a worktree removed since counts through the current checkout's origin."""
-    try:
-        with open(os.path.join(STATE_DIR, f"{session_id(payload)}.pushes")) as f:
-            pushed = {tuple(line.rstrip("\n").split("\t")[:2]) for line in f if line.count("\t") >= 2}
-    except OSError:
-        return False
-    slug = (re.search(r"github\.com/([^/]+/[^/]+)/pull/", str(pr.get("url", ""))) or [None, ""])[1].lower()
-    if pr.get("state") != "OPEN" or not slug or not pr.get("headRefName"):
-        return False
-    origin = lambda d: (re.search(r"github\.com[:/]([^/\s]+/[^/\s]+?)(?:\.git)?/?$", _git(d, "remote", "get-url", "origin"))
-                        or [None, ""])[1].lower()
-    return any(branch == pr["headRefName"] and origin(root if os.path.isdir(root) else str(where or "")) == slug
-               for root, branch in pushed)
-
-
-def ask_model(prompt: str, timeout: float):
-    """The reasoning step's raw answer, or None on any failure."""
-    stub = os.environ.get(MODEL_CMD_ENV)
-    argv = shlex.split(stub) if stub else [shutil.which("claude") or os.path.expanduser("~/.local/bin/claude")]
-    argv += ["-p", "--model", "haiku", "--safe-mode", "--tools", "", "--no-session-persistence",
-             "--output-format", "text", "--system-prompt", MODEL_SYSTEM]
-    env = {k: v for k, v in os.environ.items() if k not in BILLING_ENV}
-    try:
-        p = _run(argv, input=prompt, capture_output=True, text=True, timeout=timeout, env=env,
-                 cwd=tempfile.gettempdir())
-    except Exception:
-        return None
-    return p.stdout if p.returncode == 0 else None
-
-
-def parse_answer(out: str) -> tuple:
-    answer = re.search(r"^\W*(?:answer\W*)?(YES|NO)\b", out or "", re.I | re.M)
-    quote = re.search(r"^\W*quote\W*:?\s*(.+)$", out or "", re.I | re.M)
-    q = quote.group(1).strip().strip("\"'`“”‘’").rstrip(".!") if quote else ""
-    # The model sees each message as "[N] text" and sometimes quotes the label with it ("[20] …", "20] …"):
-    # the label is ours, not Simon's words, so it is dropped before the verbatim check.
-    q = re.sub(r"^\[?\d{1,3}\]\s*(?:\(answers a hand-back[^)]*\)\s*)?", "", q).strip().strip("\"'`“”‘’")
-    return bool(answer and answer.group(1).upper() == "YES"), q
-
-
-def words_allow(payload: dict, number: str, window: list, pr_facts) -> tuple:
-    """(allowed, cause) from Simon's typed messages: "merge #N" with no later hold word, else the model step.
-    pr_facts() reads (PR view, pushed by this session) only when the model step needs them."""
-    if not window:
-        return False, "no message the user typed is in this session's transcript"
-    for k in range(len(window) - 1, -1, -1):
-        if names_pr(window[k][0], number):
-            if plain_merge(window[k][0], number) and not any(HOLD_WORD_RE.search(t) for t, _, _ in window[k + 1:]):
-                return True, ""
-            break
-    pr, pushed = pr_facts()
-    facts = (f"PR #{number}" + (f": \"{pr['title']}\", branch {pr.get('headRefName')}" if pr.get("title") else "")
-             + f". Pushed by this session: {'yes' if pushed else 'no'}.")
-    lines = [f"[{k + 1}]{' (answers a hand-back whose Merge list names it)' if number in m else ''} {t[:1500]}"
-             for k, (t, m, _) in enumerate(window)]
-    prompt = (facts + "\n\nSimon's typed messages, oldest first:\n" + "\n".join(lines)
-              + f"\n\nDoes Simon want PR #{number} merged now? Answer YES or NO, plus the exact quote of his words "
-              "that decides it.")
-    try:
-        left = time_left(4.0)
-    except OutOfTime:
-        return False, "the merge check ran out of time"
-    out = ask_model(prompt, min(MODEL_TIMEOUT_S, left - 1.5))
-    if out is None:
-        return False, "the merge check's model call failed or timed out"
-    yes, quote = parse_answer(out)
-    shown = " ".join(quote.split())[:100]
-    if not yes:
-        return False, "the user's messages do not ask for this merge now" + (f" (\"{shown}\")" if shown else "")
-    q = _norm(quote)
-    for text, merge_list, _ in reversed(window):
-        nt = _norm(text)
-        at = nt.find(q)
-        if at < 0:
-            continue
-        # The merge order is read in the quoted message itself: the quote proves which message decides, and the
-        # model may quote only part of it ("…a simple log to close" from "…, then merge this").
-        verb = MERGE_VERB_RE.search(q)
-        pos = at + verb.start() if verb else None
-        if pos is None:
-            later = MERGE_VERB_RE.search(nt, at)
-            pos = later.start() if later else None
-        if pos is None:
-            return False, f"the quoted message (\"{shown}\") gives no merge order"
-        if _negated_before(nt, pos):
-            return False, f"the quoted words are negated where the user wrote them (\"{shown}\")"
-        if names_pr(text, number) or number in merge_list:
-            return True, ""
-        if PR_REF_RE.search(text):
-            return False, f"the quoted message names other PRs, not #{number}"
-        if pushed:
-            return True, ""
-        return False, f"the quoted message names no PR, and #{number} is not a PR this session pushed"
-    return False, f"the quoted words (\"{shown}\") are not in the user's typed messages"
 
 
 def pinned_head(words: list) -> str:
@@ -1701,7 +1630,6 @@ def merge_denial(payload: dict, margs: list, where, scan: Scan) -> str:
         mo = _monitoring_module()
         slug = slug or mo.origin_slug(where)
         spec, error = mo.spec_for(slug) if slug else (None, "")
-        pr = {}
         if spec or error:  # a repository with a bot class: the merge pins the head that was read
             pr = pr_view(number, slug, where)
             head = str(pr.get("headRefOid") or "").lower()
@@ -1711,10 +1639,7 @@ def merge_denial(payload: dict, margs: list, where, scan: Scan) -> str:
                 return (f"Blocked `gh pr merge {number}`: merges in this repository pin the PR's head; add "
                         f"--match-head-commit {head or '<full head sha>'} and rerun.{mline}")
         msgs, _ = typed_messages(str(payload.get("transcript_path") or ""))
-        def pr_facts():
-            view = pr or pr_view(number, slug, where)
-            return view, session_pushed(payload, view, where)
-        allowed, cause = words_allow(payload, number, msgs[-WINDOW:], pr_facts)
+        allowed, cause = words_allow(number, msgs[-WINDOW:])
     except OutOfTime:
         allowed, cause = False, "the merge check ran out of time"
     except Exception as exc:
@@ -1868,8 +1793,8 @@ def _supervise() -> int:
 
 
 def explain(argv: list) -> int:
-    """Read-only dry-run of the monitoring-only path for one PR: every failing check, not just the first.
-    Exit 0 when the bar path would merge it, 1 when it would not, 2 on bad input."""
+    """Read-only dry-run for one PR: every failing monitoring-only check, then the user's-words verdict over
+    --transcript. Exit 0 when either path would merge it, 1 when neither would, 2 on bad input."""
     import argparse
     ap = argparse.ArgumentParser(prog="git-commit-guard.py --explain")
     ap.add_argument("--explain", action="store_true")
@@ -1902,7 +1827,10 @@ def explain(argv: list) -> int:
     print(f"verdict: {'MERGES AT THE BAR' if ok else 'DECLINES'}; failing checks: {len(collect)}")
     for cause in collect:
         print(f"- {cause}")
-    return 0 if ok else 1
+    words, why = words_allow(number, typed_messages(a.transcript)[0][-WINDOW:]) if a.transcript else (False, "")
+    if a.transcript:
+        print(f"user's words: {'ALLOW' if words else 'DECLINE: ' + why}")
+    return 0 if ok or words else 1
 
 
 if __name__ == "__main__":

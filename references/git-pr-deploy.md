@@ -286,11 +286,11 @@ specific irreversible merge.
 **The guard (`hooks/git-commit-guard.py`, rebuilt 26 Nov on Simon's "bare-bones, not a bottleneck"):**
 it judges only commands the shell runs, so text that names a merge (a note, a heredoc body, a PR body,
 a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and a GraphQL dequeue run.
-A merge passes on Simon's own typed "merge #N" with no later hold word, or else on one haiku call
-(subscription, no tools) that reads his last 20 typed messages and must answer YES with a quote found
-verbatim in a message naming the PR, naming no PR while this session pushed it, or answering a
-hand-back whose `Merge list:` names it. Peer notes, harness blocks, tool answers and Claude's text never
-count, and a delegated worker never merges. A deny is one line ending "Say 'merge #N' to merge it": relay
+A merge passes on one deterministic rule over Simon's last 20 typed messages, no model call: the newest
+that orders it (a present-tense merge verb, not negated, not a question) names `#N`, or uses a referent
+("both", "it") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
+`Action needed` line or an end-block numbered step, and no later message holds merges. Peer notes,
+harness blocks, tool answers and Claude's text never count, and a delegated worker never merges. A deny is one line ending "Say 'merge #N' to merge it": relay
 that ask only when the cause is about his words; any other cause (a variable selector, a missing
 `--match-head-commit` in a repo with a bot class, GH_REPO in the command) is yours to fix. A
 default-branch push needs `CLAUDE_ALLOW_MAIN_COMMIT=1` in the session's starting environment (an inline
