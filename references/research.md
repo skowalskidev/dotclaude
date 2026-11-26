@@ -76,14 +76,14 @@ it has written its own.
 DO brief a design-fidelity judge with the inputs and pass bar in `references/workflow-loops.md` § Build
 from a supplied design source; restate none of them here.
 DO launch the OpenAI judge read-only from a Claude chat, with the brief on stdin:
-`AGENT_ALLOW_CROSS_PROVIDER=1 timeout 900 ~/.claude/bin/codex-launch.py -p --sandbox read-only < <brief file>`,
+`AGENT_ROLE=judge timeout 900 ~/.claude/bin/codex-launch.py -p --sandbox read-only < <brief file>`,
 from inside the task's git checkout: Codex refuses an untrusted non-git cwd. For a data-only brief outside any
-repo, run `cd /tmp && AGENT_ALLOW_CROSS_PROVIDER=1 timeout 900 ~/.claude/bin/codex-launch.py exec
+repo, run `cd /tmp && AGENT_ROLE=judge timeout 900 ~/.claude/bin/codex-launch.py exec
 --skip-git-repo-check -C /tmp -s read-only -o <verdict file> - < <brief file>` and read `<verdict file>` after exit.
 TEST: the judge's first launch completes (the fix for a data-only judge started from /tmp that failed with "Not
 inside a trusted directory").
-From an OpenAI chat the Claude judge runs through `~/.claude/bin/claude-launch.py -p` with the same
-variable. Never use pal, an API key or any metered route for a judge.
+`AGENT_ROLE=judge` passes the provider guard for a read-only launch only; a writable launch is refused as a cross-provider worker.
+From an OpenAI chat the Claude judge runs through `~/.claude/bin/claude-launch.py -p` with `AGENT_ALLOW_CROSS_PROVIDER=1`. Never use pal, an API key or any metered route for a judge.
 DO pin a code judge to the change: pass the change's own checkout with `-C <worktree path>` (Codex
 `--cd`) and name its head sha in the brief, telling the judge to confirm `git rev-parse HEAD` first.
 DON'T let the judge inherit the launching shell's directory: `codex-launch.py review` refuses a run
