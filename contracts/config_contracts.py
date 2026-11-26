@@ -687,6 +687,7 @@ CONTRACTS: dict[str, dict] = {
             "Research-first naming: before the first new artifact name, tally the term each major vendor's own page uses, name from the majority and record term, tally and links in the plan.",
             "Payment paths: a refusal names one of four reasons (double charge, wrong price, wrong payer, already holds); offer-picking rules and our own failed reads fail open; transient failures retry quietly in one layer through one shared owner with a whole-request idempotency key.",
             "Legacy policy treats installed native app builds as deployed code and points to git-pr-deploy.md Deploy safety for them and for transitional reads, without restating the procedure.",
+            "A rule many current and future consumers apply lives at one shared boundary fed at the source event, with a drift-guard test; a per-consumer copy fails it. Detail lives in code-best-practices.md.",
         ],
     },
     "rules/process.md": {
@@ -825,6 +826,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "DRY/SRP, reuse before building, observability, UX standards, scope discipline.",
         "criteria": [
             "Owns the single-source-of-truth guidance the other catalogs point at.",
+            "Owns the shared-boundary method: governed rules apply in a view, policy, scope, middleware, trigger or base class, new members are captured at the source event, and a drift-guard test fails any consumer reading around the owner.",
             "Stop every watcher, poll, monitor or scheduled wake when its target finishes or its owner hands back; none wakes a finished agent.",
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
             "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
@@ -1819,7 +1821,7 @@ CONTRACTS: dict[str, dict] = {
             "can get through what the diff produced.",
             "The journey pass is runnable on its own, so asking to walk a flow does not spend the "
             "multi-model code review to get there.",
-            "Every review runs a caller-parity lens: each newly mounted shared part against its existing callers and each modified pre-existing file's hunks traced to their callers; a missing wrapper, frame, provider or prop is a finding.",
+            "Every review runs a caller-parity lens: each newly mounted shared part against its existing callers, each modified pre-existing file's hunks traced to their callers, and each new reader of governed data against its owner; a missing wrapper, frame, provider or prop, or a bypassed owner, is a finding.",
             "A fix round's written rules name every reader of a value they change, and the round ends "
             "with a fresh judge over the files it changed. Run criterion judges beside review lenses "
             "before fixes, then refresh verdicts affected by changed dependencies and resolve new gaps before the heavy gate.",

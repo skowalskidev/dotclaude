@@ -34,9 +34,11 @@ files of a large diff to the models while the UI, tests and docs go unreviewed.)
 **DO run a caller-parity lens in every review, at every tier that reviews:** compare each shared part
 the diff newly mounts against its existing callers (`references/code-best-practices.md` § Mount a
 shared part the way its existing callers do), and trace every modified pre-existing file's hunks to
-their existing callers (`references/testing-strategy.md` § Regression check). A missing wrapper,
-frame, provider or prop, or an unproven outside path, is a finding. TEST: the report names, per newly
-mounted shared part, the caller compared against.
+their existing callers (`references/testing-strategy.md` § Regression check), and check each new
+reader of governed data against its owner (`references/code-best-practices.md` § Apply a shared rule
+at the boundary, never per consumer). A missing wrapper, frame, provider or prop, a reader that
+bypasses an existing owner, or an unproven outside path, is a finding. TEST: the report names, per
+newly mounted shared part, the caller compared against, and per new reader, the owner it goes through.
 
 ### Subscription reviewers, in either project boundary
 

@@ -315,6 +315,13 @@ Worked example: `~/.zsh-work-codex.zsh` and the `~/.claude` repo are one live lo
 symlinked/tracked so `git status` is the whole test. Apply the same discipline in code.
 
 Examples moved here from the rule (each still binding):
+- Derive over store: "is this the last retry attempt?" is inferred from the configured retry count
+  vs. the current attempt, not saved as its own flag.
+- One source per fact: a discount percentage set once and pulled everywhere, not typed into each
+  surface. If two independent paths exist (e.g. two billing providers), each derives from its own
+  single source; neither hand-maintains a copy of the other.
+- Share behaviour: when asked to share one convenience, check the same surfaces for the others they
+  each half-implement; they cluster.
 - Share behaviour: an autosave copied without its flush-on-unmount quietly loses whatever was typed in
   the last debounce window.
 - A new guard on every path: a content rule added to one generation path while a second path feeding
@@ -330,6 +337,36 @@ That is not tidiness for its own sake. This file used to carry its own copy of t
 and "a new guard belongs on every path that needs it". Anyone reading the copy got a weaker rule than
 the one Simon wrote, which is precisely the failure the rule predicts. `hooks/config-contract.test.py`
 now fails on a paragraph that appears in two config files.
+
+### Apply a shared rule at the boundary, never per consumer
+
+Owns the detail of the rule's shared-boundary line. The codebase grows; a rule each consumer must
+remember is a rule the next consumer forgets.
+
+**DO put a classification or rule that many current AND future consumers apply in ONE owner that
+the shared boundary applies automatically,** the moment a second consumer needs it. Governed kinds:
+test or internal traffic, permissions, prices, feature eligibility, tenancy, soft-archived rows.
+Pick the boundary every reader already passes through:
+- data: a view or security-barrier view that readers query instead of the base table, a row-level
+  security policy, or a default ORM scope;
+- requests: middleware or a route wrapper;
+- writes: a trigger or write-path function that stamps the classification once, at write time;
+- code: a base class, a shared query builder or one exported reader function.
+**DO capture new members at the source event** (sign-in, device registration, account creation,
+config edit), writing the classification to the owner's table, so a new tester or a new SKU joins
+the owner with no code change.
+**DO ship a drift guard in the same change:** a contract or lint test that fails when a consumer
+reads the governed data without the owner. Shapes: a test that lists every reader of the governed
+table or column and fails on one outside the owner; revoked direct grants so only the view is
+readable; a lint rule banning the raw call. Name the guard in the PR.
+**DON'T re-apply the rule in each consumer** (a copied `WHERE` clause, a per-readout exclusion list,
+a per-route permission check), and don't rely on review or memory to keep the copies aligned.
+**DO check, when adding any new consumer, whether an owner already governs the data it reads,** and
+read through that owner; a new consumer that bypasses an existing owner is a review finding.
+TEST: a new consumer written with no knowledge of the rule still applies it, and the drift guard
+fails when one reads around the owner. (the fix for a new analytics readout that counted internal
+test devices because each readout carried its own exclusion copy and the new one missed a tester
+group.)
 
 ## Logging, observability, failure handling
 
