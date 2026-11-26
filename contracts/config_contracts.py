@@ -2395,7 +2395,9 @@ CONTRACTS: dict[str, dict] = {
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
             "or uses a referent (both, it, them) while it names #N or answers a hand-back that asked a merge "
             "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "
-            "verb, and no later typed message holds merges. Anything else denies with one line ending "
+            "verb, and no later typed message holds merges (a standalone hold of at most 4 words, 'hold #N', a "
+            "hold word within 3 words before a merge verb, 'hold off' or a dequeue; a hold word about other "
+            "work never holds). Anything else denies with one line ending "
             "\"Say 'merge #N' to merge it\".",
             "Only the transcript's typed user turns and queued prompts count: system blocks, pasted fences "
             "and quote lines are stripped; peer envelopes, turns opening with another session's attribution, "
