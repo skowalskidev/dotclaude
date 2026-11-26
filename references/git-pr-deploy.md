@@ -215,7 +215,10 @@ converged** (zero BLOCKING findings and the stage evidence written), then renumb
 run CI and the stage receipts on that one head. A base that moves mid-review is no reason to merge:
 each merge is a new head, so it resets every stage receipt and the CI run, and the next base move
 makes it stale again. Merge earlier only for a conflict in a file the PR's own diff touches or a base
-change the fix needs, and say which.
+change the fix needs, and say which. Until merge prep, check the assembly with a trial merge that
+writes nothing (`git merge-tree --write-tree --name-only origin/<default> HEAD`); a BEHIND merge state,
+a SessionStart "N behind" note or a migration number below the base's newest is never a reason to
+merge (renumber migrations only in the merge-prep merge).
 NUMBER: one base merge per PR per merge prep; a second only when the base moved again before the merge
 itself, then merge prep repeats on that head alone.
 TEST: no PR in a run has a base merge between two review rounds without a named conflict or needed
