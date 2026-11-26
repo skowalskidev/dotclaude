@@ -306,7 +306,7 @@ command in its `recipe`; the record holds the app id. Every `codex-app` run (ver
 2. Passes `-C <dir>` and absolute file paths (exec otherwise runs in the repo directory and relative
    paths break), and `-s workspace-write -c sandbox_workspace_write.network_access=true` when the run
    uploads bytes with `curl`.
-3. Measures the draft first: `python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`;
+3. Measures the draft first: `python3 ~/.claude/bin/outbound_message.py check <draft-file>`;
    expect `ok`, and cut the draft on exit 1. The PreToolUse guard does not see a `codex exec` prompt.
 4. Verifies the workspace by display name OR URL subdomain (a workspace-list tool can return either)
    and the signed-in identity, runs the thread dedupe check below, sends exactly once, never retries,

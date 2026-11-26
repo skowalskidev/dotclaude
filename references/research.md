@@ -70,6 +70,8 @@ NUMBER: at least 2 judges besides the author, one per provider: a fresh Claude s
 through Codex on the ChatGPT subscription. A lookup with one primary-source answer (a version, a
 flag, a file path) needs none, and neither does a Light change's build, review or ship verdict
 (`references/testing-strategy.md` § Size the checks to the change): it moves no money, access or data.
+A Hotfix diff's ship verdict takes one judge, from the provider that did not write it
+(`references/testing-strategy.md` § Hotfix tier).
 DO give each judge the raw evidence: the question, the query output, the source rows or files, and
 the primary-source links. DON'T give a judge the author's conclusion or another judge's answer before
 it has written its own.

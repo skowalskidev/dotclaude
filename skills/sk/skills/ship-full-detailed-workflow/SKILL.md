@@ -33,17 +33,20 @@ word and the whole queue is built.
    (`git diff <base>...HEAD`). When this run resumes the PR, the base moved since its last push, or a
    deploy landed in its area, re-verify it is still needed first, per `references/planning-and-tracking.md`
    § A pre-existing ticket is a claim about the past, and cut what the base now delivers.
-   PUSH the PR's own branch to origin so it is current — CI, the review,
-   and merge-readiness all read the pushed state. NEVER push, merge into, or otherwise write master.
+   PUSH the PR's own commits to origin so the branch is current — CI, the review,
+   and merge-readiness all read the pushed state. Syncing here never means merging the base: a BEHIND
+   branch stays behind until merge prep. NEVER push, merge into, or otherwise write master.
    Leave a draft PR in draft: `references/git-pr-deploy.md` § CI runs once, at merge prep.
    **DO classify each PR's tier here, per `references/testing-strategy.md` § Size the checks to the
    change, and run every stage below at that tier.** Deep runs every stage as written; a stage or
-   landing-gate row the tier skips records its skip line instead of running.
+   landing-gate row the tier skips records its skip line instead of running. A Hotfix PR runs that
+   file's § Hotfix tier in place of stages 1-7.
    TEST: each PR's plan entry names its tier and trigger before stage 2 starts.
 1. **`/sk:plan-stable-persistent-dynamic-complete-full-plan`** — fold every ticket and criterion into
    the living plan; reconcile against it at stage 9.
-2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the
-   rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
+2. **`/sk:ship-check-merge-readiness`** — trial-merge onto CURRENT master (nothing written) until merge
+   prep, then the one real base merge (`references/git-pr-deploy.md` § CI runs once, at merge prep); own
+   this PR's scope, track the rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
 3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out, both providers in parallel; fix ALL confirmed findings in one batch, then one delta pass (`references/research.md` § Judge cadence). Standard runs one round; Light skips it.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
    dial or allowlist relaxation, or an injection surface. **DO run it from the orchestrator when the
@@ -118,7 +121,9 @@ word and the whole queue is built.
    `references/screenshot-review.md` § Refresh after the follow-up batch.
    **DON'T dispatch the AFTER capture in stage 6's fan-out**; only a base-branch BEFORE capture runs early.
    TEST: every posted AFTER capture names the PR's final pushed head or carries unchanged-point reuse proof.
-8. **`/sk:ship-pr`** — the PR body carries the TLDR and the Deploy-TLDR.
+8. **`/sk:ship-pr`** — the PR body carries the TLDR and the Deploy-TLDR. A step that flips a
+   production switch carries, as its `Smoke:`, `references/git-pr-deploy.md` § Live request path after
+   every switch flip, run after the flip before anyone is told it is live.
 9. **Finish.** Reconcile the plan (every ticket → a verdict + a test), DRY/SSOT-sweep the diff (one
    owner per shared value or behaviour), tear down with `/sk:meta-cleanup-worktrees`, commit-when-done,
    hand back a per-ticket verdict report. A gap any stage found inside this PR's own scope is BUILT
@@ -126,8 +131,8 @@ word and the whole queue is built.
    Before any ready-flip, enqueue or merge this run performs, run the merge-prep local gate list:
    `references/testing-strategy.md` § Defects first.
    Record the landing-gate result on the pushed head with
-   `~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]`;
-   a Light or Standard PASS carries its trigger and skipped stages. The Stop hook blocks a pushed branch
+   `~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [hotfix|light|standard|deep] [reason]`;
+   a Hotfix, Light or Standard PASS carries its trigger and skipped stages. The Stop hook blocks a pushed branch
    head with no record, and a newer push re-opens it.
    **DO invoke every stage the tier requires as its own skill on the recorded head before recording,
    even when an external blocker already makes the result BLOCKED.** A capacity or resource request

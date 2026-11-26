@@ -18,7 +18,7 @@ A merge passes on one of two paths, in this order:
     changes). No message is read.
   - Simon's own words, one deterministic rule (words_allow), no model call: among every message he typed
     in the session, the newest that orders #N merged (a present-tense merge verb, not negated, not a question,
-    naming #N, or a referent such as "both" or "it" while the message answers a hand-back that asked a
+    naming #N, or a referent such as "both" or "it" in an imperative aimed at it while the message answers a hand-back that asked a
     merge word for #N on its Merge list, Action needed line or an end-block numbered step) with no later
     message holding merges. The hand-back only resolves the referent: his words still give the order.
 Only user turns of the transcript count; a peer envelope, a harness block, a tool answer and a
@@ -1070,7 +1070,7 @@ MONITORING_ENV = ("GH_REPO", "GH_HOST", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRIS
 MONITORING_FIELDS = ("number,headRefName,headRefOid,baseRefName,state,url,isDraft,mergeable,"
                      "mergeStateStatus,reviewDecision,statusCheckRollup,files,changedFiles")
 
-GATE_LINE_RE = re.compile(r"\Agate: ([^\s]+) ([0-9a-f]+) (PASS|BLOCKED|N/A)(?: (light|standard|deep)(?= |$))?([^\n]*)\Z")
+GATE_LINE_RE = re.compile(r"\Agate: ([^\s]+) ([0-9a-f]+) (PASS|BLOCKED|N/A)(?: (hotfix|light|standard|deep)(?= |$))?([^\n]*)\Z")
 
 FULL_SHA_RE = re.compile(r"[0-9a-f]{40}")
 
@@ -1594,6 +1594,13 @@ PR_REF_RE = re.compile(r"(?:#|\bprs?\s*#?\s*|\bpull requests?\s*#?\s*|/pulls?/)(
 REFERENT_RE = re.compile(r"\b(?:both|all|them|these|those|it|this|that|the prs|yes|ok(?:ay)?|go|do it)\b", re.I)
 QUESTION_RE = re.compile(r"^\W*(?:(?:so|ok|okay|and|but|then)\W+)?(?:should|shall|can|could|would|is|are|was|what|why|how|which|who|does|did"
                          r"|do (?:we|you|i))\b", re.I)
+# A sentence that defines or generalises merging ("a deploy/merge means merge", "merging is", "a merge should",
+# "when you merge") states a rule, not an order, so its referent never stands in for a PR.
+DEFINITION_RE = re.compile(r"\b(?:means|meant)\b|\bwhen(?:ever)?\s+(?:you|i|we|they)\s+(?:\S+\s+){0,2}"
+                           r"(?:merg|deploy|ship|land)|\b(?:merg|deploy|ship|land)\w*(?:/\w+)?\s+(?:is|are|should|must"
+                           r"|has to|have to|needs? to)\b", re.I)
+# Where an imperative merge verb starts its clause: the sentence start, a comma or colon, or a joining word.
+CLAUSE_START_RE = re.compile(r"(?:^|[,;:(]|\b(?:and|then|so|now|please|pls|just))\W*$", re.I)
 APOSTROPHES = str.maketrans({"’": "'", "‘": "'", "ʼ": "'", "“": '"', "”": '"'})
 
 
@@ -1608,17 +1615,38 @@ def _gives_order(sentence: str) -> bool:
     negated, in a sentence that is not a question."""
     if sentence.rstrip().endswith("?") or QUESTION_RE.match(sentence):
         return False
-    return any(not m.group(0).lower().endswith("ed") and not _negated_before(sentence, m.start())
-               and not re.search(r"(?:\b(?:the|a|an|this|that|my|our|your|its)\W+|[/:-])$", sentence[:m.start()], re.I)
-               for m in MERGE_VERB_RE.finditer(sentence))
+    return any(_verb_orders(sentence, m) for m in MERGE_VERB_RE.finditer(sentence))
+
+
+def _verb_orders(sentence: str, m) -> bool:
+    """This merge-verb match is used as one: not past tense, not negated, not a noun after a determiner."""
+    return (not m.group(0).lower().endswith("ed") and not _negated_before(sentence, m.start())
+            and not re.search(r"(?:\b(?:the|a|an|this|that|my|our|your|its)\W+|[/:-])$", sentence[:m.start()], re.I))
+
+
+def _referent_order(sentence: str) -> bool:
+    """A sentence naming no PR orders by referent only as an imperative aimed at it: a merge verb within 3 words
+    of a referent ("merge it", "yes merge", "go ahead and merge", "do that and merge") or starting its clause
+    ("then merge if it's ok"), in a sentence that does not define or generalise merging (DEFINITION_RE)."""
+    if DEFINITION_RE.search(sentence) or not REFERENT_RE.search(sentence):
+        return False
+    for m in MERGE_VERB_RE.finditer(sentence):
+        before, after = sentence[:m.start()], sentence[m.end():]
+        near = " ".join(before.split()[-3:] + after.split()[:3])
+        if not _verb_orders(sentence, m):
+            continue
+        if REFERENT_RE.search(near) or CLAUSE_START_RE.search(before):
+            return True
+    return False
 
 
 def orders(text: str, number: str, asked: set) -> bool:
     """One sentence of this typed message orders #N merged: by its number, or by a referent ("both", "it")
-    while the message names #N, or names no PR and answers a hand-back that asked a merge word for #N."""
+    while the message names #N, or names no PR and answers a hand-back that asked a merge word for #N. A
+    referent counts only in an imperative aimed at it (_referent_order)."""
     text = text.translate(APOSTROPHES)
     covered = names_pr(text, number) or (not PR_REF_RE.search(text) and number in asked)
-    return any(_gives_order(s) and (names_pr(s, number) or (covered and REFERENT_RE.search(s)))
+    return any(_gives_order(s) and (names_pr(s, number) or (covered and _referent_order(s)))
                for s in re.split(r"(?<=[.!?;])\s+|\n+", text) if s.strip())
 
 

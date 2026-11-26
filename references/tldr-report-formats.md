@@ -137,13 +137,20 @@ the pre-send check and the override. It covers every message read by anyone but 
 email to a teammate, a PR or ticket comment, and a draft Simon sends as himself.
 
 DO write it as:
-1. Line 1: the ask or the fact the reader needs, naming the real thing (PR number, screen, date).
-2. At most 4 more lines, each one fact, link or step the reader acts on.
+1. Line 1: the ask, or the verdict when it answers their report, naming the real thing (PR number,
+   screen, date).
+2. At most 4 bullets (`- `) or numbered steps, ONE fact, link or step each, at most 20 words.
+3. A figure the reader needs gets its own bullet. DON'T pack figures into parentheses or chain two
+   facts with "and"/"so" on one line.
 
 **DON'T** open with a greeting run-up or context the reader already has, add the `Action needed`
 line (that shape is for Simon), recap, or close with "let me know if you have questions". Offer
 detail in one clause ("details on request") only when it exists.
-NUMBER: at most 5 non-blank lines and 100 words, a one-line greeting and a short sign-off excluded.
+NUMBER: at most 5 non-blank lines and 100 words, a one-line greeting and a short sign-off excluded;
+at most 20 words a line. The guard denies a line over 25 words (a URL-only line exempt) and 3+ lines
+with no bullet.
+TEST: count each line's words and the facts per line before sending (the fix for a 99-word teammate
+DM of 3 lines at 21 to 46 words, figures in parentheses, that passed the 100-word cap).
 
 ```
 Hey, [PR #812](https://github.com/org/repo/pull/812) (search cache) is ready for your review.
@@ -169,10 +176,11 @@ the after-costs query?").
 
 DO measure a draft for someone else when you write it, before you show it to Simon for approval,
 and again before sending it by any route the hook cannot see (a `codex-app` run, `gh pr comment`,
-`gh api .../replies`); an approved draft over the cap otherwise goes out with words he never saw:
-`python3 ~/.claude/hooks/outbound-message-guard.py --check <draft-file>`. Expect `ok` and exit 0;
-exit 1 prints the counts. Cut the draft; DON'T split it into several messages.
-`hooks/outbound-message-guard.py` denies a Slack or Gmail send, reply, forward or draft over the cap.
+`gh api .../replies`); an approved draft that fails the measure otherwise goes out with words he never saw.
+Use the same measure the hook uses: `python3 ~/.claude/bin/outbound_message.py check <draft-file|->`.
+Expect `ok` and exit 0; exit 1 prints each problem and the bullet shape. Cut the draft; DON'T split it
+into several messages. `hooks/outbound-message-guard.py` denies a Slack or Gmail send, reply, forward or
+draft that fails it.
 When Simon's own message asked for the length ("send the team the full write-up"), write his words
 into `.context/long-message-ok` in the working directory; the guard allows the next send only and
 deletes the file.

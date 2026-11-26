@@ -124,7 +124,7 @@ CRITERIA: list[tuple[str, str]] = [
     ("process-kill-guard-denies-pattern-kills-both-ways",
      "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
     ("outbound-message-guard-caps-messages-to-others",
-     "A Slack or Gmail send or draft over the 5-line TLDR cap is denied, while a short message, a read, a canvas, the one-shot override and the --check CLI behave as documented."),
+     "A Slack or Gmail send or draft over the 5-line TLDR cap, with a line over 25 words or with 3+ unbulleted lines is denied, while a short or bulleted message, a read, a canvas, the one-shot override and the bin/outbound_message.py check CLI behave as documented."),
     ("bare-reference-guard-links-every-id",
      "A final message to Simon naming a PR, issue or ticket by a bare id blocks Stop once with a reason giving the origin's link form, while linked ids, code, URLs, shas and standards pass and a continuation never loops."),
     ("test-browser-tabs-stay-labelled-and-swept",
@@ -160,6 +160,9 @@ CRITERIA: list[tuple[str, str]] = [
      "exit 75 at its bound, and a killed holder frees the lock."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
+    ("merge-word-runs-deploy-tldr",
+     "Simon's merge or deploy word runs the merged PR's whole Deploy TLDR, switch turn-ons included, unless he "
+     "says keep it off; ship-pr never writes a step as waiting on a second approval and the landing gate fails one."),
     ("monitoring-only-class-holds",
      "A monitoring-only PR merges with no merge word only at its bar and only inside the overlay's bot paths: "
      "the class tests pass, and the merge policy, the bar and the rule pointer keep their one home each."),
@@ -1729,7 +1732,8 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         # The block names, per tier, the stages with no receipt on the pushed head, from the one stage list.
         check("standard: Not run: sk:plan-stable-persistent-dynamic-complete-full-plan, sk:ship-check-merge-readiness" in reason
               and "deep: Not run:" in reason and "sk:ship-verify-with-prod-data" in reason
-              and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason,
+              and "light: Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr" in reason
+              and "hotfix: Not run: sk:ship-resolve-pr-comments, sk:ship-pr" in reason,
               "The block did not list each tier's missing stage receipts for the head: " + reason[:600])
         check("intent-ledger.sh receipt <stage> <checkout dir>" in reason,
               "The block did not name the receipt fallback for a checkout outside the session cwd: " + reason[:300])
@@ -1780,6 +1784,11 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
         check(gate("feature/x", "HEAD", "N/A").returncode == 2, "An N/A gate without a reason was accepted.")
         check(gate("feature/x", "HEAD", "PASS", "light").returncode == 2,
               "A light PASS without its trigger and skipped stages was accepted.")
+        check(gate("feature/x", "HEAD", "PASS", "hotfix").returncode == 2,
+              "A hotfix PASS without its trigger and skipped stages was accepted.")
+        r = gate("feature/x", "HEAD", "PASS", "hotfix", "one allowlist file; skipped: matrix, prod data")
+        check(r.returncode == 2 and "Not run: sk:ship-resolve-pr-comments, sk:ship-pr" in r.stderr,
+              "A hotfix PASS with no receipts was accepted or named stages outside the hotfix list: " + r.stderr)
         check(gate("feature/x", "HEAD", "PASS", "standard").returncode == 2,
               "A standard PASS without its trigger and skipped stages was accepted.")
         # A PASS names its tier, because the tier decides which stage receipts it needs.
@@ -1804,6 +1813,12 @@ def check_ship_gate_blocks_unproven_pushed_branches() -> None:
               "`stages` did not report a complete tier.")
         check(gate("feature/x", "HEAD", "PASS", "Light", light).returncode == 0,
               "A light PASS with a reason and every light receipt was not recorded.")
+        # references/testing-strategy.md § Hotfix tier: its receipts are a subset, so no Standard stage blocks it.
+        check(stages("hotfix", "HEAD").stdout.strip() == "All stages ran"
+              and stages("hotfix").stdout.split() == ["sk:ship-resolve-pr-comments", "sk:ship-pr"],
+              "`stages hotfix` did not list exactly the hotfix stages: " + stages("hotfix", "HEAD").stdout)
+        check(gate("feature/x", "HEAD", "PASS", "hotfix", "one allowlist file; skipped: matrix, prod data").returncode == 0,
+              "A hotfix PASS with its reason and both hotfix receipts was refused.")
         check(stop() == "", "A gate record for the pushed head did not clear Stop.")
         # A standard or deep PASS or BLOCKED names its unrun stages, so none hides behind the status.
         check(gate("feature/x", "HEAD", "PASS", "deep").returncode == 2,
@@ -2980,6 +2995,28 @@ def check_pr_landing_gate_refuses_missing_rows() -> None:
               f"{path} does not point at bin/pr-landing-gate.py for the landing-gate rows")
     check('landing_check "$branch"' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
           "intent-ledger.sh gate PASS no longer runs the landing-gate checker")
+
+
+def check_merge_word_runs_deploy_tldr() -> None:
+    deploy = " ".join((ROOT / "references/git-pr-deploy.md").read_text().split())
+    for required in ("### A merge word runs the Deploy TLDR", "run every step of that PR's Deploy TLDR in its order",
+                     "feature-switch or flag turn-ons", "only when its `Check:` or `Smoke:` fails",
+                     "only when Simon said to keep it off", "the PR text is ours, not his",
+                     "outside the merged PR's Deploy TLDR", "never as a new ask"):
+        check(required in deploy, "references/git-pr-deploy.md lost the merge-word scope: " + required)
+    section = "§ A merge word runs the Deploy TLDR"
+    for path in ("rules/process.md", "rules/connectors.md", "skills/sk/skills/ship-pr/SKILL.md",
+                 "references/planning-and-tracking.md", "bin/pr-landing-gate.py"):
+        check(section in " ".join((ROOT / path).read_text().split()), f"{path} does not point at {section}")
+    process = " ".join((ROOT / "rules/process.md").read_text().split())
+    check("switch turn-ons included" in process and "unless he says keep it off" in process,
+          "rules/process.md lost the always-on merge-word line")
+    ship = " ".join((ROOT / "skills/sk/skills/ship-pr/SKILL.md").read_text().split())
+    check("normal numbered step that runs on Simon's merge word" in ship and "trigger condition" in ship,
+          "ship-pr no longer writes activation as a normal Deploy TLDR step")
+    gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
+    check("SECOND_APPROVAL" in gate_src and "not part of" in gate_src,
+          "The landing gate no longer fails a Deploy TLDR step held for a second approval")
 
 
 def check_regression_check_runs_on_every_pr() -> None:

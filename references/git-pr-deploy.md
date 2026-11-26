@@ -215,7 +215,10 @@ converged** (zero BLOCKING findings and the stage evidence written), then renumb
 run CI and the stage receipts on that one head. A base that moves mid-review is no reason to merge:
 each merge is a new head, so it resets every stage receipt and the CI run, and the next base move
 makes it stale again. Merge earlier only for a conflict in a file the PR's own diff touches or a base
-change the fix needs, and say which.
+change the fix needs, and say which. Until merge prep, check the assembly with a trial merge that
+writes nothing (`git merge-tree --write-tree --name-only origin/<default> HEAD`); a BEHIND merge state,
+a SessionStart "N behind" note or a migration number below the base's newest is never a reason to
+merge (renumber migrations only in the merge-prep merge).
 NUMBER: one base merge per PR per merge prep; a second only when the base moved again before the merge
 itself, then merge prep repeats on that head alone.
 TEST: no PR in a run has a base merge between two review rounds without a named conflict or needed
@@ -289,7 +292,8 @@ a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and 
 A merge passes on one deterministic rule over every message Simon typed in the session, no model call
 (a merge word stands however many messages later, until one holds it): the newest
 that orders it (a present-tense merge verb, not negated, not a question) names `#N`, or uses a referent
-("both", "it") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
+("both", "it") in an imperative aimed at it ("merge it", "yes merge", "then merge if it's ok"; never a
+sentence defining merging such as "a merge means deploy") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
 `Action needed` line or an end-block numbered step, and no later message holds merges: a short
 standalone hold ("wait", "pause for now"), "hold #N", or a hold word just before a merge verb
 ("don't merge", "hold off on merging") or a dequeue; a hold word about other work never holds. Peer notes,
@@ -711,8 +715,9 @@ current live path stays the default until a separate step switches it.
 **DO move one step at a time; each step names its rollback** as the command or setting that restores
 the recorded live value.
 **DON'T write a cutover from a ticket, a plan or memory of the provider state, and DON'T run a
-cutover step as part of this check.** Provider writes are production writes: they wait for Simon's
-per-write yes (`rules/connectors.md` § Prod / live safety) and any billable step for
+cutover step as part of this check.** Provider writes are production writes: they run on Simon's
+merge word as Deploy TLDR steps (§ A merge word runs the Deploy TLDR), else wait for his
+per-write yes (`rules/connectors.md` § Prod / live safety), and any billable step for
 `rules/spend-approval.md`.
 TEST: every traffic-moving step cites a live-state row and a confirmed prerequisite, and has a
 rollback; merging and deploying with no cutover step run leaves every live-state row unchanged.
@@ -735,7 +740,8 @@ only written after the user asked.)
 **DO write a tester access path's code-set as its own Deploy TLDR step**
 (`references/testing-strategy.md` § Live variants): the production write that sets the code, a smoke
 that the coded link reaches the arm on a fresh signed-out device while the bare link shows today's
-screen, and the rollback that clears the code. The write waits for Simon's per-write yes.
+screen, and the rollback that clears the code. Simon's merge word for the PR runs it (§ A merge word
+runs the Deploy TLDR).
 TEST: a PR shipping a tester access path names its code-set step, smoke and rollback in its Deploy TLDR.
 
 **DO name a `Smoke:` signal only after tracing its writer to the code path production takes for the
@@ -896,6 +902,29 @@ Keep the same project-instruction policy active before consulting a deploy runbo
 3. When something is wrong or merely not as expected, diagnose the cause, fix it, and go back to 1.
 4. Stop when a full pass comes back clean with nothing outstanding.
 
+### A merge word runs the Deploy TLDR
+
+**DO treat Simon's merge or deploy word for a PR as the order to make its behaviour live: merge, then
+run every step of that PR's Deploy TLDR in its order** (migrations, function deploys, feature-switch or
+flag turn-ons, config edits, smokes), each with its `Check:` before and `Smoke:` after. This is his
+standing authorization for the production writes that Deploy TLDR lists, and the per-write yes of
+`rules/connectors.md` § Prod / live safety for them; use the provisioned write path, torn down after.
+**DO stop and run a step's `Rollback:` only when its `Check:` or `Smoke:` fails,** then report it.
+**DO hold a step only when Simon said to keep it off** ("merge but keep it off", "don't turn it on"),
+or it needs a credential, device or app build only he has: name it in the hand-back with its exact
+action. A step whose own text names a trigger condition (e.g. "once the new app build runs on 50% of
+active installs") runs when the condition holds.
+**DON'T ask again after the merge for a step the Deploy TLDR lists, and DON'T read a PR body's "only
+on Simon's word" or "not part of this merge" as a hold:** the PR text is ours, not his.
+**DON'T write to production outside the merged PR's Deploy TLDR on this authority;** every other write
+keeps its per-write yes, and a billable step its spend yes (`rules/spend-approval.md`).
+**DO report each step after the merge as ran or held, with its check result** (`references/planning-and-tracking.md`
+§ Close the session), never as a new ask.
+TEST: after a merge word, every Deploy TLDR step shows ran with its smoke result, rolled back with the
+failed check, or held with Simon's quoted keep-off or a Simon-only blocker; zero steps are re-asked
+(the fix for a 50/50 test PR merged on Simon's merge word whose switch turn-on was written "only on
+Simon's word", so the feature sat off for an hour until he asked twice).
+
 ### Prod check after every production deploy
 
 **DO run these four steps after any merge whose push deploys and after any explicit deploy command,
@@ -912,7 +941,8 @@ before reporting done.** "Merged" is not "live".
    § Production source fidelity).
    When the change launches or switches on a member-facing feature, the smoke also opens its entry
    point as a signed-in member on each landing screen (`references/user-journey-review.md`); a public
-   endpoint answering is not that proof.
+   endpoint answering is not that proof. A switch flipped after the deploy runs § Live request path
+   after every switch flip.
 4. **Verdict.** Report pass or fail with the evidence (run url, build id, smoke output). On a fail,
    report it with the PR's `Rollback:` line and diagnose per step 3 above.
 
@@ -926,3 +956,28 @@ The loop exists because the interesting failures only appear here: environment v
 set, a runtime that differs from local, a build step that drops an asset, a permission that was never
 granted. None of them can fail locally. If a loose end is left, say which one plainly rather than
 reporting the deploy as done.
+
+### Live request path after every switch flip
+
+**DO read the live request path within 10 minutes of every production switch, flag, arm or rollout
+percentage change** (a Deploy TLDR switch step, an arm moved to 100%, a remote-config value), before
+calling the feature live or telling anyone it is done. Read production read-only:
+1. **Status codes.** Count each new or changed endpoint, server action or function the switched path
+   calls, by status code, since the flip. Expect no 401, 403 or 5xx share above the same-length window
+   before the flip; a new endpoint's baseline is zero.
+2. **The feature's own records.** Count the rows, events or log lines the feature writes on success
+   since the flip, from the writer traced under § Live-traffic cutover's `Smoke:` rule. Expect at
+   least 1 once 20 requests reached the path, or name why none arrived.
+3. **Verdict.** A new 401, 403 or 5xx, or zero records past 20 requests, is a FAIL: report it at once
+   and start `/sk:work-investigate-and-fix`. A flip that was a Deploy TLDR step runs its `Rollback:`
+   under § A merge word runs the Deploy TLDR; any other flip's switch-off waits for Simon's yes.
+4. **Again.** Repeat steps 1-2 once at 30 minutes or 100 requests, whichever comes first; a
+   percentage rollout repeats them at every step.
+**DON'T rest a switch-on on the pre-flip prod check, a green deploy or a page that loads:** the flip
+moves traffic onto a path no earlier check ran, for cohorts a local walk did not cover.
+WHY: a rollout is judged by the switched traffic's error rate against a control, and a feature flag
+is canaried like a binary ([Google SRE workbook, Canarying Releases](https://sre.google/workbook/canarying-releases/)).
+TEST: every switch-on hand-back names, per new endpoint or action, its status-code counts with the
+window and the feature's record count; a "live" or "done" with neither fails (the fix for a switched-on
+feature whose new server action answered 403 to every call for about 20 minutes, found only when Simon
+asked whether it was all done).
