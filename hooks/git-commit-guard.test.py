@@ -238,6 +238,12 @@ CASES = [
     ("FB escaped backquotes in an unquoted PR-body heredoc are data", dict(
         command=f"cat > body.md <<EOF\nRun \\`{M} 12\\` after review\nEOF\ngh pr create --body-file body.md"),
      False, ""),
+    ("FB an order 30 typed messages back with no hold still stands", dict(command=f"{M} 1186", turn=[
+        ("open", "merge #1186"), ("handback", "")] + [("open", f"check the logs for item {k}") for k in range(30)]),
+     False, ""),
+    ("HOLD an old order with a hold 25 messages later denies", dict(command=f"{M} 1186", turn=[
+        ("open", "merge #1186"), ("handback", "")] + [("open", f"check the logs for item {k}") for k in range(25)]
+        + [("open", "don't merge #1186")]), True, "holds merging"),
     ("FB dequeue: --disable-auto runs", dict(command=f"{M} 1186 --disable-auto"), False, ""),
     ("FB dequeue through the API runs", dict(
         command="gh api graphql -f query='mutation { dequeuePullRequest(input:{id:\"x\"}) { clientMutationId } }'"),
@@ -337,6 +343,17 @@ CASES = [
         ("handback", ASK_HANDBACK), ("open", "don't merge both")]), True, "holds merging"),
     ("HOLD a question after a merge-ask hand-back gives no order", dict(command=f"{M} 1487 -R acme/web", turn=[
         ("handback", ASK_HANDBACK), ("open", "what does 1487 do?")]), True, NONE),
+    ("HOLD a statement about config is no referent order (#1479)", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "it's crazy that you didn't turn it on fix that in config a "
+         "deploy/merge means merge and deploy anything that's required not leave it off")]), True, NONE),
+    ("HOLD 'a merge should deploy' is a rule, not an order", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "a merge should deploy everything it needs")]), True, NONE),
+    ("FB 'then merge if it's ok' answers a merge-list hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "then merge if it's ok")]), False, ""),
+    ("FB 'ok do that and merge' answers a merge-list hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", "Merge list: #1479."), ("open", "ok do that and merge")]), False, ""),
+    ("FB 'merge once ready <PR url>' names the PR", dict(command=f"{M} 1512 -R acme/web", turn=[
+        ("open", "merge once ready https://github.com/acme/web/pull/1512")]), False, ""),
     ("HOLD 'should we merge both' is a question", dict(command=f"{M} 1487 -R acme/web", turn=[
         ("handback", ASK_HANDBACK), ("open", "so should we merge both")]), True, NONE),
     ("HOLD a past-tense 'we merged those' is no order", dict(command=f"{M} 1487 -R acme/web", turn=[

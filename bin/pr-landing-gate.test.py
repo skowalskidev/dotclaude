@@ -556,6 +556,21 @@ unreached = with_installed.replace("Old build 1.4.9 (115) against the new backen
                                    "Installed builds: not reached, the diff only changes the admin site")
 check(gate.check_body(unreached, HTML, 0, (), True) == [], "A reasoned not-reached line failed")
 
+# A Deploy TLDR step never waits on a second approval (references/git-pr-deploy.md § A merge word runs the
+# Deploy TLDR); a stated trigger condition and Simon's own keep-it-off pass.
+STEP2 = '2. Smoke: open Settings as a paid test account and read "200 searches a month".\n'
+for held in ("3. Turn the feature switch on to 50%, only on Simon's word (not part of this merge).\n",
+             "3. Turn the feature switch on after a separate approval.\n",
+             "3. Turn the switch on only with his yes.\n"):
+    got = gate.check_body(PASSING.replace(STEP2, STEP2 + held, 1), HTML, 0)
+    check(any(m.startswith("Deploy TLDR: a step waits on a second approval") for m in got),
+          f"A Deploy TLDR step held for a second approval passed: {held!r} {got}")
+for ok in ("3. Turn the feature switch on to 50%. Check: the switch reads 0. Smoke: it reads 50. Rollback: set 0.\n",
+           "3. Turn the new header on once the new app build runs on 50% of active installs.\n",
+           "3. Leave the feature switch off (Simon: keep it off).\n"):
+    got = gate.check_body(PASSING.replace(STEP2, STEP2 + ok, 1), HTML, 0)
+    check(got == [], f"A Deploy TLDR activation step was refused: {ok!r} {got}")
+
 # The app build line (references/git-pr-deploy.md § Deploy safety check 4): every PR in a native-app repo.
 APP_LINE = "No app build needed: every changed file is hosted web, loaded on the next page open.\n\n"
 with_app = with_installed.replace("1. Merge. The pipeline", APP_LINE + "1. Merge. The pipeline", 1)

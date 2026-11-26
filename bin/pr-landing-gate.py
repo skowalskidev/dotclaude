@@ -433,6 +433,13 @@ OLD_BUILD = re.compile(r"Old build \S+(?: \(\d+\))? against the new backend: (PA
 NOT_REACHED = re.compile(r"Installed builds: not reached,\s*\S+(?:\s+\S+){2,}", re.I)
 WAITS = re.compile(r"Waits for the new build:\s*\S", re.I)
 APP_BUILD = re.compile(r"(?:No app build needed|Needs an app build)\W{0,3}:\**[ \t]*\S+(?:[ \t]+\S+){2,}", re.I)
+# references/git-pr-deploy.md § A merge word runs the Deploy TLDR: a step never waits on a second yes.
+SECOND_APPROVAL = re.compile(r"\bonly (?:on|after|with|once) [^\n.,;]{0,25}?\b(?:word|yes|go-?ahead|say-?so)\b|"
+                             r"\bnot part of (?:this|the) (?:merge|deploy)\b|"
+                             r"\b(?:separate|second) (?:approval|yes|go-?ahead|confirmation)\b", re.I)
+SECOND_APPROVAL_MSG = ("Deploy TLDR: a step waits on a second approval ('{}'); Simon's merge word runs every "
+                       "step, so write it as a numbered step or state its trigger condition "
+                       "(references/git-pr-deploy.md § A merge word runs the Deploy TLDR)")
 APP_BUILD_MSG = ("Deploy TLDR: no app build line for the native app ('No app build needed: <why>' or "
                  "'Needs an app build: <which parts wait for it>'; references/git-pr-deploy.md § Deploy "
                  "safety check 4)")
@@ -680,6 +687,9 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
         missing.append("Deploy TLDR: it is not the next heading after the TLDR")
     if native and (installed or not light) and "Deploy TLDR" in found and not APP_BUILD.search(found["Deploy TLDR"]):
         missing.append(APP_BUILD_MSG)
+    second = SECOND_APPROVAL.search(found.get("Deploy TLDR") or "")
+    if second:
+        missing.append(SECOND_APPROVAL_MSG.format(second.group(0)))
     for row in ("User journey", "System journey"):
         if row not in found:
             missing.append(no_heading(row))

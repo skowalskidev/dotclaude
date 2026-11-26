@@ -286,9 +286,11 @@ specific irreversible merge.
 **The guard (`hooks/git-commit-guard.py`, rebuilt 26 Nov on Simon's "bare-bones, not a bottleneck"):**
 it judges only commands the shell runs, so text that names a merge (a note, a heredoc body, a PR body,
 a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and a GraphQL dequeue run.
-A merge passes on one deterministic rule over Simon's last 20 typed messages, no model call: the newest
+A merge passes on one deterministic rule over every message Simon typed in the session, no model call
+(a merge word stands however many messages later, until one holds it): the newest
 that orders it (a present-tense merge verb, not negated, not a question) names `#N`, or uses a referent
-("both", "it") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
+("both", "it") in an imperative aimed at it ("merge it", "yes merge", "then merge if it's ok"; never a
+sentence defining merging such as "a merge means deploy") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
 `Action needed` line or an end-block numbered step, and no later message holds merges: a short
 standalone hold ("wait", "pause for now"), "hold #N", or a hold word just before a merge verb
 ("don't merge", "hold off on merging") or a dequeue; a hold word about other work never holds. Peer notes,
@@ -710,8 +712,9 @@ current live path stays the default until a separate step switches it.
 **DO move one step at a time; each step names its rollback** as the command or setting that restores
 the recorded live value.
 **DON'T write a cutover from a ticket, a plan or memory of the provider state, and DON'T run a
-cutover step as part of this check.** Provider writes are production writes: they wait for Simon's
-per-write yes (`rules/connectors.md` § Prod / live safety) and any billable step for
+cutover step as part of this check.** Provider writes are production writes: they run on Simon's
+merge word as Deploy TLDR steps (§ A merge word runs the Deploy TLDR), else wait for his
+per-write yes (`rules/connectors.md` § Prod / live safety), and any billable step for
 `rules/spend-approval.md`.
 TEST: every traffic-moving step cites a live-state row and a confirmed prerequisite, and has a
 rollback; merging and deploying with no cutover step run leaves every live-state row unchanged.
@@ -734,7 +737,8 @@ only written after the user asked.)
 **DO write a tester access path's code-set as its own Deploy TLDR step**
 (`references/testing-strategy.md` § Live variants): the production write that sets the code, a smoke
 that the coded link reaches the arm on a fresh signed-out device while the bare link shows today's
-screen, and the rollback that clears the code. The write waits for Simon's per-write yes.
+screen, and the rollback that clears the code. Simon's merge word for the PR runs it (§ A merge word
+runs the Deploy TLDR).
 TEST: a PR shipping a tester access path names its code-set step, smoke and rollback in its Deploy TLDR.
 
 **DO name a `Smoke:` signal only after tracing its writer to the code path production takes for the
@@ -894,6 +898,29 @@ Keep the same project-instruction policy active before consulting a deploy runbo
    check the logs for the error rate after traffic arrives.
 3. When something is wrong or merely not as expected, diagnose the cause, fix it, and go back to 1.
 4. Stop when a full pass comes back clean with nothing outstanding.
+
+### A merge word runs the Deploy TLDR
+
+**DO treat Simon's merge or deploy word for a PR as the order to make its behaviour live: merge, then
+run every step of that PR's Deploy TLDR in its order** (migrations, function deploys, feature-switch or
+flag turn-ons, config edits, smokes), each with its `Check:` before and `Smoke:` after. This is his
+standing authorization for the production writes that Deploy TLDR lists, and the per-write yes of
+`rules/connectors.md` § Prod / live safety for them; use the provisioned write path, torn down after.
+**DO stop and run a step's `Rollback:` only when its `Check:` or `Smoke:` fails,** then report it.
+**DO hold a step only when Simon said to keep it off** ("merge but keep it off", "don't turn it on"),
+or it needs a credential, device or app build only he has: name it in the hand-back with its exact
+action. A step whose own text names a trigger condition (e.g. "once the new app build runs on 50% of
+active installs") runs when the condition holds.
+**DON'T ask again after the merge for a step the Deploy TLDR lists, and DON'T read a PR body's "only
+on Simon's word" or "not part of this merge" as a hold:** the PR text is ours, not his.
+**DON'T write to production outside the merged PR's Deploy TLDR on this authority;** every other write
+keeps its per-write yes, and a billable step its spend yes (`rules/spend-approval.md`).
+**DO report each step after the merge as ran or held, with its check result** (`references/planning-and-tracking.md`
+§ Close the session), never as a new ask.
+TEST: after a merge word, every Deploy TLDR step shows ran with its smoke result, rolled back with the
+failed check, or held with Simon's quoted keep-off or a Simon-only blocker; zero steps are re-asked
+(the fix for a 50/50 test PR merged on Simon's merge word whose switch turn-on was written "only on
+Simon's word", so the feature sat off for an hour until he asked twice).
 
 ### Prod check after every production deploy
 
