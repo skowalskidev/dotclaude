@@ -27,6 +27,8 @@ DON'T build on a figure or an outage you have not reproduced. A premise that fai
 report the corrected facts.
 TEST: every number and outage claim in the report has a verdict (confirmed, corrected, refuted) with
 its 2 sources.
+DO hand a builder only a cause this step or step 2 verified, cited, or one labelled `Unverified
+hypothesis:` per `references/parallelization.md` § Give every agent a precise, self-contained spec.
 
 ## 2 · Corroborate from every relevant source, and loop until sure
 

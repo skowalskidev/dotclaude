@@ -160,7 +160,7 @@ def launch():
         args = sys.argv[1:]
         if print_mode(args) and os.environ.get('AGENT_SESSION_RESUMED') != '1':
             # Shared hooks read this to leave the supervisor's plan and ledger alone. A session the
-            # auto-resume watchdog continues (bin/session-auto-resume.py) owns its own plan, so it
+            # a by-hand resume continues owns its own plan, so it
             # stays unmarked.
             os.environ['AGENT_DELEGATED_WORKER'] = '1'
         binary = executable()

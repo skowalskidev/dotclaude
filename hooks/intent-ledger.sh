@@ -45,10 +45,12 @@
 #         skill                   PostToolUse (Skill) — record a stage receipt for the HEAD of the checkout
 #                                 the work runs in: a subagent's (agent_id) last explicit Bash checkout,
 #                                 else the payload cwd
-#         receipt <stage> [dir]   called by a delegated worker from its OWN checkout — record a stage
+#         receipt <stage> [dir]   called by a delegated worker from its OWN checkout, or by the main session
+#                                 for a branch whose checkout is not its cwd — record a stage
 #                                 receipt for the HEAD of <dir> (default: the shell's cwd), in the
 #                                 session's ledger. The fallback when a Skill receipt missed its checkout
-#                                 (a subagent that never ran a Bash `cd`/`git -C` into it).
+#                                 (a subagent that never ran a Bash `cd`/`git -C` into it, or a sibling
+#                                 worktree the session's Bash cwd cannot stay in). It still records <dir>'s HEAD.
 #         stages <tier> [sha|HEAD] [branch]
 #                                 read-only — print the tier's required stage skills; with a sha,
 #                                 print "All stages ran" (exit 0; "(carried from <sha>...)" when a
@@ -100,7 +102,7 @@ CRED_RE='(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]
 # supervisor owns this ledger.
 [ "${CLAUDE_INTENT_LEDGER:-on}" = "off" ] && exit 0
 [ "${AGENT_DELEGATED_WORKER:-}" = "1" ] && exit 0
-# A session the auto-resume watchdog continues (bin/session-auto-resume.py) gets a fixed machine
+# A session the a by-hand resume continues gets a fixed machine
 # prompt. Recording it as an ask would forge Simon's words; the watchdog writes its own `note plan`
 # line instead, and every other mode keeps working for the resumed session.
 [ "$MODE" = "submit" ] && [ "${AGENT_SESSION_RESUMED:-}" = "1" ] && exit 0
@@ -722,11 +724,17 @@ submit)
   # it, but `latest-ask` (the merge guard's source of Simon's own words) and the turn's ask time
   # never read it (the fix for a subagent report recorded as the newest "ask", which the merge guard
   # then judged instead of Simon's own message).
+  # A peer relay without the envelope tags is the same data: a turn that opens with another session's
+  # attribution ("From the tokyo session (PR #12), per Simon: ...", "From tokyo (session 2e47dc28), ...",
+  # "Another Claude session sent a message: ...") is Claude-authored, whatever it quotes Simon as saying
+  # (the fix for three tokyo relays recorded as Simon's asks). The capitalised opener is the Claude form;
+  # Simon's own lowercase "from the tokyo session, merge it" stays his ask.
   kind=ask
   own="$(printf '%s' "$stripped" | jq -Rrs '
     gsub("<(agent-message|cross-session-message)\\b[^>]*>.*?</(agent-message|cross-session-message)>"; ""; "mgi")
-    | gsub("Another Claude session sent a message:"; ""; "g")
-    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)" || { mark_unrecorded; exit 0; }
+    | gsub("^\\s+|\\s+$"; "")
+    | if test("\\A(Another Claude session\\b|(From|Relayed from|Forwarded from|Message from)\\s+(the\\s+)?[A-Za-z0-9._-]+(\\s+session\\b(?![\u0027\u2019])|\\s*\\(session\\b))")
+      then "" else gsub("Another Claude session sent a message:"; ""; "g") | gsub("^\\s+|\\s+$"; "") end' 2>/dev/null)" || { mark_unrecorded; exit 0; }
   [ -n "$own" ] || kind=peer
 
   # A real prompt that cannot be recorded (the ledger does not resolve) is marked like a failed append,
@@ -1253,7 +1261,9 @@ $list
 Before finishing, run /sk:ship-full-detailed-workflow on each at its tier (references/testing-strategy.md, \
 Size the checks to the change; rules/process.md, Prove every point of the ask was built): invoke each \
 stage listed under that tier above with the Skill tool, from the checkout at that head (each run records \
-its receipt; a receipt on an older head does not count), then record it:
+its receipt; a receipt on an older head does not count). When that branch's checkout is not this \
+session's cwd, record each stage you ran for it with \
+\`~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>\` (it records that dir's HEAD). Then record the gate:
   ~/.claude/hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [light|standard|deep] [reason]
 BLOCKED, N/A and a light or standard PASS need a reason: the exact blocker, why the harness does not \
 apply to this push, or the tier's trigger and skipped stages. A standard or deep BLOCKED \
@@ -1271,11 +1281,8 @@ This fires at most once per set of open pushes."
   ;;
 
 latest-ask)
-  # The merge guard (hooks/git-commit-guard.py) asks this for Simon's own words, so a merge is
-  # authorized by what he typed, never by a flag the model can set. Same resolution as `submit`,
-  # silent, read-only; no ledger or no ask for this session prints nothing, which the guard denies.
-  # `--since <ts>` returns every ask from that second on: the guard passes the second the current
-  # turn opened, so a merge ask followed by a queued clarification keeps its authority.
+  # This session's recorded asks, verbatim. Same resolution as `submit`, silent, read-only; no ledger
+  # or no ask for this session prints nothing. `--since <ts>` returns every ask from that second on.
   QUIET=1
   since=""; stamped=0
   if [ "${2:-}" = "--stamped" ]; then stamped=1; shift; fi

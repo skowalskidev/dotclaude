@@ -20,8 +20,8 @@ ROOT = Path(__file__).resolve().parent.parent
 EVENTS = {'SessionStart', 'SessionEnd', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse',
           'Stop', 'PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart',
           'SubagentStop', 'Interrupt'}
-# Claude Code events Codex has no counterpart for. Their handlers serve Claude sessions only (the
-# StopFailure marker feeds bin/session-auto-resume.py, which resumes Claude transcripts), so the
+# Claude Code events Codex has no counterpart for. Their handlers serve Claude sessions only (a
+# StopFailure handler), so the
 # Codex dispatcher leaves them out instead of refusing to launch.
 CLAUDE_ONLY_EVENTS = {'StopFailure'}
 

@@ -49,6 +49,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/capacity-timeout-guard.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/formatter-scope-guard.py",
+            "timeout": 10
           }
         ]
       },
@@ -67,6 +72,16 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/emulate-viewport-guard.py",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__chrome-devtools__navigate_page",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/test-browser-label-guard.py",
             "timeout": 10
           }
         ]
@@ -226,17 +241,6 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/config-metrics-log.sh",
             "timeout": 10
-          }
-        ]
-      }
-    ],
-    "StopFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$HOME/.claude/bin/session-auto-resume.py record-stop",
-            "timeout": 5
           }
         ]
       }

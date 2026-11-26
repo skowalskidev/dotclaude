@@ -2487,6 +2487,59 @@ class StackTests(unittest.TestCase):
         self.assertEqual(gate.max_stacks(4), 1)
         self.assertEqual(gate.max_stacks(64), gate.STACK_CEILING)
         self.assertEqual(gate.max_stacks(None), 1)
+        self.assertEqual(gate.max_stacks(None, {"total": 1, "stacks": {"/w/a": 1}}), 1)
+
+    def test_measured_cap_follows_docker_memory_with_one_stack_in_reserve(self):
+        # Two stacks using 2.9 of a 7.75 GiB VM leave room for three more at 1.45 GiB; one stays in reserve.
+        two = {"total": 2.9, "stacks": {"/w/a": 1.45, "/w/b": 1.45}}
+        self.assertEqual(gate.max_stacks(7.75, two), 4)
+        self.assertEqual(gate.max_stacks(7.75, two, starting=1), 4)
+        # Any container's memory counts, stack or not, and the largest stack sets the size of the next one.
+        self.assertEqual(gate.max_stacks(7.75, {"total": 5.0, "stacks": {"/w/a": 1.45, "/w/b": 1.45}}), 2)
+        self.assertEqual(gate.max_stacks(7.75, {"total": 6.5, "stacks": {"/w/a": 3.0, "/w/b": 3.5}}), 2)
+        # A stack still booting never claims less than STACK_MIN_GIB, and the cap is never below 1.
+        self.assertEqual(gate.max_stacks(4, {"total": 0.2, "stacks": {"/w/a": 0.2}}), 3)
+        self.assertEqual(gate.max_stacks(2, {"total": 1.9, "stacks": {"/w/a": 1.9}}), 1)
+        # No running stack measured: the budgeted rule.
+        self.assertEqual(gate.max_stacks(7.75, {"total": 2.1, "stacks": {}}), 2)
+
+    def test_third_stack_is_admitted_when_measured_memory_has_room(self):
+        now = time.time()
+        self.host["activity"] = {"/w/a": now, "/w/b": now}
+        self.running("/w/a", "/w/b")
+        self.host["stack_usage"] = {"total": 2.9, "stacks": {"/w/a": 1.45, "/w/b": 1.45}}
+        gate.stack_acquire(self.root, "gamma", "/w/c")
+        self.assertEqual(gate.read_stack_leases(self.root)["/w/c"]["owner"], "gamma")
+        self.host["stack_usage"] = {"total": 6.4, "stacks": {"/w/a": 3.2, "/w/b": 3.2}}
+        with self.assertRaises(gate.Busy) as refused:
+            gate.stack_acquire(self.root, "delta", "/w/d")
+        self.assertIn("3 of 3 local dev stacks in use", str(refused.exception))
+
+    def test_stack_usage_sums_each_stacks_containers_and_falls_back_on_a_gap(self):
+        rows = [{"ID": "aaaaaaaaaaaa", "Labels": "com.supabase.cli.project=a,com.supabase.cli.workdir=/w/a"},
+                {"ID": "bbbbbbbbbbbb", "Labels": "com.supabase.cli.project=a,com.supabase.cli.workdir=/w/a"},
+                {"ID": "cccccccccccc", "Labels": "com.docker.compose.project=b,com.docker.compose.project.working_dir=/w/b"},
+                {"ID": "dddddddddddd", "Labels": ""}]
+        stats = [{"ID": "aaaaaaaaaaaa", "MemUsage": "1GiB / 7.75GiB"},
+                 {"ID": "bbbbbbbbbbbb", "MemUsage": "512MiB / 7.75GiB"},
+                 {"ID": "cccccccccccc", "MemUsage": "256MiB / 7.75GiB"},
+                 {"ID": "dddddddddddd", "MemUsage": "2.12GiB / 7.75GiB"}]
+        lines = lambda items: "\n".join(json.dumps(item) for item in items) + "\n"
+        self.host["stacks"] = None  # read docker, not the fixture
+        self.docker.stop()
+        with mock.patch.object(gate, "docker_json_lines",
+                               side_effect=lambda args: lines(rows if args[0] == "ps" else stats)):
+            running = gate.observe_stacks()
+            self.assertEqual(running["/w/a"]["ids"], ["aaaaaaaaaaaa", "bbbbbbbbbbbb"])
+            usage = gate.stack_usage(running)
+        self.assertAlmostEqual(usage["total"], 3.87, places=2)
+        self.assertEqual(usage["stacks"], {"/w/a": 1.5, "/w/b": 0.25})
+        with mock.patch.object(gate, "docker_json_lines",
+                               side_effect=lambda args: lines(rows if args[0] == "ps" else stats[:2])):
+            self.assertIsNone(gate.stack_usage(gate.observe_stacks()))
+        with mock.patch.object(gate, "docker_json_lines", side_effect=ValueError("docker stats failed")):
+            self.assertIsNone(gate.stack_usage({"/w/a": {"project": "a", "supabase": True, "ids": ["aaaaaaaaaaaa"]}}))
+        self.docker.start()
 
     def test_third_stack_is_refused_naming_the_two_and_a_running_one_is_readmitted(self):
         now = time.time()
@@ -2691,6 +2744,25 @@ class SessionOwnershipTests(unittest.TestCase):
         for workspace in (self.sibling, self.unrelated):
             with mock.patch.object(gate.Path, "cwd", return_value=workspace):
                 self.assertFalse(gate.priority_matches(record, "session"), "a copied label cannot grant session priority")
+
+    def test_copied_owner_id_warns_outside_its_registered_checkout_and_never_refuses(self):
+        gate.prioritize(self.root, "session", 30, False, str(self.checkout))
+        for workspace in (self.checkout, self.nested):
+            with mock.patch.object(gate.Path, "cwd", return_value=workspace):
+                self.assertEqual(gate.copied_owner_warning(self.root, "session"), "")
+        with mock.patch.object(gate.Path, "cwd", return_value=self.sibling):
+            self.assertEqual(gate.copied_owner_warning(self.root, "own-agent"), "")
+            warning = gate.copied_owner_warning(self.root, "session")
+            self.assertIn("--owner session is registered to " + str(self.checkout), warning)
+            self.assertIn("pass your own agent id", warning)
+            with mock.patch.object(gate, "observe_booted", return_value=[]), \
+                    mock.patch.object(gate, "host_reading", return_value=(None, "")), \
+                    mock.patch("sys.stderr", new_callable=io.StringIO) as err:
+                token = gate.acquire(self.root, "session", os.getpid(), None)
+            self.assertIn("capacity warning: --owner session is registered to", err.getvalue())
+            gate.release(self.root, token)
+        with mock.patch.object(gate, "read_priority", side_effect=gate.GateError("corrupt")):
+            self.assertEqual(gate.copied_owner_warning(self.root, "session"), "")
 
     def test_priority_multiple_workspaces_and_mismatch_hint(self):
         gate.prioritize(self.root, "session", 30, False, [str(self.checkout), str(self.sibling)])

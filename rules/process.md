@@ -19,6 +19,8 @@ DO start each heavy check (builds, full suites, typecheck, device walks, capture
 CI) ONCE, after every build item and review/fix round lands on one head; a plan or handoff order never
 moves one earlier. Between edits only the affected test file and analyze on touched files; allow a
 concrete diagnostic or Simon's ask. Keep hooks/CI. Detail: `references/testing-strategy.md` § Verify once, at convergence.
+DO double-tap a suite: settle the design and expected outcomes, run it once collecting every failure,
+fix all, rerun once (same file, § Double tap).
 DO default to draft mode while Simon gives feedback: `references/workflow-loops.md` § Draft mode.
 DO size each check to the change's tier, then walk each changed journey e2e on a local stack, iOS
 Simulator included, before PR-ready: `references/testing-strategy.md` §§ Size the checks to the
@@ -28,7 +30,8 @@ DO push a finished fix rather than wait on a local slot, name the real blocker i
 launch every ready stage at once on a priority ask: `references/parallelization.md` §§ Parallelize
 verification, across tasks AND stages.
 TEST: no routine per-edit/feature/commit/feedback runs; each heavy check names its head, which equals
-the pushed head or records why; at most 1 full judge round plus 2 delta passes per PR.
+the pushed head or records why; at most 1 full judge round plus 2 delta passes per PR; at most 2
+full runs of a suite per batch.
 
 ### Claims about third parties must come from primary sources
 DO apply `references/research.md` § Claims about third parties to every factual claim about another
@@ -46,15 +49,12 @@ unfamiliar library or opaque error. Detail:
 
 ### Agent-written shell fails fast and loud
 DO chain dependent tool-shell steps with `&&` or `bash -c` (bare `set -e` is inert), abort on
-empty loop input, end waits non-zero on timeout; read first output in 2 min. Detail:
+empty loop input, end waits non-zero on timeout, run a wait over 60 s in the background. Detail:
 `references/code-best-practices.md` § Agent-written shell. TEST: no `;` after `cd`, no silenced release.
 
 ### Fix the CLASS of failure, not the one instance I reported
-When I report wrong output (a bad render, a wrong answer, a broken page), my example is evidence of a
-general failure mode, not the scope of the fix. **Don't patch the instance.** Name the rule that was
-violated, check whether it is a known class, and write the fix generically so it catches variants I
-haven't hit.
-DO write the rule, keep one concrete instance, and name the class and what you checked:
+DO fix the class behind a reported wrong output, never only the instance: write the rule, keep one
+concrete instance, and name the class and what you checked:
 `references/planning-and-tracking.md` § Fix the class of failure.
 
 ### Front-load everything you need from me — at the START of a session
@@ -102,6 +102,12 @@ can give (a credential, a prod authorization, a decision where guessing wrong wa
 interrupt. On a blocker, do every other item first and stop with that one named. If you find yourself
 writing "say the word and I'll continue" — that's the bug. Continue.
 
+**DO run an evaluation skill (a verdict, research, a prod-data check, a plan) as a stage of work I asked
+done, never its deliverable:** a build verdict builds that item to done (a PR for code) in the same run,
+independent items in parallel: `references/planning-and-tracking.md` § Asked-for work ends built.
+TEST: each asked-for item ends done or blocked by a Simon-only reason above; a verdict alone is never
+done (the fix for a batch of asked-for follow-ups handed back as verdicts and plans).
+
 **Work in fix → verify → fix loops until a clean pass**, using the batch timing above. Re-run the affected
 check after a failure; preserve passing evidence for unaffected scope. If a loop stops converging (the
 same failure recurs, or a fix needs a decision only I can make), stop and tell me where it stands.
@@ -114,12 +120,15 @@ ANY repo — this config included — unprompted.** What it proves: `references/
 runs. A summary proves you can describe it. Neither proves point four of a five-point ask was built.
 TEST: every ask clause in the ledger has a verdict against it. A missing verdict is a missing feature.
 
+**DO ship each part the ask names on every target it names (surface, platform, audience), and walk the
+whole deliverable to its last stage on each target yourself before handing Simon a step, link or
+"ready".** A recommended default fills only what the ask leaves open. Detail and TEST:
+`references/planning-and-tracking.md` § Every named part on every named target.
+
 **DO run `/sk:ship-full-detailed-workflow` at the PR's tier on every open PR the work opened or pushed
 to, before hand-back.** Ship-report proves the journeys; the harness reviews and verifies the pushed PR and lands
-its gate. The Stop hook backs this: it blocks once per pushed non-default branch head until
-`hooks/intent-ledger.sh gate <branch> <sha|HEAD> PASS|BLOCKED|N/A [tier] [reason]` records the result.
-TEST: a hand-back naming an open PR from this run cites that PR's landing-gate result. (the fix for two
-PRs handed back unreviewed; the harness then found a dropped consent event and a no-op column revoke.)
+its gate; the Stop hook blocks until `intent-ledger.sh gate` records it.
+TEST: a hand-back naming an open PR from this run cites that PR's landing-gate result.
 
 ### Commit when a task is finished (durable authorization)
 **When a task is complete and verified, commit it — you do NOT need to ask first.** This is standing
@@ -166,14 +175,12 @@ Before a change touching more than about three files, commit the good state or b
 ### Self-verify every visual deliverable before handing back — the default
 **DO open the exact artifact a human will open (web UI in Chrome for Testing, `browser-debugging.md`;
 or the built mockup, board, dashboard, report, image, PR media) and check every
-state he can switch to,** at most 24 variant x viewport x toggle rows: not blank (ink above 0.05%), key
-strings present, key elements fully visible (cut by no overflow-hidden or scroll ancestor), one
-screenshot per distinct view type viewed. On any failure fix and re-run the WHOLE check until every row
-passes; hand off with the pass table and screenshots path.
-Tool: `references/screenshot-review.md` § Hand-off check. DO apply § Refresh after the follow-up batch
+state he can switch to for blank and clipped content,** viewing one screenshot per view type. On any
+failure fix and re-run the WHOLE check until every row passes; hand off with the pass table and
+screenshots path. Thresholds and tool: `references/screenshot-review.md` § Hand-off check. DO apply § Refresh after the follow-up batch
 by default for UI ticket work.
-**DON'T count another file's render, one state, a DOM string or non-white pixels as the check** (a board opened
-blank, then a compare view cropped every phone).
+**DO view a phone-width screenshot of every changed section from this build before handing over a preview link, and name its path;** `references/screenshot-review.md` § Hand-off check.
+**DON'T count another file's render, one state, a DOM string or non-white pixels as the check.**
 **DO measure a supplied-design build** (`references/workflow-loops.md` § Build from a supplied design
 source); hand off its report, never an eye comparison.
 TEST: a visual hand-off with no pass table over every switchable state of the file actually opened, a
@@ -226,9 +233,8 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
   residue. Cases: `references/dev-server-hygiene.md`.
 - **Never install a persistent background process** (login item, LaunchAgent/LaunchDaemon, cron,
   always-on watcher) without asking first — and if you add one for a task, remove it AND its
-  registration when done. The one sanctioned job: `references/session-auto-resume.md`.
-- **Prefer on-demand / event-driven over always-on.** An idle CPU-burning daemon is rarely right;
-  reach for a hook, a manual command, or a session-start check instead.
+  registration when done. No persistent job is sanctioned; pace long runs with `references/usage-limits.md`.
+- **Prefer on-demand / event-driven over always-on:** `references/dev-server-hygiene.md` § Track what you started.
 
 ## Project documentation rule
 

@@ -8,12 +8,8 @@ newest version it **actually supports** — verify against its current docs, don
 LTS for runtimes.
 
 **Before adding or upgrading a major dependency** (React, Node, Firebase, Next.js, Tailwind,
-TypeScript), **research the latest-stable version online first** — training-data version numbers drift.
-Confirm it exists, is stable (not alpha/RC), and is compatible with the stack and deploy target before
-pinning.
-
-DO encode the pinned versions in the repo and verify each bump: `references/code-best-practices.md`
-§ Pin versions in the repo.
+TypeScript), **research the latest-stable version online first**, then encode it in the repo and verify
+each bump: `references/code-best-practices.md` § Pin versions in the repo.
 
 ## Choose mainstream, widely-adopted tools
 
@@ -28,10 +24,8 @@ security risk, not a recommendation.
 - **Name the mainstream alternative you rejected and why**, so I can judge the call.
 - If the honest mainstream choice is genuinely worse for my specific case, say so and recommend the fit
   anyway — but the burden is on justifying the deviation from the popular default.
-- **The same bar applies to a SOLUTION adopted from research**, not just to a tool — a pattern, a
-  workaround, a config, a technique. Prefer the community-proven answer (heavily upvoted, officially
-  documented, or from a high-adoption project) over a clever fix from an obscure or low-star source.
-  Read SEVERAL sources before settling, and prefer the vendor's own docs over a blog restating them.
+- **The same bar applies to a SOLUTION adopted from research**, not just to a tool:
+  `references/research.md` § Source order.
 - **DO research the name before the first new artifact exists** (folder, module, skill, workflow,
   channel, app, key, ticket title): tally the term each major vendor's own page uses for the category,
   name from the majority, and record term, tally and links in the plan. Method:
@@ -89,20 +83,16 @@ extraction that leaves each call site re-wiring its own state has not done the j
 
 - **Derive over store.** Don't persist state you can compute from an existing source. Store a
   value only when it genuinely must be recorded (can't be recomputed, or recomputing is too
-  costly) — a stored copy is one more thing that drifts. (e.g. "is this the last retry attempt?"
-  is inferred from the configured retry count vs. the current attempt, not saved as its own flag.)
+  costly) — a stored copy is one more thing that drifts.
 - **One source per fact.** A number shown in several surfaces (an SMS, a landing page, a call
-  script) must all read the SAME source — e.g. a discount percentage set once and pulled
-  everywhere, not typed into each surface. If two independent paths exist (e.g. two billing
-  providers), each derives from its own single source; neither hand-maintains a copy of the other.
+  script) must all read the SAME source.
 - **Single responsibility.** Each module/function/document owns one concern; put a piece of state
   where that concern lives, under a name that says what it is.
 - **Share BEHAVIOUR, not just values.** A convenience — debounced autosave, optimistic update,
   retry, undo, a keyboard handler — is extracted to one shared owner the moment it appears a SECOND
   time. When extracting, port the most COMPLETE existing implementation's edge cases into that owner,
   never the newest copy's: a reimplementation silently drops the details that made the original
-  correct, and nothing fails loudly. When asked to share one convenience, check
-  the same surfaces for the others they each half-implement — they cluster.
+  correct, and nothing fails loudly.
 - **A new guard belongs on every path that needs it, in the same change.** SSOT governs ADDITIONS,
   not just extractions: after adding a rule, check, constraint or validation to one path, grep for the
   sibling paths doing the same job and either fix them too or say why they're exempt — better still,
@@ -111,7 +101,11 @@ extraction that leaves each call site re-wiring its own state has not done the j
 - **Read the current setting.** When a setting changes, in-flight and derived behavior must read
   the UPDATED value, not a snapshot taken earlier — and account for race conditions when the
   setting can change while work is running.
-- Worked examples: `references/code-best-practices.md` § Single source of truth.
+- **DO apply a rule many current and future consumers need (test traffic, permissions, prices,
+  eligibility) at one shared boundary the moment a second consumer needs it:** a view, default scope,
+  middleware, write-time trigger or base class, fed at the source event, plus a drift-guard test.
+  TEST: a new consumer gets the rule with zero code of its own; "remember to filter" is never it.
+- Worked examples and detail: `references/code-best-practices.md` § Single source of truth.
 
 ## Legacy support policy
 - **Never add legacy support** unless explicitly asked for
@@ -132,6 +126,7 @@ extraction that leaves each call site re-wiring its own state has not done the j
   every loser AND the selection mechanism (toggle, branch, dead CSS/storage, persisted setting + its
   strip-migration, loser-only test) in THAT change, never a later pass. TEST: a grep for the switch or
   any dropped variant returns only the kept value.
+- **DO ship each live experiment arm with a tester access path:** `references/testing-strategy.md` § Live variants.
 
 ## Data deletion — soft-archive, never hard-delete (default for user-facing deletes)
 

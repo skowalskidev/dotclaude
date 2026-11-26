@@ -96,6 +96,9 @@ action" or a dashboard queue that puts a heavy check ahead of open build or revi
 convergence instead; on resume the remaining build and review/fix stages go first
 (`references/workflow-loops.md` § Handoff and resume). (the fix for a resumed ship run whose handoff
 named a full converge run first; the review then raised 12 findings and the whole run was wasted.)
+DO hold a base-branch merge while a heavy check runs on the same tree; if one lands anyway, discard
+that check's result and rerun only the failing files (the fix for a merge 22 s into a full suite that
+failed 101 tests whose 17 files passed 434/434 on rerun).
 DO stop an in-flight heavy check the moment pending fixes supersede its head, and record it as
 stopped-stale with that head. DON'T let it finish for partial evidence.
 DO run the whole set ONCE on the final head, launching every independent item in parallel: full suites,
@@ -113,6 +116,40 @@ TEST: each heavy check ran once and names the head it ran on, which equals the f
 run records why an earlier head was needed (a concrete diagnostic Simon or a failing check asked for); no
 hand-back shows the same full suite or stage run on two heads of one PR except after a Deep-path change,
 and the judge cap holds.
+
+## Double tap
+
+The owner of how often ONE suite runs per change batch (`rules/process.md` § Fan out verification).
+§ Verify once, at convergence owns when the heavy set starts; this owns the runs of a suite inside it.
+
+DEFAULT: tap twice. One full run finds every failure, one run confirms every fix.
+DO settle the whole design before the first run: every policy step of the change decided, and every
+test expectation it moves written into the tests, so the run tests a finished design rather than one
+step of it.
+DO run the full suite ONCE collecting every failure. DON'T pass a fail-fast flag (`pytest -x`,
+`--maxfail`, `jest --bail`, `vitest --bail <n>`) and DON'T stop reading at the first red: list every
+failure before the first edit.
+DO fix ALL of them in one batch, then confirm ONCE: rerun the full suite, or rerun only the failed set
+(`pytest --lf`, `jest --onlyFailures`, or a config suite's own `--last-failed`) plus the touched files'
+tests, then one full run at the end.
+DO use a suite's `--only <substring>` and `--last-failed` while fixing, and its parallel workers for a
+full run (`hooks/config-contract.test.py` takes both; `hooks/git-commit-guard.test.py` takes `--only`).
+DON'T walk a policy change one step per full run (the fix for an 863-case guard suite run six times in
+one session, 4-7 min each, while its policy moved one step at a time).
+DON'T rerun a suite that already passed on the same tree: `bin/config-land-check.py` reuses the
+contract suite's pass recorded for that `HEAD^{tree}`.
+NUMBER: at most 2 full runs of a suite per change batch. A third needs a stated new cause written next
+to it: a merge from main that touched the suite's files, a finding outside the batch, or a timeout
+under load.
+TEST: the transcript shows at most 2 full runs of each suite per batch, and every third run names its
+cause.
+
+Sources (each opened 2026-11-25): pytest `-x` stops after the first failure only when asked
+(https://docs.pytest.org/en/stable/how-to/failures.html); `--lf` reruns only the last failures
+(https://docs.pytest.org/en/stable/how-to/cache.html); pytest-xdist `-n auto` runs one worker per
+physical core (https://pytest-xdist.readthedocs.io/en/stable/distribution.html); Jest
+`--onlyFailures`, `--bail` and `--maxWorkers` (https://jestjs.io/docs/cli); Vitest `--bail` defaults
+to 0 (run everything) and `--changed` runs the tests changed files affect (https://vitest.dev/guide/cli).
 
 ## Follow-up pushes and waivers
 
@@ -143,7 +180,7 @@ read each over one window, and list each data point a question about the feature
 still does not capture. TEST: the hand-back names every connector read, or its access gap, and the
 missing data points found or `none`.
 **DO run scenario rounds on every Deep change with a user path:** pick the 10 scenarios the user cares
-most about across the axes the change touches (new or returning account, device, payment outcome and
+most about from its § Edge-case hunt before every walkthrough table, across the axes the change touches (new or returning account, device, payment outcome and
 retry, return from a hosted page, each live arm, native bridge, embedded browser, a failing or offline
 dependency, § Local time-driven simulations clock cases, a shared device). Drive each through the real
 client, real server and an isolated local database. Report each round's BUGS and OPPORTUNITIES as two
@@ -167,6 +204,8 @@ failure from a support banner that counted the new beacon.)
 **A full test run triggers zero billable API calls.** Every paid dependency — video, audio, image
 generation, any metered model or third-party call — is mocked or stubbed by default, so the ordinary
 command is always safe to run, in a loop, in CI, by anyone.
+
+**DO name, in every automated walk agent's brief, each app control that triggers a paid AI call (e.g. a "build my plan" button backed by a paid model) and the free alternative (a seeded record, a stub or the mocked path).** DON'T let a walk agent on a shared test server press such a control. TEST: the brief lists each paid control by label, and the walk's network log shows zero paid-provider requests (`rules/spend-approval.md`).
 
 Real-call coverage is worth having, and it lives behind an explicit environment gate that is off by
 default, so reaching it is a decision rather than an accident. Where a whole class of call must never
@@ -623,6 +662,28 @@ side by side, matching or with the difference stated (the fix for a walk planned
 had stopped dealing days earlier, and for a second platform handed over with no arms dealt locally
 because its settings table was empty).
 
+### Tester access path: every user-facing variant ships one
+
+DO ship every change to what real users see (an experiment arm, a new onboarding or paywall, a gated
+flow) with a tester access path in the same PR: a code-gated link or a test-account list that lets
+Simon or an agent reach that variant on production on demand. Hold it to all five:
+1. **No change without the code.** A request without the code makes no database read; a wrong code
+   reads only the code check and writes nothing.
+2. **Fresh test device only.** It takes over a fresh, signed-out test device; it never re-deals a
+   person's own browser, account or existing enrollment.
+3. **The real happy path.** Same prices, same payment and confirm path, every step real users take.
+   DON'T add a shortcut that skips a step: a tester walk is proof of the real path only without one.
+4. **Out of every readout.** The walked device's deal carries a test marker that every readout and
+   experiment metric filters out.
+5. **One rollback.** Clearing the code switches it off, documented in the Deploy TLDR.
+WHY: a path that leaks to one real visitor skews the experiment it exists to prove.
+TEST: the PR carries a test that a request without the code makes zero database reads and a wrong
+code writes zero rows, and a test that the walked device's deal is marked and excluded from the
+readout; its Deploy TLDR names the code-set step, its smoke and its rollback
+(`references/git-pr-deploy.md` § Deploy safety, check 3). (the fix for a guided-onboarding experiment
+arm Simon could not reach on production: a walk code stored in its switch row, set right after
+deploy, let him walk it with normal visitors untouched.)
+
 ## Human-driven sessions — prove the environment and the provider identity
 
 A person clicking through a journey while Claude watches logs only works when both sit on the SAME
@@ -650,6 +711,10 @@ the journey touches and fix each miss before he starts:
    installed app's build fingerprint receipt, `ios-simulator.md`) and match `git rev-parse HEAD`.
    Rebuild and re-serve on any mismatch, and repeat the read after every commit before he re-walks.
    (the fix for a walk run on an old build after later fixes were committed.)
+8. Every fixture account lasts its whole journey: read its lifecycle (reset on sign-in, expiry, one
+   trial per device, a nightly wipe) and check it against each step it walks; a step that needs kept
+   state (a returning member, a second sign-in) gets a persistent account. (the fix for a test phone
+   number that reset on every sign-in and broke a returning-member step mid-walk.)
 **DON'T blank, fake or strip a key, flag or service to save cost or time.** A degraded stack fails like
 a product bug and he cannot tell which. When cost is the concern, ask once in the front-loaded block
 whether the session runs on billable keys; his yes covers the actions he drives, and each billable call
@@ -675,7 +740,9 @@ Claude in that state this session, and what rendered matches the step's Expect l
 
 **DO run every later step yourself before you send it, the same way:** in your own browser, from the state
 he is in (same storage, same account), and send it only when the Expect screen appears. DON'T write a
-step from the code's happy path. TEST: each step sent has a run by Claude from his state with its Expect
+step from the code's happy path. A step-ahead run is not the whole-journey walk: before step 1, walk
+every target to its last stage per `references/planning-and-tracking.md` § Every named part on every
+named target. TEST: each step sent has a run by Claude from his state with its Expect
 line observed (the fix for three steps that bounced to another screen, reused storage in a "new" private
 window, or made an account outside the plan, each costing him a round trip).
 
@@ -872,6 +939,9 @@ new place. A diff modifying no pre-existing file states that with its reason.
 `bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
 pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
 INTENDED, or a row records FAIL.
+**DO run `/sk:work-verify-regressions-against-original` for the flow-level half when the diff
+touches an existing user flow:** it records each vanilla flow on base and head on one local stack and
+posts its `### Flow walk` table under the same heading.
 TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).
@@ -993,6 +1063,15 @@ minutes of reading the log. TEST: no diagnosis rebuilds the base, reruns CI-pass
 full suite before the failed specs ran on the head (the fix for a two-hour serial re-run of CI-passed
 gates before one flaky browser spec ran once; it then passed 150 of 150).
 
+**DO compile-check native code (Swift, Kotlin, Objective-C) before a review of it counts as done:**
+run the narrowest leased build that type-checks the changed files on the reviewed head (the app
+target's `xcodebuild build -quiet`, or `./gradlew :<module>:compile<Variant>Kotlin`), once per review
+round, as the one native compile this policy allows before convergence; `swiftc -parse` catches syntax
+only, so record it as `syntax-only` when no build can run. The full native suite still runs once at
+convergence. TEST: every review verdict on native code cites a compile result on the reviewed sha
+(the fix for a Swift compile error that passed two read-only reviews and surfaced at the first build
+after them).
+
 **DO finish the defect finders and their fixes before final execution:** code review (`/sk:ship-review`),
 PR-thread resolution, the test-matrix Stage-2 judge and the journey judge. Then run the full relevant
 suites and builds ONCE on the converged, reviewed batch, followed by the real-app check within its
@@ -1037,6 +1116,53 @@ suite only when a source, dependency, configuration or environment change invali
 TEST: no routine mid-batch run, no duplicate final suite from a later workflow stage, and every rerun
 names its failure or invalidated inputs. Every completion claim links the full relevant evidence.
 
+## Edge-case hunt before every walkthrough
+
+**DO run a read-only edge-case hunt before every walk a human-facing change gets, at the Standard and
+Deep tiers:** the full matrix's real-client walk, `/sk:test-copilot`'s machine pass and charter, the
+ship-report journey tests, step 2 of § Pre-merge end-to-end on a local stack and the scenarios of
+§ Deep-tier discovery rounds all start from its table. A Light change hunts its one changed state
+against the failure modes below that it reaches. WHY: a scripted walk proves only the steps someone
+wrote down; the practical bugs live in the combinations nobody scripted.
+1. **Enumerate from the code's state machines, not from the plan.** List every entry point a person
+   reaches the changed flow from (first run, re-entry after leaving, deep link, notification,
+   settings, a second device) and every state the code keeps for it (persisted flags, enum states,
+   permission and connection states, sync cursors). Cross each entry x state with each failure mode
+   the code can meet:
+   - a permission denied, partly granted, or revoked later in system settings;
+   - no data, late data (arriving after the screen rendered), the same data from two sources;
+   - the app killed or backgrounded mid-flow, relaunched, or reinstalled;
+   - offline, a 5xx, a slow backend, a timeout in the middle of a write;
+   - a double tap, back during a write, two tabs or devices racing;
+   - a second account on the same device, sign-out mid-flow;
+   - units and locale, timezone, midnight and DST boundaries;
+   - platform availability (an OS version or simulator without the capability);
+   - a reminder or notification over several cycles: first, repeat, after the action is done, after opt-out.
+2. **Write each plausible broken case into the walk list with its expected behaviour,** one row each:
+   `Entry x state x failure | Expected | How walked`. Expected names what the person sees: the flow
+   carries on, uses what it already knows (syncs in the background, prefills), says what is missing
+   and offers the next step. Drop an implausible combination only with its reason.
+3. **Walk each row on the real client where it is walkable** (a § Test gates route, the system
+   settings toggle, airplane mode, `xcrun simctl privacy` or `terminate`, a stubbed 5xx); prove the
+   rest with a unit test on a fake clock or a fake platform adapter. Fix every failure in the batch
+   and rerun its row.
+4. **Report every row, fine ones included,** as `FIXED`, `FINE`, `UNIT: <test>` or `DROPPED: <reason>`,
+   with the count of each, beside the walk's pass table.
+NUMBER: at least 1 row per entry point x failure-mode family above that the changed code reaches;
+zero rows left open at hand-back.
+**DON'T treat Simon's reported bug as the scope of the hunt.** It is one row of a class; hunt the
+rest of the table (`rules/process.md` § Fix the CLASS of failure).
+TEST: every walk hand-back on a Standard or Deep human-facing change carries the hunt table and its
+counts; a later-reported practical bug the table lacks is a missed enumeration, fixed at its source
+(the fix for a connect-a-health-data-source flow whose scripted walks and two code reviews passed
+while a hunt found 12 practical bugs, 3 high, among them a connect-then-continue that neither synced
+gracefully nor prefilled what the source already held).
+Sources (checked 2026-11-24). Term: "interrupt testing" for app kills, calls, network and lock
+([SmartBear](https://smartbear.com/blog/the-how-and-why-of-interrupt-tests-for-mobile-apps/),
+[Perforce](https://www.perforce.com/blog/perfecto/interruption-testing)); an exploratory charter
+treating denied and later-revoked permission as separate states
+([exploratory testing on mobile](https://dev.to/kelina_cowell_qa/exploratory-testing-on-mobile-the-messy-checks-that-find-real-bugs-2ldg)).
+
 ## Pre-merge end-to-end on a local stack
 
 **DO prove every change to a user-visible flow or its backend end to end before its PR is called
@@ -1044,7 +1170,8 @@ ready, web and iPhone alike, at the Standard and Deep tiers (a Light change keep
 BEFORE/AFTER pair), in four steps:**
 1. **Suites.** Run every automated suite the diff reaches (unit, integration, e2e), whole for each
    touched package, locally at the final batch gate; § Defects first owns timing and evidence reuse.
-2. **Journey walk.** Walk each changed user journey start to finish on its real client: the browser
+2. **Journey walk.** Walk each changed user journey start to finish, plus every walkable row of its
+   § Edge-case hunt before every walkthrough table, on its real client: the browser
    through the project's e2e runner (e.g. Playwright) for web, the iOS Simulator through an XCUITest
    walk under § Native simulator suites for the iPhone app. Point the client at a hermetic local
    stack: the local database or emulators, the payment provider's sandbox or test mode, and a stub for

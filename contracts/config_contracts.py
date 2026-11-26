@@ -40,6 +40,15 @@ CONTRACTS: dict[str, dict] = {
             "Verify login and non-login shells, directory independence, numeric patch ordering and repeated sourcing in temporary fixtures.",
         ],
     },
+    "bin/skill-context.py": {
+        "mission": "Every sk skill loads inside a worktree-isolated agent and reads its git facts from the PR checkout, so a delegated worker can run the skill.",
+        "purpose": "One read-only subcommand per git fact a skill asks the worker to run from the PR checkout.",
+        "criteria": [
+            "origin prints the origin URL or (no git remote); diff-scope prints the last --stat line against the merge-base with origin/master, else origin/main, else HEAD~1.",
+            "Every git call runs in the cwd and reads only; an unknown subcommand exits 2 with usage.",
+            "No sk skill carries a `!` dynamic-context line; ship-review names both subcommands as commands run from the PR checkout, and each exits 0 with output.",
+        ],
+    },
     "bin/local-capacity.py": {
         "mission": "Simon's simultaneous sessions share heavy local capacity without stealing devices or silently overlapping abandoned work.",
         "purpose": "Bounded foreground scheduling for heavy work, simulators and Docker dev stacks, with ownership checks and a read-only watchdog.",
@@ -56,6 +65,7 @@ CONTRACTS: dict[str, dict] = {
             "Keep one token-bound contention allowance machine-wide until its verified lease releases; replacement priority cannot admit another.",
             "Bind priority to repeated --workspace entries and nested linked worktrees; canonicalize workers to one owner and exclude unlisted siblings. Read existing single-workspace grants without rewriting or renewing them; retain validation and grant binding. Name coverage mismatches and their repair command.",
             "A failed CPU or load probe defers with exit 75 like every other deferral; exit 1 means a fault to inspect, never defer.",
+            "acquire, run and claim-sim print one capacity warning, never a refusal, when --owner names a live priority grant's or simulator claim's owner and the cwd checkout is neither that registered workspace nor nested in it; any probe failure prints nothing.",
             "Sample CPU/load once per admission attempt and reuse the snapshot. Read CPU from the second one-second iostat sample with a five-second timeout; require its header and two valid rows. Classify failures without printing raw output.",
             "Retry only state-lock contention for completed-run cleanup for at most 30 seconds, revalidating token and resources. Preserve payload result after release; never relaunch or retry an ownership/resource refusal.",
             "Retry stage metadata lock contention for at most 30 seconds within its deadline, revalidating the same lease before one payload grant. Honor cancellation; retain failed cleanup receipts. Never retry payloads or ownership/resource refusals.",
@@ -68,7 +78,7 @@ CONTRACTS: dict[str, dict] = {
             "Reserve the first slot for one legacy bridge or old slot directory in compute mode; reject ambiguous multiple lanes. Use at most two remaining slots without the mutex; reject compute simulator/stage use and retain all host guards.",
             "Retain paused leases and memory; count paused wall time toward the command deadline and end a 5-minute pause. Continue a stopped owned group after TERM for cleanup; reject simulator, stage and legacy-bridge pause-safe runs.",
             "Grant priority only on Simon's own chat message; simulator claims and shutdown-before-release rules do not change for the priority owner.",
-            "Cap Docker dev stacks at floor(VM GiB / 3), at least 1 and at most 2, counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
+            "Cap Docker dev stacks from measured Docker VM memory: running and starting stacks plus as many more as fit in the memory every container leaves free at the largest running stack's size, one stack's worth kept free; with nothing measurable, floor(VM GiB / 3), at most 2; counting labelled running stacks plus leases inside 15 minutes; unknown VM size admits 1.",
             "Stop only idle Supabase stacks (no live session, no change for 60 minutes) on stack-acquire or stack-sweep --apply, never on a timer; prune containers and network by label and keep every data volume.",
             "Never sweep a stack whose lease is held by a live owner or carries a future keep_until marker (stack-acquire --keep-hours or stack-keep, at most 24 hours); only unleased or abandoned stacks are swept.",
             "Use port-registry ownership for idle-stack decisions: live Claude/Codex sessions protect their checkout and physically nested linked worktrees of the same repository; sibling and unrelated repositories remain reclaimable. A failed session or ownership probe stops no stack and never fails the asking command.",
@@ -98,7 +108,9 @@ CONTRACTS: dict[str, dict] = {
             "Records the head sha in the shared Git directory and pushes it to the remote main only after the contract suite and dotfiles/secret-scan.sh --range both pass on that exact head; a new commit needs a new run, and a rejected push exits 1, never forces.",
             "Holds an fcntl.flock on claude-config-land.lock in the shared Git directory from the fetch and merge of the remote main through the checks to the push, so concurrent landers on one machine queue instead of rerunning the suite after a lost race.",
             "A waiting lander prints the holder's pid, branch, root and start time; after --lock-wait seconds (default 1800) it exits 75 naming the holder and pushes nothing. The kernel releases the lock when its holder exits, killed included.",
-            "bin/config-land-check.test.py drives serialization, the named holder, the timeout, a killed holder, a conflicting main and a kept review after a main edit elsewhere in a touched file against a temp repo with stub checks; hooks/git-commit-guard.test.py drives its refusals.",
+            "Runs the contract suite at most once per tree: a clean full pass recorded for the exact merged HEAD^{tree} in the shared Git directory within 24 h, by the suite itself or an earlier landing, is reused and named; a pass on another tree or an older one is not.",
+            "The suite's timeout scales with host load (1800 s idle, times 1-minute load per CPU, capped at 3600 s) and kills the suite's process group; a whole-suite timeout, or a suite exit 75 meaning only load timeouts failed, says it timed out under load and gets exactly one retry (the --last-failed criteria for exit 75), while a real failure gets none. The secret scan and the merge with the remote main are unchanged.",
+            "bin/config-land-check.test.py drives serialization, the named holder, the timeout, a killed holder, a conflicting main, a kept review after a main edit elsewhere in a touched file, the same-tree pass reuse, the other-tree and stale passes, and both load-timeout retries against a temp repo with stub checks; hooks/git-commit-guard.test.py drives its refusals.",
         ],
     },
     "bin/session-performance.py": {
@@ -111,6 +123,17 @@ CONTRACTS: dict[str, dict] = {
             "Bound observation commands and output, record unavailable metrics explicitly, and never start models, benchmarks, simulators or background watchers.",
             "due answers read-only whether a report is owed for new work since the workspace's newest published report (its watermark): at least 100 new tool calls, or 30 with a failure, a correction or a reconciled task; never while background work runs, a one-shot wakeup is pending, the turn made under 3 calls or it ends on a question.",
             "aggregate claims the batch exclusively for six hours and writes one URL-redacted digest and manifest of unreviewed reports; reviewed-manifest receipts only unchanged hashes and releases the claim.",
+        ],
+    },
+    "references/usage-limits.md": {
+        "mission": "Long and unattended runs stop before the plan's usage limit and continue at its reset, with Simon never finding a run dead on a limit or a reset spent.",
+        "purpose": "Reads the claude.ai usage meter through Claude in Chrome and paces agents against it.",
+        "criteria": [
+            "Check at task boundaries, before a heavy agent or walk, and every 30 to 60 minutes of agent work.",
+            "At 90 to 95 percent of the session, stop launching, send each agent PAUSE, wait once to the shown reset, then resume.",
+            "Treat the weekly meter and the Heads up warning the same way, and narrow scope as they climb.",
+            "Never click Reset for free or Buy usage credits, and never turn on usage credits.",
+            "Name that a crashed or network-stopped session is no longer resumed hourly.",
         ],
     },
     "references/session-performance.md": {
@@ -187,29 +210,6 @@ CONTRACTS: dict[str, dict] = {
             "Preserve native --profile, exec, mcp and app-server invocations without interpreting their arguments as print prompts.",
         ],
     },
-    "bin/session-auto-resume.py": {
-        "mission": "A session that stopped on a usage limit, an API or network error or a crash finishes its unfinished work without Simon having to notice and type resume.",
-        "purpose": "Hourly launchd watchdog: finds stopped sessions with recorded unfinished work and resumes each in place with claude -p --resume; zero model calls for the check.",
-        "criteria": [
-            "Resume only an API-error stop or a mid-turn death with an open plan section, an unreconciled ask or a mid tool loop, idle 15 min and within 48 h.",
-            "Never resume a running, Conductor-closed, archived, interrupted, waiting-on-Simon, other-account or headless -p session; --session alone admits a -p session.",
-            "Pass the fixed prompt with a fixed-list cause, the session's own cwd and its recorded permission mode; add no mode the transcript lacks.",
-            "Hold every session of an account until its newest stated usage reset plus 2 min; at most one attempt per session per hour and 24 per 48 h.",
-            "Pause every resume while ~/.claude.json shows extra usage on, and tell Simon once (rules/spend-approval.md).",
-            "Log and store ids, causes, counts and outcomes only; never transcript text, titles or secret values. Read conductor.db read-only.",
-            "A held run lock skips the run; --dry-run resumes nothing and writes no state; record-stop exits 0 on any payload.",
-            "Install, status and uninstall are idempotent; the plist template resolves $HOME at install and schedules with StartCalendarInterval.",
-        ],
-    },
-    "references/session-auto-resume.md": {
-        "mission": "Simon and any agent can install, check, explain and safely change the auto-resume watchdog from one page with its primary sources.",
-        "purpose": "Qualification rules, retry and quota behaviour, the Conductor limit, install commands and the research behind the hourly watchdog.",
-        "criteria": [
-            "Name every qualification rule bin/session-auto-resume.py applies, in the order its dry run reports them.",
-            "Cite a primary source for each Claude Code, Conductor and launchd claim, with the date researched.",
-            "Name the mainstream alternatives rejected and why, with their adoption signal.",
-        ],
-    },
     "bin/claude-launch.py": {
         "mission": "Simon starts Claude in a project with his chosen instruction boundary while his personal rules and caller settings remain active.",
         "purpose": "Claude executable wrapper for per-project native instruction exclusions.",
@@ -217,7 +217,7 @@ CONTRACTS: dict[str, dict] = {
             "With the flag false, launch native Claude with unchanged arguments; with true, exclude project instruction files through native claudeMdExcludes.",
             "Preserve caller settings and personal ~/.claude files; reject invalid policy before launching Claude.",
             "Keep temporary merged settings private and clean them after normal exit; forward signals to the child.",
-            "Mark a -p/--print run AGENT_DELEGATED_WORKER=1; never mark a streaming (Conductor) session or a print run carrying AGENT_SESSION_RESUMED=1 (the auto-resume watchdog continuing a main session).",
+            "Mark a -p/--print run AGENT_DELEGATED_WORKER=1; never mark a streaming (Conductor) session or a print run carrying AGENT_SESSION_RESUMED=1 (a by-hand resume continuing a main session).",
         ],
     },
     "references/agent-hosts.md": {
@@ -238,6 +238,8 @@ CONTRACTS: dict[str, dict] = {
             "Own draft mode as SSOT: while Simon gives feedback, answer questions, make small visible changes and queue the rest in the plan's Draft queue; no per-message check; feedback after a shipped batch re-enters draft mode with local edits and no new pushed head; his exit word builds the queue and runs each check once.",
             "State each acceptance criterion as the ask's own routing or scoping clause, quoted near-verbatim from its source message, never a paraphrase that narrows or widens a boundary; flag drift as an interpretation and confirm it before dispatch or verdict.",
             "Split each ask into clause IDs; keep a complete source log and a when/who/what/why decision log in the plan from intake to hand-back; every brief quotes its clauses, and briefs plus decisions cover every clause of every ask.",
+            "Check every brief, plan addition and proposed change against the Decisions log before dispatch: each brief quotes the Simon decisions it honours; a part contradicting or narrowing one is dropped or raised as a named reversal, never built.",
+            "A question-form ask stays open-for-Simon until his own words decide it: an agent's answer is a recommendation listed in every hand-back, a wish-shaped ask is built revertably with a before/after, and no reconcile counts it answered on the agent's word.",
             "Own the same-machine handoff and resume lifecycle as SSOT: a repeatable prepare that stamps a hop-counted manifest, a resolve that maps a pasted dashboard link/html/plan back to its plan, a resume that reuses recorded options, and a manifest that survives normal updates.",
             "Derive the session record, artifact index and remaining-action index from the plan; never create a second task store.",
             "Make link discovery regenerate one canonical offline dashboard, select one active plan over completed history and reject multiple active plans.",
@@ -332,6 +334,7 @@ CONTRACTS: dict[str, dict] = {
             "Compose every posted before/after image and video with bin/pr-evidence.py: bands above the UI, outline-only callouts, one block per point; verify image/png and video/mp4 serving, then browser playback decides. Post evidence under a top-level ## Screenshots, never inside a collapsed <details>.",
             "Open ## Screenshots with a Scenario | What happens | Video table, one row per video. Post one viewport per state (the targeted one, usually mobile 390px); add the other only when its layout visibly differs, stated; never a duplicate desktop/mobile pair; prefer video for anything that changes over time.",
             "Reset before a deliberate replay, finalize and inspect videos, and expose unsupported video as a gap.",
+            "Before handing over a preview link or calling a UI change ready to walk, open and view a phone-width screenshot of every new or changed section from this build, fix what is broken, and name the viewed paths; metrics, tests and walk logs never substitute.",
             "Hand-off check: run bin/visual-check.py on the exact artifact Simon opens, one row per viewport x state (cap 24, default state first); blank means ink below 0.05%, clipped means cut by an ancestor; view one PNG per distinct view type; loop fix then full re-run until exit 0.",
             "A screen built from a supplied design source adds the workflow-loops measurement report and difference images to the hand-off; the pass table alone never proves a design match.",
             "Add at most two caveat sentences beside clips showing injected errors or test-only end states. Verify environment and network evidence before claiming not production or no live actions; retain unknown failures and avoid production bug-free claims.",
@@ -357,6 +360,7 @@ CONTRACTS: dict[str, dict] = {
             "Before composing, fail a blank input in any colour (ink share below visual-check.py's 0.05%, pixels more than 8 off the most common colour): a blank screenshot, a clip's blank stretch of 0.5 s or more, or a blank last frame, naming each stretch and the external-page fix; a shorter transition passes.",
             "Exit non-zero with an install hint when Pillow or ffmpeg is missing or an input is absent; bin/pr-evidence.test.py passes in the contract suite.",
             "Refuse a shots or video pair whose before or after caption is blank, or whose two captions are identical, naming tldr-report-formats.md § Before/after unit.",
+            "size-images rewrites each uploaded Markdown image with alt text in a PR body to <img src width alt> with the URL and alt HTML-escaped (800 when the alt names Desktop, else --width), escapes a raw quote in an alt it already wrote, and leaves code, the empty-alt video form and local paths alone; it reads the posted-image rule from bin/pr-landing-gate.py.",
         ],
     },
     "bin/design-board.py": {
@@ -488,6 +492,7 @@ CONTRACTS: dict[str, dict] = {
             "On a deep-tier PR whose changed files (tests, docs and CI excluded) touch ios/ or android/ code or a PAYMENT_PATH file, fail a Real-environment walk that names no simulator or device walk (native) or no simulator, device, browser or local-stack walk (payment) with PASS, that rests on unit tests, or whose does-not-apply does not say why no user journey changed; a 'cannot run locally' N/A fails.",
             "Fail Prod data without PASS, FAIL or a doesn't-apply verdict, or without a table or reasoned doesn't-apply; fail Deploy safety without merge train and rollback or a reasoned doesn't-apply.",
             "Fail Screenshots without an image or a stated no-visible-surface reason, any <details> lacking open in body_html, and any unresolved review thread.",
+            "Fail when body_html renders fewer <img> than the body posts (Markdown images with alt text plus <img> tags, outside code and comments), naming the tags shown as text and the size-images fix; MD_IMAGE and prose_mask are the one home of what counts as a posted image.",
             "Fail a Screenshots or Verification runs no-surface or doesn't-apply line lacking a 'Checked outputs:' clause of 3+ words, so a bare 'No eligible frontend surface' never passes.",
             "Fail a Screenshots or Verification runs no-surface reason (the text before 'Checked outputs:') naming 'no new screen', 'no new copy', 'existing screen', 'existing step' or 'same screen', case-insensitive, pointing at screenshot-review.md § Visible surfaces.",
             "Fail a body whose Screenshots posts a video with no Verification runs heading, and a Verification runs section lacking a table, a video or its Findings, Fixed during review, Not covered and Sources lines, unless it holds a skip or no-surface reason.",
@@ -678,9 +683,11 @@ CONTRACTS: dict[str, dict] = {
             "Owns the adoption bar that gates any new tool or pack.",
             "Harden-fully: never trade protection for a working app; narrow the guard instead.",
             "Variant indecision never ships: locking in an A/B removes the loser and its toggle in the same change.",
+            "Each live experiment arm ships with a tester access path, pointing to testing-strategy.md Live variants without restating its guarantees.",
             "Research-first naming: before the first new artifact name, tally the term each major vendor's own page uses, name from the majority and record term, tally and links in the plan.",
             "Payment paths: a refusal names one of four reasons (double charge, wrong price, wrong payer, already holds); offer-picking rules and our own failed reads fail open; transient failures retry quietly in one layer through one shared owner with a whole-request idempotency key.",
             "Legacy policy treats installed native app builds as deployed code and points to git-pr-deploy.md Deploy safety for them and for transitional reads, without restating the procedure.",
+            "A rule many current and future consumers apply lives at one shared boundary fed at the source event, with a drift-guard test; a per-consumer copy fails it. Detail lives in code-best-practices.md.",
         ],
     },
     "rules/process.md": {
@@ -691,12 +698,14 @@ CONTRACTS: dict[str, dict] = {
             "Default to zero automated tests or typechecks while implementing the whole authorized batch, including all features and review fixes; permit targeted diagnostics only for a concrete issue or explicit user request.",
             "Run full relevant verification once after the batch converges; reuse passing evidence with unchanged relevant source, dependencies, configuration and environment, and rerun failed or invalidated coverage only.",
             "Start every heavy check only after every build item and review/fix round lands on one head; a recorded plan or handoff order never moves one earlier, and each heavy check names its head, which equals the pushed head or records why.",
+            "Keeps an always-on double-tap line: settle the design and expected outcomes, run a suite once collecting every failure, fix all, rerun once; at most 2 full runs of a suite per batch, with testing-strategy.md § Double tap holding the detail.",
             "Default to draft mode while Simon gives feedback, pointing at references/workflow-loops.md for its detail; no check runs per feedback message.",
             "Size every check to the change's tier through testing-strategy.md, which owns the tiers; the ship harness runs on every open PR at that tier.",
             "Preserve required hooks and CI without bypassing them to impose batch timing; native compile and backend payment, auth and data tests live in testing-strategy.md.",
             "Keep every role on the actual chat provider except GPT design work on the Fable tier and the read-only cross-provider judge; route implementation to the mid tier resolved live at dispatch, never by version, and never to a top- or design-tier model.",
             "Keeps an always-on line sending every money, access or data call, and every verdict Simon acts on, to 2+ judges besides the author, one per provider; references/research.md holds the panel.",
             "Run-to-completion is the DEFAULT; phased execution is opt-in and does not weaken it.",
+            "An evaluation skill inside work Simon asked to have done is a stage, never the deliverable: a build verdict proceeds to the built item in the same run, and an item ends not done only on a named Simon-only blocker.",
             "Commit-when-done is standing authorization and does not regress to ask-first.",
             "A branch backing an open PR or shared for review gets each finished commit pushed to its own remote branch (fetch and merge first, never rebase or force), so the remote never trails local; every other PR or remote operation, and any default-branch push, stays gated, and a branch with no remote PR stays commit-only.",
             "Owns research-before-the-second-retry and the always-on trigger for third-party claims; references/research.md holds the claim rules.",
@@ -706,6 +715,7 @@ CONTRACTS: dict[str, dict] = {
             "New UI is seeded up to, never through: he types the new inputs himself.",
             "Route UI ticket work to the screenshot reference's default final-batch refresh lifecycle, including explicit waivers and current-source evidence.",
             "Point every change to a user flow or its backend at testing-strategy.md's pre-merge end-to-end walk on a local stack, iOS Simulator included, before PR-ready; web UI and native simulator verification are both default-on.",
+            "Keeps an always-on line that every part the ask names ships on every target it names, a recommended default filling only what the ask leaves open, and that the whole deliverable is walked to its last stage on each target before any hand-off to Simon; planning-and-tracking.md holds the grid and TEST.",
             "Before handing over ANY visual artifact (UI, mockup or board, dashboard, report, stitched image, PR media), open the exact artifact in its entry state, check every switchable state for blank and clipped content, view the screenshots, loop fix then re-check until clean, and hand over the pass table.",
             "A build of a supplied design source runs the measured match in references/workflow-loops.md and hands off its PASS report; an eye comparison never passes it.",
             "Every browser operation runs in Chrome for Testing, never Simon's everyday Chrome; the rule lives in references/browser-debugging.md and is pointed at, not restated.",
@@ -802,10 +812,13 @@ CONTRACTS: dict[str, dict] = {
             "Owns co-pilot visibility: headed Chrome for Testing from first to last step, verified visible before step 1, including zero-new-input walks; headless scripts and screenshots cannot substitute for the live walk.",
             "Verify observed native browser transitions and automation overrides; record before/after state and versions, remove overrides that prevent the transition, and label synthetic handler coverage separately from observed browser transitions and live-backend proof.",
             "Launches the test browser through bin/test-browser.sh and does not restate the launcher's flags or exit codes beyond the usage line.",
-            "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, other sessions' tabs untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
+            "Owns the walk-surface rules: 1 walk tab reused and closed before the next opens, every opened tab, window, context and launched browser closed at hand-back, another session's live or unknown tab untouched, and an emulated phone viewport that fits the window (402x750 inside 1280x900).",
             "Owns the live-tab hand-over check: before handing a live UI tab to Simon, and after any worktree, server or config change, verify on the exact host he will use that the framework hydrated, a primary control responds and the console shows no blocked-origin or HMR error.",
             "Each message pointing Simon at a preview, repeats after a restart included, follows a same-turn list_pages hit, a 2xx per server and a fresh start-screen screenshot; a failed check means relaunch, never a substitute URL.",
-            "Owns multi-persona walks and tab labels: each persona opened by Claude in its own named isolated context, first actor first, fresh accounts, no URL handed to Simon; every walk tab titled '▶ PERSONA tail · page title' and kept across navigations, with step messages naming the tab by that label.",
+            "Owns multi-persona walks: each persona opened by Claude in its own named isolated context, first actor first, fresh accounts, no URL handed to Simon.",
+            "Owns text-first navigation: read the accessibility tree and act by uid or role locator; at most 1 decision screenshot per step, taken only after a snapshot left the step unclear.",
+            "Emulation, viewport, storage and throttle changes run only on a tab this session opened for an unattended step, never on a tab a human is driving.",
+            "Owns tab labels and stale tabs: every test-browser tab Claude opens is labelled '▶ task · PERSONA tail · page title · @owner' through bin/test-browser-tabs.py, applied after new_page and as initScript on every navigate_page, never by setting document.title once; before step 1 and every later step message, sweep closes every stale tab whichever session opened it, and step messages name the tab by its label.",
         ],
     },
     "references/code-best-practices.md": {
@@ -813,6 +826,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "DRY/SRP, reuse before building, observability, UX standards, scope discipline.",
         "criteria": [
             "Owns the single-source-of-truth guidance the other catalogs point at.",
+            "Owns the shared-boundary method: governed rules apply in a view, policy, scope, middleware, trigger or base class, new members are captured at the source event, and a drift-guard test fails any consumer reading around the owner.",
             "Stop every watcher, poll, monitor or scheduled wake when its target finishes or its owner hands back; none wakes a finished agent.",
             "A defect in code outside the task that the agent cannot reproduce gets at most one small reversible change, then a written finding; a second unconfirmed attempt is a ticket.",
             "Owns agent-written shell discipline: && chains or a bash -c/script wrapper (bare set -e is inert), never ; after cd, no unexplained silenced lookup, cleanup or release, loop inputs checked non-empty, background waits bounded and read early.",
@@ -825,6 +839,7 @@ CONTRACTS: dict[str, dict] = {
             "Holds the version-pinning detail (.nvmrc, engines floor, toolchain quirks, peer ceilings); rules/engineering-standards.md keeps the latest-stable default.",
             "Holds the payment-path method (refusal reasons, fail-open rule, retry statuses and timings, idempotency, retry UX, one owner) with primary sources; rules/engineering-standards.md keeps the always-on line.",
             "A paywall starts its quote or session read on open through the shared retry owner and renders priced, tappable buttons at once; a spinner appears only on the button when a tap beats the read, never a page-level loader.",
+            "A write-bearing request moved earlier names the server's repeat-call behaviour with file:line; when a repeat keeps the first value, the server takes the latest uncommitted value or the call starts where inputs are final.",
             "Formatters and auto-fixers run only on the files the change modified, never a whole directory; a feature commit holds no whitespace-only file outside its scope.",
             "A new or replacement screen reuses the existing component whose style fits, or is composed from the same shared parts as the screen it replaces or sits beside, proven by a design-diff panel against that sibling in the Regression check.",
         ],
@@ -837,6 +852,7 @@ CONTRACTS: dict[str, dict] = {
             "Schema and route order here match what bin/connector_registry.py actually reads and returns, with primary sources for the layout.",
             "Uses official account connectors before custom app setup, separates installation from per-host verified actions, and sends requested completion messages once with workspace/recipient checks and a delivery receipt.",
             "Outgoing messages reuse rules/communication.md and rules/copy-quality.md instead of duplicating writing rules; the codex-app send recipe runs the hooks/outbound-message-guard.py --check pre-send step on the draft before sending.",
+            "A thread delegated to a worker is the worker's alone, and every thread reply first reads the thread and skips it when any reply by the same signed-in human identity is newer than the message answered, never deduping by draft wording.",
             "States three routes for a production schema change, in order: the project's pipeline, Simon by hand, and agent-run only as a gated exception with a restore copy and a rolled-back dry run.",
             "Documents the pal route and its home in the work registry root, matching what hooks/work-resource-guard.sh reads.",
             "Documents ignoreProjectInstructions as a real boolean on selected registry project files, default false.",
@@ -944,6 +960,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Commit shape, PR hygiene, pre-merge deploy safety, live release preflight, and verifying a deploy actually worked.",
         "criteria": [
             "An open PR merges its base once, at merge prep, after review rounds converge; a mid-review base move is no reason to merge unless a file the PR touches conflicts or the fix needs the change.",
+            "An authorized merge runs as soon as its required gates pass (required CI, the three same-turn reads, the tier's landing-gate stages, Simon's named conditions); self-added checks run beside or after it, a red one stops it, and a required-gate wait past 10 minutes is reported with its bound.",
             "A stack takes the default branch through its bottom: merge it into the bottom PR's branch, then each base into its child; git diff <base-branch>...<child> then lists only the child's own files.",
             "Owns never-`-m`-always-`-F` and the conventional subject standard.",
             "Owns worktree config detail: no repository config write from a worktree; one process is sandboxed with git -c or GIT_CONFIG_COUNT.",
@@ -959,6 +976,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns CI timing: a work PR stays draft with CI off until merge prep; a failing run finishes first, every failed job's log is read at once, fixed in one batch, the local gate list rerun, then one push.",
             "Independent PRs, stacked ones included, run merge prep in parallel with one worktree and capacity owner each; a stacked child waits only for its parent's base merge, and each PR pushes once its own pass is green.",
             "After any production deploy, hand-back needs the deploy run for the merge sha passed (not skipped), production serving the new build, and the read-only Deploy TLDR smoke passed, reported with evidence and the rollback line on failure; only a device or account step only Simon has is handed to him.",
+            "A tester access path's code-set is its own Deploy TLDR step with a smoke on a fresh signed-out device and a rollback that clears the code; the write waits for a per-write yes.",
             "Owns deploy safety: a local merge train of the default branch plus every dependent or overlapping open PR in merge order, affected suites run once, conflicts fixed on the owning branch, never only on the train.",
             "Each migration records its number above every open PR's, the pipeline's real apply order, compatibility with live and new code under either deploy order, and its backfill reach counted read-only on production.",
             "Each data-rewriting migration records its runtime measured read-only at production volume against the pipeline statement timeout read from the repo; at half the timeout or more it is batched before merge, never given a raised timeout.",
@@ -999,6 +1017,7 @@ CONTRACTS: dict[str, dict] = {
             "Every step names the surface the human acts in (a browser tab by title and host).",
             "No edit lands in the tree the human's dev server serves while they walk; a fix is built elsewhere or held and applied at a step boundary after telling them the tab will reload.",
             "A surface handed to the human is theirs alone until they reply: Claude only reads it, and any follow-up action there is announced as its own step first, never run while their step is open.",
+            "A step the human hands back by name is the only one Claude drives; steps go out in plan order, and any skip or reorder is named with its reason.",
             "Every step ends with Reply \"done\"; Claude captures the surface, logs and state itself and judges the Expect line, never asking what they see; an uncapturable surface names 1 capture.",
             "Owned here; /sk:test-copilot and /sk:work-hyperspeed point to it and do not restate it.",
         ],
@@ -1023,9 +1042,12 @@ CONTRACTS: dict[str, dict] = {
             "Inspect delegated diffs on disk without routine test execution; no per-feature, per-commit or per-worker-batch checks override the shared policy.",
             "Own setup persistence and model consistency: the top tier orchestrates on either provider, Fable designs, the mid tier resolved live at dispatch implements, all by tier with no pinned version; scope historical Claude benchmarks honestly.",
             "A subagent spec is self-contained and carries an explicit DO-NOT-TOUCH list.",
-            "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; an unverified cause is written as a hypothesis with its confirming check.",
-            "A brief quotes the raw-ask clauses it serves, per workflow-loops, including a brief built from an investigation's findings.",
+            "A brief numbers its required outputs and the hand-back answers each with evidence or a reason before acceptance; a cause in a brief cites its evidence read or premise verdict, or is labelled `Unverified hypothesis:` with its confirming check, which the worker runs first.",
+            "A brief quotes the raw-ask clauses and recorded Simon decisions it serves, per workflow-loops, including a brief built from an investigation's findings.",
             "A dispatch prompt names the one device, port or path a worker may touch, by id, and never the machine-wide form.",
+            "Every brief for a worker that runs a ship stage carries the ship-worker receipt block verbatim: right after each stage's Skill call, run intent-ledger.sh receipt <stage skill> <checkout dir>, and on the final pushed head run stages <tier> <final head sha> and return its output; the contract suite fails a block missing either command or the final head; the ship harness points here and does not restate it.",
+            "A brief holds no literal capacity owner id; the worker passes its own agent id as --owner to local-capacity.py and native-slot.sh.",
+            "A worker's outward writes name only the brief's PR or branch; a remark on any other PR, issue or ticket returns to the parent as a Note for parent line.",
             "Never trust a subagent's self-report; verify on disk.",
             "A multi-stage worker continues past each skill report to its final report, and its brief never lists the built-in /security-review, which the orchestrator owns.",
             "Give each independent deliverable its own isolated worktree worker in parallel; the orchestrator edits no product code, checks head, clean status and owned-file diff on disk, and captures the screen itself.",
@@ -1057,6 +1079,7 @@ CONTRACTS: dict[str, dict] = {
             "Names the durability tiers — the ticket outlives all, .context/ survives a restart but "
             "dies with the worktree — and promotes decisions and human input to the ticket before teardown.",
             "A feature is scoped across discoverability and docs, not just its mechanism.",
+            "Holds the asked-for-work detail: named skills are the method, never the scope; independent items run in parallel; a verdict or plan never closes an item Simon asked to have done.",
             "Every plan opens with BOTH the user journey AND the system journey (a ticket and PR body "
             "too), above the technical detail, reflecting the plan's current trajectory (confirmed "
             "decisions + recommended defaults for open questions) and kept in sync on every change. The "
@@ -1064,6 +1087,7 @@ CONTRACTS: dict[str, dict] = {
             "required, not what it looks like.",
             "Every ticket the plan names is a full clickable Linear link, never a bare id.",
             "Before the first push of a build, adopt or rebuild, every ticket criterion and raw-ask clause gets MET or GAP against the diff and each in-scope GAP is built; the end ship report proves, it does not discover.",
+            "Owns the parts x targets grid: each named part sits in every named target's cell, never a default substitute, and each cell is ticked from Claude's own walk to that target's last stage before any step, link or ready reaches Simon.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every proposed check lists its prerequisites from the code and the provider, each confirmed found or missing, before any time estimate or any ask for an input.",
@@ -1115,7 +1139,7 @@ CONTRACTS: dict[str, dict] = {
     },
     "references/testing-strategy.md": {
         "mission": "The suite proves the thing works and spends nothing doing it.",
-        "purpose": "Test structure, the pre-merge end-to-end walk on a local stack, the old app build walk against the new backend, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
+        "purpose": "Test structure, the edge-case hunt before every walkthrough, the pre-merge end-to-end walk on a local stack, the old app build walk against the new backend, production compatibility gates, local time-driven simulations, production-data preview fidelity and the no-billable-calls guarantee.",
         "criteria": [
             "A red CI run on a head is diagnosed by rerunning only its failed specs on that head first; the base is built only when the head fails, and CI-passed gates are not rerun.",
             "A change to a verdict several doors read carries one agreement test driving every door on the same fixture, failing when any two disagree.",
@@ -1135,11 +1159,15 @@ CONTRACTS: dict[str, dict] = {
             "A gate row needing a tool the workflow installs runs locally with that tool at the workflow's pinned version, fetched on demand (npx, brew or a pinned download) without changing the repo; a fetchable missing tool is never a skip reason.",
             "Treat every authorized feature and review fix as one batch; write tests early, then execute distinct relevant suites once after review and gap fixes converge.",
             "Allow mid-batch targeted diagnostics only for a recorded concrete issue or explicit user request; preserve required hooks and CI.",
+            "Own the Double tap: settle every design step and moved expectation before the first run, run the full suite once with no fail-fast flag and read every failure, fix all in one batch, confirm once (full, or the failed set plus touched files' tests then one full run); at most 2 full runs of a suite per batch, a third naming its new cause; cite only the primary docs opened for pytest, pytest-xdist, Jest and Vitest.",
             "Own the heavy-check start gate: name what counts as heavy, start one only after every planned build item and review/fix round lands on one head, bar early discovery runs, run a recorded heavy step at convergence, stop a superseded in-flight run as stopped-stale, and name each run's head.",
             "Reuse passing local or CI evidence only with matching relevant source, dependencies, configuration and environment; record command, scope and proof, and run uncovered checks.",
             "Fix final-gate failures and rerun affected checks; broaden only when changed inputs invalidate coverage, and never count partial or skipped scope as a full pass.",
             "Own the pre-merge end-to-end walk: for every Standard or Deep change to a user flow or its backend, web or iPhone, run every suite the diff reaches, walk each changed journey on its real client against a hermetic local stack (local database or emulators, payment sandbox, stubbed paid and third-party providers), loop fix and rerun to a clean run with zero base-to-head regressions, and hand back a per-journey pass table with suite counts; zero production writes and zero paid calls.",
             "Own the old-build walk: build each in-use old release from its shipped commit, walk its main journeys against base and head local backends, and pass only with zero head-only 4xx/5xx and matching screens; no source is a blocker, never PASS.",
+            "Every user-facing variant ships a tester access path: no read without the code, no write on a wrong code, fresh signed-out test devices only, the real happy path, the walked deal excluded from readouts, one rollback.",
+            "Own the edge-case hunt: before every walk of a Standard or Deep human-facing change, enumerate entry points x code states x failure modes (permission, data timing, kill/background, network, races, accounts, locale/time, platform, repeated reminders), write each plausible case with its expected behaviour, walk it on the real client or prove it with a fake-clock/fake-platform unit test, fix failures and report every row with counts; a reported bug is one row of its class.",
+            "A native change gets a leased compile check on the reviewed head before a review of it counts; swiftc -parse is recorded syntax-only, and the full native suite still runs once at convergence.",
             "Run iPhone/iOS simulator runtime tests, UI tests, the XCUITest journey walk and screen captures by default for every change the iPhone app reaches, against the local backend; skip only when the diff reaches no native screen or Simon says skip, with the reason recorded. Keep native compile checks and backend payment, auth and data tests; a compile never stands in for a runtime pass.",
             "Judge test design before final execution; fan out preparation and judgments, deduplicate suite runs, and report native runtime coverage skipped only with an allowed reason.",
             "Keep production export credentials outside the preview runtime; reject production destinations before creating write-capable clients and verify the refusal offline.",
@@ -1167,7 +1195,7 @@ CONTRACTS: dict[str, dict] = {
             "Trace a check's side effect back to its entry point in the mode it runs in before running it.",
             "Own the live-variant check: before a walk, review or capture of a journey dealt per person, read production's arms and 72-hour shares as aggregates, report stopped and missing arms, and walk only a live arm unless Simon names another.",
             "Before step 1 on each platform of a human walk, print the arms the local server dealt this device beside production's; copy production's split settings locally when they differ, and send no step until they match or the difference is stated.",
-            "Before step 1 of a human walk, preflight production parity: key source, dealt arms, new-account enrolment, launch scripts, PR heads, every served client and server reporting the current head sha (re-read after each commit) and the first steps; never blank or fake a key or flag; list remaining gaps once.",
+            "Before step 1 of a human walk, preflight production parity: key source, dealt arms, new-account enrolment, fixture accounts lasting every step they walk, launch scripts, PR heads, every served client and server reporting the current head sha (re-read after each commit) and the first steps; never blank or fake a key or flag; list remaining gaps once.",
             "Every reported test result carries its four counts, the head sha it ran on, its finish time and its 1-minute load; a result from another sha is quoted with that sha and its input match, never as the head's.",
             "A wall-clock test failing at a load above the core count is rerun alone, with both results and loads recorded, before any regression verdict; a test the change added or edited still owes its root cause.",
             "On a simulator walk the agent performs every relaunch (terminate, launch with the local server address, screenshot) and the tester's step starts from the confirmed screen; never tell him to reopen the app.",
@@ -1249,6 +1277,8 @@ CONTRACTS: dict[str, dict] = {
             "Seeds up to the new UI, never through it. Every input the change adds is Simon's to "
             "type, because a field he never filled is a field neither of them has verified.",
             "Claude drives every step except new inputs, on web and native; zero-new-input walks send Simon no step to perform.",
+            "When Simon asks to experience the walk himself, he clicks every step: Claude prepares the stack and 1 labelled window per scenario at its real entry, drives only a step he names, and tears nothing down before his done.",
+            "Writes each scenario as one connected journey from its real entry through every downstream surface the change reaches for that persona, shows the outline once, and closes no persona window with a branch unwalked.",
             "Narrates each step before acting and queues comments as findings without pausing, except blockers.",
             "Cites rules/communication.md for the general writing rules; does not restate them.",
             "Proves the human is on the watched server (his first request in the log, the host to expect "
@@ -1266,10 +1296,11 @@ CONTRACTS: dict[str, dict] = {
             "Reads the project's testing guide as task data (asking once when project instructions are ignored) and runs the dependency handshake after every stack start or restart; method lives in references.",
             "Bypasses only what Simon picks at scoping; the rest of the stack stays production-equivalent per testing-strategy.md.",
             "Runs visible web walks per browser-debugging.md, including zero-new-input walks; captures each step after its action or Simon's new input, never asks for pasted screenshots or touches another session's tab.",
-            "Opens every persona of a multi-persona walk itself, first actor first, each in a named isolated context with a fresh account and a persona-labelled tab title; sends Simon no URL. The rules live in browser-debugging.md.",
-            "Keeps one walk surface and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
+            "Opens every persona of a multi-persona walk itself, first actor first, each in a named isolated context with a fresh account and a task-and-persona tab label; sends Simon no URL. The rules live in browser-debugging.md.",
+            "Keeps one walk surface, sweeps stale tabs before each step and closes every tab, window and launched test browser it opened at the end of each walk (teardown checklist); the rules live in browser-debugging.md.",
             "Reads references/ios-simulator.md before booting a simulator for a native walk; Claude opens the GUI, "
             "drives the app and captures each step itself against an explicitly passed local backend override, and Simon types only the inputs the change adds.",
+            "Feeds the edge-case hunt's rows that need a human's eyes into the walk plan as scenarios; Simon's reported bug is one row of its class, never the whole hunt. Method lives in testing-strategy.md.",
         ],
     },
     "skills/sk/skills/test-automated-full-matrix/SKILL.md": {
@@ -1293,6 +1324,7 @@ CONTRACTS: dict[str, dict] = {
             "Saves the matrix and POSTS it to the PR's tests section, GitHub-native.",
             "Bind every copied value in the diff and its stacked or sibling PRs to its source, and walk every changed state on its real client (browser, or the iOS Simulator for a native screen) against the local stack, judging each recorded source criterion from screenshots, requests and rows; the Real-environment walk line carries the pass table and backend mode.",
             "Inspect screenshots at each meaningful step, correlate actions with requests, responses and persisted state, fix observed bugs and rerun affected scenarios; captured images alone never prove the walk.",
+            "Runs the testing-strategy.md edge-case hunt before its real-client walk, walks each walkable row and carries the hunt table with counts on the Real-environment walk line.",
             "The real-stack walk also covers each existing screen a modified pre-existing file reaches and each screen reused in a new place beside its original, feeding the PR's regression check.",
         ],
     },
@@ -1300,7 +1332,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Work not worth building dies before it is built, with the evidence attached.",
         "purpose": "Decides whether proposed work should be built at all, part by part, on evidence.",
         "criteria": [
-            "Proposes, never builds. Read-only: no prod writes, no ticket edits, no posted comments.",
+            "Run alone, proposes and never builds; run as a stage of work Simon asked to have done, hands every BUILD part straight to the build. Read-only: no prod writes, no ticket edits, no posted comments.",
             "Splits the proposal into separately-decidable parts and verdicts each one independently. "
             "Killing one part while building the others is the useful outcome, and judging the ticket "
             "as one lump hides it.",
@@ -1377,6 +1409,7 @@ CONTRACTS: dict[str, dict] = {
             "Record a Standard or Deep PASS only with 'All stages ran', never with a 'Not run:' list or a stage that ran on an earlier head; after any new push or base merge, rerun every remaining required stage on the new head unprompted before hand-back and never offer to run them, unless intent-ledger.sh stages reads 'carried from' for a Light-sized follow-up delta, which runs only its own checks, or Simon's waiver is recorded.",
             "Name every stage hooks/intent-ledger.sh requires for any tier as /sk:<stage>; run intent-ledger.sh stages <tier> HEAD before recording and invoke each listed stage with the Skill tool from the checkout at that head, because the gate refuses a PASS, and any 'All stages ran', without a receipt on the recorded sha for each stage the tier requires.",
             "Run the testing-strategy regression check on every PR at every tier, Light included, on the final head, and confirm its ## Regression check rows at the landing gate.",
+            "Invoke /sk:work-verify-regressions-against-original on every Standard or Deep PR touching an existing user flow, on the final head, parallel and non-blocking; confirm its Flow walk table, zero regression rows, at the landing gate.",
             "Answer testing-strategy Value safety unprompted on every PR moving money, credits, entitlements, auth or ownership, its replay inside ship-verify-with-prod-data; confirm ## Value safety at the landing gate.",
             "Run the matrix skill's copy binding and real-environment walk on every Standard PR too, on the final head, under testing-strategy.md's pre-merge end-to-end walk looped to a clean run; a Deep PR's matrix runs them.",
             "Require production compatibility coverage, unknowns and activation dependencies at the landing gate; unknown cohorts and unmet activation dependencies cannot become a compatibility pass.",
@@ -1508,6 +1541,8 @@ CONTRACTS: dict[str, dict] = {
             "A deliberately dropped, refuted or deferred part is part of the baseline and is never "
             "built back. The verdict names who decided and when.",
             "Simon's raw-ask clauses are always baseline: every clause gets a verdict, and an unfulfilled one is built or named with its blocker; the invented-criteria guard applies to criteria the agent derives, never to his words.",
+            "Journey tests take their cases from the edge-case hunt in testing-strategy.md.",
+            "A question-form clause is Met only by Simon's own decision or the build he asked about; an agent's answer leaves it Open for Simon in the questions block, never covered.",
             "Consults the living plan (.context/<slug>-plan.md) from "
             "/sk:plan-stable-persistent-dynamic-complete-full-plan as a baseline source when present, per "
             "rules/living-plan.md.",
@@ -1552,6 +1587,20 @@ CONTRACTS: dict[str, dict] = {
             "/sk:ship-report-and-ensure-correct-user-system-journey a real-data verdict; does not "
             "restate them.",
             "Phase 1 runs the sibling symptom sweep from references/testing-strategy.md § Production compatibility gates on every fix PR and folds each in-scope symptom into the PR at its root.",
+        ],
+    },
+    "skills/sk/skills/work-verify-regressions-against-original/SKILL.md": {
+        "mission": "Simon learns, before merge, that every existing web and iPhone flow a change touches still behaves, looks and charges as on the base, and that the new flow works end to end, without walking either himself.",
+        "purpose": "Record the vanilla flows on base and head on one local stack, classify every difference, then walk the new flow end to end.",
+        "criteria": [
+            "Compose testing-strategy Regression check, Live variants, Human-driven sessions and Pre-merge end-to-end, screenshot-review capture and PR evidence, browser-debugging and ios-simulator; restate none of them.",
+            "Mirror production's switches into the local stack and drive the base pay step to the paid state once, both before the first recording.",
+            "Run base and head on one local stack, one seed, one clock and viewport; only the app code differs between the two runs.",
+            "Compare every step pair on logic, visuals and payment logic; classify each difference regression, intended (quoting the ask clause) or local artifact (proven on base); zero regression rows at hand-back.",
+            "A fresh-install iPhone run uninstalls the app and resets the simulator keychain first; no run touches production or makes a paid call.",
+            "Navigation and screenshot description run on the small tier through the subscription with no verdict asked; the orchestrator sets every class after viewing the screenshot pair.",
+            "Walks the new flow end to end on each named platform and reports breaking defects only; design match stays Simon's check.",
+            "Posts the Flow walk table, switch table and new-flow pass table under the PR's ## Regression check through bin/pr-evidence.py, then shuts down every server, tab, simulator and worktree it started.",
         ],
     },
     "skills/sk/skills/ship-screenshot-changes/SKILL.md": {
@@ -1625,6 +1674,7 @@ CONTRACTS: dict[str, dict] = {
             "Run the shared design-source section in references/workflow-loops.md from intake, before any builder is briefed, for any supplied design or pixel-perfect ask; hold each such section at review until its report is PASS and its fidelity judge passed fresh captures of the current head, on either engine with the judge off; restate none of the gate.",
             "With the judge on, run the shared judge stage on each built item's revision inside the numbered build stage and route its gaps back to the engine.",
             "Point a design build at the parallelization worker-per-deliverable section and the design-source harness, design-diff and PR evidence; take machine priority only per dev-server-hygiene; restate none of them.",
+            "Step 9 runs /sk:work-verify-regressions-against-original unprompted on every Standard or Deep change touching an existing user flow; its hand-back holds the Flow walk table with zero regression rows.",
         ],
     },
     "skills/sk/skills/plan-stable-persistent-dynamic-complete-full-plan/SKILL.md": {
@@ -1771,7 +1821,7 @@ CONTRACTS: dict[str, dict] = {
             "can get through what the diff produced.",
             "The journey pass is runnable on its own, so asking to walk a flow does not spend the "
             "multi-model code review to get there.",
-            "Every review runs a caller-parity lens: each newly mounted shared part against its existing callers and each modified pre-existing file's hunks traced to their callers; a missing wrapper, frame, provider or prop is a finding.",
+            "Every review runs a caller-parity lens: each newly mounted shared part against its existing callers, each modified pre-existing file's hunks traced to their callers, and each new reader of governed data against its owner; a missing wrapper, frame, provider or prop, or a bypassed owner, is a finding.",
             "A fix round's written rules name every reader of a value they change, and the round ends "
             "with a fresh judge over the files it changed. Run criterion judges beside review lenses "
             "before fixes, then refresh verdicts affected by changed dependencies and resolve new gaps before the heavy gate.",
@@ -2292,7 +2342,9 @@ CONTRACTS: dict[str, dict] = {
             "Surfaces anything else the change needs from Simon, with copy-paste steps to get it, in "
             "the same gate block, then waits.",
             "Updates config_contracts.py and routing_scenarios.py alongside the edit, then runs the "
-            "suite and loops until clean. Tests that do not grow with the config stop protecting it.",
+            "worktree's suite as a double tap: one full run collecting every failure, one fix batch, one "
+            "confirming run on the committed tree whose recorded pass the land check reuses. Tests that "
+            "do not grow with the config stop protecting it.",
             "Records a late or deferred lesson in the worktree's .context/config-lessons.md, folds every "
             "open entry on a branch's concern into that branch before it lands, and gives each entry a verdict.",
         ],
@@ -2320,92 +2372,41 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "hooks/git-commit-guard.py": {
-        "mission": "Claude never commits or pushes on the default branch, never merges a PR into it off a general instruction, and never commits with -m or a heredoc.",
-        "purpose": "PreToolUse: blocks a default-branch commit/push, a gh pr merge, and an inline -m/heredoc commit.",
+        "mission": "Simon is never slowed by a false block, and no PR merges into a remote default branch, nor does a push land on one, unless his own words or a monitoring-only PR's bar authorize it.",
+        "purpose": "PreToolUse Bash: guards a PR merge or enqueue into the default branch and a direct default-branch push; everything else runs.",
         "criteria": [
-            "Blocks `gh pr merge` (into the remote default branch) unless the user's OWN words this "
-            "turn (every ask hooks/intent-ledger.sh latest-ask --since recorded from his newest typed "
-            "turn-opening prompt in the transcript, queued mid-turn asks included; assistant text, "
-            "tool results, isMeta entries, harness and peer blocks and pasted quotes never count) say "
-            "merge after the turn's last halt, and either name that PR's number anywhere, or cover "
-            "it as an open PR whose head branch this session pushed (no number, or all/both/them), or "
-            "name no PR (one other PR per turn). A plural covers a PR this session did not push only "
-            "when the hand-back Simon is answering lists it under 'Merge list:'; no flag the model sets authorizes it, a branch-name target, a failed PR lookup or "
-            "a missing ledger denies, and gh api merge/enqueue/auto-merge calls are denied outright.",
-            "A standing merge Simon typed earlier in the same session (merge plus a future condition: "
-            "when/once/as/after/if ... ready/green/passes/done/safe, before or after the verb, with or "
-            "without then/them, or a plain merge all/them all/both/everything) also authorizes `gh pr merge` "
-            "in a later turn, when it names the PR or covers it as an open PR this session pushed, no "
-            "later ask negates merging/pushing/deploying/shipping or says stop/hold/wait/cancel/pause, "
-            "and one read-only gh pr view shows the PR open, not a draft, MERGEABLE, with at least one "
-            "check and every check passed, judged on the latest run per check (CheckRun workflowName "
-            "plus name, StatusContext context; by completedAt, else startedAt, else list order; a "
-            "pending run always counts as latest), so a superseded cancelled or failed run never "
-            "blocks and a check whose latest run failed still does; otherwise it denies and names the "
-            "failed condition. A "
-            "single-PR merge with no condition (merge #12, merge it) never carries past its turn. "
-            "A negator crossing a clause join (yes/and/then/them/so/ok/ie) never negates the verb "
-            "(no regressions then merge), and a sentence that asks or supposes the merge (ends in ?, "
-            "a modal I|we|you question such as would you, what if, whether) authorizes nothing on either path; "
-            "a polite can/could/will you or please request still does. A typographic apostrophe (don’t) "
-            "reads as the ASCII one on every path, everything from a `>` quote line on stays pasted material as "
-            "before while a negated merge inside it still halts (clean_asks), and a number after "
-            "not/except/skip/without is never covered (merge #13 but not #12 merges #13 only).",
-            "A push to the remote default branch outside the config repo needs CLAUDE_ALLOW_MAIN_COMMIT=1 "
-            "in the session's starting environment AND the user's words this turn saying push after its last halt.",
-            "Blocks commit/push on main/master unless CLAUDE_ALLOW_MAIN_COMMIT=1 is set in the "
-            "session's starting environment, which Simon sets; a CLAUDE_ALLOW_MAIN_COMMIT=1 prefix, env "
-            "or export assignment inside the command is denied. In the ~/.claude config repo and its "
-            "worktrees (identified by shared Git storage) a commit passes, and a push to main passes "
-            "with no confirmation only when every pushed head was recorded by bin/config-land-check.py "
-            "and fast-forwards the remote main; a forced, deleting, piped, variable-path, mixed or "
-            "unverified push keeps the block. Every other repository keeps the unchanged guard.",
-            "Blocks git commit with -m/--message or a heredoc (the -F-only rule) unless "
-            "CLAUDE_ALLOW_COMMIT_M=1, and does not misfire on --amend/--no-edit.",
-            "Reads `gh pr -R <repo> merge` (the repository option before the subcommand) as a merge too, and "
-            "denies a merge the shell would run but quoting or escapes hide from the masked parse ('gh' pr "
-            "merge, g\\\\h pr merge, inside bash -c too). "
-            "Matches the plain Bash tool and parses the command; fails open on a malformed payload, but a crash "
-            "on a payload that names gh and merge denies.",
-            "Judges only what the shell runs: the command word (after env assignments and prefixes) "
-            "must be git/gh, with quoted strings and heredoc bodies masked, so a note or printf that "
-            "merely names a push never fires. The command word is also read behind a wrapper (env, "
-            "command, time, nohup, sudo, exec, nice, timeout, xargs, with their options) and inside a "
-            "`bash|sh|zsh|dash|ksh -c` string, to four levels, so a wrapped merge or push gets the "
-            "same verdict as the bare one; a command behind xargs takes its arguments from stdin, so "
-            "its merge selector counts as non-literal and is denied. A heredoc body is data when every "
-            "command word reads its heredoc as data, except one an interpreter runs (`python3 - <<'EOF'`), "
-            "or when it is quoted and cat/tee writes it only to a document that no other part of the "
-            "command names or can reach (no runner, built command word, pattern or substitution beside "
-            "it); every other body is code. A push deny names the branch pushed TO. "
-            "hooks/git-commit-guard.test.py pins both directions.",
-            "A `gh pr merge` deny leads with `Cause:` naming the one failing check, read-only and "
-            "without changing the verdict: a non-literal selector ($var, substitution, quoted value; "
-            "it says the user's words are not the problem and not to ask him), no selector, a branch "
-            "selector, a standing merge not ready, no merge instruction, a halt (quoting it), other "
-            "PRs named, a plural not covering it, or the one-unnamed-merge-per-message limit.",
-            "A monitoring-only merge (references/git-pr-deploy.md § Monitoring-only changes; the exact "
-            "conditions are the comment above monitoring_merge) runs with no merge words only for ONE plain "
-            "printable-ASCII `gh pr merge <N> -R github.com/<owner>/<name> --match-head-commit <40-hex>` with at "
-            "most --squash, on a base whose queue (if any) squashes (never --merge, --rebase, --delete-branch, --auto, --admin, an env assignment, a "
-            "wrapper or a compound), when: the overlay lists that exact repo and declares the paths; gh reads "
-            "the PR open, not a draft, MERGEABLE with merge state CLEAN or HAS_HOOKS and a review decision of none or APPROVED (so gh never turns on auto-merge), on the repo's real default branch, with a complete file list "
-            "of ADDED/MODIFIED/DELETED files inside the paths and a head equal to the pin; checks pass as "
-            "monitoring_not_ready reads them (times compared as instants, requiredChecks SUCCESS); the base "
-            "renamed, copied or removed nothing under a PR path's folders since it branched; the merge queue "
-            "squashes or merges (rules and GraphQL); this session's newest gate record on that branch and full "
-            "head is a standard or deep PASS holding BAR_PHRASE; and monitoring_halt finds no hold. "
-            "monitoring_halt reads the ledger (one stamped read, peer records included) and the transcript "
-            "(typed and queued prompts as hold-only records, tool answers and denied-call feedback), each "
-            "running forward in time (the ledger's own gate records included in that order); any record from the gate's second on that is no lift declines; a hold "
-            "is any hold word in any inflection, a mention of the bot, a PR or merging, a negated merge-like "
-            "verb, or any text it cannot read for certain (non-ASCII letters, marks or controls, ASCII "
-            "controls, HTML entities, percent-escapes, backslash escapes or markup, any square bracket (Markdown links of every form), redaction, over 4000 characters); only a "
-            "whole raw ASCII ask matching LIFT_RE lifts, and a hold carrying a number only a lift naming this PR by "
-            "value. Any read error, unrecorded-prompt marker, timeout or exception declines; a declining repo "
-            "that declares (or malforms) the paths gets a `Cause (monitoring-only merge):` line, and a repo "
-            "with no exact declaration makes no extra gh call; the shared PR_FIELDS view is unchanged. A monitoring-only PR merged on Simon's own words (turn or standing) also passes monitoring_halt's hold reading, so a later hold stops an earlier merge word; a PR with one listed path outside, or a repo declaring nothing, is untouched (the repository is the one GitHub reports for the PR, read once and cached, so an old name or a remote alias resolves to the current repo), and an unreadable overlay, PR or file list in a declaring repo, or a repo mismatch, holds.",
-            "A git invocation naming one of git's own commands (the common list plus every builtin and exec-path command `git --list-cmds` names) needs no alias lookup, since git runs its own command before an alias, so a dry-run `git merge-tree` passes where the directory is unknown; a deprecated command an alias still overrides (whatchanged, pack-redundant) and any other word keep the lookup, and an unknown directory or unreadable alias still denies.",
+            "Judges only commands the shell runs, from its own lexer: wrappers, bash -c, eval, command "
+            "substitutions, functions, gh and git aliases, find -exec, xargs and a heredoc or here-string a "
+            "shell reads are unwrapped; a heredoc body another command reads, a quoted argument, file "
+            "content and a script file are data. A command word built at run time beside a merge word, an "
+            "inline program starting a merge, and code a shell reads from a pipe or a built string that "
+            "names a merge or default push deny.",
+            "Passes reads, PR create/edit/comment (CLI or API), `gh pr merge --disable-auto`, a GraphQL "
+            "dequeue and a GraphQL read; denies a REST merge (non-GET pulls/N/merge, merges, a "
+            "refs/heads/main write) and a GraphQL mergePullRequest, enqueuePullRequest, "
+            "enablePullRequestAutoMerge or mergeBranch, names inside string literals excluded.",
+            "A monitoring-only PR merges with no message read only on today's bar, unchanged: monitoring_merge "
+            "(its comment lists the conditions), BAR_PHRASE on the pinned head's gate PASS, required checks, "
+            "CLEAN, declared paths and a parent (not delegated) session.",
+            "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
+            "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
+            "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
+            "typed words decide by one deterministic rule, no model call: among his last 20 typed messages the "
+            "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
+            "or uses a referent (both, it, them) while it names #N or answers a hand-back that asked a merge "
+            "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "
+            "verb, and no later typed message holds merges. Anything else denies with one line ending "
+            "\"Say 'merge #N' to merge it\".",
+            "Only the transcript's typed user turns and queued prompts count: system blocks, pasted fences "
+            "and quote lines are stripped; peer envelopes, turns opening with another session's attribution, "
+            "isMeta and task-notification turns, tool answers and Claude's text never count.",
+            "A default-branch push (by name, HEAD, bare push, delete, --all, --mirror) needs "
+            "CLAUDE_ALLOW_MAIN_COMMIT set to 1 in the session's starting environment and Simon's typed, "
+            "un-negated \"push\" this turn; an inline prefix is denied. In the ~/.claude config repo a push "
+            "to main passes only when bin/config-land-check.py verified every pushed head and it fast-forwards.",
+            "A stall past the watchdog or a crash on a command naming merge or push declines; malformed "
+            "input naming neither passes. hooks/git-commit-guard.test.py runs every false-block example "
+            "(allowed) and every real hold (denied) with no model call.",
         ],
     },
     "hooks/background-process-guard.py": {
@@ -2413,7 +2414,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "PreToolUse: blocks installing a cron/launchd/systemd persistent process.",
         "criteria": [
             "Blocks the install/enable verbs only (crontab install, launchctl load, systemctl "
-            "enable, LaunchAgents/Daemons writes, session-auto-resume.py install); list and remove pass.",
+            "enable, LaunchAgents/Daemons writes, launchctl load and bootstrap); list and remove pass.",
             "Overridable only by CLAUDE_ALLOW_DAEMON=1 in the session's starting environment, which "
             "Simon sets; a CLAUDE_ALLOW_DAEMON=1 prefix or env assignment inside the command is denied.",
             "Fails open on a malformed payload.",
@@ -2429,6 +2430,15 @@ CONTRACTS: dict[str, dict] = {
             "CLAUDE_TEST_VIEWPORT_MAX_H raises the cap for a taller launched window.",
             "Allows an absent viewport (clearing the override); fails open on a malformed payload.",
             "HOOK_ROUTING cases in contracts/routing_scenarios.py pin deny and allow decisions.",
+        ],
+    },
+    "hooks/test-browser-label-guard.py": {
+        "mission": "Every test-browser tab keeps its walk label after every navigation, so Simon can tell which window is the walk's.",
+        "purpose": "PreToolUse: denies mcp__chrome-devtools__navigate_page without the bin/test-browser-tabs.py label script as initScript, and records the label owner's heartbeat.",
+        "criteria": [
+            "Denies a url, reload, back or forward navigate_page whose initScript is missing or lacks the keeper's GLOBAL marker; the reason names the label command and references/browser-debugging.md § Tab labels and stale tabs.",
+            "Allows a labelled navigation and touches its owner's heartbeat; allows about:blank, other tools and a malformed payload (fail open).",
+            "hooks/test-browser-label-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
     "hooks/outbound-message-guard.py": {
@@ -2495,6 +2505,30 @@ CONTRACTS: dict[str, dict] = {
             "hooks/capacity-timeout-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
+    "hooks/formatter-scope-guard.py": {
+        "mission": "A formatter or auto-fixer run never reflows files outside the change it belongs to.",
+        "purpose": "PreToolUse: denies a write-mode formatter or auto-fixer run aimed at a directory, `.`, a glob, a tree lister's output or no path.",
+        "criteria": [
+            "Judges dart format, flutter format, dart fix --apply, prettier --write/-w, black, ruff format, "
+            "ruff check --fix/--fix-only, gofmt -w, swiftformat, ktlint -F/--format and eslint --fix, also "
+            "behind npx, pnpm/yarn exec, uv/poetry run, python -m and fvm.",
+            "Denies a path argument that is a directory relative to the payload cwd (a cd earlier in the "
+            "chain counts), `.`, a trailing slash or a name with no extension that is not a file; a glob; "
+            "find, fd, ls, tree, git ls-files or rg --files feeding it through xargs or $(...); and no path "
+            "unless stdin feeds it.",
+            "Allows explicit files (dart format lib/a.dart test/b_test.dart), option values (-l 100, "
+            "--select E,F), $(git diff --name-only ...), git diff piped to xargs, $VAR words, check-only "
+            "modes (dart format --output=none --set-exit-if-changed, prettier --check, black --check, "
+            "ruff check without --fix, gofmt -l, swiftformat --lint) and help/version flags.",
+            "Judges what the shell runs through hooks/secret-echo-guard.py's parser: sh/bash -c, eval, "
+            "timeout and env prefixes, &&, ; and pipes; echo, grep, a quoted string or a heredoc naming a "
+            "command never fires.",
+            "The deny reason names references/code-best-practices.md § Scope discipline and the fix "
+            "`dart format $(git diff --name-only --diff-filter=AM <base> -- '*.dart')` in the tool's own "
+            "form. No override; fails open on a malformed payload.",
+            "hooks/formatter-scope-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
         "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",
@@ -2550,7 +2584,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Every ask Simon makes survives verbatim, so no plan finishes with a point silently missing.",
         "purpose": "Records complete redacted asks, prompts gauntlet updates and checks reconciliation freshness at hand-back.",
         "criteria": [
-            "Records no ask for a submit carrying AGENT_SESSION_RESUMED=1: that prompt is the auto-resume watchdog's, never Simon's words.",
+            "Records no ask for a submit carrying AGENT_SESSION_RESUMED=1: that prompt is an automated resume's, never Simon's words.",
             "The only hook that writes into a project, because the record has to sit beside the "
             "branch it describes. That inversion is the risk, so the refusals ARE the contract: "
             "not a git repo, $HOME, an unwritable dir, a git-TRACKED path, a path that is not "
@@ -2564,8 +2598,7 @@ CONTRACTS: dict[str, dict] = {
             "safe only because of that ordering; without it the model creates the ledger by hand.",
             "Keep full prompts and remind the agent to reconcile each into the gauntlet plan; preserve requirements beyond 6000 characters.",
             "`latest-ask` prints this session's newest recorded ask verbatim, read-only and silent "
-            "(with `--since <ts>`, every ask from that second, RS-separated), so "
-            "hooks/git-commit-guard.py authorizes a merge or default-branch push from Simon's own words.",
+            "(with `--since <ts>`, every ask from that second, RS-separated).",
             "Combine simultaneous submit notices into one valid hook JSON document for native host parsing.",
             "Stay silent and write nothing for a delegated worker (AGENT_DELEGATED_WORKER=1) in every mode.",
             "The Stop reconciliation reason tells the model to open the final message by answering each question and point of the prompt that started the work, before status (rules/communication.md § Answer first). A reminder only: it never judges whether an answer is present and adds no extra block.",
@@ -2628,6 +2661,10 @@ CONTRACTS: dict[str, dict] = {
             "Skip a prompt made only of harness-injected blocks (<task-notification>, "
             "<system-reminder>): it records nothing and prompts no update, so it cannot reopen Stop. "
             "A prompt with any text left after removing them is recorded verbatim, blocks included.",
+            "Record a turn as a peer entry when, after removing <agent-message> and <cross-session-message> "
+            "blocks, nothing is left or it opens with another session's attribution (\"From the <name> session\", "
+            "\"From <name> (session <id>)\", \"Another Claude session\"), whatever it quotes Simon as saying; "
+            "Simon's own lowercase opener or a later quoted relay stays his ask.",
             "gate refuses a branch or reason holding a line break and stamps its heading with the session "
             "id; the read-only gates mode prints only this session's fence-free gate lines, exits 3 when "
             "no ledger resolves and 4 while a lock-contention fallback file holds this session's prompts, "
@@ -2870,6 +2907,16 @@ CONTRACTS: dict[str, dict] = {
             "Never adopts a port held by another browser: exits 5 when the listener is not Chrome for Testing, and exits 4 with the install command when no build is cached.",
             "Reuses a Chrome for Testing already on the port instead of starting a second one, only when no --profile is given or the listener runs that profile; an explicit --profile on a port owned by another profile exits 5 without reusing it.",
             "stop signals only the Chrome for Testing listening on the port (and on --profile when given), exits 5 without signalling anything else, waits for the port to close and exits 7 if it stays open.",
+        ],
+    },
+    "bin/test-browser-tabs.py": {
+        "mission": "Simon sees only the test-browser windows the current step needs, each titled with its task and persona, so he never acts in the wrong window.",
+        "purpose": "Prints the label-keeper script for test-browser tabs, and lists or sweeps the test browser's pages by owner liveness.",
+        "criteria": [
+            "label prints one idempotent script that holds the title at '▶ task · PERSONA tail · page title · @owner' through the page rewriting, replacing or clearing its <title> and through reloads, and relabels in place when re-run.",
+            "sweep closes blank tabs, unlabelled tabs, tabs whose owner has no live session or no heartbeat for IDLE_MIN (30) minutes, and own tabs of another --task; it keeps own, live and unknown (session probe failed) tabs, and list never closes anything.",
+            "Refuses with exit 5 a port whose listener is not Chrome for Testing, before listing or closing; exits 3 when no browser answers.",
+            "bin/test-browser-tabs.test.py pins the label in real Chromium and every class against a fake DevTools endpoint.",
         ],
     },
     "bin/kill-orphan-workers.sh": {

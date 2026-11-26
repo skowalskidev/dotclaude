@@ -1,6 +1,6 @@
 ---
 name: work-does-this-make-sense-to-build
-description: Work out whether a proposed piece of work should be built at all, before any of it is. Takes a ticket, a feature request, a plan or a rough idea; reasons from first principles to the outcome it is really for; splits it into separately-decidable parts; and gives each part an evidence-backed verdict — build, build-but-changed, refuted, already-done, defer, or a decision only Simon can make. Researches to REFUTE rather than to agree: checks the codebase, real production data, the premises the ticket assumes about systems in other repos, and primary sources, so a part whose premise is factually wrong dies with the evidence attached instead of getting implemented. Output is a TLDR he can take into a conversation or act on straight away. Proposes only; never starts building. Use for "does this make sense to build", "does this ticket make sense", "is this worth building", "should we build this", "is this the right approach", or before scheduling a pre-existing ticket. Judges whether to build; /sk:ship-review judges work that already exists.
+description: Work out whether a proposed piece of work should be built at all, before any of it is. Takes a ticket, a feature request, a plan or a rough idea; reasons from first principles to the outcome it is really for; splits it into separately-decidable parts; and gives each part an evidence-backed verdict — build, build-but-changed, refuted, already-done, defer, or a decision only Simon can make. Researches to REFUTE rather than to agree: checks the codebase, real production data, the premises the ticket assumes about systems in other repos, and primary sources, so a part whose premise is factually wrong dies with the evidence attached instead of getting implemented. Output is a TLDR he can take into a conversation or act on straight away. Run alone it proposes only; run as a stage of work Simon asked to have done, its build verdicts hand straight to the build. Use for "does this make sense to build", "does this ticket make sense", "is this worth building", "should we build this", "is this the right approach", or before scheduling a pre-existing ticket. Judges whether to build; /sk:ship-review judges work that already exists.
 argument-hint: "the ticket id, the idea, or a paste of the request"
 ---
 
@@ -162,12 +162,17 @@ Follow `rules/copy-quality.md` and `rules/communication.md`: answer first, no pr
    written for the person who wrote the ticket rather than for a machine. This is the deliverable he
    asked for most often, so do not skip it.
 5. **If he says go** — the first concrete step for whatever survived, one line. Not a plan.
-   `/sk:work-full-detailed-workflow` owns the plan, and it starts once he has decided.
+   `/sk:work-full-detailed-workflow` owns the plan, and it starts once he has decided. When he already
+   asked for the work done, that ask is the go: skip this line and hand every BUILD part to the build.
 
 ## Rules
 
-- **Propose, never build.** No implementation, no scaffolding, no "I went ahead and started". The
-  output of this skill is a decision, and the work begins only after he makes it.
+- **Propose, never build, when run on its own.** No implementation, no scaffolding, no "I went ahead
+  and started". The output of this skill is a decision, and the work begins only after he makes it.
+- **DO hand each BUILD and BUILD-CHANGED part straight to the build when this skill runs as a stage of
+  work Simon asked to have done** ("do the queued tasks, use this skill for each"): the verdict is the
+  stage's output, never the item's. `references/planning-and-tracking.md` § Asked-for work ends built.
+  TEST: no item he asked to have done ends at its verdict without a named Simon-only blocker.
 - **DO judge what the branch holds when run on a built head** (the work harness's re-judge of adopted
   or rebuilt work): one row per part the diff contains, Regression evidence filled from that head.
 - **Read-only everywhere.** No prod writes, no ticket edits, no status changes, no comments posted.

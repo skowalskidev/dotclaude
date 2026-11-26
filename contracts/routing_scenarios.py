@@ -73,6 +73,11 @@ SCENARIOS: list[dict] = [
     {"phrase": "show real prod accounts on localhost", "expect": "ship-preview-eyeball-with-prod-data"},
     {"phrase": "eyeball production data before deploy", "expect": "ship-preview-eyeball-with-prod-data"},
     {"phrase": "leave a local preview with real account data", "expect": "ship-preview-eyeball-with-prod-data"},
+    {"phrase": "verify regressions against the original", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "record main's flows and the branch's flows and compare them", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "check the vanilla flow is unchanged", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "is the payment logic unchanged", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "compare base and head flows", "expect": "work-verify-regressions-against-original"},
     {"phrase": "verify against prod data", "expect": "ship-verify-with-prod-data"},
     {"phrase": "check runtime limits against legitimate production usage", "expect": "ship-verify-with-prod-data"},
     {"phrase": "verify request validation accepts actual client payloads", "expect": "ship-verify-with-prod-data"},
@@ -128,7 +133,7 @@ SCENARIOS: list[dict] = [
 
     # --- Deciding whether to build at all -------------------------------------------
     # Sits UPSTREAM of every building skill: it runs before there is a plan, and its output is a
-    # verdict rather than work. Overlap with the proving skill below is declared, not accidental --
+    # verdict rather than work (inside work Simon asked to have done, BUILD verdicts go on to the build). Overlap with the proving skill below is declared, not accidental --
     # "can the platform do it" and "should we do it" are different questions about the same ticket.
     {"phrase": "does this make sense to build", "expect": "work-does-this-make-sense-to-build"},
     {"phrase": "does this ticket make sense", "expect": "work-does-this-make-sense-to-build"},
@@ -377,14 +382,16 @@ HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Bash",
      "expect": ["work-resource-guard.sh",
                 "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py",
-                "process-kill-guard.py", "capacity-timeout-guard.py"]},
+                "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"]},
     # The process-kill guard: a pattern kill that can signal other sessions' processes is denied,
     # an agent-typed override prefix included (only the session's starting environment passes);
     # a kill by pid or a pkill -f scoped to the caller's own path passes
     # (references/dev-server-hygiene.md § Private process inspection).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": {"command": command}, "decides": {"process-kill-guard.py": decision}}
       for command, decision in (
           ('pkill -f "local-capacity.py run"', "deny"),
@@ -402,7 +409,8 @@ HOOK_ROUTING: list[dict] = [
     # (references/dev-server-hygiene.md § Waiting on a background job).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": tool_input, "decides": {"capacity-timeout-guard.py": decision}}
       for tool_input, decision in (
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test",
@@ -413,27 +421,51 @@ HOOK_ROUTING: list[dict] = [
             "run_in_background": True, "timeout": 4020000}, "allow"),
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test"}, "allow"),
       )),
-    # The background-process guard: the auto-resume installer loads a LaunchAgent itself, so an
-    # agent's call is denied, the inline override included (only the session's starting environment
-    # passes); status and uninstall pass (references/session-auto-resume.md § Install).
+    # The formatter-scope guard: a formatter or auto-fixer aimed at a directory, `.`, a glob or no
+    # path is denied; explicit files, the git-diff substitution and check-only modes pass
+    # (references/code-best-practices.md § Scope discipline).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                  "formatter-scope-guard.py"],
+       "tool_input": {"command": command}, "decides": {"formatter-scope-guard.py": decision}}
+      for command, decision in (
+          ("dart format lib test", "deny"),
+          ("dart format .", "deny"),
+          ("npx prettier --write 'src/**/*.ts'", "deny"),
+          ("cd app && bash -c 'black src'", "deny"),
+          ("dart format lib/a.dart test/b_test.dart", "allow"),
+          ("dart format $(git diff --name-only --diff-filter=AM main -- '*.dart')", "allow"),
+          ("dart format --output=none --set-exit-if-changed lib test", "allow"),
+          ("git status", "allow"),
+      )),
+    # The background-process guard: a service loader writes a LaunchAgent, so an
+    # agent's call is denied, the inline override included (only the session's starting environment
+    # passes).
+    *({"event": "PreToolUse", "tool": "Bash",
+       "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": {"command": command}, "decides": {"background-process-guard.py": decision}}
       for command, decision in (
-          ("/usr/bin/python3 ~/.claude/bin/session-auto-resume.py install", "deny"),
-          ("CLAUDE_ALLOW_DAEMON=1 /usr/bin/python3 ~/.claude/bin/session-auto-resume.py install", "deny"),
           ("env CLAUDE_ALLOW_DAEMON=1 launchctl bootstrap gui/501 x.plist", "deny"),
-          ("/usr/bin/python3 ~/.claude/bin/session-auto-resume.py status", "allow"),
-          ("/usr/bin/python3 ~/.claude/bin/session-auto-resume.py uninstall", "allow"),
           ("echo CLAUDE_ALLOW_DAEMON=1 && launchctl bootstrap gui/501 x.plist", "deny"),
       )),
     {"event": "PreToolUse", "tool": "mcp__firebase__firestore_get_documents",
      "expect": ["work-resource-guard.sh"]},
-    # chrome-devtools tools fire the mcp__.* work guard (emulate also its viewport guard, below);
+    # chrome-devtools tools fire the mcp__.* work guard (navigate_page and emulate also their own guards, below);
     # UI self-verification is the default, so there is no browser-launch gate.
-    {"event": "PreToolUse", "tool": "mcp__chrome-devtools__navigate_page",
-     "expect": ["work-resource-guard.sh"]},
+    # The tab-label guard: a navigation without the label keeper as initScript is denied
+    # (references/browser-debugging.md § Tab labels and stale tabs).
+    *({"event": "PreToolUse", "tool": "mcp__chrome-devtools__navigate_page",
+       "expect": ["work-resource-guard.sh", "test-browser-label-guard.py"],
+       "tool_input": tool_input, "decides": {"test-browser-label-guard.py": decision}}
+      for tool_input, decision in (
+          ({"pageId": 1, "url": "http://127.0.0.1:3000/app"}, "deny"),
+          ({"pageId": 1, "type": "reload"}, "deny"),
+          ({"pageId": 1, "type": "reload", "initScript": "(() => { window.__claudeTabLabel; })();"}, "allow"),
+          ({"pageId": 1, "url": "about:blank"}, "allow"),
+      )),
     # The emulate viewport guard: an emulated viewport taller than the test window is denied
     # (references/browser-debugging.md § Fit the window). Landscape measures the width.
     *({"event": "PreToolUse", "tool": "mcp__chrome-devtools__emulate",
@@ -485,9 +517,6 @@ HOOK_ROUTING: list[dict] = [
     # Stop is the one event where a wrong matcher is unrecoverable from inside the session it hits,
     # so it is pinned even though it currently has a single hook.
     {"event": "Stop", "tool": None, "expect": ["intent-ledger.sh"]},
-    # A turn that ends on an API error leaves a documented stop marker for the auto-resume watchdog,
-    # so detection survives a change in the internal transcript format.
-    {"event": "StopFailure", "tool": None, "expect": ["session-auto-resume.py"]},
     # SessionStart hooks carry no matcher, so every one of them fires on every session. Pinned
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,

@@ -4,7 +4,9 @@
 Standard library only. Each case builds a throwaway ~/.claude repo (HOME points at a temp dir) with
 a bare origin, a stub contract suite and a stub secret scan, so nothing touches the real config, its
 lock or the network. Covers: two landers serialize and both land; a waiter names the holder; the
-bounded wait ends non-zero; a killed holder releases the lock.
+bounded wait ends non-zero; a killed holder releases the lock; a suite pass recorded for the same tree
+is reused and one for another or a stale tree is not; a suite timeout under load, or a suite exit 75,
+gets one retry and a real failure none.
 """
 import importlib.util
 import json
@@ -25,13 +27,22 @@ spec.loader.exec_module(mod)
 FAILS = []
 STUB_SUITE = """import os, sys, time
 log = os.environ.get("STUB_SUITE_LOG")
+calls = os.environ.get("STUB_SUITE_CALLS")
+n = 0
+if calls:
+    n = len(open(calls).read().splitlines()) if os.path.exists(calls) else 0
+    with open(calls, "a") as f:
+        f.write(" ".join(sys.argv[1:]) + "\\n")
 if log:
     with open(log, "a") as f:
         f.write(f"start {os.getcwd()} {time.time()}\\n")
-time.sleep(float(os.environ.get("STUB_SUITE_SLEEP", "0")))
+sleeps = os.environ.get("STUB_SUITE_SLEEPS", "").split(",")
+time.sleep(float(sleeps[n]) if n < len(sleeps) and sleeps[n] else float(os.environ.get("STUB_SUITE_SLEEP", "0")))
 if log:
     with open(log, "a") as f:
         f.write(f"end {os.getcwd()} {time.time()}\\n")
+exits = os.environ.get("STUB_SUITE_EXITS", "").split(",")
+sys.exit(int(exits[n]) if n < len(exits) and exits[n] else 0)
 """
 
 
@@ -238,10 +249,100 @@ def test_main_change_elsewhere_in_a_touched_file_keeps_the_review():
               f"elsewhere: an edit after the review kept the old hash: {late.stderr!r}")
 
 
+def calls_of(path):
+    return path.read_text().splitlines() if path.exists() else []
+
+
+def test_a_recorded_pass_on_the_same_tree_is_reused():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        wt = repo.worktree("kappa", "k.txt")
+        calls = Path(tmp) / "calls"
+        mod.record_suite_pass(str(wt), git(wt, "rev-parse", "HEAD^{tree}"), "config-contract.test.py")
+        result = repo.run(wt, "--reviewed", repo.digest(wt), STUB_SUITE_CALLS=str(calls), STUB_SUITE_EXITS="1")
+        check(result.returncode == 0, f"reuse: a pass recorded for this tree did not land: {result.stderr!r}")
+        check("already passed on tree" in result.stderr and "not run again" in result.stderr,
+              f"reuse: the landing did not say it reused the pass: {result.stderr!r}")
+        check(calls_of(calls) == [], f"reuse: the suite ran again on a tree that already passed: {calls_of(calls)}")
+        check(repo.origin_main() == git(wt, "rev-parse", "HEAD"), "reuse: the head did not land")
+
+
+def test_a_pass_on_another_tree_or_a_stale_one_runs_the_suite():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        wt = repo.worktree("lambda", "l.txt")
+        calls, before = Path(tmp) / "calls", repo.origin_main()
+        mod.record_suite_pass(str(wt), "0" * 40, "config-contract.test.py")
+        result = repo.run(wt, "--reviewed", repo.digest(wt), STUB_SUITE_CALLS=str(calls), STUB_SUITE_EXITS="1")
+        check(result.returncode == 1 and "the contract suite failed" in result.stderr and len(calls_of(calls)) == 1,
+              f"other tree: a pass on another tree let the suite skip: {result.stderr!r} {calls_of(calls)}")
+        tree = git(wt, "rev-parse", "HEAD^{tree}")
+        mod.record_suite_pass(str(wt), tree, "config-contract.test.py")
+        check(mod.recorded_suite_pass(str(wt), tree, now=time.time() + mod.SUITE_PASS_MAX_AGE_S + 60) is None,
+              "stale: a pass older than SUITE_PASS_MAX_AGE_S still counted")
+        check(repo.origin_main() == before, "other tree: a failed suite pushed")
+        mod.record_suite_pass(str(wt), "1" * 40, "x")
+        check(mod.recorded_suite_pass(str(wt), tree) is not None, "record: a later entry dropped an earlier tree")
+
+
+def test_a_landing_records_its_own_pass():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        wt = repo.worktree("mu", "m.txt")
+        result = repo.run(wt, "--reviewed", repo.digest(wt))
+        seen = mod.recorded_suite_pass(str(wt), git(wt, "rev-parse", "HEAD^{tree}"))
+        check(result.returncode == 0 and seen and seen.get("by") == "config-land-check",
+              f"record: a passing landing did not record its tree: {seen} {result.stderr!r}")
+
+
+def test_a_timeout_under_load_retries_once():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        wt = repo.worktree("nu", "n.txt")
+        calls = Path(tmp) / "calls"
+        result = repo.run(wt, "--reviewed", repo.digest(wt), STUB_SUITE_CALLS=str(calls),
+                          STUB_SUITE_SLEEPS="30,0", CLAUDE_LAND_SUITE_TIMEOUT_S="1.5")
+        check(result.returncode == 0 and "timed out under load after 1.5 s" in result.stderr
+              and "retrying it once" in result.stderr and len(calls_of(calls)) == 2,
+              f"timeout: a suite slow once did not land on its one retry: {result.stderr!r} {calls_of(calls)}")
+        wt2 = repo.worktree("xi", "x.txt")
+        calls2, before = Path(tmp) / "calls2", repo.origin_main()
+        started = time.monotonic()
+        twice = repo.run(wt2, "--reviewed", repo.digest(wt2), STUB_SUITE_CALLS=str(calls2),
+                         STUB_SUITE_SLEEPS="30,30", CLAUDE_LAND_SUITE_TIMEOUT_S="1")
+        check(twice.returncode == 1 and "timed out under load twice" in twice.stderr and len(calls_of(calls2)) == 2
+              and time.monotonic() - started < 20,
+              f"timeout: two timeouts did not fail once, promptly, naming the load: {twice.stderr!r}")
+        check(repo.origin_main() == before, "timeout: a suite that never finished pushed")
+
+
+def test_load_timeout_criteria_are_retried_alone():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        wt = repo.worktree("omicron", "o.txt")
+        calls = Path(tmp) / "calls"
+        result = repo.run(wt, "--reviewed", repo.digest(wt), STUB_SUITE_CALLS=str(calls), STUB_SUITE_EXITS="75,0")
+        check(result.returncode == 0 and calls_of(calls) == ["", "--last-failed"],
+              f"exit 75: the timed-out criteria were not retried alone: {result.stderr!r} {calls_of(calls)}")
+        wt2 = repo.worktree("pi", "p.txt")
+        calls2 = Path(tmp) / "calls2"
+        again = repo.run(wt2, "--reviewed", repo.digest(wt2), STUB_SUITE_CALLS=str(calls2), STUB_SUITE_EXITS="75,75")
+        check(again.returncode == 1 and "timed out under load twice" in again.stderr and len(calls_of(calls2)) == 2,
+              f"exit 75: a retry that timed out again did not fail naming the load: {again.stderr!r}")
+        wt3 = repo.worktree("rho", "r.txt")
+        calls3 = Path(tmp) / "calls3"
+        real = repo.run(wt3, "--reviewed", repo.digest(wt3), STUB_SUITE_CALLS=str(calls3), STUB_SUITE_EXITS="1")
+        check(real.returncode == 1 and len(calls_of(calls3)) == 1,
+              f"a real failure must not be retried: {calls_of(calls3)}")
+
+
 def main():
     tests = [test_two_landers_serialize_and_both_land, test_timeout_ends_non_zero_and_names_holder,
              test_killed_holder_releases_the_lock, test_main_change_to_the_reviewed_lines_needs_a_new_review,
-             test_main_change_elsewhere_in_a_touched_file_keeps_the_review]
+             test_main_change_elsewhere_in_a_touched_file_keeps_the_review,
+             test_a_recorded_pass_on_the_same_tree_is_reused, test_a_pass_on_another_tree_or_a_stale_one_runs_the_suite,
+             test_a_landing_records_its_own_pass, test_a_timeout_under_load_retries_once,
+             test_load_timeout_criteria_are_retried_alone]
     for test in tests:
         try:
             test()

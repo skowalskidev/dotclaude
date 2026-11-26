@@ -7,6 +7,9 @@ Reference catalog for engineering-quality standards: code quality (DRY/SRP, reus
 `rules/engineering-standards.md` § Versions owns the latest-stable default; this section holds the
 pinning detail.
 
+**Research before pinning:** training-data version numbers drift. Confirm the version exists, is stable
+(not alpha/RC), and is compatible with the stack and deploy target before pinning.
+
 **Encode the versions in the repo so they're reproducible:**
 - **Node:** a `.nvmrc` pinning the exact version (e.g. `24.18.0`) for `nvm use`, plus `engines.node` as
   a floor (e.g. `>=22`). Keep local dev, `.nvmrc`, and any serverless pin (Firebase
@@ -117,6 +120,15 @@ inline reason.
 starts:** `[ -n "$RUN" ] || { echo "no run for $SHA" >&2; exit 1; }`. An empty or unknown value aborts
 with what was looked up; it never reaches the poll.
 TEST: no loop body uses a lookup result that was not checked non-empty first.
+
+**DO run every wait expected to last over 60 seconds (CI, a deploy, a queued landing, a build, a
+suite, a sleep-poll) as a background task and keep answering Simon while it runs;** react to its
+completion notification instead of sleeping. A foreground wait blocks his messages until it ends.
+Primary sources: Claude Code background tasks notify on completion
+(https://code.claude.com/docs/en/sub-agents); the GitHub CLI's `run watch --exit-status` is the
+vendor's own completion wait (https://cli.github.com/manual/gh_run_watch).
+TEST: no foreground tool call waits over 60 seconds while Simon has written in the last 30 minutes
+(the fix for a 9-minute foreground CI wait that left Simon unable to talk to the session).
 
 **DO give every background wait or poll an exit condition, a timeout, and a non-zero exit printing the
 last state it saw on timeout or on any state it does not recognise.** The completion notification then
@@ -303,6 +315,13 @@ Worked example: `~/.zsh-work-codex.zsh` and the `~/.claude` repo are one live lo
 symlinked/tracked so `git status` is the whole test. Apply the same discipline in code.
 
 Examples moved here from the rule (each still binding):
+- Derive over store: "is this the last retry attempt?" is inferred from the configured retry count
+  vs. the current attempt, not saved as its own flag.
+- One source per fact: a discount percentage set once and pulled everywhere, not typed into each
+  surface. If two independent paths exist (e.g. two billing providers), each derives from its own
+  single source; neither hand-maintains a copy of the other.
+- Share behaviour: when asked to share one convenience, check the same surfaces for the others they
+  each half-implement; they cluster.
 - Share behaviour: an autosave copied without its flush-on-unmount quietly loses whatever was typed in
   the last debounce window.
 - A new guard on every path: a content rule added to one generation path while a second path feeding
@@ -318,6 +337,36 @@ That is not tidiness for its own sake. This file used to carry its own copy of t
 and "a new guard belongs on every path that needs it". Anyone reading the copy got a weaker rule than
 the one Simon wrote, which is precisely the failure the rule predicts. `hooks/config-contract.test.py`
 now fails on a paragraph that appears in two config files.
+
+### Apply a shared rule at the boundary, never per consumer
+
+Owns the detail of the rule's shared-boundary line. The codebase grows; a rule each consumer must
+remember is a rule the next consumer forgets.
+
+**DO put a classification or rule that many current AND future consumers apply in ONE owner that
+the shared boundary applies automatically,** the moment a second consumer needs it. Governed kinds:
+test or internal traffic, permissions, prices, feature eligibility, tenancy, soft-archived rows.
+Pick the boundary every reader already passes through:
+- data: a view or security-barrier view that readers query instead of the base table, a row-level
+  security policy, or a default ORM scope;
+- requests: middleware or a route wrapper;
+- writes: a trigger or write-path function that stamps the classification once, at write time;
+- code: a base class, a shared query builder or one exported reader function.
+**DO capture new members at the source event** (sign-in, device registration, account creation,
+config edit), writing the classification to the owner's table, so a new tester or a new SKU joins
+the owner with no code change.
+**DO ship a drift guard in the same change:** a contract or lint test that fails when a consumer
+reads the governed data without the owner. Shapes: a test that lists every reader of the governed
+table or column and fails on one outside the owner; revoked direct grants so only the view is
+readable; a lint rule banning the raw call. Name the guard in the PR.
+**DON'T re-apply the rule in each consumer** (a copied `WHERE` clause, a per-readout exclusion list,
+a per-route permission check), and don't rely on review or memory to keep the copies aligned.
+**DO check, when adding any new consumer, whether an owner already governs the data it reads,** and
+read through that owner; a new consumer that bypasses an existing owner is a review finding.
+TEST: a new consumer written with no knowledge of the rule still applies it, and the drift guard
+fails when one reads around the owner. (the fix for a new analytics readout that counted internal
+test devices because each readout carried its own exclusion copy and the new one missed a tester
+group.)
 
 ## Logging, observability, failure handling
 
@@ -338,6 +387,13 @@ now fails on a paragraph that appears in two config files.
   a wrong answer, not a degraded one. TEST: each such timeout names its sibling wait and a production
   cold-start timing (the fix for a 1.5 s read that sent new invitees to the wrong first screen while a
   sibling read on the same path waited longer).
+- DO read two things before starting a write-bearing request earlier than the step that used to send
+  it (prefetch, register ahead, warm-up): how the server answers a repeat call (first write wins,
+  upsert, refuse) and which of its inputs can still change after the new start point. When a repeat
+  keeps the first value and an input can still change, fix the server to take the latest uncommitted
+  (unpaid, unsubmitted) value first, or start the call where the inputs are final.
+  TEST: the PR names the repeat-call behaviour of every request it moves earlier, with file:line (the
+  fix for an early register whose first saved request was kept when the visitor changed their answer).
 
 ## Payment paths
 
@@ -399,7 +455,9 @@ again.
   **DON'T point it at a whole directory** (`dart format lib test`, `prettier .`): it reflows files the task never
   touched, they land in the feature commit, and a "restore formatting" commit plus extra review follows.
   TEST: a feature commit's diff holds no file whose only change is whitespace or reflow outside the task's scope
-  (the fix for three whole-folder format runs, each needing a restore commit).
+  (the fix for four whole-folder format runs, each needing a restore commit). `hooks/formatter-scope-guard.py`
+  is the backstop: it denies a write-mode formatter or auto-fixer aimed at a directory, `.`, a glob or no path,
+  and its deny names the scoped form `dart format $(git diff --name-only --diff-filter=AM <base> -- '*.dart')`.
 - **DO make at most one small, reversible change for a defect in code outside your task that you cannot
   reproduce** (a screen on the tester's device), then write the finding up with its evidence and stop.
   A second unconfirmed attempt is a ticket, not a fix. DON'T iterate on the tester's device by guesswork:

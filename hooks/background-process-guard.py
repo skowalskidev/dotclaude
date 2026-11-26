@@ -12,7 +12,6 @@ WHAT IT BLOCKS (the install/enable verbs only — listing and removing stay allo
   - launchctl load / bootstrap / enable / kickstart / start.
   - systemctl [--user] enable / start.
   - writing a plist into ~/Library/LaunchAgents or /Library/LaunchDaemons.
-  - an installer that loads one itself: `session-auto-resume.py install`.
 
 Override: CLAUDE_ALLOW_DAEMON=1 in the ENVIRONMENT the Claude session was started with, which only
 the user sets. A `CLAUDE_ALLOW_DAEMON=1 ...` prefix inside the command does NOT pass: the agent types
@@ -35,9 +34,6 @@ PATTERNS = [
      "enables a systemd unit (persistent background process)"),
     (re.compile(r"(?:>|>>|\bcp\b|\bmv\b|\btee\b|\bln\b|\binstall\b|\bcat\b)[^\n]*Library/Launch(?:Agents|Daemons)"),
      "writes a plist into a LaunchAgents/LaunchDaemons directory"),
-    # An installer that calls launchctl itself hides the verb from the patterns above, so it is named.
-    (re.compile(r"\bsession-auto-resume\.py\s+install\b"),
-     "installs the hourly auto-resume LaunchAgent (persistent scheduled job)"),
 ]
 
 

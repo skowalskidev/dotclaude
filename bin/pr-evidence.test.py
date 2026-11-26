@@ -9,6 +9,7 @@ frame in any colour while letting a short transition through. Needs Pillow and f
 """
 import importlib.util
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -320,6 +321,38 @@ def test_fails_fast(tmp: Path):
           "engine uses drawtext; it must render text with Pillow")
 
 
+def test_size_images(tmp: Path):
+    """size-images escapes a quote in an alt (2 of 17 PR images once rendered as text for want of it), sizes
+    by frame type, and leaves videos, local paths and code alone; the landing gate then counts every image."""
+    A = "https://github.com/user-attachments/assets/"
+    body = tmp / "body.md"
+    body.write_text(
+        f'![Decline "No thanks, use the free plan" before and after]({A}aaa)\n\n'
+        f"![Settings desktop before and after]({A}bbb)\n\n"
+        f"![]({A}vid)\n\n"
+        f'<img src="{A}ccc" width="600" alt="Step "Add your cards" before and after">\n\n'
+        "![local](shots/x.png) `![code](https://h/c)`\n```\n![fenced](https://h/f)\n```\n")
+    r = engine("size-images", str(body), "--width", "600")
+    out = body.read_text()
+    check("2 sized" in r.stdout and "1 alt repaired" in r.stdout and "1 local left" in r.stdout,
+          f"size-images summary wrong: {r.stdout}")
+    check(f'<img src="{A}aaa" width="600" alt="Decline &quot;No thanks, use the free plan&quot; before and after">'
+          in out, f"a quote in an alt was not escaped: {out}")
+    check(f'<img src="{A}bbb" width="800" alt="Settings desktop before and after">' in out,
+          "a desktop image was not sized 800")
+    check('alt="Step &quot;Add your cards&quot; before and after">' in out, "a written tag's raw quote was not repaired")
+    check(f"![]({A}vid)" in out and "![local](shots/x.png)" in out and "`![code](https://h/c)`" in out
+          and "![fenced](https://h/f)" in out, "size-images touched a video, a local path or code")
+    for tag in re.findall(r"<img [^\n]*>", out):
+        check(re.fullmatch(r'<img src="[^"]+" width="(300|600|800)" alt="[^"]*">', tag), f"malformed tag: {tag}")
+    spec = importlib.util.spec_from_file_location("pr_landing_gate", HERE / "pr-landing-gate.py")
+    gate = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(gate)
+    check(gate.posted_images(out) == 4, f"the gate counts {gate.posted_images(out)} posted images, want 4")
+    bad = raw_engine("size-images", str(tmp / "missing.md"))
+    check(bad.returncode != 0 and "no body file" in bad.stderr, "a missing body did not fail loudly")
+
+
 def main() -> int:
     for tool in ("ffmpeg", "ffprobe"):
         if subprocess.run(["which", tool], capture_output=True).returncode != 0:
@@ -328,6 +361,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="pr-evidence-test-") as d:
         tmp = Path(d)
         test_run_band_look()
+        test_size_images(tmp)
         test_fails_fast(tmp)
         test_shots(tmp)
         test_video(tmp)

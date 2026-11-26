@@ -96,8 +96,10 @@ by link, in the output.
 found.** A change agreed mid-run lives nowhere else, because nobody goes back and edits the ticket.
 
 **A clause Simon wrote is a requirement to check, with no ratification step.** His words are the
-requirement; a plan or ticket that dropped a clause is the defect, not the clause. A question gets
-the verdict Met only with where it was answered. A pasted example, brainstorm or quote stays context
+requirement; a plan or ticket that dropped a clause is the defect, not the clause. A question-form
+clause ("should X?", "maybe X?", "what about X?") gets Met only with Simon's own words deciding it, or
+the build he asked about; an agent's answer leaves it Open for Simon
+(`references/workflow-loops.md` § Continuous request reconciliation). A pasted example, brainstorm or quote stays context
 (`rules/communication.md` § A pasted example shows intent), and a clause he later declined is
 Deliberately dropped citing his Decisions line.
 
@@ -147,6 +149,7 @@ Every criterion comes back with one verdict, provisional until Phase 4 puts a te
 | Deliberately dropped | Decided against | who decided, and when; a raw-ask clause needs Simon's own recorded decision |
 | Superseded | Another decision replaced it | what replaced it |
 | Undecidable from code | Needs a run, a service, or Simon | what would settle it, for Phase 4 to try |
+| Open for Simon | A question-form clause only an agent has answered | the recommendation, listed in Phase 7's questions block |
 
 An agent's choice to skip one of his clauses is Not met, never Deliberately dropped.
 
@@ -178,8 +181,9 @@ the overlap is real.
 How each one is built:
 
 - **The criteria supply the tests, the journeys supply the cases.** For each criterion take the
-  numbered user and system steps it touches, every early stop in Block 2 part 3, and the scenario
-  matrix in `references/testing-strategy.md`. An early stop asserts its reason code; "the guard
+  numbered user and system steps it touches, every early stop in Block 2 part 3, and the rows of
+  `references/testing-strategy.md` § Edge-case hunt before every walkthrough, run before this phase's
+  browser pass on a human-facing change. An early stop asserts its reason code; "the guard
   correctly did nothing" is unprovable any other way. Name each test after its criterion and assert
   the artifact rather than the interaction, per `references/contracts-and-outcomes.md`.
 - **Write the assertion from the criterion's words, before reading the implementation.** A test
@@ -328,7 +332,7 @@ Repeat until it comes back with nothing actionable. Four stop conditions that ar
 - **The questions**, in one consolidated block, per `rules/communication.md`. Each one answerable in a
   line, naming the decision and carrying the option you would take, so a "yes" is a complete answer.
   A derived criterion that was never ratified and never built belongs HERE as a proposal, never in
-  Phase 5's fix list. A raw-ask clause not fulfilled appears here by name with its blocker, never
+  Phase 5's fix list, and so does every Open for Simon clause, with the recommendation. A raw-ask clause not fulfilled appears here by name with its blocker, never
   silently. If there are none, leave the section out rather than manufacturing one.
 
 ## Rules

@@ -140,6 +140,10 @@ matrix (every feature enumerated, Stage-1 deterministic tests written + run over
 Stage-2 Claude-as-judge, saved and posted to the PR). Do NOT restate that method here; this skill is the
 human half, and the two are distinct.
 
+The machine pass includes `references/testing-strategy.md` § Edge-case hunt before every
+walkthrough: its rows that need a human's eyes join Phase 3's plan as scenarios, and Simon's own
+reported bug is one row of its class, never the whole hunt.
+
 What comes back IS his task list: every feature the matrix marks **NEEDS-DRIVING** — a rendered
 interaction a unit test structurally cannot reach — is what you pace him through in Phase 4. Loop the
 matrix to green (every GAP filled with a test) before his session starts, so his eyes are spent only on
@@ -156,6 +160,16 @@ is sitting there waiting.
 
 The file holds progress and observations. Chat gets one step at a time.
 
+**DO write each scenario (persona) as ONE connected journey before step 1:** its real entry, then
+every surface the change reaches for that persona in the order a person meets them: the new step,
+each choice on it, where each choice leads, each downstream surface reflecting that choice (a settings
+page, a list, a receipt), acting there, its result. Show Simon the outline once, 1 line per scenario.
+**DON'T close a persona's window or start the next scenario while a downstream branch of the change
+is unwalked for that persona.**
+TEST: every 1.2 surface a persona can reach is a row in that persona's journey, and its window stays
+open until its last row is walked (the fix for a declined member whose later add from Settings was
+never walked: the window closed after the Settings check).
+
 ---
 
 ## Phase 4 — The co-pilot session
@@ -170,8 +184,9 @@ After every start or restart, run the dependency handshake in `dev-server-hygien
 the job: Claude's only view of Simon's session is what the server prints.
 
 ### 4.1b Prove he is on YOUR server, before step 1
-Apply `testing-strategy.md` § Human-driven sessions. Drive each step yourself before you send it, from
-the state he is in, as that section sets out. Load the start URL in his walk tab yourself (web,
+Apply `testing-strategy.md` § Human-driven sessions. Walk the whole journey to its last stage on every
+target first, then drive each step yourself before you send it, from the state he is in, as that
+section sets out. Load the start URL in his walk tab yourself (web,
 below), or give him the exact URL (for a phone, the verified share from `/sk:work-preview-on-phone`),
 and say which host the address bar must show.
 Find his first request in the watched log. Absent after one retry: stop, because he is on another
@@ -180,9 +195,10 @@ continue only on a test-mode id.
 TEST: no step with a side effect runs until his first request is in the log.
 
 **DO drive every step yourself except typing an input the change ADDS (1.5), on web and native
-alike.** List those new inputs from the diff before step 1. When the list is empty (a server, prompt
-or copy change that adds no field, button or control), drive the whole walk yourself, watch the logs,
-judge and fix, then hand back the results matrix; send Simon no step to perform.
+alike, unless Simon asked to experience the walk himself (below).** List those new inputs from the
+diff before step 1. When the list is empty (a server, prompt or copy change that adds no field,
+button or control), drive the whole walk yourself, watch the logs, judge and fix, then hand back
+the results matrix; send Simon no step to perform.
 **DO narrate every web and native step in 1 short line before acting: what you do and what you
 watch for.** Queue Simon's comments as findings without pausing the walk; fix blockers per 4.3.
 TEST: even with zero new inputs, each step has a live action-and-watch line, and comments become findings.
@@ -191,9 +207,17 @@ form). (the fix for a walk that sent "Step 1 of 8 · Do: type the search" for a 
 input, which he refused: "i wanted you to test it not me")
 TEST: every step message that asks Simon to act names an input the diff added.
 
+**DO hand Simon every click when he asks to experience the walk himself** ("I want to go through the
+flow", "let me experience the scenarios"): you prepare the stack and open 1 labelled window per
+scenario at its real entry, then pace him per `references/human-pacing.md`, driving only a step he
+hands back by name. **DON'T run the scenarios by script and report screenshots, and DON'T tear down
+the stack or close a scenario window before he says he is done with the walk;** Phase 6 waits for it.
+TEST: every action in an experience walk traces to Simon or to a step he named, and the stack and
+each window stay up until his done (the fix for three scenarios scripted and torn down, rebuilt for him).
+
 **DO open every persona of a multi-persona walk (sender and friend, host and guest) yourself, first
-actor first, each in its own named isolated context with a fresh account and a persona-labelled tab
-title, per `browser-debugging.md` § The test browser (multi-persona walks and tab labels).** Never send
+actor first, each in its own named isolated context with a fresh account and a task-and-persona tab
+label, per `browser-debugging.md` § The test browser (multi-persona walks, tab labels and stale tabs).** Never send
 Simon a URL to open or ask him to manage incognito windows.
 TEST: a multi-persona walk sends Simon no URL, and every step message names its tab by persona label.
 
@@ -202,16 +226,20 @@ every step.** Attach the chrome-devtools MCP to the
 project's test browser (Chrome for Testing), reusing one already running on the project's profile
 (launch and attach per `browser-debugging.md` § The test browser). Keep to ONE walk surface per `browser-debugging.md` § The test browser: 1 walk tab
 (an isolated context only for a fresh-visitor or second-account need), the previous step's tab closed
-before a new one opens, every step naming the tab by title and host, a phone viewport that fits the window.
-Load the start URL there yourself. Simon types only the new inputs, in that tab.
-**DON'T close or navigate a tab you did not open.** Another session may own it.
+before a new one opens, stale tabs swept and every step naming the tab by its label and host, a phone
+viewport that fits the window. Load the start URL there yourself. Simon types only the new inputs, in that tab.
+**DON'T close or navigate another session's `live` or `unknown` tab.** Its walk holds it; close only `stale` tabs.
 **DO capture every web step yourself.** After your action, or after Simon finishes a new input,
 `take_screenshot` that tab with a
 `filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step
 names a call, and judge it against the Expect line.
 **DON'T ask him to paste a screenshot of the web walk.** A real-phone walk keeps its own capture route.
-TEST: no web step message asks Simon to paste a screenshot, and each web step's evidence names 1
-screenshot file Claude took.
+**DO diagnose a step whose capture misses its Expect line yourself before asking Simon anything:**
+read the full page text (never a truncated excerpt), the tab's navigation history, the logs and the
+provider state. DON'T ask him what he saw on a surface you can read. (the fix for asking "what
+happened?" after a 400-character capture cut off an on-page error note)
+TEST: no web step message asks Simon to paste a screenshot or say what he saw, and each web step's
+evidence names 1 screenshot file Claude took.
 
 **DO run an iPhone simulator walk through `references/ios-simulator.md`, read before the first boot.**
 Claude opens the simulator GUI itself, then navigates and screenshots every step with the driver that
@@ -306,13 +334,14 @@ Order the fixes, his re-walk and the red tape per `references/testing-strategy.m
 - **Write what you learned into the project's playbook** — seed recipe, the gates and how to
   enable them, login recipe, surfaces worth walking, any "this always breaks" note. A solved
   testing problem must end up documented.
-- **Teardown checklist, enumerated and reported**: turn the verbose logging back down, **turn
+- **Teardown checklist, enumerated and reported, never before Simon's done in an experience walk
+  (4.1b)**: turn the verbose logging back down, **turn
   every test gate OFF and clear any allowlist**, remove scratch data, kill every process you
   started (forwarders, listeners and phone shares included) and verify by checking the port and by
   fetching each share hostname (not by trusting the kill), sweep orphaned workers.
   **Close every tab, window and isolated context you opened, and the Chrome for Testing you launched
   unless Simon is still using it** (`browser-debugging.md` § The test browser).
-  TEST: `list_pages` shows only the tabs you found.
+  TEST: `list_pages` shows none of your tabs and no `stale` tab.
   Leaving a time-collapse flag on in a shared environment is a live incident waiting to happen.
 - **Commit** one logical commit per fix, per the standing commit rule.
 - **Report a results matrix**: step, result, evidence, severity — plus what was fixed, what
