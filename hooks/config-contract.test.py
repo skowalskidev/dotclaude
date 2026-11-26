@@ -160,6 +160,10 @@ CRITERIA: list[tuple[str, str]] = [
     ("regression-check-runs-on-every-pr",
      "Every PR proves its modified pre-existing files left outside paths alone and names the caller each newly "
      "mounted shared part mirrors; the ship harness, review, matrix and capture scope all invoke that one method."),
+    ("destructive-changes-prove-readers-and-failing-tests",
+     "A PR deleting or expiring stored rows or scheduling a job names every reader and lookback, the production "
+     "deleted and must-stay counts, the timed capped run, its slot and a tested rollback; every Standard or Deep "
+     "COVERED row shows its test failing without the change, and the landing gate refuses the matrix otherwise."),
     ("value-safety-answers-four-questions",
      "A deep PR that moves money, credits, entitlements, auth or ownership answers the happy-path, re-enacted "
      "failure, wrong-recipient and production incident-replay questions on the PR, and the gate refuses it otherwise."),
@@ -2907,6 +2911,29 @@ def check_regression_check_runs_on_every_pr() -> None:
           "ship-review's caller-parity lens no longer points at the mounting rule")
     gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
     check('"Regression check": "Regression check"' in gate_src, "The landing gate no longer owns a Regression check row")
+
+
+def check_destructive_changes_prove_readers_and_failing_tests() -> None:
+    method = " ".join((ROOT / "references/testing-strategy.md").read_text().split())
+    for required in ("## Prove each test fails without the change", "on every Standard and Deep PR",
+                     "`base fails`", "`mutant <break>: FAILED`", "one mutant per guarded rule",
+                     "a mutant the test passes is a GAP row", "`n/a: <why>`", "`Fails without the change` column",
+                     "fails without the change (§ Prove each test fails without the change)"):
+        check(required in method, "Fails-without-the-change method lost: " + required)
+    deploy = " ".join((ROOT / "references/git-pr-deploy.md").read_text().split())
+    for required in ("deletes, purges or expires stored rows, or adds or moves a scheduled job, migration or not",
+                     "`Reader | Lookback it needs | Source`", "2x the longest reader's lookback",
+                     "0 must-stay rows deleted", "every row still in flight", "time the capped run at production volume",
+                     "set a lock timeout and a statement timeout", "no client role can call it",
+                     "pick a slot no other job uses", "a rollback the tests apply twice", "after the first scheduled run"):
+        check(required in deploy, "Destructive-change checks lost: " + required)
+    for path in ("skills/sk/skills/ship-review/SKILL.md", "skills/sk/skills/ship-full-detailed-workflow/SKILL.md"):
+        text = " ".join((ROOT / path).read_text().split())
+        check("§ Prove each test fails without the change" in text,
+              f"{path} does not point at testing-strategy.md § Prove each test fails without the change")
+    gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
+    check("def check_fails_without" in gate_src and "FAILS_COLUMN" in gate_src and "SURVIVED" in gate_src,
+          "The landing gate no longer checks the Fails without the change column")
 
 
 def check_value_safety_answers_four_questions() -> None:

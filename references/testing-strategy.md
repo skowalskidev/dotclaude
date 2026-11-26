@@ -940,6 +940,25 @@ TEST: the PR's `## Regression check` table has one row per modified pre-existing
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).
 
+## Prove each test fails without the change
+
+**DO show every COVERED row's test failing without the change, on every Standard and Deep PR, on the
+final head:** run it on a base worktree (`base fails`), and for each rule the row guards beyond "it
+exists" (a threshold, a cap, an order, a keep or skip rule, a rollback), apply one deliberate break to
+the changed code, run the test, record `mutant <break>: FAILED` and restore the file per
+`references/code-best-practices.md` § Agent-written shell (copy it aside first).
+NUMBER: one mutant per guarded rule; a mutant the test passes is a GAP row until the test is
+strengthened and the mutant fails. A row with no behaviour of its own (an ordering or manifest check)
+holds `n/a: <why>`.
+**DO post it as the `Fails without the change` column of the `## Test matrix` table.**
+`bin/pr-landing-gate.py` fails a Standard or Deep matrix whose COVERED rows lack the column or a filled
+cell, or whose cell records a surviving mutant.
+WHY: a test written beside its code can pass on both versions; only a seen failure proves it guards
+the rule.
+TEST: every COVERED row on a Standard or Deep PR names `base fails`, a FAILED mutant or `n/a: <why>`
+(e.g. a scheduled-job log purge PR whose mutants for a shorter keep window, a start-time fallback, a
+raised per-run cap and a rollback that kept the job each failed their test).
+
 ## Reproduce a reported bug first, then prove the root cause
 
 **DO reproduce every reported bug on the unchanged code before writing its fix:** one failing test or
@@ -1326,7 +1345,8 @@ from `git diff <base>...HEAD` cross-referenced with the plan's acceptance criter
 (`/sk:plan-stable-persistent-dynamic-complete-full-plan`) and the Linear tickets — code with no
 criterion, or a criterion with no code, is itself a finding. The deliverable is a MATRIX: one row per
 feature — `feature · layer (frontend/backend) · simulation applicability/evidence · Stage-1 test(file) ·
-Stage-2 judgment · verdict (COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Apply § Local time-driven simulations
+fails without the change (§ Prove each test fails without the change) · Stage-2 judgment · verdict
+(COVERED / GAP / NEEDS-DRIVING / SKIPPED)`. Apply § Local time-driven simulations
 to its simulation subrow. Every feature ends with a verdict; a feature with no row is a hole.
 Cover the WHOLE diff — every changed file's features, backend, frontend, tests and docs included; never
 sample down to the "high-risk" files and eyeball the rest. TEST: the matrix's row set equals the diff's

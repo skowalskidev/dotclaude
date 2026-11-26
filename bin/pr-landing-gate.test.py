@@ -61,10 +61,10 @@ Tier: deep (a member's search limit and its billing plan).
 
 **9 COVERED · 0 GAP · 1 NEEDS-DRIVING · 1 SKIPPED**
 
-| # | Feature | Evidence | Verdict |
-|---|---|---|---|
-| 1 | 201st search refused | db test | COVERED |
-| 2 | Rendered cards | e2e with a mocked server | NEEDS-DRIVING |
+| # | Feature | Evidence | Fails without the change | Verdict |
+|---|---|---|---|---|
+| 1 | 201st search refused | db test | base fails; mutant limit 201: FAILED | COVERED |
+| 2 | Rendered cards | e2e with a mocked server | | NEEDS-DRIVING |
 
 Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and request logs.
 
@@ -161,6 +161,33 @@ check({"Test matrix", "Prod data", "Deploy safety"} <= rows(gate.check_body(bare
       "A skip line with no trigger passed")
 untiered = PASSING.replace("Tier: deep (a member's search limit and its billing plan).\n\n", "")
 check(any("no tier named" in m for m in gate.check_body(untiered, HTML, 0)), "A matrix with no tier named passed")
+
+# references/testing-strategy.md § Prove each test fails without the change: Standard and Deep COVERED rows
+# name how the test failed with the change removed; a surviving mutant fails; Light is exempt.
+no_column = PASSING.replace("| # | Feature | Evidence | Fails without the change | Verdict |\n|---|---|---|---|---|",
+                            "| # | Feature | Evidence | Verdict |\n|---|---|---|---|").replace(
+    " | base fails; mutant limit 201: FAILED | COVERED |", " | COVERED |").replace(
+    " | e2e with a mocked server | | NEEDS-DRIVING |", " | e2e with a mocked server | NEEDS-DRIVING |")
+check(any("no 'Fails without the change' column" in m for m in gate.check_body(no_column, HTML, 0)),
+      "A deep matrix with no Fails without the change column passed")
+standard_no_column = no_column.replace("Tier: deep (a member's search limit and its billing plan).",
+                                       "Tier: standard (logic inside the search limit feature).")
+check(any("no 'Fails without the change' column" in m for m in gate.check_body(standard_no_column, HTML, 0)),
+      "A standard matrix with no Fails without the change column passed")
+light_no_column = no_column.replace("Tier: deep (a member's search limit and its billing plan).",
+                                    "Tier: light (one admin page button, team-only).")
+check(not [m for m in gate.check_body(light_no_column, HTML, 0) if "Fails without" in m],
+      "A Light matrix was held to the Fails without the change column")
+blank_cell = PASSING.replace("base fails; mutant limit 201: FAILED", "")
+check(any("empty 'Fails without the change' cell" in m for m in gate.check_body(blank_cell, HTML, 0)),
+      "A COVERED row with an empty Fails without the change cell passed")
+survived = PASSING.replace("mutant limit 201: FAILED", "mutant limit 201: PASSED")
+check(any("a mutant survived" in m for m in gate.check_body(survived, HTML, 0)), "A surviving mutant passed")
+check(any("a mutant survived" in m for m in gate.check_body(PASSING.replace(
+          "mutant limit 201: FAILED", "mutant limit 201 survived"), HTML, 0)), "A 'survived' mutant passed")
+check(not [m for m in gate.check_body(PASSING.replace("base fails; mutant limit 201: FAILED",
+                                                      "n/a: migration order check, no behaviour"), HTML, 0)
+           if "Fails without" in m], "An n/a reason in the Fails without the change cell failed")
 
 # The matrix section holds the real-environment walk line: PASS, a reasoned N/A or a skip line, never FAIL.
 WALK_LINE = "Real-environment walk: PASS, 6 of 6 source rows judged with screenshots and request logs."

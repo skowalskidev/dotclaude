@@ -16,6 +16,10 @@ payment or entitlement path (PAYMENT_PATH), that line names a simulator, device 
 PASS, or a reasoned does-not-apply naming why no user journey changed; a line resting on unit tests, or a
 does-not-apply giving any other reason (e.g. "a real purchase cannot run locally"), fails
 (references/testing-strategy.md § Pre-merge end-to-end on a local stack).
+On a Standard or Deep PR, the Test matrix table whose rows hold COVERED carries a 'Fails without the
+change' column, filled on every COVERED row (`base fails`, `mutant <break>: FAILED` or `n/a: <why>`),
+and no cell records a surviving mutant (references/testing-strategy.md § Prove each test fails without
+the change).
 The Regression check section holds one row per pre-existing file the PR modifies, renames or removes
 (the PR's file list, `gh api .../pulls/<n>/files`), each with PASS or INTENDED and a filled cell in the
 table's Base-vs-head evidence column: the method is references/testing-strategy.md § Regression check.
@@ -88,7 +92,8 @@ NEEDS = {
                     + ", ".join(MATRIX_COUNTS) + "; a results table; a 'Real-environment walk:' line "
                     "with PASS, a reasoned does-not-apply or a skip line; on a deep PR touching native app "
                     "code or a payment or entitlement path, the simulator, device or local-stack walks with "
-                    "PASS, or a does-not-apply naming why no user journey changed"),
+                    "PASS, or a does-not-apply naming why no user journey changed; on a standard or deep PR, "
+                    "a 'Fails without the change' column filled on every COVERED row, no mutant surviving"),
     "Regression check": ("a table with a Base-vs-head evidence column; a row per modified pre-existing file, "
                          "each with evidence and PASS or INTENDED"),
     "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
@@ -166,6 +171,11 @@ TLDR_HEADER = re.compile(r"^\s*\|[^\n]*\bBefore\b[^\n]*\|[^\n]*\bAfter\b[^\n]*\|
 # /sk:ship-pr § Rewrite the body when the PR changes: the Test matrix heading names the head it describes.
 HEAD_NAMED = re.compile(r"\bhead\W{0,3}([0-9a-f]{7,40})\b", re.I)
 REGRESSION_BAD = re.compile(r"\b(?:FAIL|REGRESSED)\b")
+# references/testing-strategy.md § Prove each test fails without the change: on a Standard or Deep PR each
+# COVERED row of the Test matrix table names how its test was seen to fail; a mutant the test passed survived.
+FAILS_COLUMN = re.compile(r"fails without", re.I)
+COVERED_ROW = re.compile(r"\bCOVERED\b")
+SURVIVED = re.compile(r"surviv|\bmutant\b[^|;]*:\s*\**PASS", re.I)
 PRE_EXISTING = ("modified", "renamed", "removed", "changed")
 COLLAPSED = re.compile(r"<details(?![^>]*\bopen\b)[^>]*>", re.I)
 # A posted image in the body markdown: a Markdown image (group 1 its alt, group 2 its URL) or an <img> tag.
@@ -458,6 +468,42 @@ def check_walk_required(walk, trigger):
     return []
 
 
+def table_blocks(text):
+    """Each Markdown table in text as a list of its pipe lines, header first."""
+    blocks, cur = [], []
+    for ln in text.splitlines() + [""]:
+        if re.match(r"^\s*\|.*\|\s*$", ln):
+            cur.append(ln)
+        elif cur:
+            blocks.append(cur)
+            cur = []
+    return blocks
+
+
+def check_fails_without(matrix):
+    """Missing-row strings when a Standard or Deep matrix's COVERED rows do not show their test failing."""
+    cells = lambda row: [c.strip() for c in row.strip().strip("|").split("|")]
+    out = []
+    for block in table_blocks(matrix):
+        body = [r for r in block[2:] if COVERED_ROW.search(r)]
+        if not body:
+            continue
+        header = cells(block[0])
+        column = next((i for i, c in enumerate(header) if FAILS_COLUMN.search(c)), None)
+        if column is None:
+            out.append("Test matrix: the results table has no 'Fails without the change' column "
+                       "(references/testing-strategy.md § Prove each test fails without the change)")
+            continue
+        empty = [r for r in body if len(cells(r)) <= column or cells(r)[column] in ("", "-", "–", "—")]
+        if empty:
+            out.append(f"Test matrix: {len(empty)} COVERED row(s) with an empty 'Fails without the change' cell; "
+                       "write 'base fails', 'mutant <break>: FAILED' or 'n/a: <why>'")
+        if any(len(cells(r)) > column and SURVIVED.search(cells(r)[column]) for r in body):
+            out.append("Test matrix: a mutant survived (its test passed with the code broken); strengthen the "
+                       "test until the mutant fails and mark the row GAP until then")
+    return out
+
+
 def check_matrix_head(order, head):
     """Missing-row strings when the Test matrix heading does not name the PR's current head sha."""
     title = next((text for _, text, _ in order if matches(text, SECTIONS["Test matrix"])), "")
@@ -527,6 +573,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
             missing.append("Test matrix: the Real-environment walk has no PASS, doesn't-apply reason or skip line")
         elif DEEP_TIER.search(matrix) and walk_trigger(changed or ()):
             missing += check_walk_required(walk, walk_trigger(changed or ()))
+        if not TIER_SKIP.search(matrix) and not (LIGHT_TIER.search(matrix) and not DEEP_TIER.search(matrix)):
+            missing += check_fails_without(matrix)
 
     if matrix is not None and head:
         missing += check_matrix_head(order, head)

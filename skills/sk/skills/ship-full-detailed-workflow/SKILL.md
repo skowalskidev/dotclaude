@@ -177,7 +177,9 @@ verified the user + system journey, then handed back with it never posted to the
 - Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
 - Matrix (stage 6), on every Deep PR: the results table with its COVERED, GAP, NEEDS-DRIVING and SKIPPED
   counts, each feature's simulation evidence or concrete N/A reason, and explicit verdicts for required
-  cases that did not run; on every PR, the `Real-environment walk:` line (a skip line on Light).
+  cases that did not run; on every PR, the `Real-environment walk:` line (a skip line on Light); on
+  every Standard or Deep PR, a filled `Fails without the change` cell per COVERED row
+  (`references/testing-strategy.md` § Prove each test fails without the change).
 - Prod data (stage 6), on every Deep PR: the compatibility verdict from the owning skill, including
   checked cohorts, unknowns and activation dependencies, or its doesn't-apply verdict with the traced
   reason. An unknown cohort or unmet activation dependency cannot become a compatibility PASS.
