@@ -64,6 +64,28 @@ TEST: at every step message, `sweep` ran in the same turn, every page in `list_p
 **Fit the window: an emulated phone viewport must fit the test window's visible content area.** Launch with `--size 1280x900` (or taller), and emulate a viewport no taller than the window height minus 150 px for the browser chrome. Default: `402x750` inside `1280x900`. DON'T emulate 402x874 or 390x844 in a 1280x900 window: the page bottom falls below the visible area and the tester cannot reach it (hit three times in one project's walks).
 `hooks/emulate-viewport-guard.py` denies a taller `emulate` viewport; its `MAX_VIEWPORT_H` owns the cap. For a taller window, relaunch with `--size` and set `CLAUDE_TEST_VIEWPORT_MAX_H` (window height minus the hook's `CHROME_PX`).
 TEST: a screenshot of the window shows the whole emulated viewport, bottom edge included, with no cut-off; `window.innerHeight` from `evaluate_script` is at most the content height.
+**DO set emulation, viewport, storage and network conditions only on a tab you opened for your own walk.** Open a new tab (`new_page`) for an automated pass or recording.
+**DON'T call `emulate`, `resize_page`, a storage reset or a throttle on a tab a human is driving**, yours or another session's: his screen changes under him mid-step.
+TEST: every `emulate` or `resize_page` call names a page this session opened for an unattended step (the fix for a walk that changed the emulation of the tab a human was driving).
+
+**Navigate by the page text first; read a screenshot only on doubt.** Owned here;
+`/sk:work-verify-regressions-against-original` points to it.
+**DO read the accessibility tree (`take_snapshot`, Playwright `ariaSnapshot()`) to find the next
+control and act on its `uid` or role locator (`getByRole`, then `getByText`).** Take a screenshot only
+when the text leaves the next action or the screen's state unclear: a canvas or image-only control, a
+visual state (an overlay, a cut-off, a disabled look), or a step whose expected text is absent. On
+iPhone the text is the XCUITest element hierarchy or `axe describe-ui` (`references/ios-simulator.md`
+§ Drive and capture).
+**DON'T screenshot every step to decide where to click:** an image costs more time and tokens than its
+text tree and adds coordinate guesswork. Screenshots captured as evidence are separate and keep their
+own cadence (`references/screenshot-review.md`).
+NUMBER: at most 1 decision screenshot per step, taken after a snapshot left the step unclear.
+TEST: every decision screenshot in a walk transcript follows a snapshot of the same step.
+Sources (checked 2026-11-25): Chrome DevTools MCP `take_snapshot` ("Prefer taking a snapshot over
+taking a screenshot", [tool reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md)),
+[Playwright MCP](https://github.com/microsoft/playwright-mcp) ("Uses Playwright's accessibility tree,
+not pixel-based input"), [Playwright locators](https://playwright.dev/docs/locators) (role first),
+[Playwright aria snapshots](https://playwright.dev/docs/aria-snapshots).
 
 **Before you hand a live UI tab to Simon, prove it is interactive on the exact host he will use.** Run it
 after every change to the serving worktree (checkout, re-applied patch), server restart or config change

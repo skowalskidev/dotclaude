@@ -96,6 +96,9 @@ action" or a dashboard queue that puts a heavy check ahead of open build or revi
 convergence instead; on resume the remaining build and review/fix stages go first
 (`references/workflow-loops.md` § Handoff and resume). (the fix for a resumed ship run whose handoff
 named a full converge run first; the review then raised 12 findings and the whole run was wasted.)
+DO hold a base-branch merge while a heavy check runs on the same tree; if one lands anyway, discard
+that check's result and rerun only the failing files (the fix for a merge 22 s into a full suite that
+failed 101 tests whose 17 files passed 434/434 on rerun).
 DO stop an in-flight heavy check the moment pending fixes supersede its head, and record it as
 stopped-stale with that head. DON'T let it finish for partial evidence.
 DO run the whole set ONCE on the final head, launching every independent item in parallel: full suites,
@@ -113,6 +116,40 @@ TEST: each heavy check ran once and names the head it ran on, which equals the f
 run records why an earlier head was needed (a concrete diagnostic Simon or a failing check asked for); no
 hand-back shows the same full suite or stage run on two heads of one PR except after a Deep-path change,
 and the judge cap holds.
+
+## Double tap
+
+The owner of how often ONE suite runs per change batch (`rules/process.md` § Fan out verification).
+§ Verify once, at convergence owns when the heavy set starts; this owns the runs of a suite inside it.
+
+DEFAULT: tap twice. One full run finds every failure, one run confirms every fix.
+DO settle the whole design before the first run: every policy step of the change decided, and every
+test expectation it moves written into the tests, so the run tests a finished design rather than one
+step of it.
+DO run the full suite ONCE collecting every failure. DON'T pass a fail-fast flag (`pytest -x`,
+`--maxfail`, `jest --bail`, `vitest --bail <n>`) and DON'T stop reading at the first red: list every
+failure before the first edit.
+DO fix ALL of them in one batch, then confirm ONCE: rerun the full suite, or rerun only the failed set
+(`pytest --lf`, `jest --onlyFailures`, or a config suite's own `--last-failed`) plus the touched files'
+tests, then one full run at the end.
+DO use a suite's `--only <substring>` and `--last-failed` while fixing, and its parallel workers for a
+full run (`hooks/config-contract.test.py` takes both; `hooks/git-commit-guard.test.py` takes `--only`).
+DON'T walk a policy change one step per full run (the fix for an 863-case guard suite run six times in
+one session, 4-7 min each, while its policy moved one step at a time).
+DON'T rerun a suite that already passed on the same tree: `bin/config-land-check.py` reuses the
+contract suite's pass recorded for that `HEAD^{tree}`.
+NUMBER: at most 2 full runs of a suite per change batch. A third needs a stated new cause written next
+to it: a merge from main that touched the suite's files, a finding outside the batch, or a timeout
+under load.
+TEST: the transcript shows at most 2 full runs of each suite per batch, and every third run names its
+cause.
+
+Sources (each opened 2026-11-25): pytest `-x` stops after the first failure only when asked
+(https://docs.pytest.org/en/stable/how-to/failures.html); `--lf` reruns only the last failures
+(https://docs.pytest.org/en/stable/how-to/cache.html); pytest-xdist `-n auto` runs one worker per
+physical core (https://pytest-xdist.readthedocs.io/en/stable/distribution.html); Jest
+`--onlyFailures`, `--bail` and `--maxWorkers` (https://jestjs.io/docs/cli); Vitest `--bail` defaults
+to 0 (run everything) and `--changed` runs the tests changed files affect (https://vitest.dev/guide/cli).
 
 ## Follow-up pushes and waivers
 
@@ -619,6 +656,28 @@ side by side, matching or with the difference stated (the fix for a walk planned
 had stopped dealing days earlier, and for a second platform handed over with no arms dealt locally
 because its settings table was empty).
 
+### Tester access path: every user-facing variant ships one
+
+DO ship every change to what real users see (an experiment arm, a new onboarding or paywall, a gated
+flow) with a tester access path in the same PR: a code-gated link or a test-account list that lets
+Simon or an agent reach that variant on production on demand. Hold it to all five:
+1. **No change without the code.** A request without the code makes no database read; a wrong code
+   reads only the code check and writes nothing.
+2. **Fresh test device only.** It takes over a fresh, signed-out test device; it never re-deals a
+   person's own browser, account or existing enrollment.
+3. **The real happy path.** Same prices, same payment and confirm path, every step real users take.
+   DON'T add a shortcut that skips a step: a tester walk is proof of the real path only without one.
+4. **Out of every readout.** The walked device's deal carries a test marker that every readout and
+   experiment metric filters out.
+5. **One rollback.** Clearing the code switches it off, documented in the Deploy TLDR.
+WHY: a path that leaks to one real visitor skews the experiment it exists to prove.
+TEST: the PR carries a test that a request without the code makes zero database reads and a wrong
+code writes zero rows, and a test that the walked device's deal is marked and excluded from the
+readout; its Deploy TLDR names the code-set step, its smoke and its rollback
+(`references/git-pr-deploy.md` § Deploy safety, check 3). (the fix for a guided-onboarding experiment
+arm Simon could not reach on production: a walk code stored in its switch row, set right after
+deploy, let him walk it with normal visitors untouched.)
+
 ## Human-driven sessions — prove the environment and the provider identity
 
 A person clicking through a journey while Claude watches logs only works when both sit on the SAME
@@ -675,7 +734,9 @@ Claude in that state this session, and what rendered matches the step's Expect l
 
 **DO run every later step yourself before you send it, the same way:** in your own browser, from the state
 he is in (same storage, same account), and send it only when the Expect screen appears. DON'T write a
-step from the code's happy path. TEST: each step sent has a run by Claude from his state with its Expect
+step from the code's happy path. A step-ahead run is not the whole-journey walk: before step 1, walk
+every target to its last stage per `references/planning-and-tracking.md` § Every named part on every
+named target. TEST: each step sent has a run by Claude from his state with its Expect
 line observed (the fix for three steps that bounced to another screen, reused storage in a "new" private
 window, or made an account outside the plan, each costing him a round trip).
 
@@ -872,6 +933,9 @@ new place. A diff modifying no pre-existing file states that with its reason.
 `bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
 pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
 INTENDED, or a row records FAIL.
+**DO run `/sk:work-verify-regressions-against-original` for the flow-level half when the diff
+touches an existing user flow:** it records each vanilla flow on base and head on one local stack and
+posts its `### Flow walk` table under the same heading.
 TEST: the PR's `## Regression check` table has one row per modified pre-existing file with a
 base-vs-head result (the fix for a reused sign-in screen whose buttons floated mid-screen at its new
 call site while every automated suite passed; a human found it on a walk).

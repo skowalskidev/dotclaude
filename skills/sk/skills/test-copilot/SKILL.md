@@ -184,8 +184,9 @@ After every start or restart, run the dependency handshake in `dev-server-hygien
 the job: Claude's only view of Simon's session is what the server prints.
 
 ### 4.1b Prove he is on YOUR server, before step 1
-Apply `testing-strategy.md` § Human-driven sessions. Drive each step yourself before you send it, from
-the state he is in, as that section sets out. Load the start URL in his walk tab yourself (web,
+Apply `testing-strategy.md` § Human-driven sessions. Walk the whole journey to its last stage on every
+target first, then drive each step yourself before you send it, from the state he is in, as that
+section sets out. Load the start URL in his walk tab yourself (web,
 below), or give him the exact URL (for a phone, the verified share from `/sk:work-preview-on-phone`),
 and say which host the address bar must show.
 Find his first request in the watched log. Absent after one retry: stop, because he is on another
@@ -233,8 +234,12 @@ viewport that fits the window. Load the start URL there yourself. Simon types on
 `filePath` inside the workspace, read `list_console_messages` / `list_network_requests` when the step
 names a call, and judge it against the Expect line.
 **DON'T ask him to paste a screenshot of the web walk.** A real-phone walk keeps its own capture route.
-TEST: no web step message asks Simon to paste a screenshot, and each web step's evidence names 1
-screenshot file Claude took.
+**DO diagnose a step whose capture misses its Expect line yourself before asking Simon anything:**
+read the full page text (never a truncated excerpt), the tab's navigation history, the logs and the
+provider state. DON'T ask him what he saw on a surface you can read. (the fix for asking "what
+happened?" after a 400-character capture cut off an on-page error note)
+TEST: no web step message asks Simon to paste a screenshot or say what he saw, and each web step's
+evidence names 1 screenshot file Claude took.
 
 **DO run an iPhone simulator walk through `references/ios-simulator.md`, read before the first boot.**
 Claude opens the simulator GUI itself, then navigates and screenshots every step with the driver that

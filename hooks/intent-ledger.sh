@@ -724,11 +724,17 @@ submit)
   # it, but `latest-ask` (the merge guard's source of Simon's own words) and the turn's ask time
   # never read it (the fix for a subagent report recorded as the newest "ask", which the merge guard
   # then judged instead of Simon's own message).
+  # A peer relay without the envelope tags is the same data: a turn that opens with another session's
+  # attribution ("From the tokyo session (PR #12), per Simon: ...", "From tokyo (session 2e47dc28), ...",
+  # "Another Claude session sent a message: ...") is Claude-authored, whatever it quotes Simon as saying
+  # (the fix for three tokyo relays recorded as Simon's asks). The capitalised opener is the Claude form;
+  # Simon's own lowercase "from the tokyo session, merge it" stays his ask.
   kind=ask
   own="$(printf '%s' "$stripped" | jq -Rrs '
     gsub("<(agent-message|cross-session-message)\\b[^>]*>.*?</(agent-message|cross-session-message)>"; ""; "mgi")
-    | gsub("Another Claude session sent a message:"; ""; "g")
-    | gsub("^\\s+|\\s+$"; "")' 2>/dev/null)" || { mark_unrecorded; exit 0; }
+    | gsub("^\\s+|\\s+$"; "")
+    | if test("\\A(Another Claude session\\b|(From|Relayed from|Forwarded from|Message from)\\s+(the\\s+)?[A-Za-z0-9._-]+(\\s+session\\b(?![\u0027\u2019])|\\s*\\(session\\b))")
+      then "" else gsub("Another Claude session sent a message:"; ""; "g") | gsub("^\\s+|\\s+$"; "") end' 2>/dev/null)" || { mark_unrecorded; exit 0; }
   [ -n "$own" ] || kind=peer
 
   # A real prompt that cannot be recorded (the ledger does not resolve) is marked like a failed append,
@@ -1275,11 +1281,8 @@ This fires at most once per set of open pushes."
   ;;
 
 latest-ask)
-  # The merge guard (hooks/git-commit-guard.py) asks this for Simon's own words, so a merge is
-  # authorized by what he typed, never by a flag the model can set. Same resolution as `submit`,
-  # silent, read-only; no ledger or no ask for this session prints nothing, which the guard denies.
-  # `--since <ts>` returns every ask from that second on: the guard passes the second the current
-  # turn opened, so a merge ask followed by a queued clarification keeps its authority.
+  # This session's recorded asks, verbatim. Same resolution as `submit`, silent, read-only; no ledger
+  # or no ask for this session prints nothing. `--since <ts>` returns every ask from that second on.
   QUIET=1
   since=""; stamped=0
   if [ "${2:-}" = "--stamped" ]; then stamped=1; shift; fi

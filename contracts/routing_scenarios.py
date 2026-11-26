@@ -73,6 +73,11 @@ SCENARIOS: list[dict] = [
     {"phrase": "show real prod accounts on localhost", "expect": "ship-preview-eyeball-with-prod-data"},
     {"phrase": "eyeball production data before deploy", "expect": "ship-preview-eyeball-with-prod-data"},
     {"phrase": "leave a local preview with real account data", "expect": "ship-preview-eyeball-with-prod-data"},
+    {"phrase": "verify regressions against the original", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "record main's flows and the branch's flows and compare them", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "check the vanilla flow is unchanged", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "is the payment logic unchanged", "expect": "work-verify-regressions-against-original"},
+    {"phrase": "compare base and head flows", "expect": "work-verify-regressions-against-original"},
     {"phrase": "verify against prod data", "expect": "ship-verify-with-prod-data"},
     {"phrase": "check runtime limits against legitimate production usage", "expect": "ship-verify-with-prod-data"},
     {"phrase": "verify request validation accepts actual client payloads", "expect": "ship-verify-with-prod-data"},
@@ -128,7 +133,7 @@ SCENARIOS: list[dict] = [
 
     # --- Deciding whether to build at all -------------------------------------------
     # Sits UPSTREAM of every building skill: it runs before there is a plan, and its output is a
-    # verdict rather than work. Overlap with the proving skill below is declared, not accidental --
+    # verdict rather than work (inside work Simon asked to have done, BUILD verdicts go on to the build). Overlap with the proving skill below is declared, not accidental --
     # "can the platform do it" and "should we do it" are different questions about the same ticket.
     {"phrase": "does this make sense to build", "expect": "work-does-this-make-sense-to-build"},
     {"phrase": "does this ticket make sense", "expect": "work-does-this-make-sense-to-build"},
@@ -377,14 +382,16 @@ HOOK_ROUTING: list[dict] = [
     {"event": "PreToolUse", "tool": "Bash",
      "expect": ["work-resource-guard.sh",
                 "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py",
-                "process-kill-guard.py", "capacity-timeout-guard.py"]},
+                "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"]},
     # The process-kill guard: a pattern kill that can signal other sessions' processes is denied,
     # an agent-typed override prefix included (only the session's starting environment passes);
     # a kill by pid or a pkill -f scoped to the caller's own path passes
     # (references/dev-server-hygiene.md § Private process inspection).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": {"command": command}, "decides": {"process-kill-guard.py": decision}}
       for command, decision in (
           ('pkill -f "local-capacity.py run"', "deny"),
@@ -402,7 +409,8 @@ HOOK_ROUTING: list[dict] = [
     # (references/dev-server-hygiene.md § Waiting on a background job).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": tool_input, "decides": {"capacity-timeout-guard.py": decision}}
       for tool_input, decision in (
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test",
@@ -413,12 +421,31 @@ HOOK_ROUTING: list[dict] = [
             "run_in_background": True, "timeout": 4020000}, "allow"),
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test"}, "allow"),
       )),
+    # The formatter-scope guard: a formatter or auto-fixer aimed at a directory, `.`, a glob or no
+    # path is denied; explicit files, the git-diff substitution and check-only modes pass
+    # (references/code-best-practices.md § Scope discipline).
+    *({"event": "PreToolUse", "tool": "Bash",
+       "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                  "formatter-scope-guard.py"],
+       "tool_input": {"command": command}, "decides": {"formatter-scope-guard.py": decision}}
+      for command, decision in (
+          ("dart format lib test", "deny"),
+          ("dart format .", "deny"),
+          ("npx prettier --write 'src/**/*.ts'", "deny"),
+          ("cd app && bash -c 'black src'", "deny"),
+          ("dart format lib/a.dart test/b_test.dart", "allow"),
+          ("dart format $(git diff --name-only --diff-filter=AM main -- '*.dart')", "allow"),
+          ("dart format --output=none --set-exit-if-changed lib test", "allow"),
+          ("git status", "allow"),
+      )),
     # The background-process guard: a service loader writes a LaunchAgent, so an
     # agent's call is denied, the inline override included (only the session's starting environment
     # passes).
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
-                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py"],
+                  "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
+                "formatter-scope-guard.py"],
        "tool_input": {"command": command}, "decides": {"background-process-guard.py": decision}}
       for command, decision in (
           ("env CLAUDE_ALLOW_DAEMON=1 launchctl bootstrap gui/501 x.plist", "deny"),

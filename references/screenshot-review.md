@@ -484,6 +484,11 @@ PR whose 23 phone and gallery frames each filled the reviewer's screen, three da
 rule for mobile frames was written for the offline report).
 TEST: the fetched `body_html` has zero `<img>` without a `width`, every mobile or iOS frame reads 300 (600
 for a pair), and `grep -c '!\[' body.md` over image lines is 0.
+**DO write those tags with `python3 ~/.claude/bin/pr-evidence.py size-images body.md --width <300|600>`**
+(alts naming Desktop get 800): it HTML-escapes each alt, and a raw `"` in an alt ends the attribute, so
+GitHub shows the whole tag as text (the fix for 2 of 17 PR images whose alts quoted UI copy).
+TEST: `bin/pr-landing-gate.py` passes its Images row: `body_html` renders at least one `<img>` per image
+the body posts.
 DO post one block per point in the PR description, with a comment only when description embedding
 is unsupported or blocked, all under that top-level `## Screenshots` section: `### <point>`, one context line
 (what changed and why it matters, shaped per `references/tldr-report-formats.md` § Before/after unit)

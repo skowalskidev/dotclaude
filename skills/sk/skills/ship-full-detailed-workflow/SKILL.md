@@ -100,6 +100,11 @@ word and the whole queue is built.
    included, on the final head after stage 3-6 fixes;** its base screenshots reuse stage 7's
    base-branch BEFORE capture. TEST: every PR body holds `## Regression check` with one row per
    modified pre-existing file.
+   **DO invoke `/sk:work-verify-regressions-against-original` on EVERY Standard or Deep PR whose diff
+   touches an existing user flow, unprompted, on the final head after stage 3-6 fixes, as a parallel
+   background agent on that same fan-out;** a Light PR records `Flow walk: skipped (tier light)`.
+   The landing gate waits on it. TEST: such a PR's `## Regression check`
+   holds a `### Flow walk` table with zero `regression` rows, or the skip line.
 7. **`/sk:ship-screenshot-changes`** — at the PR's tier, on EVERY PR in the run, unprompted, capture each
    changed visible surface under `references/screenshot-review.md` § Visible surfaces (screens,
    server-rendered answers, team-facing bot posts and admin output) and native surfaces, captured on
@@ -129,11 +134,9 @@ word and the whole queue is built.
    moves a stage's place and time, never whether it runs: `references/dev-server-hygiene.md`
    § Machine-wide capacity. Each Skill-tool run of a stage
    records a receipt for the HEAD of the checkout the work runs in, so run it from the PR's
-   checkout at that head. **A delegated subagent in its own worktree (e.g. `/tmp/<name>`) runs
-   `cd <worktree path> && ...` in its Bash call before each stage, so the receipt follows that
-   checkout; a stage `stages <tier> <sha>` still lists after its Skill call gets
-   `~/.claude/hooks/intent-ledger.sh receipt <stage skill> <worktree path>` (stage as
-   `sk:ship-review`)**, which records the receipt on that checkout's HEAD; the gate then matches it to the PR head. **When the session's own working directory is not the PR's checkout, a Skill-tool run records its receipt against the session cwd's HEAD and the gate reports every stage `Not run`: DO run `~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>` right after each such stage.** **DO record a receipt only right
+   checkout at that head. **A delegated subagent in its own worktree (e.g. `/tmp/<name>`) receipts every stage it runs on that
+   checkout; its brief carries the ship-worker receipt block from `references/parallelization.md` § Give every agent
+   a precise, self-contained spec, verbatim**, and the gate then matches the receipt to the PR head. **When the session's own working directory is not the PR's checkout, a Skill-tool run records its receipt against the session cwd's HEAD and the gate reports every stage `Not run`: DO run `~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>` right after each such stage.** **DO record a receipt only right
    after invoking that stage with the Skill tool on that head; DO list a stage done by hand as `Not run:
    <stage>`, never receipted.** TEST: each receipt follows its own Skill call. Every PASS names its tier, and the gate refuses it with
    `Not run: <stage>, ...` until each stage that tier requires has a receipt on the recorded sha;
@@ -186,7 +189,8 @@ verified the user + system journey, then handed back with it never posted to the
   per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines (a Light
   PR: the not-reached line alone).
 - Regression check (stage 6), on every PR: one row per modified pre-existing file with PASS or
-  INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors.
+  INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors;
+  on a Standard or Deep PR touching an existing user flow, the `### Flow walk` table.
 - Part verdicts (`/sk:work-full-detailed-workflow`), on every Standard or Deep build, adopt or rebuild
   PR: the table from `references/tldr-report-formats.md` § Part verdicts, re-derived on the final head.
 - Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard
@@ -211,6 +215,8 @@ verified the user + system journey, then handed back with it never posted to the
   one carries `open` (GitHub wraps every attached video in its own open `<details>`); every row
   above is a visible `##`/`###` heading (rule: `/sk:ship-pr` § The rest of the body). A collapsed
   section fails even when its content loads.
+- Images (every stage): the fetched `body_html` renders an `<img>` for every image the body posts
+  (`references/screenshot-review.md` § PR evidence template).
 Post to the body with a targeted fetch-edit-verify replace, never a reconstructed body; a fetch returning
 empty or suspiciously short → STOP. When behaviour or base moved after the body was written, re-derive
 every section and capture under `/sk:ship-pr` § Rewrite the body when the PR changes, then rerun this gate.
