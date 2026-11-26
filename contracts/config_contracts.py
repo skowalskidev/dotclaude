@@ -110,6 +110,7 @@ CONTRACTS: dict[str, dict] = {
             "A waiting lander prints the holder's pid, branch, root and start time; after --lock-wait seconds (default 1800) it exits 75 naming the holder and pushes nothing. The kernel releases the lock when its holder exits, killed included.",
             "Runs the contract suite at most once per tree: a clean full pass recorded for the exact merged HEAD^{tree} in the shared Git directory within 24 h, by the suite itself or an earlier landing, is reused and named; a pass on another tree or an older one is not.",
             "The suite's timeout scales with host load (1800 s idle, times 1-minute load per CPU, capped at 3600 s) and kills the suite's process group; a whole-suite timeout, or a suite exit 75 meaning only load timeouts failed, says it timed out under load and gets exactly one retry (the --last-failed criteria for exit 75), while a real failure gets none. The secret scan and the merge with the remote main are unchanged.",
+            "Two branches that edit one file at different lines both survive the second landing, and a same-line clash exits non-zero and pushes nothing (bin/config-land-check.test.py), so a landing never overwrites another lander's change.",
             "bin/config-land-check.test.py drives serialization, the named holder, the timeout, a killed holder, a conflicting main, a kept review after a main edit elsewhere in a touched file, the same-tree pass reuse, the other-tree and stale passes, and both load-timeout retries against a temp repo with stub checks; hooks/git-commit-guard.test.py drives its refusals.",
         ],
     },
@@ -2529,12 +2530,32 @@ CONTRACTS: dict[str, dict] = {
             "hooks/formatter-scope-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
+    "bin/config_branches.py": {
+        "mission": "A drafted config change is never lost: every config-update/* branch has an owner until it lands, and an ownerless one is adopted.",
+        "purpose": "Ownership records (claim, block with next action, supersede with evidence, adopt) for config-update/* branches in the shared Git directory, plus the stop-gate and adoptable queries.",
+        "criteria": [
+            "A branch is unlanded until origin/main contains it; activity is the newer of its last commit and its owner's heartbeat.",
+            "stop_gate lists only the calling session's own unlanded branches with no blocker or supersede record; block needs the blocker and its next action (at least 4 words) and supersede needs evidence.",
+            "adoptable lists unlanded, non-superseded branches idle longer than ADOPT_AFTER_HOURS (4 h: past the longest leased suite run plus queue, and the config fetch cadence); a fresh heartbeat keeps a claim and adopt transfers ownership.",
+            "bin/config_branches.test.py pins each of these.",
+        ],
+    },
+    "hooks/config-branch-gate.py": {
+        "mission": "The session that drafted a config change lands it or records why it cannot, so no rule sits unlanded for days.",
+        "purpose": "PostToolUse Bash claims a config-update branch at `git worktree add -b`; Stop blocks hand-back while the session owns an unlanded branch with no recorded blocker.",
+        "criteria": [
+            "Wired in settings.json on Stop and on PostToolUse Bash.",
+            "Blocks only the owning session, names the land commands, the block command (blocker plus next action) and the supersede command, refreshes the owner's heartbeat each turn, blocks at most 3 times per set of owned branches, and never blocks a delegated worker.",
+            "bin/config_branches.test.py drives each direction.",
+        ],
+    },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
         "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",
         "criteria": ["Always injects the repair policy for a config repository, including a clean checkout; the hook performs no repairs, commits or merges.",
                      "Names every config-update/* branch that is not on origin/main at each session start, "
-                     "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question."],
+                     "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question.",
+                     "Lists each branch bin/config_branches.py reports adoptable (no live owner, idle past ADOPT_AFTER_HOURS) under an ADOPTABLE heading with the adopt, merge-main, land or supersede-with-evidence steps, so an ownerless draft is never left as a note a later session skips."],
     },
     "hooks/orphan-worker-sweep.sh": {
         "mission": "No dead framework worker keeps burning a core in a workspace nobody is watching.",

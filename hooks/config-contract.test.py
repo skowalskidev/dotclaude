@@ -2866,6 +2866,18 @@ def check_monitoring_only_class_holds() -> None:
           "hooks/git-commit-guard.py no longer requires the gate to name the monitoring-only bar")
 
 
+def check_config_branch_ownership() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "config_branches.test.py")])
+    check(result.returncode == 0, "Config branch ownership regression: " + result.stdout + result.stderr)
+    settings = (ROOT / "settings.json").read_text()
+    check(settings.count("hooks/config-branch-gate.py") >= 2,
+          "settings.json must wire hooks/config-branch-gate.py on Stop and on PostToolUse Bash.")
+    check("config_branches.py" in (ROOT / "hooks/config-status.sh").read_text(),
+          "hooks/config-status.sh no longer names adoptable branches via bin/config_branches.py.")
+    skill = " ".join((ROOT / "skills/sk/skills/claude-config-update/SKILL.md").read_text().split())
+    check("config_branches.py" in skill, "claude-config-update no longer points at the ownership and adoption flow.")
+
+
 def check_config_landing_serializes_concurrent_landers() -> None:
     result = run(["/usr/bin/python3", str(ROOT / "bin" / "config-land-check.test.py")],
                  timeout=max(180, RUN_TIMEOUT_S))

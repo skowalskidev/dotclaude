@@ -105,7 +105,17 @@ changed after the digest stays unreviewed.
 
 DO read the owning contract and current source before editing. Keep one owner per concern; when
 another active session owns the same fix, attach the finding to its plan instead of creating a
-competing branch. Never stage unrelated WIP or auto-land an unfamiliar pending branch.
+competing branch. Never stage unrelated WIP. Land another session's branch only when it is ADOPTABLE.
+
+DO treat the drafting session as the owner of its `config-update/*` branch until it lands: the Stop hook
+`hooks/config-branch-gate.py` blocks hand-back (at most 3 times per set of branches) while the session
+owns an unlanded branch with no recorded blocker; exits are landing it, `bin/config_branches.py block
+<branch> "<blocker; next action>"` or `supersede <branch> "<evidence>"`. A branch idle over
+`ADOPT_AFTER_HOURS` (4 h) with no fresh owner heartbeat is ADOPTABLE: SessionStart names it, and the next
+config-touching session runs `config_branches.py adopt <branch>`, merges origin/main into it, validates,
+and lands it, or supersedes it with evidence. `bin/config-land-check.py` merges main under the lock, so
+two branches editing one file both survive and a same-line clash exits non-zero. TEST: no
+`config-update/*` branch is unlanded without a live owner, a recorded blocker or a supersede record.
 
 DO keep checks and contracts in step with the behavior, inspect the whole public diff and secret-scan
 before syncing. Reconcile open lessons on that concern before landing. A completed repair has a

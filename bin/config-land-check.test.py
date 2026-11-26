@@ -249,6 +249,40 @@ def test_main_change_elsewhere_in_a_touched_file_keeps_the_review():
               f"elsewhere: an edit after the review kept the old hash: {late.stderr!r}")
 
 
+def test_two_branches_editing_one_file_both_survive_and_a_clash_stops():
+    """The second lander's merge keeps the first lander's lines; a clash exits non-zero and pushes nothing."""
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        seed = repo.worktree("sigma", "doc.md")
+        (seed / "doc.md").write_text("# Rules\n" + "".join(f"rule {i}\n" for i in range(30)) + "# End\n")
+        git(seed, "commit", "-q", "-am", "fix(sigma): seed a shared doc")
+        check(repo.run(seed, "--reviewed", repo.digest(seed)).returncode == 0, "survive: seed landing failed")
+        first, second = repo.worktree("tau", "t.txt"), repo.worktree("upsilon", "u.txt")
+        for wt, line, text in ((first, 3, "FIRST LANDER LINE"), (second, 20, "SECOND LANDER LINE")):
+            lines = (wt / "doc.md").read_text().splitlines(keepends=True)
+            lines.insert(line, text + "\n")
+            (wt / "doc.md").write_text("".join(lines))
+            git(wt, "commit", "-q", "-am", f"fix({text.split()[0].lower()}): add a rule")
+        check(repo.run(first, "--reviewed", repo.digest(first)).returncode == 0, "survive: first landing failed")
+        landed = repo.run(second, "--reviewed", repo.digest(second))
+        check(landed.returncode == 0, f"survive: the second landing failed: {landed.stderr!r}")
+        final = git(repo.origin, "show", "main:doc.md")
+        check("FIRST LANDER LINE" in final and "SECOND LANDER LINE" in final,
+              "survive: the second landing dropped one lander's lines")
+        clash_a, clash_b = repo.worktree("phi", "p.txt"), repo.worktree("chi", "c.txt")
+        for wt, text in ((clash_a, "phi wording"), (clash_b, "chi wording")):
+            lines = (wt / "doc.md").read_text().splitlines(keepends=True)
+            lines[10] = text + "\n"
+            (wt / "doc.md").write_text("".join(lines))
+            git(wt, "commit", "-q", "-am", f"fix({text.split()[0]}): reword rule 9")
+        check(repo.run(clash_a, "--reviewed", repo.digest(clash_a)).returncode == 0, "clash: first landing failed")
+        before = repo.origin_main()
+        result = repo.run(clash_b, "--reviewed", repo.digest(clash_b))
+        check(result.returncode != 0 and "conflicts" in result.stderr, f"clash: a same-line clash did not stop: {result.stderr!r}")
+        check(repo.origin_main() == before and "phi wording" in git(repo.origin, "show", "main:doc.md"),
+              "clash: a clash pushed or overwrote the first lander's line")
+
+
 def calls_of(path):
     return path.read_text().splitlines() if path.exists() else []
 
@@ -340,6 +374,7 @@ def main():
     tests = [test_two_landers_serialize_and_both_land, test_timeout_ends_non_zero_and_names_holder,
              test_killed_holder_releases_the_lock, test_main_change_to_the_reviewed_lines_needs_a_new_review,
              test_main_change_elsewhere_in_a_touched_file_keeps_the_review,
+             test_two_branches_editing_one_file_both_survive_and_a_clash_stops,
              test_a_recorded_pass_on_the_same_tree_is_reused, test_a_pass_on_another_tree_or_a_stale_one_runs_the_suite,
              test_a_landing_records_its_own_pass, test_a_timeout_under_load_retries_once,
              test_load_timeout_criteria_are_retried_alone]
