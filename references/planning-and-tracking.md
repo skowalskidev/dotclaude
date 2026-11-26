@@ -115,6 +115,8 @@ feature stays unused.
 
 ## Capture the inputs the code cannot show you — ask now, and make each ticket ask too
 
+Why front-load (moved from `rules/process.md`): assume Simon may hand the session over and walk away.
+
 A plan built only from the repo misses everything that lives in another system: edge/CDN rules and
 cache/routing/firewall config, design-tool screens (mockups, prototypes) and their export settings, a
 third-party service console (billing, telephony, auth, analytics), an infra or observability dashboard,
@@ -231,6 +233,8 @@ Owned by `rules/communication.md` § Close the session. Detail:
 - **After merge and deploy, production is proven live** before the archive line: the deploy run for
   the merge sha passed, prod serves the new build, and the changed behaviour passed its read-only
   smoke (`references/git-pr-deploy.md` § Shipping is not done until the deploy is verified).
+  The hand-back lists each Deploy TLDR step as ran with its check result, rolled back, or held with
+  Simon's quoted keep-off or a Simon-only blocker (§ A merge word runs the Deploy TLDR), never a new ask.
 - **Time-only checks**: what only time, a real customer or a future event can confirm is no loose end:
   drop it, or use one short "will show up naturally" clause.
 - **Outstanding work** (process.md "name all outstanding work", living-plan, the Stop-hook reconcile)

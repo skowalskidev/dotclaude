@@ -160,6 +160,9 @@ CRITERIA: list[tuple[str, str]] = [
      "exit 75 at its bound, and a killed holder frees the lock."),
     ("pr-landing-gate-refuses-missing-rows",
      "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
+    ("merge-word-runs-deploy-tldr",
+     "Simon's merge or deploy word runs the merged PR's whole Deploy TLDR, switch turn-ons included, unless he "
+     "says keep it off; ship-pr never writes a step as waiting on a second approval and the landing gate fails one."),
     ("monitoring-only-class-holds",
      "A monitoring-only PR merges with no merge word only at its bar and only inside the overlay's bot paths: "
      "the class tests pass, and the merge policy, the bar and the rule pointer keep their one home each."),
@@ -2968,6 +2971,28 @@ def check_pr_landing_gate_refuses_missing_rows() -> None:
               f"{path} does not point at bin/pr-landing-gate.py for the landing-gate rows")
     check('landing_check "$branch"' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
           "intent-ledger.sh gate PASS no longer runs the landing-gate checker")
+
+
+def check_merge_word_runs_deploy_tldr() -> None:
+    deploy = " ".join((ROOT / "references/git-pr-deploy.md").read_text().split())
+    for required in ("### A merge word runs the Deploy TLDR", "run every step of that PR's Deploy TLDR in its order",
+                     "feature-switch or flag turn-ons", "only when its `Check:` or `Smoke:` fails",
+                     "only when Simon said to keep it off", "the PR text is ours, not his",
+                     "outside the merged PR's Deploy TLDR", "never as a new ask"):
+        check(required in deploy, "references/git-pr-deploy.md lost the merge-word scope: " + required)
+    section = "§ A merge word runs the Deploy TLDR"
+    for path in ("rules/process.md", "rules/connectors.md", "skills/sk/skills/ship-pr/SKILL.md",
+                 "references/planning-and-tracking.md", "bin/pr-landing-gate.py"):
+        check(section in " ".join((ROOT / path).read_text().split()), f"{path} does not point at {section}")
+    process = " ".join((ROOT / "rules/process.md").read_text().split())
+    check("switch turn-ons included" in process and "unless he says keep it off" in process,
+          "rules/process.md lost the always-on merge-word line")
+    ship = " ".join((ROOT / "skills/sk/skills/ship-pr/SKILL.md").read_text().split())
+    check("normal numbered step that runs on Simon's merge word" in ship and "trigger condition" in ship,
+          "ship-pr no longer writes activation as a normal Deploy TLDR step")
+    gate_src = (ROOT / "bin" / "pr-landing-gate.py").read_text()
+    check("SECOND_APPROVAL" in gate_src and "not part of" in gate_src,
+          "The landing gate no longer fails a Deploy TLDR step held for a second approval")
 
 
 def check_regression_check_runs_on_every_pr() -> None:

@@ -26,6 +26,14 @@ then the deployment TLDR, before any template sections.
   no safe rollback says so on its `Rollback:` line. The content comes from
   `~/.claude/references/git-pr-deploy.md` § Deploy safety. TEST: every merge, deploy, migration
   and traffic-moving step carries all four parts.
+- **DO write every step the PR's purpose needs live (a migration, a function deploy, a feature-switch
+  turn-on, a config edit) as a normal numbered step that runs on Simon's merge word**
+  (`~/.claude/references/git-pr-deploy.md` § A merge word runs the Deploy TLDR). A step that must
+  wait states its trigger condition (e.g. "once the new app build runs on 50% of active installs").
+  Leave a switch off only when Simon said to keep it off, and quote him on that step.
+  DON'T write "only on Simon's word", "not part of this merge" or "separate approval" on a step: the
+  merge then ships the feature switched off. TEST: `bin/pr-landing-gate.py` fails a Deploy TLDR
+  holding a second-approval phrase (the fix for a 50/50 test whose turn-on step waited on a second yes).
 - Cover, in this order, only the items the diff actually needs:
   1. Cross-repo merges/deploys and their order, linking companion PRs
      (e.g. "Merge and deploy your-work-org/some-service#NN first").
