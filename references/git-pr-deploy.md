@@ -289,7 +289,9 @@ a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and 
 A merge passes on one deterministic rule over Simon's last 20 typed messages, no model call: the newest
 that orders it (a present-tense merge verb, not negated, not a question) names `#N`, or uses a referent
 ("both", "it") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
-`Action needed` line or an end-block numbered step, and no later message holds merges. Peer notes,
+`Action needed` line or an end-block numbered step, and no later message holds merges: a short
+standalone hold ("wait", "pause for now"), "hold #N", or a hold word just before a merge verb
+("don't merge", "hold off on merging") or a dequeue; a hold word about other work never holds. Peer notes,
 harness blocks, tool answers and Claude's text never count, and a delegated worker never merges. A deny is one line ending "Say 'merge #N' to merge it": relay
 that ask only when the cause is about his words; any other cause (a variable selector, a missing
 `--match-head-commit` in a repo with a bot class, GH_REPO in the command) is yours to fix. A
