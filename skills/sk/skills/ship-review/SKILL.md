@@ -12,8 +12,10 @@ user-journey pass. When the ask is only "walk this as a user" (no code review wa
 its own and say that is what you did — don't spend the model passes to get there.
 
 ## Step 1 — Detect context (required)
-- Repo origin: !`python3 ~/.claude/bin/skill-context.py origin`
-- Diff scope: !`python3 ~/.claude/bin/skill-context.py diff-scope`
+Run both facts from the PR's checkout, each as its own command (a session whose cwd is another
+checkout reads that checkout's diff otherwise):
+- Repo origin: `cd <PR checkout> && python3 ~/.claude/bin/skill-context.py origin`
+- Diff scope: `cd <PR checkout> && python3 ~/.claude/bin/skill-context.py diff-scope`
 
 Rule: if the origin matches your work org (workOrgMatch in your identity overlay) → **WORK** repo. Otherwise → **PERSONAL** repo.
 Before reviewing, state in one line the detected context and exactly which reviewers/resources you will use.

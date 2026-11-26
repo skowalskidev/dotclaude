@@ -41,12 +41,12 @@ CONTRACTS: dict[str, dict] = {
         ],
     },
     "bin/skill-context.py": {
-        "mission": "Every sk skill's dynamic-context line loads inside a worktree-isolated agent, so a delegated worker can run the skill.",
-        "purpose": "One read-only subcommand per git fact a skill's `!` line needs, so the line names no git.",
+        "mission": "Every sk skill loads inside a worktree-isolated agent and reads its git facts from the PR checkout, so a delegated worker can run the skill.",
+        "purpose": "One read-only subcommand per git fact a skill asks the worker to run from the PR checkout.",
         "criteria": [
             "origin prints the origin URL or (no git remote); diff-scope prints the last --stat line against the merge-base with origin/master, else origin/main, else HEAD~1.",
             "Every git call runs in the cwd and reads only; an unknown subcommand exits 2 with usage.",
-            "Every `!` line in skills/sk names no git, or is one literal git command with no shell operator, expansion or glob; each line exits 0 with output inside a linked worktree.",
+            "No sk skill carries a `!` dynamic-context line; ship-review names both subcommands as commands run from the PR checkout, and each exits 0 with output.",
         ],
     },
     "bin/local-capacity.py": {

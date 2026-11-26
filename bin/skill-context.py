@@ -1,17 +1,14 @@
 #!/usr/bin/env python3
-"""Read-only git facts for a skill's dynamic-context (`!`) lines, one plain command per fact.
+"""Read-only git facts a skill asks its worker to run from the PR checkout, one plain command per fact.
 
-Claude Code refuses a dynamic-context line in a worktree-isolated agent when it names git in a compound
-form (command substitution, `||` chains, pipes, variables in git's arguments): "names git in a form too
-complex to verify that it stays inside the worktree". A skill then fails to load at all. Each fact here
-is one subcommand, so the skill line names no git and stays a single literal command:
+    cd <PR checkout> && python3 ~/.claude/bin/skill-context.py origin
+    cd <PR checkout> && python3 ~/.claude/bin/skill-context.py diff-scope
 
-    !`python3 ~/.claude/bin/skill-context.py origin`
-    !`python3 ~/.claude/bin/skill-context.py diff-scope`
-
-Every git call runs in the current directory, reads only, and never writes a ref or config.
-hooks/config-contract.test.py (skill-context-lines-load-in-isolated-worktrees) holds every sk skill's
-`!` lines to this shape and runs each one inside a linked worktree.
+sk skills carry no dynamic-context (`!`) line: Claude Code refused any of them in a worktree-isolated
+agent ("names git in a form too complex", reproduced 26 Nov 2026 with a plain python3 line), and a `!`
+line runs in the session cwd, not the PR checkout. Every git call runs in the current directory, reads
+only, and never writes a ref or config. hooks/config-contract.test.py
+(skill-context-lines-load-in-isolated-worktrees) holds that.
 """
 
 from __future__ import annotations
