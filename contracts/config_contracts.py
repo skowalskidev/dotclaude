@@ -2401,7 +2401,7 @@ CONTRACTS: dict[str, dict] = {
             "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
             "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
-            "typed words decide by one deterministic rule, no model call: among his last 20 typed messages the "
+            "typed words decide by one deterministic rule, no model call: among every message he typed in the session (no count window) the "
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
             "or uses a referent (both, it, them) while it names #N or answers a hand-back that asked a merge "
             "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "

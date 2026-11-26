@@ -286,7 +286,8 @@ specific irreversible merge.
 **The guard (`hooks/git-commit-guard.py`, rebuilt 26 Nov on Simon's "bare-bones, not a bottleneck"):**
 it judges only commands the shell runs, so text that names a merge (a note, a heredoc body, a PR body,
 a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and a GraphQL dequeue run.
-A merge passes on one deterministic rule over Simon's last 20 typed messages, no model call: the newest
+A merge passes on one deterministic rule over every message Simon typed in the session, no model call
+(a merge word stands however many messages later, until one holds it): the newest
 that orders it (a present-tense merge verb, not negated, not a question) names `#N`, or uses a referent
 ("both", "it") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
 `Action needed` line or an end-block numbered step, and no later message holds merges: a short

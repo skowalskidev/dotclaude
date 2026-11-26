@@ -16,8 +16,8 @@ see (a pipe, a built string) that names a merge, is denied.
 A merge passes on one of two paths, in this order:
   - a monitoring-only PR at its bar (monitoring_merge; references/git-pr-deploy.md § Monitoring-only
     changes). No message is read.
-  - Simon's own words, one deterministic rule (words_allow), no model call: among his last 20 typed
-    messages, the newest that orders #N merged (a present-tense merge verb, not negated, not a question,
+  - Simon's own words, one deterministic rule (words_allow), no model call: among every message he typed
+    in the session, the newest that orders #N merged (a present-tense merge verb, not negated, not a question,
     naming #N, or a referent such as "both" or "it" while the message answers a hand-back that asked a
     merge word for #N on its Merge list, Action needed line or an end-block numbered step) with no later
     message holding merges. The hand-back only resolves the referent: his words still give the order.
@@ -1508,7 +1508,6 @@ def monitoring_merge(payload: dict, command: str, words: list, collect: list = N
 
 # ---------------------------------------------------------------- the merge decision
 
-WINDOW = 20  # Simon's newest typed messages the check reads
 MERGING_FLAGS = {"--auto", "--admin", "--merge", "-m", "--squash", "-s", "--rebase", "-r", "--delete-branch", "-d",
                  "--subject", "-t", "--body", "-b", "--body-file", "-F", "--author-email", "-A", "--match-head-commit"}
 MERGE_VERB_RE = re.compile(r"\b(?:merg\w*|ship\w*|deploy\w*|land\w*|releas\w*|push\w*|enqueue\w*|go(?:es|ing)? live"
@@ -1644,7 +1643,8 @@ def merge_denial(payload: dict, margs: list, where, scan: Scan) -> str:
                 return (f"Blocked `gh pr merge {number}`: merges in this repository pin the PR's head; add "
                         f"--match-head-commit {head or '<full head sha>'} and rerun.{mline}")
         msgs, _ = typed_messages(str(payload.get("transcript_path") or ""))
-        allowed, cause = words_allow(number, msgs[-WINDOW:])
+        # Every typed message counts, however old: a merge word stands until a later message holds it.
+        allowed, cause = words_allow(number, msgs)
     except OutOfTime:
         allowed, cause = False, "the merge check ran out of time"
     except Exception as exc:
@@ -1832,7 +1832,7 @@ def explain(argv: list) -> int:
     print(f"verdict: {'MERGES AT THE BAR' if ok else 'DECLINES'}; failing checks: {len(collect)}")
     for cause in collect:
         print(f"- {cause}")
-    words, why = words_allow(number, typed_messages(a.transcript)[0][-WINDOW:]) if a.transcript else (False, "")
+    words, why = words_allow(number, typed_messages(a.transcript)[0]) if a.transcript else (False, "")
     if a.transcript:
         print(f"user's words: {'ALLOW' if words else 'DECLINE: ' + why}")
     return 0 if ok or words else 1

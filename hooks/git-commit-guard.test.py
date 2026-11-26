@@ -230,6 +230,12 @@ CASES = [
     ("FB escaped backquotes in an unquoted PR-body heredoc are data", dict(
         command=f"cat > body.md <<EOF\nRun \\`{M} 12\\` after review\nEOF\ngh pr create --body-file body.md"),
      False, ""),
+    ("FB an order 30 typed messages back with no hold still stands", dict(command=f"{M} 1186", turn=[
+        ("open", "merge #1186"), ("handback", "")] + [("open", f"check the logs for item {k}") for k in range(30)]),
+     False, ""),
+    ("HOLD an old order with a hold 25 messages later denies", dict(command=f"{M} 1186", turn=[
+        ("open", "merge #1186"), ("handback", "")] + [("open", f"check the logs for item {k}") for k in range(25)]
+        + [("open", "don't merge #1186")]), True, "holds merging"),
     ("FB dequeue: --disable-auto runs", dict(command=f"{M} 1186 --disable-auto"), False, ""),
     ("FB dequeue through the API runs", dict(
         command="gh api graphql -f query='mutation { dequeuePullRequest(input:{id:\"x\"}) { clientMutationId } }'"),
