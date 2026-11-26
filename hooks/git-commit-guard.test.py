@@ -314,7 +314,21 @@ CASES = [
     ("FB a hold of another PR does not hold this one", dict(command=f"{M} 1297 -R acme/web", turn=[
         ("open", "merge #1297"), ("handback", ""), ("open", "don't merge #77 yet")]), False, ""),
 
+    ("FB an older scoped hold, then 'just do it all and merge it', allows a PR outside the hold", dict(
+        command=f"{M} 1524 -R acme/web", turn=[
+            ("handback", "Merge list: #1474, #1484, #1497."),
+            ("open", "do all except for merging ie ensure they're all merge ready but dont merge"), ("handback", ""),
+            ("open", "the new sre bot PR is #1524, it needs this rule"), ("handback", ""),
+            ("open", "give it with this rule, and merge it. So just do it all and merge it.")]), False, ""),
+    ("FB a hold scoped to a merge list does not hold a PR outside it", dict(command=f"{M} 1524 -R acme/web", turn=[
+        ("open", "merge #1524"), ("handback", "Merge list: #1474, #1484."), ("open", "dont merge")]), False, ""),
+
     # ---- real holds: each must deny
+    ("HOLD a hold naming this PR still blocks after 'merge it'", dict(command=f"{M} 1524 -R acme/web", turn=[
+        ("open", "the sre PR is #1524, merge it"), ("handback", ""), ("open", "don't merge #1524 yet")]),
+     True, "holds merging"),
+    ("HOLD an unnamed hold with no merge list still blocks", dict(command=f"{M} 1524 -R acme/web", turn=[
+        ("open", "merge #1524"), ("handback", ""), ("open", "dont merge anything yet")]), True, "holds merging"),
     ("HOLD 'don't merge #1297' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
         ("open", "merge #1297"), ("handback", ""), ("open", "don't merge #1297")]), True, "holds merging"),
     ("HOLD 'hold #1297' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[

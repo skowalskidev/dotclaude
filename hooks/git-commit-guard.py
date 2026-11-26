@@ -1662,12 +1662,30 @@ def holds(text: str, number: str) -> bool:
     return bool(HOLD_MERGE_RE.search(text) and (names_pr(text, number) or not PR_REF_RE.search(text)))
 
 
+def _unnamed_order(text: str) -> bool:
+    """An imperative merge aimed at a referent ("merge it", "just do it all and merge it") in a message naming no PR."""
+    text = text.translate(APOSTROPHES)
+    return not PR_REF_RE.search(text) and any(
+        _gives_order(s) and _referent_order(s) for s in re.split(r"(?<=[.!?;])\s+|\n+", text) if s.strip())
+
+
+def _hold_scope_covers(text: str, asked: set, number: str) -> bool:
+    """A hold covers #N when it names #N, or names no PR and is a short bare hold ("wait") or was given with no
+    merge list in view; a hold given against a merge list that lacks #N was scoped to those PRs."""
+    if PR_REF_RE.search(text):
+        return names_pr(text, number) or bool(BARE_HOLD_RE.match(text) and len(text.split()) <= 4)
+    return not asked or number in asked or bool(BARE_HOLD_RE.match(text) and len(text.split()) <= 4)
+
+
 def words_allow(number: str, window: list) -> tuple:
-    """(allowed, cause): the newest of Simon's typed messages that orders #N merged, with no hold after it."""
+    """(allowed, cause): the newest of Simon's typed messages that mentions merging #N decides. An order names
+    #N (or a referent that reaches it, or an unnamed "merge it" once he has named #N in any typed message); a
+    hold decides only when its scope covers #N. A later order clears an earlier hold."""
+    named = any(names_pr(t, number) or number in a for t, a, _ in window)
     for text, asked, _ in reversed(window):
-        if orders(text, number, asked):
+        if orders(text, number, asked) or (named and _unnamed_order(text)):
             return True, ""
-        if holds(text, number):
+        if holds(text, number) and _hold_scope_covers(text, asked, number):
             return False, f"the user's later message (\"{' '.join(text.split())[:80]}\") holds merging"
     return False, f"no message the user typed says merge #{number}"
 
