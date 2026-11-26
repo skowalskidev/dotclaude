@@ -192,8 +192,8 @@ class DashboardTests(unittest.TestCase):
             plan = root / '.context' / 'legacy-plan.md'
             d.atomic_write(plan, prose + '```dashboard-state\n' + json.dumps(state, indent=2) + '\n```\n')
             for command in ('link', 'init', 'export'):
-                cli = subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), command, '--root', str(root)]
-                                     + ([str(plan)] if command == 'export' else []),
+                args = [str(plan)] if command == 'export' else ['--root', str(root)]
+                cli = subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), command, *args],
                                      capture_output=True, text=True, cwd=root)
                 self.assertEqual(cli.returncode, 0, command + ': ' + cli.stderr)
             content, _, migrated = d.read_plan(plan)
