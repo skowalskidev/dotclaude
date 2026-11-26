@@ -1225,6 +1225,7 @@ CONTRACTS: dict[str, dict] = {
             "Owns shape only. rules/copy-quality.md keeps the writing standard and the Five Ws "
             "check; rules/communication.md keeps where questions go and the human-facing message "
             "rule, with its example and WHYs held here.",
+            "§ Data table owns how a table for Slack, chat or email is sent (a rendered PNG with a before/after what-changed table, an evidence table and a date/source/exclusion line, never markdown) and the reconciliation TEST: one table per question, every money column named by its source, a buyer column per revenue source, no row with 0 buyers and revenue above 0 unless a column names that source.",
             "§ Automated message holds the example shape for a bot, alert or scheduled-job message; its rule and TEST stay in rules/copy-quality.md.",
             "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the --check pre-send step for routes the hook cannot see and the one-shot length override.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
