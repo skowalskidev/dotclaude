@@ -513,7 +513,7 @@ HOOK_ROUTING: list[dict] = [
      "expect": []},
     {"event": "PostToolUse", "tool": "Edit", "expect": []},
     # A Bash call can be a push; the ship-gate recorder watches it, and no other tool.
-    {"event": "PostToolUse", "tool": "Bash", "expect": ["intent-ledger.sh"]},
+    {"event": "PostToolUse", "tool": "Bash", "expect": ["intent-ledger.sh", "config-branch-gate.py"]},
     # A Skill call can be a ship stage; the stage-receipt recorder watches it. A tool whose name only
     # contains "Skill" must not fire it.
     {"event": "PostToolUse", "tool": "Skill", "expect": ["intent-ledger.sh"]},
@@ -524,7 +524,7 @@ HOOK_ROUTING: list[dict] = [
      "expect": ["task-intake.sh", "intent-ledger.sh"]},
     # Stop is the one event where a wrong matcher is unrecoverable from inside the session it hits,
     # so it is pinned: the ledger's reconciliation/ship gate and the bare-reference link check.
-    {"event": "Stop", "tool": None, "expect": ["intent-ledger.sh", "bare-reference-guard.py"]},
+    {"event": "Stop", "tool": None, "expect": ["intent-ledger.sh", "bare-reference-guard.py", "config-branch-gate.py"]},
     # SessionStart hooks carry no matcher, so every one of them fires on every session. Pinned
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,
