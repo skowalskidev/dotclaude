@@ -1513,10 +1513,13 @@ MERGING_FLAGS = {"--auto", "--admin", "--merge", "-m", "--squash", "-s", "--reba
                  "--subject", "-t", "--body", "-b", "--body-file", "-F", "--author-email", "-A", "--match-head-commit"}
 MERGE_VERB_RE = re.compile(r"\b(?:merg\w*|ship\w*|deploy\w*|land\w*|releas\w*|push\w*|enqueue\w*|go(?:es|ing)? live"
                            r"|roll(?:ing)? (?:it |them )?out)\b", re.I)
-HOLD_WORD_RE = re.compile(r"\b(?:stop|hold|wait|pause|cancel|halt|freeze|don'?t|dont|do not|never|not now|not yet"
-                          r"|revert|undo)\b", re.I)
-# A message opening with one of these holds every merge ("wait", "hold off on that", "not yet").
+# A short message (4 words at most) opening with one of these holds every merge ("wait", "pause for now").
 BARE_HOLD_RE = re.compile(r"^\W*(?:stop|hold|wait|pause|cancel|halt|freeze|not now|not yet)\b", re.I)
+# A hold aimed at merging: a hold word up to 3 words before a merge verb ("don't merge", "hold off on merging",
+# "wait before merging"), "hold off", or a dequeue. A verb inside a slash command ("/sk:ship-…") is not one.
+HOLD_MERGE_RE = re.compile(r"\b(?:don't|dont|do not|never|stop|hold|wait|pause|cancel|halt|freeze|not yet|not now)"
+                           r"(?:\s+\S+){0,3}?\s+(?:merg|ship|deploy|land|releas|enqueue)\w*|\bhold off\b"
+                           r"|\b(?:un-?|de-?)queue\w*", re.I)
 PR_REF_RE = re.compile(r"(?:#|\bprs?\s*#?\s*|\bpull requests?\s*#?\s*|/pulls?/)(\d+)\b", re.I)
 # Words in an order that point at PRs named elsewhere: in the same message, else in the hand-back it answers.
 REFERENT_RE = re.compile(r"\b(?:both|all|them|these|those|it|this|that|the prs|yes|ok(?:ay)?|go|do it)\b", re.I)
@@ -1537,7 +1540,7 @@ def _gives_order(sentence: str) -> bool:
     if sentence.rstrip().endswith("?") or QUESTION_RE.match(sentence):
         return False
     return any(not m.group(0).lower().endswith("ed") and not _negated_before(sentence, m.start())
-               and not re.search(r"\b(?:the|a|an|this|that|my|our|your|its)\W+$", sentence[:m.start()], re.I)
+               and not re.search(r"(?:\b(?:the|a|an|this|that|my|our|your|its)\W+|[/:-])$", sentence[:m.start()], re.I)
                for m in MERGE_VERB_RE.finditer(sentence))
 
 
@@ -1551,13 +1554,15 @@ def orders(text: str, number: str, asked: set) -> bool:
 
 
 def holds(text: str, number: str) -> bool:
-    """A typed message that holds merging #N: a bare hold, or a hold word beside a merge verb aimed at #N or
-    at no PR in particular ("don't merge anything yet")."""
+    """A typed message that holds merging #N, as narrow as the order rule: a short standalone hold ("wait",
+    "pause for now"), "hold #N", or a hold aimed at merging (HOLD_MERGE_RE) for #N or no PR in particular.
+    A hold word about other work ("doesn't stop till it works", "stop the bot posting alerts") never holds."""
     text = text.translate(APOSTROPHES)
-    if BARE_HOLD_RE.match(text):
+    n = number.lstrip("0") or "0"
+    if (BARE_HOLD_RE.match(text) and len(text.split()) <= 4) or re.search(
+            rf"\b(?:hold|pause|freeze|stop)\s+(?:off\s+)?(?:on\s+)?(?:pr\s*)?#?0*{n}(?!\d)", text, re.I):
         return True
-    return bool(HOLD_WORD_RE.search(text) and MERGE_VERB_RE.search(text)
-                and (names_pr(text, number) or not PR_REF_RE.search(text)))
+    return bool(HOLD_MERGE_RE.search(text) and (names_pr(text, number) or not PR_REF_RE.search(text)))
 
 
 def words_allow(number: str, window: list) -> tuple:
