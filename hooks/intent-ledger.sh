@@ -310,24 +310,45 @@ record_pushed_output() {
   done
 }
 
+# open_pr BRANCH — set repo (owner/name of a GitHub origin, else empty) and num (BRANCH's open PR
+# there, else empty). 1 when gh is missing or its lookup failed, with the reason in open_pr_error.
+open_pr() {
+  repo=""; num=""; open_pr_error=""
+  url="$(git remote get-url origin 2>/dev/null)" || return 0
+  repo="$(printf '%s' "$url" | sed -nE 's#^(https://([^@/]+@)?|ssh://git@|git@)github\.com[:/]([^/]+/[^/]+)$#\3#p')"
+  repo="${repo%/}"; repo="${repo%.git}"
+  [ -n "$repo" ] || return 0                                  # not a GitHub origin: no PR
+  if ! command -v gh >/dev/null 2>&1; then
+    open_pr_error="gh is missing, so open PRs for $1 on $repo cannot be checked"; return 1
+  fi
+  prs="$(gh pr list --repo "$repo" --head "$1" --state open --json number,url 2>/dev/null)" || {
+    open_pr_error="gh pr list failed for $1 on $repo (a fetch failure never passes)"; return 1; }
+  num="$(printf '%s' "$prs" | jq -r '.[0].number // empty' 2>/dev/null)"
+  return 0
+}
+
+# light_waivers BRANCH — the Light stages BRANCH's open PR itself stands in for, space-separated
+# (references/testing-strategy.md § Size the checks to the change). sk:ship-screenshot-changes: the PR is
+# open, so the landing gate checks its Screenshots section (a rendered BEFORE/AFTER pair, or a
+# no-surface line with its Checked outputs clause). sk:ship-resolve-pr-comments: the open PR holds zero
+# reviews, review comments and comments by a person (bin/pr-landing-gate.py --feedback-count). No
+# GitHub origin, no open PR, or any failed read waives nothing.
+light_waivers() {
+  open_pr "$1" || return 0
+  [ -n "$num" ] || return 0
+  out="sk:ship-screenshot-changes"
+  fb="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" --feedback-count 2>/dev/null)"
+  [ "$fb" = 0 ] && out="$out sk:ship-resolve-pr-comments"
+  printf '%s' "$out"
+}
+
 # landing_check BRANCH SHA — 0 when the branch has no open PR on a GitHub origin, or when
 # bin/pr-landing-gate.py passes on that PR AND bin/pr-ci-wait.py --once finds every check on SHA
 # succeeded or skipped. Otherwise prints why and fails, so `gate PASS` records nothing. A PR that
 # cannot be looked up or fetched fails: a fetch failure never passes. No reason text bypasses red CI.
 landing_check() {
-  url="$(git remote get-url origin 2>/dev/null)" || return 0
-  repo="$(printf '%s' "$url" | sed -nE 's#^(https://([^@/]+@)?|ssh://git@|git@)github\.com[:/]([^/]+/[^/]+)$#\3#p')"
-  repo="${repo%/}"; repo="${repo%.git}"
-  [ -n "$repo" ] || return 0                                  # not a GitHub origin: no PR to check
-  if ! command -v gh >/dev/null 2>&1; then
-    echo "gate: PASS refused: gh is missing, so open PRs for $1 on $repo cannot be checked" >&2
-    return 1
-  fi
-  prs="$(gh pr list --repo "$repo" --head "$1" --state open --json number,url 2>/dev/null)" || {
-    echo "gate: PASS refused: gh pr list failed for $1 on $repo (a fetch failure never passes)" >&2
-    return 1; }
-  num="$(printf '%s' "$prs" | jq -r '.[0].number // empty' 2>/dev/null)"
-  [ -n "$num" ] || return 0                                   # no open PR: unchanged behaviour
+  open_pr "$1" || { echo "gate: PASS refused: $open_pr_error" >&2; return 1; }
+  [ -n "$num" ] || return 0                                   # not a GitHub origin, or no open PR
   out="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" 2>&1)" || {
     printf '%s\n' "$out" >&2
     echo "gate: PASS refused for $1: $repo#$num fails the landing gate above. Post each missing \
@@ -386,8 +407,16 @@ sk:ship-review sk:ship-resolve-pr-comments sk:ship-report-and-ensure-correct-use
 sk:ship-screenshot-changes sk:ship-pr"
 STAGES_DEEP="$STAGES_STANDARD sk:test-automated-full-matrix sk:ship-verify-with-prod-data"
 
+# LIGHT_WAIVED: the Light stages `gate` and `stages` found the open PR standing in for (light_waivers);
+# empty everywhere else, so the Stop message lists the whole Light list.
+LIGHT_WAIVED=""
 tier_stages() {
-  case "$1" in light) echo "$STAGES_LIGHT" ;; standard) echo "$STAGES_STANDARD" ;; deep) echo "$STAGES_DEEP" ;; esac
+  case "$1" in
+    light) local s out=""
+      for s in $STAGES_LIGHT; do case " $LIGHT_WAIVED " in *" $s "*) ;; *) out="${out:+$out }$s" ;; esac; done
+      echo "$out" ;;
+    standard) echo "$STAGES_STANDARD" ;; deep) echo "$STAGES_DEEP" ;;
+  esac
 }
 
 stage_name() { # stage_name NAME — print the canonical stage skill for a Skill name or typed command, or fail
@@ -1031,8 +1060,10 @@ stages)
   if [ -z "$sbr" ] && sha_match "$(git rev-parse --verify -q 'HEAD^{commit}' 2>/dev/null)" "$sha"; then
     sbr="$(git symbolic-ref -q --short HEAD 2>/dev/null)"
   fi
+  [ "$tier" = light ] && [ -n "$sbr" ] && LIGHT_WAIVED="$(light_waivers "$sbr")"
   st="$(stage_status "$tier" "$sha" "$sbr")"
   miss="$(printf '%s\n' "$st" | sed -n 1p)"; from="$(printf '%s\n' "$st" | sed -n 2p)"
+  [ -n "$LIGHT_WAIVED" ] && echo "Stood in for by the open PR: $LIGHT_WAIVED"
   if [ -n "$miss" ]; then echo "Not run: $miss"; exit 1; fi
   if [ -n "$from" ]; then echo "All stages ran (carried from $from: a Light-sized follow-up delta)"; exit 0; fi
   echo "All stages ran"
@@ -1107,6 +1138,7 @@ Quote his own words verbatim, or run the tier's stages." >&2; exit 2
   # Stage receipts on this exact head back the stage statement, so neither a PASS nor "All stages ran"
   # rests on reason text alone. A receipt on an older head never counts.
   if [ -n "$tier" ] && [ "$status" != N/A ]; then
+    [ "$tier" = light ] && LIGHT_WAIVED="$(light_waivers "$branch")"
     miss="$(missing_stages "$tier" "$sha" "$branch")"
     fix="Invoke each with the Skill tool (e.g. Skill sk:ship-review) while the session's working \
 directory (a subagent: the directory its last Bash cd'd into) is the checkout at ${sha:0:7}; each run \
@@ -1138,6 +1170,7 @@ Use \"Not run: $miss\"." >&2; exit 2
     fi
   fi
   [ -n "$tier" ] && reason="$tier${reason:+ $reason}"
+  [ -n "$LIGHT_WAIVED" ] && reason="$reason; stood in for by the open PR: $LIGHT_WAIVED"
   if [ "$status" = PASS ]; then landing_check "$branch" "$sha" || exit 1; fi
   acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
@@ -1305,7 +1338,9 @@ A PASS names its tier and is refused while any stage that tier requires has no r
 Run every stage the tier requires first, on the newest head, unprompted, even when an external blocker makes it BLOCKED. A gate \
 recorded for an older head does not count once a newer head is pushed; only each branch's latest head is listed. A light or standard tier reading \"carried from\" \
 needs only the follow-up delta's own checks (its affected tests, one screenshot if it is visible, the PR body's head) before \
-the gate (references/testing-strategy.md, Follow-up pushes). When Simon waived the checks for this PR, record \
+the gate (references/testing-strategy.md, Follow-up pushes). On a light head with an open PR, \`gate\` and \`stages light <sha> <branch>\` \
+drop sk:ship-screenshot-changes (the landing gate checks the PR's Screenshots section) and, when the PR has no review or \
+comment, sk:ship-resolve-pr-comments. When Simon waived the checks for this PR, record \
 gate <branch> <sha> N/A <tier> \"waived by Simon: <his words verbatim>\"; it covers the branch's later heads. \
 This fires at most once per set of open pushes."
   jq -cn --arg r "$msg" '{decision:"block",reason:$r}'

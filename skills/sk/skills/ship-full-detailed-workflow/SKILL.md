@@ -177,7 +177,7 @@ verified the user + system journey, then handed back with it never posted to the
 - Journey (stage 6): `## User journey` and `## System journey` are in the PR body.
 - Matrix (stage 6), on every Deep PR: the results table with its COVERED, GAP, NEEDS-DRIVING and SKIPPED
   counts, each feature's simulation evidence or concrete N/A reason, and explicit verdicts for required
-  cases that did not run; on every PR, the `Real-environment walk:` line (a skip line on Light).
+  cases that did not run; on every Standard and Deep PR, the `Real-environment walk:` line.
 - Prod data (stage 6), on every Deep PR: the compatibility verdict from the owning skill, including
   checked cohorts, unknowns and activation dependencies, or its doesn't-apply verdict with the traced
   reason. An unknown cohort or unmet activation dependency cannot become a compatibility PASS.
@@ -187,14 +187,16 @@ verified the user + system journey, then handed back with it never posted to the
 - Deploy safety (stage 6), on every Deep PR: the merge-train result (PR order, default-branch sha, suites,
   pass), the migration-safety verdict and the cutover/rollback table, or a named doesn't-apply reason
   per part; on every PR a shipped native build reaches, any tier, the old-build PASS lines (a Light
-  PR: the not-reached line alone).
+  PR: the not-reached line alone, and no heading at all when its diff reaches no installed build).
 - Regression check (stage 6), on every PR: one row per modified pre-existing file with PASS or
-  INTENDED and its base-vs-head evidence, plus the caller each newly mounted shared part mirrors;
+  INTENDED and its base-vs-head evidence (a Light PR's Screenshots pair stands in for that column), plus the caller each newly mounted shared part mirrors;
   on a Standard or Deep PR touching an existing user flow, the `### Flow walk` table.
 - Part verdicts (`/sk:work-full-detailed-workflow`), on every Standard or Deep build, adopt or rebuild
   PR: the table from `references/tldr-report-formats.md` § Part verdicts, re-derived on the final head.
-- Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Light or Standard
-  PR's `Skipped (tier <tier>): <trigger>` line under each matrix, prod-data and deploy-safety heading it skipped.
+- Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Standard PR's
+  `Skipped (tier standard): <trigger>` line under each matrix, prod-data and deploy-safety heading it
+  skipped; a Light PR posts only the sections `references/testing-strategy.md` § Size the checks to
+  the change lists for it.
 - Screenshots (stage 7): every surface eligible under stage 7 at the PR's tier has its image on the PR and every affected
   user-journey scenario its own trimmed video and scenario-table row, under `## Screenshots`, with no
   duplicate desktop/mobile pairs (`references/screenshot-review.md`); record a native
