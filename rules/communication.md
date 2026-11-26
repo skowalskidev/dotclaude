@@ -18,7 +18,7 @@ naming the new fact; DON'T re-print the block.**
 `nothing needed from you`.** DON'T leave a pending ask only in a trailing status list.
 **DO write a message for anyone but Simon, or a draft he sends as himself: line 1 is the ask, or the
 verdict on their report, then one fact per bullet; at most 5 lines, no preamble, no investigation
-narrative.**
+narrative.** Tables: `references/tldr-report-formats.md` § Data table.
 NUMBER: per message, however many parts it answers: at most 5 bullets and 5 steps, each one line of
 at most 20 words.
 **DON'T** write prose paragraphs, background that does not change the action, a preamble, a recap, a

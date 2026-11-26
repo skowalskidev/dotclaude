@@ -388,11 +388,23 @@ def close_idle_stdin(args, fd=0, wait=0.5):
     return True
 
 
+def read_only_sandbox(args):
+    """True when the launch pins `--sandbox read-only` / `-s read-only` (the last pin wins)."""
+    head = args[:args.index('--')] if '--' in args else args
+    value = None
+    for index, arg in enumerate(head):
+        if arg in ('--sandbox', '-s') and index + 1 < len(head):
+            value = head[index + 1]
+        elif arg.startswith('--sandbox='):
+            value = arg.split('=', 1)[1]
+    return value == 'read-only'
+
+
 def launch():
     try:
         args = sys.argv[1:]
         if codex_inference(args):
-            require_provider('openai')
+            require_provider('openai', read_only=read_only_sandbox(args))
         cwd = launch_cwd(args)
         review_guard(args, cwd)
         args = absolute_cwd_args(args, cwd)
