@@ -90,10 +90,10 @@ consent. How-to: `references/parallelization.md` § Talk to other live sessions.
 
 ### "Run to completion" means DON'T END THE TURN — a progress report is not a deliverable
 
-When I've said run to completion, finish everything, don't stop, or I'm stepping away, the turn ends
-when the WORK is done — not when a batch is done, not when there's something tidy to report.
+DO run to completion by default, said or not ("work till completion" recurred in 8 of 17 sessions):
+the turn ends when the WORK is done, not when a batch is or there is something tidy to report.
 **Committing at checkpoints is a git instruction, not a conversational one.** Commit, then keep
-working in the same turn; never trade remaining work for a status update.
+working; never trade remaining work for a status update.
 
 Not stop signals and the closure limit: `references/planning-and-tracking.md` § Close the session.
 

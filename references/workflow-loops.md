@@ -105,8 +105,8 @@ Record a blocker with its next action and continue independent work. Keep deferr
 Simon explicitly defers it; record who decided, when and the resume condition.
 
 DO retain one deferred after-run analysis item while replacing the intake skeleton or resuming an
-older plan. Apply `references/session-performance.md` after the requested work and verification.
-Link the report in that item; collection by another session never blocks this task's hand-back.
+older plan. It is the end-of-session learning: it runs once, on Simon's go after every task is
+verified (`references/session-performance.md` § End-of-session learning). Link the report in that item; collection by another session never blocks this task's hand-back.
 Run `workflow-dashboard.py init --root <workspace>` on resume to add this item to an older active
 plan. The reserved `after-run-analysis` section belongs to the supervisor; it needs report evidence,
 not another independent judge. Artifact work cannot use this reserved section to bypass judgement.

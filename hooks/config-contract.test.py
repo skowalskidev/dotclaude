@@ -94,10 +94,10 @@ CRITERIA: list[tuple[str, str]] = [
     ("node24-shell-runtime", "Terminal and agent shells select one installed Node 24 toolchain in every directory."),
     ("session-performance-and-capacity",
      "Task reports arrive independently, stale review hashes remain pending, competing heavy work cannot take the same machine lease, and every documented lease command runs as written."),
-    ("after-run-report-owed-once-per-ask",
-     "Stop blocks once per request to run the after-run analysis when enough new work landed since "
-     "the workspace's last published report; it re-arms on new work, never re-analyses a covered "
-     "window, waits for reconciliation, running background work and real turns, and never loops."),
+    ("session-learning-gates-archive-line",
+     "Stop never blocks a work turn for an after-run analysis; it blocks an archive line once per ledger "
+     "snapshot while this session has asks no learning note covers, a learning note needs Simon's go "
+     "or skip ask after the previous one, and learning-count prints N."),
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("ship-gate-blocks-unproven-pushed-branches",
@@ -619,30 +619,29 @@ def check_secrets_retired_guard_leaves_no_dangling_claim() -> None:
                       f"{sub}/{p.name}:{i} still describes a retired guard as live: {line.strip()[:90]}")
 
 
-def check_after_run_report_owed_once_per_ask() -> None:
-    with tempfile.TemporaryDirectory(prefix="after-run-test-") as tmp:
-        base = Path(tmp).resolve()  # the report store refuses a symlinked ancestor such as /var
+def check_session_learning_gates_archive_line() -> None:
+    archive = "Done and verified.\n\nYou can archive this session: everything here is done."
+    with tempfile.TemporaryDirectory(prefix="session-learning-test-") as tmp:
+        base = Path(tmp).resolve()
         home, repo = base / "home", base / "repo"
         home.mkdir()
         repo.mkdir()
         subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
         (repo / ".git" / "info" / "exclude").write_text(".context/\n")
         env = {**os.environ, "HOME": str(home), "CLAUDE_CONFIG_ROOT": str(ROOT),
-               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo)}
+               "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo),
+               "CLAUDE_CODE_SESSION_ID": "learn-contract"}
         env.pop("AGENT_DELEGATED_WORKER", None)
         hook = ROOT / "hooks" / "intent-ledger.sh"
         transcript = base / "t.jsonl"
+        call = json.dumps({"type": "assistant", "timestamp": "2026-01-01T00:00:00Z",
+                           "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
+        transcript.write_text("\n".join([call] * 150) + "\n")
 
-        def work(calls):
-            stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 5))
-            line = json.dumps({"type": "assistant", "timestamp": stamp,
-                               "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
-            transcript.write_text("\n".join([line] * calls) + "\n")
-
-        def invoke(mode, prompt=None, background=None, active=False, extra_env=None):
-            payload = {"cwd": str(repo), "session_id": "after-run-contract", "stop_hook_active": active,
-                       "transcript_path": str(transcript), "background_tasks": background or [],
-                       "last_assistant_message": "Done and verified."}
+        def invoke(mode, prompt=None, last="Done and verified.", active=False, extra_env=None):
+            payload = {"cwd": str(repo), "session_id": "learn-contract", "stop_hook_active": active,
+                       "transcript_path": str(transcript), "background_tasks": [],
+                       "last_assistant_message": last}
             if prompt is not None:
                 payload["prompt"] = prompt
             result = subprocess.run(["bash", str(hook), mode], input=json.dumps(payload),
@@ -650,64 +649,53 @@ def check_after_run_report_owed_once_per_ask() -> None:
             check(result.returncode == 0, "Ledger hook failed: " + result.stderr)
             return result.stdout
 
-        def blocks_for_analysis(out):
-            return '"block"' in out and "self-optimize-analysis-after-run" in out
+        def note(kind, body):
+            scratch = base / f"{kind}.md"
+            scratch.write_text(body)
+            return subprocess.run(["bash", str(hook), "note", kind, str(scratch)], text=True,
+                                  capture_output=True, cwd=repo, env=env)
 
-        def reconcile():
-            scratch = base / "note.md"
-            scratch.write_text("Done and verified.")
-            subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)], text=True,
-                           capture_output=True, cwd=repo, env=env, check=True)
+        def learning_block(out):
+            return '"block"' in out and "end-of-session config learning" in out
 
         invoke("submit", "Build the importer and verify it.")
-        work(150)
-        out = invoke("stop")
-        check('"block"' in out and "reconciliation" in out,
-              "Mid-task (unreconciled) the stop did not ask for reconciliation first.")
-        check(not blocks_for_analysis(out), "The after-run analysis fired mid-task, before reconciliation.")
-        reconcile()
-        check(blocks_for_analysis(invoke("stop", active=True)),
-              "The continuation caused by the reconciliation block did not run the after-run analysis.")
-        check(invoke("stop", active=True) == "", "The after-run block looped on its own continuation.")
-        check(invoke("stop") == "", "The after-run block fired twice for one request.")
+        time.sleep(1.1)
+        invoke("submit", "Also make the export default to CSV.")
+        check(note("reconcile", "Done and verified.").returncode == 0, "reconcile note failed")
+        check(invoke("stop") == "", "A reconciled work turn was blocked: the per-batch after-run nudge is back.")
+        check(invoke("learning-count").strip() == "2", "learning-count did not print this session's 2 asks.")
+        out = invoke("stop", last=archive)
+        check(learning_block(out) and "over your 2 messages" in out,
+              "The archive line passed with 2 unlearned asks, or the block lacks the go ask with N.")
+        check(invoke("stop", last=archive) == "", "The learning gate re-blocked an unchanged ledger snapshot.")
+        refused = note("learning", "session learning: done")
+        check(refused.returncode != 0 and "go or skip" in refused.stderr,
+              "A learning note was accepted with no go or skip ask from Simon.")
+        check(note("learning", "learned nothing").returncode != 0, "A learning note without its status line passed.")
+        delegated = invoke("stop", last=archive + " ", extra_env={"AGENT_DELEGATED_WORKER": "1"})
+        check(delegated == "", "A delegated worker was blocked by the learning gate.")
 
         time.sleep(1.1)
-        invoke("submit", "What is the status?")
-        reconcile()
-        work(2)
-        check(invoke("stop") == "", "A light status turn fired the after-run analysis.")
+        invoke("submit", "go ahead and merge the PR")
+        check(note("learning", "session learning: done").returncode != 0,
+              "A longer 'go ahead and ...' ask counted as Simon's go for the learning.")
+        time.sleep(1.1)
+        invoke("submit", "<system-reminder>\nA worktree notice.\n</system-reminder>\ngo")
+        check(note("reconcile", "Learning ran.").returncode == 0, "reconcile note failed")
+        check(note("learning", "session learning: done (2 learnings)").returncode == 0,
+              "A learning note after Simon's go was refused.")
+        check(invoke("learning-count").strip() == "0", "learning-count still counts asks the learning covered.")
+        check(invoke("stop", last=archive) == "", "The archive line was blocked after the learning note.")
 
         time.sleep(1.1)
-        invoke("submit", "Now add the exporter.")
-        reconcile()
-        work(150)
-        busy = [{"type": "subagent", "status": "running"}]
-        check(invoke("stop", background=busy) == "", "Running delegated work was treated as a finished batch.")
-        check(invoke("stop", active=True) == "",
-              "A stop_hook_active continuation the reconciliation did not cause was blocked.")
-        delegated = invoke("stop", extra_env={"AGENT_DELEGATED_WORKER": "1"})
-        check(delegated == "", "A delegated worker was blocked for the after-run analysis.")
-        check(blocks_for_analysis(invoke("stop")), "New work since the last analysis did not re-arm it.")
-
+        invoke("submit", "one more tweak to the header")
+        check(note("reconcile", "Done.").returncode == 0, "reconcile note failed")
+        check(learning_block(invoke("stop", last=archive)), "A new ask after the learning did not re-arm the gate.")
         time.sleep(1.1)
-        invoke("submit", "And the CSV variant.")
-        reconcile()
-        time.sleep(1.1)
-        # This request's work happens BEFORE the report is published, so the report covers it.
-        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        call = json.dumps({"type": "assistant", "timestamp": now,
-                           "message": {"content": [{"type": "tool_use", "name": "Bash"}]}})
-        transcript.write_text("\n".join([call] * 150) + "\n")
-        time.sleep(1.1)
-        tool = ROOT / "bin" / "session-performance.py"
-        reg = json.loads(subprocess.run([sys.executable, str(tool), "register", "--workspace", str(repo),
-                                         "--branch", "main", "--task", "exporter"], env=env, text=True,
-                                        capture_output=True, check=True).stdout)
-        report = base / "report.md"
-        report.write_text("No finding.\n")
-        subprocess.run([sys.executable, str(tool), "publish", "--id", reg["id"], "--file", str(report)],
-                       env=env, capture_output=True, check=True)
-        check(invoke("stop") == "", "A window already covered by a published report was analysed again.")
+        invoke("submit", "skip")
+        check(note("reconcile", "Skipped.").returncode == 0, "reconcile note failed")
+        check(note("learning", "session learning: skipped").returncode == 0, "A skip was refused.")
+        check(invoke("stop", last=archive) == "", "The archive line was blocked after a recorded skip.")
 
 
 def check_runtime_asks_met_only_in_production() -> None:
@@ -2700,8 +2688,8 @@ def check_session_performance_and_capacity() -> None:
         result = run(["/usr/bin/python3", str(ROOT / "bin" / script)], timeout=max(360, RUN_TIMEOUT_S))
         check(result.returncode == 0, script + ": " + result.stdout + result.stderr)
     rule = (ROOT / "rules/self-healing-config.md").read_text()
-    check("Every task reaches hand-back" in rule and "references/session-performance.md" in rule,
-          "After-run analysis is not routed from the always-on task lifecycle")
+    check("The session reaches its end" in rule and "references/session-performance.md" in rule,
+          "End-of-session learning is not routed from the always-on self-healing rule")
     engine = ROOT / "bin/local-capacity.py"
     check(os.access(engine, os.X_OK) and engine.read_text().startswith("#!/usr/bin/env python3"),
           "bin/local-capacity.py must stay executable with its python3 shebang")

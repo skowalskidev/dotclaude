@@ -278,14 +278,14 @@ def after_run_section():
     """A supervisor lifecycle item, not a built artifact requiring a second model."""
     return {
         'id': 'after-run-analysis',
-        'title': 'After-run analysis',
-        'summary': 'Run after the requested work; retain this item when replacing task intake.',
+        'title': 'End-of-session learning',
+        'summary': "Ask for Simon's go once every task is verified; retain this item when replacing task intake.",
         'status': 'todo',
         'artifactRevision': 1,
-        'next': 'Apply references/session-performance.md after the task and verification.',
+        'next': 'On go, apply references/session-performance.md section End-of-session learning.',
         'criteria': [{
             'id': 'after-run-analysis-1',
-            'text': 'Publish the local performance report or record unavailable evidence and its retry action.',
+            'text': 'Record the session learning note (done or skipped) with the published report or the unavailable evidence.',
             'passed': False,
             'evidence': '',
         }],
@@ -335,7 +335,7 @@ def initial_plan(title, plan, root):
         '## Goal & user journey (current trajectory)\n\nPending task intake.\n\n'
         '## System journey (current trajectory)\n\nThe session will replace this skeleton with the approved task flow.\n\n'
         '## Tasks\n\n- Record the approved scope and acceptance criteria.\n'
-        '- Retain after-run-analysis after the requested work; apply references/session-performance.md.\n\n'
+        '- Retain after-run-analysis: the end-of-session learning on Simon\'s go (references/session-performance.md).\n\n'
         '## Decisions & rationale\n\n- Ordinary task tracking starts with the independent judge off.\n\n'
         '## Risks & assumptions\n\n- This skeleton is not an approved implementation plan.\n\n'
         '## Sources\n\n- Task intake; replace with the real prompt, tickets and references.\n\n'

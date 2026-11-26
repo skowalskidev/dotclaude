@@ -1,38 +1,41 @@
 # Session performance reports
 
-DO queue one after-run analysis when a task enters the living plan, whichever skill runs. Keep it
-after the requested work and its verification; a mid-task request adds this item without interrupting
-the task. Run it once per completed task batch, including a blocked hand-back. Reuse its receipt on
-repeated status questions; reopen it when new execution produces new evidence. Analysis itself does
-not recursively trigger another analysis. TEST: every task hand-back links a report or names its
-unavailable evidence, without making the user request the analysis.
+DO run the after-run analysis and config learning ONCE, at the session's end, as § End-of-session
+learning, after every task is delivered and verified and Simon says go. Never per task batch, so it
+never slows the work; fix at once only an evidenced config defect that blocks the current task. Keep
+the dashboard's reserved `after-run-analysis` item through tangents and handoff; a resumed session
+continues an unfinished learning from its living plan. TEST: no Stop block or nudge for analysis fires
+on a work turn; every session's last hand-back before the archive line asks for the go with N.
 
-The harness runs it. `hooks/intent-ledger.sh stop` asks `session-performance.py due`, and when a
-report is owed it returns `decision: "block"` naming `/sk:claude-config-self-optimize-analysis-after-run`.
-DO answer it with the analysis or a short no-finding report. DON'T publish a placeholder to silence it.
+## End-of-session learning
 
-### When the after-run analysis fires
+The harness holds it. `hooks/intent-ledger.sh stop` blocks an archive line while this session has asks
+no `learning` note covers, and `note learning` refuses unless an ask since the previous learning note
+is a bare go or skip (`references/planning-and-tracking.md` § Close the session).
 
-A session makes mistakes all through its life, so the trigger re-arms on new work rather than firing
-once per session. The workspace's newest published report is the watermark: reports are immutable, so
-its publish time marks the end of the window it covered, and no window is analysed twice.
+On go, invoke `/sk:claude-config-self-optimize-analysis-after-run`, which runs these steps:
 
-| Gate | Rule |
-| --- | --- |
-| Re-arm | 100+ new tool calls since the watermark, or 30+ with a failed tool result, a user correction or a reconciled task |
-| Natural boundary | the ledger is reconciled; this turn made 3+ tool calls; no background task is running; no one-shot wakeup is pending; the last message does not end on a question |
-| Once per request | a per-request marker, written before the block |
-| No loop | blocks on a `stop_hook_active` continuation only when this hook's own reconciliation block caused it, so a request sees at most two blocks (Claude Code caps consecutive continuations at 8) |
+1. **Read every message Simon typed this session:** the `ask` entries of `.context/intent-ledger.md`
+   after its last `· learning` heading, and the transcript's user turns. Skip
+   `peer` entries, relayed session messages, `<task-notification>`, `<system-reminder>` and other
+   harness blocks: they are not his words.
+2. **Extract every learning,** one line each: a correction (what Claude did, the rule that prevents it),
+   a stated preference or default, an explanation of how something should work, and an ask he repeated
+   in this session or that the config already holds and did not apply (a trigger gap). A one-off task
+   request is no learning; name it and drop it.
+3. **Route each through `/sk:claude-config-update`:** find the line that already says it and sharpen
+   it, add only what is missing at its one home, generalize per its Step 4, and keep private text out
+   of the public repo (paraphrase the mechanism, never quote the prompt). Land through
+   `/sk:claude-config-sync` under `rules/self-healing-config.md`.
+4. **Publish the session's performance report** (§ Register and record, § Finish without waiting) in
+   the same pass: the run's evidence, its findings and the learnings applied.
+5. **Report one line per learning:** `<learning> -> <file> § <section>` or `no change: <why>`, then the
+   landed sha. Record `intent-ledger.sh note learning <scratch.md>` holding `session learning: done
+   (<count> learnings, <sha>)`, then give the archive line.
 
-Sources for the numbers, measured 30 Oct 2026 over `~/.claude/logs/performance-reviews/`: 275
-reports from 86 sessions, 189 of them addenda (one session published 49), and 17% carry a finding or
-repair, so a low bar mostly produces no-finding noise. Nine windows still had a transcript: no clean
-window under 150 calls held a finding; windows with a user correction held one 1 time in 3, windows
-without one 0 times in 6. Hence 100 for a clean window and 30 with a problem signal; the old floor of 15 fired on
-windows that held no finding. The evidence base is small; revisit the numbers when more transcripts
-survive. Primary sources: the Claude Code hooks reference (Stop input, `stop_hook_active`, the
-8-continuation cap: code.claude.com/docs/en/hooks) and after-action-review practice, which reviews after
-each identifiable event, not only at the end (MSF After Action Review Guide; US Army FM 25-101).
+On skip, record `session learning: skipped` and give the archive line.
+TEST: every message Simon typed this session has a learning line or a `no change` / `one-off`
+verdict; the archive line follows the learning note.
 
 ## Register and record
 
@@ -56,8 +59,8 @@ credentials and customer data out of shared reports. Link sanitized local eviden
 
 DO link the local report in the hand-back. Analysis and its verification never start another audit.
 
-DO invoke `/sk:claude-config-self-optimize-analysis-after-run` after the task and cleanup. Read this
-session's evidence only; run `superspeed-analyse.py` only for an actual superspeed run directory.
+DO invoke `/sk:claude-config-self-optimize-analysis-after-run` at § End-of-session learning, after the
+tasks and cleanup. Read this session's evidence only; run `superspeed-analyse.py` only for an actual superspeed run directory.
 Limit an ordinary session's analysis to the existing record and two bounded snapshots; do not start
 benchmarks, builds, simulators or diagnostic subagents to improve the report. Missing measurements
 are `unknown`, never a fabricated speedup or zero. A no-finding result still produces a short report.

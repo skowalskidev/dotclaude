@@ -309,6 +309,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "CPU contention", "expect": "claude-config-self-optimize-analysis-after-run"},
     {"phrase": "collect session reports", "expect": "claude-config-self-optimize-analysis-after-run"},
     {"phrase": "analyse all sessions", "expect": "claude-config-self-optimize-analysis-after-run"},
+    {"phrase": "learn from my messages", "expect": "claude-config-self-optimize-analysis-after-run"},
+    {"phrase": "self-improve on this session", "expect": "claude-config-self-optimize-analysis-after-run"},
 
     # --- Environment isolation -----------------------------------------------------
     {"phrase": "isolate my environment", "expect": "work-isolate-environment"},

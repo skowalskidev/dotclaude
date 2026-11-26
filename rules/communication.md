@@ -12,8 +12,8 @@ link, URL or command, and a native-app repo's app build line.** Use AskUserQuest
 per question and point he wrote, mid-run ones too, in his order, before status:** yes/no + why,
 "you're right" or "correction: …"; **a check ask ("ensure it works", "see if X") ends with one bold
 `Yay: …`/`Nay: …` line.** `references/tldr-report-formats.md` § Answer the prompt.
-**DO answer a background-event turn with no new outcome, decision or ask with nothing, or one line
-naming the new fact; DON'T re-print the block.**
+**DO answer a background-event turn with no new outcome, decision or ask with nothing or one line
+naming the new fact.**
 **DO label an item waiting on Claude or CI
 `nothing needed from you`.** DON'T leave a pending ask only in a trailing status list.
 **DO write a message for anyone but Simon, or a draft he sends as himself: line 1 is the ask, or the
@@ -23,20 +23,21 @@ NUMBER: per message, however many parts it answers: at most 5 bullets and 5 step
 at most 20 words.
 **DON'T** write prose paragraphs, background that does not change the action, a preamble, a recap, a
 closing summary, a mid-body question or an empty questions block.
+**DO answer a feature or PR question in the five parts of `references/tldr-report-formats.md` § Feature and PR answer.**
 **DO scope a status, follow-up, TLDR or close-session answer to THIS session's own work;** name
 another session's PR, branch or task only when Simon asks about it.
 TEST: `references/tldr-report-formats.md` § Answer-first TEST.
 
-## Close the session: finish it, say it can be archived, stop
+## Close the session: finish it, learn from it, say it can be archived
 
-**DO finish everything the ask needs yourself, including checks you can run, then, once the outcome is delivered and verified, end with one line:
-"You can archive this session: everything here is done."** Detail:
-`references/planning-and-tracking.md` § Close the session.
+**DO finish everything the ask needs yourself, checks included; once delivered and verified, line 1 is
+`Action needed: say go to run the end-of-session config learning over your N messages in this session`.
+After go (run it) or skip, end with one line: "You can archive this session: everything here is done."**
+N, the Stop-hook gate and detail: `references/planning-and-tracking.md` § Close the session.
 **DO offer a follow-up ONLY to change a decision or fix an evidenced problem** (at most 2).
 **DO list each unresolved item before the line**, fields per the Close-session TEST below.
-**DON'T say the line while the session holds anything Simon needs:** CI or a job on a pushed head, an open
-PR awaiting his merge/deploy, an unpushed change commit, a promised smoke or reply, an unresolved item.
-End with `Action needed` and its numbered asks. After merge and deploy, stop only once production is proven live.
+**DON'T say the line while the session holds anything Simon needs** (CI, an unmerged PR, an unpushed
+commit, a promised smoke: § Close the session); end with `Action needed`. After merge and deploy, stop only once production is proven live.
 TEST: `references/tldr-report-formats.md` § Close-session TEST.
 
 ## Five rules for anything you write

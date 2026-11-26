@@ -189,6 +189,34 @@ as a long instruction from him.
 TEST: every message to someone else has at most 5 lines and 100 words, with an ask or verdict on line 1, or traces to a
 `.context/long-message-ok` quoting Simon's request for length.
 
+## Feature and PR answer
+
+The rule lives in `rules/communication.md` § Answer first. DO answer any question about a feature or a
+PR (what it does, is it safe, should I merge, does it make sense) with these five parts, one bullet
+each, unasked, under line 1:
+
+1. **How it works:** the behaviour in plain words across the user's scenarios: first time, sign-out
+   and return, another person on the same device or account, a failure, a slow network. State it up
+   front, then confirm each scenario against the code (file and line) or a test; an unconfirmed one
+   says so.
+2. **Before/after user story:** what the user sees and does today, then with this change, in one
+   line each (§ Before/after TLDR for the PR body form).
+3. **Safety, with evidence:** no regression on production, happy or payment paths (the test, walk or
+   prod read that shows it); added user-facing latency measured in ms on the changed path, or
+   `unmeasured` with the reason; logging and telemetry off the user's critical path (fire-and-forget,
+   failures swallowed).
+4. **Best practice:** the industry-standard way to do this, with one or two primary sources
+   (`references/research.md` § Source order), and where this change departs from it.
+5. **Merge or cancel:** one verdict, and the benefit against today in numbers (users, revenue,
+   errors, ms, from prod data or a measured run, `references/research.md` § Who benefits if you act on
+   this?). A part that cannot be quantified names what would measure it.
+
+TEST: the answer has all five bullets; part 3 names its evidence; part 4 links a primary source; part
+5 holds a number or names the missing measurement. WHY: Simon appended "research best practices
+online", "won't regress prod or payment paths", "before and after", "safe to merge or cancel?" and a
+scenario-by-scenario spec of how a feature should behave to feature and PR asks in 13 or more of 17
+sessions in the 14 days to 27 Nov 2026, because answers outside the full workflow skipped them.
+
 ## Data table
 
 The pointer lives in `rules/communication.md` § Answer first. This section owns the shape of any table
@@ -232,6 +260,9 @@ Card payments fail with a timeout since 14:05. Web only; the iPhone app is fine.
 
 Thread reply: cause, raw evidence (queries, API responses, sample rows), and anything else the
 person reads only after deciding to act.
+
+WHY (moved from `rules/copy-quality.md`): the fix for an ops bot whose alerts ran summary, cause, raw
+API evidence and action links in one block and typed every id twice.
 
 ## The glance test — what every block must pass
 
@@ -472,7 +503,9 @@ that listed two other sessions' PR conflicts as Simon's actions).
 
 ## Close-session TEST (moved from `rules/communication.md`)
 
-A finished session's last message has the archive line, at most 2 optional follow-ups, and no
+A session's last message before the archive line asks for the end-of-session learning go with N, and
+the archive line follows only a recorded `session learning: done|skipped` note. A finished session's
+last message has the archive line, at most 2 optional follow-ups, and no
 "the next X will confirm", "worth watching" or "keep an eye on" item. No line, or the line with work
 running, an unmerged session PR or an item unverdicted, fails; so does "merged" reported as done
 with no prod evidence.
