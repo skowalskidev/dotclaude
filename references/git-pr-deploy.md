@@ -966,8 +966,8 @@ calling the feature live or telling anyone it is done. Read production read-only
    since the flip, from the writer traced under § Live-traffic cutover's `Smoke:` rule. Expect at
    least 1 once 20 requests reached the path, or name why none arrived.
 3. **Verdict.** A new 401, 403 or 5xx, or zero records past 20 requests, is a FAIL: report it at once
-   with the step's `Rollback:` line (the switch-off is a production write and needs Simon's yes unless
-   the Deploy TLDR step already carries it) and start `/sk:work-investigate-and-fix`.
+   and start `/sk:work-investigate-and-fix`. A flip that was a Deploy TLDR step runs its `Rollback:`
+   under § A merge word runs the Deploy TLDR; any other flip's switch-off waits for Simon's yes.
 4. **Again.** Repeat steps 1-2 once at 30 minutes or 100 requests, whichever comes first; a
    percentage rollout repeats them at every step.
 **DON'T rest a switch-on on the pre-flip prod check, a green deploy or a page that loads:** the flip
