@@ -406,7 +406,9 @@ declares for its monitoring bot merges without his merge word once it meets the 
   A skipped check passes, as branch protection reads it (a path-filtered product job skips on a bot
   PR), but every `requiredChecks` entry must succeed.
   Any failed, cancelled or neutral check on the head declines, a rerun gone green included (two jobs can share a
-  name), so after a rerun the PR waits for Simon's merge word or a fresh push. A check outside
+  name), so after a rerun the PR waits for Simon's merge word or a fresh push. One exception: a cancel that a
+  later-created run of the same workflow on the head replaced, all green and running the same job name to
+  success (concurrency `cancel-in-progress` starts two runs and cancels the first), passes with no rerun. A check outside
   `requiredChecks` that turns red between the read and the merge is not seen; GitHub enforces the rest. **With a
   queue, stay with the PR until it merges:** the base can move while it waits; dequeue it
   (`gh api graphql` `dequeuePullRequest`) when Simon says to. Verify any deploy the

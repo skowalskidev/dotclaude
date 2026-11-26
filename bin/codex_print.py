@@ -131,7 +131,7 @@ def writable_roots(cwd):
 
 
 def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-openai"):
-    require_provider("openai")
+    require_provider("openai", read_only=sandbox == 'read-only')
     model = model or resolve_tier('openai', 'mid')
     launcher = Path(__file__).with_name('codex-launch.py')
     if not launcher.is_file() or not os.access(launcher, os.X_OK):

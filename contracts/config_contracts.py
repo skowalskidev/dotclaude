@@ -2398,6 +2398,11 @@ CONTRACTS: dict[str, dict] = {
             "A monitoring-only PR merges with no message read only on today's bar, unchanged: monitoring_merge "
             "(its comment lists the conditions), BAR_PHRASE on the pinned head's gate PASS, required checks, "
             "CLEAN, declared paths and a parent (not delegated) session.",
+            "Any failed or cancelled check on the head declines that bar, except a cancel superseded_cancels "
+            "proves replaced: its run id reads from detailsUrl and a later-created run of the same workflow, "
+            "started no earlier, ran the same job name to SUCCESS with every check SUCCESS or SKIPPED. A "
+            "failure, a same-run duplicate name or an unreadable run id or time still declines; "
+            "hooks/git-commit-guard.test.py drives both directions.",
             "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
             "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
@@ -2463,6 +2468,16 @@ CONTRACTS: dict[str, dict] = {
             "A non-empty .context/long-message-ok under the call's cwd, holding Simon's own words asking for length, allows exactly one over-cap send and is deleted; an empty file allows nothing.",
             "--check <file|-> prints ok and exits 0 within the cap, and prints the counts and exits 1 over it. Fails open on a malformed payload.",
             "hooks/outbound-message-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
+        ],
+    },
+    "hooks/bare-reference-guard.py": {
+        "mission": "Simon can click every PR, issue and ticket a final message names, without asking for the links.",
+        "purpose": "Stop: blocks once when the final assistant message names a PR, issue or ticket by a bare id outside a link, and says how to link it.",
+        "criteria": [
+            "Blocks on a bare #NN (two or more digits), owner/repo#N or ticket key (ABC-123) outside fenced code, inline code spans, markdown links (labels included), autolinks and bare URLs; shas and the NOT_TICKETS standards (UTF-8, SHA-256, ISO-8601, GPT-5) pass.",
+            "The reason lists the ids, gives the link form from the cwd's GitHub origin (https://github.com/<owner>/<repo>/pull/N) and keeps the Merge list line parseable by hooks/git-commit-guard.py.",
+            "Blocks at most once per stop chain: a stop_hook_active continuation after its own block passes and clears the marker; a fresh stop re-arms. Skips AGENT_DELEGATED_WORKER=1 and fails open on a malformed payload.",
+            "hooks/bare-reference-guard.test.py and the Stop HOOK_ROUTING case in contracts/routing_scenarios.py pin both directions.",
         ],
     },
     "hooks/secret-echo-guard.py": {

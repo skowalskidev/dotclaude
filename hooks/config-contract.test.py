@@ -125,6 +125,8 @@ CRITERIA: list[tuple[str, str]] = [
      "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
     ("outbound-message-guard-caps-messages-to-others",
      "A Slack or Gmail send or draft over the 5-line TLDR cap is denied, while a short message, a read, a canvas, the one-shot override and the --check CLI behave as documented."),
+    ("bare-reference-guard-links-every-id",
+     "A final message to Simon naming a PR, issue or ticket by a bare id blocks Stop once with a reason giving the origin's link form, while linked ids, code, URLs, shas and standards pass and a continuation never loops."),
     ("test-browser-tabs-stay-labelled-and-swept",
      "Every test-browser tab keeps its task, persona and owner label through the page's own title changes and reloads, an unlabelled navigate_page is denied, and sweep closes only blank, unlabelled, ended, idle or own earlier-task tabs while live walks' tabs stay open."),
     ("agent-setups-preserve-provider-choice",
@@ -2225,6 +2227,17 @@ def check_outbound_message_guard_caps_messages_to_others() -> None:
     result = run(["python3", str(ROOT / "hooks/outbound-message-guard.test.py")])
     check(result.returncode == 0,
           f"Outbound-message guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_bare_reference_guard_links_every_id() -> None:
+    groups = settings().get("hooks", {}).get("Stop", [])
+    wired = any(h.get("command", "").endswith("hooks/bare-reference-guard.py")
+                for g in groups for h in g.get("hooks", []))
+    check(wired, "settings.json must wire hooks/bare-reference-guard.py on Stop.")
+    links = (ROOT / "references" / "tldr-report-formats.md").read_text()
+    check("hooks/bare-reference-guard.py" in links, "references/tldr-report-formats.md § Links must name its backstop.")
+    result = run(["python3", str(ROOT / "hooks/bare-reference-guard.test.py")])
+    check(result.returncode == 0, f"Bare-reference guard regressions failed:\n{result.stdout}\n{result.stderr}")
 
 
 def check_agent_setups_preserve_provider_choice() -> None:

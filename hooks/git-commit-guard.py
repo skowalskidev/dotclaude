@@ -1295,7 +1295,8 @@ CHECK_PAGE = 100  # gh reads at most this many contexts; a full page may be trun
 def monitoring_not_ready(pr: dict, required: list, default_branch: str, collect: list = None) -> str:
     """Stricter than pr_not_ready, and local to this path. isDraft must be false, the base the default
     branch, and the check list complete and well formed. Nothing may be pending, and any failed or
-    cancelled check declines, a rerun gone green included. Each of the overlay's requiredChecks must
+    cancelled check declines, a rerun gone green included, except a cancel superseded_cancels proves a
+    later all-green run of the same workflow replaced. Each of the overlay's requiredChecks must
     have succeeded on every run on the head, so a rollup of skips alone never passes. The hook takes the
     first failing check; the --explain dry-run passes `collect` to list every one."""
     found = []
@@ -1329,6 +1330,75 @@ def _monitoring_state_causes(pr: dict, default_branch: str):
                 f"default branch {default_branch or '(unreadable)'}")
 
 
+def _instant(stamp: str):
+    """A gh ISO time as a datetime, or None when unreadable. Compared as instants, never as strings
+    ("12:00:00Z" sorts before "12:00:00.500Z")."""
+    m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,6})\d*)?Z", stamp or "")
+    if not m:
+        return None
+    return datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
+        microsecond=int((m.group(2) or "0").ljust(6, "0")))
+
+
+RUN_URL_RE = re.compile(r"https://github\.com/([^/\s]+/[^/\s]+)/actions/runs/(\d+)/job/\d+")
+
+
+def _run_of(c: dict):
+    """(repo, run id) of a GitHub Actions CheckRun, read from its detailsUrl; None when unreadable."""
+    m = RUN_URL_RE.fullmatch(str(c.get("detailsUrl") or ""))
+    return (m.group(1).lower(), int(m.group(2))) if m else None
+
+
+def superseded_cancels(rollup: list) -> set:
+    """Rollup indices of CANCELLED CheckRuns a later workflow run replaced. A workflow with concurrency
+    cancel-in-progress starts two runs on one head and cancels the first; the later run of the SAME
+    workflow on the SAME head (the rollup is the head's) is the one that counts. A cancel at index i is
+    superseded only when its run id reads from detailsUrl and another run of the same repo and
+    workflowName exists with a higher run id (created later), whose every check is COMPLETED SUCCESS or
+    SKIPPED, which ran a job of the same name to SUCCESS, and whose earliest startedAt is not before the
+    cancelled run's earliest time. A FAILURE is never superseded, nor a cancel beside a success in its
+    own run (two jobs can share a name), nor one whose run id or times cannot be read."""
+    groups: dict = {}
+    for i, c in enumerate(rollup):
+        if not isinstance(c, dict) or ("state" in c and "status" not in c):
+            continue
+        run = _run_of(c)
+        if run and c.get("workflowName"):
+            groups.setdefault((run[0], c["workflowName"], run[1]), []).append((i, c))
+
+    def start(checks, started_only):
+        times = []
+        for _, c in checks:
+            stamp = str(c.get("startedAt") or "")
+            if (not stamp or stamp.startswith("0001-")) and not started_only:
+                stamp = _check_time(c)
+            when = _instant(stamp) if stamp and not stamp.startswith("0001-") else None
+            if when is None:
+                return None
+            times.append(when)
+        return min(times) if times else None
+
+    green = {k: v for k, v in groups.items() if all(
+        c.get("status") == "COMPLETED" and c.get("conclusion") in ("SUCCESS", "SKIPPED") for _, c in v)}
+    out = set()
+    for (repo, workflow, run_id), checks in groups.items():
+        cancels = [(i, c) for i, c in checks if c.get("status") == "COMPLETED" and c.get("conclusion") == "CANCELLED"]
+        began = start(checks, started_only=False) if cancels else None
+        if began is None:
+            continue
+        for i, c in cancels:
+            for (r2, w2, id2), later in green.items():
+                if (r2, w2) != (repo, workflow) or id2 <= run_id:
+                    continue
+                later_start = start(later, started_only=True)
+                if later_start is None or later_start < began:
+                    continue
+                if any(l.get("name") == c.get("name") and l.get("conclusion") == "SUCCESS" for _, l in later):
+                    out.add(i)
+                    break
+    return out
+
+
 def _monitoring_check_causes(pr: dict, required: list):
     """Each failing check-list condition of monitoring_not_ready, in its order. An unreadable or possibly
     truncated list ends the read; any other failure reads on, so the first yielded is the hook's cause."""
@@ -1340,6 +1410,7 @@ def _monitoring_check_causes(pr: dict, required: list):
         yield f"the PR reports {len(rollup)} checks, so the list may be truncated"
         return
     runs = []
+    superseded = superseded_cancels(rollup)
     for i, c in enumerate(rollup):
         if "state" in c and "status" not in c:  # a commit status context
             if not c.get("context"):
@@ -1354,19 +1425,18 @@ def _monitoring_check_causes(pr: dict, required: list):
             yield f"{c['name']} is still {str(c.get('status')).lower()}"
             continue
         stamp = _check_time(c)
-        when = None
-        if stamp:  # compared as instants, never as strings ("12:00:00Z" before "12:00:00.500Z")
-            m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,6})\d*)?Z", stamp)
-            if not m:
-                yield f"{c['name']} carries an unreadable time ({stamp[:30]}), so the order of its runs is unknown"
-                continue
-            when = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
-                microsecond=int((m.group(2) or "0").ljust(6, "0")))
+        when = _instant(stamp) if stamp else None
+        if stamp and when is None:
+            yield f"{c['name']} carries an unreadable time ({stamp[:30]}), so the order of its runs is unknown"
+            continue
+        if i in superseded:
+            continue
         runs.append(((c.get("workflowName") or "", c["name"]), "", when, i, c))
     for key, run, when, i, c in runs:
         # Any failed or cancelled check declines, even beside a later success of the same name: two jobs
-        # can share a display name in one run, so a success is no proof the failed job ran again. After a
-        # rerun, the PR waits for Simon's merge word.
+        # can share a display name in one run, so a success is no proof the failed job ran again. The one
+        # exception is a cancel superseded_cancels proves was replaced by a later, all-green run of the
+        # same workflow (dropped above). After any other rerun, the PR waits for Simon's merge word.
         verdict = c.get("conclusion")
         # Stricter than PASSED_CONCLUSIONS on purpose: a NEUTRAL check declines here too.
         if verdict not in ("SUCCESS", "SKIPPED"):

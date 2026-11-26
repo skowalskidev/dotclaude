@@ -515,8 +515,8 @@ HOOK_ROUTING: list[dict] = [
     {"event": "UserPromptSubmit", "tool": None,
      "expect": ["task-intake.sh", "intent-ledger.sh"]},
     # Stop is the one event where a wrong matcher is unrecoverable from inside the session it hits,
-    # so it is pinned even though it currently has a single hook.
-    {"event": "Stop", "tool": None, "expect": ["intent-ledger.sh"]},
+    # so it is pinned: the ledger's reconciliation/ship gate and the bare-reference link check.
+    {"event": "Stop", "tool": None, "expect": ["intent-ledger.sh", "bare-reference-guard.py"]},
     # SessionStart hooks carry no matcher, so every one of them fires on every session. Pinned
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,

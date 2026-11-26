@@ -24,13 +24,13 @@ example and the WHYs moved out of `rules/` to keep the always-on budget.
 DO copy this shape for a chat reply, Slack/DM, PR comment or message sent for Simon:
 
 ```
-Action needed: approve the migration in PR #812
+Action needed: approve the migration in [PR #812](https://github.com/org/repo/pull/812)
 - Search results now cached 6 h, so a repeat search makes no API call
 - Dates past the provider's 330-day horizon skip the call
 - Migration 705 adds one nullable column; nothing else touches prod
 
 Your call
-1. Approve `db/705_add_cache_column.sql` in PR #812
+1. Approve `db/705_add_cache_column.sql` in [PR #812](https://github.com/org/repo/pull/812)
 ```
 
 WHY, one per rule:
@@ -70,13 +70,14 @@ sent mid-run (text between tool calls is collapsed, so only the final message co
 heads and the end block follow the answers.
 
 ```
-Action needed: say merge for PR #812
+Action needed: say merge for [PR #812](https://github.com/org/repo/pull/812)
 - No: a returning buyer never restarts the quiz; Back now reopens checkout
 - You're right: anyone who reaches the paywall can pay; the extra gate is gone
-- PR #812 is green and its preview serves the new build
+- [PR #812](https://github.com/org/repo/pull/812) is green and its preview serves the new build
 
 Your call
-1. Say merge for PR #812
+1. Say merge for [PR #812](https://github.com/org/repo/pull/812)
+Merge list: [#812](https://github.com/org/repo/pull/812)
 ```
 
 **DO end the final reply to a check ask** ("ensure everything works", "see if X happened", "is it ok")
@@ -120,9 +121,9 @@ word for word.
 **DON'T write one verdict for a set of PRs whose verdicts differ, and DON'T leave it for Simon to ask.**
 
 ```
-Action needed (2): say merge for PR #812, then retarget PR #813 and say merge
-- PR #812 No app build needed: only hosted web files change; installed builds load them on next open
-- PR #813 Needs an app build: the new paywall header waits for 1.5.0; the price fix is live at deploy
+Action needed (2): say merge for [PR #812](https://github.com/org/repo/pull/812), then retarget [PR #813](https://github.com/org/repo/pull/813) and say merge
+- [PR #812](https://github.com/org/repo/pull/812) No app build needed: only hosted web files change; installed builds load them on next open
+- [PR #813](https://github.com/org/repo/pull/813) Needs an app build: the new paywall header waits for 1.5.0; the price fix is live at deploy
 ```
 
 TEST: every hand-back naming a mergeable PR in such a repo holds a `No app build needed` or `Needs an
@@ -145,7 +146,7 @@ detail in one clause ("details on request") only when it exists.
 NUMBER: at most 5 non-blank lines and 100 words, a one-line greeting and a short sign-off excluded.
 
 ```
-Hey, PR #812 (search cache) is ready for your review.
+Hey, [PR #812](https://github.com/org/repo/pull/812) (search cache) is ready for your review.
 - Adds one nullable column; nothing else touches prod
 - Needs your yes before Monday's deploy
 ```
@@ -491,8 +492,14 @@ Every PR, issue, ticket, Slack thread, CI run or doc a message to Simon mentions
 with its full URL, e.g. `[#123](https://github.com/org/repo/pull/123)`, in bullets, steps and the end
 block, on every mention. He cannot click a bare "#123" or "POI-123", so either one fails. Resolve the URL (`gh pr view
 --json url`, the ticket's own link) before sending; if none exists, say so in place of the id.
+A `Merge list:` line follows the same rule: `Merge list: [#812](https://github.com/org/repo/pull/812),
+[#813](https://github.com/org/repo/pull/813)`; `hooks/git-commit-guard.py` still reads each `#N` from the label.
 TEST: grep the message for `#\d+` and ticket-id patterns outside a link; any hit fails (the fix for a
 status message that named six PRs and tickets as bare ids).
+Backstop: `hooks/bare-reference-guard.py` blocks Stop once when the final message holds a bare `#NN`,
+`owner/repo#N` or ticket key outside a link, code span or URL, and names the origin's link form
+(the fix for hand-backs ending on "Merge list: #1297, #1497" until Simon asked for the links).
+`python3 ~/.claude/hooks/bare-reference-guard.py --check <draft-file>` measures a draft; expect `ok`.
 
 ## Pasted example (moved from `rules/communication.md`)
 
