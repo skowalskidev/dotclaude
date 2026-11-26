@@ -129,6 +129,16 @@ HTML = ('<h2>TLDR</h2><details open=""><summary>video</summary></details><a href
         'src="https://private-user-images.githubusercontent.com/1/settings.png" width="800" alt="Settings"></a>')
 
 
+# A Light PR posts its BEFORE/AFTER pair: a second image after the fixture's one, rendered in HTML_PAIR.
+AFTER_IMG = ('<img src="https://github.com/user-attachments/assets/11111111-1111-1111-1111-111111111111" '
+             'width="800" alt="Settings after">\n')
+HTML_PAIR = HTML + '<img src="https://private-user-images.githubusercontent.com/1/after.png" alt="Settings after">'
+
+
+def paired(body):
+    return body.replace('alt="Settings">\n', 'alt="Settings">\n' + AFTER_IMG, 1)
+
+
 def section(body, heading, replacement):
     """Replace the `## heading` section (up to the next `## `) with replacement text."""
     start = body.index("## " + heading + "\n")
@@ -151,14 +161,19 @@ check(rows(missing) == {"Test matrix"}, f"One-row matrix summary did not fail on
 
 # A tier skip line stands in for the matrix, prod-data and deploy-safety legs; the tier must be named.
 skip = "Skipped (tier light): style-only change to one table cell\n\n"
-light = section(PASSING, "Test matrix", "## Test matrix\n\nTier: light (one table cell's CSS).\n\n" + skip
+light = section(paired(PASSING), "Test matrix", "## Test matrix\n\nTier: light (one table cell's CSS).\n\n" + skip
                 + "Real-environment walk: " + skip)
 light = section(light, "Prod data", "## Prod data\n\n" + skip)
 light = section(light, "Deploy safety", "## Deploy safety\n\n" + skip)
-check(gate.check_body(light, HTML, 0) == [], f"A light PR with skip lines failed: {gate.check_body(light, HTML, 0)}")
+check(gate.check_body(light, HTML_PAIR, 0) == [], f"A light PR with skip lines failed: {gate.check_body(light, HTML_PAIR, 0)}")
 bare_skip = light.replace("Skipped (tier light): style-only change to one table cell", "Skipped (tier light): style")
-check({"Test matrix", "Prod data", "Deploy safety"} <= rows(gate.check_body(bare_skip, HTML, 0)),
+check({"Test matrix", "Prod data"} <= rows(gate.check_body(bare_skip, HTML, 0)),
       "A skip line with no trigger passed")
+# Light runs no merge train, so its Deploy safety section is held only to installed-build lines; Standard
+# keeps the merge-train and rollback rows.
+bare_standard = bare_skip.replace("Tier: light", "Tier: standard").replace("(tier light)", "(tier standard)")
+check({"Test matrix", "Prod data", "Deploy safety"} <= rows(gate.check_body(bare_standard, HTML, 0)),
+      "A Standard skip line with no trigger passed")
 untiered = PASSING.replace("Tier: deep (a member's search limit and its billing plan).\n\n", "")
 check(any("no tier named" in m for m in gate.check_body(untiered, HTML, 0)), "A matrix with no tier named passed")
 
@@ -567,12 +582,12 @@ check(gate.check_body(with_installed, HTML, 0, (), True) == [],
 
 # A Light PR (references/testing-strategy.md § Size the checks to the change): a reasoned not-reached line
 # alone passes the installed-build check, and a posted Part verdicts section needs no judge columns.
-light = PASSING.replace("Tier: deep (a member's search limit and its billing plan).",
-                        "Tier: light (one admin page button, team-only).")
+light = paired(PASSING).replace("Tier: deep (a member's search limit and its billing plan).",
+                                "Tier: light (one admin page button, team-only).")
 light_unreached = light.replace("## Screenshots",
                                 "Installed builds: not reached, only the team admin site changes\n\n## Screenshots", 1)
-check(gate.check_body(light_unreached, HTML, 0, (), True) == [],
-      f"A Light PR's not-reached line alone failed: {gate.check_body(light_unreached, HTML, 0, (), True)}")
+check(gate.check_body(light_unreached, HTML_PAIR, 0, (), True) == [],
+      f"A Light PR's not-reached line alone failed: {gate.check_body(light_unreached, HTML_PAIR, 0, (), True)}")
 check(any("installed-version table" in m for m in gate.check_body(
           PASSING.replace("## Screenshots", "Installed builds: not reached, only the team admin site changes\n\n## Screenshots", 1),
           HTML, 0, (), True)),
@@ -582,6 +597,104 @@ check(len([m for m in gate.check_body(light, HTML, 0, (), True) if m.startswith(
 check(not [m for m in gate.check_body(light + PARTS.replace(" OpenAI judge |", "").replace(" agrees |\n", "\n"),
                                       HTML, 0) if m.startswith("Part verdicts")],
       "A Light PR's Part verdicts section was held to two judge columns")
+
+# A Light PR needs only the rows its tier runs (references/testing-strategy.md § Size the checks to the
+# change): no Prod data or Deploy safety heading, no Base-vs-head column, no walk line, and in a native-app
+# repo no app build line or installed-build rows while the diff reaches no installed build. The fix for a
+# one-rule CSS fix to a separate marketing-site Worker that took two body rewrites to pass.
+SITE = "marketing/public/index.html"
+LIGHT_MIN = """## TLDR
+
+| Change | Before | After | Why |
+|---|---|---|---|
+| Hero at 1200 px and wider | The ask box covered the headline | The box sits 34 px under it | The headline was unreadable |
+
+**Do:** merge. It deploys only the marketing-site Worker.
+
+## Deploy TLDR
+
+1. Merge. Smoke: the marketing page at 1440 px shows the box under the headline.
+
+## User journey
+
+1. A visitor on a laptop reads the whole headline, then the ask box.
+
+## System journey
+
+1. One media rule loses its negative margin; the 810 px rule applies.
+
+## Test matrix
+
+Tier: light (one CSS rule on a static marketing page). Skipped (tier light): full matrix, prod data, deploy safety.
+
+| Check | Result |
+|---|---|
+| landing suite | 4/4 pass |
+
+## Regression check
+
+| File | Result |
+|---|---|
+| `marketing/public/index.html` | INTENDED: the hero gap at 1200 px and wider |
+
+## Screenshots
+
+![Before, 1440 px](https://github.com/user-attachments/assets/22222222-2222-2222-2222-222222222222)
+![After, 1440 px](https://github.com/user-attachments/assets/33333333-3333-3333-3333-333333333333)
+"""
+HTML_MIN = '<h2>TLDR</h2><img src="a.png" alt="Before, 1440 px"><img src="b.png" alt="After, 1440 px">'
+IGNORE = ("marketing/**",)
+ROOTS = ["ios", "site", "marketing"]
+check(not gate.reaches_installed_builds([SITE], ROOTS, IGNORE),
+      "A file under installedBuilds.pathsIgnore was seen as reaching installed builds")
+check(gate.reaches_installed_builds([SITE], ROOTS), "With no pathsIgnore, the marketing Worker file did not count")
+check(gate.reaches_installed_builds([SITE, "site/web/app/page.tsx"], ROOTS, IGNORE),
+      "pathsIgnore hid a hosted web file outside its globs")
+reached = gate.reaches_installed_builds([SITE], ROOTS, IGNORE)
+light_min = gate.check_body(LIGHT_MIN, HTML_MIN, 0, (SITE,), reached, native=True, changed=(SITE,))
+check(light_min == [], f"A Light marketing-page PR with the minimal sections failed: {light_min}")
+# The same body on a diff a shipped build loads still needs the native rows.
+web = "site/web/app/page.tsx"
+reached_web = gate.check_body(LIGHT_MIN.replace(SITE, web), HTML_MIN, 0, (web,), True, native=True, changed=(web,))
+check(any(m.startswith("Deploy TLDR: no app build line") for m in reached_web)
+      and any("installed-version table" in m for m in reached_web)
+      and any("not reached" in m for m in reached_web),
+      f"A Light PR reaching installed builds passed without the native rows: {reached_web}")
+unreached_min = LIGHT_MIN.replace(SITE, web).replace(
+    "## Screenshots", "## Deploy safety\n\nInstalled builds: not reached, the app never loads this page\n\n## Screenshots")
+unreached_min = unreached_min.replace("1. Merge.", "No app build needed: the app never loads this page.\n\n1. Merge.")
+check(gate.check_body(unreached_min, HTML_MIN, 0, (web,), True, native=True, changed=(web,)) == [],
+      "A Light PR reaching installed builds failed with its app build and not-reached lines: "
+      f"{gate.check_body(unreached_min, HTML_MIN, 0, (web,), True, native=True, changed=(web,))}")
+# Standard keeps every row on the same body.
+standard_min = gate.check_body(LIGHT_MIN.replace("Tier: light", "Tier: standard").replace("(tier light)", "(tier standard)"),
+                               HTML_MIN, 0, (SITE,), reached, native=True, changed=(SITE,))
+check({"Prod data", "Deploy safety"} <= rows(standard_min)
+      and any("Base-vs-head evidence column" in m for m in standard_min)
+      and any("no Real-environment walk line" in m for m in standard_min)
+      and any(m.startswith("Deploy TLDR: no app build line") for m in standard_min),
+      f"A Standard PR with the Light sections passed a row its tier keeps: {standard_min}")
+# A Light label on a payment or native-code diff keeps every row: those paths hold a Deep trigger.
+pay = "site/web/app/checkout/Pay.tsx"
+pay_min = gate.check_body(LIGHT_MIN.replace(SITE, pay), HTML_MIN, 0, (pay,), False, native=True, changed=(pay,))
+check({"Prod data", "Deploy safety"} <= rows(pay_min), f"A Light label on a payment path dropped rows: {pay_min}")
+# The first named tier decides: a Standard matrix that mentions the light tier is not Light.
+mention = LIGHT_MIN.replace("Tier: light (one CSS rule on a static marketing page).",
+                            "Tier: standard (past the light tier's size).")
+check("Prod data" in rows(gate.check_body(mention, HTML_MIN, 0, (SITE,), reached, native=True, changed=(SITE,))),
+      "A Standard matrix mentioning the light tier was read as Light")
+# Still checked on Light: the per-file row, its result, a FAIL walk, and the BEFORE/AFTER pair.
+check(any("no row for 1" in m for m in gate.check_body(LIGHT_MIN, HTML_MIN, 0, ("marketing/x.css",), reached,
+                                                        native=True, changed=(SITE,))),
+      "A Light PR with no row for a modified file passed")
+check(any("walk records a FAIL" in m for m in gate.check_body(
+          LIGHT_MIN.replace("| landing suite", "Real-environment walk: FAIL, box still overlaps.\n\n| landing suite"),
+          HTML_MIN, 0, (SITE,), reached, native=True, changed=(SITE,))),
+      "A Light PR whose walk line records a FAIL passed")
+one = LIGHT_MIN.replace("![Before, 1440 px](https://github.com/user-attachments/assets/22222222-2222-2222-2222-222222222222)\n", "")
+check(any("BEFORE/AFTER pair" in m for m in gate.check_body(one, HTML_MIN, 0, (SITE,), reached, native=True,
+                                                            changed=(SITE,))),
+      "A Light PR posting one image passed without its pair")
 
 # Unresolved review threads fail.
 check(rows(gate.check_body(PASSING, HTML, 2)) == {"Review threads"}, "Unresolved review threads passed")
@@ -595,6 +708,9 @@ case "$1 $2" in
   "run list") f=runs.json ;;
   "api graphql") f=threads.json ;;
   "api "*/files) f=files.txt ;;
+  "api "*/reviews) f=reviews.txt ;;
+  "api "*/pulls/*/comments) f=inline.txt ;;
+  "api "*/issues/*/comments) f=people.txt ;;
   "api "*/contents) f=contents.txt ;;
   api*) f=pull.json ;;
   *) exit 1 ;;
@@ -605,11 +721,17 @@ cat "$GH_STUB/$f"
 
 
 def serve(stub, body, html=HTML, unresolved=0, prs=(7,), files=("src/auth/Gate.tsx",), head=None,
-          ci=("SUCCESS",), roots=("src",)):
-    """ci: one conclusion per check on `head` (PENDING = still running); head None serves no PR view."""
+          ci=("SUCCESS",), roots=("src",), feedback=("1",)):
+    """ci: one conclusion per check on `head` (PENDING = still running); head None serves no PR view.
+
+    feedback: the ids gh prints for the PR's reviews; None serves no feedback files (a failed read)."""
     for name in ("prlist.json", "pull.json", "threads.json", "files.txt", "prview.json", "runs.json",
-                 "contents.txt"):
+                 "contents.txt", "reviews.txt", "inline.txt", "people.txt"):
         (stub / name).unlink(missing_ok=True)
+    if feedback is not None:
+        (stub / "reviews.txt").write_text("".join(i + "\n" for i in feedback))
+        (stub / "inline.txt").write_text("")
+        (stub / "people.txt").write_text("")
     if head is not None:
         rollup = [{"__typename": "CheckRun", "name": f"check{i}", "workflowName": "ci",
                    "status": "IN_PROGRESS" if c == "PENDING" else "COMPLETED",
@@ -737,7 +859,8 @@ with tempfile.TemporaryDirectory() as tmp:
     serve(stub, PASSING, head=head)
     r = hook_gate("feature/x", head[:9], "PASS", *LIGHT)
     check(r.returncode == 0 and "pr-landing-gate: PASS" in r.stdout and "PASSED" in r.stdout
-          and gate_lines()[-1] == f"gate: feature/x {head} PASS light fixture; skipped: matrix",
+          and gate_lines()[-1] == f"gate: feature/x {head} PASS light fixture; skipped: matrix; "
+          "stood in for by the open PR: sk:ship-screenshot-changes",
           f"gate PASS over a passing PR with green CI did not record the full sha: {r.returncode} {r.stdout}{r.stderr}")
     r = hook_gate("feature/x", "0123abcd", "PASS", *LIGHT)
     check(r.returncode == 2 and "Not run:" in r.stderr and len(gate_lines()) == 2,
@@ -749,6 +872,45 @@ with tempfile.TemporaryDirectory() as tmp:
     serve(stub, None, prs=None)
     r = hook_gate("feature/x", "HEAD", "PASS", *LIGHT)
     check(r.returncode == 0 and len(gate_lines()) == 4, f"gate PASS on a non-GitHub origin changed behaviour: {r.stderr}")
+
+    # A Light head with an open PR: the PR stands in for the screenshot stage (the landing gate checks its
+    # Screenshots section) and, with no review or comment, for the feedback stage. A fresh head behind a
+    # Deep path, so no earlier receipt carries to it.
+    git("remote", "set-url", "origin", "https://github.com/example-org/example-repo.git")
+    (repo / "ios").mkdir()
+    (repo / "ios" / "a.swift").write_text("a")
+    git("add", "ios/a.swift")
+    git("commit", "-q", "-m", "ios")
+
+    def stages_light(*extra):
+        return subprocess.run(["bash", str(HOOK), "stages", "light", "HEAD", "feature/x", *extra], text=True,
+                              capture_output=True, cwd=repo, env=env)
+    serve(stub, PASSING, feedback=())
+    r = stages_light()
+    check(r.returncode == 1 and r.stdout.splitlines()[-1] == "Not run: sk:ship-pr"
+          and "Stood in for by the open PR: sk:ship-screenshot-changes sk:ship-resolve-pr-comments" in r.stdout,
+          f"A Light head whose open PR has no feedback still needed the feedback and screenshot stages: {r.stdout}{r.stderr}")
+    serve(stub, PASSING, feedback=("12",))
+    r = stages_light()
+    check(r.stdout.splitlines()[-1] == "Not run: sk:ship-resolve-pr-comments, sk:ship-pr",
+          f"A Light head whose open PR has a review skipped the feedback stage: {r.stdout}{r.stderr}")
+    serve(stub, PASSING, feedback=None)
+    r = stages_light()
+    check(r.stdout.splitlines()[-1] == "Not run: sk:ship-resolve-pr-comments, sk:ship-pr",
+          f"A failed feedback read waived the feedback stage: {r.stdout}{r.stderr}")
+    serve(stub, None, prs=())
+    r = stages_light()
+    check(r.stdout.strip() == "Not run: sk:ship-resolve-pr-comments, sk:ship-screenshot-changes, sk:ship-pr",
+          f"A Light head with no open PR waived a stage: {r.stdout}{r.stderr}")
+    serve(stub, PASSING, feedback=())
+    r = subprocess.run(["bash", str(HOOK), "stages", "standard", "HEAD", "feature/x"], text=True,
+                       capture_output=True, cwd=repo, env=env)
+    check("sk:ship-resolve-pr-comments" in r.stdout and "sk:ship-screenshot-changes" in r.stdout
+          and "Stood in for" not in r.stdout, f"A Standard head waived a stage: {r.stdout}{r.stderr}")
+    r = subprocess.run(["bash", str(HOOK), "gate", "feature/x", "HEAD", "PASS", "light", "fixture; skipped: matrix"],
+                       text=True, capture_output=True, cwd=repo, env={**env, "LIGHT_WAIVED": "sk:ship-pr"})
+    check(r.returncode == 2 and "Not run: sk:ship-pr" in r.stderr,
+          f"An inherited LIGHT_WAIVED waived a stage: {r.returncode} {r.stderr}")
 
     # The CLI reads the repo's top-level folders: a hosted web change in a repo with an iOS app needs the lines.
     serve(stub, PASSING, files=("src/auth/Gate.tsx",), roots=("ios", "src"))
@@ -762,6 +924,49 @@ with tempfile.TemporaryDirectory() as tmp:
     serve(stub, with_app, files=("src/auth/Gate.tsx",), roots=("ios", "src"))
     r = cli()
     check(r.returncode == 0, f"CLI failed a native-app PR with its installed-build and app build lines: {r.stdout}{r.stderr}")
+
+    # installedBuilds.pathsIgnore from the local overlay: the marketing Worker reaches no installed build.
+    reg = base / "registry"
+    (reg / "projects").mkdir(parents=True)
+    (reg / "index.json").write_text(json.dumps({"boundary": "personal", "match": []}))
+    (reg / "projects" / "site.json").write_text(json.dumps({
+        "match": ["example-org/example-repo"], "installedBuilds": {"pathsIgnore": list(IGNORE)}}))
+    (base / "identity.json").write_text("{}")
+    env.update({"CLAUDE_CONNECTOR_ROOTS": f"personal={reg}", "CLAUDE_IDENTITY_FILE": str(base / "identity.json")})
+    serve(stub, LIGHT_MIN, html=HTML_MIN, files=(SITE,), roots=tuple(ROOTS))
+    r = cli()
+    check(r.returncode == 0, f"CLI failed a Light marketing-page PR whose path the overlay ignores: {r.stdout}{r.stderr}")
+    serve(stub, LIGHT_MIN.replace(SITE, web), html=HTML_MIN, files=(web,), roots=tuple(ROOTS))
+    r = cli()
+    check(r.returncode == 1 and "no app build line" in r.stdout and "installed-version table" in r.stdout,
+          f"CLI passed a Light PR reaching installed builds without the native rows: {r.returncode} {r.stdout}")
+    (reg / "projects" / "site.json").write_text(json.dumps({
+        "match": ["example-org/example-repo"], "installedBuilds": {"pathsIgnore": ["**"]}}))
+    serve(stub, LIGHT_MIN, html=HTML_MIN, files=(SITE,), roots=tuple(ROOTS))
+    r = cli()
+    check(r.returncode == 1 and "starts with a wildcard" in r.stderr,
+          f"A malformed pathsIgnore loosened the gate: {r.returncode} {r.stdout}{r.stderr}")
+    (reg / "projects" / "site.json").write_text("{broken")
+    r = cli()
+    check(r.returncode == 1 and "not read" in r.stderr, f"An unreadable overlay loosened the gate: {r.returncode} {r.stderr}")
+    for k in ("CLAUDE_CONNECTOR_ROOTS", "CLAUDE_IDENTITY_FILE"):
+        env.pop(k)
+
+    # --feedback-count: reviews, review comments and comments by a person.
+    def feedback(*ids, inline=(), people=()):
+        serve(stub, PASSING, feedback=ids)
+        (stub / "inline.txt").write_text("".join(i + "\n" for i in inline))
+        (stub / "people.txt").write_text("".join(i + "\n" for i in people))
+        return subprocess.run([sys.executable, str(SCRIPT), "--repo", "example-org/example-repo", "--pr", "7",
+                               "--feedback-count"], capture_output=True, text=True, env=env)
+    r = feedback()
+    check(r.returncode == 0 and r.stdout.strip() == "0", f"A PR with no feedback did not count 0: {r.stdout}{r.stderr}")
+    r = feedback("9", inline=("4",), people=("5", "6"))
+    check(r.returncode == 0 and r.stdout.strip() == "4", f"Feedback was miscounted: {r.stdout}{r.stderr}")
+    serve(stub, PASSING, feedback=None)
+    r = subprocess.run([sys.executable, str(SCRIPT), "--repo", "example-org/example-repo", "--pr", "7",
+                        "--feedback-count"], capture_output=True, text=True, env=env)
+    check(r.returncode == 2 and "FETCH FAILED" in r.stderr, f"A failed feedback read did not exit 2: {r.returncode}")
 
     # The CLI passes the PR's whole changed-file list to the walk rule.
     native_rows = "".join(f"| `{f}` | 1 | Purchase | unit suite on base and head | PASS |\n" for f in NATIVE_FILES)

@@ -272,11 +272,49 @@ CASES = [
         ("open", "merge #1487 #1297")]), False, ""),
     ("FB 'merge #1487 #1297' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
         ("open", "merge #1487 #1297")]), False, ""),
+    ("FB his 13:05 'merge #1487 #1297' after a noun 'merge' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "i fixed the merge guard a million times it needs to be rewritten merge #1487 #1297")]), False, ""),
+    ("FB his 13:05 'merge #1487 #1297' after a noun 'merge' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "i fixed the merge guard a million times it needs to be rewritten merge #1487 #1297")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1499", dict(command=f"{M} 1499 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge 1487 and 1297' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "merge 1487 and 1297")]), False, ""),
+    ("FB 'merge 1487 and 1297' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge 1487 and 1297")]), False, ""),
     ("FB an end-block merge step covers 'merge it'", dict(command=f"{M} 1490 -R acme/web", turn=[
         ("handback", "Action needed (2): read #1479's video\n\n- done\n\nYour call\n1. Read #1479's video.\n"
                      "2. Reply \"merge #1490\"."), ("open", "merge it")]), False, ""),
 
+    ("FB his 12:54 'doesn't stop till ... work' after 'merge #1297' is no merge hold", dict(
+        command=f"{M} 1297 -R acme/web", turn=[("open", "merge #1297"), ("handback", ""), ("open", "also look at the sre bots own prs it was supposed to merge did it use the skills from my dotclaude? i don't think so because the pr doesnt look like my structure so i think it's not using dotclaude fully as ii am"),
+                                              ("handback", ""), ("open", "debug in a loop to fix the sre bot to do what i've asked you for it to do /sk:ship-report-and-ensure-correct-user-system-journey and fix the config so that it automatically loops and checks for that and doesn't stop till the things ive asked for work and are all implemented /sk:meta-dotclaude-copilot-start-here-for-any-task")]), False, ""),
+    ("FB 'stop the bot posting alerts' is no merge hold", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "stop the bot posting alerts")]), False, ""),
+    ("FB 'pause the walker' is no merge hold", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "pause the walker while you fix it")]), False, ""),
+    ("FB a hold of another PR does not hold this one", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "don't merge #77 yet")]), False, ""),
+
     # ---- real holds: each must deny
+    ("HOLD 'don't merge #1297' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "don't merge #1297")]), True, "holds merging"),
+    ("HOLD 'hold #1297' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "hold #1297 until the walker is back")]),
+     True, "holds merging"),
+    ("HOLD 'ok wait before merging, CI first' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "ok wait before merging, I want CI first")]),
+     True, "holds merging"),
+    ("HOLD 'dequeue it' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "dequeue it please")]), True, "holds merging"),
+    ("HOLD 'pause for now' after 'merge #1297'", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1297"), ("handback", ""), ("open", "pause for now")]), True, "holds merging"),
+    ("HOLD a slash command naming ship is no order", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("handback", ASK_HANDBACK), ("open", "/sk:ship-full-detailed-workflow on it")]), True, NONE),
     ("HOLD 'don't merge #1186'", dict(command=f"{M} 1186", turn=[("open", "don't merge #1186")]),
      True, "holds merging"),
     ("HOLD a bare 'pause' after 'merge #N'", dict(command=f"{M} 1186", turn=[

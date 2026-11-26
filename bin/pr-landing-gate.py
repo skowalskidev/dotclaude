@@ -37,11 +37,23 @@ runtime file (a server, database, Worker or hosted web file the installed builds
 in Deploy safety, the installed-version table, one `Old build <version> against the new backend: PASS`
 line per walked version or an `Installed builds: not reached, <why>` line, and a `Waits for the new
 build:` line (references/git-pr-deploy.md § Deploy safety check 4). An `Old build ... BLOCKED` line is
-recorded but fails the gate: an unwalked installed build is never a pass. On a Light PR (the Test matrix
-names the light tier) the `Installed builds: not reached, <why>` line alone passes: no version table or
-Waits line, because a Light change touches no native-build or backend contract.
-In such a repo every PR's Deploy TLDR, a native-only or web-only PR included, holds an app build line:
-`No app build needed: <why>` or `Needs an app build: <which parts wait for it>` (check 4).
+recorded but fails the gate: an unwalked installed build is never a pass. A file matching the project
+entry's `installedBuilds.pathsIgnore` globs in the local connector overlay (read through
+bin/monitoring_only.py, e.g. a separate marketing-site Worker the app never loads) reaches no installed
+build; an unreadable overlay ignores nothing.
+In such a repo every Standard or Deep PR's Deploy TLDR, a native-only or web-only PR included, holds an
+app build line: `No app build needed: <why>` or `Needs an app build: <which parts wait for it>` (check 4).
+A Light PR (the Test matrix's first named tier is light, no deep tier is named, and no changed file is
+native app code or a payment or entitlement path) needs fewer rows, because references/testing-strategy.md
+§ Size the checks to the change skips those stages at Light: no Prod data or Deploy safety heading, no
+Base-vs-head column in the Regression check table (each modified file still has its PASS or INTENDED
+row), no Real-environment walk line, and the app build line only when the diff reaches installed builds.
+When it does, the installed-build rows above still apply, and the `Installed builds: not reached, <why>`
+line alone passes: no version table or Waits line. A Light Screenshots section that posts images posts
+the BEFORE/AFTER pair, two images or more: with the PR open, it stands in for the
+sk:ship-screenshot-changes stage receipt (hooks/intent-ledger.sh).
+`--feedback-count` prints the PR's reviews, review comments and non-bot comments, so the gate can tell
+a Light PR with nothing to resolve (hooks/intent-ledger.sh light_waivers).
 A posted Part verdicts section holds a table whose header names Verdict, Mainstream practice, Regression
 evidence and a judge column per provider, with a primary-source link in every row
 (references/tldr-report-formats.md § Part verdicts). The section is checked when present, so a PR body
@@ -63,6 +75,9 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
 
 # The PR body's section headings, in body order. Key = gate row name, value = canonical heading.
 SECTIONS = {
@@ -96,7 +111,7 @@ NEEDS = {
                     "a 'Fails without the change' column filled on every COVERED row, no mutant surviving"),
     "Regression check": ("a table with a Base-vs-head evidence column; a row per modified pre-existing file, "
                          "each with evidence and PASS or INTENDED"),
-    "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply",
+    "Prod data": "a PASS or FAIL verdict and a cohort table, or a reasoned does-not-apply; not on a Light PR",
     "Value safety": ("on a deep-tier PR, the lines Happy path:, Failure re-enacted:, Wrong recipient:, "
                      "Incident replay: (with N/N), Provider lifecycle: and Residual risk:, or a reasoned "
                      "does-not-apply; a ### Provider lifecycle table (Case | Provider doc | Verdict | "
@@ -106,7 +121,8 @@ NEEDS = {
                       "native app, when the PR changes a file its installed builds call or load: a version "
                       "| share table, 'Old build <version> against the new backend: PASS' per version or "
                       "'Installed builds: not reached, <why>', and 'Waits for the new build: <list or none>'; "
-                      "on a Light PR the not-reached line alone"),
+                      "a Light PR needs the heading only for those installed-build lines, and then the "
+                      "not-reached line alone"),
     "Screenshots": "an image, or a no-visible-surface reason with a 'Checked outputs:' clause",
     "Part verdicts": ("a table whose header names Verdict, Mainstream practice, Regression evidence and "
                       "a judge column per provider; a primary-source link in every row"),
@@ -135,6 +151,8 @@ ROUTE_MSG = ("{}: the no-surface reason names a new-screen or new-copy test; a c
 TIER_SKIP = re.compile(r"Skipped \((?:tier )?(?:light|standard)\)\s*:\s*\S+(?:\s+\S+){2,}", re.I)
 DEEP_TIER = re.compile(r"\btier\b\W{0,3}deep\b|\bdeep\W{0,3}tier\b", re.I)
 LIGHT_TIER = re.compile(r"\btier\b\W{0,3}light\b|\blight\W{0,3}tier\b", re.I)
+# references/testing-strategy.md § Size the checks to the change: one BEFORE/AFTER pair at Light.
+LIGHT_PAIR = 2
 # references/testing-strategy.md § Value safety: the labelled lines, in order.
 VALUE_LABELS = ("Happy path", "Failure re-enacted", "Wrong recipient", "Incident replay", "Provider lifecycle",
                 "Residual risk")
@@ -252,8 +270,11 @@ def reasoned_na(text):
     return False
 
 
-def check_regression(text, modified):
-    """Missing-row strings for the Regression check section; modified = pre-existing paths the PR changes."""
+def check_regression(text, modified, light=False):
+    """Missing-row strings for the Regression check section; modified = pre-existing paths the PR changes.
+
+    light: a Light PR, whose rows need PASS or INTENDED but no Base-vs-head evidence column.
+    """
     if text is None:
         return [no_heading("Regression check")]
     rows = [ln for ln in text.splitlines() if re.match(r"^\s*\|.*\|\s*$", ln)]
@@ -270,7 +291,7 @@ def check_regression(text, modified):
     cells = lambda row: [c.strip() for c in row.strip().strip("|").split("|")]
     header = next((cells(r) for r in rows if any(EVIDENCE_COLUMN.search(c) for c in cells(r))), None)
     column = next((i for i, c in enumerate(header or []) if EVIDENCE_COLUMN.search(c)), None)
-    if column is None:
+    if column is None and not light:
         out.append("Regression check: the table has no Base-vs-head evidence column")
     unlisted, unresolved, unevidenced = [], [], []
     for path in modified:
@@ -402,13 +423,44 @@ def ships_native_app(root_dirs):
     return any(d in root_dirs for d in NATIVE_DIRS)
 
 
-def reaches_installed_builds(changed, root_dirs):
-    """Whether a PR changes a file the installed native builds call or load."""
+def reaches_installed_builds(changed, root_dirs, ignore=()):
+    """Whether a PR changes a file the installed native builds call or load.
+
+    ignore: the project's installedBuilds.pathsIgnore globs, files no installed build calls or loads.
+    """
     natives = [d for d in NATIVE_DIRS if d in root_dirs]
     if not natives:
         return False
     return any(not f.startswith(tuple(d + "/" for d in natives)) and not NOT_SERVED.search(f)
+               and not (ignore and monitoring_only().matches_any(f, ignore))
                for f in changed)
+
+
+def monitoring_only():
+    """bin/monitoring_only.py, the owner of the strict project-entry read and its path globs."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import monitoring_only as mo
+    return mo
+
+
+def installed_ignore(repo):
+    """(globs, warning): the project's installedBuilds.pathsIgnore. Any read or shape error ignores nothing."""
+    try:
+        mo = monitoring_only()
+        manifest, error = mo.project_manifest(repo)
+    except Exception as exc:  # an unreadable overlay never loosens the gate
+        return (), f"installedBuilds.pathsIgnore not read ({exc}); every runtime file counts"
+    if error:
+        return (), f"installedBuilds.pathsIgnore not read ({error}); every runtime file counts"
+    raw = (manifest or {}).get("installedBuilds")
+    if raw is None:
+        return (), ""
+    globs = raw.get("pathsIgnore") if isinstance(raw, dict) else None
+    error = mo.validate_globs(globs, "installedBuilds.pathsIgnore")
+    if error:
+        return (), f"{error}; every runtime file counts"
+    return tuple(globs), ""
 
 
 def check_installed_builds(safety, light=False):
@@ -504,6 +556,16 @@ def check_fails_without(matrix):
     return out
 
 
+def is_light(matrix, changed=()):
+    """Whether the Test matrix's first named tier is light, it names no deep tier, and no changed file is
+    native app code or a payment or entitlement path (those hold a Deep trigger, so a Light label on them
+    keeps every row)."""
+    if matrix is None or DEEP_TIER.search(matrix):
+        return False
+    named = TIER_NAMED.search(matrix)
+    return bool(named and LIGHT_TIER.fullmatch(named.group(0))) and not walk_trigger(changed or ())
+
+
 def check_matrix_head(order, head):
     """Missing-row strings when the Test matrix heading does not name the PR's current head sha."""
     title = next((text for _, text, _ in order if matches(text, SECTIONS["Test matrix"])), "")
@@ -520,7 +582,8 @@ def check_matrix_head(order, head):
 def check_body(body, body_html, unresolved, modified=(), installed=False, head=None, native=False, changed=()):
     """Return one 'row: what is missing' string per failing landing-gate row.
 
-    native: the repo ships a native app, so the Deploy TLDR carries the app build line.
+    native: the repo ships a native app, so the Deploy TLDR carries the app build line (on a Light PR,
+    only when installed is true).
 
     changed: every file the PR changes; on a deep PR, native app code or a payment or entitlement path
     in it makes the Real-environment walk name a real-client walk (walk_trigger).
@@ -531,6 +594,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
     missing = []
     found, order = sections(body)
     heads = [text for _, text, _ in order]
+    matrix = found.get("Test matrix")
+    light = is_light(matrix, changed)
 
     tldr = found.get("TLDR")
     tldr_first = bool(heads) and matches(heads[0], SECTIONS["TLDR"])
@@ -546,13 +611,12 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
     elif tldr_first and not matches(next((t for lv, t, _ in order[1:] if lv <= order[0][0]), ""),
                                     SECTIONS["Deploy TLDR"]):
         missing.append("Deploy TLDR: it is not the next heading after the TLDR")
-    if native and "Deploy TLDR" in found and not APP_BUILD.search(found["Deploy TLDR"]):
+    if native and (installed or not light) and "Deploy TLDR" in found and not APP_BUILD.search(found["Deploy TLDR"]):
         missing.append(APP_BUILD_MSG)
     for row in ("User journey", "System journey"):
         if row not in found:
             missing.append(no_heading(row))
 
-    matrix = found.get("Test matrix")
     if matrix is None:
         missing.append(no_heading("Test matrix") + "; a summary row elsewhere does not count")
     else:
@@ -566,24 +630,26 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
                 missing.append("Test matrix: no results table")
         walk = WALK.findall(matrix)
         if not walk:
-            missing.append("Test matrix: no Real-environment walk line")
+            if not light:
+                missing.append("Test matrix: no Real-environment walk line")
         elif any(re.search(r"\bFAIL", w) for w in walk):
             missing.append("Test matrix: the Real-environment walk records a FAIL")
         elif not any(re.search(r"\bPASS\b", w) or reasoned_na(w) or TIER_SKIP.search(w) for w in walk):
             missing.append("Test matrix: the Real-environment walk has no PASS, doesn't-apply reason or skip line")
         elif DEEP_TIER.search(matrix) and walk_trigger(changed or ()):
             missing += check_walk_required(walk, walk_trigger(changed or ()))
-        if not TIER_SKIP.search(matrix) and not (LIGHT_TIER.search(matrix) and not DEEP_TIER.search(matrix)):
+        if not TIER_SKIP.search(matrix) and not light:
             missing += check_fails_without(matrix)
 
     if matrix is not None and head:
         missing += check_matrix_head(order, head)
 
-    missing += check_regression(found.get("Regression check"), list(modified or ()))
+    missing += check_regression(found.get("Regression check"), list(modified or ()), light)
 
     prod = found.get("Prod data")
     if prod is None:
-        missing.append(no_heading("Prod data"))
+        if not light:
+            missing.append(no_heading("Prod data"))
     elif not TIER_SKIP.search(prod):
         if not re.search(r"\b(PASS|FAIL)\b", prod) and not DOES_NOT_APPLY.search(prod):
             missing.append("Prod data: no verdict (PASS, FAIL or does not apply)")
@@ -594,14 +660,15 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
 
     safety = found.get("Deploy safety")
     if safety is None:
-        missing.append(no_heading("Deploy safety"))
+        if not light:
+            missing.append(no_heading("Deploy safety"))
     else:
-        na = reasoned_na(safety) or TIER_SKIP.search(safety) is not None
+        # Light skips the merge train: its Deploy safety section holds only the installed-build lines.
+        na = light or reasoned_na(safety) or TIER_SKIP.search(safety) is not None
         if not re.search(r"merge[- ]train", safety, re.I) and not na:
             missing.append("Deploy safety: no merge-train result and no doesn't-apply reason")
         if not re.search(r"roll ?back", safety, re.I) and not na:
             missing.append("Deploy safety: no rollback and no doesn't-apply reason")
-    light = matrix is not None and LIGHT_TIER.search(matrix) is not None and DEEP_TIER.search(matrix) is None
     if installed:
         missing += check_installed_builds(safety, light)
 
@@ -615,6 +682,9 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
             missing.append(NO_OUTPUTS.format("Screenshots"))
         if route_reason(shots):
             missing.append(ROUTE_MSG.format("Screenshots"))
+    elif light and 0 < posted_images(shots) < LIGHT_PAIR:
+        missing.append(f"Screenshots: a Light PR posts its BEFORE/AFTER pair ({LIGHT_PAIR} images); "
+                       f"this section posts {posted_images(shots)}")
 
     runs = found.get("Verification runs")
     if runs is None:
@@ -720,20 +790,43 @@ def fetch(repo, pr):
                      "--jq", f'.[] | select(.status | test("^({statuses})$")) | .filename')
     changed = gh_lines("api", f"repos/{repo}/pulls/{pr}/files", "--paginate", "--jq", ".[].filename")
     roots = gh_lines("api", f"repos/{repo}/contents", "--jq", '.[] | select(.type == "dir") | .name')
-    installed = reaches_installed_builds(changed, roots)
+    ignore, warning = installed_ignore(repo) if ships_native_app(roots) else ((), "")
+    if warning:
+        print(f"pr-landing-gate: note {repo}#{pr}: {warning}", file=sys.stderr)
+    installed = reaches_installed_builds(changed, roots, ignore)
     head = (data.get("head") or {}).get("sha") or ""
     return (data.get("body") or "", data.get("body_html") or "", unresolved, files, installed, head,
             ships_native_app(roots), changed)
+
+
+def feedback_count(repo, pr):
+    """Every review and review comment on the PR, plus every comment a person (not a bot) posted on it.
+
+    A bot comment (a ticket link, a CI runner note) is no review feedback; a bot review is."""
+    reviews = gh_lines("api", f"repos/{repo}/pulls/{pr}/reviews", "--paginate", "--jq", ".[] | .id")
+    inline = gh_lines("api", f"repos/{repo}/pulls/{pr}/comments", "--paginate", "--jq", ".[] | .id")
+    people = gh_lines("api", f"repos/{repo}/issues/{pr}/comments", "--paginate", "--jq",
+                      '.[] | select(.user.type != "Bot") | .id')
+    return len(reviews) + len(inline) + len(people)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", required=True, help="owner/name")
     ap.add_argument("--pr", required=True, type=int)
+    ap.add_argument("--feedback-count", action="store_true",
+                    help="print the PR's reviews, review comments and non-bot comments, then exit")
     args = ap.parse_args()
     if not re.fullmatch(r"[\w.-]+/[\w.-]+", args.repo):
         print(f"pr-landing-gate: usage: --repo must be owner/name, got {args.repo}", file=sys.stderr)
         return 2
+    if args.feedback_count:
+        try:
+            print(feedback_count(args.repo, args.pr))
+        except RuntimeError as err:
+            print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: {err}", file=sys.stderr)
+            return 2
+        return 0
     try:
         body, body_html, unresolved, modified, installed, head, native, changed = fetch(args.repo, args.pr)
     except (RuntimeError, KeyError, TypeError, ValueError) as err:

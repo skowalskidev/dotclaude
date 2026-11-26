@@ -33,14 +33,30 @@ escalation and its cause, run the added checks and keep the evidence already tak
 **DO apply a tier or check Simon names** ("just screenshot it", "run the full matrix"); when it sits
 below a trigger present in the diff, name that trigger once and run what he named.
 **DO record the tier, its trigger and every skipped stage, in one line each,** in the PR body's
-`## Test matrix` section (each skipped section's heading stays, holding `Skipped (tier light): <trigger>`)
-and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`;
+`## Test matrix` section (a Standard PR keeps each skipped section's heading, holding
+`Skipped (tier standard): <trigger>`) and in the gate reason: `intent-ledger.sh gate <branch> HEAD PASS light "<trigger>; skipped: <stages>"`;
 a Standard or Deep BLOCKED reason names its unrun required stages as `Not run: <stages>` or states
 `All stages ran`; a Standard or Deep PASS states `All stages ran` and the gate refuses one with a
 `Not run:` list (a tier-skipped stage goes in the `skipped:` line, never under `Not run:`). Every PASS
 names its tier, and the gate refuses it until each stage that tier requires has a receipt on the gated
 sha (`hooks/intent-ledger.sh` owns the per-tier stage list; `intent-ledger.sh stages <tier> HEAD`
 prints what is missing).
+**DO post a Light PR body with only the sections Light runs:** TLDR, Deploy TLDR, both journeys,
+`## Test matrix` (tier, trigger, skip line, results table), `## Regression check` (one row per modified
+pre-existing file with PASS or INTENDED; no Base-vs-head column) and `## Screenshots` (the BEFORE/AFTER
+pair, two images, or the no-surface line with `Checked outputs:`). It has no `## Prod data` heading, no
+`## Deploy safety` merge train and no `Real-environment walk:` line. In a native-app repo it adds the
+app build line and § Deploy safety check 4's lines (`Installed builds: not reached, <why>` alone passes)
+only when the diff reaches a file an installed build calls or loads; a path the project's
+`installedBuilds.pathsIgnore` lists (`references/connectors-setup.md` § Registry schema) reaches none.
+With the PR open, the gate drops two Light stage receipts: `sk:ship-screenshot-changes`, because
+`bin/pr-landing-gate.py` checks that Screenshots section, and `sk:ship-resolve-pr-comments` while the PR
+holds zero reviews, review comments and comments by a person. A Light label on a diff touching native app
+code or a payment or entitlement path keeps every Standard row: those paths are Deep triggers.
+TEST: a Light marketing-page PR passes the gate with the sections above and two receipts fewer on a PR
+with no feedback; a Light PR reaching an installed build still needs its app build and installed-build
+lines (the fix for a one-rule CSS fix to a separate marketing Worker that took two body rewrites and two
+extra skill runs).
 **DON'T skip a stage silently, or drop the gates every tier keeps:** CI and required hooks, the gate
 list in § Defects first, § Regression check, PR feedback handling, the Deploy TLDR, read-only production, spend approval
 (`rules/spend-approval.md`) and `references/git-pr-deploy.md` § Prod check after every production deploy.
@@ -777,6 +793,11 @@ account per key is normal, so equal vendor name proves nothing.
 not identity-checked.** A hash comparison against the wrong account's listener reports a healthy
 config as broken, and the "fix" then breaks delivery. Re-check any finding built on an unverified
 counterpart before reporting it.
+**DO start a listener that prints a credential on start with both streams in a file, and read that log
+redacted:** `stripe listen --forward-to <url> >"$LOG" 2>&1 &`, then
+`sed -E "s/whsec_[A-Za-z0-9]+/whsec_[redacted]/" "$LOG"`; hand the app its secret with
+`export STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret 2>/dev/null)"`. `hooks/secret-echo-guard.py`
+denies a `stripe listen` with visible output. TEST: no `whsec_` value appears in the transcript.
 **DO replay a missed event instead of re-running the action** (Stripe `events resend <evt>` reaches a
 running listener).
 
@@ -930,9 +951,9 @@ TEST: the PR's `## Regression check` holds the `kept / new / lost` counts with t
 pre-existing file, Result `PASS` (outside paths unchanged) or `INTENDED: <change>`; then one row per
 newly mounted shared part naming the caller it mirrored, and one measured row per screen reused in a
 new place. A diff modifying no pre-existing file states that with its reason.
-`bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column, a modified
-pre-existing file has no row, its row has an empty evidence cell, a row holds neither PASS nor
-INTENDED, or a row records FAIL.
+`bin/pr-landing-gate.py` fails the gate when the table has no Base-vs-head evidence column (a Light PR
+needs none: its Screenshots pair is the comparison), a modified pre-existing file has no row, its row has
+an empty evidence cell, a row holds neither PASS nor INTENDED, or a row records FAIL.
 **DO run `/sk:work-verify-regressions-against-original` for the flow-level half when the diff
 touches an existing user flow:** it records each vanilla flow on base and head on one local stack and
 posts its `### Flow walk` table under the same heading.
