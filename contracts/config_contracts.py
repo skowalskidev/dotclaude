@@ -1913,7 +1913,7 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Every run leaves this config measurably better at shipping Simon's work, never better at one local metric.",
         "purpose": "Run the end-of-session config learning on Simon's go and publish the run's evidence for the next run or assigned coordinator.",
         "criteria": [
-            "Runs once per session on Simon's go after every task is verified: reads every message he typed (ledger asks and transcript, never peer or harness text), turns each correction, preference and how-it-should-work explanation into a learning routed through claude-config-update, and reports one line per learning with where it landed.",
+            "Runs once per session on Simon's go after every task is verified: reads every message he typed (ledger asks and transcript, never peer or harness text), turns each correction, preference and how-it-works explanation into a learning routed through claude-config-update, and reports one line per learning with where it landed.",
             "Publish local findings at that end-of-session pass; the active session applies the automatic repair policy, while delegated participants return evidence without draining the global backlog.",
             "Every suggestion names its evidence (file, number, log line) and the specific change. "
             "No evidence, no finding.",
