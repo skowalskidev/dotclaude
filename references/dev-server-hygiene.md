@@ -254,6 +254,9 @@ python3 ~/.claude/bin/local-capacity.py status
 python3 ~/.claude/bin/local-capacity.py run --owner <session-id> -- <foreground-command>
 ```
 
+DO fill spare capacity beside the primary, waiting and resuming automatically and yielding at safe command
+boundaries (moved from `rules/process.md`; exit 75 and `prioritize` below).
+
 DO size resource admission to the actual operation. Run one existing-browser inspection, screenshot
 or focused smoke check (one worker, no server, simulator or build, done within 120 seconds) as
 `run --owner <session-id> --resource compute --max-min 2 --wait-min 0 -- <command>`; full browser
