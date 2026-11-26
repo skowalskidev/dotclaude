@@ -239,6 +239,14 @@ CASES = [
     ("FB 'ok let's deploy the new onboarding if there are no regressions…' is an order", dict(
         command=f"{M} 1186", turn=[("open", "ok let's deploy the new onboarding if there are no regressions…")],
         answer=yes("let's deploy the new onboarding if there are no regressions")), False, "", True),
+    ("FB a quote carrying the model's own [N] message label still matches", dict(
+        command=f"{M} 1481", turn=[("open", "https://github.com/acme/web/pull/1481 If this is just a simple log "
+                                            "to close, verify online best practices, then merge this.")],
+        answer=yes("20] https://github.com/acme/web/pull/1481 If this is just a simple log to close")),
+     False, "", True),
+    ("FB a quote carrying a bracketed [N] label still matches", dict(
+        command=f"{M} 1481", turn=[("open", "#1481 looks right, merge this")],
+        answer=yes("[1] #1481 looks right, merge this")), False, "", True),
     ("FB 'the words to not hold up: merge' is an order", dict(command=f"{M} 1186", turn=[
         ("open", "for this session i will just give you the words to not hold up: merge")],
         answer=yes("merge")), False, "", True),
