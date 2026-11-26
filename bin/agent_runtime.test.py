@@ -805,6 +805,16 @@ class RuntimeTests(unittest.TestCase):
             with self.subTest(args=args):
                 self.assertTrue(runtime.codex_inference(args))
 
+    def test_read_only_sandbox_detection_for_the_judge_role(self):
+        for args in (['exec', '-s', 'read-only', '-'], ['exec', '--sandbox', 'read-only'],
+                     ['exec', '--sandbox=read-only']):
+            with self.subTest(args=args):
+                self.assertTrue(runtime.read_only_sandbox(args))
+        for args in (['exec', '-'], ['exec', '-s', 'workspace-write'], ['exec', '-s', 'read-only', '-s', 'danger-full-access'],
+                     ['exec', '--', '-s', 'read-only']):
+            with self.subTest(args=args):
+                self.assertFalse(runtime.read_only_sandbox(args))
+
     def test_launcher_executes_only_explicit_fixture_binary(self):
         self.manifest(match=[str(self.cwd)], connectors=[self.connector()])
         binary = self.base / 'stub-codex'

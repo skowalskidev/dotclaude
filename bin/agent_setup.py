@@ -175,9 +175,19 @@ def current_provider():
     return next(iter(providers), None)
 
 
-def require_provider(provider):
+def require_provider(provider, read_only=False):
+    """Fail closed on a cross-provider launch; a read-only judge is the one role that passes.
+
+    rules/process.md § Independent judges allows one judge per provider. AGENT_ROLE=judge grants that
+    and nothing more: it is honoured only for a read-only sandbox launch, so a worker or reviewer that
+    can write still needs the explicit AGENT_ALLOW_CROSS_PROVIDER=1 override.
+    """
     active = current_provider()
     if active and active != provider:
+        if os.environ.get('AGENT_ROLE') == 'judge' and read_only:
+            print('agent setup: cross-provider JUDGE allowed (read-only, chat=' + active + ', judge=' + provider +
+                  '); workers and reviewers stay on the chat provider.', file=sys.stderr)
+            return
         if os.environ.get('AGENT_ALLOW_CROSS_PROVIDER') == '1':
             print('agent setup: OVERRIDE cross-provider worker allowed by explicit '
                   'AGENT_ALLOW_CROSS_PROVIDER=1 (chat=' + active + ', worker=' + provider +
