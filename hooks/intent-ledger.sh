@@ -1306,9 +1306,11 @@ Apply rules/self-healing-config.md; the after-run analysis is triggered separate
 Record evidence for completed work and the next action for every real blocker or pause (not hypothetical checks; see rules/communication.md Close the session). An unapproved \
 proposal remains recorded, not permission to implement. Open the final message by answering each question \
 and point of the prompt that started this work, in its order, before any status (rules/communication.md \
-Answer first). When nothing is left, end the final message with \
+Answer first). When the session opened, pushed, reviewed or merged a PR, the final message's last block is \
+the PR status block (references/tldr-report-formats.md § PR status block: each PR linked once under Merged, \
+Approved, merging, Needs your ok, In progress or Deferred / blocked). When nothing is left, end the final message with \
 the archive line from rules/communication.md; with CI running, a session PR awaiting Simon's merge or a \
-promised smoke or reply open, end with the merge list instead. When this turn began from a background \
+promised smoke or reply open, end with the PR status block and no archive line. When this turn began from a background \
 notification or this hook and brings no new outcome, decision or ask, write nothing or one line naming \
 the new fact: rules/communication.md forbids re-printing an unchanged block. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'

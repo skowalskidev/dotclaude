@@ -293,7 +293,7 @@ A merge passes on one deterministic rule over every message Simon typed in the s
 (a merge word stands however many messages later, until one holds it): the newest
 that orders it (a present-tense merge verb, not negated, not a question) names `#N`, or uses a referent
 ("both", "it") in an imperative aimed at it ("merge it", "yes merge", "then merge if it's ok"; never a
-sentence defining merging such as "a merge means deploy") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
+sentence defining merging such as "a merge means deploy") while answering a hand-back that asked a merge word for `#N` in its PR status block's `Needs your ok` group,
 `Action needed` line or an end-block numbered step, and no later message holds merges: a short
 standalone hold ("wait", "pause for now"), "hold #N", or a hold word just before a merge verb
 ("don't merge", "hold off on merging") or a dequeue; a hold word about other work never holds. Peer notes,
