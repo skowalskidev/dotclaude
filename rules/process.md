@@ -116,8 +116,9 @@ same failure recurs, or a fix needs a decision only I can make), stop and tell m
 
 **DO run `/sk:ship-report-and-ensure-correct-user-system-journey` at the end of any substantial ask, in
 ANY repo — this config included — unprompted.** What it proves: `references/planning-and-tracking.md` § The intent ledger.
-**DON'T treat a green gate or a written summary as proof the ask was covered.** A gate proves the code
-runs. A summary proves you can describe it. Neither proves point four of a five-point ask was built.
+**DON'T treat a green gate, a merge or a written summary as proof the ask was covered.**
+**DO hold a deployed system's runtime clause open until production shows it after deploy:**
+`references/planning-and-tracking.md` § Runtime asks.
 TEST: every ask clause in the ledger has a verdict against it. A missing verdict is a missing feature.
 
 **DO ship each part the ask names on every target it names (surface, platform, audience), and walk the

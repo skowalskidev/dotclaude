@@ -16,8 +16,8 @@ see (a pipe, a built string) that names a merge, is denied.
 A merge passes on one of two paths, in this order:
   - a monitoring-only PR at its bar (monitoring_merge; references/git-pr-deploy.md § Monitoring-only
     changes). No message is read.
-  - Simon's own words, one deterministic rule (words_allow), no model call: among his last 20 typed
-    messages, the newest that orders #N merged (a present-tense merge verb, not negated, not a question,
+  - Simon's own words, one deterministic rule (words_allow), no model call: among every message he typed
+    in the session, the newest that orders #N merged (a present-tense merge verb, not negated, not a question,
     naming #N, or a referent such as "both" or "it" while the message answers a hand-back that asked a
     merge word for #N on its Merge list, Action needed line or an end-block numbered step) with no later
     message holding merges. The hand-back only resolves the referent: his words still give the order.
@@ -1295,7 +1295,8 @@ CHECK_PAGE = 100  # gh reads at most this many contexts; a full page may be trun
 def monitoring_not_ready(pr: dict, required: list, default_branch: str, collect: list = None) -> str:
     """Stricter than pr_not_ready, and local to this path. isDraft must be false, the base the default
     branch, and the check list complete and well formed. Nothing may be pending, and any failed or
-    cancelled check declines, a rerun gone green included. Each of the overlay's requiredChecks must
+    cancelled check declines, a rerun gone green included, except a cancel superseded_cancels proves a
+    later all-green run of the same workflow replaced. Each of the overlay's requiredChecks must
     have succeeded on every run on the head, so a rollup of skips alone never passes. The hook takes the
     first failing check; the --explain dry-run passes `collect` to list every one."""
     found = []
@@ -1329,6 +1330,75 @@ def _monitoring_state_causes(pr: dict, default_branch: str):
                 f"default branch {default_branch or '(unreadable)'}")
 
 
+def _instant(stamp: str):
+    """A gh ISO time as a datetime, or None when unreadable. Compared as instants, never as strings
+    ("12:00:00Z" sorts before "12:00:00.500Z")."""
+    m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,6})\d*)?Z", stamp or "")
+    if not m:
+        return None
+    return datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
+        microsecond=int((m.group(2) or "0").ljust(6, "0")))
+
+
+RUN_URL_RE = re.compile(r"https://github\.com/([^/\s]+/[^/\s]+)/actions/runs/(\d+)/job/\d+")
+
+
+def _run_of(c: dict):
+    """(repo, run id) of a GitHub Actions CheckRun, read from its detailsUrl; None when unreadable."""
+    m = RUN_URL_RE.fullmatch(str(c.get("detailsUrl") or ""))
+    return (m.group(1).lower(), int(m.group(2))) if m else None
+
+
+def superseded_cancels(rollup: list) -> set:
+    """Rollup indices of CANCELLED CheckRuns a later workflow run replaced. A workflow with concurrency
+    cancel-in-progress starts two runs on one head and cancels the first; the later run of the SAME
+    workflow on the SAME head (the rollup is the head's) is the one that counts. A cancel at index i is
+    superseded only when its run id reads from detailsUrl and another run of the same repo and
+    workflowName exists with a higher run id (created later), whose every check is COMPLETED SUCCESS or
+    SKIPPED, which ran a job of the same name to SUCCESS, and whose earliest startedAt is not before the
+    cancelled run's earliest time. A FAILURE is never superseded, nor a cancel beside a success in its
+    own run (two jobs can share a name), nor one whose run id or times cannot be read."""
+    groups: dict = {}
+    for i, c in enumerate(rollup):
+        if not isinstance(c, dict) or ("state" in c and "status" not in c):
+            continue
+        run = _run_of(c)
+        if run and c.get("workflowName"):
+            groups.setdefault((run[0], c["workflowName"], run[1]), []).append((i, c))
+
+    def start(checks, started_only):
+        times = []
+        for _, c in checks:
+            stamp = str(c.get("startedAt") or "")
+            if (not stamp or stamp.startswith("0001-")) and not started_only:
+                stamp = _check_time(c)
+            when = _instant(stamp) if stamp and not stamp.startswith("0001-") else None
+            if when is None:
+                return None
+            times.append(when)
+        return min(times) if times else None
+
+    green = {k: v for k, v in groups.items() if all(
+        c.get("status") == "COMPLETED" and c.get("conclusion") in ("SUCCESS", "SKIPPED") for _, c in v)}
+    out = set()
+    for (repo, workflow, run_id), checks in groups.items():
+        cancels = [(i, c) for i, c in checks if c.get("status") == "COMPLETED" and c.get("conclusion") == "CANCELLED"]
+        began = start(checks, started_only=False) if cancels else None
+        if began is None:
+            continue
+        for i, c in cancels:
+            for (r2, w2, id2), later in green.items():
+                if (r2, w2) != (repo, workflow) or id2 <= run_id:
+                    continue
+                later_start = start(later, started_only=True)
+                if later_start is None or later_start < began:
+                    continue
+                if any(l.get("name") == c.get("name") and l.get("conclusion") == "SUCCESS" for _, l in later):
+                    out.add(i)
+                    break
+    return out
+
+
 def _monitoring_check_causes(pr: dict, required: list):
     """Each failing check-list condition of monitoring_not_ready, in its order. An unreadable or possibly
     truncated list ends the read; any other failure reads on, so the first yielded is the hook's cause."""
@@ -1340,6 +1410,7 @@ def _monitoring_check_causes(pr: dict, required: list):
         yield f"the PR reports {len(rollup)} checks, so the list may be truncated"
         return
     runs = []
+    superseded = superseded_cancels(rollup)
     for i, c in enumerate(rollup):
         if "state" in c and "status" not in c:  # a commit status context
             if not c.get("context"):
@@ -1354,19 +1425,18 @@ def _monitoring_check_causes(pr: dict, required: list):
             yield f"{c['name']} is still {str(c.get('status')).lower()}"
             continue
         stamp = _check_time(c)
-        when = None
-        if stamp:  # compared as instants, never as strings ("12:00:00Z" before "12:00:00.500Z")
-            m = re.fullmatch(r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,6})\d*)?Z", stamp)
-            if not m:
-                yield f"{c['name']} carries an unreadable time ({stamp[:30]}), so the order of its runs is unknown"
-                continue
-            when = datetime.datetime.strptime(m.group(1), "%Y-%m-%dT%H:%M:%S").replace(
-                microsecond=int((m.group(2) or "0").ljust(6, "0")))
+        when = _instant(stamp) if stamp else None
+        if stamp and when is None:
+            yield f"{c['name']} carries an unreadable time ({stamp[:30]}), so the order of its runs is unknown"
+            continue
+        if i in superseded:
+            continue
         runs.append(((c.get("workflowName") or "", c["name"]), "", when, i, c))
     for key, run, when, i, c in runs:
         # Any failed or cancelled check declines, even beside a later success of the same name: two jobs
-        # can share a display name in one run, so a success is no proof the failed job ran again. After a
-        # rerun, the PR waits for Simon's merge word.
+        # can share a display name in one run, so a success is no proof the failed job ran again. The one
+        # exception is a cancel superseded_cancels proves was replaced by a later, all-green run of the
+        # same workflow (dropped above). After any other rerun, the PR waits for Simon's merge word.
         verdict = c.get("conclusion")
         # Stricter than PASSED_CONCLUSIONS on purpose: a NEUTRAL check declines here too.
         if verdict not in ("SUCCESS", "SKIPPED"):
@@ -1508,15 +1578,17 @@ def monitoring_merge(payload: dict, command: str, words: list, collect: list = N
 
 # ---------------------------------------------------------------- the merge decision
 
-WINDOW = 20  # Simon's newest typed messages the check reads
 MERGING_FLAGS = {"--auto", "--admin", "--merge", "-m", "--squash", "-s", "--rebase", "-r", "--delete-branch", "-d",
                  "--subject", "-t", "--body", "-b", "--body-file", "-F", "--author-email", "-A", "--match-head-commit"}
 MERGE_VERB_RE = re.compile(r"\b(?:merg\w*|ship\w*|deploy\w*|land\w*|releas\w*|push\w*|enqueue\w*|go(?:es|ing)? live"
                            r"|roll(?:ing)? (?:it |them )?out)\b", re.I)
-HOLD_WORD_RE = re.compile(r"\b(?:stop|hold|wait|pause|cancel|halt|freeze|don'?t|dont|do not|never|not now|not yet"
-                          r"|revert|undo)\b", re.I)
-# A message opening with one of these holds every merge ("wait", "hold off on that", "not yet").
+# A short message (4 words at most) opening with one of these holds every merge ("wait", "pause for now").
 BARE_HOLD_RE = re.compile(r"^\W*(?:stop|hold|wait|pause|cancel|halt|freeze|not now|not yet)\b", re.I)
+# A hold aimed at merging: a hold word up to 3 words before a merge verb ("don't merge", "hold off on merging",
+# "wait before merging"), "hold off", or a dequeue. A verb inside a slash command ("/sk:ship-…") is not one.
+HOLD_MERGE_RE = re.compile(r"\b(?:don't|dont|do not|never|stop|hold|wait|pause|cancel|halt|freeze|not yet|not now)"
+                           r"(?:\s+\S+){0,3}?\s+(?:merg|ship|deploy|land|releas|enqueue)\w*|\bhold off\b"
+                           r"|\b(?:un-?|de-?)queue\w*", re.I)
 PR_REF_RE = re.compile(r"(?:#|\bprs?\s*#?\s*|\bpull requests?\s*#?\s*|/pulls?/)(\d+)\b", re.I)
 # Words in an order that point at PRs named elsewhere: in the same message, else in the hand-back it answers.
 REFERENT_RE = re.compile(r"\b(?:both|all|them|these|those|it|this|that|the prs|yes|ok(?:ay)?|go|do it)\b", re.I)
@@ -1537,7 +1609,7 @@ def _gives_order(sentence: str) -> bool:
     if sentence.rstrip().endswith("?") or QUESTION_RE.match(sentence):
         return False
     return any(not m.group(0).lower().endswith("ed") and not _negated_before(sentence, m.start())
-               and not re.search(r"\b(?:the|a|an|this|that|my|our|your|its)\W+$", sentence[:m.start()], re.I)
+               and not re.search(r"(?:\b(?:the|a|an|this|that|my|our|your|its)\W+|[/:-])$", sentence[:m.start()], re.I)
                for m in MERGE_VERB_RE.finditer(sentence))
 
 
@@ -1551,13 +1623,15 @@ def orders(text: str, number: str, asked: set) -> bool:
 
 
 def holds(text: str, number: str) -> bool:
-    """A typed message that holds merging #N: a bare hold, or a hold word beside a merge verb aimed at #N or
-    at no PR in particular ("don't merge anything yet")."""
+    """A typed message that holds merging #N, as narrow as the order rule: a short standalone hold ("wait",
+    "pause for now"), "hold #N", or a hold aimed at merging (HOLD_MERGE_RE) for #N or no PR in particular.
+    A hold word about other work ("doesn't stop till it works", "stop the bot posting alerts") never holds."""
     text = text.translate(APOSTROPHES)
-    if BARE_HOLD_RE.match(text):
+    n = number.lstrip("0") or "0"
+    if (BARE_HOLD_RE.match(text) and len(text.split()) <= 4) or re.search(
+            rf"\b(?:hold|pause|freeze|stop)\s+(?:off\s+)?(?:on\s+)?(?:pr\s*)?#?0*{n}(?!\d)", text, re.I):
         return True
-    return bool(HOLD_WORD_RE.search(text) and MERGE_VERB_RE.search(text)
-                and (names_pr(text, number) or not PR_REF_RE.search(text)))
+    return bool(HOLD_MERGE_RE.search(text) and (names_pr(text, number) or not PR_REF_RE.search(text)))
 
 
 def words_allow(number: str, window: list) -> tuple:
@@ -1639,7 +1713,8 @@ def merge_denial(payload: dict, margs: list, where, scan: Scan) -> str:
                 return (f"Blocked `gh pr merge {number}`: merges in this repository pin the PR's head; add "
                         f"--match-head-commit {head or '<full head sha>'} and rerun.{mline}")
         msgs, _ = typed_messages(str(payload.get("transcript_path") or ""))
-        allowed, cause = words_allow(number, msgs[-WINDOW:])
+        # Every typed message counts, however old: a merge word stands until a later message holds it.
+        allowed, cause = words_allow(number, msgs)
     except OutOfTime:
         allowed, cause = False, "the merge check ran out of time"
     except Exception as exc:
@@ -1827,7 +1902,7 @@ def explain(argv: list) -> int:
     print(f"verdict: {'MERGES AT THE BAR' if ok else 'DECLINES'}; failing checks: {len(collect)}")
     for cause in collect:
         print(f"- {cause}")
-    words, why = words_allow(number, typed_messages(a.transcript)[0][-WINDOW:]) if a.transcript else (False, "")
+    words, why = words_allow(number, typed_messages(a.transcript)[0]) if a.transcript else (False, "")
     if a.transcript:
         print(f"user's words: {'ALLOW' if words else 'DECLINE: ' + why}")
     return 0 if ok or words else 1

@@ -211,6 +211,15 @@ class SetupTests(IsolatedCachesMixin, unittest.TestCase):
         self.assertEqual(resolved['model_provider'], 'openai')
         self.assertEqual(resolved['agent_setup'], 'full-astra')
 
+    def test_judge_role_passes_provider_guard_only_when_read_only(self):
+        with patch.dict(os.environ, {'CLAUDECODE': '1', 'AGENT_ROLE': 'judge'}):
+            agent_setup.require_provider('openai', read_only=True)
+            with self.assertRaisesRegex(ValueError, 'no cross-provider worker or reviewer'):
+                agent_setup.require_provider('openai', read_only=False)
+        with patch.dict(os.environ, {'CLAUDECODE': '1'}):
+            with self.assertRaisesRegex(ValueError, 'no cross-provider worker or reviewer'):
+                agent_setup.require_provider('openai', read_only=True)
+
     def test_claude_orchestrator_records_itself_with_named_openai_workers(self):
         self.write_openai_cache([{'slug': 'gpt-6-astra', 'priority': 1},
                                  {'slug': 'gpt-5.6-sol', 'priority': 2},
