@@ -70,14 +70,14 @@ sent mid-run (text between tool calls is collapsed, so only the final message co
 heads and the end block follow the answers.
 
 ```
-Action needed: say merge for [PR #812](https://github.com/org/repo/pull/812)
+Action needed: type `merge #812` for [PR #812](https://github.com/org/repo/pull/812)
 - No: a returning buyer never restarts the quiz; Back now reopens checkout
 - You're right: anyone who reaches the paywall can pay; the extra gate is gone
 - [PR #812](https://github.com/org/repo/pull/812) is green and its preview serves the new build
 
-Your call
-1. Say merge for [PR #812](https://github.com/org/repo/pull/812)
-Merge list: [#812](https://github.com/org/repo/pull/812)
+PR status
+Needs your ok
+- [#812 Back reopens checkout](https://github.com/org/repo/pull/812): returning buyers skip the quiz. Type `merge #812`
 ```
 
 **DO end the final reply to a check ask** ("ensure everything works", "see if X happened", "is it ok")
@@ -486,6 +486,8 @@ on idle agent pings and monitor expiries).
 Send this session's impact on another session's work to that session (`rules/process.md` § Tell the
 live session your change affects), never onto Simon's action list.
 
+With several things waiting on Simon, line 1 reads `Action needed (2): <first>`.
+
 Things that wait on Simon: a test, a merge word, a decision, a login, a reply. Origin of the
 no-repeat TEST: 7 repeats of one block on idle notifications.
 
@@ -494,7 +496,7 @@ no-repeat TEST: 7 repeats of one block on idle notifications.
 Two assistant messages with no Simon message between never carry the same block; line 1 is
 `Action needed: …` or `No action needed`; a body naming a pending item on Simon ("say merge", "your
 retest", "your call", "after your") under `No action needed` fails; each pending ask is a numbered
-step; at most 5 one-line bullets and 5 steps of at most 20 words; a message for someone else has at
+step (a merge ask: its `Needs your ok` line, § PR status block); at most 5 one-line bullets and 5 steps of at most 20 words; a message for someone else has at
 most 5 lines, line 1 an ask or verdict; each `?`, "should we" or "correct me" in the prompt is
 answered above any status; a check ask's final reply ends with a `**Yay`/`**Nay` line; in a
 native-app repo each merge or deploy ask holds its app build line (§ App build line). Every `Action needed` item, follow-up and status bullet traces to this
@@ -533,14 +535,54 @@ Every PR, issue, ticket, Slack thread, CI run or doc a message to Simon mentions
 with its full URL, e.g. `[#123](https://github.com/org/repo/pull/123)`, in bullets, steps and the end
 block, on every mention. He cannot click a bare "#123" or "POI-123", so either one fails. Resolve the URL (`gh pr view
 --json url`, the ticket's own link) before sending; if none exists, say so in place of the id.
-A `Merge list:` line follows the same rule: `Merge list: [#812](https://github.com/org/repo/pull/812),
-[#813](https://github.com/org/repo/pull/813)`; `hooks/git-commit-guard.py` still reads each `#N` from the label.
+The PR status block follows the same rule (§ PR status block); `hooks/git-commit-guard.py` reads each
+`#N` of its `Needs your ok` group from the link label.
 TEST: grep the message for `#\d+` and ticket-id patterns outside a link; any hit fails (the fix for a
 status message that named six PRs and tickets as bare ids).
 Backstop: `hooks/bare-reference-guard.py` blocks Stop once when the final message holds a bare `#NN`,
 `owner/repo#N` or ticket key outside a link, code span or URL, and names the origin's link form
 (the fix for hand-backs ending on "Merge list: #1297, #1497" until Simon asked for the links).
 `python3 ~/.claude/hooks/bare-reference-guard.py --check <draft-file>` measures a draft; expect `ok`.
+
+## PR status block
+
+The pointer lives in `rules/communication.md` § Five rules. This section holds the rule, shape and TEST.
+
+**DO end every hand-back to Simon in a session that opened, pushed, reviewed or merged a PR with one
+`PR status` block: each such PR once, under its state, as a markdown link with its full URL and a
+short title.** Simon then never has to ask which PRs are merged, merging or waiting on him. Groups, in
+this order; omit an empty one:
+- `Merged`: merged this session; the short merge sha and whether the deploy was verified.
+- `Approved, merging`: Simon's merge word given, in the queue or waiting on CI; what it waits on.
+- `Needs your ok`: ready, green, landing gate PASS; what it does in one line, then the exact words to
+  type in a code span, `merge #N`.
+- `In progress`: being built or checked; what is running.
+- `Deferred / blocked`: the reason and the next date or step.
+
+```
+PR status
+Merged
+- [#1481 Upgrade wall logs its close](https://github.com/org/repo/pull/1481): 5b6c466, deploy verified
+Approved, merging
+- [#1495 Bot runs on the shared config](https://github.com/org/repo/pull/1495): in the merge queue
+Needs your ok
+- [#1498 Bare links keep punctuation outside](https://github.com/org/repo/pull/1498): cleaner alert links. Type `merge #1498`
+In progress
+- [#1500 Paywall copy](https://github.com/org/repo/pull/1500): e2e suite running on the pushed head
+Deferred / blocked
+- [#1444 Reader swap](https://github.com/org/repo/pull/1444): waits on the owner's cost review, 1 Dec
+```
+
+Put it after the issue bullets and the end block, as the message's last block (the archive line, when
+due, follows it). Line 1 `Action needed` names each `merge #N` the block asks for; the `Needs your ok`
+lines are those merge asks' numbered steps, so DON'T repeat them under `Your call`. Each PR takes one
+line of at most 20 words besides the URL; block lines do not count toward the 5-bullet cap. Group a
+PR by its state at send time (`gh pr view <N> --json state,mergeStateStatus,autoMergeRequest,url,title`),
+never from memory. It replaces the old `Merge list:` line: DON'T write one.
+TEST: every PR this session opened, pushed, reviewed or merged appears exactly once in the block, as a
+link; each `Needs your ok` line holds `merge #N`; the message holds no `Merge list:` line (the fix for a
+long session whose hand-backs mixed merged, queued and waiting PRs on one `Merge list:` line until
+Simon asked "which prs are approved and to be merged and which ones need my ok").
 
 ## Pasted example (moved from `rules/communication.md`)
 

@@ -201,10 +201,20 @@ G = "monitoring-only"
 PASS_C = f"bot-fix {C40} PASS standard {BAR}"
 BOT_MERGE = f"{M} 401 -R github.com/acme/bot --match-head-commit {C40} --squash"
 
-# A hand-back in the mandated Action-needed / Your-call shape, with no Merge list line (26 Nov evidence).
+# A hand-back in the mandated Action-needed / Your-call shape, with no PR status block (26 Nov evidence).
 ASK_HANDBACK = ("Action needed: reply \"merge #1487\". #1297 follows under the yes you already gave.\n\n"
                 "- **Should we merge both? Yes.** #1487 first, then #1297.\n\nYour call\n"
                 "1. Reply \"merge #1487\". I'll land #1487, then rebuild and land #1297.")
+
+# A hand-back ending on the PR status block (references/tldr-report-formats.md § PR status block).
+def STATUS(*ok, merged=(), progress=()):
+    url = "https://github.com/acme/web/pull/"
+    rows = ["PR status"]
+    rows += ["Merged"] + [f"- [#{n} Fix](https://github.com/acme/web/pull/{n}): abc1234, deploy verified" for n in merged] if merged else []
+    rows += ["Needs your ok"] + [f"- [#{n} Fix]({url}{n}): fixes it. Type `merge #{n}`" for n in ok] if ok else []
+    rows += ["In progress"] + [f"- [#{n} Fix]({url}{n}): e2e running" for n in progress] if progress else []
+    return "Action needed: type the merge words below\n- Done.\n\n" + "\n".join(rows)
+
 
 # (label, kwargs for run(), expect deny?, substring the reason must hold)
 NONE = "no message the user typed says merge"
@@ -276,8 +286,16 @@ CASES = [
      False, ""),
     ("FB reads pass", dict(command="gh pr view 12 --json mergeable && gh pr checks 12 && gh pr diff 12"),
      False, ""),
-    ("FB a merge list hand-back covers 'merge both'", dict(command=f"{M} 77 -R acme/web", turn=[
-        ("handback", "Merge list: #77, then #1186."), ("open", "merge both")]), False, ""),
+    ("FB a Needs-your-ok hand-back covers 'merge both'", dict(command=f"{M} 77 -R acme/web", turn=[
+        ("handback", STATUS(77, 1186)), ("open", "merge both")]), False, ""),
+    ("FB a Needs-your-ok hand-back covers 'merge both' (second PR)", dict(command=f"{M} 1186 -R acme/web", turn=[
+        ("handback", STATUS(77, 1186)), ("open", "merge both")]), False, ""),
+    ("HOLD 'merge it' never reaches an In progress PR", dict(command=f"{M} 1500 -R acme/web", turn=[
+        ("handback", STATUS(1498, merged=(1481,), progress=(1500,))), ("open", "merge it")]), True, NONE),
+    ("HOLD 'merge both' never reaches a Merged-group PR", dict(command=f"{M} 1481 -R acme/web", turn=[
+        ("handback", STATUS(1498, merged=(1481,), progress=(1500,))), ("open", "merge both")]), True, NONE),
+    ("FB 'merge it' reaches the Needs-your-ok PR beside other groups", dict(command=f"{M} 1498 -R acme/web", turn=[
+        ("handback", STATUS(1498, merged=(1481,), progress=(1500,))), ("open", "merge it")]), False, ""),
     ("FB an Action-needed merge ask covers 'merge both' (#1487)", dict(command=f"{M} 1487 -R acme/web", turn=[
         ("handback", ASK_HANDBACK), ("open", "merge both")]), False, ""),
     ("FB an Action-needed merge ask covers 'merge both' (#1297)", dict(command=f"{M} 1297 -R acme/web", turn=[
@@ -344,14 +362,14 @@ CASES = [
     ("HOLD a question after a merge-ask hand-back gives no order", dict(command=f"{M} 1487 -R acme/web", turn=[
         ("handback", ASK_HANDBACK), ("open", "what does 1487 do?")]), True, NONE),
     ("HOLD a statement about config is no referent order (#1479)", dict(command=f"{M} 1479 -R acme/web", turn=[
-        ("handback", "Merge list: #1479."), ("open", "it's crazy that you didn't turn it on fix that in config a "
+        ("handback", STATUS(1479)), ("open", "it's crazy that you didn't turn it on fix that in config a "
          "deploy/merge means merge and deploy anything that's required not leave it off")]), True, NONE),
     ("HOLD 'a merge should deploy' is a rule, not an order", dict(command=f"{M} 1479 -R acme/web", turn=[
-        ("handback", "Merge list: #1479."), ("open", "a merge should deploy everything it needs")]), True, NONE),
-    ("FB 'then merge if it's ok' answers a merge-list hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
-        ("handback", "Merge list: #1479."), ("open", "then merge if it's ok")]), False, ""),
-    ("FB 'ok do that and merge' answers a merge-list hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
-        ("handback", "Merge list: #1479."), ("open", "ok do that and merge")]), False, ""),
+        ("handback", STATUS(1479)), ("open", "a merge should deploy everything it needs")]), True, NONE),
+    ("FB 'then merge if it's ok' answers a Needs-your-ok hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", STATUS(1479)), ("open", "then merge if it's ok")]), False, ""),
+    ("FB 'ok do that and merge' answers a Needs-your-ok hand-back", dict(command=f"{M} 1479 -R acme/web", turn=[
+        ("handback", STATUS(1479)), ("open", "ok do that and merge")]), False, ""),
     ("FB 'merge once ready <PR url>' names the PR", dict(command=f"{M} 1512 -R acme/web", turn=[
         ("open", "merge once ready https://github.com/acme/web/pull/1512")]), False, ""),
     ("HOLD 'should we merge both' is a question", dict(command=f"{M} 1487 -R acme/web", turn=[

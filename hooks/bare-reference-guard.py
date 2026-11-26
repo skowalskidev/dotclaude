@@ -118,7 +118,8 @@ def reason(refs: list[str], base: str | None) -> str:
     return (f"Your final message names {listed} without a link ({RULE}). Simon cannot click a bare id. "
             f"Rewrite the message with every mention as a markdown link on every mention, e.g. {example}. "
             f"{source} A ticket key links to the ticket's own URL (its tracker or the PR body); if none exists, "
-            "say so in place of the id. Keep `Merge list:` as `Merge list: [#A](url), [#B](url)`. "
+            "say so in place of the id. In the PR status block, link each PR as `[#A short title](url)` and keep "
+            "`merge #A` in a code span. "
             "Change only the links, keep the rest of the message. This fires once per stop.")
 
 
