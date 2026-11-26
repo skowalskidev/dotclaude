@@ -286,9 +286,11 @@ specific irreversible merge.
 **The guard (`hooks/git-commit-guard.py`, rebuilt 26 Nov on Simon's "bare-bones, not a bottleneck"):**
 it judges only commands the shell runs, so text that names a merge (a note, a heredoc body, a PR body,
 a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and a GraphQL dequeue run.
-A merge passes on one deterministic rule over Simon's last 20 typed messages, no model call: the newest
+A merge passes on one deterministic rule over every message Simon typed in the session, no model call
+(a merge word stands however many messages later, until one holds it): the newest
 that orders it (a present-tense merge verb, not negated, not a question) names `#N`, or uses a referent
-("both", "it") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
+("both", "it") in an imperative aimed at it ("merge it", "yes merge", "then merge if it's ok"; never a
+sentence defining merging such as "a merge means deploy") while answering a hand-back that asked a merge word for `#N` on its `Merge list:`,
 `Action needed` line or an end-block numbered step, and no later message holds merges: a short
 standalone hold ("wait", "pause for now"), "hold #N", or a hold word just before a merge verb
 ("don't merge", "hold off on merging") or a dequeue; a hold word about other work never holds. Peer notes,
@@ -405,7 +407,9 @@ declares for its monitoring bot merges without his merge word once it meets the 
   A skipped check passes, as branch protection reads it (a path-filtered product job skips on a bot
   PR), but every `requiredChecks` entry must succeed.
   Any failed, cancelled or neutral check on the head declines, a rerun gone green included (two jobs can share a
-  name), so after a rerun the PR waits for Simon's merge word or a fresh push. A check outside
+  name), so after a rerun the PR waits for Simon's merge word or a fresh push. One exception: a cancel that a
+  later-created run of the same workflow on the head replaced, all green and running the same job name to
+  success (concurrency `cancel-in-progress` starts two runs and cancels the first), passes with no rerun. A check outside
   `requiredChecks` that turns red between the read and the merge is not seen; GitHub enforces the rest. **With a
   queue, stay with the PR until it merges:** the base can move while it waits; dequeue it
   (`gh api graphql` `dequeuePullRequest`) when Simon says to. Verify any deploy the
