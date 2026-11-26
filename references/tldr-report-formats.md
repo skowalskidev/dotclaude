@@ -181,6 +181,33 @@ as a long instruction from him.
 TEST: every message to someone else has at most 5 lines and 100 words, with an ask or verdict on line 1, or traces to a
 `.context/long-message-ok` quoting Simon's request for length.
 
+## Data table
+
+The pointer lives in `rules/communication.md` § Answer first. This section owns the shape of any table
+that goes to Slack, a chat or an email, and of any figures table shown to Simon.
+
+DO render a table sent to Slack, a chat or an email as a friendly table IMAGE, never a markdown table
+(Slack does not render one). Build it as HTML, screenshot it to PNG with headless Chrome for Testing
+(binary: `~/.claude/bin/test-browser.sh path`), and use the dataviz skill's palette and status rules.
+The image holds two tables:
+1. WHAT CHANGED: before and after per row, the changed cells highlighted, plus a text label ("Cut",
+   "Up", "Same") beside the highlight. Never color alone.
+2. THE EVIDENCE: the figures that justify the change, the deciding rows highlighted, the best value per
+   group in bold.
+Under them, one footer line: the date window, the source, and what is excluded (test devices, a
+named offer). Keep the width near 880 px so a phone shows it without zooming.
+DO view the rendered PNG yourself and fix clipping before use, then show Simon the image and the
+message text for preview before sending; the message text carries the ask on line 1 per § Message for
+someone else, and the image carries the numbers.
+
+DO keep ONE table per question. Name every money column by its source (card sales, a named offer,
+refunds), and give a buyer column for every source the revenue counts, plus an "All buyers" column
+drawn from the same sources as the revenue. Reconcile each row before sending: re-derive one revenue
+and one buyer cell by hand from the raw rows.
+TEST: no row shows 0 buyers with revenue above 0 unless a column names that revenue's source, and no
+rate column contradicts a count column in the same row (the fix for a readout whose "bought 0" row
+carried revenue from an offer the buyer column left out, which a reader caught twice).
+
 ## Automated message
 
 The rule and TEST live in `rules/copy-quality.md`. This section holds the shape for a message a bot,
