@@ -33,8 +33,9 @@ word and the whole queue is built.
    (`git diff <base>...HEAD`). When this run resumes the PR, the base moved since its last push, or a
    deploy landed in its area, re-verify it is still needed first, per `references/planning-and-tracking.md`
    § A pre-existing ticket is a claim about the past, and cut what the base now delivers.
-   PUSH the PR's own branch to origin so it is current — CI, the review,
-   and merge-readiness all read the pushed state. NEVER push, merge into, or otherwise write master.
+   PUSH the PR's own commits to origin so the branch is current — CI, the review,
+   and merge-readiness all read the pushed state. Syncing here never means merging the base: a BEHIND
+   branch stays behind until merge prep. NEVER push, merge into, or otherwise write master.
    Leave a draft PR in draft: `references/git-pr-deploy.md` § CI runs once, at merge prep.
    **DO classify each PR's tier here, per `references/testing-strategy.md` § Size the checks to the
    change, and run every stage below at that tier.** Deep runs every stage as written; a stage or
@@ -43,8 +44,9 @@ word and the whole queue is built.
    TEST: each PR's plan entry names its tier and trigger before stage 2 starts.
 1. **`/sk:plan-stable-persistent-dynamic-complete-full-plan`** — fold every ticket and criterion into
    the living plan; reconcile against it at stage 9.
-2. **`/sk:ship-check-merge-readiness`** — assemble onto CURRENT master; own this PR's scope, track the
-   rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
+2. **`/sk:ship-check-merge-readiness`** — trial-merge onto CURRENT master (nothing written) until merge
+   prep, then the one real base merge (`references/git-pr-deploy.md` § CI runs once, at merge prep); own
+   this PR's scope, track the rest. Defer automated verification to stage 6 after the whole authorized batch and review fixes converge.
 3. **`/sk:ship-review`** — over the whole diff, with stage 6's criterion judges in the same fan-out, both providers in parallel; fix ALL confirmed findings in one batch, then one delta pass (`references/research.md` § Judge cadence). Standard runs one round; Light skips it.
 4. **`/security-review`** (Claude Code built-in) — when the diff touches auth, tenant isolation, money, a
    dial or allowlist relaxation, or an injection surface. **DO run it from the orchestrator when the

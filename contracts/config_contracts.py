@@ -1487,6 +1487,9 @@ CONTRACTS: dict[str, dict] = {
             "A gap inside the PR's own scope is built in the PR while it is a draft. A ticket is for "
             "another owner's work, a step release order forces into a later release, or a deferral "
             "Simon stated, and each ticket names which.",
+            "Until merge prep it checks the assembly with a trial merge that writes nothing; the base is "
+            "merged into the branch once, at merge prep, or earlier only for a named conflict or a base "
+            "change the fix needs, never because the branch reads behind.",
             "Re-reads the project's working rules and deploy docs after every merge of the default "
             "branch that changed them, and re-checks the PR and its Deploy TLDR against the new rule.",
             "Runs safely one-per-branch when several execute at once: each touches only its own "

@@ -1,6 +1,6 @@
 ---
 name: ship-check-merge-readiness
-description: Check that a PR (and its stack + every open PR it needs/influences) will merge onto CURRENT master and work together as one assembled end state — rebase onto up-to-date master, close every in-scope gap so it lands harmoniously, and for anything owned by ANOTHER PR/person, keep it in that owner's scope (a ticket + a comment + an explicit BLOCKING line in this PR's Deploy TLDR) rather than doing it unilaterally. Use for "is this ready to merge", "make these land together with master", "check merge readiness", "assemble the open PRs", "is it ready to ship to prod as-is", or before flipping a stacked PR to ready.
+description: Check that a PR (and its stack + every open PR it needs/influences) will merge onto CURRENT master and work together as one assembled end state — trial-merge onto up-to-date master during review and merge it in once at merge prep, close every in-scope gap so it lands harmoniously, and for anything owned by ANOTHER PR/person, keep it in that owner's scope (a ticket + a comment + an explicit BLOCKING line in this PR's Deploy TLDR) rather than doing it unilaterally. Use for "is this ready to merge", "make these land together with master", "check merge readiness", "assemble the open PRs", "is it ready to ship to prod as-is", or before flipping a stacked PR to ready.
 ---
 
 # Check merge readiness — assemble onto current master, own only your scope
@@ -32,7 +32,18 @@ and flagged as blocking.**
   branch, and the same query showed a stored column rewritten by hand.) TEST: every value production
   holds in a column the PR branches on is named in the PR's code or its tests.
 
-## Step 2 — Draft the PR, then rebase onto up-to-date master, resolve for correctness
+## Step 2 — Draft the PR, trial-merge onto current master, merge it in once at merge prep
+
+- **DO check the assembly WITHOUT writing it during build, review and fix rounds:**
+  `git merge-tree --write-tree --name-only origin/<default> HEAD` (conflicts listed, nothing
+  committed), plus the migration-order and object checks below run against `origin/<default>`'s
+  migrations. Record the verdict (clean / conflicts in files X) in the plan and the PR's Deploy TLDR.
+  **DON'T merge or rebase the base into the branch because it moved or the PR reads BEHIND:** the one
+  real base merge happens at merge prep, per `references/git-pr-deploy.md` § CI runs once, at merge prep.
+  TEST: between two review rounds the branch gains no base-merge commit without a named conflict in a
+  file the PR changes or a base change the fix needs (the fix for a PR whose base was merged in seven
+  times in one day, each forcing a migration renumber and a rerun of every stage and CI while the PR's
+  own diff stood still).
 
 - **Draft it before you touch it.** The moment you start reshaping a PR — rebasing, editing the
   body, re-implementing onto master — convert it (and every PR in the stack you will touch) to
@@ -40,9 +51,10 @@ and flagged as blocking.**
   that unmistakable and stops a reviewer approving a half-updated diff. It goes back to ready only in
   Step 5, once the assembly holds and every blocking dependency is tracked. If it was already draft,
   leave it and note so.
-- Rebase the stack onto current master (`--update-refs` for a stack). Tag restore points first;
-  a half-finished rebase is the worst mid-state. When a later fix lands on a BASE branch, restacking
-  the branches above it is clean if the edits sit on different lines — verify the rebase kept BOTH
+- At merge prep (or for a named conflict or needed base change), merge current master into each
+  branch of the stack, bottom first; never rebase or force-push a pushed branch (`references/git-pr-deploy.md`
+  § Force-pushing a shared PR branch). Tag restore points first; a half-finished merge is the worst mid-state. When a later fix lands on a BASE branch, restacking
+  the branches above it is clean if the edits sit on different lines — verify the merge kept BOTH
   intents (the base fix and each upper branch's own changes).
 - Resolve every conflict for **behaviour**, not just to make it apply: when your change and a
   merged sibling touched the same function, keep BOTH intents (e.g. your guard + their assert),
