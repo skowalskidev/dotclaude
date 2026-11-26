@@ -2396,7 +2396,9 @@ CONTRACTS: dict[str, dict] = {
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
             "or uses a referent (both, it, them) while it names #N or answers a hand-back that asked a merge "
             "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "
-            "verb, and no later typed message holds merges. Anything else denies with one line ending "
+            "verb, and no later typed message holds merges (a standalone hold of at most 4 words, 'hold #N', a "
+            "hold word within 3 words before a merge verb, 'hold off' or a dequeue; a hold word about other "
+            "work never holds). Anything else denies with one line ending "
             "\"Say 'merge #N' to merge it\".",
             "Only the transcript's typed user turns and queued prompts count: system blocks, pasted fences "
             "and quote lines are stripped; peer envelopes, turns opening with another session's attribution, "
@@ -2459,7 +2461,8 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "PreToolUse: denies a command whose normal output is a credential value, unless the output is consumed.",
         "criteria": [
             "Denies only commands that print a value, each verified against the tool's own help or docs: "
-            "stripe config --list and listen --print-secret, gh auth token and status --show-token, "
+            "stripe config --list, listen --print-secret and any stripe listen whose stdout or stderr is "
+            "not redirected to a file (it prints the whsec_ signing secret on start), gh auth token and status --show-token, "
             "gcloud auth print-access-token and print-identity-token, aws configure export-credentials "
             "and get of a secret key or session token, firebase login:ci, security find-generic-password "
             "-w/-g and dump-keychain -d, op read and item get --reveal, a bare env/printenv dump.",

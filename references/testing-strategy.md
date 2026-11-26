@@ -777,6 +777,11 @@ account per key is normal, so equal vendor name proves nothing.
 not identity-checked.** A hash comparison against the wrong account's listener reports a healthy
 config as broken, and the "fix" then breaks delivery. Re-check any finding built on an unverified
 counterpart before reporting it.
+**DO start a listener that prints a credential on start with both streams in a file, and read that log
+redacted:** `stripe listen --forward-to <url> >"$LOG" 2>&1 &`, then
+`sed -E "s/whsec_[A-Za-z0-9]+/whsec_[redacted]/" "$LOG"`; hand the app its secret with
+`export STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret 2>/dev/null)"`. `hooks/secret-echo-guard.py`
+denies a `stripe listen` with visible output. TEST: no `whsec_` value appears in the transcript.
 **DO replay a missed event instead of re-running the action** (Stripe `events resend <evt>` reaches a
 running listener).
 

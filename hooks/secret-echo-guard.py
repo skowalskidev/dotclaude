@@ -11,6 +11,8 @@ the command word and subcommand decide the outcome. It does NOT block reading se
 
 WHAT IT DENIES (each entry verified against the tool's own help or docs; see the contract entry):
   stripe config --list | stripe listen --print-secret
+  stripe listen (any run): prints "Your webhook signing secret is whsec_..." on start, so both
+    stdout and stderr must go to a file; read that log redacted, never raw
   gh auth token | gh auth status --show-token/-t
   gcloud auth print-access-token / print-identity-token / application-default print-access-token
   aws configure export-credentials | aws configure get aws_secret_access_key / aws_session_token
@@ -42,6 +44,7 @@ import sys
 
 ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 REDIR_RE = re.compile(r"^(?P<fd>\d*|&)(?P<op>>>|>\||>&|>|<<<|<&|<)(?P<t>.*)$")
+REDIR_OP_RE = re.compile(r"(\d*|&)(>>|>\||>&|>|<<<|<&|<)")
 SECRETISH = re.compile(r"(?i)(key|token|secret|passw|credential|auth)")
 DYN = "\x00"  # placeholder for a command substitution inside a word
 
@@ -56,6 +59,11 @@ PRINTERS = {"cat", "tee", "head", "tail", "less", "more", "cut", "tr", "sed", "a
 # Commands that print their arguments: a value substituted into one is printed.
 ECHOERS = {"echo", "printf", "print"}
 FILTERS = {"grep", "egrep", "fgrep", "rg", "awk", "gawk", "sed", "cut"}
+STRIPE_SECRET_SAFE = 'export STRIPE_WEBHOOK_SECRET="$(stripe listen --print-secret 2>/dev/null)"'
+STRIPE_LISTEN_SAFE = ('stripe listen --forward-to <url> >"$LOG" 2>&1 & then read the log redacted: '
+                      'sed -E "s/whsec_[A-Za-z0-9]+/whsec_[redacted]/" "$LOG". Secret for the app: '
+                      + STRIPE_SECRET_SAFE + ". Note --print-secret > /dev/null is not it: nothing is "
+                      "captured")
 
 
 class Cmd:
@@ -138,6 +146,8 @@ def parse(text):
     while i < n:
         c = text[i]
         nxt = text[i + 1] if i + 1 < n else ""
+        if c in "'\"" and inword and not quoted and REDIR_OP_RE.fullmatch("".join(buf)):
+            end_word()  # >"$LOG": the operator stays an unquoted word, the quoted target follows
         if c in " \t":
             end_word()
         elif c == "\n":
@@ -331,7 +341,7 @@ def _ps_prints_arguments(args):
 
 def classify(words, env_bare):
     """Return (what, instead, stream, narrowing) when the command prints a credential, else None.
-    stream is 'stdout' or 'stderr' (security -g); narrowing marks env dumps, where a grep/cut that
+    stream is 'stdout', 'stderr' (security -g) or 'both' (stripe listen); narrowing marks env dumps, where a grep/cut that
     narrows the output to non-secret names counts as consumed."""
     if not words:
         if env_bare:
@@ -345,9 +355,10 @@ def classify(words, env_bare):
             return ("stripe config --list",
                     "grep -E '^\\[|display_name|account_id' ~/.config/stripe/config.toml", "stdout", False)
         if "listen" in pos and "--print-secret" in args:
-            return ("stripe listen --print-secret",
-                    "pass the secret to the process that needs it: STRIPE_WEBHOOK_SECRET=$(stripe listen "
-                    "--print-secret) your-command", "stdout", False)
+            return ("stripe listen --print-secret", STRIPE_SECRET_SAFE, "stdout", False)
+        if "listen" in pos and not ({"-h", "--help"} & set(args)):
+            # It prints the signing secret on start; which stream is not pinned, so hide both.
+            return ("stripe listen with visible output", STRIPE_LISTEN_SAFE, "both", False)
     elif cmd == "gh":
         if pos[:2] == ["auth", "token"]:
             return ("gh auth token", "GH_TOKEN=$(gh auth token) your-command, or just run gh, which "
@@ -420,7 +431,10 @@ def _redirect_hides(cmd, stream):
     visible = ("/dev/stdout", "/dev/stderr", "/dev/tty")
     merged = any(fd == "2" and op == ">&" and t == "1" for fd, op, t in cmd.redirs)
     if stream == "stderr" and not merged:
-        return any(fd == "2" and op in (">", ">>", ">|") and t not in visible for fd, op, t in cmd.redirs)
+        return any(t not in visible and ((fd == "2" and op in (">", ">>", ">|"))
+                                         or (fd == "&" and op in (">", ">>"))   # &>file
+                                         or (fd == "" and op == ">&" and not t.isdigit()))  # >&file
+                   for fd, op, t in cmd.redirs)
     for fd, op, t in cmd.redirs:
         if fd in ("", "1", "&") and op in (">", ">>", ">|") and t not in visible:
             return True
@@ -449,6 +463,9 @@ def echoed(cmds, idx, stream, narrowing, parent_echoed):
     """Does the output of cmds[idx] reach the transcript?"""
     if not parent_echoed:
         return False
+    if stream == "both":
+        return (echoed(cmds, idx, "stdout", narrowing, parent_echoed)
+                or echoed(cmds, idx, "stderr", narrowing, parent_echoed))
     first = cmds[idx]
     merged = any(fd == "2" and op == ">&" and t == "1" for fd, op, t in first.redirs)
     if stream == "stderr" and not merged:
