@@ -703,7 +703,7 @@ def check_runtime_asks_met_only_in_production() -> None:
     process = read("rules/process.md")
     ref = read("references/planning-and-tracking.md")
     skill = read("skills/sk/skills/ship-report-and-ensure-correct-user-system-journey/SKILL.md")
-    section = "Runtime asks are met in production"
+    section = "Runtime asks"
     check("§ " + section in process, "rules/process.md lost its pointer to the runtime-asks section.")
     check("a merge" in process.split("### Prove every point", 1)[-1].split("###", 1)[0],
           "rules/process.md § Prove every point no longer rejects a merge as proof.")

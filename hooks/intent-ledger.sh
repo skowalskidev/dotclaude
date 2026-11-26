@@ -1196,7 +1196,7 @@ stop)
   # Unreconciled work comes first: the turn is mid-task, so the after-run analysis waits for a
   # boundary and only the reconciliation below can block.
   if [ "$pending" != 1 ]; then
-    # Runtime asks (references/planning-and-tracking.md § Runtime asks are met in production): a
+    # Runtime asks (references/planning-and-tracking.md § Runtime asks): a
     # deployed system's clause is met only by a production run after its deploy. While the newest
     # reconcile still lists one as `runtime: open`, block once per ledger snapshot, also on a
     # stop_hook_active continuation (its own marker bounds it), so hand-back waits on the next run.
@@ -1209,7 +1209,7 @@ stop)
         [ -n "$ask_ts" ] && printf '%s\n' "$ask_ts" > "$STATE/$SID.reconblock" 2>/dev/null
         jq -cn --arg l "$ropen" --arg r "The newest reconciliation in $LEDGER lists runtime clauses still open:" \
           --arg t "A deployed system's runtime clause is met only by a production run that started after its \
-deploy (references/planning-and-tracking.md, Runtime asks are met in production). Before finishing: wait \
+deploy (references/planning-and-tracking.md, Runtime asks). Before finishing: wait \
 event-driven for the next deploy or scheduled run (gh run watch <id>, or a run_in_background wait with a \
 timeout; never a cron or a tight poll), read its output against each open clause, fix and deploy what \
 failed, then append a reconcile whose line for each clause reads runtime: observed <evidence link> or \

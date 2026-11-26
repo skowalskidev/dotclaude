@@ -211,7 +211,7 @@ Owned by `rules/communication.md` § Close the session. Detail:
   - an open PR or branch this session produced that still needs Simon's merge or deploy;
   - a promised follow-up: a deploy smoke, a reply to a reporter, or a decision awaiting his answer
     that blocks shipped value.
-  - a runtime clause still `open` on the live acceptance list (§ Runtime asks are met in production).
+  - a runtime clause still `open` on the live acceptance list (§ Runtime asks).
 - **Unresolved findings block the line too.** Before it, list every item the session found or created
   that is unresolved: a ticket it created or adopted not Done or Canceled, a defect it found and neither
   fixed nor ticketed, a residual risk or follow-up check it promised. One row each: link, status, one
@@ -401,7 +401,7 @@ TEST: at every hand-off each cell names the part the ask named and carries a see
 a walk on the current build that reached that target's last stage (the fix for an ask naming a new flow on two platforms, where the
 second kept its old final screens as a default and three hand-offs each failed at a later stage).
 
-## Runtime asks are met in production
+## Runtime asks
 
 Owned by `rules/process.md` § Prove every point. A runtime clause asks what a deployed system does when
 it runs on its own: a bot, a scheduled job, a pipeline, an alert, an agent (e.g. "it merges its own

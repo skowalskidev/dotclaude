@@ -306,7 +306,7 @@ it becomes a gap like any other. You cannot evidence a verdict through a test th
 
 Repeat until it comes back with nothing actionable. **An Awaiting production run row keeps the loop
 open across deploys and scheduled runs:** after each, re-check it from that run's output per
-§ Runtime asks are met in production, whose stop conditions apply to it. Four stop conditions that are
+§ Runtime asks, whose stop conditions apply to it. Four stop conditions that are
 not done:
 
 - **The same finding survives two consecutive rounds.** The loop is not converging. Stop, and say
