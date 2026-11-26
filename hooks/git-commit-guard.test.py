@@ -272,6 +272,20 @@ CASES = [
         ("open", "merge #1487 #1297")]), False, ""),
     ("FB 'merge #1487 #1297' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
         ("open", "merge #1487 #1297")]), False, ""),
+    ("FB his 13:05 'merge #1487 #1297' after a noun 'merge' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "i fixed the merge guard a million times it needs to be rewritten merge #1487 #1297")]), False, ""),
+    ("FB his 13:05 'merge #1487 #1297' after a noun 'merge' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "i fixed the merge guard a million times it needs to be rewritten merge #1487 #1297")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge #1487, #1297 and #1499' covers #1499", dict(command=f"{M} 1499 -R acme/web", turn=[
+        ("open", "merge #1487, #1297 and #1499")]), False, ""),
+    ("FB 'merge 1487 and 1297' covers #1487", dict(command=f"{M} 1487 -R acme/web", turn=[
+        ("open", "merge 1487 and 1297")]), False, ""),
+    ("FB 'merge 1487 and 1297' covers #1297", dict(command=f"{M} 1297 -R acme/web", turn=[
+        ("open", "merge 1487 and 1297")]), False, ""),
     ("FB an end-block merge step covers 'merge it'", dict(command=f"{M} 1490 -R acme/web", turn=[
         ("handback", "Action needed (2): read #1479's video\n\n- done\n\nYour call\n1. Read #1479's video.\n"
                      "2. Reply \"merge #1490\"."), ("open", "merge it")]), False, ""),
