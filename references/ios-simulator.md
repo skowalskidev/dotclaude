@@ -74,6 +74,12 @@ parallel-device experiment), after its task, by its own UDID. A project handover
 says "delete your simulator" yields to this section; apply it to one-off devices only. A runtime that
 `agent` cannot run (an OS upgrade removed it) is the one reason to create the next `agent` through
 the steps above and then delete the old one.
+DO name a device you create for a person `<purpose> for <name>` ("Pay flow for Simon"); every other
+device a session creates is deleted at that session's end. `bin/session-reaper.py` snapshots the
+devices at SessionStart and, once the session is learned from, deletes each shut-down device created
+since, except `agent`, a `for <name>` device and one local-capacity claims or leases. Per-slot devices a
+project script names after its stack slot, and devices named after a workspace, go once no live worktree
+maps to them (`/sk:meta-cleanup-worktrees` § Session artifact sweep).
 TEST: `xcrun simctl list devices` shows one `agent` before and after the task, its UDID unchanged
 across tasks; no task report shows a device created for a recipe step, and none shows `agent` deleted.
 

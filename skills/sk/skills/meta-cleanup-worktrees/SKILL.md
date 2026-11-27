@@ -1,6 +1,6 @@
 ---
 name: meta-cleanup-worktrees
-description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo. Remove only proven finished, clean, idle workspaces; preserve current/main checkouts. Retire a finished task-owned current local ref separately while preserving its workspace. Reuse existing cleanup authorization, list exact candidates and confirm only uncovered actions. For disk cleanup, measure the whole requested root and prune verified inactive generated caches without deleting source or branches. Block removal with another live session, uncommitted changes or unpreserved unique work; unmerged drafts require authorized reviewed retirement and recovery. Offer merged remote counterparts separately within remote-write authority, limited to owned branches. Use for "delete Conductor archives", "free disk space in Conductor", "clean up archived Conductor caches", "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "there are still many branches", "which sessions can I archive", or /sk:meta-cleanup-worktrees.
+description: Safely clean up DONE git worktrees, their Conductor folders, plan dashboards, and branches for this repo. Remove only proven finished, clean, idle workspaces; preserve current/main checkouts. Retire a finished task-owned current local ref separately while preserving its workspace. Reuse existing cleanup authorization, list exact candidates and confirm only uncovered actions. For disk cleanup, measure the whole requested root and prune verified inactive generated caches without deleting source or branches. Block removal with another live session, uncommitted changes or unpreserved unique work; unmerged drafts require authorized reviewed retirement and recovery. Sweep session artifacts (transcripts, session-env, config state, aliases, pid files, simulators, Docker) only after the session's learning record exists. Offer merged remote counterparts separately within remote-write authority, limited to owned branches. Use for "delete Conductor archives", "free disk space in Conductor", "clean up archived Conductor caches", "clean up Conductor folders", "clean up merged worktrees", "remove done worktrees and branches", "delete finished dashboards", "tidy up my worktrees", "delete merged branches", "there are still many branches", "which sessions can I archive", "clean up session files", "clean up session artifacts", "clean up leftovers", or /sk:meta-cleanup-worktrees.
 argument-hint: "[optional repo path; defaults to the current repo]"
 ---
 
@@ -361,6 +361,30 @@ ref counts never satisfy a disk-space request. TEST: every candidate has a verif
 the report accounts for the whole requested root, not just workspace listings. After archive deletion,
 re-evaluate remaining large categories within the original cleanup scope and report the next safe
 reclamation candidates or their blocking reasons.
+
+## Session artifact sweep (learn first)
+
+DO run it with every whole-machine or disk cleanup and for "clean up session files / artifacts /
+leftovers". Start with `python3 ~/.claude/bin/session-reaper.py sweep --repo <main checkout> --dry-run`:
+it applies the automatic classes' gates (ordinary worktrees anywhere `git worktree list` reports them,
+hidden, nested, `/tmp` and `.worktrees/` ones included; merged `worktree-agent-*` refs; empty
+`session-env` dirs; per-session config state; simulators a session created; Docker) and prints each
+verdict. Run the same command without `--dry-run` for the authorized scope, then handle the manual
+classes below. Every removal of a session's leftovers needs `python3 ~/.claude/bin/session_learning.py
+covered <sid>` first; an unlearned session is retained and counted, and `session_learning.py pending`
+lists them for the end-of-session learning (`references/session-performance.md` § End-of-session learning).
+Report removed, retained-unlearned and retained-other counts per class.
+
+| Class | Remove only when | Never |
+| --- | --- | --- |
+| `~/.claude/projects/<folder>` transcripts | recorded cwd is gone, newest file 7+ days old, no open file under it (one `lsof -nP` snapshot, never `+D`), every `<sid>.jsonl` in it covered | delete its `memory/` subfolder |
+| `~/.claude/session-env/<sid>` | empty, older than a day, session covered | delete a non-empty dir |
+| `.intent-ledger`, `.session-root`, `.session-intake` state | `session_learning.py prune-state` passes (age AND covered) | hand-delete by age alone |
+| Conductor alias symlinks in `~/conductor/workspaces/<project>/` | the target is absent; remove the link only (`rm <link>`, never a trailing slash) | follow or delete a target |
+| `*.pid` files in workspace roots | the PID is not running (`kill -0` fails) | signal the PID |
+| Per-slot simulators (`<Project> Local <slot>`) and ones named after a workspace | no live worktree maps to the slot or name, shut down, unclaimed, not `agent`, not `for <name>`; then `xcrun simctl delete unavailable` (Apple's standard; a permission error on a stale runtime is tolerated and reported) | delete `agent` or Xcode's default devices |
+| Docker | `bin/session-reaper.py` `docker_sweep` policy | `system prune -a --volumes`, a named volume of a live folder |
+| `~/conductor/archived/<uuid>/archive.tar.gz` | report count and `du -sk` total; delete only on an explicit "delete archives" ask | infer permission from archived status |
 
 ## The gotchas this skill must never trip
 

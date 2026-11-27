@@ -2222,6 +2222,8 @@ CONTRACTS: dict[str, dict] = {
             "Requires equivalent saved identity, merge and data-safety proof for orphan or interrupted-deletion directories; missing metadata or refs never waive the gate. Idleness and root membership alone never authorize deletion.",
             "Uses Conductor app archive requests naming exact workspaces/paths for managed local workspaces; never bypasses management with git removal, recursive deletion or database mutation. Keeps them pending until app action and disk verification finish.",
             "Uses non-forced git worktree remove for ordinary registered worktrees; requires proven abandoned status, full safety gates and exact-path extra confirmation before manually removing unregistered filesystem residue. Forces removal, with no question, only for a registered folder whose Conductor row is archived, whose tip is proven and which holds only deleted tracked files and generated output.",
+            "Matches a folder to its Conductor row by repo (join repos on project_id), workspace path or directory name AND checked-out branch, prefers a non-archived row and retains the folder on a tie or no match; never decides from the newest updated_at.",
+            "Runs a learn-first session artifact sweep through bin/session-reaper.py --dry-run, then the manual classes (transcripts with a gone cwd, idle 7 days, no open files, every session covered, memory/ kept; dangling alias links as links only; dead-PID files; per-slot and gone-workspace simulators plus simctl delete unavailable; Docker per the reaper's policy; archive tarballs reported, deleted only on an explicit ask), and reports retained-unlearned counts.",
             "Re-reads Conductor state for pending workspaces at each later message and sweep start, and deletes newly archived sessions' proven refs without being told.",
             "Relies on Conductor's git.archive_on_merge (set by agent_runtime install --conductor) for merged-PR workspaces and asks for manual archive only of workspaces with no PR or an earlier merge; never enables delete_branch_on_archive.",
             "Canonicalizes paths without following outside symlinks; removes only confirmed owned aliases after their target decision. Preserves main clones/shared state and, by default, unique archived materials/history; explicit archive deletion follows its separate scope.",
@@ -2946,8 +2948,34 @@ CONTRACTS: dict[str, dict] = {
             "An empty session id, or a directory outside git, is answered without writing a record.",
             "Strips a session id to letters, digits, dot, underscore and hyphen before using it as a "
             "file name.",
-            "Honors CLAUDE_SESSION_ROOT_DIR so tests never write the live records; prunes records "
-            "older than 14 days.",
+            "Honors CLAUDE_SESSION_ROOT_DIR so tests never write the live records; leaves pruning to "
+            "bin/session_learning.py prune-state (14 days AND learned).",
+        ],
+    },
+    "bin/session_learning.py": {
+        "mission": "No session's leftovers are cleaned before the config has learned from what Simon typed in it.",
+        "purpose": "Keeps one durable record per session that the end-of-session learning covers it, lists ended "
+                   "sessions still unlearned, and owns per-session config state pruning.",
+        "criteria": [
+            "Copies a ledger's learning-note coverage to state/session-learning/<sid>.json, because the ledger dies with its worktree; hooks/intent-ledger.sh calls it after every learning note.",
+            "Counts a session covered only by a record: done or skipped from a learning note, empty when its transcript holds no typed message (read through git-commit-guard.py's typed_messages), unrecoverable only for an empty-dir or marker caller when no transcript or ledger ask remains.",
+            "Ignores a learning heading pasted inside a fenced prompt; an ask after the newest learning note stays uncovered.",
+            "pending lists ended sessions with a transcript and no record, oldest first.",
+            "prune-state is the one owner of .intent-ledger (7 days, 30 for evidence markers), .session-root (14 days) and retired .session-intake pruning, and deletes a session's file only once it is covered; a non-session fixture name goes after a day.",
+            "Rejects a session id that is not a plain token before using it as a path.",
+        ],
+    },
+    "bin/session-reaper.py": {
+        "mission": "Finished sessions leave nothing behind on Simon's machine, and nothing he still needs is ever removed.",
+        "purpose": "SessionStart/SessionEnd safety net: one detached one-shot run removes gated leftovers of "
+                   "ended sessions, learn-first.",
+        "criteria": [
+            "Event-driven only: the hook returns at once and starts one detached run; no cron, daemon or LaunchAgent; the repo sweep runs at most hourly per repo under a lock, Docker at most every 6 h.",
+            "Removes an ordinary worktree only when its tip is merged into origin/<default> (or a detached HEAD is in a remote-tracking ref), it is clean, unlocked, idle 24 h, no process cwd is inside, nothing nests inside, every ignored path is a generated cache, an identical copy of the main checkout's file or a .context under 20 MB, and every session that worked in it is learned from; uses git worktree remove without --force and deletes only a re-proven merged non-default branch.",
+            "Never touches the main checkout, the session's own checkout, a Conductor-managed workspace (DB row or non-hidden child of a project folder) or a remote.",
+            "Deletes merged worktree-agent-* refs, empty session-env dirs of learned sessions, and simulators a session created once it is learned from, except agent, '<purpose> for <name>' devices, booted ones and ones local-capacity claims.",
+            "Owns the Docker cleanup policy: only with the daemon already up; unused anonymous volumes, build cache unused 7 days, unused images except the newest tag per Supabase stack repository, and per-worktree stack volumes whose folder is gone, no container references and whose folder's sessions are learned from; never system prune -a, never volume prune -a, never a forced image removal.",
+            "sweep --dry-run prints every verdict and changes nothing.",
         ],
     },
     "bin/session-root.test.sh": {

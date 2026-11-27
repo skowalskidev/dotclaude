@@ -708,6 +708,32 @@ state: shut it down and release it, never delete it, and ignore a project's "del
 handover (`references/ios-simulator.md` § One warmed agent device). TEST: re-entering the branch
 reuses its build; workspace teardown removes it, and `agent` survives it.
 
+**DO remove each scratch worktree you `git worktree add`, in the turn its job ends** (a base-vs-head
+comparison, a verify or fix of a PR head, a preview, a delegated worker's tree): `git worktree remove
+<path>` (never `--force`), then `git branch -D <branch>` once its tip passes `references/git-pr-deploy.md`
+§ Deleting a merged branch safely. Create it outside every other workspace's `.context`, so no folder you
+remove holds another session's tree. TEST: `git worktree list` at hand-back holds no path this task added
+(the fix for 21 merged, clean, idle scratch worktrees in hidden, nested and `/tmp` folders).
+
+**DO run a throwaway container with `--rm --name <task>-<purpose>` and stop it by that name;** remove a
+stopped one with `docker rm -v <name>`. Without `--rm`, an image that declares a `VOLUME` (`postgres`)
+leaves an anonymous data volume behind on every run. Stop a local stack with its own stop command
+(`supabase stop`) and keep its named volumes while its folder lives. TEST: `docker volume ls --filter
+dangling=true` gains nothing from the task (the fix for ten 6 GB anonymous Postgres volumes from runs
+without `--rm`).
+
+**The event-driven net is `bin/session-reaper.py`** (SessionStart and SessionEnd, one detached one-shot
+run; no cron, daemon or LaunchAgent). It removes only what the gates in its header pass: merged, clean,
+idle ordinary worktrees and their merged refs (never Conductor-managed), merged `worktree-agent-*` refs,
+empty `session-env` dirs, per-session config state, simulators a session created (`references/ios-simulator.md`
+§ One warmed agent device) and idle rebuildable Docker data. Its `docker_sweep` docstring is the one
+Docker cleanup policy: unused anonymous volumes, build cache unused 7 days, unused images except the
+newest tag per Supabase stack repository, and per-worktree stack volumes whose folder is gone; never
+`system prune -a --volumes`, so the next stack start downloads nothing. Every path is learn-first: it
+removes a session's leftovers only once `bin/session_learning.py covered <sid>` holds
+(`references/session-performance.md` § End-of-session learning). `sweep --repo <root> --dry-run` prints
+each verdict; its log is `~/.claude/state/session-reaper/log.jsonl`.
+
 
 **The RULE is owned by `~/.claude/rules/process.md` § "Clean up after yourself"**, which is always-on
 and so already loaded: track every process you start, stop it when its authorized lifecycle ends,

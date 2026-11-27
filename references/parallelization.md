@@ -682,7 +682,8 @@ DO give each independent deliverable (one PR each) its own worker in its own iso
 dispatched in parallel on the mid tier. The orchestrator edits no product code. After every hand-back
 it checks on disk: the branch head equals the reported sha, `git status` is clean, and
 `git diff <base>...<head>` touches only the owned files. Then it builds and captures the real screen
-itself with the committed harness.
+itself with the committed harness. It removes each worker's worktree and merged ref once that PR lands or is dropped
+(`references/dev-server-hygiene.md` § Track what you started).
 DO send fixes as one numbered round to the SAME worker, resumed with its context (Claude Code:
 `SendMessage` to its agent id). Each item cites `file:line` and states the expected result.
 DON'T start a fresh worker for a fix round: it re-reads everything and drops the decisions already made.

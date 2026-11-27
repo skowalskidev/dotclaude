@@ -219,9 +219,9 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
 - **Resolve the session-start orphan report before the task.** Apply the existing guarded
   `bin/kill-orphan-workers.sh` procedure in that reference; preserve active owners.
   TEST at hand-back: recorded owned PIDs/groups are stopped and their ports are free.
-- **Remove scratch scripts/files** a session created (evals, one-off helpers, temp data) once
-  used; keep intentional artifacts, branch build caches and the shared warmed `agent` simulator, which is
-  shut down and released, never deleted (`references/dev-server-hygiene.md`, `references/ios-simulator.md`).
+- **Remove scratch files and each worktree, container and simulator you made** (evals, temp data) once
+  used; keep intentional artifacts, build caches and the warmed `agent` simulator (released, never deleted).
+  `references/dev-server-hygiene.md` § Track what you started; the learn-first net is `bin/session-reaper.py`.
 - **DO close every branch and workspace created or adopted by this task before hand-back.** Record
   separate local-ref, remote-ref and workspace dispositions, branch-only refs included. Remote deletion
   alone never completes cleanup. Use `/sk:meta-cleanup-worktrees` and its task-owned ref-only closure;

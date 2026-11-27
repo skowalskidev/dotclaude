@@ -151,11 +151,11 @@ emit_once() {
   sweep_state
 }
 
-sweep_state() { # one cleanup for every path: a recorder-failure marker outlives the 7-day sweep (30 days),
-  # since it is the only evidence that the session history is incomplete; the once-per-session listing
-  # marker keeps 30 days too, so a resumed session does not list its PRs again
-  find "$STATE" -type f -mtime +7 ! -name '*.unrecorded' ! -name '*.monitoring-only-listed' -delete 2>/dev/null
-  find "$STATE" -type f \( -name '*.unrecorded' -o -name '*.monitoring-only-listed' \) -mtime +30 -delete 2>/dev/null
+sweep_state() { # one cleanup for every path, owned by bin/session_learning.py prune-state: a file goes once it
+  # is 7 days old (30 for the recorder-failure and once-per-session listing markers) AND an end-of-session
+  # learning record covers its session, so no session's state is cleaned before it was learned from
+  python3 "$CFG_ROOT/bin/session_learning.py" prune-state >/dev/null 2>&1
+  return 0
 }
 
 mark_unrecorded() { # a real prompt of a known session could not be read or recorded
@@ -961,6 +961,9 @@ note)
   { printf '\n## %s · %s\n\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$kind"; cat "$src"; printf '\n'; } \
     >> "$LEDGER"
   rm -f "$orig_src" "$snap"
+  # The learning note dies with the worktree; copy which sessions it covers to the durable record that
+  # every cleanup path gates on (bin/session_learning.py).
+  [ "$kind" = "learning" ] && python3 "$CFG_ROOT/bin/session_learning.py" record-ledger "$LEDGER" >/dev/null 2>&1
 
   # Cross-run ratchet. Counts and enums only, never prompt text — the retro log's posture, kept.
   # One recurring shortfall across runs is a config defect; one in a single run is not.

@@ -139,7 +139,7 @@ word and the whole queue is built.
    moves a stage's place and time, never whether it runs: `references/dev-server-hygiene.md`
    § Machine-wide capacity. Each Skill-tool run of a stage
    records a receipt for the HEAD of the checkout the work runs in, so run it from the PR's
-   checkout at that head. **A delegated subagent in its own worktree (e.g. `/tmp/<name>`) receipts every stage it runs on that
+   checkout at that head. **A delegated subagent in its own worktree (e.g. `/tmp/<name>`, removed when its job ends per `references/dev-server-hygiene.md` § Track what you started) receipts every stage it runs on that
    checkout; its brief carries the ship-worker receipt block from `references/parallelization.md` § Give every agent
    a precise, self-contained spec, verbatim**, and the gate then matches the receipt to the PR head. **When the session's own working directory is not the PR's checkout, a Skill-tool run records its receipt against the session cwd's HEAD and the gate reports every stage `Not run`: DO run `~/.claude/hooks/intent-ledger.sh receipt <stage> <checkout dir>` right after each such stage.** **DO record a receipt only right
    after invoking that stage with the Skill tool on that head; DO list a stage done by hand as `Not run:

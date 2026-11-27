@@ -63,7 +63,7 @@ if [ -z "$top" ]; then
 fi
 
 if [ -n "$sid" ]; then
-  mkdir -p "$DIR" 2>/dev/null && find "$DIR" -type f -mtime +14 -delete 2>/dev/null
+  # Pruning (14 days AND learned) is owned by bin/session_learning.py prune-state.
   mkdir -p "$DIR" 2>/dev/null && printf '%s\n' "$top" > "$DIR/$sid.tmp.$$" 2>/dev/null \
     && mv "$DIR/$sid.tmp.$$" "$DIR/$sid" 2>/dev/null
 fi

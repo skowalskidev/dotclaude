@@ -243,6 +243,8 @@ SCENARIOS: list[dict] = [
     {"phrase": "delete merged branches", "expect": "meta-cleanup-worktrees"},
     {"phrase": "there are still many branches", "expect": "meta-cleanup-worktrees"},
     {"phrase": "which sessions can I archive", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "clean up session files", "expect": "meta-cleanup-worktrees"},
+    {"phrase": "clean up session leftovers", "expect": "meta-cleanup-worktrees"},
     {"phrase": "make the best decision", "expect": "meta-dotclaude-copilot-make-best-decision"},
     {"phrase": "research best practice and verify with prod data", "expect": "meta-dotclaude-copilot-make-best-decision"},
     {"phrase": "do I need to take action on these", "expect": "meta-dotclaude-copilot-make-best-decision"},
@@ -520,7 +522,7 @@ HOOK_ROUTING: list[dict] = [
     # contains "Skill" must not fire it.
     {"event": "PostToolUse", "tool": "Skill", "expect": ["intent-ledger.sh"]},
     {"event": "PostToolUse", "tool": "mcp__x__SkillSearch", "expect": []},
-    {"event": "SessionEnd", "tool": None, "expect": ["retro-trigger-log.sh", "config-metrics-log.sh"]},
+    {"event": "SessionEnd", "tool": None, "expect": ["retro-trigger-log.sh", "config-metrics-log.sh", "session-reaper.py"]},
     # Matcher-less like SessionStart, so every UserPromptSubmit hook fires on every prompt.
     {"event": "UserPromptSubmit", "tool": None,
      "expect": ["task-intake.sh", "intent-ledger.sh"]},
@@ -531,5 +533,5 @@ HOOK_ROUTING: list[dict] = [
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,
      "expect": ["agent_runtime.py", "config-status.sh", "session-connectors.sh", "orphan-worker-sweep.sh",
-                "port-registry-sweep.sh", "session-identity.sh", "worktree-freshness.sh"]},
+                "port-registry-sweep.sh", "session-identity.sh", "worktree-freshness.sh", "session-reaper.py"]},
 ]

@@ -238,6 +238,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/session-reaper.py hook",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionEnd": [
@@ -255,6 +264,15 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/config-metrics-log.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/session-reaper.py hook",
             "timeout": 10
           }
         ]

@@ -226,6 +226,10 @@ CRITERIA: list[tuple[str, str]] = [
      "looking."),
 
     # --- Shared machine and one record per session --------------------------------------
+    ("session-cleanup-learns-first",
+     "Finished sessions clean up after themselves, learn-first: SessionStart and SessionEnd start bin/session-reaper.py, "
+     "which removes only gated, merged, idle leftovers (never a Conductor workspace, a remote or --force) and only "
+     "once bin/session_learning.py records that the session was learned from."),
     ("session-keeps-one-root-in-nested-worktrees",
      "A session keeps ONE plan and ONE ledger however its shell moves. The record is keyed by session "
      "id and anchored where the session started: both hooks, the merge guard's ledger lookup and the "
@@ -1030,6 +1034,25 @@ def check_intake_reuses_mid_run_plan() -> None:
     check(len(list((root / ".context").glob("*-plan.md"))) == 1 and
           "Retain the unfinished original request." in plan.read_text(), "Mid-run intake replaced the active work.")
     check(not (INTAKE_TEST_DIR / "contract-midrun.approved").exists(), "Intake still creates approval state.")
+
+
+def check_session_cleanup_learns_first() -> None:
+    result = run(["/usr/bin/python3", str(ROOT / "bin" / "session-reaper.test.py")], timeout=max(300, RUN_TIMEOUT_S))
+    check(result.returncode == 0, "bin/session-reaper.test.py failed:\n" + result.stdout[-3000:] + result.stderr[-2000:])
+    settings = json.loads((ROOT / "settings.json").read_text())
+    for event in ("SessionStart", "SessionEnd"):
+        cmds = [h.get("command", "") for g in settings["hooks"].get(event, []) for h in g.get("hooks", [])]
+        check(any(c.endswith("bin/session-reaper.py hook") for c in cmds), f"{event} does not start bin/session-reaper.py hook")
+    for script in ("session-reaper.py", "session_learning.py"):
+        check(os.access(ROOT / "bin" / script, os.X_OK), f"bin/{script} must stay executable")
+    ledger = (ROOT / "hooks" / "intent-ledger.sh").read_text()
+    check("session_learning.py\" record-ledger" in ledger and "session_learning.py\" prune-state" in ledger
+          and "-mtime +7" not in ledger, "intent-ledger.sh no longer records learning coverage or prunes by age alone")
+    check("-mtime +14" not in (ROOT / "bin" / "session-root.sh").read_text(),
+          "session-root.sh prunes records by age alone again")
+    reaper = (ROOT / "bin" / "session-reaper.py").read_text()
+    check('"--force"' not in reaper and '"system"' not in reaper and '"volume", "prune", "-f", timeout' in reaper
+          and '"image", "rm", ref,' in reaper, "The reaper gained a forced, all-volume or whole-system removal")
 
 
 def check_session_keeps_one_root_in_nested_worktrees() -> None:

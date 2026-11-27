@@ -34,6 +34,18 @@ On go, invoke `/sk:claude-config-self-optimize-analysis-after-run`, which runs t
    (<count> learnings, <sha>)`, then give the archive line.
 
 On skip, record `session learning: skipped` and give the archive line.
+
+**Learn before anything is cleaned.** `note learning` copies its coverage to
+`~/.claude/state/session-learning/<sid>.json` through `bin/session_learning.py record-ledger`, because the
+ledger dies with its worktree. Every cleanup path (`bin/session-reaper.py`, the `/sk:meta-cleanup-worktrees`
+artifact sweep, the intent-ledger and session-root state pruning) removes a session's transcript, state,
+`.context` or `session-env` only once that record exists; a session whose transcript holds no typed
+message records `empty` on its own.
+DO drain ended sessions with no record in the same go: `python3 ~/.claude/bin/session_learning.py pending
+--limit 10` lists them oldest first. Run steps 1-3 over each one's transcript, then
+`session_learning.py record <sid> --verdict done --source "<sha or no change>"`. Report the count still
+pending. TEST: no cleanup removes a session's leftovers without a record, and `pending` shrinks by the
+sessions this go learned from.
 TEST: every message Simon typed this session has a learning line or a `no change` / `one-off`
 verdict; the archive line follows the learning note.
 
