@@ -214,8 +214,10 @@ Owned by `rules/communication.md` § Close the session. Detail:
   <scratch.md>` holding `session learning: done` or `session learning: skipped`, then give the archive
   line. The note is refused unless an ask since the previous learning note is a bare go or skip, and
   the Stop hook blocks an archive line while this session has asks no learning note covers (once per
-  ledger snapshot). A message Simon sends after the learning re-arms it: the next archive line needs
-  another go or skip. The learning ask joins the other open asks in the end block; it never replaces
+  ledger snapshot). **His go stands for the rest of the session:** after a `done` note, run the learning
+  over his newer messages unasked before the archive line (the Stop hook says so), and ask again only
+  after a `skip` note. TEST: a session with one go never shows a second learning ask (the fix for a
+  go followed by a second learning ask over the messages sent after it). The learning ask joins the other open asks in the end block; it never replaces
   the PR status block or a blocker.
 - **Finished** means every ask in the ledger/plan has a verdict, no agent, watcher or process of this
   session is running, no lease or port is held, the worktree is clean and pushed, and the session holds

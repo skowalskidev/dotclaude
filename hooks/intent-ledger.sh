@@ -44,7 +44,8 @@
 #                                 A learning note records the end-of-session config learning: its body
 #                                 holds "session learning: done" or "session learning: skipped", and it
 #                                 is refused unless an ask since the previous learning note is Simon's
-#                                 bare "go" or "skip" (or names the session/config learning)
+#                                 bare "go" or "skip" (or names the session/config learning), or the
+#                                 previous learning note said done: his go stands until a skip
 #         learning-count          read-only, run from the session's shell like note — print N, this
 #                                 session's asks since its last learning note: the N in the hand-back's ask
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
@@ -385,14 +386,16 @@ FENCE_AWK='
         if (!fence) { fence=width; delimiter=mark; next }
         if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }'
 
-# learning_state — "<last learning ts>\t<N>\t<go>" for LEDGER: N counts this session's asks after the
+# learning_state — "<last learning ts>\t<N>\t<go>\t<stand>" for LEDGER: N counts this session's asks after the
 # newest learning note (every session's when the id is unknown); go is 1 when an ask after it (any
 # session) is Simon's bare go or skip ("go", "go ahead", "ok go", "skip") once harness blocks are
 # stripped, as the whole ask or as one line of it (a numbered reply opening with "go"), or names the
 # session or config learning. A longer "go ahead and merge" never counts, whole or as a line.
+# stand is 1 while the newest learning note says "session learning: done": Simon's go stands for the
+# rest of the session, so later asks are learned without asking again; a skip note ends it.
 # Records are parsed with their fences, so a heading pasted inside a prompt is never a boundary.
 learning_state() {
-  [ -f "$LEDGER" ] || { printf '\t0\t0\n'; return; }
+  [ -f "$LEDGER" ] || { printf '\t0\t0\t0\n'; return; }
   awk -v sid="$SID" '
     function word(t) { t = tolower(t); gsub(/[[:space:]]+/, " ", t); sub(/^ /, "", t); sub(/ $/, "", t)
       return (t ~ /^((yes|ok|okay)[ ,]+)?(go|go ahead|skip)[.! ]*$/ || index(t, "session learning") ||
@@ -405,11 +408,13 @@ learning_state() {
       if (skip && $0 ~ /<\/(system-reminder|system_instruction|task-notification)>/) skip = 0
       next }
     /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · (ask|peer) · session / {
-      inrec = 1; fence = ""; isask = (index($0, " · ask · session ") > 0)
+      inlearn = 0; inrec = 1; fence = ""; isask = (index($0, " · ask · session ") > 0)
       if (isask && (sid == "unknown" || substr($0, length($0) - length(sid) + 1) == sid)) n++
       next }
-    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · learning$/ { lts = $2; n = 0; go = 0; next }
-    END { printf "%s\t%d\t%d\n", lts, n, go }
+    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · learning$/ { lts = $2; n = 0; go = 0; stand = 0; inlearn = 1; next }
+    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · / { inlearn = 0; next }
+    inlearn && index($0, "session learning: done") { stand = 1 }
+    END { printf "%s\t%d\t%d\t%d\n", lts, n, go, stand }
   ' "$LEDGER"
 }
 
@@ -893,7 +898,8 @@ the work runs in (a subagent's: the one its last Bash cd'd into).
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
 every added requirement, preserve unfinished items and the return point, then refresh the dashboard. \
 Keep config learning for the session's end: after all task work is verified, ask Simon to say go for \
-the end-of-session config learning (references/session-performance.md section End-of-session learning); \
+the end-of-session config learning (references/session-performance.md section End-of-session learning), \
+or run it unasked once his go stands this session (intent-ledger.sh learning-count); \
 fix a config defect now only when it blocks the current task. An answer or status question does not cancel \
 older work. Recording an ask does not grant approval." \
     '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
@@ -952,7 +958,7 @@ note)
       echo "note: refusing: a learning note holds \"session learning: done\" or \"session learning: skipped\"." >&2
       rm -f "$snap"; exit 2
     fi
-    if [ "$(learning_state | cut -f3)" != 1 ]; then
+    if [ "$(learning_state | cut -f3)" != 1 ] && [ "$(learning_state | cut -f4)" != 1 ]; then
       echo "note: refusing: no ask since the last learning note says go or skip. Ask Simon: \"Action needed: say go to run the end-of-session config learning over your N messages in this session\"." >&2
       rm -f "$snap"; exit 2
     fi
@@ -1317,6 +1323,14 @@ This fires at most once per ledger snapshot." \
     lsnap="$(cksum < "$LEDGER")"
     [ "$(cat "$STATE/$SID.learngate" 2>/dev/null)" = "$lsnap" ] && exit 0
     printf '%s\n' "$lsnap" > "$STATE/$SID.learngate" 2>/dev/null || exit 0
+    if [ "$(printf '%s' "$lstate" | cut -f4)" = 1 ]; then
+      jq -cn --arg r "Simon's go for the end-of-session config learning stands for this session: run \
+references/session-performance.md section End-of-session learning over his $n newer messages now, without \
+asking him again, record ~/.claude/hooks/intent-ledger.sh note learning <scratch.md> holding \
+\"session learning: done\", then give the archive line. This fires at most once per ledger snapshot." \
+        '{decision:"block",reason:$r}'
+      exit 0
+    fi
     jq -cn --arg r "The archive line waits for the end-of-session config learning: $n of Simon's \
 messages in this session have no learning note. Replace the archive line with line 1 \
 \"Action needed: say go to run the end-of-session config learning over your $n messages in this session\" \
@@ -1341,7 +1355,7 @@ and point of the prompt that started this work, in its order, before any status 
 Answer first). When the session opened, pushed, reviewed or merged a PR, the final message's last block is \
 the PR status block (references/tldr-report-formats.md § PR status block: each PR linked once under Merged, \
 Approved, merging, Needs your ok, In progress or Deferred / blocked). When nothing is left, end the final message with \
-the end-of-session learning ask from rules/communication.md Close the session, and the archive line only \
+the end-of-session learning ask from rules/communication.md Close the session (or run it when his go already stands), and the archive line only \
 once a learning note covers this session's messages; with CI running, a session PR awaiting Simon's merge or a \
 promised smoke or reply open, end with the PR status block and no archive line. When this turn began from a background \
 notification or this hook and brings no new outcome, decision or ask, write nothing or one line naming \

@@ -30,9 +30,9 @@ TEST: `references/tldr-report-formats.md` § Answer-first TEST.
 
 ## Close the session: finish it, learn from it, say it can be archived
 
-**DO finish everything the ask needs yourself, checks included; once delivered and verified, line 1 is
+**DO finish everything the ask needs yourself, checks included; once verified, line 1 is
 `Action needed: say go to run the end-of-session config learning over your N messages in this session`.
-After go (run it) or skip, end with one line: "You can archive this session: everything here is done."**
+His go stands for the session: learn later asks unasked. After go or skip, end with one line: "You can archive this session: everything here is done."**
 N, the Stop-hook gate and detail: `references/planning-and-tracking.md` § Close the session.
 **DO offer a follow-up ONLY to change a decision or fix an evidenced problem** (at most 2).
 **DO list each unresolved item before the line**, fields per the Close-session TEST below.

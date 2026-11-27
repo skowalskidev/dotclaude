@@ -97,7 +97,8 @@ CRITERIA: list[tuple[str, str]] = [
     ("session-learning-gates-archive-line",
      "Stop never blocks a work turn for an after-run analysis; it blocks an archive line once per ledger "
      "snapshot while this session has asks no learning note covers, a learning note needs Simon's go "
-     "or skip ask after the previous one, and learning-count prints N."),
+     "or skip ask after the previous one unless that one said done (his go stands until a skip), and "
+     "learning-count prints N."),
     ("intent-ledger-retains-and-rechecks-new-asks",
      "Full requests survive capture and every later ask or pivot requires fresh reconciliation, without a stop loop."),
     ("ship-gate-blocks-unproven-pushed-branches",
@@ -695,7 +696,15 @@ def check_session_learning_gates_archive_line() -> None:
         time.sleep(1.1)
         invoke("submit", "one more tweak to the header")
         check(note("reconcile", "Done.").returncode == 0, "reconcile note failed")
-        check(learning_block(invoke("stop", last=archive)), "A new ask after the learning did not re-arm the gate.")
+        rearmed = invoke("stop", last=archive)
+        check(learning_block(rearmed), "A new ask after the learning did not re-arm the gate.")
+        check("stands" in rearmed and "Action needed: say go" not in rearmed,
+              "After a done learning note the gate asked Simon for another go instead of running it.")
+        check(note("learning", "session learning: done (1 learning)").returncode == 0,
+              "A learning note after a standing go was refused (the fix for a second go ask in one session).")
+        time.sleep(1.1)
+        invoke("submit", "and the footer")
+        check(note("reconcile", "Done.").returncode == 0, "reconcile note failed")
         time.sleep(1.1)
         invoke("submit", "skip")
         check(note("reconcile", "Skipped.").returncode == 0, "reconcile note failed")
