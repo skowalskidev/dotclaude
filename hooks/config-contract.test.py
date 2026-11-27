@@ -1152,7 +1152,7 @@ def check_session_keeps_one_root_in_nested_worktrees() -> None:
         submit(repo, "First ask, sent from the session root.")
         submit(nested, "Second ask, sent while the shell sits in the nested worktree.")
         scratch = base / "note.md"
-        scratch.write_text("Both asks reconciled.")
+        scratch.write_text("- first ask: done, verified\n- second ask: done, verified\n")
         r = subprocess.run(["bash", str(hook), "note", "reconcile", str(scratch)],
                            text=True, capture_output=True, cwd=nested, env=env)
         check(r.returncode == 0, "Ledger note from the nested worktree failed: " + r.stderr)
@@ -1160,7 +1160,7 @@ def check_session_keeps_one_root_in_nested_worktrees() -> None:
         text = ledger.read_text() if ledger.exists() else ""
         check("First ask" in text and "Second ask" in text,
               "An ask sent from a nested worktree did not reach the session's own ledger.")
-        check("Both asks reconciled." in text,
+        check("second ask: done, verified" in text,
               "A note written from a nested worktree did not reach the session's own ledger.")
         check(not (nested / ".context").exists(),
               "The ledger hook opened a second record inside the nested worktree.")
