@@ -930,6 +930,17 @@ print(json.dumps({'args': sys.argv[1:], 'home': os.environ['CODEX_HOME'],
                 self.assertIn('Current chat provider is anthropic', result.stderr)
         self.assertFalse(self.calls.exists())
 
+    def test_claude_chat_read_only_judge_reaches_codex(self):
+        # The fix for a judge allowed by require_provider whose Codex child inherited CLAUDECODE=1 and
+        # failed with "Conflicting native provider signals".
+        shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
+        shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
+        self.env.update(CLAUDECODE='1', AGENT_ROLE='judge')
+        result = self.astra_command('-p', 'judge this', '--sandbox', 'read-only')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        call = json.loads(self.calls.read_text())
+        self.assertIn('read-only', call['args'])
+
     def test_claude_chat_can_use_codex_metadata_without_inference(self):
         shutil.copy2(SOURCE / 'agent_runtime.py', self.bin / 'agent_runtime.py')
         shutil.copy2(SOURCE / 'connector_registry.py', self.bin / 'connector_registry.py')
