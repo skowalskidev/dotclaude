@@ -388,6 +388,12 @@ is clean; a third full run needs a stated new cause.
   at the gate is `deliberately dropped` with who decided and when, not an omission. Append the result
   with `~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>`.
 - Report what changed: the target file, the section(s), and a one-line summary of each learning folded in.
+- **DO hand back a NEW capability (a connector, skill, hook or engine feature) with a before/after
+  journey table, unprompted:** one row per step Simon or the agent takes, Before and After columns,
+  then the proof run. **DO put a design adopted from outside practice before `references/research.md`
+  § Independent judges (one Claude, one Codex, raw docs, no conclusion) before it lands**, and list
+  each judge's position. TEST: neither a journey nor a best-practice check is something Simon has to
+  ask for after the hand-back (the fix for a connector design handed back without either).
 - **Pickup timing:** edits to an existing SKILL.md are picked up live (active now); a brand-new skill FOLDER
   needs a Claude Code restart. A **CLAUDE.md** is loaded at session start, so its edit applies to the NEXT
   session (or on re-read) — say so rather than implying it's live this turn. For a **committed project
