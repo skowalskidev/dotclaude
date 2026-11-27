@@ -77,7 +77,7 @@ class Repo:
         (self.config / "dotfiles").mkdir()
         (self.config / "dotfiles" / "secret-scan.sh").write_text("exit 0\n")
         git(self.config, "add", "-A")
-        git(self.config, "commit", "-q", "-m", "chore: seed")
+        git(self.config, "commit", "-q", "-m", "chore: seed", "-m", "KPI: speed =, quality = (fixture)")
         git(self.config, "remote", "add", "origin", str(self.origin))
         git(self.config, "push", "-q", "origin", "main")
         self.lock = Path(git(self.config, "rev-parse", "--path-format=absolute", "--git-common-dir")) / mod.LOCK
@@ -93,7 +93,7 @@ class Repo:
         git(self.config, "worktree", "add", "-q", "-b", f"config-update/{name}", str(path), "origin/main")
         (path / filename).write_text(f"{name}\n")
         git(path, "add", filename)
-        git(path, "commit", "-q", "-m", f"fix({name}): add {filename}")
+        git(path, "commit", "-q", "-m", f"fix({name}): add {filename}", "-m", "KPI: speed =, quality = (fixture)")
         return path
 
     def run(self, root, *extra, **env):
@@ -213,7 +213,7 @@ def test_main_change_to_the_reviewed_lines_needs_a_new_review():
         a, b = repo.worktree("epsilon", "same.txt"), repo.worktree("zeta", "other.txt")
         (b / "same.txt").write_text("main side\n")
         git(b, "add", "same.txt")
-        git(b, "commit", "-q", "-m", "fix(zeta): touch the same file")
+        git(b, "commit", "-q", "-m", "fix(zeta): touch the same file", "-m", "KPI: speed =, quality = (fixture)")
         check(repo.run(b, "--reviewed", repo.digest(b)).returncode == 0, "overlap: setup landing failed")
         digest, before = repo.digest(a), repo.origin_main()
         result = repo.run(a, "--reviewed", digest)
@@ -228,14 +228,14 @@ def test_main_change_elsewhere_in_a_touched_file_keeps_the_review():
         repo = Repo(tmp)
         seed = repo.worktree("eta", "shared.txt")
         (seed / "shared.txt").write_text("".join(f"line {i}\n" for i in range(40)))
-        git(seed, "commit", "-q", "-am", "fix(eta): seed shared lines")
+        git(seed, "commit", "-q", "-am", "fix(eta): seed shared lines", "-m", "KPI: speed =, quality = (fixture)")
         check(repo.run(seed, "--reviewed", repo.digest(seed)).returncode == 0, "elsewhere: seed landing failed")
         mine, theirs = repo.worktree("theta", "t.txt"), repo.worktree("iota", "i.txt")
         for wt, index, text in ((mine, 2, "mine"), (theirs, 35, "theirs")):
             lines = (wt / "shared.txt").read_text().splitlines(keepends=True)
             lines[index] = f"{text}\n"
             (wt / "shared.txt").write_text("".join(lines))
-            git(wt, "commit", "-q", "-am", f"fix({text}): edit one shared line")
+            git(wt, "commit", "-q", "-am", f"fix({text}): edit one shared line", "-m", "KPI: speed =, quality = (fixture)")
         digest = repo.digest(mine)
         check(repo.run(theirs, "--reviewed", repo.digest(theirs)).returncode == 0, "elsewhere: setup landing failed")
         result = repo.run(mine, "--reviewed", digest)
@@ -243,7 +243,7 @@ def test_main_change_elsewhere_in_a_touched_file_keeps_the_review():
                                       f"{result.stderr!r}")
         check(repo.origin_main() == git(mine, "rev-parse", "HEAD"), "elsewhere: the merged head did not land")
         (mine / "shared.txt").write_text((mine / "shared.txt").read_text().replace("line 5\n", "edited\n"))
-        git(mine, "commit", "-q", "-am", "fix(theta): edit after review")
+        git(mine, "commit", "-q", "-am", "fix(theta): edit after review", "-m", "KPI: speed =, quality = (fixture)")
         late = repo.run(mine, "--reviewed", digest)
         check(late.returncode == 1 and "does not match" in late.stderr,
               f"elsewhere: an edit after the review kept the old hash: {late.stderr!r}")
@@ -255,14 +255,14 @@ def test_two_branches_editing_one_file_both_survive_and_a_clash_stops():
         repo = Repo(tmp)
         seed = repo.worktree("sigma", "doc.md")
         (seed / "doc.md").write_text("# Rules\n" + "".join(f"rule {i}\n" for i in range(30)) + "# End\n")
-        git(seed, "commit", "-q", "-am", "fix(sigma): seed a shared doc")
+        git(seed, "commit", "-q", "-am", "fix(sigma): seed a shared doc", "-m", "KPI: speed =, quality = (fixture)")
         check(repo.run(seed, "--reviewed", repo.digest(seed)).returncode == 0, "survive: seed landing failed")
         first, second = repo.worktree("tau", "t.txt"), repo.worktree("upsilon", "u.txt")
         for wt, line, text in ((first, 3, "FIRST LANDER LINE"), (second, 20, "SECOND LANDER LINE")):
             lines = (wt / "doc.md").read_text().splitlines(keepends=True)
             lines.insert(line, text + "\n")
             (wt / "doc.md").write_text("".join(lines))
-            git(wt, "commit", "-q", "-am", f"fix({text.split()[0].lower()}): add a rule")
+            git(wt, "commit", "-q", "-am", f"fix({text.split()[0].lower()}): add a rule", "-m", "KPI: speed =, quality = (fixture)")
         check(repo.run(first, "--reviewed", repo.digest(first)).returncode == 0, "survive: first landing failed")
         landed = repo.run(second, "--reviewed", repo.digest(second))
         check(landed.returncode == 0, f"survive: the second landing failed: {landed.stderr!r}")
@@ -274,7 +274,7 @@ def test_two_branches_editing_one_file_both_survive_and_a_clash_stops():
             lines = (wt / "doc.md").read_text().splitlines(keepends=True)
             lines[10] = text + "\n"
             (wt / "doc.md").write_text("".join(lines))
-            git(wt, "commit", "-q", "-am", f"fix({text.split()[0]}): reword rule 9")
+            git(wt, "commit", "-q", "-am", f"fix({text.split()[0]}): reword rule 9", "-m", "KPI: speed =, quality = (fixture)")
         check(repo.run(clash_a, "--reviewed", repo.digest(clash_a)).returncode == 0, "clash: first landing failed")
         before = repo.origin_main()
         result = repo.run(clash_b, "--reviewed", repo.digest(clash_b))
@@ -285,6 +285,18 @@ def test_two_branches_editing_one_file_both_survive_and_a_clash_stops():
 
 def calls_of(path):
     return path.read_text().splitlines() if path.exists() else []
+
+
+def test_a_landing_without_a_kpi_line_is_refused():
+    with tempfile.TemporaryDirectory() as tmp:
+        repo = Repo(tmp)
+        wt = repo.worktree("omega", "o.txt")
+        git(wt, "commit", "-q", "--amend", "-m", "fix(omega): add o.txt")  # no KPI: line
+        before = repo.origin_main()
+        result = repo.run(wt, "--reviewed", repo.digest(wt))
+        check(result.returncode != 0 and "KPI:" in result.stderr,
+              f"kpi: a landing with no KPI line was not refused: {result.stderr!r}")
+        check(repo.origin_main() == before, "kpi: a refused landing still pushed")
 
 
 def test_a_recorded_pass_on_the_same_tree_is_reused():
@@ -371,7 +383,7 @@ def test_load_timeout_criteria_are_retried_alone():
 
 
 def main():
-    tests = [test_two_landers_serialize_and_both_land, test_timeout_ends_non_zero_and_names_holder,
+    tests = [test_a_landing_without_a_kpi_line_is_refused, test_two_landers_serialize_and_both_land, test_timeout_ends_non_zero_and_names_holder,
              test_killed_holder_releases_the_lock, test_main_change_to_the_reviewed_lines_needs_a_new_review,
              test_main_change_elsewhere_in_a_touched_file_keeps_the_review,
              test_two_branches_editing_one_file_both_survive_and_a_clash_stops,

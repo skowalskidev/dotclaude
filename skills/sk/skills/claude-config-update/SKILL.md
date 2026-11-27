@@ -388,6 +388,9 @@ is clean; a third full run needs a stated new cause.
   at the gate is `deliberately dropped` with who decided and when, not an omission. Append the result
   with `~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>`.
 - Report what changed: the target file, the section(s), and a one-line summary of each learning folded in.
+- **DO judge every change against `KPIS.md` and write its effect as a `KPI:` line in a commit body**
+  (`KPI: speed +, quality =, coverage = (<the SLI it moves>)`); `bin/config-land-check.py` refuses a
+  landing without one. A change that worsens ask coverage or quality is a TRADE-OFF: it needs Simon's yes.
 - **DO hand back a NEW capability (a connector, skill, hook or engine feature) with a before/after
   journey table, unprompted:** one row per step Simon or the agent takes, Before and After columns,
   then the proof run. **DO put a design adopted from outside practice before `references/research.md`

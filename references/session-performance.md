@@ -27,8 +27,12 @@ On go, invoke `/sk:claude-config-self-optimize-analysis-after-run`, which runs t
    it, add only what is missing at its one home, generalize per its Step 4, and keep private text out
    of the public repo (paraphrase the mechanism, never quote the prompt). Land through
    `/sk:claude-config-sync` under `rules/self-healing-config.md`.
-4. **Publish the session's performance report** (§ Register and record, § Finish without waiting) in
-   the same pass: the run's evidence, its findings and the learnings applied.
+4. **Measure the session against `KPIS.md`, then publish.** Run `python3 ~/.claude/bin/kpi.py session
+   <sid> --record` and `python3 ~/.claude/bin/kpi.py trend`; every SLO the session or the trend misses
+   is a finding, ranked ask coverage, then quality, then speed. Repair the missed SLO's mechanism in
+   the same pass, never at a lower KPI's expense. Then publish the session's performance report
+   (§ Register and record, § Finish without waiting): the run's evidence, its findings, the SLO table
+   and the learnings applied.
 5. **Report one line per learning:** `<learning> -> <file> § <section>` or `no change: <why>`, then the
    landed sha. Record `intent-ledger.sh note learning <scratch.md>` holding `session learning: done
    (<count> learnings, <sha>)`, then give the archive line.

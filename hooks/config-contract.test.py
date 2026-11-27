@@ -358,6 +358,14 @@ CRITERIA: list[tuple[str, str]] = [
      "load at 40-63, and that false failure cost a full land-check rerun. A child that times out "
      "gets one retry at double its budget, then fails saying it timed out under load, and a run "
      "whose only failures are such timeouts exits 75 so the land check retries just those."),
+    ("kpis-file-holds-three-kpis-and-steers-every-change",
+     "KPIS.md names ask coverage, quality of results and speed of delivery with SLI/SLO rows; CLAUDE.md "
+     "points at it; the land check refuses a landing with no KPI: line; the end-of-session learning and "
+     "the self-optimize skill rank findings by it; bin/kpi.py judges each SLI against its target."),
+    ("check-cache-guard-refuses-polls-and-identical-reruns",
+     "hooks/check-cache-guard.py is wired on Bash PreToolUse and its suite passes both ways: a loop polling "
+     "a background task's output and a check rerun on identical inputs are refused; an edit, a new file, "
+     "another session, a single read and CLAUDE_RERUN_OK=1 pass."),
     ("suite-runs-at-background-priority",
      "The suite re-execs itself once under macOS background QoS (taskpolicy -b), so it and its child "
      "suites run at scheduler priority 4, below every task's build or test, and take no heavy lease: "
@@ -564,7 +572,12 @@ def check_structure_one_owner_per_concern() -> None:
                 # pair of long paragraphs in the config.
                 if abs(len(a) - len(b)) > max(len(a), len(b)) * 0.35:
                     continue
-                ratio = difflib.SequenceMatcher(None, a, b).ratio()
+                # real_quick_ratio() and quick_ratio() are documented upper bounds on ratio(), so
+                # skipping on them never misses a pair at the 0.80 bar (difflib docs).
+                matcher = difflib.SequenceMatcher(None, a, b)
+                if matcher.real_quick_ratio() < 0.80 or matcher.quick_ratio() < 0.80:
+                    continue
+                ratio = matcher.ratio()
             if ratio >= 0.80:
                 check(False,
                       f"{name_a} and {name_b} carry the same rule ({ratio:.0%} identical). One must "
@@ -679,7 +692,7 @@ def check_session_learning_gates_archive_line() -> None:
         invoke("submit", "Build the importer and verify it.")
         time.sleep(1.1)
         invoke("submit", "Also make the export default to CSV.")
-        check(note("reconcile", "Done and verified.").returncode == 0, "reconcile note failed")
+        check(note("reconcile", "- Done and verified.\n- each other ask: done, verified\n- remaining asks: none open").returncode == 0, "reconcile note failed")
         check(invoke("stop") == "", "A reconciled work turn was blocked: the per-batch after-run nudge is back.")
         check(invoke("learning-count").strip() == "2", "learning-count did not print this session's 2 asks.")
         out = invoke("stop", last=archive)
@@ -699,7 +712,7 @@ def check_session_learning_gates_archive_line() -> None:
               "A longer 'go ahead and ...' ask counted as Simon's go for the learning.")
         time.sleep(1.1)
         invoke("submit", "<system-reminder>\nA worktree notice.\n</system-reminder>\ngo")
-        check(note("reconcile", "Learning ran.").returncode == 0, "reconcile note failed")
+        check(note("reconcile", "- Learning ran.\n- each other ask: done, verified\n- remaining asks: none open").returncode == 0, "reconcile note failed")
         check(note("learning", "session learning: done (2 learnings)").returncode == 0,
               "A learning note after Simon's go was refused.")
         check(invoke("learning-count").strip() == "0", "learning-count still counts asks the learning covered.")
@@ -707,7 +720,7 @@ def check_session_learning_gates_archive_line() -> None:
 
         time.sleep(1.1)
         invoke("submit", "one more tweak to the header")
-        check(note("reconcile", "Done.").returncode == 0, "reconcile note failed")
+        check(note("reconcile", "- Done.\n- each other ask: done, verified\n- remaining asks: none open").returncode == 0, "reconcile note failed")
         rearmed = invoke("stop", last=archive)
         check(learning_block(rearmed), "A new ask after the learning did not re-arm the gate.")
         check("stands" in rearmed and "Action needed: say go" not in rearmed,
@@ -716,10 +729,10 @@ def check_session_learning_gates_archive_line() -> None:
               "A learning note after a standing go was refused (the fix for a second go ask in one session).")
         time.sleep(1.1)
         invoke("submit", "and the footer")
-        check(note("reconcile", "Done.").returncode == 0, "reconcile note failed")
+        check(note("reconcile", "- Done.\n- each other ask: done, verified\n- remaining asks: none open").returncode == 0, "reconcile note failed")
         time.sleep(1.1)
         invoke("submit", "skip")
-        check(note("reconcile", "Skipped.").returncode == 0, "reconcile note failed")
+        check(note("reconcile", "- Skipped.\n- each other ask: done, verified\n- remaining asks: none open").returncode == 0, "reconcile note failed")
         check(note("learning", "session learning: skipped").returncode == 0, "A skip was refused.")
         check(invoke("stop", last=archive) == "", "The archive line was blocked after a recorded skip.")
 
@@ -729,7 +742,7 @@ def check_session_learning_gates_archive_line() -> None:
               "A line merely containing 'go' counted as Simon's go for the learning.")
         time.sleep(1.1)
         invoke("submit", "go\n2 yes, archive them\n3 yes")
-        check(note("reconcile", "Learning ran.").returncode == 0, "reconcile note failed")
+        check(note("reconcile", "- Learning ran.\n- each other ask: done, verified\n- remaining asks: none open").returncode == 0, "reconcile note failed")
         check(note("learning", "session learning: done").returncode == 0,
               "A numbered reply whose own line is 'go' was refused as Simon's go (the fix for a multi-line go).")
 
@@ -809,9 +822,9 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
                "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo)}
         hook = ROOT / "hooks" / "intent-ledger.sh"
 
-        def invoke(mode, prompt=None, active=False):
+        def invoke(mode, prompt=None, active=False, background=()):
             payload = {"cwd": str(repo), "session_id": "ledger-contract",
-                       "stop_hook_active": active}
+                       "stop_hook_active": active, "background_tasks": list(background)}
             if prompt is not None:
                 payload["prompt"] = prompt
             result = subprocess.run(["bash", str(hook), mode], input=json.dumps(payload),
@@ -842,8 +855,17 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
         out = invoke("submit", "Add D while B runs; retain C.")
         check("GAUNTLET UPDATE" in out, "A later request received no update reminder.")
         check(invoke("stop", active=True) == "", "stop_hook_active did not prevent a loop.")
+        check(invoke("stop", background=[{"id": "b1", "type": "local_bash"}]) == "",
+              "A turn paused on background work was blocked for reconciliation (it reconciles at hand-back).")
+        out = invoke("submit", "Also export as JSON.")
+        thin = base / "thin.md"
+        thin.write_text("All done.\n")
+        refused = subprocess.run(["bash", str(hook), "note", "reconcile", str(thin)], text=True,
+                                 capture_output=True, cwd=repo, env=env)
+        check(refused.returncode != 0 and "verdict lines" in refused.stderr,
+              "A one-line reconcile closed two asks: every ask needs its own verdict line (KPIS.md ask coverage).")
         check('"decision":"block"' in invoke("stop"), "An old reconciliation hid the later request.")
-        note("reconcile", "B and C verified; D explicitly cancelled by the user.")
+        note("reconcile", "- B and C verified\n- D explicitly cancelled by the user\n- JSON export: done, verified")
         note("pivot", "Reopen C with the changed acceptance criterion.")
         check('"decision":"block"' in invoke("stop"), "A new pivot escaped the finish check.")
         note("reconcile", "C remains blocked; missing input and resume point recorded.")
@@ -1622,7 +1644,7 @@ def _declared_config_parts() -> set[str]:
     are excluded too: a per-user overlay (e.g. a real connectors/<project>.json created from the
     example) is not tracked config and carries no contract — only the tracked template does.
     """
-    parts: set[str] = {"CLAUDE.md", "settings.json"}
+    parts: set[str] = {"CLAUDE.md", "settings.json", "KPIS.md"}
     for pattern in ("rules/*.md", "references/*.md", "connectors/*.json",
                     "bin/*.sh", "bin/*.py", "bin/*.zsh", ".githooks/*"):
         parts |= {str(p.relative_to(ROOT)) for p in ROOT.glob(pattern)
@@ -3359,7 +3381,11 @@ def check_process_inspection_keeps_arguments_private() -> None:
         home_bin.mkdir(parents=True)
         (home_bin / "kill-orphan-workers.sh").symlink_to(killer)
         previous_signals = signals.read_text()
-        result = run(["bash", str(ROOT / "hooks/orphan-worker-sweep.sh")], env=env)
+        sweep = ROOT / "hooks/orphan-worker-sweep.sh"
+        check(run(["bash", str(sweep)], env=env).stdout.strip() == "",
+              "The synchronous start hook ran the slow detector instead of printing the cached report")
+        run(["bash", str(sweep), "--refresh"], env=env)  # the async SessionStart hook writes the cache
+        result = run(["bash", str(sweep)], env=env)
         check(result.returncode == 0 and sentinel not in result.stdout + result.stderr
               and "71001" in result.stdout and "eligible framework candidate" in result.stdout
               and "retained; owner not proven ended" in result.stdout
@@ -3405,6 +3431,30 @@ def check_suite_timeout_scales_with_host_load() -> None:
             check(result.returncode == 0, "a child slow only on its first try must pass on the retry")
     finally:
         RUN_TIMEOUT_S = saved
+
+
+def check_kpis_file_holds_three_kpis_and_steers_every_change() -> None:
+    kpis = read("KPIS.md")
+    for need in ("Ask coverage", "Quality of results", "Speed of delivery", "| SLI | SLO |", "bin/kpi.py",
+                 "sre.google", "never decides"):
+        check(need in kpis, f"KPIS.md lost: {need}")
+    check("KPIS.md" in read("CLAUDE.md"), "CLAUDE.md no longer points at KPIS.md.")
+    check('"KPI:"' in read("bin/config-land-check.py"), "The land check no longer refuses a landing without a KPI: line.")
+    for rel in ("references/session-performance.md",
+                "skills/sk/skills/claude-config-self-optimize-analysis-after-run/SKILL.md",
+                "skills/sk/skills/claude-config-update/SKILL.md"):
+        check("KPIS.md" in read(rel), f"{rel} no longer steers by KPIS.md.")
+    result = run(["python3", str(ROOT / "bin/kpi.test.py")])
+    check(result.returncode == 0, f"bin/kpi.test.py failed:\n{result.stdout[-1500:]}")
+
+
+def check_check_cache_guard_refuses_polls_and_identical_reruns() -> None:
+    cmds = [h.get("command", "") for g in settings().get("hooks", {}).get("PreToolUse", [])
+            if g.get("matcher") == "Bash" for h in g.get("hooks", [])]
+    check(any(c.endswith("hooks/check-cache-guard.py") for c in cmds),
+          "settings.json must wire hooks/check-cache-guard.py on the Bash PreToolUse matcher.")
+    result = run(["python3", str(ROOT / "hooks/check-cache-guard.test.py")])
+    check(result.returncode == 0, f"check-cache-guard regressions failed:\n{result.stdout[-1500:]}")
 
 
 def check_suite_runs_at_background_priority() -> None:

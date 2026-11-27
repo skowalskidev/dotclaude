@@ -104,6 +104,11 @@ below time findings on any single run, but above them if the same question has g
 
 ## The bar
 
+**DO read `KPIS.md` first and rank every finding by its KPI: ask coverage, then quality of results,
+then speed of delivery.** Start from `bin/kpi.py trend`: the SLO furthest from target is the first
+repair. A finding that improves speed and worsens ask coverage or quality is a TRADE-OFF for Simon,
+never a repair. TEST: each suggestion names the KPIS.md SLI it moves and its value before.
+
 The failure mode of this skill is inventing plausible improvements, so:
 
 - **DO read the MISSION of every part you propose changing, from `contracts/config_contracts.py`,

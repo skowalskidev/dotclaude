@@ -54,6 +54,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/formatter-scope-guard.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/check-cache-guard.py",
+            "timeout": 10
           }
         ]
       },
@@ -209,6 +214,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/orphan-worker-sweep.sh",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/hooks/orphan-worker-sweep.sh --refresh",
+            "async": true
           }
         ]
       },

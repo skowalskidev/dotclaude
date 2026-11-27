@@ -497,6 +497,15 @@ sys.exit(0 if m and not d["other"] and len(m) <= 4 and all(len(x) <= 400 for x i
   printf '%s' "$data" | python3 "$JUDGE_PY" ask status-only >/dev/null 2>&1
 }
 
+asks_since_reconcile() { # this session's asks after the newest reconcile note, outside prompt fences
+  [ -f "$LEDGER" ] || { echo 0; return; }
+  awk -v sid="$SID" "$FENCE_AWK"'
+    !fence && /^## [0-9][0-9][0-9][0-9]-.* · reconcile$/ { n = 0; next }
+    !fence && /^## [0-9][0-9][0-9][0-9]-.* · ask · session / {
+      if (sid == "unknown" || substr($0, length($0) - length(sid) + 1) == sid) n++ }
+    END { print n + 0 }' "$LEDGER"
+}
+
 section_lines() { # section_lines KIND FILE — every line under a "## <ts> · KIND" heading, outside prompt fences
   awk -v kind="$1" "$FENCE_AWK"'
     !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ (" · " kind "$")); next }
@@ -1032,6 +1041,17 @@ note)
   fi
   # The end-of-session learning note is what lets the archive line through, so only Simon's own word
   # opens it: an ask since the previous learning note that says go or skip (learning_go: Haiku-judged).
+  # KPIS.md ask coverage: a reconcile names a verdict for every ask it closes, one line each, so a
+  # missed ask shows at the note, not when Simon notices it later (the fix for asks found missing after
+  # hand-back until he ran the journey check by hand).
+  if [ "$kind" = "reconcile" ]; then
+    _asks="$(asks_since_reconcile)"
+    _lines="$(grep -cE '[^[:space:]]' "$src" 2>/dev/null || echo 0)"
+    if [ "${_asks:-0}" -gt 0 ] && [ "${_lines:-0}" -lt "${_asks:-0}" ]; then
+      echo "note: refusing: $_asks asks since the last reconcile but $_lines verdict lines. Write one line per ask: '- <ask, in his words> -> <done + evidence | blocked: Simon-only reason | open: next action>' (KPIS.md ask coverage)." >&2
+      rm -f "$snap"; exit 2
+    fi
+  fi
   if [ "$kind" = "learning" ]; then
     if ! grep -qE 'session learning: (done|skipped)' "$src" 2>/dev/null; then
       echo "note: refusing: a learning note holds \"session learning: done\" or \"session learning: skipped\"." >&2
@@ -1421,6 +1441,10 @@ messages in this session have no learning note. Replace the archive line with li
     exit 0
   fi
   [ "$active" = "true" ] && exit 0
+  # A turn that ends only to wait on background work is paused, not done (the Stop payload's
+  # background_tasks, Claude Code hooks reference): reconcile at the real hand-back, never on every wait
+  # (KPIS.md: Stop blocks per request; 61% of session time was such waits, 2026-11-27 audit).
+  [ "$(printf '%s' "$INPUT" | jq -r '(.background_tasks // []) | length' 2>/dev/null)" -gt 0 ] 2>/dev/null && exit 0
   snapshot="$(cksum < "$LEDGER")"
   [ "$(cat "$STATE/$SID.stopblock" 2>/dev/null)" = "$snapshot" ] && exit 0
   printf '%s\n' "$snapshot" > "$STATE/$SID.stopblock" 2>/dev/null || exit 0

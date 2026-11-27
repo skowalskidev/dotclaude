@@ -68,6 +68,21 @@ signal a retained agent from this report alone. This hook only reports and never
 # Never let a slow/erroring detector block session start: run in a subshell so `set -u` (or
 # anything else) inside run_sweep can only abort that subshell, never this script, and force
 # exit 0 unconditionally regardless of what happened above.
-( run_sweep ) 2>/dev/null
-
+# The detector takes ~20 s on a loaded machine, past the 10 s SessionStart budget, so a synchronous run
+# lost its report 95 times in 107 (2026-11-27 audit). Settings run it twice: `--refresh` as an async
+# hook (never blocks the start) writes the report to CACHE; the synchronous run prints the cached report
+# from the previous start when it is under CACHE_MAX_S old, instantly.
+CACHE="${CLAUDE_ORPHAN_SWEEP_CACHE:-$HOME/.claude/state/orphan-sweep.json}"
+CACHE_MAX_S=21600
+if [ "${1:-}" = "--refresh" ]; then
+  mkdir -p "$(dirname "$CACHE")" 2>/dev/null
+  tmp="$CACHE.$$"
+  ( run_sweep ) > "$tmp" 2>/dev/null && mv -f "$tmp" "$CACHE" 2>/dev/null
+  rm -f "$tmp" 2>/dev/null
+  exit 0
+fi
+if [ -f "$CACHE" ]; then
+  age=$(( $(date +%s) - $(stat -f %m "$CACHE" 2>/dev/null || stat -c %Y "$CACHE" 2>/dev/null || echo 0) ))
+  [ "$age" -lt "$CACHE_MAX_S" ] && cat "$CACHE" 2>/dev/null
+fi
 exit 0

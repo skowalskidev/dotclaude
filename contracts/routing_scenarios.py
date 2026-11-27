@@ -388,7 +388,7 @@ HOOK_ROUTING: list[dict] = [
      "expect": ["work-resource-guard.sh",
                 "git-commit-guard.py", "background-process-guard.py", "secret-echo-guard.py",
                 "process-kill-guard.py", "capacity-timeout-guard.py",
-                "formatter-scope-guard.py"]},
+                "formatter-scope-guard.py", "check-cache-guard.py"]},
     # The process-kill guard: a pattern kill that can signal other sessions' processes is denied,
     # an agent-typed override prefix included (only the session's starting environment passes);
     # a kill by pid or a pkill -f scoped to the caller's own path passes
@@ -396,7 +396,7 @@ HOOK_ROUTING: list[dict] = [
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
                   "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
-                "formatter-scope-guard.py"],
+                "formatter-scope-guard.py", "check-cache-guard.py"],
        "tool_input": {"command": command}, "decides": {"process-kill-guard.py": decision}}
       for command, decision in (
           ('pkill -f "local-capacity.py run"', "deny"),
@@ -415,7 +415,7 @@ HOOK_ROUTING: list[dict] = [
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
                   "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
-                "formatter-scope-guard.py"],
+                "formatter-scope-guard.py", "check-cache-guard.py"],
        "tool_input": tool_input, "decides": {"capacity-timeout-guard.py": decision}}
       for tool_input, decision in (
           ({"command": "python3 ~/.claude/bin/local-capacity.py run --owner s -- make test",
@@ -432,7 +432,7 @@ HOOK_ROUTING: list[dict] = [
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
                   "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
-                  "formatter-scope-guard.py"],
+                  "formatter-scope-guard.py", "check-cache-guard.py"],
        "tool_input": {"command": command}, "decides": {"formatter-scope-guard.py": decision}}
       for command, decision in (
           ("dart format lib test", "deny"),
@@ -450,7 +450,7 @@ HOOK_ROUTING: list[dict] = [
     *({"event": "PreToolUse", "tool": "Bash",
        "expect": ["work-resource-guard.sh", "git-commit-guard.py", "background-process-guard.py",
                   "secret-echo-guard.py", "process-kill-guard.py", "capacity-timeout-guard.py",
-                "formatter-scope-guard.py"],
+                "formatter-scope-guard.py", "check-cache-guard.py"],
        "tool_input": {"command": command}, "decides": {"background-process-guard.py": decision}}
       for command, decision in (
           ("env CLAUDE_ALLOW_DAEMON=1 launchctl bootstrap gui/501 x.plist", "deny"),

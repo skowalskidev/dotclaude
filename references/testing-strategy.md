@@ -133,6 +133,22 @@ TEST: a hotfix PR passes the landing gate with the rows above and only the Hotfi
 touching two product files or a migration fails on its tier label (the fix for a one-line allowlist
 miss that answered 403 in production for about 20 minutes).
 
+## Quick path
+
+DEFAULT for a Light change, a follow-up on work already delivered, a question or a status ask
+(`KPIS.md`: same quality, fewer turns). The size test is § Size the checks to the change.
+1. Make the change in the current turn. No spine skill, no subagent, no plan document, no dashboard
+   transition beyond recording the ask.
+2. Run only the test file covering the changed code, once, on the final edit (§ Verify once, at
+   convergence); an identical rerun is refused by `hooks/check-cache-guard.py`.
+3. Commit; push when it backs a PR, then record the Light gate (its receipts carry across follow-up
+   pushes, § Follow-up pushes and waivers).
+4. Hand back in a few lines; a visible change still carries its before/after pair.
+DO escalate to `/sk:work-full-detailed-workflow` the moment a Standard or Deep trigger appears
+(§ Size the checks to the change), keeping the work already done.
+TEST: a one-surface copy or colour change ends in one commit with zero subagents and one test run
+(the fix for small requests whose median ran 71 min under the full harness, KPIS.md audit 2026-11-27).
+
 ## Verify once, at convergence
 
 The owner of the cadence for every heavy check (`rules/process.md` § Fan out verification). Skills, harnesses

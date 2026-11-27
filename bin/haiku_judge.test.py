@@ -304,7 +304,7 @@ def test_intent_ledger() -> None:
           "status-only:whats the status": {"ok": True, "reason": "a status question"},
           "status-only": {"ok": False, "reason": "new work"}})
     invoke("submit", "Build the importer.")
-    note("reconcile", "Built.")
+    note("reconcile", "- Built.\n- each other ask: done, verified\n- remaining asks: none open")
     time.sleep(1.1)
     invoke("submit", "ensure at the end you upfate the config based on learnings ... self imrpove")
     check(note("learning", "session learning: done").returncode == 0,
@@ -333,14 +333,14 @@ def test_intent_ledger() -> None:
     stub({"status-only:rename": {"ok": False, "reason": "new work"},
           "status-only:whats the status": {"ok": True, "reason": "a status question"},
           "status-only": {"ok": False, "reason": "new work"}})
-    note("reconcile", "All reconciled.")
+    note("reconcile", "\n".join(f"- ask {i}: done, verified" for i in range(1, 9)))
     time.sleep(1.1)
     invoke("submit", "whats the status of the PR?")
     check('"block"' not in invoke("stop"), "a pure status question re-fired the reconciliation block")
     time.sleep(1.1)
     invoke("submit", "also rename the export button to Save")
     check('"block"' in invoke("stop"), "a new work ask did not get the reconciliation block")
-    note("reconcile", "Renamed.")
+    note("reconcile", "- Renamed.\n- each other ask: done, verified\n- remaining asks: none open")
     time.sleep(1.1)
     stub({"status-only": "error"})
     invoke("submit", "whats the status now?")

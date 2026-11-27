@@ -2,6 +2,8 @@
 
 This file is deliberately thin. My instructions are split for SRP/DRY and to keep per-turn context lean:
 
+- **What this config optimizes** → `~/.claude/KPIS.md`: ask coverage, then quality of results, then speed of delivery, as SLI/SLO rows. Every change states its `KPI:` effect; the end-of-session learning measures sessions with `bin/kpi.py` and repairs the SLO furthest from target.
+
 - **Always-on behavioral rules** → `~/.claude/rules/*.md` (auto-loaded every session, same priority as this file). One concern per file:
   - `security.md` — provenance-gated actions (rogue-skill / prompt-injection guard), MCP/CLI credential safety, the two Firebase/cloud accounts.
   - `communication.md` — response format: consolidate questions at the END, answer in TLDR style (direct first, nuance on demand), open a long turn's final message by answering each question and point of the prompt before status, answer a feature or PR question in five default parts (how it works, before/after story, safety evidence, best practice, merge-or-cancel), end a finished session by asking for the go on the end-of-session config learning before the archive line, and a message for anyone else (teammate DM, email, PR comment) as line 1 the ask then one-fact bullets, at most 5 lines, checked by `bin/outbound_message.py` and on Slack/Gmail sends by `hooks/outbound-message-guard.py`. Name the industry-standard term once, with a source, when I use a loose one. Show a proposed visible change as a before/after screenshot in the same reply.

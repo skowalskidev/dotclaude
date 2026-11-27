@@ -30,6 +30,7 @@ Checks, all on the exact HEAD that will be pushed:
     SUITE_PASS_MAX_AGE_S is reused instead of run a second time. The run's timeout scales with host
     load; a whole-suite timeout, or a suite that failed only on its children's load timeouts (exit 75),
     says "timed out under load" and gets ONE retry (the timed-out criteria only, for exit 75);
+  - a landing commit carries a `KPI:` line naming its effect on quality and speed (KPIS.md);
   - dotfiles/secret-scan.sh --range passes (gitleaks + the identity guard) on the landing commits.
 
 The push goes to <remote> main for that sha only and is verified on the remote. The guard still
@@ -280,6 +281,11 @@ def land(root, remote, reviewed, base):
         fail("the reviewed hash does not match the current diff (an edit, or a merged main change to the "
              "same lines, changed it); run --diff and read it again")
 
+    kpi_lines = [line for line in git(root, "log", "--no-merges", "--format=%B", f"{base}..{head}").splitlines()
+                 if line.strip().startswith("KPI:")]
+    if not kpi_lines:
+        fail("no landing commit names its KPI effect: add a `KPI:` line to a commit body, e.g. "
+             "`KPI: speed +, quality = (one fewer Stop block per request)` (KPIS.md)")
     contract_suite(root, tree_of(root))
     scan = subprocess.run(["bash", os.path.join(root, "dotfiles", "secret-scan.sh"),
                            "--range", f"{base}..{head}"], cwd=root, capture_output=True, text=True)

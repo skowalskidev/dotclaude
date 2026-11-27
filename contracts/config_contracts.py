@@ -2619,6 +2619,34 @@ CONTRACTS: dict[str, dict] = {
             "bin/config_branches.test.py pins each of these.",
         ],
     },
+    "KPIS.md": {
+        "mission": "The config always knows what it optimizes: every ask covered, right the first time, delivered fast.",
+        "purpose": "Names the three KPIs in priority order with SLI/SLO rows, the load-independent measurement rule and how each change and the end-of-session learning steer by them.",
+        "criteria": [
+            "Names ask coverage, quality of results and speed of delivery, in that order, and is never dropped (the suite discovers it as a config part).",
+            "Each KPI has SLI rows with an SLO target and the mechanism enforcing it; wall-clock time is reported beside load and never decides.",
+            "A speed change that worsens coverage or quality is a trade-off needing Simon's yes.",
+        ],
+    },
+    "bin/kpi.py": {
+        "mission": "Every session's speed and quality are measured the same way, so the config improves in the KPIs' direction.",
+        "purpose": "Computes the KPIS.md SLIs per request from session transcripts, judges them against their SLOs, records a session and compares 14-day windows.",
+        "criteria": [
+            "Counts requests from the shared typed-message rule (queued mid-turn messages included), model turns by message id, tool calls, repeated checks with no edit between, Stop blocks, polls of task output, subagents and corrections.",
+            "Prints and stores counts only, never command, prompt or tool-input text.",
+            "Reports wall minutes beside the 1-minute load average; SLO verdicts use counts.",
+            "bin/kpi.test.py drives it on a synthetic transcript.",
+        ],
+    },
+    "hooks/check-cache-guard.py": {
+        "mission": "No turn is spent polling a background task or rerunning a check whose answer cannot have changed.",
+        "purpose": "PreToolUse Bash: denies a loop polling a background task's output file and a check rerun on identical inputs in the same session.",
+        "criteria": [
+            "Keys a check by command, repo HEAD and the hash of the working-tree diff plus untracked names and sizes; any edit makes a new key.",
+            "CLAUDE_RERUN_OK=1 reruns a flaky check; a single read of an output file and a sleep with no task output pass.",
+            "Fails open outside a repo or on any error; state is per session under state/check-cache, pruned after 2 days.",
+        ],
+    },
     "hooks/config-branch-gate.py": {
         "mission": "The session that drafted a config change lands it or records why it cannot, so no rule sits unlanded for days.",
         "purpose": "PostToolUse Bash claims a config-update branch at `git worktree add -b`; Stop blocks the archive line while the session owns an unlanded branch with no recorded blocker, never a task turn.",
