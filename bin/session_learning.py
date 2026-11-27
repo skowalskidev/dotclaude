@@ -12,7 +12,10 @@ harness already writes (a `## <ts> · learning` note in the worktree's .context/
 which that session has no asks) dies with the worktree. Verdicts:
   done | skipped   a learning note covers the session's asks (copied from the ledger, or recorded by
                    the learning pass over a queued session's transcript)
-  empty            the session holds no message Simon typed, so a learning pass has nothing to read
+  empty            the session holds no message Simon typed, so a learning pass has nothing to read: no
+                   typed message at all, a delegated worker (recorded by hooks/task-intake.sh at its first
+                   prompt, which is a supervisor's brief), or a transcript whose cwd sits under an
+                   `automatedSessionPaths` entry of the identity overlay (a pipeline that prompts Claude)
   unrecoverable    no transcript and no ledger ask of the session remain anywhere the config reads, so
                    no learning pass can ever run (counted apart; only empty dirs and markers go on it)
 
@@ -21,7 +24,8 @@ Commands:
   record-ledger <ledger.md>      record every session a learning note in that ledger covers
   covered <sid>                  exit 0 when a record exists
   classify <sid> [--transcript P] record `empty` when the transcript has no typed message; exit 0 = covered
-  pending [--idle-hours H] [--limit N]   ended sessions with a transcript and no record, oldest first
+  pending [--idle-hours H] [--limit N] [--classify]   ended sessions with a transcript and no record, oldest
+                   first; --classify first records `empty` for each one with no message Simon typed
   prune-state                    the one owner of per-session config state pruning (age AND covered)
 """
 import argparse
@@ -162,6 +166,45 @@ def _root_ledger_asks(sid: str):
     return sid in record_ledger(ledger)
 
 
+def automated_paths() -> list:
+    """Resolved `automatedSessionPaths` from the identity overlay: folders whose sessions a program
+    prompts (a lead or batch runner), never Simon. Private data, so the public repo names none."""
+    overlay = Path(os.environ.get("CLAUDE_IDENTITY_FILE") or CONFIG / "identity.local.json")
+    try:
+        values = json.loads(overlay.read_text()).get("automatedSessionPaths") or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [Path(os.path.expanduser(v)).resolve() for v in values if isinstance(v, str) and v.strip()]
+
+
+def transcript_cwd(path: Path) -> str:
+    """The working directory a transcript recorded first, or ""."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for _, line in zip(range(200), handle):
+                try:
+                    cwd = json.loads(line).get("cwd")
+                except (ValueError, AttributeError):
+                    continue
+                if isinstance(cwd, str) and cwd:
+                    return cwd
+    except OSError:
+        pass
+    return ""
+
+
+def automated_root(path: Path) -> str:
+    """The automatedSessionPaths entry a transcript's cwd sits under, or ""."""
+    cwd = transcript_cwd(path)
+    if not cwd:
+        return ""
+    where = Path(cwd).resolve()
+    for root in automated_paths():
+        if where == root or root in where.parents:
+            return str(root)
+    return ""
+
+
 def classify(sid: str, transcript: Path = None, unrecoverable_ok: bool = False) -> bool:
     """True when covered. A transcript with zero typed messages records `empty`; a missing, oversized or
     unreadable transcript stays uncovered (retain). With unrecoverable_ok (only for a caller removing
@@ -177,6 +220,10 @@ def classify(sid: str, transcript: Path = None, unrecoverable_ok: bool = False) 
         if asks is None or asks is False:
             record(sid, "unrecoverable", "no transcript and no ledger ask remain")
         return covered(sid)
+    runner = automated_root(paths[0])
+    if runner:
+        record(sid, "empty", f"automated session path {runner}")
+        return True
     try:
         typed = _typed_messages()
         for p in paths:
@@ -188,9 +235,10 @@ def classify(sid: str, transcript: Path = None, unrecoverable_ok: bool = False) 
     return True
 
 
-def pending(idle_hours: float = 24, limit: int = 0, now: float = None) -> list:
+def pending(idle_hours: float = 24, limit: int = 0, now: float = None, classify_first: bool = False) -> list:
     """Ended sessions (transcript untouched for idle_hours) with no record, oldest first, so the ones
-    nearest Claude Code's own cleanupPeriodDays expiry are learned first."""
+    nearest Claude Code's own cleanupPeriodDays expiry are learned first. classify_first records `empty`
+    for each one holding no message Simon typed, so the queue lists only sessions with words to learn."""
     now = now or time.time()
     rows = []
     for sid, path in transcripts():
@@ -198,7 +246,7 @@ def pending(idle_hours: float = 24, limit: int = 0, now: float = None) -> list:
             age = now - path.stat().st_mtime
         except OSError:
             continue
-        if age >= idle_hours * 3600 and not covered(sid):
+        if age >= idle_hours * 3600 and not covered(sid) and not (classify_first and classify(sid, path)):
             rows.append((age, sid, path))
     rows.sort(reverse=True)
     return rows[:limit] if limit else rows
@@ -291,6 +339,7 @@ def main(argv=None) -> int:
     p = sub.add_parser("pending")
     p.add_argument("--idle-hours", type=float, default=24)
     p.add_argument("--limit", type=int, default=0)
+    p.add_argument("--classify", action="store_true")
     sub.add_parser("prune-state")
     a = ap.parse_args(argv)
     if a.cmd == "record":
@@ -305,7 +354,7 @@ def main(argv=None) -> int:
     if a.cmd == "classify":
         return 0 if classify(a.sid, a.transcript) else 1
     if a.cmd == "pending":
-        rows = pending(a.idle_hours, a.limit)
+        rows = pending(a.idle_hours, a.limit, classify_first=a.classify)
         for age, sid, path in rows:
             print(f"{sid}\t{age / DAY:.1f}d\t{path}")
         print(f"pending: {len(rows)} ended session(s) await end-of-session learning", file=sys.stderr)

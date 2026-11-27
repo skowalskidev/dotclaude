@@ -334,6 +334,33 @@ try:
           done == {SID: "skipped"} and "other-session-1" in asked, (asked, done))
     check("an invalid session id is never a path", not sl.covered("../../etc/passwd"))
 
+    # ---- pending --classify: a runner folder from the identity overlay and a message-less transcript
+    # leave the queue as `empty`; a session Simon typed in stays (the fix for ~600 queued sessions, most
+    # of them a pipeline prompting Claude from its own runner folder).
+    runner_dir, human_dir = tmp / "leads" / ".claude-runner", tmp / "work-repo"
+    runner_dir.mkdir(parents=True)
+    human_dir.mkdir()
+    ident = tmp / "identity.json"
+    ident.write_text(json.dumps({"automatedSessionPaths": [str(runner_dir)]}))
+    os.environ["CLAUDE_IDENTITY_FILE"] = str(ident)
+    qdir = home / ".claude" / "projects" / "-queue-test"
+    qdir.mkdir(parents=True)
+    say = lambda cwd, text: json.dumps({"type": "user", "cwd": str(cwd), "message": {"content": text}})  # noqa: E731
+    cases = {"runner-sess-1": say(runner_dir / "sub", "Score the fit of these 25 businesses"),
+             "human-sess-1": say(human_dir, "add the docker connector"),
+             "silent-sess-1": json.dumps({"type": "assistant", "cwd": str(human_dir), "message": {"content": "hi"}})}
+    for qsid, line in cases.items():
+        (qdir / f"{qsid}.jsonl").write_text(line + "\n")
+        os.utime(qdir / f"{qsid}.jsonl", (OLD, OLD))
+    left = {sid for _, sid, _ in sl.pending(classify_first=True)}
+    verdict = lambda sid: json.loads((Path(ENV["CLAUDE_SESSION_LEARNING_DIR"]) / f"{sid}.json").read_text())  # noqa: E731
+    check("pending --classify keeps the session Simon typed in", "human-sess-1" in left, left)
+    check("a runner-folder session and a message-less one leave the queue as empty",
+          not {"runner-sess-1", "silent-sess-1"} & left
+          and verdict("runner-sess-1")["verdict"] == verdict("silent-sess-1")["verdict"] == "empty"
+          and "automated session path" in verdict("runner-sess-1")["source"])
+    os.environ.pop("CLAUDE_IDENTITY_FILE")
+
     # ---- hook: non-repo cwd is a no-op; a repo cwd starts one detached sweep and debounces
     nr = sh(sys.executable, str(REAPER), "hook", env=ENV)
     check("hook with no payload exits 0", nr.returncode == 0)

@@ -1,5 +1,5 @@
 {
-  "_comment": "Copy to identity.local.json (untracked) and fill in YOUR accounts. This is the single source for the work/personal values the guard hooks compare against and the SessionStart hook injects into context. No secrets go here — just identifiers. Empty/missing values make the rule that needs them no-op (fail open), never match-everything. connectorRoots names the two local connector registry roots (one per boundary, outside every repo); bin/connector_registry.py reads them.",
+  "_comment": "Copy to identity.local.json (untracked) and fill in YOUR accounts. This is the single source for the work/personal values the guard hooks compare against and the SessionStart hook injects into context. No secrets go here \u2014 just identifiers. Empty/missing values make the rule that needs them no-op (fail open), never match-everything. connectorRoots names the two local connector registry roots (one per boundary, outside every repo); bin/connector_registry.py reads them, plus an optional account-free common root. automatedSessionPaths lists folders whose Claude sessions only a program prompts (a batch runner); bin/session_learning.py records them as holding no typed message.",
   "workOrgMatch": "YourOrg-Inc",
   "workEmail": "you@work.example",
   "workClaudeLogins": [
@@ -13,6 +13,10 @@
   "personalCloudProject": "your-personal-project",
   "connectorRoots": {
     "work": "~/path/to/work-projects/connectors",
-    "personal": "~/path/to/personal-projects/connectors"
-  }
+    "personal": "~/path/to/personal-projects/connectors",
+    "common": "~/path/to/connectors-common"
+  },
+  "automatedSessionPaths": [
+    "~/path/to/project/.claude-runner"
+  ]
 }
