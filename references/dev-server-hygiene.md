@@ -791,6 +791,15 @@ background limit killed them.)
 TEST: every wait names a PID, a done-file path or a harness notification; none searches process
 command lines for a string in its own argv.
 
+**DO check a long background job's progress once, in CPU seconds, when it passes its expected
+duration:** `ps -o time= -p <pid>` for it and its children, beside the 1-minute load. Wall time under
+a loaded machine says nothing; CPU time that barely moved means it is starved or hung. Then say so to
+Simon unprompted, with the numbers and the fix, instead of waiting on it. DON'T run long checks at
+background QoS (`taskpolicy -b`): it starves under sustained foreground load; use the utility clamp
+(`taskpolicy -c utility`), which still yields to task work. TEST: no long wait is reported "running"
+after its expected duration without a CPU-seconds reading (the fix for a config landing that got 2.5
+CPU s in 34 min at a load near 300 until Simon asked whether it was stuck).
+
 **DO launch detached any command whose worst case can reach 2 hours**, the harness cap for a
 `run_in_background` task: a chain of capacity-gated steps (steps x `--wait-min` plus runtime) and a
 single `run` whose `--wait-min` plus `--max-min` reaches 120, a human-preview hold included. Start it
