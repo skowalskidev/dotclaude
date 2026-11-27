@@ -59,9 +59,8 @@ How: `references/code-best-practices.md` § Payment paths.
 
 ## Personal / meta tooling is not a project artifact — keep it out of the shared repo
 
-My personal dev-tooling config — connectors, personal MCP servers, debug helpers, editor/tool settings —
-is META around a project, not part of it: teammates don't need it and the project must not depend on it
-(SRP). So it never goes in the team repo.
+My personal dev-tooling config (connectors, personal MCP servers, debug helpers, editor/tool settings)
+is META around a project: teammates don't need it and the project must not depend on it (SRP).
 - **It lives OUTSIDE the repo** — in `~/.claude` (connector manifests, hooks, skills) or `~/.config`
   (keys, tokens, tool config), never in the project tree. Cleanest form: nothing to leak.
 - **If a personal file genuinely must sit in the tree**, ignore it in `.git/info/exclude` or

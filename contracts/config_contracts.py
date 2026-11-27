@@ -122,7 +122,6 @@ CONTRACTS: dict[str, dict] = {
             "Ignore unfinished drafts, retain missing participant counts and identify unseen report content by hash across restarts.",
             "Reject a review receipt for a hash different from the inspected report; malformed participants cannot hide healthy reports.",
             "Bound observation commands and output, record unavailable metrics explicitly, and never start models, benchmarks, simulators or background watchers.",
-            "due answers read-only whether a report is owed for new work since the workspace's newest published report (its watermark): at least 100 new tool calls, or 30 with a failure, a correction or a reconciled task; never while background work runs, a one-shot wakeup is pending, the turn made under 3 calls or it ends on a question.",
             "aggregate claims the batch exclusively for six hours and writes one URL-redacted digest and manifest of unreviewed reports; reviewed-manifest receipts only unchanged hashes and releases the claim.",
         ],
     },
@@ -141,7 +140,8 @@ CONTRACTS: dict[str, dict] = {
         "mission": "Every task teaches Simon's coordinator what consumed time without interrupting work or inventing performance claims.",
         "purpose": "Shared lifecycle for ordinary, gauntlet and asynchronous multi-session performance analysis.",
         "criteria": [
-            "Queue analysis after the requested work for every task; preserve it through handoff and avoid recursive analysis of analysis.",
+            "Run analysis and config learning once at the session's end on Simon's go, never per task batch; preserve the reserved item through handoff and avoid recursive analysis of analysis.",
+            "Own § End-of-session learning: read every message Simon typed this session (no peer or harness text), one learning line or no-change verdict per message, each routed through claude-config-update with private text paraphrased, landed via claude-config-sync, then the learning note and the archive line.",
             "Participants publish without waiting for peers; delegated participants return evidence, and the active session owns authorized repairs without draining the shared cloud backlog.",
             "Keep late and missing reports pending until reviewed or the user changes the roster; a file write never claims to wake a dormant chat.",
             "Separate observed data, unknowns and inference; clean up only resources with established ownership.",
@@ -562,6 +562,7 @@ CONTRACTS: dict[str, dict] = {
             "Project narrative plan sections plus computed artifacts and remaining actions into Session record without storing a duplicate.",
             "Atomically initialize one ordinary plan and canonical dashboard in an empty task workspace; reuse its active record on repeated or concurrent intake.",
             "Seed and retain a deferred after-run analysis item, migrate active plans on intake, and exempt only this reserved artifact-free lifecycle section from independent judgement.",
+            "Rewrite a legacy after-run-analysis item (a criterion text listed in LEGACY_AFTER_RUN_TEXTS) and its skeleton task line to the current end-of-session learning wording on read, init and update, keeping its status and evidence, so the reservation check and the retain check never both refuse one plan; bin/workflow-dashboard.test.py proves it on the pre-learning plan shape.",
             "Regenerate and print an absolute canonical dashboard path; reject zero plans and multiple active plans instead of selecting by modification time; fail link and init loudly, naming the file and the repair, on a *-plan.md whose dashboard-state block is missing, malformed or invalid while it keeps a dashboard trace (heading, fence text or exported sibling), and never create a second plan beside it.",
             "Allow ordinary current-engine work to run without loop options; keep confirmed options mandatory for Gauntlet and Ralph.",
             "Start or attach to the apps/gauntlet app on fixed port 4747, register the plan at its /api/projects endpoint, and write a runtime receipt naming the app's pid, port and url.",
@@ -627,7 +628,8 @@ CONTRACTS: dict[str, dict] = {
             "Questions consolidate into one block at the END of a turn.",
             "Owns the shape of every human-facing message (chat reply, Slack/DM, PR comment, message sent for Simon): line 1 is `Action needed: <the exact thing>` whenever anything waits on Simon (repeated every message, count first when several, Claude/CI-waiting items labelled `nothing needed from you`) else `No action needed`, then at most 5 one-line bullets of at most 20 words, one per distinct issue or outcome, then required actions as numbered steps in the end block; no prose paragraph or background that does not change the action. The caps hold per message however many parts it answers: at most 5 bullets and 5 end-block steps.",
             "A message for anyone but Simon, or a draft he sends as himself (Slack/DM, email, PR or ticket comment), carries its ask or fact on line 1 and at most 5 lines in all, no preamble, detail only on request; its shape and pre-send check live in references/tldr-report-formats.md § Message for someone else and hooks/outbound-message-guard.py enforces the cap on Slack and Gmail sends.",
-            "A finished session (every ask verdicted, no running work, lease or port, clean pushed worktree) ends its last message with the single line 'You can archive this session: everything here is done.'; never mid-run or while the session holds anything Simon needs: CI or a job on a pushed head, an open session PR awaiting his merge or deploy, or a promised smoke or reply. When only his merge remains, it ends with the ordered merge list and no archive line. After a deploy, 'finished' also needs the production check passed.",
+            "Once every ask is delivered and verified, the hand-back's line 1 is 'Action needed: say go to run the end-of-session config learning over your N messages in this session'; the archive line follows only after Simon's go (the learning ran) or skip, recorded as a session learning note that the Stop hook requires.",
+            "A finished session (every ask verdicted, no running work, lease or port, clean pushed worktree, session learning recorded) ends its last message with the single line 'You can archive this session: everything here is done.'; never mid-run or while the session holds anything Simon needs: CI or a job on a pushed head, an open session PR awaiting his merge or deploy, or a promised smoke or reply. When only his merge remains, it ends with the PR status block (each PR to merge linked under Needs your ok, in order) and no archive line. After a deploy, 'finished' also needs the production check passed.",
             "The final message of every turn that answers a Simon prompt, including the reply that delivers background work that prompt started, opens (right after line 1) with one answer bullet per question and point the prompt made, mid-run ones included, in his order, before any status; it never ends a long run on status alone or re-answers an already answered prompt. A check ask (ensure it works, see if X happened) ends with one bold Yay/Nay verdict line over a TLDR body of at most 3 bullets, an unchecked scope stated inside the verdict. Shape, pre-send check and WHY live in references/tldr-report-formats.md § Answer the prompt; rules/process.md's mid-run-question line points here instead of restating it.",
             "A turn started by a background event (task notification, monitor expiry, Stop-hook feedback) with no new outcome, decision or ask produces nothing or one line naming the new fact; the unchanged pending-ask block returns only on Simon's message, a changed ask or a real outcome, and hooks/intent-ledger.sh stop tells the model so. The plan and ledger keep the ask.",
             "Closure is reasonable: once the ask's outcome is delivered and verified to a reasonable level, stop; what only time, a real customer or a future event can confirm is dropped or one short clause, at most 2 optional follow-ups that never withhold the archive line, and no new question at hand-back unless a decision only Simon can make blocks the outcome. Never weakens CI, tests, reachable walkthroughs, security or a requested feature.",
@@ -636,6 +638,7 @@ CONTRACTS: dict[str, dict] = {
             "A reply that proposes or recommends a visible change shows it as a before/after screenshot in that same reply, unprompted; the fast method lives in work-ask-reply-in-full-before-after-artifact.",
             "When Simon names a thing with a loose term, the first reply of the work states the industry-standard term once with one primary source, before any artifact is named; the method lives in references/code-best-practices.md.",
             "Each merge or deploy ask in a native-app repo carries its app build line; the rule, shape and TEST live in references/tldr-report-formats.md § App build line.",
+            "A feature or PR question is answered in the five parts of references/tldr-report-formats.md § Feature and PR answer, unasked.",
         ],
     },
     "rules/config-repo.md": {
@@ -758,7 +761,7 @@ CONTRACTS: dict[str, dict] = {
         "criteria": [
             "A config repair lands only after the task check it cites is fixed and verified green; the lesson is recorded meanwhile, except a defect blocking the fix itself.",
             "Automatically repair evidence-backed own-config defects, validate, merge, push, activate and clean up under rules/self-healing-config.md; ask only outside its scope.",
-            "Run bounded analysis automatically at each task hand-back and retain its local report; the active session owns repairs while delegated participants return evidence.",
+            "Run config learning and bounded analysis once at the session's end on Simon's go, never per task batch, so it never slows the work; fix at once only an evidenced config defect blocking the current task. The active session owns repairs while delegated participants return evidence.",
             "Event-driven. No cron, no periodic scan, no scheduled sweep.",
             "Keeps BOTH triggers: a part that underperformed, and a part that fitted the task and "
             "was never invoked. The second is invisible unless checked for — a rule that misfires "
@@ -1102,6 +1105,7 @@ CONTRACTS: dict[str, dict] = {
             "Before the first push of a build, adopt or rebuild, every ticket criterion and raw-ask clause gets MET or GAP against the diff and each in-scope GAP is built; the end ship report proves, it does not discover.",
             "Owns the parts x targets grid: each named part sits in every named target's cell, never a default substitute, and each cell is ticked from Claude's own walk to that target's last stage before any step, link or ready reaches Simon.",
             "Owns runtime asks: a deployed system's runtime clause is Met only by evidence from a production run that started after its deploy, tracked on a live acceptance list re-checked event-driven after each deploy and scheduled run, never a cron or tight poll; it stops early only on 2 identical failures, a Simon-only step or a flake, and an open row blocks the archive line.",
+            "§ Close the session puts the end-of-session learning before the archive line: line 1 asks for go with N from intent-ledger.sh learning-count, go runs references/session-performance.md § End-of-session learning, go or skip is recorded with note learning, and a message after the learning re-arms it.",
             "A plan is reconciled against the original tickets after EVERY revision, and a "
             "pre-existing ticket gets a verdict against today's real code before it is scheduled.",
             "Every proposed check lists its prerequisites from the code and the provider, each confirmed found or missing, before any time estimate or any ask for an input.",
@@ -1243,6 +1247,7 @@ CONTRACTS: dict[str, dict] = {
             "rule, with its example and WHYs held here.",
             "§ Data table owns how a table for Slack, chat or email is sent (a rendered PNG with a before/after what-changed table, an evidence table and a date/source/exclusion line, never markdown) and the reconciliation TEST: one table per question, every money column named by its source, a buyer column per revenue source, no row with 0 buyers and revenue above 0 unless a column names that source.",
             "§ Automated message holds the example shape for a bot, alert or scheduled-job message; its rule and TEST stay in rules/copy-quality.md.",
+            "§ Feature and PR answer owns the five default parts of any feature or PR answer: a how-it-works spec across the user's scenarios confirmed against the code, a before/after user story, safety evidence (no prod, happy or payment path regression, measured added latency, non-blocking logging), best practice with primary sources, and a merge-or-cancel verdict with the benefit against today in numbers.",
             "§ Message for someone else owns the shape of a message to anyone but Simon (ask on line 1, one fact per bullet, at most 5 lines, no preamble or closer), how a draft for Simon is shown, the bin/outbound_message.py check pre-send step for routes the hook cannot see and the one-shot length override.",
             "The system journey carries where the flow can stop EARLY and what the user sees when "
             "it does. A silent stop is invisible in the user journey and is the defect this catches.",
@@ -1907,9 +1912,10 @@ CONTRACTS: dict[str, dict] = {
     },
     "skills/sk/skills/claude-config-self-optimize-analysis-after-run/SKILL.md": {
         "mission": "Every run leaves this config measurably better at shipping Simon's work, never better at one local metric.",
-        "purpose": "Analyze each task's execution and publish evidence for the next run or assigned coordinator.",
+        "purpose": "Run the end-of-session config learning on Simon's go and publish the run's evidence for the next run or assigned coordinator.",
         "criteria": [
-            "Publish local findings automatically after each task; the active session applies the automatic repair policy, while delegated participants return evidence without draining the global backlog.",
+            "Runs once per session on Simon's go after every task is verified: reads every message he typed (ledger asks and transcript, never peer or harness text), turns each correction, preference and how-it-works explanation into a learning routed through claude-config-update, and reports one line per learning with where it landed.",
+            "Publish local findings at that end-of-session pass; the active session applies the automatic repair policy, while delegated participants return evidence without draining the global backlog.",
             "Every suggestion names its evidence (file, number, log line) and the specific change. "
             "No evidence, no finding.",
             "Silence is a valid result; a manufactured suggestion costs more than a missed one.",
@@ -2424,7 +2430,7 @@ CONTRACTS: dict[str, dict] = {
             "typed words decide by one deterministic rule, no model call: among every message he typed in the session (no count window) the "
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
             "or uses a referent (both, it, them) in an imperative aimed at it (the verb within 3 words of the referent or starting its clause, the sentence not defining or generalising merging) while it names #N or answers a hand-back that asked a merge "
-            "word for #N on its Merge list, Action needed line or an end-block numbered step holding a merge "
+            "word for #N under its PR status block's Needs your ok group, else on its Action needed line or an end-block numbered step holding a merge "
             "verb, and no later typed message holds merges (a standalone hold of at most 4 words, 'hold #N', a "
             "hold word within 3 words before a merge verb, 'hold off' or a dequeue; a hold word about other "
             "work never holds). Anything else denies with one line ending "
@@ -2500,7 +2506,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "Stop: blocks once when the final assistant message names a PR, issue or ticket by a bare id outside a link, and says how to link it.",
         "criteria": [
             "Blocks on a bare #NN (two or more digits), owner/repo#N or ticket key (ABC-123) outside fenced code, inline code spans, markdown links (labels included), autolinks and bare URLs; shas and the NOT_TICKETS standards (UTF-8, SHA-256, ISO-8601, GPT-5) pass.",
-            "The reason lists the ids, gives the link form from the cwd's GitHub origin (https://github.com/<owner>/<repo>/pull/N) and keeps the Merge list line parseable by hooks/git-commit-guard.py.",
+            "The reason lists the ids, gives the link form from the cwd's GitHub origin (https://github.com/<owner>/<repo>/pull/N) and keeps the PR status block's Needs your ok group parseable by hooks/git-commit-guard.py.",
             "Blocks at most once per stop chain: a stop_hook_active continuation after its own block passes and clears the marker; a fresh stop re-arms. Skips AGENT_DELEGATED_WORKER=1 and fails open on a malformed payload.",
             "hooks/bare-reference-guard.test.py and the Stop HOOK_ROUTING case in contracts/routing_scenarios.py pin both directions.",
         ],
@@ -2677,7 +2683,8 @@ CONTRACTS: dict[str, dict] = {
             "The Stop reconciliation reason tells the model to open the final message by answering each question and point of the prompt that started the work, before status (rules/communication.md § Answer first). A reminder only: it never judges whether an answer is present and adds no extra block.",
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
             "At Stop, block once per ledger snapshot while the newest reconcile holds a `runtime: open` line outside a prompt fence, also on a stop_hook_active continuation (its own marker bounds it), naming each open line; it reads only that model-written tag, never judges the evidence.",
-            "At Stop, block once per request with decision block to run the after-run analysis when session-performance.py due reports enough new work since the workspace's last published report; only after reconciliation, and on a stop_hook_active continuation only when this hook's own reconciliation block caused it. A model-set marker never decides it.",
+            "At Stop, never block a work turn for an after-run analysis; block a final message holding the archive line once per ledger snapshot while this session has asks no `learning` note covers, naming N and the go ask.",
+            "`note learning` appends only a body holding 'session learning: done' or 'session learning: skipped', and only when an ask since the previous learning note is Simon's bare go or skip once harness blocks are stripped (or names the session or config learning), never a longer 'go ahead and ...'; a note of any kind holding a learning heading is refused. `learning-count` prints N read-only.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "
             "stop.",

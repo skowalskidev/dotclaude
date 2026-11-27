@@ -50,8 +50,10 @@ return point, and unfinished work stays visible through compaction and handoff. 
 the agent rechecks all recorded asks and continues any ready work. Cancelled or superseded requests
 retain the decision; blocked work retains its next action.
 
-Each task also queues an after-run performance analysis. It runs after the requested work, publishes
-a local report, and lets the session finish without waiting for other sessions. An assigned coordinator
+Each session ends with config learning. Once every task is verified, the hand-back asks Simon to say
+go; on go the session reads every message he typed, folds each learning into the config, publishes a
+local report, and only then says the session can be archived. Nothing runs per task batch, so the
+learning never slows the work. An assigned coordinator
 can collect reports arriving at different times; missing reports stay pending. The helper records
 evidence and review receipts without a background watcher. Every active session also fixes evidence-backed
 problems in its own config workflow, validates them, syncs them and cleans up the temporary branch.

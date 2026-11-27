@@ -72,5 +72,4 @@ reader does.
 **DO make an automated message a TLDR a person acts on from a phone:** headline, at most 2 short
 sentences, numbered steps whose links carry the ids, blank lines between parts, cause and evidence one
 level down (a thread reply). Shape: `references/tldr-report-formats.md` § Automated message.
-TEST: count the parts; no id or API path appears in both text and a link (the fix for an ops bot whose
-alerts ran summary, cause, raw API evidence and action links in one block and typed every id twice).
+TEST: count the parts; no id or API path appears in both text and a link (WHY: that section).

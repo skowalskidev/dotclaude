@@ -159,6 +159,65 @@ class DashboardTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'reserved'):
                 d.validate(state)
 
+    def test_legacy_after_run_plan_migrates_instead_of_contradicting(self):
+        # The exact shape an engine before the end-of-session learning step wrote: intake plus the old
+        # after-run item and skeleton task line. read refused it as "reserved", and update refused
+        # dropping it as "Retain", so the plan was unrepairable.
+        legacy_text = d.LEGACY_AFTER_RUN_TEXTS[0]
+        state = {'schemaVersion': 1, 'title': 'Session task', 'planPath': '.context/legacy-plan.md',
+                 'revision': 1, 'updatedAt': '2026-11-18T17:47:23+00:00', 'phase': 'planning',
+                 'engine': 'current', 'gauntlet': False, 'referenceMode': 'none', 'inspiration': '',
+                 'optionsConfirmedAt': None, 'iteration': 0, 'maxIterations': 1, 'sections': [
+                     {'id': 'task-intake', 'title': 'Task intake',
+                      'summary': 'The task record exists; replace this intake section with the approved work.',
+                      'status': 'todo', 'artifactRevision': 1,
+                      'next': 'Record the approved task, sources and acceptance criteria.',
+                      'criteria': [{'id': 'task-intake-1', 'passed': False, 'evidence': '',
+                                    'text': 'The approved task and its acceptance criteria are recorded.'}],
+                      'judge': {'verdict': 'pending'}},
+                     {'id': 'after-run-analysis', 'title': 'After-run analysis',
+                      'summary': 'Run after the requested work; retain this item when replacing task intake.',
+                      'status': 'todo', 'artifactRevision': 1,
+                      'next': 'Apply references/session-performance.md after the task and verification.',
+                      'criteria': [{'id': 'after-run-analysis-1', 'text': legacy_text, 'passed': False,
+                                    'evidence': ''}],
+                      'judge': {'verdict': 'pending'}}]}
+        prose = ('# Session task\n\n## Tasks\n\n- Record the approved scope and acceptance criteria.\n'
+                 + d.LEGACY_AFTER_RUN_TASK_LINES[0] + '\n\n## Dashboard state\n\n')
+        current = d.after_run_section()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            (root / '.context').mkdir()
+            plan = root / '.context' / 'legacy-plan.md'
+            d.atomic_write(plan, prose + '```dashboard-state\n' + json.dumps(state, indent=2) + '\n```\n')
+            for command in ('link', 'init', 'export'):
+                args = [str(plan)] if command == 'export' else ['--root', str(root)]
+                cli = subprocess.run([sys.executable, str(DASHBOARD_SCRIPT), command, *args],
+                                     capture_output=True, text=True, cwd=root)
+                self.assertEqual(cli.returncode, 0, command + ': ' + cli.stderr)
+            content, _, migrated = d.read_plan(plan)
+            self.assertEqual(migrated['revision'], 2, 'init persists the migration once')
+            self.assertNotIn(legacy_text, content)
+            self.assertNotIn(d.LEGACY_AFTER_RUN_TASK_LINES[0], content)
+            self.assertIn(d.AFTER_RUN_TASK_LINE, content)
+            analysis = migrated['sections'][1]
+            self.assertEqual(analysis['criteria'][0]['text'], current['criteria'][0]['text'])
+            self.assertEqual(analysis['title'], current['title'])
+            self.assertEqual(analysis['status'], 'todo')
+            self.assertEqual(migrated['sections'][0], state['sections'][0])
+            # A caller echoing the legacy wording back is migrated, not refused as "reserved".
+            echoed = copy.deepcopy(state)
+            echoed['sections'][1]['criteria'][0].update(passed=True, evidence='learning note')
+            echoed['sections'][1]['status'] = 'done'
+            updated, _ = d.update(plan, echoed, migrated['revision'])
+            self.assertEqual(updated['sections'][1]['criteria'][0]['text'], current['criteria'][0]['text'])
+            self.assertEqual(updated['sections'][1]['criteria'][0]['evidence'], 'learning note')
+            dropped = copy.deepcopy(updated)
+            dropped['sections'].pop()
+            with self.assertRaisesRegex(ValueError, 'Retain after-run-analysis'):
+                d.update(plan, dropped, updated['revision'])
+
     def test_intake_keeps_deferred_analysis_until_reported(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

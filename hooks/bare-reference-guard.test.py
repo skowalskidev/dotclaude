@@ -52,6 +52,7 @@ def main() -> int:
 
         must_block = [
             "Merge list: #1297, #1497, #1482, #1420",
+            "PR status\nNeeds your ok\n- #1497 fixes links. Type `merge #1497`",
             "#1497 and #1445 are green.",
             "Fixed in POI-1911.",
             "Action needed: say merge for **#1497**",
@@ -59,9 +60,10 @@ def main() -> int:
             "Linked [#1497](https://github.com/o/r/pull/1497) but not #1445.",
         ]
         must_pass = [
-            "Merge list: [#1297](https://github.com/o/r/pull/1297), [#1497](https://github.com/o/r/pull/1497)",
+            "PR status\nMerged\n- [#1297 Fix links](https://github.com/o/r/pull/1297): a9a8619, deploy verified\n"
+            "Needs your ok\n- [#1497 Paywall copy](https://github.com/o/r/pull/1497): new copy. Type `merge #1497`",
             "Run `gh pr view #1497` to see it.",
-            "```\nMerge list: #1497\nPOI-1911\n```\nDone.",
+            "```\nNeeds your ok\n- #1497\nPOI-1911\n```\nDone.",
             "Fixed in [POI-1911](https://linear.app/x/issue/POI-1911).",
             "Landed a9a8619 and 479368dcd3f on main.",
             "The PR is https://github.com/o/r/pull/1497 and <https://github.com/o/r/pull/1445>.",
@@ -77,9 +79,9 @@ def main() -> int:
             check(stop(home, text, sid=f"p{i}", cwd=repo) == "", f"clean message blocked: {text!r}")
 
         # The reason links through the repo's origin and lists the ids.
-        out = stop(home, "Merge list: #1497", sid="reason", cwd=repo)
+        out = stop(home, "Needs your ok\n- #1497 fixes links", sid="reason", cwd=repo)
         reason = json.loads(out)["reason"] if out else ""
-        check("https://github.com/o/r/pull/123" in reason and "#1497" in reason,
+        check("https://github.com/o/r/pull/123" in reason and "#1497" in reason and "PR status block" in reason,
               f"reason lacks the origin link or the id: {reason[:200]}")
 
         # Loop safety: blocks once, the continuation passes even if a bare id remains, a fresh stop re-arms.

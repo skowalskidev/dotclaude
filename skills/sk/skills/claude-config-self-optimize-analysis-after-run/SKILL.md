@@ -1,6 +1,6 @@
 ---
 name: claude-config-self-optimize-analysis-after-run
-description: Analyze every task at hand-back without a reminder, including gauntlet and ordinary sessions. Publish a bounded local report and apply evidence-backed config repairs under the standing self-healing authorization. Use for "why was that slow", "analyse the run", "optimise this", "what did we waste", "self optimise", "CPU contention", "collect session reports", or "analyse all sessions". Supports superspeed logs and asynchronous reports from multiple sessions. Delegated participants report to the active session, which owns its authorized repairs.
+description: The end-of-session config learning, run once on Simon's go after every task in the session is delivered and verified, in gauntlet and ordinary sessions alike. Reads every message he typed this session, folds each correction, preference and how-it-should-work explanation into the config through claude-config-update, publishes a bounded local run report and applies evidence-backed repairs under the standing self-healing authorization. Use for "go" after the end-of-session learning ask, "learn from my messages", "self-improve on this session", "make the config learn from what I asked", "why was that slow", "analyse the run", "optimise this", "what did we waste", "self optimise", "CPU contention", "collect session reports", or "analyse all sessions". Supports superspeed logs and asynchronous reports from multiple sessions. Delegated participants report to the active session, which owns its authorized repairs.
 argument-hint: "[run directory | current session | all sessions] [incident batch]"
 ---
 
@@ -11,8 +11,10 @@ change.
 
 ## What it is for, and what it is not
 
-**This skill judges the current task's execution.** Apply `references/session-performance.md` for
-registration, bounded observations, publishing and asynchronous coordinator review. Ordinary sessions
+**This skill runs the session's end-of-session learning** (`references/session-performance.md`
+§ End-of-session learning): every message Simon typed becomes a learning line routed through
+`/sk:claude-config-update`, and the run's execution is judged in the same pass. Apply that reference
+for registration, bounded observations, publishing and asynchronous coordinator review. Ordinary sessions
 need no superspeed directory. A coordinator aggregates only when assigned that scope.
 
 It is not `/sk:claude-config-self-development-research`, which audits the whole config against outside practice on a
@@ -160,10 +162,11 @@ session a landed repair affects. The same bar and five-suggestion cap apply to t
 
 ## Cadence
 
-Run automatically after each task batch, including serial and gauntlet work; preserve the queued
-item through tangents and handoff. The ledger Stop hook adds one note per ask when a substantive
-batch has published nothing. Publish a no-finding or missing-evidence report when that is the
-result. Do not block the task on peers or acknowledgement. No cron, watcher, diagnostic fan-out or
+Run once per session, on Simon's go, after every task is delivered and verified; never per task
+batch, so it never slows the work. An evidenced config defect that blocks the current task is fixed
+at once instead. Preserve the reserved item through tangents and handoff. The ledger Stop hook holds
+the archive line until a `session learning: done|skipped` note. Publish a no-finding or
+missing-evidence report when that is the result. Do not block the task on peers or acknowledgement. No cron, watcher, diagnostic fan-out or
 expensive rerun; follow the shared lifecycle above.
 
 ## Rules

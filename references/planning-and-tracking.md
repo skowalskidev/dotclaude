@@ -206,6 +206,17 @@ verdicts and plans).
 
 Owned by `rules/communication.md` § Close the session. Detail:
 
+- **End-of-session learning comes before the archive line, always.** Once every ask is delivered and
+  verified, line 1 of the hand-back is `Action needed: say go to run the end-of-session config learning
+  over your N messages in this session`, N from `~/.claude/hooks/intent-ledger.sh learning-count` (this
+  session's asks since its last learning note). On go, run `references/session-performance.md`
+  § End-of-session learning; on skip, record it. Either way record `intent-ledger.sh note learning
+  <scratch.md>` holding `session learning: done` or `session learning: skipped`, then give the archive
+  line. The note is refused unless an ask since the previous learning note is a bare go or skip, and
+  the Stop hook blocks an archive line while this session has asks no learning note covers (once per
+  ledger snapshot). A message Simon sends after the learning re-arms it: the next archive line needs
+  another go or skip. The learning ask joins the other open asks in the end block; it never replaces
+  the PR status block or a blocker.
 - **Finished** means every ask in the ledger/plan has a verdict, no agent, watcher or process of this
   session is running, no lease or port is held, the worktree is clean and pushed, and the session holds
   nothing Simon still needs it for. The line is false while any of these is open:
@@ -225,9 +236,9 @@ Owned by `rules/communication.md` § Close the session. Detail:
   Backlog tickets and one un-ticketed button defect under "everything here is done" would have been
   buried among hundreds of tickets. (the fix for a session that gave the archive line with three
   self-created Backlog tickets and an unticketed defect.)
-- **When the only remaining step is Simon's own merge or deploy, end with the merge list and no
-  archive line:** each PR to merge, in order, and that this session holds the post-deploy smoke and
-  follow-ups. e.g. two open PRs with CI running on the last push end "Merge [#A](url), then [#B](url); I run the
+- **When the only remaining step is Simon's own merge or deploy, end with the PR status block and no
+  archive line** (`references/tldr-report-formats.md` § PR status block): each PR to merge under
+  `Needs your ok`, in order, and that this session holds the post-deploy smoke and follow-ups. e.g. two open PRs with CI running on the last push end "Merge [#A](url), then [#B](url); I run the
   smoke and reply to the reporter after deploy", never the archive line. (the fix for a session that
   said the line with CI running and two PRs awaiting merge, then had to be asked what to merge.)
 - **After merge and deploy, production is proven live** before the archive line: the deploy run for

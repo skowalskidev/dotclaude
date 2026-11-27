@@ -1,8 +1,8 @@
 # Automatic config repair
 
-DO audit every task batch before hand-back, in every session, without waiting for a skill invocation.
-Use `/sk:claude-config-self-optimize-analysis-after-run` and `references/session-performance.md`.
-The next session resumes an unfinished audit from the existing living plan. No cron or watcher.
+DO run config learning once, at the session's end, on Simon's go (`references/session-performance.md`
+§ End-of-session learning, `/sk:claude-config-self-optimize-analysis-after-run`), never per task batch;
+fix at once only an evidenced config defect blocking the current task. No cron or watcher.
 
 ## Standing authorization
 
@@ -40,8 +40,8 @@ no agent-typed string passes a human-only gate (the fix for an agent-typed `CLAU
    task check it cites is green: `/sk:claude-config-update` § Lessons that arrive before the fix.
 2. **The right part was never invoked.** Compare the task and intent ledger with installed routing.
    Repair a missed trigger at its description or routing source; do not blame task memory.
-3. **Every task reaches hand-back.** Queue the audit at intake, run it after task verification, and
-   record fixes or a no-finding result. Missing evidence is an explicit gap, not a fabricated lesson.
+3. **The session reaches its end.** Ask for the go once all task work is verified; on go, learn from
+   every message Simon typed. Missing evidence is an explicit gap, not a fabricated lesson.
 
 DO use the bounded evidence already collected. A one-off without a durable config cause is a
 no-change result. Generalize per `rules/process.md` § Fix the CLASS of failure.

@@ -19,7 +19,8 @@ A merge passes on one of two paths, in this order:
   - Simon's own words, one deterministic rule (words_allow), no model call: among every message he typed
     in the session, the newest that orders #N merged (a present-tense merge verb, not negated, not a question,
     naming #N, or a referent such as "both" or "it" in an imperative aimed at it while the message answers a hand-back that asked a
-    merge word for #N on its Merge list, Action needed line or an end-block numbered step) with no later
+    merge word for #N under its PR status block's Needs your ok group, Action needed line or an end-block
+    numbered step) with no later
     message holding merges. The hand-back only resolves the referent: his words still give the order.
 Only user turns of the transcript count; a peer envelope, a harness block, a tool answer and a
 delegated worker's brief never do. There is no override flag.
@@ -858,7 +859,10 @@ PASTED_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})[\s\S]*?^[ \t]*\1[ \t]*$|^[ \t]*>.*
 PEER_OPENER_RE = re.compile(r"\A\W*(?:from (?!this\b|that\b|my\b|our\b|the current\b)(?:the )?[\w .'/-]{1,60}? session\b"
                             r"|another claude session sent a message"
                             r"|this came from another claude session|\[?(?:peer|agent) message\b)", re.I)
-MERGE_LIST_RE = re.compile(r"^[\s>*_`-]*merge list\b[^\n]*", re.I | re.M)
+# The hand-back's PR status block (references/tldr-report-formats.md § PR status block): each group label opens a
+# group that runs to the next label or a blank line; the PRs under `Needs your ok` await Simon's merge word.
+STATUS_HEAD_RE = re.compile(r"^[ \t>#*_-]*(merged|approved, merging|needs your ok|in progress|deferred / blocked"
+                            r"|pr status|your call|questions)\b[*_ \t]*(?::|$)", re.I | re.M)
 # The hand-back's mandated ask lines (rules/communication.md § Answer first): line 1 `Action needed…`, and the numbered
 # steps under the closing `Your call` / `Questions` block.
 ACTION_LINE_RE = re.compile(r"^[\s>*_`-]*action needed\b[^\n]*", re.I | re.M)
@@ -866,13 +870,25 @@ END_BLOCK_RE = re.compile(r"^[\s>*_`#-]*(?:your call|questions)\b[^\n]*$", re.I 
 ASK_STEP_RE = re.compile(r"^[ \t>*_`-]*\d+[.)][ \t]+[^\n]*", re.M)
 
 
+def needs_your_ok(text: str) -> set:
+    """Every #N under the PR status block's `Needs your ok` group(s)."""
+    heads = list(STATUS_HEAD_RE.finditer(text))
+    found = set()
+    for k, head in enumerate(heads):
+        if head.group(1).lower() != "needs your ok":
+            continue
+        group = text[head.start():heads[k + 1].start() if k + 1 < len(heads) else len(text)]
+        found |= set(re.findall(r"#(\d+)\b", re.split(r"\n[ \t]*\n", group, maxsplit=1)[0]))
+    return found
+
+
 def handback_merge_list(text: str) -> set:
-    """The PRs a hand-back asks Simon to give a merge word for: its `Merge list` line, else every #N on an
-    `Action needed` line or an end-block numbered step that carries a merge verb. It only names the referent of
-    his own reply ("merge both"); his typed words still have to give the order."""
-    found = MERGE_LIST_RE.search(text)
+    """The PRs a hand-back asks Simon to give a merge word for: its PR status block's `Needs your ok` group, else
+    every #N on an `Action needed` line or an end-block numbered step that carries a merge verb. It only names the
+    referent of his own reply ("merge both"); his typed words still have to give the order."""
+    found = needs_your_ok(text)
     if found:
-        return set(re.findall(r"#(\d+)\b", found.group(0)))
+        return found
     ends = list(END_BLOCK_RE.finditer(text))
     asks = ACTION_LINE_RE.findall(text) + (ASK_STEP_RE.findall(text, ends[-1].end()) if ends else [])
     return {n for line in asks if MERGE_VERB_RE.search(line) for n in re.findall(r"#(\d+)\b", line)}

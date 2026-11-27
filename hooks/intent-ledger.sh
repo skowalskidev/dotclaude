@@ -40,7 +40,13 @@
 #
 # Modes:  submit                  UserPromptSubmit — append the ask verbatim (and a receipt for a
 #                                 typed /sk:<stage> command)
-#         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile
+#         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile|learning.
+#                                 A learning note records the end-of-session config learning: its body
+#                                 holds "session learning: done" or "session learning: skipped", and it
+#                                 is refused unless an ask since the previous learning note is Simon's
+#                                 bare "go" or "skip" (or names the session/config learning)
+#         learning-count          read-only, run from the session's shell like note — print N, this
+#                                 session's asks since its last learning note: the N in the hand-back's ask
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
 #         skill                   PostToolUse (Skill) — record a stage receipt for the HEAD of the checkout
 #                                 the work runs in: a subagent's (agent_id) last explicit Bash checkout,
@@ -80,8 +86,9 @@
 #         gates                   PreToolUse helper — print "<heading time> <gate line>" for each gate THIS session recorded (stdin
 #                                 payload: session_id, cwd). Read-only; silent when none; exit 3 when
 #                                 no ledger resolves.
-#         stop                   Stop — require reconciliation after the newest recorded input, then
-#                                 a gate record for every pushed branch head
+#         stop                   Stop — require reconciliation after the newest recorded input, block
+#                                 an archive line while this session has asks no learning note covers,
+#                                 then a gate record for every pushed branch head
 
 set -uo pipefail
 
@@ -112,7 +119,7 @@ CRED_RE='(-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]
 command -v jq >/dev/null 2>&1 || exit 0
 
 INPUT=""
-case "$MODE" in note|gate|stages|receipt) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
+case "$MODE" in note|gate|stages|receipt|learning-count) ;; *) INPUT="$(cat 2>/dev/null)" ;; esac
 [ -n "$INPUT" ] || INPUT='{}'
 
 jf() { printf '%s' "$INPUT" | jq -r "$1 // empty" 2>/dev/null; }
@@ -122,7 +129,7 @@ SID="$(jf '.session_id' | tr -cd '[:alnum:]._-')"
 # environment. Every other mode takes it from its payload only: a test or tool subprocess inherits the
 # live session's CLAUDE_CODE_SESSION_ID, and reading it there let a temp-repo test re-anchor the live
 # session's record (the fix for a nested-worktree ask that opened a second ledger and hid a standing merge).
-case "$MODE" in note|gate|stages|receipt)
+case "$MODE" in note|gate|stages|receipt|learning-count)
   [ -n "$SID" ] || SID="$(printf '%s' "${CLAUDE_CODE_SESSION_ID:-}" | tr -cd '[:alnum:]._-')" ;;
 esac
 [ -n "$SID" ] || SID="unknown"
@@ -377,6 +384,33 @@ FENCE_AWK='
         tail=substr(line,width+1)
         if (!fence) { fence=width; delimiter=mark; next }
         if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }'
+
+# learning_state — "<last learning ts>\t<N>\t<go>" for LEDGER: N counts this session's asks after the
+# newest learning note (every session's when the id is unknown); go is 1 when an ask after it (any
+# session) is Simon's bare go or skip ("go", "go ahead", "ok go", "skip") once harness blocks are
+# stripped, or names the session or config learning. A longer "go ahead and merge" never counts.
+# Records are parsed with their fences, so a heading pasted inside a prompt is never a boundary.
+learning_state() {
+  [ -f "$LEDGER" ] || { printf '\t0\t0\n'; return; }
+  awk -v sid="$SID" '
+    function word(t) { t = tolower(t); gsub(/[[:space:]]+/, " ", t); sub(/^ /, "", t); sub(/ $/, "", t)
+      return (t ~ /^((yes|ok|okay)[ ,]+)?(go|go ahead|skip)[.! ]*$/ || index(t, "session learning") ||
+        index(t, "config learning")) }
+    inrec && fence == "" && $0 ~ /^`{3,}[[:space:]]*$/ { fence = $0; sub(/[[:space:]]+$/, "", fence); body = ""; skip = 0; next }
+    inrec && fence != "" && $0 == fence { if (isask && word(body)) go = 1; inrec = 0; fence = ""; next }
+    inrec && fence != "" {
+      if (!skip && $0 ~ /<(system-reminder|system_instruction|task-notification)>/) skip = 1
+      if (!skip) body = body " " $0
+      if (skip && $0 ~ /<\/(system-reminder|system_instruction|task-notification)>/) skip = 0
+      next }
+    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · (ask|peer) · session / {
+      inrec = 1; fence = ""; isask = (index($0, " · ask · session ") > 0)
+      if (isask && (sid == "unknown" || substr($0, length($0) - length(sid) + 1) == sid)) n++
+      next }
+    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · learning$/ { lts = $2; n = 0; go = 0; next }
+    END { printf "%s\t%d\t%d\n", lts, n, go }
+  ' "$LEDGER"
+}
 
 section_lines() { # section_lines KIND FILE — every line under a "## <ts> · KIND" heading, outside prompt fences
   awk -v kind="$1" "$FENCE_AWK"'
@@ -857,9 +891,9 @@ the work runs in (a subagent's: the one its last Bash cd'd into).
   jq -cn --arg c "GAUNTLET UPDATE: read the new ask in $target and the existing living plan. Apply \
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
 every added requirement, preserve unfinished items and the return point, then refresh the dashboard. \
-Keep one deferred after-run analysis for the task batch per references/session-performance.md; run it \
-after the requested work without waiting for peers. Apply rules/self-healing-config.md automatically \
-for evidenced repairs and their sync/cleanup; no manual skill invocation is required. An answer or status question does not cancel \
+Keep config learning for the session's end: after all task work is verified, ask Simon to say go for \
+the end-of-session config learning (references/session-performance.md section End-of-session learning); \
+fix a config defect now only when it blocks the current task. An answer or status question does not cancel \
 older work. Recording an ask does not grant approval." \
     '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
   exit 0
@@ -867,8 +901,8 @@ older work. Recording an ask does not grant approval." \
 
 note)
   kind="${2:-}"; src="${3:-}"
-  case "$kind" in sources|plan|pivot|reconcile) ;; *)
-    echo "note: kind must be sources|plan|pivot|reconcile" >&2; exit 2 ;;
+  case "$kind" in sources|plan|pivot|reconcile|learning) ;; *)
+    echo "note: kind must be sources|plan|pivot|reconcile|learning" >&2; exit 2 ;;
   esac
   [ -f "$src" ] || { echo "note: no such file: $src" >&2; exit 2; }
   resolve || { echo "note: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
@@ -906,9 +940,21 @@ note)
     echo "note: refusing: $orig_src holds a '## <time> · ask · session' heading, which only the prompt recorder writes. Reword that line." >&2
     rm -f "$snap"; exit 2
   fi
-  if grep -qE '^##.* · (gate|receipt)$' "$src" 2>/dev/null; then
-    echo "note: refusing: $orig_src holds a '## <time> · gate' or '· receipt' heading, which only the gate and the stage-receipt recorder write. Reword that line." >&2
+  if grep -qE '^##.* · (gate|receipt|learning)$' "$src" 2>/dev/null; then
+    echo "note: refusing: $orig_src holds a '## <time> · gate', '· receipt' or '· learning' heading, which only their recorders write. Reword that line." >&2
     rm -f "$snap"; exit 2
+  fi
+  # The end-of-session learning note is what lets the archive line through, so only Simon's own word
+  # opens it: an ask since the previous learning note that is a bare "go" or "skip".
+  if [ "$kind" = "learning" ]; then
+    if ! grep -qE 'session learning: (done|skipped)' "$src" 2>/dev/null; then
+      echo "note: refusing: a learning note holds \"session learning: done\" or \"session learning: skipped\"." >&2
+      rm -f "$snap"; exit 2
+    fi
+    if [ "$(learning_state | cut -f3)" != 1 ]; then
+      echo "note: refusing: no ask since the last learning note says go or skip. Ask Simon: \"Action needed: say go to run the end-of-session config learning over your N messages in this session\"." >&2
+      rm -f "$snap"; exit 2
+    fi
   fi
   acquire "$LEDGER" || { rm -f "$snap"; echo "note: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
@@ -1202,17 +1248,16 @@ stop)
   # Loop safety, three independent guards. A Stop hook that re-blocks the finish it just caused is an
   # unbreakable session, which is the failure task-intake.sh documents for a different hook.
   #   1. stop_hook_active — the payload's own "you are already continuing because of a stop hook".
-  #      Nothing blocks on it, with one bounded exception: the after-run block may follow THIS
-  #      hook's own reconciliation block for the same request, so a reconciled task still gets its
-  #      analysis. Each kind is single-use per request, so a request sees at most two blocks.
-  #   2. markers for the exact ledger snapshot and the request, so unchanged work cannot re-block.
+  #      The reconciliation block never fires on it; the runtime and learning gates may, each
+  #      single-use per ledger snapshot, so one snapshot sees at most one block of each kind.
+  #   2. markers for the exact ledger snapshot, so unchanged work cannot re-block.
   #   3. a reason that names the exact command satisfying it, so there is always a way out.
   active="$(jf '.stop_hook_active')"
   mkdir -p "$STATE" 2>/dev/null || exit 0
   resolve || exit 0
   [ -f "$LEDGER" ] || exit 0
 
-  # The reconciliation and after-run checks, unchanged. Run in a subshell so every exit 0 inside it
+  # The reconciliation, runtime and end-of-session learning checks. Run in a subshell so every exit 0 inside it
   # only ends this check and the ship gate below still runs after it.
   stop_ledger() {
   # Parse only actual entry headings, never a fake reconcile header inside a quoted prompt.
@@ -1232,30 +1277,17 @@ stop)
     !fence && /^## [0-9][0-9][0-9][0-9]-.* · reconcile$/ { pending=0 }
     END { print pending+0 }
   ' "$LEDGER")"
-  fence_ts() { awk -v kind="$1" '
-    { line=$0; sub(/^ */, "", line)
-      if (line ~ /^(```|~~~)/) { mark=substr(line,1,1); match(line, "^" mark "+"); width=RLENGTH
-        tail=substr(line,width+1)
-        if (!fence) { fence=width; delimiter=mark; next }
-        if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }
-    !fence && $0 ~ ("^## [0-9][0-9][0-9][0-9]-[^ ]*Z · " kind) { ts=$2 }
-    END { print ts }' "$LEDGER"; }
-  ask_ts="$(fence_ts 'ask · session ')"
-  reconciled="$(fence_ts 'reconcile$')"
-  # Unreconciled work comes first: the turn is mid-task, so the after-run analysis waits for a
-  # boundary and only the reconciliation below can block.
+  # Unreconciled work comes first: the turn is mid-task, so only the reconciliation below can block.
   if [ "$pending" != 1 ]; then
     # Runtime asks (references/planning-and-tracking.md § Runtime asks): a
     # deployed system's clause is met only by a production run after its deploy. While the newest
     # reconcile still lists one as `runtime: open`, block once per ledger snapshot, also on a
     # stop_hook_active continuation (its own marker bounds it), so hand-back waits on the next run.
-    # It marks reconblock so the after-run analysis may still follow on the continuation it causes.
     ropen="$(runtime_open "$LEDGER")"
     if [ -n "$ropen" ]; then
       rsnap="$(cksum < "$LEDGER")"
       if [ "$(cat "$STATE/$SID.runtimegate" 2>/dev/null)" != "$rsnap" ]; then
         printf '%s\n' "$rsnap" > "$STATE/$SID.runtimegate" 2>/dev/null || exit 0
-        [ -n "$ask_ts" ] && printf '%s\n' "$ask_ts" > "$STATE/$SID.reconblock" 2>/dev/null
         jq -cn --arg l "$ropen" --arg r "The newest reconciliation in $LEDGER lists runtime clauses still open:" \
           --arg t "A deployed system's runtime clause is met only by a production run that started after its \
 deploy (references/planning-and-tracking.md, Runtime asks). Before finishing: wait \
@@ -1269,27 +1301,24 @@ This fires at most once per ledger snapshot." \
         exit 0
       fi
     fi
-    # After-run analysis, run automatically. The helper owns the decision from facts the model does
-    # not set: published reports (their publish time is the watermark, so a window is never analysed
-    # twice), new tool calls, failures and corrections since that watermark, this turn's own work,
-    # running background tasks, a pending wakeup and a closing question. It blocks the stop at most
-    # once per user request (the marker below, written before speaking) and on a stop_hook_active
-    # continuation only when this hook's own reconciliation block caused it, so it cannot loop.
-    [ -n "$ask_ts" ] || exit 0
-    [ "$(cat "$STATE/$SID.afterrun" 2>/dev/null)" = "$ask_ts" ] && exit 0
-    if [ "$active" = "true" ] && [ "$(cat "$STATE/$SID.reconblock" 2>/dev/null)" != "$ask_ts" ]; then
-      exit 0
-    fi
-    verdict="$(printf '%s' "$INPUT" | /usr/bin/python3 "$CFG_ROOT/bin/session-performance.py" due \
-      --workspace "$root" --since "$ask_ts" --stop-payload - \
-      ${reconciled:+--reconciled-at "$reconciled"} 2>/dev/null)"
-    [ "$(printf '%s' "$verdict" | jq -r '.due' 2>/dev/null)" = "true" ] || exit 0
-    printf '%s\n' "$ask_ts" > "$STATE/$SID.afterrun" 2>/dev/null || exit 0
-    jq -cn --arg r "Run the after-run analysis now, before finishing: \
-$(printf '%s' "$verdict" | jq -r '"\(.windowToolCalls) tool calls, \(.problems) failures or corrections"' 2>/dev/null) \
-since this workspace's last published report. Invoke /sk:claude-config-self-optimize-analysis-after-run \
-on that window's own evidence and publish it with bin/session-performance.py; a short no-finding or \
-evidence-gap report counts. Publishing moves the watermark, so this window is never analysed twice." \
+    # End-of-session learning gate (rules/communication.md Close the session). The archive line waits
+    # until a learning note covers every ask this session sent: Simon says go or skip, the session
+    # learns (or records the skip), and only then archives. Work turns are never blocked for it, and
+    # it fires once per ledger snapshot, so it cannot loop.
+    last="$(jf '.last_assistant_message')"
+    case "$last" in *"You can archive this session"*) ;; *) exit 0 ;; esac
+    lstate="$(learning_state)"
+    n="$(printf '%s' "$lstate" | cut -f2)"
+    [ "${n:-0}" -gt 0 ] 2>/dev/null || exit 0
+    lsnap="$(cksum < "$LEDGER")"
+    [ "$(cat "$STATE/$SID.learngate" 2>/dev/null)" = "$lsnap" ] && exit 0
+    printf '%s\n' "$lsnap" > "$STATE/$SID.learngate" 2>/dev/null || exit 0
+    jq -cn --arg r "The archive line waits for the end-of-session config learning: $n of Simon's \
+messages in this session have no learning note. Replace the archive line with line 1 \
+\"Action needed: say go to run the end-of-session config learning over your $n messages in this session\" \
+(or \"skip\"). On go, run references/session-performance.md section End-of-session learning, record \
+~/.claude/hooks/intent-ledger.sh note learning <scratch.md> holding \"session learning: done\" (or \
+\"session learning: skipped\" on skip), then give the archive line. This fires at most once per ledger snapshot." \
       '{decision:"block",reason:$r}'
     exit 0
   fi
@@ -1297,18 +1326,20 @@ evidence-gap report counts. Publishing moves the watermark, so this window is ne
   snapshot="$(cksum < "$LEDGER")"
   [ "$(cat "$STATE/$SID.stopblock" 2>/dev/null)" = "$snapshot" ] && exit 0
   printf '%s\n' "$snapshot" > "$STATE/$SID.stopblock" 2>/dev/null || exit 0
-  printf '%s\n' "$ask_ts" > "$STATE/$SID.reconblock" 2>/dev/null
   jq -cn --arg r "This worktree has recorded input newer than its last reconciliation. Before \
 finishing: re-read $LEDGER and the living gauntlet plan, account for every request and remaining \
 item, continue ready authorized work, and append the current outcomes with
   ~/.claude/hooks/intent-ledger.sh note reconcile <scratch.md>
-Apply rules/self-healing-config.md; the after-run analysis is triggered separately once the work is reconciled. \
+Config learning waits for the session's end (rules/self-healing-config.md); fix now only a config defect blocking this task. \
 Record evidence for completed work and the next action for every real blocker or pause (not hypothetical checks; see rules/communication.md Close the session). An unapproved \
 proposal remains recorded, not permission to implement. Open the final message by answering each question \
 and point of the prompt that started this work, in its order, before any status (rules/communication.md \
-Answer first). When nothing is left, end the final message with \
-the archive line from rules/communication.md; with CI running, a session PR awaiting Simon's merge or a \
-promised smoke or reply open, end with the merge list instead. When this turn began from a background \
+Answer first). When the session opened, pushed, reviewed or merged a PR, the final message's last block is \
+the PR status block (references/tldr-report-formats.md § PR status block: each PR linked once under Merged, \
+Approved, merging, Needs your ok, In progress or Deferred / blocked). When nothing is left, end the final message with \
+the end-of-session learning ask from rules/communication.md Close the session, and the archive line only \
+once a learning note covers this session's messages; with CI running, a session PR awaiting Simon's merge or a \
+promised smoke or reply open, end with the PR status block and no archive line. When this turn began from a background \
 notification or this hook and brings no new outcome, decision or ask, write nothing or one line naming \
 the new fact: rules/communication.md forbids re-printing an unchanged block. This fires at most once per ledger snapshot." \
     '{decision:"block",reason:$r}'
@@ -1416,6 +1447,14 @@ latest-ask)
   rc=$?
   [ "$stamped" = 1 ] && [ -e "$fallback" ] && exit 4
   exit $rc
+  ;;
+
+learning-count)
+  # Read-only: N for the hand-back's "say go ... over your N messages" line. Silent with no ledger.
+  QUIET=1
+  resolve || exit 0
+  learning_state | cut -f2
+  exit 0
   ;;
 
 gates)
