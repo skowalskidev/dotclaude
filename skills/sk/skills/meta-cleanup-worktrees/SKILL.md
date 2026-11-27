@@ -280,8 +280,12 @@ For a Conductor-managed workspace, ask Simon to archive it in the Conductor app.
 name first, then workspace name and canonical path: he finds it by branch, not by city name. For a
 detached workspace, give the branch its session worked on.
 DO read each row's `state` and `workspace_name` first with `sqlite3 -readonly` from
-`~/Library/Application Support/com.conductor.app/conductor.db`, table `workspaces`, matched on
-`directory_name` (newest `updated_at`), and show a set `workspace_name` beside the branch. List only
+`~/Library/Application Support/com.conductor.app/conductor.db`: join `repos r on r.id = w.project_id`,
+keep rows whose `r.root_path` is this repo's main checkout, and match `w.workspace_path` to the folder's
+canonical path (else `w.directory_name`) AND `w.branch` to the folder's checked-out branch. Prefer a
+non-archived row; zero or several matches, or a tie → retain the folder as unresolved, never decide from
+`updated_at`. Conductor reuses city folder names across repos and over time, so a name-only newest-row
+lookup read two live workspaces as `archived`. Show a set `workspace_name` beside the branch. List only
 rows not yet `archived`: he can't archive a session the app no longer shows. A folder surviving an
 `archived` row is residue, handled below (the fix for an archive list naming an already archived
 session). Leave a listed workspace pending until he archives it.
