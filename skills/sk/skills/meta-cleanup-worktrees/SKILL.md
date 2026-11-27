@@ -294,6 +294,12 @@ lookup read two live workspaces as `archived`. Show a set `workspace_name` besid
 rows not yet `archived`: he can't archive a session the app no longer shows. A folder surviving an
 `archived` row is residue, handled below (the fix for an archive list naming an already archived
 session). Leave a listed workspace pending until he archives it.
+DO list a workspace for archive only once its chat is finished, never on a merged branch alone: read
+each session's last 6 messages (Conductor `ListSessionMessages`), its plan's unchecked tasks, and every
+PR its chat opened (`gh pr view <N> --json state`). Any open PR, open question, pending merge word,
+scheduled job or uncopied capture → retain it with that reason and link. TEST: a listed workspace has
+zero open PRs from its chat and no open ask in its last messages (the fix for an archive list of 8
+merged-branch workspaces, 7 of which still held PRs awaiting Simon's merge or open decisions).
 DO re-read `state` for every pending row at each later message in the session, and at the start of
 every sweep. For each row now `archived`, verify the disk result and delete its proven ref in that
 turn, with no question. DON'T ask him to say when he has archived.
