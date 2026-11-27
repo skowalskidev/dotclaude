@@ -388,7 +388,8 @@ FENCE_AWK='
 # learning_state — "<last learning ts>\t<N>\t<go>" for LEDGER: N counts this session's asks after the
 # newest learning note (every session's when the id is unknown); go is 1 when an ask after it (any
 # session) is Simon's bare go or skip ("go", "go ahead", "ok go", "skip") once harness blocks are
-# stripped, or names the session or config learning. A longer "go ahead and merge" never counts.
+# stripped, as the whole ask or as one line of it (a numbered reply opening with "go"), or names the
+# session or config learning. A longer "go ahead and merge" never counts, whole or as a line.
 # Records are parsed with their fences, so a heading pasted inside a prompt is never a boundary.
 learning_state() {
   [ -f "$LEDGER" ] || { printf '\t0\t0\n'; return; }
@@ -396,11 +397,11 @@ learning_state() {
     function word(t) { t = tolower(t); gsub(/[[:space:]]+/, " ", t); sub(/^ /, "", t); sub(/ $/, "", t)
       return (t ~ /^((yes|ok|okay)[ ,]+)?(go|go ahead|skip)[.! ]*$/ || index(t, "session learning") ||
         index(t, "config learning")) }
-    inrec && fence == "" && $0 ~ /^`{3,}[[:space:]]*$/ { fence = $0; sub(/[[:space:]]+$/, "", fence); body = ""; skip = 0; next }
-    inrec && fence != "" && $0 == fence { if (isask && word(body)) go = 1; inrec = 0; fence = ""; next }
+    inrec && fence == "" && $0 ~ /^`{3,}[[:space:]]*$/ { fence = $0; sub(/[[:space:]]+$/, "", fence); body = ""; lgo = 0; skip = 0; next }
+    inrec && fence != "" && $0 == fence { if (isask && (lgo || word(body))) go = 1; inrec = 0; fence = ""; next }
     inrec && fence != "" {
       if (!skip && $0 ~ /<(system-reminder|system_instruction|task-notification)>/) skip = 1
-      if (!skip) body = body " " $0
+      if (!skip) { body = body " " $0; if (word($0)) lgo = 1 }
       if (skip && $0 ~ /<\/(system-reminder|system_instruction|task-notification)>/) skip = 0
       next }
     /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · (ask|peer) · session / {
