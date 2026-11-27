@@ -334,12 +334,12 @@ CASES = [
 
     ("FB an older scoped hold, then 'just do it all and merge it', allows a PR outside the hold", dict(
         command=f"{M} 1524 -R acme/web", turn=[
-            ("handback", "Merge list: #1474, #1484, #1497."),
+            ("handback", "Action needed: say merge for #1474, #1484, #1497."),
             ("open", "do all except for merging ie ensure they're all merge ready but dont merge"), ("handback", ""),
             ("open", "the new sre bot PR is #1524, it needs this rule"), ("handback", ""),
             ("open", "give it with this rule, and merge it. So just do it all and merge it.")]), False, ""),
     ("FB a hold scoped to a merge list does not hold a PR outside it", dict(command=f"{M} 1524 -R acme/web", turn=[
-        ("open", "merge #1524"), ("handback", "Merge list: #1474, #1484."), ("open", "dont merge")]), False, ""),
+        ("open", "merge #1524"), ("handback", "Action needed: say merge for #1474, #1484."), ("open", "dont merge")]), False, ""),
 
     # ---- real holds: each must deny
     ("HOLD a hold naming this PR still blocks after 'merge it'", dict(command=f"{M} 1524 -R acme/web", turn=[
