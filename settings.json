@@ -283,5 +283,6 @@
     "baseRef": "head"
   },
   "skipWorkflowUsageWarning": true,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "cleanupPeriodDays": 90
 }

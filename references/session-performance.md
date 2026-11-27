@@ -41,6 +41,8 @@ ledger dies with its worktree. Every cleanup path (`bin/session-reaper.py`, the 
 artifact sweep, the intent-ledger and session-root state pruning) removes a session's transcript, state,
 `.context` or `session-env` only once that record exists; a session whose transcript holds no typed
 message records `empty` on its own.
+DO keep `cleanupPeriodDays` at 90 in `settings.json`: Claude Code's own transcript sweep ignores the
+record, so the retention must outlast the learning backlog. TEST: the setting is 90 or more.
 DO drain ended sessions with no record in the same go: `python3 ~/.claude/bin/session_learning.py pending
 --limit 10` lists them oldest first. Run steps 1-3 over each one's transcript, then
 `session_learning.py record <sid> --verdict done --source "<sha or no change>"`. Report the count still

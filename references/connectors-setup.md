@@ -506,6 +506,12 @@ Docker MCP profile, each in its own container with signed images and secrets in 
 - Check: `docker mcp version`, `docker mcp profile list`, `claude mcp list` shows
   `MCP_DOCKER ... Connected`. The gateway needs Docker Desktop running (an unreachable daemon is a
   down local service, not an auth problem, § Capability diagnosis).
+- DO recover a dead engine behind a live app window by quitting the app and reopening it
+  (`osascript -e 'quit app "Docker Desktop"'`, wait for the process to exit, `open -a Docker`, poll
+  `docker version` up to 3 min). DON'T retry `docker desktop start` or `restart`: with the backend
+  socket gone, start reports "already running" and restart times out on the window's helpers. TEST:
+  `docker version` prints a server version before any MCP_DOCKER verdict (the fix for an engine that
+  died after an app update while its window stayed open).
 
 ## Onboarding a new project
 

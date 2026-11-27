@@ -709,6 +709,16 @@ def check_session_learning_gates_archive_line() -> None:
         check(note("learning", "session learning: skipped").returncode == 0, "A skip was refused.")
         check(invoke("stop", last=archive) == "", "The archive line was blocked after a recorded skip.")
 
+        time.sleep(1.1)
+        invoke("submit", "2 yes, archive them\nlet's go with option b")
+        check(note("learning", "session learning: done").returncode != 0,
+              "A line merely containing 'go' counted as Simon's go for the learning.")
+        time.sleep(1.1)
+        invoke("submit", "go\n2 yes, archive them\n3 yes")
+        check(note("reconcile", "Learning ran.").returncode == 0, "reconcile note failed")
+        check(note("learning", "session learning: done").returncode == 0,
+              "A numbered reply whose own line is 'go' was refused as Simon's go (the fix for a multi-line go).")
+
 
 def check_runtime_asks_met_only_in_production() -> None:
     process = read("rules/process.md")
