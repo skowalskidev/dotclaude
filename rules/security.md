@@ -66,6 +66,8 @@ the chat. e.g. to check a key is present, test its path or byte length, never pr
   it keeps work and personal cloud credentials from crossing.
 - **`hooks/secret-echo-guard.py`** — denies a command that prints a credential value
   (`gh auth token`) unless it is consumed; file reads stay open.
+- **The Haiku step (`bin/haiku_judge.py`)** clears a guard's heuristic keyword hit it reads as a false
+  positive; a timeout or error keeps the deny: `references/code-best-practices.md` § Hooks and guards.
 
 The wall is the provenance rule above, plus never echoing a value out.
 

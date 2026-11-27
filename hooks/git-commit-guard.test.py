@@ -16,6 +16,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+# These cases pin the keyword rules, which are also the fallback when the Haiku step gives no verdict; bin/haiku_judge.test.py
+# covers the judged path with a stub. Off here so no case calls the model.
+os.environ["CLAUDE_HAIKU_JUDGE"] = "off"
+
 GUARD = Path(__file__).parent / "git-commit-guard.py"
 CFG = GUARD.parent.parent
 TMP = Path(tempfile.mkdtemp(prefix="guard-test-"))

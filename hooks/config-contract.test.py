@@ -57,6 +57,10 @@ os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
 os.environ.pop("CLAUDE_PROJECT_DIR", None)
 from pathlib import Path
 
+# These cases pin the keyword rules, which are also the fallback when the Haiku step gives no verdict; bin/haiku_judge.test.py
+# covers the judged path with a stub. Off here so no case calls the model.
+os.environ["CLAUDE_HAIKU_JUDGE"] = "off"
+
 # The checkout this file sits in. A worktree then tests its own files, never the live config.
 ROOT = Path(os.environ.get("CLAUDE_CONFIG_ROOT", Path(__file__).resolve().parents[1]))
 _INTAKE_TEMP = tempfile.TemporaryDirectory(prefix="claude-intake-tests-")
@@ -123,6 +127,10 @@ CRITERIA: list[tuple[str, str]] = [
      "A formatter or auto-fixer run aimed at a directory, `.`, a glob, a tree lister or no path is denied, wrappers and chains included, while explicit files, the git-diff substitution and check-only modes pass."),
     ("process-kill-guard-denies-pattern-kills-both-ways",
      "A pkill, killall or pgrep-fed kill that selects by name or a shared command line is denied, wrappers and chains included, while kill by pid and a pkill -f scoped to the caller's own path pass."),
+    ("haiku-judge-decides-intent-with-keyword-prefilter",
+     "Every hook judgement on intent or language goes through bin/haiku_judge.py: the keyword scan only decides whether to ask "
+     "and is the fallback; security guards stay closed and workflow gates keep their keyword result with no verdict; each "
+     "calling hook's settings timeout covers the helper's."),
     ("outbound-message-guard-caps-messages-to-others",
      "A Slack or Gmail send or draft over the 5-line TLDR cap, with a line over 25 words or with 3+ unbulleted lines is denied, while a short or bulleted message, a read, a canvas, the one-shot override and the bin/outbound_message.py check CLI behave as documented."),
     ("bare-reference-guard-links-every-id",
@@ -2196,6 +2204,31 @@ def check_secret_echo_guard_denies_printed_credentials_both_ways() -> None:
     result = run(["python3", str(ROOT / "hooks/secret-echo-guard.test.py")])
     check(result.returncode == 0,
           f"Secret-echo guard regressions failed:\n{result.stdout}\n{result.stderr}")
+
+
+def check_haiku_judge_decides_intent_with_keyword_prefilter() -> None:
+    result = run(["python3", str(ROOT / "bin/haiku_judge.test.py")])
+    check(result.returncode == 0, f"bin/haiku_judge.test.py failed:\n{result.stdout[-3000:]}\n{result.stderr[-2000:]}")
+    helper = read("bin/haiku_judge.py")
+    check('"--safe-mode"' in helper and '"--bare"' not in helper,
+          "bin/haiku_judge.py must call claude -p --safe-mode on the subscription login, never --bare (it needs an API key).")
+    callers = {"hooks/secret-echo-guard.py": "secret-output", "hooks/process-kill-guard.py": "pattern-kill",
+               "hooks/work-resource-guard.sh": "resource-mention", "hooks/git-commit-guard.py": "merge-order",
+               "hooks/intent-ledger.sh": "learning-go"}
+    for path, kind in callers.items():
+        text = read(path)
+        check("haiku_judge" in text and kind in text, f"{path} must ask bin/haiku_judge.py (kind {kind}).")
+        check("claude\", \"-p" not in text and "claude -p" not in text,
+              f"{path} carries its own model call; bin/haiku_judge.py is the one owner.")
+    timeouts = {}
+    for groups in settings().get("hooks", {}).values():
+        for g in groups:
+            for h in g.get("hooks", []):
+                timeouts[h.get("command", "")] = h.get("timeout", 600)
+    for script in ("secret-echo-guard.py", "process-kill-guard.py", "intent-ledger.sh stop", "git-commit-guard.py",
+                   "work-resource-guard.sh"):
+        got = [t for c, t in timeouts.items() if c.endswith(script)]
+        check(got and min(got) >= 15, f"settings.json: the {script} hook timeout must be at least 15 s to fit the 8 s Haiku step.")
 
 
 def check_process_kill_guard_denies_pattern_kills_both_ways() -> None:

@@ -35,12 +35,23 @@ are judged by what the shell would RUN. Fails OPEN on anything malformed or unpa
 breaks the session gets switched off. hooks/process-kill-guard.py and hooks/capacity-timeout-guard.py
 reuse parse, effective and shell_body (the latter also ECHOERS and FILTERS), so keep their signatures. No override variable: if the user wants a value printed they run
 the command in their own terminal.
+
+HAIKU STEP (bin/haiku_judge.py, kind secret-output): a hit in a HEURISTIC class (JUDGED below: process
+command lines, a printenv of a secret-looking name) only MIGHT print a value, so the model is asked
+whether this exact command's output can carry one; ok clears the keyword hit. A definite printer
+(`gh auth token`, `stripe config --list`, ...) is never sent: its job is to print the value. No verdict
+(timeout, error, CLAUDE_HAIKU_JUDGE=off) keeps the deny: this guard fails CLOSED on the judgement.
 """
 
 import json
 import os
 import re
 import sys
+from pathlib import Path
+
+# Hit classes whose output only MIGHT hold a credential: the Haiku step may clear them. Definite
+# printers are absent on purpose.
+JUDGED = ("pgrep -f with -l/-a", "ps with command arguments", "printenv ")
 
 ASSIGN_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 REDIR_RE = re.compile(r"^(?P<fd>\d*|&)(?P<op>>>|>\||>&|>|<<<|<&|<)(?P<t>.*)$")
@@ -409,7 +420,8 @@ def classify(words, env_bare):
     elif cmd == "pgrep":
         if _cluster_has(args, "f") and (_cluster_has(args, "la") or "--list-full" in args):
             return ("pgrep -f with -l/-a (full command lines)",
-                    "pgrep -l <name> for names, or pgrep -f <pattern> for PIDs only "
+                    "pgrep -l <name> for names, pgrep -f <pattern> | xargs ps -o pid=,comm= -p (pid and executable, "
+                    "no arguments), or pgrep -f <pattern> for PIDs only "
                     "(references/dev-server-hygiene.md § Private process inspection)", "stdout", False)
     elif cmd == "ps":
         if _ps_prints_arguments(args):
@@ -534,6 +546,13 @@ def main() -> int:
     if not hit:
         return 0
     what, instead, _stream, _narrowing = hit
+    second = ""
+    if what.startswith(JUDGED):
+        verdict = _judge(command, what)
+        if verdict.get("ok") is True:
+            return 0  # the model read this exact command as unable to print a value
+        if verdict.get("reason"):
+            second = f"\nHaiku check: {verdict['reason']}"
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -544,11 +563,21 @@ def main() -> int:
                 f"Run instead: {instead}\n"
                 "Using a credential stays allowed (redirect it to a file, pipe it to the consumer, or "
                 "capture it with $(...) into the command that needs it). If the user wants the value "
-                "shown, ask them to run the command in their own terminal."
+                "shown, ask them to run the command in their own terminal." + second
             ),
         }
     }))
     return 0
+
+
+def _judge(command, what):
+    """The shared Haiku step's verdict for a heuristic hit; {} on any failure (the deny stands)."""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
+        import haiku_judge
+        return haiku_judge.judge("secret-output", {"command": command[:2000], "rule": what})
+    except Exception:
+        return {}
 
 
 if __name__ == "__main__":

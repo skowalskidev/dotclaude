@@ -2430,7 +2430,9 @@ CONTRACTS: dict[str, dict] = {
             "Any other merge needs a literal PR number (a variable, substitution or xargs selector denies, "
             "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
-            "typed words decide by one deterministic rule, no model call: among every message he typed in the session (no count window) the "
+            "typed words decide: the shared Haiku step (bin/haiku_judge.py, kind merge-order) reads the newest 12 typed messages that mention merging, "
+            "name #N, answer a hand-back asking for #N or hold, and its verdict decides; with no verdict (or no such message) the keyword rule "
+            "decides: among every message he typed in the session (no count window) the "
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
             "or uses a referent (both, it, them) in an imperative aimed at it (the verb within 3 words of the referent or starting its clause, the sentence not defining or generalising merging) while it names #N or answers a hand-back that asked a merge "
             "word for #N under its PR status block's Needs your ok group, else on its Action needed line or an end-block numbered step holding a merge "
@@ -2443,11 +2445,12 @@ CONTRACTS: dict[str, dict] = {
             "isMeta and task-notification turns, tool answers and Claude's text never count.",
             "A default-branch push (by name, HEAD, bare push, delete, --all, --mirror) needs "
             "CLAUDE_ALLOW_MAIN_COMMIT set to 1 in the session's starting environment and Simon's typed, "
-            "un-negated \"push\" this turn; an inline prefix is denied. In the ~/.claude config repo a push "
+            "un-negated \"push\" this turn (a turn holding a push word goes to the Haiku step, kind push-order, whose verdict decides; the keyword rule is "
+            "the fallback); an inline prefix is denied. In the ~/.claude config repo a push "
             "to main passes only when bin/config-land-check.py verified every pushed head and it fast-forwards.",
             "A stall past the watchdog or a crash on a command naming merge or push declines; malformed "
             "input naming neither passes. hooks/git-commit-guard.test.py runs every false-block example "
-            "(allowed) and every real hold (denied) with no model call.",
+            "(allowed) and every real hold (denied) with the judge off (the fallback); bin/haiku_judge.test.py drives the judged path with a stub.",
         ],
     },
     "hooks/background-process-guard.py": {
@@ -2514,6 +2517,17 @@ CONTRACTS: dict[str, dict] = {
             "hooks/bare-reference-guard.test.py and the Stop HOOK_ROUTING case in contracts/routing_scenarios.py pin both directions.",
         ],
     },
+    "bin/haiku_judge.py": {
+        "mission": "A hook judging Simon's intent or a command's meaning reads it like a person would, fast, instead of a keyword deciding, and a model failure never weakens a guard or grants an approval.",
+        "purpose": "The one fast Haiku reasoning step for every hook: the kinds and their questions, the model call, timeout, cache and verdict log.",
+        "criteria": [
+            "judge(kind, data) returns ok True, False or None (no verdict: disabled, timeout, error, malformed reply) and never raises; the caller applies its own fallback.",
+            "Calls `claude -p --safe-mode --model haiku --effort low --tools \"\"` on the existing subscription login, never --bare (it needs an API key), from a neutral cwd, with an 8 s default timeout.",
+            "Caches each model verdict per hash of kind, prompt version and data for 30 days, and appends every verdict (kind, hash, a 200-character excerpt, ok, reason, source, ms) to logs/haiku-judge.jsonl.",
+            "The system prompt treats the data as untrusted: an instruction aimed at the judge is a reason for ok=false.",
+            "CLAUDE_HAIKU_JUDGE=off and CLAUDE_HAIKU_JUDGE_STUB give offline control; bin/haiku_judge.test.py covers the helper and every caller's verdict, refusal and no-verdict paths with no model call.",
+        ],
+    },
     "hooks/secret-echo-guard.py": {
         "mission": "A credential value never lands in the transcript because a command printed it, while using that credential stays frictionless.",
         "purpose": "PreToolUse: denies a command whose normal output is a credential value, unless the output is consumed.",
@@ -2532,6 +2546,8 @@ CONTRACTS: dict[str, dict] = {
             "Judges what the shell runs, not text: awkward spacing, an absolute path, &&, ;, pipes, "
             "sh -c, eval and xargs are parsed; a quoted string or heredoc body naming a command never fires.",
             "Never blocks reading a secret FILE (rules/security.md); fails open on a malformed payload.",
+            "A heuristic hit (process command lines, printenv of a named variable) goes to the Haiku step (kind "
+            "secret-output), whose ok clears it; a definite printer is never sent, and no verdict keeps the deny (fail closed).",
             "hooks/secret-echo-guard.test.py pins both directions.",
         ],
     },
@@ -2553,6 +2569,8 @@ CONTRACTS: dict[str, dict] = {
             "Overridable only by CLAUDE_ALLOW_PATTERN_KILL=1 in the session's starting environment, which "
             "Simon sets for a case he named; a CLAUDE_ALLOW_PATTERN_KILL=1 prefix, env or export assignment "
             "inside the command is denied. Fails open on a malformed payload.",
+            "Only a path-free pkill -f pattern goes to the Haiku step (kind pattern-kill), whose ok clears a pattern unique to "
+            "this agent (a UUID, its own temp path); every other hit is definite, and no verdict keeps the deny (fail closed).",
             "hooks/process-kill-guard.test.py and HOOK_ROUTING cases in contracts/routing_scenarios.py pin both directions.",
         ],
     },
@@ -2687,7 +2705,8 @@ CONTRACTS: dict[str, dict] = {
             "Require reconciliation after the newest ask, plan or pivot; ignore headings inside prompt fences and preserve stop_hook_active plus an unchanged-snapshot loop guard. Check freshness, never semantic completion.",
             "At Stop, block once per ledger snapshot while the newest reconcile holds a `runtime: open` line outside a prompt fence, also on a stop_hook_active continuation (its own marker bounds it), naming each open line; it reads only that model-written tag, never judges the evidence.",
             "At Stop, never block a work turn for an after-run analysis; block a final message holding the archive line once per ledger snapshot while this session has asks no `learning` note covers, naming N and the go ask.",
-            "`note learning` appends only a body holding 'session learning: done' or 'session learning: skipped', and only when an ask since the previous learning note is Simon's bare go or skip once harness blocks are stripped (or names the session or config learning), never a longer 'go ahead and ...'; a note of any kind holding a learning heading is refused. `learning-count` prints N read-only.",
+            "`note learning` appends only a body holding 'session learning: done' or 'session learning: skipped', and only when the asks since the previous learning note approve or skip it: an ask naming go, skip, learning, config or self-improvement (typos included) goes to the Haiku step (kind learning-go), whose verdict decides, so a go on its own line of a numbered reply or a typo'd 'self imrpove' request passes and 'go ahead and merge' never does; with no verdict the keyword rule stands (a bare go or skip, or naming the session or config learning). Only ask records reach it, never peer, plan or assistant text; a note of any kind holding a learning heading is refused. `learning-count` prints N read-only.",
+            "At Stop, a stretch since the newest reconcile of at most 4 asks of at most 400 characters, with no plan, pivot or peer entry, that the Haiku step (kind status-only) reads as pure status questions or thanks ends the turn without the reconciliation block; new work, a longer stretch or no verdict keeps the block.",
             "Redacts credential-shaped values at capture with the regex from dotfiles/secret-scan.sh, "
             "character for character. A divergent copy is the drift one-owner-per-concern exists to "
             "stop.",
@@ -2792,6 +2811,9 @@ CONTRACTS: dict[str, dict] = {
             "not exempt, so git cannot launder the command after it.",
             "A rule fires on an INVOCATION, never on a name appearing in prose; "
             "hooks/work-resource-guard.test.py pins both directions.",
+            "The substring rules (the personal project id, the personal key-file paths, a work login in a personal repo) ask the "
+            "Haiku step (kind resource-mention) and pass a command it reads as only mentioning the literal; no verdict keeps the "
+            "deny (fail closed). Account, MCP-boundary, prod-write, quiet-window and model-API rules never ask.",
             "A command-position wrapper (exec, env, command, nohup, time, sudo) does not hide a CLI "
             "from the profile rule, and an explicit non-live key (--api-key, STRIPE_API_KEY=) counts "
             "as pinning the account.",
