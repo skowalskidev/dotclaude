@@ -64,6 +64,11 @@ Treat that request as authorization to dispose of verified inactive generated co
 scope, including archive directories; do not request permission again for already authorized caches.
 Keep the exact keep-list above all candidates. Preserve unique source, materials, designs, attachments,
 secrets and chat/app metadata by default; explicit archive deletion uses its separate scope above. Never equate an ignored path with a cache.
+DO delete rebuildable data that is idle, and keep the working set the next routine command would
+re-download or rebuild: current stack images, live folders' volumes, build cache used in the last 7
+days. `docker_sweep` in `bin/session-reaper.py` owns that policy; apply it, never `system prune -a`.
+TEST: the next local stack start downloads nothing the sweep removed (the fix for "delete it all, it
+can be rebuilt, but don't keep re-downloading").
 
 Prove each candidate is an untracked, reproducible generated directory from its contents/metadata and
 project configuration: e.g. Xcode DerivedData with matching plist metadata, dependency installs with
