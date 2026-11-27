@@ -458,8 +458,9 @@ own CI). DON'T commit or force-add a personal or secret file past `.gitignore`; 
 1. **Common root** (`connectorRoots.common`, `index.json` `{"boundary": "common"}`): account-free
    tooling every session uses, whatever its boundary (a local container runtime's MCP gateway). A
    common route holds no `secret`, `requires`, `serves` or `cli`, is shared-account, and the root
-   has no `projects/`. A common `name` also declared in a work or personal root makes the root
-   unreadable, so the guard always knows one policy per name; `guard-facts` reports a common name
+   has no `projects/`. A common `name` also declared in a work or personal root drops that ONE
+   common route (`roots` prints the warning, `validate` fails the staged root), so the name keeps the
+   boundary root's policy and every other route stays readable; `guard-facts` reports a common name
    under both boundaries. Provisioning registers a common MCP route once at Claude USER scope.
 2. **Boundary root + project file** (unchanged): the session's work or personal routes, the
    project's `projects/<project>.json` and per-project routes. Account, key and project-specific
@@ -503,6 +504,12 @@ Docker MCP profile, each in its own container with signed images and secrets in 
 - A project's own Docker servers: export its profile to `.docker/mcp-profile.json` (committed when
   the team shares it), and declare a per-project route in its boundary root with
   `--profile <project>`; `resolve docker` then lists the file under `repo setup`.
+- Dynamic tools (`mcp-find`, `mcp-add`, `mcp-config-set`, `code-mode`) are on by default and let an
+  agent add a catalog server mid-session; Docker labels them experimental and documents
+  `docker mcp feature disable dynamic-tools` for a fixed toolset
+  ([Dynamic MCP](https://docs.docker.com/ai/mcp-catalog-and-toolkit/dynamic-mcp/)). An added server
+  reaches Docker Desktop's global secret store and OAuth, which is why neither ever holds a work or
+  personal login.
 - Check: `docker mcp version`, `docker mcp profile list`, `claude mcp list` shows
   `MCP_DOCKER ... Connected`. The gateway needs Docker Desktop running (an unreachable daemon is a
   down local service, not an auth problem, § Capability diagnosis).
