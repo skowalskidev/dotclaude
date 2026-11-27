@@ -2,8 +2,9 @@
 """Stop and PostToolUse hook: the drafting session owns landing its config-update/* branch.
 
 PostToolUse (Bash): a `git worktree add ... -b config-update/<slug>` claims the branch for this session.
-Stop: while this session owns an unlanded config-update/* branch with no recorded blocker, hand-back is
-blocked, naming the exact commands that end it (land with bin/config-land-check.py, or record a blocker
+Stop: when the session ends (its last message gives the archive line) while it owns an unlanded
+config-update/* branch with no recorded blocker, the end is blocked; a normal task turn never is,
+because config work belongs to the end-of-session learning. The block is naming the exact commands that end it (land with bin/config-land-check.py, or record a blocker
 with its next action, or a supersede with evidence). Loop safety: at most MAX_BLOCKS blocks per set of
 owned branches, then it lets the turn end. Delegated workers return results and are never blocked.
 """
@@ -17,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "bin"))
 import config_branches as cb  # noqa: E402
 
 MAX_BLOCKS = 3
+ARCHIVE_LINE = "You can archive this session"
 WORKTREE_ADD = re.compile(r"git\b[^\n;&|]*\bworktree\s+add\b[^\n;&|]*?\s-b\s+(config-update/[A-Za-z0-9._-]+)")
 
 
@@ -38,6 +40,8 @@ def main():
     if os.environ.get("AGENT_DELEGATED_WORKER") == "1" or session == "unknown":
         return 0
     cb.heartbeat(root, session)
+    if ARCHIVE_LINE not in str(payload.get("last_assistant_message") or ""):
+        return 0  # a task turn: config landing waits for the session's end
     owned = cb.stop_gate(root, session)
     marker = state_file(session)
     if not owned:
@@ -54,7 +58,7 @@ def main():
     names = "\n".join(f"  {b}" for b in owned)
     reason = (
         "This session drafted config-update branches that are not on origin/main, and a drafted rule that "
-        "never lands never takes effect:\n" + names + "\nLand each now: validate (leased contract suite), "
+        "never lands never takes effect:\n" + names + "\nLand each now, before the archive line: "
         "then `python3 ~/.claude/bin/config-land-check.py --root <worktree> --diff`, read it, `--reviewed <sha256>`. "
         "If something outside your control blocks it, record the blocker and its next action:\n"
         "  python3 ~/.claude/bin/config_branches.py block <branch> \"<blocker; next action>\"\n"

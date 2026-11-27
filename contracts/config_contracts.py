@@ -2621,17 +2621,17 @@ CONTRACTS: dict[str, dict] = {
     },
     "hooks/config-branch-gate.py": {
         "mission": "The session that drafted a config change lands it or records why it cannot, so no rule sits unlanded for days.",
-        "purpose": "PostToolUse Bash claims a config-update branch at `git worktree add -b`; Stop blocks hand-back while the session owns an unlanded branch with no recorded blocker.",
+        "purpose": "PostToolUse Bash claims a config-update branch at `git worktree add -b`; Stop blocks the archive line while the session owns an unlanded branch with no recorded blocker, never a task turn.",
         "criteria": [
             "Wired in settings.json on Stop and on PostToolUse Bash.",
-            "Blocks only the owning session, names the land commands, the block command (blocker plus next action) and the supersede command, refreshes the owner's heartbeat each turn, blocks at most 3 times per set of owned branches, and never blocks a delegated worker.",
+            "Blocks only the owning session and only a turn ending with the archive line (a task turn never waits on config landing), names the land commands, the block command (blocker plus next action) and the supersede command, refreshes the owner's heartbeat each turn, blocks at most 3 times per set of owned branches, and never blocks a delegated worker.",
             "bin/config_branches.test.py drives each direction.",
         ],
     },
     "hooks/config-status.sh": {
         "mission": "Every session receives the automatic repair policy and can resume owned unfinished config work without Simon invoking it.",
         "purpose": "SessionStart: injects the repair policy and reports config state without mutating user work.",
-        "criteria": ["Always injects the repair policy for a config repository, including a clean checkout; the hook performs no repairs, commits or merges.",
+        "criteria": ["Always injects the repair policy for a config repository, including a clean checkout, scheduled for the end-of-session learning and never during a task; the hook performs no repairs, commits or merges.",
                      "Names every config-update/* branch that is not on origin/main at each session start, "
                      "so the active session can reconcile ownership and resume authorized work without a generic land-or-drop question.",
                      "Lists each branch bin/config_branches.py reports adoptable (no live owner, idle past ADOPT_AFTER_HOURS) under an ADOPTABLE heading with the adopt, merge-main, land or supersede-with-evidence steps, so an ownerless draft is never left as a note a later session skips."],

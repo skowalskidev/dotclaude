@@ -29,7 +29,7 @@ out_of_sync=0
 { [ -n "$status" ] || [ "${ahead:-0}" -gt 0 ] || [ "${behind:-0}" -gt 0 ]; } && out_of_sync=1
 
 # Even a clean checkout needs the automatic session lifecycle; this hook does not perform repairs.
-msg="CONFIG SELF-REPAIR: apply rules/self-healing-config.md in every task-bearing session, without a manual skill invocation. Queue the bounded audit, repair evidence-backed own-config issues, validate, sync and clean up under standing authorization. Reconcile ownership before resuming pending work; preserve unrelated WIP and report concrete blockers. Do not ask again to commit or merge an in-scope repair."
+msg="CONFIG SELF-REPAIR: apply rules/self-healing-config.md at the session's end, in the end-of-session learning, without a manual skill invocation; never during a task, except a config defect that blocks the task itself. Then repair evidence-backed own-config issues, validate, sync and clean up under standing authorization. Reconcile ownership before resuming pending work; preserve unrelated WIP and report concrete blockers. Do not ask again to commit or merge an in-scope repair."
 if [ "$out_of_sync" -eq 1 ]; then
   msg="${msg}
 
@@ -50,14 +50,14 @@ if [ -n "$pending" ]; then
 "
   msg="${msg}NOTE: config change(s) drafted by /sk:claude-config-update are NOT on main yet:
 ${pending}
-Inspect each branch's owner, evidence and current purpose. Resume ready authorized repairs; preserve active, superseded or blocked work until its disposition is established. Do not present a generic land-or-drop question."
+Inspect each branch's owner, evidence and current purpose in the end-of-session learning, after this session's tasks. Resume ready authorized repairs then; preserve active, superseded or blocked work until its disposition is established. Do not present a generic land-or-drop question."
   adopt="$(python3 "$REPO/bin/config_branches.py" --root "$REPO" adoptable 2>/dev/null)"
   if [ -n "$adopt" ]; then
     msg="${msg}
 
 ADOPTABLE (no live owner, idle past the adoption window; adopting is standing self-healing authority):
 ${adopt}
-In the next config-touching session: \`python3 ~/.claude/bin/config_branches.py adopt <branch>\`, merge origin/main into it (never rebase), keep both sides' intent, run its leased suite, then land it with bin/config-land-check.py. If a landed change already replaces it, run \`config_branches.py supersede <branch> \"<evidence>\"\`. Never drop it silently."
+In the end-of-session learning of the next config-touching session: \`python3 ~/.claude/bin/config_branches.py adopt <branch>\`, merge origin/main into it (never rebase), keep both sides' intent, then land it with bin/config-land-check.py. If a landed change already replaces it, run \`config_branches.py supersede <branch> \"<evidence>\"\`. Never drop it silently."
   fi
 fi
 

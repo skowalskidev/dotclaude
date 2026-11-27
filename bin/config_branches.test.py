@@ -63,7 +63,12 @@ def draft(config, slug, days_ago=0):
     return wt
 
 
+ARCHIVE = "Done.\n\nYou can archive this session: everything here is done."
+
+
 def hook(config, event, session, state, **extra):
+    if event == "Stop":
+        extra.setdefault("last_assistant_message", ARCHIVE)
     payload = dict(hook_event_name=event, session_id=session, **extra)
     env = dict(os.environ, CLAUDE_CONFIG_ROOT=str(config), CLAUDE_CONFIG_STATE=str(state))
     env.pop("AGENT_DELEGATED_WORKER", None)
@@ -79,6 +84,8 @@ def test_claim_from_worktree_add_and_stop_gate():
         cmd = "git -C ~/.claude worktree add ~/x/wt -b config-update/alpha origin/main"
         hook(config, "PostToolUse", "s1", state, tool_name="Bash", tool_input={"command": cmd})
         check(cb.load(config, "config-update/alpha").get("session") == "s1", "claim: worktree add did not claim the branch")
+        check(hook(config, "Stop", "s1", state, last_assistant_message="Built the importer.") == "",
+              "gate: a normal task turn was blocked for config landing (it waits for the session's end)")
         out = hook(config, "Stop", "s1", state)
         check('"decision": "block"' in out and "config-update/alpha" in out, f"gate: owner was not blocked: {out!r}")
         check(hook(config, "Stop", "s2", state) == "", "gate: another session was blocked")
@@ -111,7 +118,7 @@ def test_delegated_worker_is_never_blocked():
         config, state = make_repo(tmp), Path(tmp) / "state"
         draft(config, "gamma")
         cb.claim(config, "config-update/gamma", "s1")
-        payload = json.dumps({"hook_event_name": "Stop", "session_id": "s1"})
+        payload = json.dumps({"hook_event_name": "Stop", "session_id": "s1", "last_assistant_message": ARCHIVE})
         env = dict(os.environ, CLAUDE_CONFIG_ROOT=str(config), CLAUDE_CONFIG_STATE=str(state), AGENT_DELEGATED_WORKER="1")
         r = subprocess.run([sys.executable, str(HOOK)], input=payload, text=True, capture_output=True, env=env)
         check(r.stdout.strip() == "", f"worker: a delegated worker was blocked: {r.stdout!r}")

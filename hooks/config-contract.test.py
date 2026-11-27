@@ -358,6 +358,10 @@ CRITERIA: list[tuple[str, str]] = [
      "load at 40-63, and that false failure cost a full land-check rerun. A child that times out "
      "gets one retry at double its budget, then fails saying it timed out under load, and a run "
      "whose only failures are such timeouts exits 75 so the land check retries just those."),
+    ("suite-runs-at-background-priority",
+     "The suite re-execs itself once under macOS background QoS (taskpolicy -b), so it and its child "
+     "suites run at scheduler priority 4, below every task's build or test, and take no heavy lease: "
+     "config checks never slow normal work. CLAUDE_CONFIG_SUITE_BG=0 opts one run out."),
     ("suite-reruns-only-named-or-last-failed-criteria",
      "--only <text> runs just the criteria whose id contains it, and --last-failed runs just the "
      "ones the previous run recorded as failed in the worktree's git dir (every criterion when none "
@@ -3403,6 +3407,17 @@ def check_suite_timeout_scales_with_host_load() -> None:
         RUN_TIMEOUT_S = saved
 
 
+def check_suite_runs_at_background_priority() -> None:
+    if os.environ.get("CLAUDE_CONFIG_SUITE_BG") == "0" or not os.access("/usr/sbin/taskpolicy", os.X_OK):
+        return  # an explicit foreground run, or a host without macOS QoS
+    pri = subprocess.run(["ps", "-o", "pri=", "-p", str(os.getpid())], capture_output=True, text=True).stdout.strip()
+    check(os.environ.get("CLAUDE_CONFIG_SUITE_BG") == "1" and pri.isdigit() and int(pri) <= 4,
+          f"The suite runs at scheduler priority {pri or '?'}, not macOS background QoS (taskpolicy -b): "
+          "a config check would compete with a task's build.")
+    child = subprocess.run(["/bin/sh", "-c", "ps -o pri= -p $$"], capture_output=True, text=True).stdout.strip()
+    check(child.isdigit() and int(child) <= 4, f"A child of the suite runs at priority {child or '?'}: QoS is not inherited.")
+
+
 def check_suite_reruns_only_named_or_last_failed_criteria() -> None:
     cheap = "structure-rules-stay-within-budget"
     with tempfile.TemporaryDirectory() as tmp:
@@ -3586,5 +3601,17 @@ def main() -> int:
     return 1
 
 
+def run_in_background_priority() -> None:
+    """Re-exec once under macOS background QoS (`taskpolicy -b`: PRIO_DARWIN_BG, throttled CPU and
+    disk), so a config check never slows a task's build or test on this machine. Its children
+    inherit it. CLAUDE_CONFIG_SUITE_BG marks the re-exec; set it to 0 to run in the foreground."""
+    policy = "/usr/sbin/taskpolicy"
+    if os.environ.get("CLAUDE_CONFIG_SUITE_BG") or not os.access(policy, os.X_OK):
+        return
+    os.environ["CLAUDE_CONFIG_SUITE_BG"] = "1"
+    os.execv(policy, [policy, "-b", sys.executable, *sys.argv])
+
+
 if __name__ == "__main__":
+    run_in_background_priority()
     sys.exit(main())

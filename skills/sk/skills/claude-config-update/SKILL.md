@@ -297,7 +297,7 @@ DO own landing of the branch you draft: `hooks/config-branch-gate.py` claims it 
 until it lands, or `config_branches.py block <branch> "<blocker; next action>"` / `supersede <branch>
 "<evidence>"` records why not. DO adopt an ADOPTABLE branch named at session start (no live owner, idle
 over 4 h): `config_branches.py adopt <branch>`, merge origin/main into it (never rebase), keep both sides'
-intent, run its leased suite, land it; or supersede it with evidence. DON'T drop or ignore it.
+intent, land it (the land check runs the suite); or supersede it with evidence. DON'T drop or ignore it.
 Detail: `references/session-performance.md` § Finish a config repair.
 TEST: each draft has recorded evidence, one owner and an authorization verdict; a ready in-scope
 change reaches sync in the same run instead of waiting for a generic approval question.
@@ -350,21 +350,21 @@ they grow with the config, so this is part of applying the edit, not a follow-up
   `settings.json` matcher needs a `HOOK_ROUTING` case, including the awkward variants (the
   `mcp__*__AskUserQuestion` form is in there because missing it deadlocked a whole session).
 
-**Then run it as a double tap** (`references/testing-strategy.md` § Double tap):
+**Then let the land check run it once** (`references/testing-strategy.md` § Double tap):
 
 ```bash
-L="python3 $HOME/.claude/bin/local-capacity.py run --owner <session-id> --"
-$L /usr/bin/python3 <worktree>/hooks/config-contract.test.py                # full run: every failure, no fail-fast
-$L /usr/bin/python3 <worktree>/hooks/config-contract.test.py --last-failed  # while fixing: the failed criteria only
+/usr/bin/python3 <worktree>/hooks/config-contract.test.py --only <criterion id>  # while editing: the criteria you touched
+/usr/bin/python3 <worktree>/bin/<part>.test.py                                   # and the touched part's own test file
 ```
 
-Zero model calls, but its child suites take minutes and saturate the CPU, so each run holds a
-heavy lease (`rules/process.md` § Clean up after yourself; an unleased run drove machine load to
-about 280 while other sessions built). Run it as a background task. Run the worktree's copy: the live `~/.claude`
-copy tests main, not the draft. Settle every edit and expected outcome first, run the full suite once,
-fix every failure in one batch, then confirm once on the COMMITTED tree: a clean full pass there is
-recorded for `HEAD^{tree}`, and `bin/config-land-check.py` reuses it instead of running it a third
-time. A failure is the point of the exercise: fix the
+DEFAULT: the full suite runs once per change, inside `bin/config-land-check.py`, on the head it
+merges with `origin/main`; DON'T run it by hand before landing (main moves, so that pass is rarely the
+landed tree's). The suite re-execs itself at macOS background priority (`taskpolicy -b`), so it takes
+no heavy lease and never slows a task's build: config checks run in the end-of-session learning,
+after the session's tasks, never during them. Run the worktree's copy: the live `~/.claude` copy
+tests main, not the draft. On a land-check failure, fix every failure in one batch with `--only` and
+`--last-failed`, then land again. TEST: a session's config change shows at most one full suite run
+outside the land check (the fix for config checks that held build slots for minutes mid-task). A failure is the point of the exercise: fix the
 config, not the test. Only change a criterion when the guarantee genuinely moved, and say so out loud
 in the same breath.
 
