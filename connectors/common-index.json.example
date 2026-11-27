@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy to <common root>/index.json, where <common root> is connectorRoots.common in identity.local.json (e.g. a connectors-common/ folder beside your work and personal roots, outside every git repo). The common root holds ACCOUNT-FREE routes only (a local container runtime's MCP gateway, a local tool): every session of BOTH boundaries layers them in. No projects/ files, no secret, requires, serves or cli fields; anything tied to an account or a project goes in a work or personal root. Schema: references/connectors-setup.md.",
+  "boundary": "common"
+}

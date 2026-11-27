@@ -96,7 +96,11 @@ once with a receipt, or remains visibly blocked with the exact missing recipient
    `readOnly`/`gated` (true for prod reads/gated writes), the `mcp` block or
    `cli` block (`{name, profile}`), an optional `secret` (`{path}` — where the key lives, not where to
    fetch it from), and `auth.steps` (the numbered fix, including the command that mints the key).
-2. Add the route to `<root>/<provider>.json` in the root of this repo's boundary (create it from
+   Pick the root: the `common` root ONLY when the route holds no key, account, CLI profile or
+   project (a local tool's MCP gateway, e.g. Docker MCP Toolkit from `connectors/common-docker.json.example`);
+   otherwise the root of this repo's boundary. Add `repoFiles` globs when the repo carries its own
+   setup for the provider (`references/connectors-setup.md` § Lookup layers).
+2. Add the route to `<root>/<provider>.json` in the chosen root (create it from
    `~/.claude/connectors/provider.json.example`; create `<root>/projects/<project>.json` with a `match`
    from the git origin if the project has none). An existing provider gets a new route in preference
    order, never a second file. **jq-validate** the file, then run `connector_registry.py list`.

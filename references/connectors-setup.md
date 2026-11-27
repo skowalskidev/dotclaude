@@ -13,8 +13,9 @@ one, or debugging the provisioner/guard.
 - **Local registry, one root per boundary, outside every repo:** `connectorRoots.work` and
   `connectorRoots.personal` in `identity.local.json` (e.g. a `connectors/` folder in the work-projects
   folder beside the org key directory, and one in the personal-projects folder).
-  `CLAUDE_CONNECTOR_ROOTS="work=/a,personal=/b"` overrides both for tests. `~/.claude/connectors/`
-  holds only the public `*.example` templates.
+  `CLAUDE_CONNECTOR_ROOTS="work=/a,personal=/b"` overrides both for tests. An optional
+  `connectorRoots.common` root holds account-free routes both boundaries layer in (§ Lookup layers).
+  `~/.claude/connectors/` holds only the public `*.example` templates.
 - **Secrets never live in the registry.** Records carry only paths and names. Real secrets live in AWS
   Secrets Manager (work runtime), machine-local files outside every repo at each route's `secret.path`
   (`~/.config/**`, or an org key directory: a shared `.env` plus one `<project>.env` per project, each
@@ -64,7 +65,7 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
 <root>/projects/<project>.json {"match": [...], "ignoreProjectInstructions": false, "monitor": {...},
                                "monitoringOnly": {"paths": [...], "offlineTests": [...], "requiredChecks": [...]},
                                "installedBuilds": {"pathsIgnore": [...]}}
-<root>/<provider>.json        {"provider", "capabilities", "scope", "routes": [route, ...]}
+<root>/<provider>.json        {"provider", "capabilities", "scope", "routes": [route, ...], "repoFiles"?: [glob, ...]}
 <root>/health.json            {"<provider>/<route id>": {"lastSuccess": {...}, "lastFailure": {...}}}
 ```
 
@@ -84,7 +85,8 @@ Keep host-specific authentication separate. A Conductor workspace does not merge
   or malformed value ignores nothing).
   The project's root decides its boundary; it must agree with the identity overlay.
 - `<provider>.json` — one file per provider: `provider`, `capabilities` (e.g. `slack.send`,
-  `supabase.read`), `scope` (default for its routes), `routes` in PREFERENCE order, optional `notes`.
+  `supabase.read`), `scope` (default for its routes), `routes` in PREFERENCE order, optional `notes`,
+  optional `repoFiles` (repo-relative globs of the repo's own setup for this provider, § Lookup layers).
 - **Route** = a connector record (below) plus `id` (unique in the file), optional `capabilities`,
   `scope` (`shared-account`: one account any project of the boundary can use; `per-project`: a key for
   the projects in `serves`), `serves` (projects it is known to serve), optional `requires`
@@ -449,6 +451,61 @@ own CI). DON'T commit or force-add a personal or secret file past `.gitignore`; 
   one. TEST: `connectors-provision.sh --check` in a work repo lists its project routes, then the
   shared ones marked `(shared)`.
 - **Still never carries a secret value** — same `secret.path` declaration as any other route.
+
+## Lookup layers: common, boundary, repo
+
+`resolve <capability>` reads three layers, most general first, and prints all of them:
+1. **Common root** (`connectorRoots.common`, `index.json` `{"boundary": "common"}`): account-free
+   tooling every session uses, whatever its boundary (a local container runtime's MCP gateway). A
+   common route holds no `secret`, `requires`, `serves` or `cli`, is shared-account, and the root
+   has no `projects/`. A common `name` also declared in a work or personal root makes the root
+   unreadable, so the guard always knows one policy per name; `guard-facts` reports a common name
+   under both boundaries. Provisioning registers a common MCP route once at Claude USER scope.
+2. **Boundary root + project file** (unchanged): the session's work or personal routes, the
+   project's `projects/<project>.json` and per-project routes. Account, key and project-specific
+   setup lives here, never in the common root and never committed to a team repo.
+3. **Repo files**: the provider's `repoFiles` found in the current checkout, each tagged
+   `committed` (tracked: the team's shared setup), `local` (present, untracked) or `main checkout`
+   (untracked and only in the main checkout, where gitignored per-machine files live; a fresh
+   worktree lacks them). DO read every listed repo file before using the provider in that repo.
+TEST: `resolve docker` in a work repo and in a personal repo both list the common route, then a
+`repo setup for docker` line naming each repo file found.
+
+Why (read 2026-11-27): Claude Code's own MCP scopes are the same split: user scope "works well for
+personal utility servers, development tools", project scope is a `.mcp.json` to "check into version
+control so everyone on your team gets the same MCP tools", local scope "for personal development
+servers ... or servers with credentials you don't want in version control"
+([Claude Code MCP scopes](https://code.claude.com/docs/en/mcp)); Docker's MCP Toolkit puts the
+gateway in the client once and keeps a project's servers in an exported profile committed "in version
+control alongside your code" ([Docker MCP Toolkit CLI](https://docs.docker.com/ai/mcp-catalog-and-toolkit/cli/)).
+Rejected: copying a boundary-neutral route into both boundary roots (two drifting copies); a
+registry file inside each repo (personal setup in a team repo).
+
+## Docker MCP Toolkit (common route `docker/mcp-gateway`)
+
+One gateway server, `MCP_DOCKER` = `docker mcp gateway run --profile <id>`, fronts every server of a
+Docker MCP profile, each in its own container with signed images and secrets in the OS keychain
+([MCP Toolkit](https://docs.docker.com/ai/mcp-catalog-and-toolkit/toolkit/)). Template:
+`connectors/common-docker.json.example`.
+- DO add a new account-free MCP server by adding its Docker catalog entry to the `common` profile
+  (`docker mcp profile server add common --server catalog://mcp/docker-mcp-catalog/<name>`, then
+  `docker mcp profile show common`), before hand-installing an `npx` server. The gateway reloads the
+  profile (`--watch`), so no re-registration is needed. Check the catalog first:
+  `docker mcp catalog show mcp/docker-mcp-catalog:latest`.
+- DON'T put an account-bound server (GitHub, Atlassian, a database) in the `common` profile, and
+  DON'T authorize Docker OAuth for one: Docker shares OAuth credentials "across all profiles"
+  ([MCP profiles](https://docs.docker.com/ai/mcp-catalog-and-toolkit/profiles/)), which would hand a
+  work login to personal repos. Give such a server a work or personal route with its own profile and
+  `--secrets <boundary key file>.env`, as for any keyed route.
+- DON'T run `docker mcp client connect claude-code` inside a team repo: without `--global` it
+  writes the client config into the current project. Registration goes through
+  `/sk:setup-connectors` (user scope for the common route).
+- A project's own Docker servers: export its profile to `.docker/mcp-profile.json` (committed when
+  the team shares it), and declare a per-project route in its boundary root with
+  `--profile <project>`; `resolve docker` then lists the file under `repo setup`.
+- Check: `docker mcp version`, `docker mcp profile list`, `claude mcp list` shows
+  `MCP_DOCKER ... Connected`. The gateway needs Docker Desktop running (an unreachable daemon is a
+  down local service, not an auth problem, § Capability diagnosis).
 
 ## Onboarding a new project
 

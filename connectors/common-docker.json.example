@@ -1,0 +1,26 @@
+{
+  "_comment": "Copy to <common root>/docker.json. One Docker MCP Toolkit gateway (MCP_DOCKER) serving an account-free Docker profile to every repo. An account-bound Docker server (GitHub, Atlassian) does NOT go here: Docker shares OAuth across all its profiles, so give it a work or personal route with its own profile and `--secrets <boundary .env>`. `repoFiles` are the repo's own Docker setup, which `resolve docker` lists for the current checkout.",
+  "provider": "docker",
+  "capabilities": ["docker.mcp", "docker.compose"],
+  "scope": "shared-account",
+  "repoFiles": [".docker/mcp-profile.json", "compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml", ".mcp.json"],
+  "routes": [
+    {
+      "id": "mcp-gateway",
+      "name": "MCP_DOCKER",
+      "kind": "mcp-stdio",
+      "env": "local",
+      "readOnly": false,
+      "gated": false,
+      "mcp": { "type": "stdio", "command": "docker", "args": ["mcp", "gateway", "run", "--profile", "common"] },
+      "auth": {
+        "how": "Docker Desktop with MCP Toolkit enabled; no account needed for account-free catalog servers.",
+        "steps": [
+          "Docker Desktop > Settings > Beta features > Enable Docker MCP Toolkit, then Apply",
+          "docker mcp profile create --name common --server catalog://mcp/docker-mcp-catalog/<server>",
+          "/sk:setup-connectors (registers MCP_DOCKER at user scope), then start a new session"
+        ]
+      }
+    }
+  ]
+}

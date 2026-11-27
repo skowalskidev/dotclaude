@@ -136,7 +136,9 @@ check_line() {
 # --- CHECK mode: emit "name<TAB>kind<TAB>env<TAB>status[<TAB>(shared)]" per connector and exit ---
 if [ "$mode" = "check" ]; then
   printf '%s' "$effective" | jq -c '.connectors[]?' 2>/dev/null | while IFS= read -r c; do
-    if [ "$(printf '%s' "$c" | jq -r '.scope // ""')" = "shared-account" ]; then
+    if [ "$(printf '%s' "$c" | jq -r '.layer // ""')" = "common" ]; then
+      check_line "$c" "	(common)"
+    elif [ "$(printf '%s' "$c" | jq -r '.scope // ""')" = "shared-account" ]; then
       check_line "$c" "	(shared)"
     else
       check_line "$c" ""
@@ -173,9 +175,13 @@ provision_connector() { # $1=connector JSON (the loader already resolved name cl
         | (if .env then .env |= with_entries(.value |= (gsub("^~/"; $home + "/"))) else . end)
         | (if .args then .args |= map(gsub("^~/"; $home + "/")) else . end)')"
       [ "$json" = "null" ] || [ -z "$json" ] && { echo "  ! $name: no .mcp block, skipping" >&2; return; }
+      # A common-layer route (account-free, both boundaries) registers once at USER scope, so every repo
+      # loads it without a per-repo run; every other route stays at LOCAL scope for this project only.
+      mscope=local
+      [ "$(printf '%s' "$c" | jq -r '.layer // ""')" = "common" ] && mscope=user
       if have claude; then
-        ( cd "$top" 2>/dev/null && claude mcp add-json "$name" "$json" -s local >/dev/null 2>&1 ) \
-          && { echo "  + registered $name (local)" >&2; added=$((added+1)); } \
+        ( cd "$top" 2>/dev/null && claude mcp add-json "$name" "$json" -s "$mscope" >/dev/null 2>&1 ) \
+          && { echo "  + registered $name ($mscope)" >&2; added=$((added+1)); } \
           || echo "  ! failed to register $name" >&2
       else
         echo "  ! 'claude' CLI not on PATH; cannot register $name" >&2

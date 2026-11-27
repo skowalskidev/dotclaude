@@ -39,6 +39,7 @@ class RegistryTests(unittest.TestCase):
                          'connectorRoots': {k: str(v) for k, v in self.roots.items()}}
         patch.dict(os.environ, {}, clear=False).start()
         os.environ.pop('CLAUDE_CONNECTOR_ROOTS', None)
+        os.environ['CLAUDE_IDENTITY_FILE'] = str(self.base / 'no-identity.json')  # never the live registry
         self.addCleanup(patch.stopall)
         self.root('work', match=['WorkOrg/'], projects={'alpha': ['WorkOrg/alpha'], 'beta': ['WorkOrg/beta']})
         self.root('personal', match=['PersonalOrg/'], projects={})
@@ -556,6 +557,95 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(quiet(None, 25), '')
         self.assertEqual(reg.mcp_quiet('mcp__other__execute_sql', self.cwd, remote=WORK_REMOTE, roots=roots,
                                        identity=self.identity, at=self.at(25)), '')
+
+    # ---------------------------------------------------------------- common layer and repo files
+
+    def common_root(self, routes, repo_files=None, projects=None):
+        path = self.base / 'common'
+        (path / 'projects').mkdir(parents=True, exist_ok=True)
+        (path / 'index.json').write_text(json.dumps({'boundary': 'common'}))
+        for name in projects or []:
+            (path / 'projects' / (name + '.json')).write_text(json.dumps({'match': [name]}))
+        record = {'provider': 'docker', 'capabilities': ['docker.mcp'], 'routes': routes}
+        if repo_files is not None:
+            record['repoFiles'] = repo_files
+        (path / 'docker.json').write_text(json.dumps(record))
+        self.identity['connectorRoots']['common'] = str(path)
+        return path
+
+    def test_common_route_layers_into_both_boundaries_and_reads_as_the_sessions_route(self):
+        gateway = {'id': 'gateway', 'name': 'MCP_DOCKER', 'kind': 'mcp-stdio',
+                   'mcp': {'type': 'stdio', 'command': 'docker', 'args': ['mcp', 'gateway', 'run']}}
+        self.common_root([gateway])
+        for remote, boundary in ((WORK_REMOTE, 'work'), ('git@github.com:PersonalOrg/x.git', 'personal')):
+            order, routes, got, _ = self.resolve('docker', remote=remote)
+            self.assertEqual((order, got, routes[0]['layer'], routes[0]['servesHere']),
+                             (['gateway'], boundary, 'common', True))
+            _, manifest, _ = reg.select(self.cwd, remote=remote, identity=self.identity)
+            view = next(item for item in manifest['connectors'] if item['name'] == 'MCP_DOCKER')
+            self.assertEqual((view['boundary'], view['layer']), (boundary, 'common'))
+        facts = reg.guard_facts('MCP_DOCKER', self.cwd, remote=WORK_REMOTE, identity=self.identity,
+                                roots=reg.load_all(self.identity))
+        self.assertEqual(facts['boundaries'], ['personal', 'work'])
+
+    def test_common_route_holding_an_account_or_project_is_unreadable(self):
+        for extra in ({'secret': {'path': '~/k.env', 'var': 'K'}}, {'requires': {'claudeAccount': 'workEmail'}},
+                      {'serves': ['alpha']}, {'scope': 'per-project', 'serves': ['alpha']}):
+            path = self.common_root([{'id': 'gateway', 'name': 'MCP_DOCKER', **extra}])
+            errors = reg.validate_root(path)
+            self.assertTrue(any('account-free' in error for error in errors), (extra, errors))
+        path = self.common_root([{'id': 'gateway', 'name': 'MCP_DOCKER'}], projects=['alpha'])
+        self.assertTrue(any('projects belong' in error for error in reg.validate_root(path)))
+
+    def test_common_name_declared_in_a_boundary_root_is_a_clash(self):
+        # A shared name would let the common layer widen a work-only server to personal repos.
+        self.provider('work', 'store', [{'id': 'live', 'name': 'MCP_DOCKER'}])
+        self.common_root([{'id': 'gateway', 'name': 'MCP_DOCKER'}])
+        roots = reg.load_all(self.identity)
+        common = next(root for root in roots if root['boundary'] == 'common')
+        self.assertTrue(any('also declared' in error for error in common['errors']))
+        with self.assertRaises(reg.RegistryError):
+            reg.select(self.cwd, remote=WORK_REMOTE, identity=self.identity, roots=roots)
+
+    def test_repo_files_report_committed_local_and_main_checkout_setup(self):
+        import subprocess
+        git = lambda *args, cwd=self.cwd: subprocess.run(  # noqa: E731
+            ['git', '-C', str(cwd), *args], check=True, capture_output=True)
+        git('init', '-q', '-b', 'main')
+        (self.cwd / 'compose.yaml').write_text('services: {}\n')
+        git('add', 'compose.yaml')
+        git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-q', '-m', 'init')
+        (self.cwd / '.docker').mkdir()
+        (self.cwd / '.docker' / 'mcp-profile.json').write_text('{}')
+        self.common_root([{'id': 'gateway', 'name': 'MCP_DOCKER'}],
+                         repo_files=['compose.yaml', '.docker/mcp-profile.json', 'missing.yaml'])
+        found = {Path(e['path']).name: e['where'] for e in self.resolve('docker')[1][0]['repoFiles']}
+        self.assertEqual(found, {'compose.yaml': 'committed', 'mcp-profile.json': 'local'})
+        tree = self.base / 'wt'
+        git('worktree', 'add', '-q', str(tree))
+        routes, _, _ = reg.resolve('docker', tree, remote=WORK_REMOTE, identity=self.identity,
+                                   claude_account='', at=NOW)
+        where = {Path(e['path']).name: e['where'] for e in routes[0]['repoFiles']}
+        self.assertEqual(where, {'compose.yaml': 'committed', 'mcp-profile.json': 'main checkout'})
+
+    def test_resolve_prints_the_common_layer_and_the_repo_setup_files(self):
+        (self.cwd / 'compose.yaml').write_text('services: {}\n')
+        import subprocess
+        subprocess.run(['git', '-C', str(self.cwd), 'init', '-q'], check=True)
+        self.common_root([{'id': 'gateway', 'name': 'MCP_DOCKER', 'kind': 'mcp-stdio'}], repo_files=['compose.yaml'])
+        identity = self.base / 'identity.json'
+        identity.write_text(json.dumps(self.identity))
+        with patch.dict(os.environ, {'CLAUDE_IDENTITY_FILE': str(identity)}), \
+                patch('sys.stdout', new_callable=io.StringIO) as out:
+            self.assertEqual(reg.main(['resolve', 'docker', '--cwd', str(self.cwd)]), 0)
+        self.assertIn('common layer (account-free, both boundaries)', out.getvalue())
+        self.assertIn('repo setup for docker (read before using it here): ', out.getvalue())
+        self.assertIn('compose.yaml (local)', out.getvalue())
+
+    def test_repo_files_must_stay_inside_the_repo(self):
+        for bad in (['../x'], ['/etc/x'], ['~/x'], 'compose.yaml', [3]):
+            path = self.common_root([{'id': 'gateway', 'name': 'MCP_DOCKER'}], repo_files=bad)
+            self.assertTrue(reg.validate_root(path), bad)
 
     # ---------------------------------------------------------------- migration
 

@@ -3,12 +3,19 @@
 
 The registry is local data, never in ~/.claude. One root per boundary, declared in the identity
 overlay (`connectorRoots` in identity.local.json), e.g. a work root under the work-projects folder
-and a personal root under the personal-projects folder. Each root holds:
+and a personal root under the personal-projects folder, plus an optional `common` root for
+boundary-neutral, account-free tooling (a local container runtime's MCP gateway) that every session
+of either boundary layers in. A common route holds no key, account or project list. Each root holds:
 
   index.json         {"boundary", "match": [...]}: the root itself and the repos its shared routes reach
   projects/<p>.json  {"match": [...], "ignoreProjectInstructions"?, "monitor"?, "monitoringOnly"?, "installedBuilds"?}: one file per project
-  <provider>.json    {"provider", "capabilities", "scope", "routes": [route, ...]}: one file per provider
+  <provider>.json    {"provider", "capabilities", "scope", "routes": [route, ...], "repoFiles"?}: one file per provider
   health.json        route outcomes, written only by `record` (state, kept apart from the records)
+
+A provider's optional `repoFiles` lists repo-relative globs holding the repo's own setup for it
+(a compose file, an exported MCP profile, a committed .mcp.json). `resolve` reports each one found in
+the current checkout (committed) and in the main checkout (local only), so the registry says HOW a
+provider works and the repo says WHAT this repo needs.
 
 A route is a connector record (the fields references/connectors-setup.md documents) plus `id`,
 optional `capabilities`, `scope` (shared-account | per-project), `serves` (projects it is known to
@@ -62,6 +69,9 @@ from pathlib import Path
 
 CLAUDE_HOME = Path(os.environ.get('CLAUDE_HOME', str(Path.home() / '.claude')))
 BOUNDARIES = ('work', 'personal')
+COMMON = 'common'  # the boundary-neutral root: account-free routes every session layers in
+ROOT_KINDS = BOUNDARIES + (COMMON,)
+COMMON_FORBIDS = ('secret', 'requires', 'serves', 'cli')  # anything tied to an account or a project
 SCOPES = ('shared-account', 'per-project')
 ROUTE_KEYS = ('id', 'capabilities', 'scope', 'serves', 'requires')  # registry-only route fields
 INDEX = 'index.json'
@@ -110,10 +120,15 @@ def configured_roots(identity=None):
         pairs = (identity if identity is not None else read_identity()).get('connectorRoots') or {}
     roots = []
     for boundary, value in pairs.items():
-        if boundary not in BOUNDARIES or not value:
+        if boundary not in ROOT_KINDS or not value:
             continue
         roots.append((boundary, expand(value)))
     return roots
+
+
+def in_session(root, boundary):
+    """Whether a root's routes are usable in a session of BOUNDARY: its own root, or the common root."""
+    return root['boundary'] in (boundary, COMMON)
 
 
 def load_root(boundary, path):
@@ -148,6 +163,9 @@ def load_root(boundary, path):
         except (OSError, ValueError) as exc:
             root['errors'].append(str(file) + ': ' + str(exc))
             continue
+        if boundary == COMMON:
+            root['errors'].append(str(file) + ': projects belong to a work or personal root, not common')
+            continue
         index['projects'][file.stem] = entry
         root['projectPaths'][file.stem] = file
     for file in sorted(path.glob('*.json')):
@@ -174,6 +192,9 @@ def validate_provider(record, boundary, file):
         raise RegistryError('boundary differs from its root (' + boundary + ')')
     if record.get('scope', 'per-project') not in SCOPES:
         raise RegistryError('scope must be one of ' + ', '.join(SCOPES))
+    validate_repo_files(record.get('repoFiles'))
+    if boundary == COMMON and record.get('scope', 'shared-account') != 'shared-account':
+        raise RegistryError('a common provider is shared-account: it reaches every repo of both boundaries')
     seen = set()
     for route in record.get('routes', []):
         if not route.get('id') or not route.get('name'):
@@ -183,6 +204,12 @@ def validate_provider(record, boundary, file):
         seen.add(route['id'])
         if route.get('boundary', boundary) != boundary:
             raise RegistryError('route ' + route['id'] + ' boundary differs from its root')
+        if boundary == COMMON:
+            held = [key for key in COMMON_FORBIDS if key in route]
+            if held or route.get('scope', 'shared-account') != 'shared-account':
+                raise RegistryError('common route ' + route['id'] + ' must be account-free and shared-account; '
+                                    'move it to a work or personal root (holds ' + ', '.join(held or ['scope']) + ')')
+            continue
         scope = route.get('scope', record.get('scope', 'per-project'))
         if scope not in SCOPES:
             raise RegistryError('route ' + route['id'] + ' has an unknown scope')
@@ -193,6 +220,17 @@ def validate_provider(record, boundary, file):
     order = record.get('storeOrder', list(STORES))
     if not isinstance(order, list) or sorted(order) != sorted(STORES):
         raise RegistryError('storeOrder must list ' + ' and '.join(STORES) + ' once each')
+
+
+def validate_repo_files(value):
+    """`repoFiles`: repo-relative globs, never absolute and never leaving the repo."""
+    if value is None:
+        return
+    if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+        raise RegistryError('repoFiles must be a list of repo-relative globs')
+    for item in value:
+        if item.startswith(('/', '~')) or '..' in Path(item).parts:
+            raise RegistryError('repoFiles entry ' + item + ' must stay inside the repo')
 
 
 def validate_secret(route):
@@ -290,13 +328,15 @@ def validate_root(path):
         boundary = json.loads((path / INDEX).read_text()).get('boundary')
     except (OSError, ValueError) as exc:
         return [str(path / INDEX) + ': ' + str(exc)]
-    if boundary not in BOUNDARIES:
-        return [str(path / INDEX) + ': boundary must be one of ' + ', '.join(BOUNDARIES)]
+    if boundary not in ROOT_KINDS:
+        return [str(path / INDEX) + ': boundary must be one of ' + ', '.join(ROOT_KINDS)]
     try:
         root = load_root(boundary, path)
     except RegistryError as exc:
         return [str(exc)]
     errors = list(root['errors'])
+    others = [item for item in load_all() if item['boundary'] != boundary and item['path'] != path]
+    errors += name_clashes([root] + others, only=root)
     for provider, record in root['providers'].items():
         for route in record.get('routes', []):
             secret = secret_location(route)
@@ -307,7 +347,26 @@ def validate_root(path):
 
 
 def load_all(identity=None):
-    return [load_root(boundary, path) for boundary, path in configured_roots(identity)]
+    roots = [load_root(boundary, path) for boundary, path in configured_roots(identity)]
+    for root in roots:
+        root['errors'] += name_clashes(roots, only=root)
+    return roots
+
+
+def name_clashes(roots, only=None):
+    """A common connector name that a work or personal root also declares: the guard could not
+    tell which policy applies, so the clash makes the common root unreadable."""
+    common = [root for root in roots if root['boundary'] == COMMON]
+    if not common or (only is not None and only['boundary'] != COMMON):
+        return []
+    bound = {route['name'] for root in roots if root['boundary'] in BOUNDARIES for route in flat_routes(root)}
+    errors = []
+    for root in common if only is None else [only]:
+        for route in flat_routes(root):
+            if route['name'] in bound:
+                errors.append(str(root['path']) + ': common connector name ' + route['name'] +
+                              ' is also declared in a work or personal root; rename one')
+    return errors
 
 
 def flat_routes(root):
@@ -319,11 +378,13 @@ def flat_routes(root):
             item['provider'] = provider
             item['route'] = route['id']
             item['boundary'] = root['boundary']
-            item['scope'] = route.get('scope', record.get('scope', 'per-project'))
+            default = 'shared-account' if root['boundary'] == COMMON else 'per-project'
+            item['scope'] = route.get('scope', record.get('scope', default))
             item['capabilities'] = list(route.get('capabilities') or record.get('capabilities') or [provider])
             item['serves'] = list(route.get('serves', []))
             item['_order'] = order
             item['_store'] = store_rank(route, record)
+            item['_repoFiles'] = list(record.get('repoFiles') or [])
             out.append(item)
     return out
 
@@ -408,11 +469,11 @@ def select(cwd, remote=None, identity=None, roots=None, strict=True):
             if route['scope'] == 'per-project' and provisioned_for(route, project) and route['name'] not in names:
                 names.add(route['name'])
                 connectors.append(connector_view(route, project))
-    for root in roots:
-        if not root['index'] or root['boundary'] != boundary:
+    for root in sorted(roots, key=lambda item: item['boundary'] == COMMON):  # common layers last
+        if not root['index'] or not in_session(root, boundary):
             continue
         hits = any(value and value in remote + where for value in root['index'].get('match', []))
-        if not (hits or root is project_root):
+        if not (hits or root is project_root or root['boundary'] == COMMON):
             continue
         layered = [route for route in flat_routes(root) if provisioned_for(route, project)]
         if not layered:
@@ -421,7 +482,10 @@ def select(cwd, remote=None, identity=None, roots=None, strict=True):
         for route in layered:
             if route['name'] not in names:
                 names.add(route['name'])
-                connectors.append(connector_view(route, project))
+                view = connector_view(route, project)
+                if root['boundary'] == COMMON:  # consumers see it as this session's route
+                    view.update(boundary=boundary, layer=COMMON)
+                connectors.append(view)
     manifest['connectors'] = connectors
     if shared_from:
         manifest['sharedFrom'] = shared_from
@@ -442,8 +506,11 @@ def project_manifest(name, roots=None):
 def name_boundaries(name, roots=None):
     """Every boundary under which a connector name is declared, across all roots."""
     roots = load_all() if roots is None else roots
-    return sorted({root['boundary'] for root in roots for route in flat_routes(root)
-                   if route['name'] == name})
+    found = set()
+    for root in roots:
+        if any(route['name'] == name for route in flat_routes(root)):
+            found.update(BOUNDARIES if root['boundary'] == COMMON else (root['boundary'],))
+    return sorted(found)
 
 
 def guard_facts(name, cwd, remote=None, roots=None, identity=None, tool=None, at=None):
@@ -460,7 +527,7 @@ def guard_facts(name, cwd, remote=None, roots=None, identity=None, tool=None, at
         return facts
     record = next((item for item in manifest.get('connectors', []) if item['name'] == name), None)
     if record is None:  # a same-boundary route for another project still carries its write policy
-        record = next((connector_view(route) for root in roots if root['boundary'] == boundary
+        record = next((connector_view(route) for root in roots if in_session(root, boundary)
                        for route in flat_routes(root) if route['name'] == name), None)
     if record is not None:
         facts['readOnly'] = record.get('readOnly')
@@ -523,6 +590,39 @@ def health_state(entry, at):
     return 'ok' if success else 'untested'
 
 
+def git_out(cwd, *args):
+    result = subprocess.run(['git', '-C', str(cwd)] + list(args), capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else ''
+
+
+def repo_files(patterns, cwd):
+    """The repo's own setup files for a provider: [{path, where}] with where `committed` (tracked in
+    this checkout), `local` (present here, untracked) or `main checkout` (untracked, only in the main
+    checkout, the home of gitignored per-machine files a fresh worktree lacks)."""
+    if not patterns:
+        return []
+    top = git_out(cwd, 'rev-parse', '--show-toplevel')
+    if not top:
+        return []
+    common = git_out(cwd, 'rev-parse', '--path-format=absolute', '--git-common-dir')
+    main = str(Path(common).parent) if common else top
+    tracked = set(git_out(top, 'ls-files', '--', *patterns).splitlines())
+    out, seen = [], set()
+    for base, where in ((top, None), (main, 'main checkout')):
+        if where and Path(main).resolve() == Path(top).resolve():
+            continue
+        for pattern in patterns:
+            for file in sorted(Path(base).glob(pattern)):
+                rel = str(file.relative_to(base))
+                if rel in seen or not file.is_file():
+                    continue
+                if where and rel in tracked:
+                    continue
+                seen.add(rel)
+                out.append({'path': str(file), 'where': where or ('committed' if rel in tracked else 'local')})
+    return out
+
+
 def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_account=None, at=None):
     """Routes for a capability inside the session boundary, in the order to try them.
 
@@ -542,13 +642,15 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
     project = manifest.get('project')
     layered = {item['name'] for item in manifest.get('connectors', [])}
     account = current_claude_account() if claude_account is None else claude_account
-    out = []
+    out, found = [], {}
     for root in roots:
-        if root['boundary'] != boundary:
+        if not in_session(root, boundary):
             continue
         for route in flat_routes(root):
             if not capability_matches(capability, route):
                 continue
+            if route['provider'] not in found:
+                found[route['provider']] = repo_files(route['_repoFiles'], cwd)
             entry = root['health'].get(route['provider'] + '/' + route['route'], {})
             state = health_state(entry, at)
             success = entry.get('lastSuccess') or {}
@@ -574,7 +676,8 @@ def resolve(capability, cwd, remote=None, identity=None, roots=None, claude_acco
                 'gated': route.get('gated'), 'lastSuccess': entry.get('lastSuccess'),
                 'lastFailure': entry.get('lastFailure'), 'recipe': route.get('recipe'),
                 'secret': secret, 'quietWindow': route.get('quietWindow'),
-                'root': str(root['path']),
+                'root': str(root['path']), 'layer': COMMON if root['boundary'] == COMMON else boundary,
+                'repoFiles': found[route['provider']],
                 '_key': (bool(blocker), state == 'open', not serves_here, route['_store'],
                          0 if state == 'ok' else 1, route['_order'],
                          -(last_ok.timestamp() if last_ok else 0), route['provider']),
@@ -682,7 +785,7 @@ def mcp_quiet(tool_name, cwd, remote=None, roots=None, identity=None, at=None):
     project = manifest.get('project')
     record = next((item for item in manifest.get('connectors', []) if item['name'] == server), None)
     if record is None:
-        record = next((connector_view(route) for root in roots if root['boundary'] == boundary
+        record = next((connector_view(route) for root in roots if in_session(root, boundary)
                        for route in flat_routes(root) if route['name'] == server), None)
     window = (record or {}).get('quietWindow')
     at = at or quiet_now()
@@ -767,7 +870,7 @@ def locate(provider, route_id, cwd, remote=None, identity=None):
         project = manifest.get('project')
     except RegistryError:
         boundary = session_boundary(remote, identity)
-    root = next((item for item in roots if item['boundary'] == boundary and provider in item['providers']), None)
+    root = next((item for item in roots if in_session(item, boundary) and provider in item['providers']), None)
     if root is None:
         raise RegistryError('no ' + boundary + ' provider named ' + provider)
     route = next((item for item in root['providers'][provider].get('routes', []) if item['id'] == route_id), None)
@@ -828,7 +931,7 @@ def record(provider, route_id, outcome, cwd, reason='', by='', remote=None, iden
         _, manifest, boundary = select(cwd, remote=remote, identity=identity, roots=roots, strict=False)
     except RegistryError:
         manifest, boundary = {}, session_boundary(remote, identity)
-    root = next((item for item in roots if item['boundary'] == boundary
+    root = next((item for item in roots if in_session(item, boundary)
                  and provider in item['providers']), None)
     if root is None:
         raise RegistryError('no ' + boundary + ' provider named ' + provider)
@@ -1179,8 +1282,17 @@ def run(args):
             elif secret:
                 notes.append('key in ' + secret['path'] +
                              (' as ' + ', '.join(secret['var']) if secret['var'] else ''))
+            if item['layer'] == COMMON:
+                notes.append('common layer (account-free, both boundaries)')
             print('%d. %s/%s  [%s %s]  %s' % (item['rank'], item['provider'], item['route'],
                                              item['kind'], item['name'], '; '.join(notes)))
+        shown = set()
+        for item in routes:
+            if item['provider'] in shown or not item['repoFiles']:
+                continue
+            shown.add(item['provider'])
+            print('repo setup for ' + item['provider'] + ' (read before using it here): ' +
+                  '; '.join(entry['path'] + ' (' + entry['where'] + ')' for entry in item['repoFiles']))
         return 0
     if args.command == 'record':
         note = record(args.provider, args.route, args.outcome, args.cwd, reason=args.reason, by=args.by)
