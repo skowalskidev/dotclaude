@@ -309,12 +309,16 @@ def test_intent_ledger() -> None:
     invoke("submit", "ensure at the end you upfate the config based on learnings ... self imrpove")
     check(note("learning", "session learning: done").returncode == 0,
           "the typo'd explicit learning request was refused as Simon's go")
+    # A done note's go stands until a skip note (intent-ledger.sh learning_state), so each refusal
+    # check below starts after a skip, where only the judge can open the next note.
+    check(note("learning", "session learning: skipped").returncode == 0, "a skip under a standing go was refused")
     time.sleep(1.1)
     invoke("submit", "go ahead and merge #12")
     check(note("learning", "session learning: done").returncode != 0, "'go ahead and merge' counted as a learning go")
     time.sleep(1.1)
     invoke("submit", "go\n2 yes tour-prices-ahead are you sure\n3 yes\n4 yes")
     check(note("learning", "session learning: done").returncode == 0, "the multi-line go was refused")
+    check(note("learning", "session learning: skipped").returncode == 0, "a skip under a standing go was refused")
     time.sleep(1.1)
     invoke("submit", "ensure you learn from this, self imrpove")
     stub({"learning-go": "timeout"})
