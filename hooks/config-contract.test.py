@@ -198,6 +198,8 @@ CRITERIA: list[tuple[str, str]] = [
      "reconcile and ship-report never count it covered."),
     ("design-diff-measures-changed-regions",
      "The design diff reports changed pixels, masked exceptions and CSS-px regions, and writes its panel without a third-party dependency."),
+    ("design-type-match-names-weight-from-strokes",
+     "The type match names a flat board's font weight and family from stroke thickness against candidate font files, and the design-source section points at it."),
     ("dashboard-runtime-preserves-completion",
      "The shared dashboard initializes one task record, rejects false completion and lost updates, "
      "exports portable evidence, and stops only its receipt-verified viewer."),
@@ -3252,6 +3254,18 @@ def check_matrix_binds_copies_and_walks_real_stack() -> None:
 def check_design_diff_measures_changed_regions() -> None:
     result = run(["/usr/bin/python3", str(ROOT / "bin" / "design-diff.test.py")])
     check(result.returncode == 0, "Design diff regression: " + result.stdout + result.stderr)
+
+
+def check_design_type_match_names_weight_from_strokes() -> None:
+    # Pillow ships with Homebrew python3 (Brewfile); /usr/bin/python3 does not carry it.
+    brew = Path("/opt/homebrew/bin/python3")
+    result = subprocess.run([str(brew) if brew.is_file() else "python3",
+                             str(ROOT / "bin" / "design-type-match.test.py")],
+                            capture_output=True, text=True, timeout=300)
+    check(result.returncode == 0, "Design type match regression: " + result.stdout + result.stderr)
+    loops = " ".join((ROOT / "references/workflow-loops.md").read_text().split())
+    check("bin/design-type-match.py" in loops and "DON'T pick a weight or family by eye" in loops,
+          "workflow-loops.md design-source section lost the stroke-measured weight rule")
 
 
 def check_dashboard_runtime_preserves_completion() -> None:

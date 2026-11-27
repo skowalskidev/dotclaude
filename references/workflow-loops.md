@@ -448,6 +448,17 @@ a flat image is measured in pixels at its 1x scale and its rows are marked `from
 TEST: every element the board adds has a row, every row cell holds a number or a string, and each
 builder and judge brief names the spec's path.
 
+DO take a `from image` text row's weight, and its family when the source names none, from stroke
+thickness: `python3 ~/.claude/bin/design-type-match.py <board.png> --box X,Y,W,H --scale <board
+scale> --text "<string>" --size <pt> --font <file> [--font <file> ...]`, one `--font` per weight
+(and family) the product ships as a font file. Record the board stroke, each file's stroke and the
+closest file in the row. DO use the theme's text token unchanged when the measured size and weight
+equal it; an override of a token's size or weight cites the row's measured strokes beside it.
+DON'T pick a weight or family by eye, or measure the size and keep a guessed weight.
+TEST: every `from image` text row holds the board stroke and the per-file strokes, and every type
+override in the build names its row (the fix for a big number built Bold from a flat-image board
+that measured DemiBold, its size measured and its weight picked by eye over the token's).
+
 DO list five kinds of conflict under the spec, found at intake and never by a lint or a reviewer:
 a board value that equals no token on the project's scale; a board value a project gate rejects (run
 the gate list in `references/testing-strategy.md` § Defects first on the untouched branch to learn

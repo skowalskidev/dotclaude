@@ -258,6 +258,7 @@ CONTRACTS: dict[str, dict] = {
             "Gate each design slice before its tests: boxes within 1 px web and 2 pt native, exact text, type and line count, two-way inventory, region and frame pixel diffs, a fresh fidelity judge; PASS has zero failed, missing, extra, unmeasured rows.",
             "Commit one reusable capture harness (seeded storage, routed network fixtures, payment and wallet SDK stand-ins, board viewports and device scale) that every worker and round reuses.",
             "Produce any-engine frame difference panels and region lists with bin/design-diff.py, masking only recorded exception areas.",
+            "Take a from-image text row's weight, and its family when unnamed, from stroke thickness against the product's font files via bin/design-type-match.py, never by eye; a theme token equal in size and weight is used unchanged.",
             "Put before | after composites in each design-built PR body and one results-table comment with the diff panels via gh --attach, verified through body_html with every image naturalWidth > 0.",
             "Measure the production build served as production serves it; dev-server rows report unmeasured. Compare font families and image assets with the product's before the first pixel loop and record a mismatch as an exception.",
             "Loop fix, re-render, re-measure; accept a delta only as an exception for unavailable data, a gate or design-system ban, a missing asset, an ours row, a depicts-product row, a phone-fit fix or Simon's agreement, with evidence, named in the hand-back.",
@@ -427,6 +428,17 @@ CONTRACTS: dict[str, dict] = {
             "Print changed %, the largest changed regions in CSS px and the panel path, or JSON with --json; write design | built | overlay as one PNG.",
             "Exit 0 on a written report, 1 over --max-changed, 2 on bad arguments or a non-PNG or unreadable image.",
             "Python 3.9+, standard library only; keep bin/design-diff.test.py passing under /usr/bin/python3.",
+        ],
+    },
+    "bin/design-type-match.py": {
+        "mission": "A design built from a flat image ships the weight and family the board shows, measured from its strokes, never guessed by eye.",
+        "purpose": "Matches a text box on a flat design image to candidate font files by stroke thickness and ink width at a common measure scale.",
+        "criteria": [
+            "Upscale the board's box from --scale to --measure-scale (default 3) and render each --font at --size pt at that scale; compare the median horizontal ink run over the middle third.",
+            "Find ink relative to the box's border background, so dark-on-light and light-on-dark boards measure alike; a transparent board reads as white.",
+            "Print the board stroke, each font's stroke, ink width and deltas and the closest font, or JSON with --json; flag over 5% ink-width delta and two fonts within 1 px.",
+            "Exit 0 on a printed match, 1 when the box holds no ink, 2 on bad arguments or an unreadable board or font; PATH#N picks a face of a .ttc collection.",
+            "Needs Pillow from the Brewfile; keep bin/design-type-match.test.py passing, naming each of three adjacent weights and each of three families from synthetic boards.",
         ],
     },
     "bin/ci-gate-list.py": {
