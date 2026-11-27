@@ -38,7 +38,7 @@ lines = [
      "message": {"content": "Stop hook feedback:\nreconcile"}},
     {"type": "attachment", "timestamp": "2026-11-27T10:01:00Z", "attachment": {"type": "hook_blocking_error"}},
     {"type": "attachment", "timestamp": "2026-11-27T10:02:00Z",
-     "attachment": {"type": "queued_command", "prompt": "no, you didn't change the footer"}},
+     "attachment": {"type": "queued_command", "prompt": "no, you didn't add the footer"}},
     tool("m4", "Agent", "2026-11-27T10:02:30Z", prompt="x"),
     user("<system-reminder>hook text</system-reminder>", "2026-11-27T10:03:00Z"),
 ]
@@ -52,6 +52,7 @@ with tempfile.TemporaryDirectory() as tmp:
     check(first["repeats"] == 1, "a check rerun with no edit in between counts once")
     check(first["polls"] == 1 and first["stops"] == 1, "a poll loop on task output and a Stop block count")
     check(not first["correction"] and second["correction"], "a correcting reply marks rework on its own request")
+    check(not first["reask"] and second["reask"], "a reply saying an ask was missed marks a re-ask (coverage)")
     check(second["agents"] == 1, "a subagent launch counts")
     summary = kpi.summarize(reqs)
     check(summary["quality"]["reworkRate"] == 0.5 and summary["speed"]["repeatedChecks"] == 1,
@@ -59,8 +60,11 @@ with tempfile.TemporaryDirectory() as tmp:
     slo = kpi.slo_report(summary)
     check(slo["speed.polls"]["met"] is False and slo["speed.turnsMedian"]["met"] is True,
           f"each SLI is judged against its KPIS.md target: {slo}")
-    check("load1" in summary and summary["speed"]["wallMinMedian"] is not None,
-          "wall time is reported with the load beside it")
+    check(summary["coverage"]["reAskRate"] == 0.5 and summary["speed"]["wallMinMedian"] is not None,
+          "coverage is measured and wall time is reported (never an SLO)")
+    check(kpi.check_segments("cat a.test.ts && grep vitest x") == [] and
+          kpi.check_segments("cd pkg && CI=1 npx vitest run a.test.ts | tail -5") == [("pkg", "npx vitest run a.test.ts")],
+          "reads are not checks; a check keeps its cd and drops the pipe")
 
 print(f"\n{'ALL PASSED' if not FAILS else str(len(FAILS)) + ' FAILED'}")
 sys.exit(1 if FAILS else 0)

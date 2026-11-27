@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-"""PreToolUse Bash: no polling of background output, and no identical check on identical inputs.
+"""Bash guard: no polling of background output, and no identical check on identical inputs.
 
-KPIS.md speed metrics, from the 2026-11-27 transcript audit (26 sessions, 894 requests):
-  - 487 Bash calls looped on a background task's output file (until/while/sleep over
-    .../tasks/<id>.output). The harness already re-invokes the session when the task ends, so the
-    loop only burns a turn and a timeout: DENY it, naming the notification.
-  - in 168 of 230 requests that ran checks, the same check ran again with no edit in between. A check
-    on unchanged inputs repeats its answer. As Nx and Turborepo cache a task by the hash of its inputs,
-    this hook keys a check by (command, repo HEAD, hash of the working-tree diff and untracked files)
-    and DENIES the second run in the same session. A changed file is a new key, so a rerun after a fix
-    passes. A flaky check is rerun with CLAUDE_RERUN_OK=1 in front of the command.
+KPIS.md speed SLIs, from the 2026-11-27 transcript audit (26 sessions, 894 requests):
+  - 487 Bash calls looped on a background task's output file. The harness re-invokes the session when
+    the task ends, so the loop only burns a turn: PreToolUse DENIES it.
+  - checks reran with no edit in between. As Turborepo and Nx cache a task by the hash of its inputs,
+    a check is keyed by (command segment, directory, HEAD, hash of the working-tree diff and the
+    CONTENTS of untracked files). PreToolUse records the key as pending; PostToolUse marks it complete
+    only when the call finished uninterrupted in the foreground. A second run of a COMPLETED key in the
+    same session is denied, so an interrupted, timed-out or refused run never blocks its rerun.
+    Stateful checks (browser, simulator, e2e) are never cached, as Turborepo's `cache: false`.
+    CLAUDE_RERUN_OK=1 in front of a command reruns a flaky check.
 
-State: state/check-cache/<session>.json, the keys seen this session (pruned after 2 days).
-Fails OPEN on anything malformed: a guard that blocks legitimate work costs more than a repeat run.
+What counts as a check, a poll and a stateful check is bin/kpi.py's (check_segments, is_poll,
+STATEFUL), so the guard and the KPI metric cannot disagree. State: state/check-cache/<session>.json,
+pruned after 2 days. Fails OPEN on anything malformed.
 """
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -25,12 +28,11 @@ from pathlib import Path
 
 STATE = Path(os.environ.get("CLAUDE_CHECK_CACHE_DIR") or Path.home() / ".claude" / "state" / "check-cache")
 KEEP_S = 2 * 86400
-CHECK = re.compile(r"\.test\.(py|ts|js|sh)\b|\bvitest\b|deno (task )?test|\bplaywright\b|\bpytest\b|\bjest\b"
-                   r"|(npm|pnpm|yarn|bun) (run )?test\b|xcodebuild\b[^|;&]*\btest|test-without-building"
-                   r"|swift test|go test|cargo test|\btsc\b|typecheck|deno (check|lint)|\beslint\b")
-TASK_OUTPUT = re.compile(r"/tasks/[A-Za-z0-9_-]+\.output")
-WAIT_LOOP = re.compile(r"\b(until|while)\b|\bsleep\b")
+MAX_HASHED = 1 << 20  # untracked files above 1 MB are keyed by size and mtime
 OVERRIDE = re.compile(r"(^|[\s;&|(])CLAUDE_RERUN_OK=1\b")
+_spec = importlib.util.spec_from_file_location("_kpi", Path(__file__).resolve().parents[1] / "bin" / "kpi.py")
+kpi = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(kpi)
 
 
 def deny(reason):
@@ -45,20 +47,54 @@ def git(cwd, *args):
 
 
 def fingerprint(cwd):
-    """(repo top, HEAD, sha of tracked diff + untracked names and sizes), or None outside a repo."""
+    """(repo top, sha of HEAD + tracked diff + untracked contents), or None outside a repo."""
     top = git(cwd, "rev-parse", "--show-toplevel")
     if not top:
         return None
     top = top.decode().strip()
-    head = (git(top, "rev-parse", "HEAD") or b"").strip()
-    diff = git(top, "diff", "HEAD", "--binary") or b""
-    untracked = git(top, "ls-files", "--others", "--exclude-standard", "-z") or b""
-    parts = []
-    for name in filter(None, untracked.split(b"\0")):
+    h = hashlib.sha256((git(top, "rev-parse", "HEAD") or b"").strip())
+    h.update(b"\0" + (git(top, "diff", "HEAD", "--binary") or b""))
+    for name in filter(None, (git(top, "ls-files", "--others", "--exclude-standard", "-z") or b"").split(b"\0")):
         full = os.path.join(top, name.decode(errors="replace"))
-        parts.append(name + b"\0" + str(os.path.getsize(full) if os.path.isfile(full) else 0).encode())
-    sizes = b"\0".join(parts)
-    return top, hashlib.sha256(head + b"\0" + diff + b"\0" + sizes).hexdigest()
+        h.update(b"\0" + name)
+        try:
+            st = os.stat(full)
+            if st.st_size <= MAX_HASHED:
+                with open(full, "rb") as f:
+                    h.update(hashlib.sha256(f.read()).digest())
+            else:
+                h.update(f"{st.st_size}:{st.st_mtime_ns}".encode())
+        except OSError:
+            pass
+    return top, h.hexdigest()
+
+
+def keys_for(cmd, cwd):
+    out = []
+    for seg_cwd, seg in kpi.check_segments(cmd):
+        if kpi.STATEFUL.search(seg):
+            continue
+        where = os.path.normpath(os.path.join(cwd, os.path.expanduser(seg_cwd))) if seg_cwd else cwd
+        found = fingerprint(where)
+        if found:
+            out.append(hashlib.sha256("\0".join((found[0], where, seg, found[1])).encode()).hexdigest())
+    return out
+
+
+def load(path):
+    try:
+        data = json.loads(path.read_text())
+        return data if isinstance(data, dict) and "done" in data else {"done": {}, "pending": {}}
+    except (OSError, ValueError):
+        return {"done": {}, "pending": {}}
+
+
+def save(path, data, now):
+    data["done"] = {k: v for k, v in data["done"].items() if now - v < KEEP_S}
+    data["pending"] = {k: v for k, v in data["pending"].items() if now - v.get("at", 0) < KEEP_S}
+    tmp = path.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(data))
+    os.replace(tmp, path)
 
 
 def main():
@@ -68,44 +104,43 @@ def main():
         return 0
     if payload.get("tool_name") != "Bash":
         return 0
-    cmd = str((payload.get("tool_input") or {}).get("command", ""))
-    if TASK_OUTPUT.search(cmd) and WAIT_LOOP.search(cmd):
+    tin = payload.get("tool_input") or {}
+    cmd = str(tin.get("command", ""))
+    post = payload.get("hook_event_name") == "PostToolUse" or "tool_response" in payload
+    if not post and kpi.is_poll(cmd):
         return deny("Polling a background task's output file is refused: the harness re-invokes this "
                     "session when the task finishes (KPIS.md: polls of background output = 0). End the "
                     "turn or do other work; read the output file once after the notification.")
-    if not CHECK.search(cmd) or OVERRIDE.search(cmd):
+    session = re.sub(r"[^A-Za-z0-9._-]", "", str(payload.get("session_id", "")))
+    call = str(payload.get("tool_use_id", ""))
+    if not session or OVERRIDE.search(cmd) or not kpi.check_segments(cmd):
         return 0
-    session = re.sub(r"[^A-Za-z0-9._-]", "", str(payload.get("session_id", ""))) or ""
-    cwd = str(payload.get("cwd") or os.getcwd())
-    if not session:
+    STATE.mkdir(parents=True, exist_ok=True)
+    path, now = STATE / f"{session}.json", time.time()
+    data = load(path)
+    if post:
+        entry = data["pending"].pop(call, None) if call else None
+        response = payload.get("tool_response") or {}
+        if entry and not tin.get("run_in_background") and not (isinstance(response, dict) and response.get("interrupted")):
+            for key in entry.get("keys", []):
+                data["done"][key] = now
+        save(path, data, now)
         return 0
     try:
-        found = fingerprint(cwd)
+        keys = keys_for(cmd, str(payload.get("cwd") or os.getcwd()))
     except (OSError, subprocess.SubprocessError):
         return 0
-    if not found:
+    if not keys:
         return 0
-    top, inputs = found
-    normalized = re.sub(r"\s+", " ", cmd.strip())
-    key = hashlib.sha256("\0".join((top, normalized, inputs)).encode()).hexdigest()
-    STATE.mkdir(parents=True, exist_ok=True)
-    path = STATE / f"{session}.json"
-    now = time.time()
-    try:
-        seen = json.loads(path.read_text())
-    except (OSError, ValueError):
-        seen = {}
-    if key in seen:
-        ago = int((now - seen[key]) / 60)
-        return deny(f"This exact check already ran {ago} min ago on identical inputs (same HEAD, same "
-                    "working-tree diff): its result still stands, so reuse it (KPIS.md: repeated identical "
-                    "checks = 0). Change a file first, or prefix CLAUDE_RERUN_OK=1 to rerun a flaky check.")
-    seen = {k: v for k, v in seen.items() if now - v < KEEP_S}
-    seen[key] = now
-    tmp = path.with_suffix(f".{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(seen))
-    os.replace(tmp, path)
-    for old in STATE.glob("*.json"):  # other sessions' stale files
+    if all(key in data["done"] for key in keys):
+        ago = int((now - max(data["done"][k] for k in keys)) / 60)
+        return deny(f"This exact check finished {ago} min ago on identical inputs (same HEAD, same working "
+                    "tree, same untracked contents): its result still stands, so reuse it (KPIS.md: repeated "
+                    "identical checks = 0). Change a file first, or prefix CLAUDE_RERUN_OK=1 to rerun a flaky check.")
+    if call:
+        data["pending"][call] = {"at": now, "keys": keys}
+    save(path, data, now)
+    for old in STATE.glob("*.json"):
         try:
             if now - old.stat().st_mtime > KEEP_S:
                 old.unlink()

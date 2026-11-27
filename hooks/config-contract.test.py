@@ -3464,6 +3464,10 @@ def check_check_cache_guard_refuses_polls_and_identical_reruns() -> None:
             if g.get("matcher") == "Bash" for h in g.get("hooks", [])]
     check(any(c.endswith("hooks/check-cache-guard.py") for c in cmds),
           "settings.json must wire hooks/check-cache-guard.py on the Bash PreToolUse matcher.")
+    post = [h.get("command", "") for g in settings().get("hooks", {}).get("PostToolUse", [])
+            if g.get("matcher") == "Bash" for h in g.get("hooks", [])]
+    check(any(c.endswith("hooks/check-cache-guard.py") for c in post),
+          "settings.json must wire hooks/check-cache-guard.py on PostToolUse Bash, or no run is ever recorded as finished.")
     result = run(["python3", str(ROOT / "hooks/check-cache-guard.test.py")])
     check(result.returncode == 0, f"check-cache-guard regressions failed:\n{result.stdout[-1500:]}")
 

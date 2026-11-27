@@ -517,7 +517,7 @@ HOOK_ROUTING: list[dict] = [
      "expect": []},
     {"event": "PostToolUse", "tool": "Edit", "expect": []},
     # A Bash call can be a push; the ship-gate recorder watches it, and no other tool.
-    {"event": "PostToolUse", "tool": "Bash", "expect": ["intent-ledger.sh", "config-branch-gate.py"]},
+    {"event": "PostToolUse", "tool": "Bash", "expect": ["intent-ledger.sh", "config-branch-gate.py", "check-cache-guard.py"]},
     # A Skill call can be a ship stage; the stage-receipt recorder watches it. A tool whose name only
     # contains "Skill" must not fire it.
     {"event": "PostToolUse", "tool": "Skill", "expect": ["intent-ledger.sh"]},
