@@ -478,6 +478,7 @@ def intake(mode: str, payload: dict, env: dict | None = None) -> str:
     if env:
         e.update(env)
     e["CLAUDE_INTAKE_STATE_DIR"] = str(INTAKE_TEST_DIR)
+    e["CLAUDE_SESSION_LEARNING_DIR"] = str(INTAKE_TEST_DIR / "session-learning")
     e.setdefault("CLAUDE_SESSION_ROOT_DIR", str(INTAKE_TEST_DIR / "session-roots"))
     e["CLAUDE_CONFIG_ROOT"] = str(ROOT)
     payload = dict(payload)
@@ -1219,6 +1220,9 @@ def check_delegated_worker_leaves_supervisor_record_alone() -> None:
           "Intake gave a delegated worker plan or dashboard instructions: " + out[:300])
     check("DELEGATED WORKER" in out and "return your result" in out,
           "Intake did not tell a delegated worker to leave the record alone and return its result.")
+    record = INTAKE_TEST_DIR / "session-learning" / "contract-worker.json"
+    check(record.is_file() and json.loads(record.read_text()).get("verdict") == "empty",
+          "A delegated worker's session was not recorded `empty`, so it waits in the learning queue.")
     living = (ROOT / "rules" / "living-plan.md").read_text()
     check("AGENT_DELEGATED_WORKER=1" in living, "rules/living-plan.md has no delegated-worker exception.")
     with tempfile.TemporaryDirectory(prefix="worker-ledger-test-") as tmp:

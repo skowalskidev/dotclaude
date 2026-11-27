@@ -44,7 +44,11 @@ message records `empty` on its own.
 DO keep `cleanupPeriodDays` at 90 in `settings.json`: Claude Code's own transcript sweep ignores the
 record, so the retention must outlast the learning backlog. TEST: the setting is 90 or more.
 DO drain ended sessions with no record in the same go: `python3 ~/.claude/bin/session_learning.py pending
---limit 10` lists them oldest first. Run steps 1-3 over each one's transcript, then
+--classify --limit 10` first records `empty` for every queued session with nothing Simon typed (no typed
+message, or a cwd under an `automatedSessionPaths` entry of `identity.local.json`: a pipeline folder
+that prompts Claude), then lists the rest oldest first. A delegated worker records itself `empty` at its
+first prompt (`hooks/task-intake.sh`). DO add a folder to `automatedSessionPaths` only when every
+session in it is a program's prompt (e.g. a batch runner folder); DON'T list a folder Simon also types in. Run steps 1-3 over each one's transcript, then
 `session_learning.py record <sid> --verdict done --source "<sha or no change>"`. Report the count still
 pending. TEST: no cleanup removes a session's leftovers without a record, and `pending` shrinks by the
 sessions this go learned from.

@@ -8,6 +8,13 @@ set -uo pipefail
 [ "${1:-submit}" = "submit" ] || exit 0
 [ "${CLAUDE_INTAKE_GATE:-on}" = "off" ] && exit 0
 if [ "${AGENT_DELEGATED_WORKER:-}" = "1" ]; then
+  # Its first prompt is a supervisor's brief, never Simon's words: record the session as learned-from
+  # (`empty`) now, so the end-of-session learning queue never waits on it (bin/session_learning.py).
+  _wsid="$(/usr/bin/python3 -c 'import json,sys
+try: print(str(json.load(sys.stdin).get("session_id") or ""))
+except (ValueError,TypeError,AttributeError): pass' 2>/dev/null | tr -cd '[:alnum:]._-')"
+  [ -n "$_wsid" ] && /usr/bin/python3 "${CLAUDE_CONFIG_ROOT:-$HOME/.claude}/bin/session_learning.py" record "$_wsid" \
+    --verdict empty --source "delegated worker: its prompts are a supervisor's brief" >/dev/null 2>&1
   printf '%s' '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"DELEGATED WORKER (AGENT_DELEGATED_WORKER=1): your supervisor owns the session plan, dashboard and intent ledger. Do not create, edit, update or reconcile any of them; return your result in your final message."}}'
   exit 0
 fi
