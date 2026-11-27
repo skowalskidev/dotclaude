@@ -359,7 +359,7 @@ they grow with the config, so this is part of applying the edit, not a follow-up
 
 DEFAULT: the full suite runs once per change, inside `bin/config-land-check.py`, on the head it
 merges with `origin/main`; DON'T run it by hand before landing (main moves, so that pass is rarely the
-landed tree's). The suite re-execs itself at macOS background priority (`taskpolicy -b`), so it takes
+landed tree's). The suite re-execs itself at the macOS utility QoS clamp (`taskpolicy -c utility`, below task work), so it takes
 no heavy lease and never slows a task's build: config checks run in the end-of-session learning,
 after the session's tasks, never during them. Run the worktree's copy: the live `~/.claude` copy
 tests main, not the draft. On a land-check failure, fix every failure in one batch with `--only` and

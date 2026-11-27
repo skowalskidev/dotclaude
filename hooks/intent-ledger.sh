@@ -513,6 +513,13 @@ section_lines() { # section_lines KIND FILE — every line under a "## <ts> · K
   ' "$2"
 }
 
+unmet_asks() { # every verdict line of the NEWEST reconcile still open, not met or partly met (runtime: excluded)
+  awk "$FENCE_AWK"'
+    !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ / · reconcile$/); if (insec) n=0; next }
+    !fence && insec && tolower($0) ~ /(^|[^a-z])(open:|not met|partly met)/ && tolower($0) !~ /runtime:/ { buf[++n]=$0 }
+    END { for (i = 1; i <= n; i++) print buf[i] }' "$1"
+}
+
 runtime_open() { # every `runtime: open` line of the NEWEST reconcile entry, outside prompt fences
   awk "$FENCE_AWK"'
     !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ / · reconcile$/); if (insec) n=0; next }
@@ -1411,6 +1418,23 @@ This fires at most once per ledger snapshot." \
         exit 0
       fi
     fi
+    # Ask coverage (KPIS.md): the archive line waits while the newest reconcile still lists an ask as
+    # open, not met or partly met, so the session keeps working until each one is met, blocked on a
+    # Simon-only reason, or dropped by his own words (the fix for asks found missing after hand-back).
+    case "$(jf '.last_assistant_message')" in *"You can archive this session"*)
+      unmet="$(unmet_asks "$LEDGER")"
+      if [ -n "$unmet" ]; then
+        usnap="$(cksum < "$LEDGER")"
+        if [ "$(cat "$STATE/$SID.unmetgate" 2>/dev/null)" != "$usnap" ]; then
+          printf '%s\n' "$usnap" > "$STATE/$SID.unmetgate" 2>/dev/null || exit 0
+          jq -cn --arg l "$unmet" --arg r "The newest reconciliation in $LEDGER still lists asks that are not done:" \
+            --arg t "Keep working until each is met with evidence (KPIS.md ask coverage), then append a reconcile whose \
+line for it reads done; only a Simon-only blocker (blocked: <reason>) or his own drop decision may stay. No archive line \
+before then. This fires at most once per ledger snapshot." '{decision:"block",reason:($r + "\n" + $l + "\n" + $t)}'
+          exit 0
+        fi
+      fi ;;
+    esac
     # End-of-session learning gate (rules/communication.md Close the session). The archive line waits
     # until a learning note covers every ask this session sent: Simon says go or skip, the session
     # learns (or records the skip), and only then archives. Work turns are never blocked for it, and

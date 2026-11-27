@@ -367,8 +367,9 @@ CRITERIA: list[tuple[str, str]] = [
      "a background task's output and a check rerun on identical inputs are refused; an edit, a new file, "
      "another session, a single read and CLAUDE_RERUN_OK=1 pass."),
     ("suite-runs-at-background-priority",
-     "The suite re-execs itself once under macOS background QoS (taskpolicy -b), so it and its child "
-     "suites run at scheduler priority 4, below every task's build or test, and take no heavy lease: "
+     "The suite re-execs itself once under the macOS utility QoS clamp (taskpolicy -c utility), so it and "
+     "its child suites run at scheduler priority 20, below every task's build or test (31) without the "
+     "starvation background QoS showed under sustained load, and take no heavy lease: "
      "config checks never slow normal work. CLAUDE_CONFIG_SUITE_BG=0 opts one run out."),
     ("suite-reruns-only-named-or-last-failed-criteria",
      "--only <text> runs just the criteria whose id contains it, and --last-failed runs just the "
@@ -969,6 +970,16 @@ def check_intent_ledger_retains_and_rechecks_new_asks() -> None:
             check(durable.exists() and ledger.read_bytes() == before,
                   f"A note naming a living record deleted it or changed the ledger ({name}).")
             durable.unlink()
+        invoke("submit", "Also export as JSON, again.")
+        note("reconcile", "- export as JSON: open: needs the schema\n- B and C: done")
+        archive = "Done.\n\nYou can archive this session: everything here is done."
+        payload = {"cwd": str(repo), "session_id": "ledger-contract", "stop_hook_active": False,
+                   "background_tasks": [], "last_assistant_message": archive}
+        held = subprocess.run(["bash", str(hook), "stop"], input=json.dumps(payload), text=True,
+                              capture_output=True, cwd=repo, env=env).stdout
+        check('"block"' in held and "export as JSON" in held,
+              "The archive line passed while the newest reconcile still listed an open ask (KPIS.md ask coverage).")
+        note("reconcile", "- export as JSON: done, verified\n- B and C: done")
 
 
 def check_intake_initializes_task_record() -> None:
@@ -3461,11 +3472,11 @@ def check_suite_runs_at_background_priority() -> None:
     if os.environ.get("CLAUDE_CONFIG_SUITE_BG") == "0" or not os.access("/usr/sbin/taskpolicy", os.X_OK):
         return  # an explicit foreground run, or a host without macOS QoS
     pri = subprocess.run(["ps", "-o", "pri=", "-p", str(os.getpid())], capture_output=True, text=True).stdout.strip()
-    check(os.environ.get("CLAUDE_CONFIG_SUITE_BG") == "1" and pri.isdigit() and int(pri) <= 4,
-          f"The suite runs at scheduler priority {pri or '?'}, not macOS background QoS (taskpolicy -b): "
+    check(os.environ.get("CLAUDE_CONFIG_SUITE_BG") == "1" and pri.isdigit() and 4 < int(pri) <= 20,
+          f"The suite runs at scheduler priority {pri or '?'}, not the utility QoS clamp (taskpolicy -c utility): "
           "a config check would compete with a task's build.")
     child = subprocess.run(["/bin/sh", "-c", "ps -o pri= -p $$"], capture_output=True, text=True).stdout.strip()
-    check(child.isdigit() and int(child) <= 4, f"A child of the suite runs at priority {child or '?'}: QoS is not inherited.")
+    check(child.isdigit() and 4 < int(child) <= 20, f"A child of the suite runs at priority {child or '?'}: QoS is not inherited.")
 
 
 def check_suite_reruns_only_named_or_last_failed_criteria() -> None:
@@ -3652,14 +3663,15 @@ def main() -> int:
 
 
 def run_in_background_priority() -> None:
-    """Re-exec once under macOS background QoS (`taskpolicy -b`: PRIO_DARWIN_BG, throttled CPU and
-    disk), so a config check never slows a task's build or test on this machine. Its children
-    inherit it. CLAUDE_CONFIG_SUITE_BG marks the re-exec; set it to 0 to run in the foreground."""
+    """Re-exec once under the macOS utility QoS clamp (`taskpolicy -c utility`, scheduler priority 20,
+    below a task's 31), so a config check never slows a task's build or test. Children inherit it.
+    Background QoS (`taskpolicy -b`, priority 4) starved: a landing got 2.5 CPU seconds in 34 minutes
+    under a sustained load near 300 and timed out. CLAUDE_CONFIG_SUITE_BG=0 runs in the foreground."""
     policy = "/usr/sbin/taskpolicy"
     if os.environ.get("CLAUDE_CONFIG_SUITE_BG") or not os.access(policy, os.X_OK):
         return
     os.environ["CLAUDE_CONFIG_SUITE_BG"] = "1"
-    os.execv(policy, [policy, "-b", sys.executable, *sys.argv])
+    os.execv(policy, [policy, "-c", "utility", sys.executable, *sys.argv])
 
 
 if __name__ == "__main__":

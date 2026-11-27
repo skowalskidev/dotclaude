@@ -29,7 +29,7 @@ benchmarking does for the same reason ([CodSpeed](https://codspeed.io/blog/bench
 | KPI | SLI | SLO | Enforced by |
 |---|---|---|---|
 | Ask coverage | Asks closed by a reconcile without their own verdict line | = 0 | `hooks/intent-ledger.sh note reconcile` refuses fewer verdict lines than asks |
-| Ask coverage | Asks with no verdict when the archive line is given | = 0 | the intent-ledger Stop gate |
+| Ask coverage | Asks still open, not met or partly met when the archive line is given | = 0 | the intent-ledger Stop gate refuses the archive line until each is met, blocked on Simon or dropped by him |
 | Quality | Rework rate: requests followed by a correction ("no", "you didn't", "still", "fix that") | ≤ 0.05 | `bin/kpi.py`; the end-of-session learning repairs the cause |
 | Quality | Contract criteria failing on main | = 0 | `bin/config-land-check.py` |
 | Speed | Model turns per request, median | ≤ 5 | `bin/kpi.py` |
@@ -37,7 +37,7 @@ benchmarking does for the same reason ([CodSpeed](https://codspeed.io/blog/bench
 | Speed | Polls of a background task's output | = 0 | `hooks/check-cache-guard.py` |
 | Speed | Repeated identical checks (same command, same inputs) | = 0 | `hooks/check-cache-guard.py` (input-hash cache, as [Turborepo](https://turborepo.dev/docs/core-concepts/caching) and Nx do) |
 | Speed | Subagents per small request (≤ 5 edits) | ≤ 0.1 | quick-path routing in `hooks/task-intake.sh` |
-| Speed | Config suite CPU seconds per landing | down | runs once, at background priority, only in the land check |
+| Speed | Config suite CPU seconds per landing | down | runs once, at utility QoS (below task work), only in the land check |
 
 Baseline (7 days to 2026-11-27, 947 requests): turns median 5, Stop blocks 0.98 per request, 79
 polls, 0.38 subagents per small request. A transcript audit of 894 requests found background
