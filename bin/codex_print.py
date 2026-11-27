@@ -147,6 +147,10 @@ def execute(prompt, cwd, sandbox, events_file=None, model=None, setup="full-open
                    '--sandbox', sandbox, '--json', '--output-last-message', str(final_message), '-']
         environment = dict(os.environ, AGENT_SETUP=setup, AGENT_MODEL_PROVIDER='openai',
                            AGENT_DELEGATED_WORKER='1')
+        if os.environ.get('AGENT_ROLE') == 'judge' and sandbox == 'read-only':
+            # The child is a Codex judge: the launching Claude chat's marker would read as a second
+            # native provider and fail its own setup closed (references/research.md § Independent judges).
+            environment.pop('CLAUDECODE', None)
         probe_context = (bridge(Path.home() / '.claude/state/local-capacity')
                          if sandbox == 'workspace-write' else nullcontext(None))
         log_context = events_file.open('w') if events_file else nullcontext()

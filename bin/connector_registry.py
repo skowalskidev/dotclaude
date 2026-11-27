@@ -336,7 +336,7 @@ def validate_root(path):
         return [str(exc)]
     errors = list(root['errors'])
     others = [item for item in load_all() if item['boundary'] != boundary and item['path'] != path]
-    errors += name_clashes([root] + others, only=root)
+    errors += [message for *_, message in name_clashes([root] + others, only=root)]
     for provider, record in root['providers'].items():
         for route in record.get('routes', []):
             secret = secret_location(route)
@@ -348,25 +348,34 @@ def validate_root(path):
 
 def load_all(identity=None):
     roots = [load_root(boundary, path) for boundary, path in configured_roots(identity)]
-    for root in roots:
-        root['errors'] += name_clashes(roots, only=root)
+    drop_clashing_common_routes(roots)
     return roots
 
 
 def name_clashes(roots, only=None):
-    """A common connector name that a work or personal root also declares: the guard could not
-    tell which policy applies, so the clash makes the common root unreadable."""
+    """[(root, provider, route id, message)] for each common connector name a work or personal
+    root also declares: the guard could not tell which policy applies to that name."""
     common = [root for root in roots if root['boundary'] == COMMON]
     if not common or (only is not None and only['boundary'] != COMMON):
         return []
     bound = {route['name'] for root in roots if root['boundary'] in BOUNDARIES for route in flat_routes(root)}
-    errors = []
+    out = []
     for root in common if only is None else [only]:
         for route in flat_routes(root):
             if route['name'] in bound:
-                errors.append(str(root['path']) + ': common connector name ' + route['name'] +
-                              ' is also declared in a work or personal root; rename one')
-    return errors
+                out.append((root, route['provider'], route['route'],
+                            str(root['path']) + ': common connector name ' + route['name'] +
+                            ' is also declared in a work or personal root; the common route is ignored until one is renamed'))
+    return out
+
+
+def drop_clashing_common_routes(roots):
+    """Fail closed on the ambiguous route only: the common route leaves the effective set, so its
+    name keeps the boundary root's policy and every other route stays readable."""
+    for root, provider, route_id, message in name_clashes(roots):
+        record = root['providers'][provider]
+        record['routes'] = [route for route in record['routes'] if route['id'] != route_id]
+        root.setdefault('warnings', []).append(message)
 
 
 def flat_routes(root):
@@ -1224,7 +1233,8 @@ def run(args):
         for root in load_all():
             state = 'ok' if root['index'] else 'unreadable'
             print('\t'.join([root['boundary'], str(root['path']), state,
-                             str(len(root['providers'])) + ' providers'] + root['errors']))
+                             str(len(root['providers'])) + ' providers'] + root['errors'] +
+                            root.get('warnings', [])))
         return 0
     if args.command == 'manifest':
         path, manifest, boundary = select(args.cwd, strict=False)

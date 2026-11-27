@@ -601,11 +601,21 @@ class RegistryTests(unittest.TestCase):
         # A shared name would let the common layer widen a work-only server to personal repos.
         self.provider('work', 'store', [{'id': 'live', 'name': 'MCP_DOCKER'}])
         self.common_root([{'id': 'gateway', 'name': 'MCP_DOCKER'}])
+        self.provider('work', 'chat', [{'id': 'native', 'name': 'chat'}])
         roots = reg.load_all(self.identity)
         common = next(root for root in roots if root['boundary'] == 'common')
-        self.assertTrue(any('also declared' in error for error in common['errors']))
-        with self.assertRaises(reg.RegistryError):
-            reg.select(self.cwd, remote=WORK_REMOTE, identity=self.identity, roots=roots)
+        self.assertTrue(any('also declared' in warning for warning in common['warnings']))
+        self.assertEqual(common['errors'], [])
+        # Only the ambiguous route leaves: every other route stays readable, the name keeps work's policy.
+        _, manifest, _ = reg.select(self.cwd, remote=WORK_REMOTE, identity=self.identity, roots=roots)
+        self.assertEqual(sorted(item['name'] for item in manifest['connectors']), ['MCP_DOCKER', 'chat'])
+        self.assertNotIn('layer', next(i for i in manifest['connectors'] if i['name'] == 'MCP_DOCKER'))
+        self.assertEqual(reg.name_boundaries('MCP_DOCKER', roots), ['work'])
+        self.assertEqual(self.resolve('docker')[0], [])
+        identity = self.base / 'identity.json'
+        identity.write_text(json.dumps(self.identity))
+        with patch.dict(os.environ, {'CLAUDE_IDENTITY_FILE': str(identity)}):  # validate reads the live roots
+            self.assertTrue(any('also declared' in e for e in reg.validate_root(self.base / 'common')))
 
     def test_repo_files_report_committed_local_and_main_checkout_setup(self):
         import subprocess

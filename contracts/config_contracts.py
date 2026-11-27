@@ -2856,7 +2856,7 @@ CONTRACTS: dict[str, dict] = {
         "purpose": "The one connector loader, route resolver, health recorder and legacy migration.",
         "criteria": [
             "Read only the roots named by connectorRoots (or CLAUDE_CONNECTOR_ROOTS); a route's boundary always equals its root's.",
-            "An optional common root layers account-free routes into sessions of both boundaries: a common route holding secret, requires, serves, cli or a per-project scope, a project file in the common root, or a common name a work or personal root also declares makes the root unreadable; guard-facts reports a common name under both boundaries.",
+            "An optional common root layers account-free routes into sessions of both boundaries: a common route holding secret, requires, serves, cli or a per-project scope, or a project file in the common root, makes the root unreadable; a common name a work or personal root also declares drops only that common route (a roots warning, a validate failure) so the name keeps the boundary policy; guard-facts reports a common name under both boundaries.",
             "A provider's repoFiles (repo-relative globs that never leave the repo) are reported by resolve as committed, local or main checkout files of the current repo, text and --json.",
             "Resolve returns only the session boundary's routes: unblocked first, open circuits last, routes serving the project before others, proven before untested, then declared order.",
             "Never exclude a same-boundary route for scope; record writes health.json under a lock, mode 600, same boundary only.",
