@@ -32,6 +32,11 @@ was started with, which only the user sets. A `CLAUDE_ALLOW_PATTERN_KILL=1 ...` 
 `export`) inside the command does NOT pass: the agent types the command, so an inline prefix would
 let it approve its own gated kill (rules/self-healing-config.md § Safeguard changes). Fails OPEN on
 anything malformed: a guard that breaks the session gets switched off.
+
+HAIKU STEP (bin/haiku_judge.py, kind pattern-kill): only the "pattern is not scoped to a path only you
+own" hit is sent to the model, which clears it when the pattern holds something unique to this agent
+(its own temp path, a UUID, a run id). Name-only, user-selector, killall, -1 and shared-tool hits are
+definite and never sent. No verdict keeps the deny: this guard fails CLOSED on the judgement.
 """
 
 import importlib.util
@@ -243,6 +248,13 @@ def main() -> int:
     if not hit:
         return 0
     what, why = hit
+    second = ""
+    if why.startswith("the pattern "):
+        verdict = _judge(command, why)
+        if verdict.get("ok") is True:
+            return 0  # the model read the pattern as unique to this agent's own processes
+        if verdict.get("reason"):
+            second = f"\nHaiku check: {verdict['reason']}"
     print(json.dumps({
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
@@ -255,11 +267,21 @@ def main() -> int:
                 "--token <token>`). See references/dev-server-hygiene.md § Private process inspection.\n"
                 "A pkill -f scoped to a path only you own passes (e.g. `pkill -f \"$TMP\"`, your worktree "
                 f"path). Override only with {OVERRIDE}=1 in the environment the user started the "
-                "session with, for a case the user named; an inline prefix in the command is not accepted."
+                "session with, for a case the user named; an inline prefix in the command is not accepted." + second
             ),
         }
     }))
     return 0
+
+
+def _judge(command, why):
+    """The shared Haiku step's verdict for a pattern-scope hit; {} on any failure (the deny stands)."""
+    try:
+        sys.path.insert(0, str(HERE.parent / "bin"))
+        import haiku_judge
+        return haiku_judge.judge("pattern-kill", {"command": command[:2000], "rule": why})
+    except Exception:
+        return {}
 
 
 if __name__ == "__main__":

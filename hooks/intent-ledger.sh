@@ -418,6 +418,85 @@ learning_state() {
   ' "$LEDGER"
 }
 
+# The shared Haiku step (bin/haiku_judge.py) owns every judgement on Simon's words in this script; the
+# regexes stay as its prefilter and, when no verdict comes back, its fallback. It is fed ask records only:
+# a peer entry, a plan or any assistant text never reaches it (rules/self-healing-config.md § Safeguard
+# changes, item 3). LEDGER_ASKS_PY prints {"messages": [...], "other": bool} for the asks after the newest
+# "## <ts> · <since>" heading (other: a plan, pivot or peer entry follows it too), harness blocks stripped,
+# fences honoured, newest 8 kept, each cut to 1500 characters.
+JUDGE_PY="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/bin/haiku_judge.py"
+LEDGER_ASKS_PY='
+import json, re, sys
+since, path = sys.argv[1], sys.argv[2]
+head = re.compile(r"^## \d{4}-\d\d-\d\dT[0-9:]*Z · (.+)$")
+block = re.compile(r"<(system-reminder|system_instruction|task-notification|agent-message|cross-session-message)\b[^>]*>.*?</\1>", re.S | re.I)
+asks, other, fence, cur, kind = [], False, "", None, ""
+try:
+    lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
+except OSError:
+    lines = []
+for line in lines:
+    if fence:
+        if line.rstrip() == fence:
+            fence = ""
+            if kind == "ask" and cur is not None:
+                text = block.sub("", "\n".join(cur)).strip()
+                if text:
+                    asks.append(text[:1500])
+            cur = None
+        elif cur is not None:
+            cur.append(line)
+        continue
+    m = head.match(line)
+    if m:
+        rest = m.group(1)
+        kind = rest.split(" · ")[0]
+        if rest == since:
+            asks, other = [], False
+        elif kind in ("plan", "pivot", "peer"):
+            other = True
+        continue
+    if re.match(r"^`{3,}\s*$", line) and kind in ("ask", "peer"):
+        fence, cur = line.rstrip(), []
+print(json.dumps({"messages": asks[-8:], "other": other}))
+'
+
+# judged <kind> <since> <prefilter-regex>: 0 ok, 1 not ok, 3 no verdict or nothing to judge. The asks after
+# the newest <since> heading go to the Haiku step only when one matches the case-insensitive prefilter.
+judged() {
+  local data
+  [ -f "$JUDGE_PY" ] || return 3
+  data="$(python3 -c "$LEDGER_ASKS_PY" "$2" "$LEDGER" 2>/dev/null)" || return 3
+  printf '%s' "$data" | python3 -c 'import json,re,sys
+d=json.load(sys.stdin); sys.exit(0 if d["messages"] and any(re.search(sys.argv[1], m, re.I) for m in d["messages"]) else 1)' "$3" \
+    2>/dev/null || return 3
+  printf '%s' "$data" | python3 "$JUDGE_PY" ask "$1" >/dev/null 2>&1
+}
+
+# learning_go — 1 when Simon's asks since the newest learning note approve or skip the end-of-session
+# learning. An ask naming go, skip, learning, config or self-improvement (typos included) goes to the
+# Haiku step, whose verdict decides ("go" alone on a line of a numbered reply passes, "go ahead and
+# merge" does not); with no verdict the deterministic learning_state rule stands.
+learning_go() {
+  local rc
+  judged learning-go learning '\bgo\b|skip|learn|lern|config|improv|imrpov|optimi|self'; rc=$?
+  case "$rc" in 0) echo 1 ;; 1) echo 0 ;; *) learning_state | cut -f3 ;; esac
+}
+
+# status_only — true when every ask since the newest reconcile is a status question or an acknowledgement
+# with no new work (the Haiku step's status-only kind). Only short ask-only stretches are asked (no plan,
+# pivot or peer entry, at most 4 asks of at most 400 characters); anything else, or no verdict, is false,
+# so the reconciliation block keeps its old behaviour.
+status_only() {
+  local data
+  [ -f "$JUDGE_PY" ] || return 1
+  data="$(python3 -c "$LEDGER_ASKS_PY" reconcile "$LEDGER" 2>/dev/null)" || return 1
+  printf '%s' "$data" | python3 -c 'import json,sys
+d=json.load(sys.stdin); m=d["messages"]
+sys.exit(0 if m and not d["other"] and len(m) <= 4 and all(len(x) <= 400 for x in m) else 1)' 2>/dev/null || return 1
+  printf '%s' "$data" | python3 "$JUDGE_PY" ask status-only >/dev/null 2>&1
+}
+
 section_lines() { # section_lines KIND FILE — every line under a "## <ts> · KIND" heading, outside prompt fences
   awk -v kind="$1" "$FENCE_AWK"'
     !fence && /^## [0-9][0-9][0-9][0-9]-/ { insec = ($0 ~ (" · " kind "$")); next }
@@ -952,13 +1031,14 @@ note)
     rm -f "$snap"; exit 2
   fi
   # The end-of-session learning note is what lets the archive line through, so only Simon's own word
-  # opens it: an ask since the previous learning note that is a bare "go" or "skip".
+  # opens it: an ask since the previous learning note that says go or skip (learning_go: Haiku-judged).
   if [ "$kind" = "learning" ]; then
     if ! grep -qE 'session learning: (done|skipped)' "$src" 2>/dev/null; then
       echo "note: refusing: a learning note holds \"session learning: done\" or \"session learning: skipped\"." >&2
       rm -f "$snap"; exit 2
     fi
-    if [ "$(learning_state | cut -f3)" != 1 ] && [ "$(learning_state | cut -f4)" != 1 ]; then
+    # A standing go (the newest learning note said done) needs no new ask; check it before the judge.
+    if [ "$(learning_state | cut -f4)" != 1 ] && [ "$(learning_go)" != 1 ]; then
       echo "note: refusing: no ask since the last learning note says go or skip. Ask Simon: \"Action needed: say go to run the end-of-session config learning over your N messages in this session\"." >&2
       rm -f "$snap"; exit 2
     fi
@@ -1344,6 +1424,9 @@ messages in this session have no learning note. Replace the archive line with li
   snapshot="$(cksum < "$LEDGER")"
   [ "$(cat "$STATE/$SID.stopblock" 2>/dev/null)" = "$snapshot" ] && exit 0
   printf '%s\n' "$snapshot" > "$STATE/$SID.stopblock" 2>/dev/null || exit 0
+  # A stretch of pure status questions or thanks adds nothing to reconcile: the Haiku step says so and the
+  # turn ends unblocked. Any new work, a plan or pivot entry, or no verdict keeps the block below.
+  status_only && exit 0
   jq -cn --arg r "This worktree has recorded input newer than its last reconciliation. Before \
 finishing: re-read $LEDGER and the living gauntlet plan, account for every request and remaining \
 item, continue ready authorized work, and append the current outcomes with
