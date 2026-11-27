@@ -44,7 +44,8 @@
 #                                 A learning note records the end-of-session config learning: its body
 #                                 holds "session learning: done" or "session learning: skipped", and it
 #                                 is refused unless an ask since the previous learning note is Simon's
-#                                 bare "go" or "skip" (or names the session/config learning)
+#                                 bare "go" or "skip" (or names the session/config learning), or the
+#                                 previous learning note said done: his go stands until a skip
 #         learning-count          read-only, run from the session's shell like note — print N, this
 #                                 session's asks since its last learning note: the N in the hand-back's ask
 #         push                    PostToolUse (Bash) — record a pushed non-default branch and its head
@@ -385,14 +386,16 @@ FENCE_AWK='
         if (!fence) { fence=width; delimiter=mark; next }
         if (mark == delimiter && width >= fence && tail ~ /^[[:space:]]*$/) { fence=0; next } } }'
 
-# learning_state — "<last learning ts>\t<N>\t<go>" for LEDGER: N counts this session's asks after the
+# learning_state — "<last learning ts>\t<N>\t<go>\t<stand>" for LEDGER: N counts this session's asks after the
 # newest learning note (every session's when the id is unknown); go is 1 when an ask after it (any
 # session) is Simon's bare go or skip ("go", "go ahead", "ok go", "skip") once harness blocks are
 # stripped, as the whole ask or as one line of it (a numbered reply opening with "go"), or names the
 # session or config learning. A longer "go ahead and merge" never counts, whole or as a line.
+# stand is 1 while the newest learning note says "session learning: done": Simon's go stands for the
+# rest of the session, so later asks are learned without asking again; a skip note ends it.
 # Records are parsed with their fences, so a heading pasted inside a prompt is never a boundary.
 learning_state() {
-  [ -f "$LEDGER" ] || { printf '\t0\t0\n'; return; }
+  [ -f "$LEDGER" ] || { printf '\t0\t0\t0\n'; return; }
   awk -v sid="$SID" '
     function word(t) { t = tolower(t); gsub(/[[:space:]]+/, " ", t); sub(/^ /, "", t); sub(/ $/, "", t)
       return (t ~ /^((yes|ok|okay)[ ,]+)?(go|go ahead|skip)[.! ]*$/ || index(t, "session learning") ||
@@ -405,12 +408,93 @@ learning_state() {
       if (skip && $0 ~ /<\/(system-reminder|system_instruction|task-notification)>/) skip = 0
       next }
     /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · (ask|peer) · session / {
-      inrec = 1; fence = ""; isask = (index($0, " · ask · session ") > 0)
+      inlearn = 0; inrec = 1; fence = ""; isask = (index($0, " · ask · session ") > 0)
       if (isask && (sid == "unknown" || substr($0, length($0) - length(sid) + 1) == sid)) n++
       next }
-    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · learning$/ { lts = $2; n = 0; go = 0; next }
-    END { printf "%s\t%d\t%d\n", lts, n, go }
+    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · learning$/ { lts = $2; n = 0; go = 0; stand = 0; inlearn = 1; next }
+    /^## [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9:]*Z · / { inlearn = 0; next }
+    inlearn && index($0, "session learning: done") { stand = 1 }
+    END { printf "%s\t%d\t%d\t%d\n", lts, n, go, stand }
   ' "$LEDGER"
+}
+
+# The shared Haiku step (bin/haiku_judge.py) owns every judgement on Simon's words in this script; the
+# regexes stay as its prefilter and, when no verdict comes back, its fallback. It is fed ask records only:
+# a peer entry, a plan or any assistant text never reaches it (rules/self-healing-config.md § Safeguard
+# changes, item 3). LEDGER_ASKS_PY prints {"messages": [...], "other": bool} for the asks after the newest
+# "## <ts> · <since>" heading (other: a plan, pivot or peer entry follows it too), harness blocks stripped,
+# fences honoured, newest 8 kept, each cut to 1500 characters.
+JUDGE_PY="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/bin/haiku_judge.py"
+LEDGER_ASKS_PY='
+import json, re, sys
+since, path = sys.argv[1], sys.argv[2]
+head = re.compile(r"^## \d{4}-\d\d-\d\dT[0-9:]*Z · (.+)$")
+block = re.compile(r"<(system-reminder|system_instruction|task-notification|agent-message|cross-session-message)\b[^>]*>.*?</\1>", re.S | re.I)
+asks, other, fence, cur, kind = [], False, "", None, ""
+try:
+    lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
+except OSError:
+    lines = []
+for line in lines:
+    if fence:
+        if line.rstrip() == fence:
+            fence = ""
+            if kind == "ask" and cur is not None:
+                text = block.sub("", "\n".join(cur)).strip()
+                if text:
+                    asks.append(text[:1500])
+            cur = None
+        elif cur is not None:
+            cur.append(line)
+        continue
+    m = head.match(line)
+    if m:
+        rest = m.group(1)
+        kind = rest.split(" · ")[0]
+        if rest == since:
+            asks, other = [], False
+        elif kind in ("plan", "pivot", "peer"):
+            other = True
+        continue
+    if re.match(r"^`{3,}\s*$", line) and kind in ("ask", "peer"):
+        fence, cur = line.rstrip(), []
+print(json.dumps({"messages": asks[-8:], "other": other}))
+'
+
+# judged <kind> <since> <prefilter-regex>: 0 ok, 1 not ok, 3 no verdict or nothing to judge. The asks after
+# the newest <since> heading go to the Haiku step only when one matches the case-insensitive prefilter.
+judged() {
+  local data
+  [ -f "$JUDGE_PY" ] || return 3
+  data="$(python3 -c "$LEDGER_ASKS_PY" "$2" "$LEDGER" 2>/dev/null)" || return 3
+  printf '%s' "$data" | python3 -c 'import json,re,sys
+d=json.load(sys.stdin); sys.exit(0 if d["messages"] and any(re.search(sys.argv[1], m, re.I) for m in d["messages"]) else 1)' "$3" \
+    2>/dev/null || return 3
+  printf '%s' "$data" | python3 "$JUDGE_PY" ask "$1" >/dev/null 2>&1
+}
+
+# learning_go — 1 when Simon's asks since the newest learning note approve or skip the end-of-session
+# learning. An ask naming go, skip, learning, config or self-improvement (typos included) goes to the
+# Haiku step, whose verdict decides ("go" alone on a line of a numbered reply passes, "go ahead and
+# merge" does not); with no verdict the deterministic learning_state rule stands.
+learning_go() {
+  local rc
+  judged learning-go learning '\bgo\b|skip|learn|lern|config|improv|imrpov|optimi|self'; rc=$?
+  case "$rc" in 0) echo 1 ;; 1) echo 0 ;; *) learning_state | cut -f3 ;; esac
+}
+
+# status_only — true when every ask since the newest reconcile is a status question or an acknowledgement
+# with no new work (the Haiku step's status-only kind). Only short ask-only stretches are asked (no plan,
+# pivot or peer entry, at most 4 asks of at most 400 characters); anything else, or no verdict, is false,
+# so the reconciliation block keeps its old behaviour.
+status_only() {
+  local data
+  [ -f "$JUDGE_PY" ] || return 1
+  data="$(python3 -c "$LEDGER_ASKS_PY" reconcile "$LEDGER" 2>/dev/null)" || return 1
+  printf '%s' "$data" | python3 -c 'import json,sys
+d=json.load(sys.stdin); m=d["messages"]
+sys.exit(0 if m and not d["other"] and len(m) <= 4 and all(len(x) <= 400 for x in m) else 1)' 2>/dev/null || return 1
+  printf '%s' "$data" | python3 "$JUDGE_PY" ask status-only >/dev/null 2>&1
 }
 
 section_lines() { # section_lines KIND FILE — every line under a "## <ts> · KIND" heading, outside prompt fences
@@ -893,7 +977,8 @@ the work runs in (a subagent's: the one its last Bash cd'd into).
 references/workflow-loops.md section Continuous request reconciliation before continuing: capture \
 every added requirement, preserve unfinished items and the return point, then refresh the dashboard. \
 Keep config learning for the session's end: after all task work is verified, ask Simon to say go for \
-the end-of-session config learning (references/session-performance.md section End-of-session learning); \
+the end-of-session config learning (references/session-performance.md section End-of-session learning), \
+or run it unasked once his go stands this session (intent-ledger.sh learning-count); \
 fix a config defect now only when it blocks the current task. An answer or status question does not cancel \
 older work. Recording an ask does not grant approval." \
     '{hookSpecificOutput:{hookEventName:"UserPromptSubmit",additionalContext:$c}}'
@@ -946,13 +1031,14 @@ note)
     rm -f "$snap"; exit 2
   fi
   # The end-of-session learning note is what lets the archive line through, so only Simon's own word
-  # opens it: an ask since the previous learning note that is a bare "go" or "skip".
+  # opens it: an ask since the previous learning note that says go or skip (learning_go: Haiku-judged).
   if [ "$kind" = "learning" ]; then
     if ! grep -qE 'session learning: (done|skipped)' "$src" 2>/dev/null; then
       echo "note: refusing: a learning note holds \"session learning: done\" or \"session learning: skipped\"." >&2
       rm -f "$snap"; exit 2
     fi
-    if [ "$(learning_state | cut -f3)" != 1 ]; then
+    # A standing go (the newest learning note said done) needs no new ask; check it before the judge.
+    if [ "$(learning_state | cut -f4)" != 1 ] && [ "$(learning_go)" != 1 ]; then
       echo "note: refusing: no ask since the last learning note says go or skip. Ask Simon: \"Action needed: say go to run the end-of-session config learning over your N messages in this session\"." >&2
       rm -f "$snap"; exit 2
     fi
@@ -1317,6 +1403,14 @@ This fires at most once per ledger snapshot." \
     lsnap="$(cksum < "$LEDGER")"
     [ "$(cat "$STATE/$SID.learngate" 2>/dev/null)" = "$lsnap" ] && exit 0
     printf '%s\n' "$lsnap" > "$STATE/$SID.learngate" 2>/dev/null || exit 0
+    if [ "$(printf '%s' "$lstate" | cut -f4)" = 1 ]; then
+      jq -cn --arg r "Simon's go for the end-of-session config learning stands for this session: run \
+references/session-performance.md section End-of-session learning over his $n newer messages now, without \
+asking him again, record ~/.claude/hooks/intent-ledger.sh note learning <scratch.md> holding \
+\"session learning: done\", then give the archive line. This fires at most once per ledger snapshot." \
+        '{decision:"block",reason:$r}'
+      exit 0
+    fi
     jq -cn --arg r "The archive line waits for the end-of-session config learning: $n of Simon's \
 messages in this session have no learning note. Replace the archive line with line 1 \
 \"Action needed: say go to run the end-of-session config learning over your $n messages in this session\" \
@@ -1330,6 +1424,9 @@ messages in this session have no learning note. Replace the archive line with li
   snapshot="$(cksum < "$LEDGER")"
   [ "$(cat "$STATE/$SID.stopblock" 2>/dev/null)" = "$snapshot" ] && exit 0
   printf '%s\n' "$snapshot" > "$STATE/$SID.stopblock" 2>/dev/null || exit 0
+  # A stretch of pure status questions or thanks adds nothing to reconcile: the Haiku step says so and the
+  # turn ends unblocked. Any new work, a plan or pivot entry, or no verdict keeps the block below.
+  status_only && exit 0
   jq -cn --arg r "This worktree has recorded input newer than its last reconciliation. Before \
 finishing: re-read $LEDGER and the living gauntlet plan, account for every request and remaining \
 item, continue ready authorized work, and append the current outcomes with
@@ -1341,7 +1438,7 @@ and point of the prompt that started this work, in its order, before any status 
 Answer first). When the session opened, pushed, reviewed or merged a PR, the final message's last block is \
 the PR status block (references/tldr-report-formats.md § PR status block: each PR linked once under Merged, \
 Approved, merging, Needs your ok, In progress or Deferred / blocked). When nothing is left, end the final message with \
-the end-of-session learning ask from rules/communication.md Close the session, and the archive line only \
+the end-of-session learning ask from rules/communication.md Close the session (or run it when his go already stands), and the archive line only \
 once a learning note covers this session's messages; with CI running, a session PR awaiting Simon's merge or a \
 promised smoke or reply open, end with the PR status block and no archive line. When this turn began from a background \
 notification or this hook and brings no new outcome, decision or ask, write nothing or one line naming \

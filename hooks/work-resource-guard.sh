@@ -17,6 +17,18 @@
 
 PY=/usr/bin/python3
 input="$(cat)"
+JUDGE="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd)/bin/haiku_judge.py"
+
+# mention_only <literal>: true when the shared Haiku step (bin/haiku_judge.py, kind resource-mention)
+# reads the command as only MENTIONING the other boundary's literal (a grep pattern, a doc line, a
+# commit message) rather than reading the file or passing the id to a CLI. Only the substring rules
+# below call it; account, MCP-boundary, prod-write and model-API rules are facts and never ask. No
+# verdict (timeout, error, CLAUDE_HAIKU_JUDGE=off) returns false, so the deny stands: fail CLOSED.
+mention_only() {
+  [ -f "$JUDGE" ] || return 1
+  "$PY" -c 'import json,sys; print(json.dumps({"command": sys.argv[1][:2000], "literal": sys.argv[2]}))' "$cmd" "$1" \
+    | "$PY" "$JUDGE" ask resource-mention >/dev/null 2>&1
+}
 
 meta="$(printf '%s' "$input" | "$PY" -c 'import sys,json
 try: d=json.load(sys.stdin)
@@ -171,12 +183,12 @@ if [ "$tool" = "Bash" ]; then
     # Personal cloud project id (from the overlay) used anywhere in the command.
     if [ -n "$PERSONAL_PROJECT" ]; then
       case "$cmd" in
-        *"$PERSONAL_PROJECT"*) deny "Blocked by work-resource policy: '$PERSONAL_PROJECT' is your PERSONAL Firebase/GCP project. Work uses your work cloud projects only." ;;
+        *"$PERSONAL_PROJECT"*) mention_only "$PERSONAL_PROJECT" || deny "Blocked by work-resource policy: '$PERSONAL_PROJECT' is your PERSONAL Firebase/GCP project. Work uses your work cloud projects only." ;;
       esac
     fi
     case "$cmd" in
-      *secrets/firebase-keys*) deny "Blocked by work-resource policy: personal service-account key path. Work must use work credentials." ;;
-      *personal-keys.env*)     deny "Blocked by work-resource policy: '~/.config/personal-keys.env' holds your PERSONAL API keys. Work must not read personal keys." ;;
+      *secrets/firebase-keys*) mention_only "secrets/firebase-keys" || deny "Blocked by work-resource policy: personal service-account key path. Work must use work credentials." ;;
+      *personal-keys.env*)     mention_only "personal-keys.env" || deny "Blocked by work-resource policy: '~/.config/personal-keys.env' holds your PERSONAL API keys. Work must not read personal keys." ;;
       *--project-name=personal*) deny "Blocked by work-resource policy: a Stripe PERSONAL profile (--project-name=personal) in a work repo. Use your work Stripe profile." ;;
     esac
 
@@ -214,7 +226,7 @@ if [ "$tool" = "Bash" ]; then
     if [ -n "$WORK_LOGINS" ] && { is_cmd firebase || is_cmd gcloud || is_cmd aws || is_cmd gh || is_cmd npx; }; then
       while IFS= read -r work_login; do
         [ -n "$work_login" ] || continue
-        if printf '%s' "$cmd" | grep -qF "$work_login"; then
+        if printf '%s' "$cmd" | grep -qF "$work_login" && ! mention_only "$work_login"; then
           deny "Blocked by personal-resource policy: '$work_login' is your WORK account. Personal repos must use ${PERSONAL_EMAIL:-your personal account}."
         fi
       done <<< "$WORK_LOGINS"

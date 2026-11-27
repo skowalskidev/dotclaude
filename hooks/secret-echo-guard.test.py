@@ -17,6 +17,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+import os
+# These cases pin the keyword rules, which are also the fallback when the Haiku step gives no verdict; bin/haiku_judge.test.py
+# covers the judged path with a stub. Off here so no case calls the model.
+os.environ["CLAUDE_HAIKU_JUDGE"] = "off"
+
 GUARD = Path(__file__).parent / "secret-echo-guard.py"
 
 # (label, command, substring the deny reason must contain)

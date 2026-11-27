@@ -38,12 +38,12 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/secret-echo-guard.py",
-            "timeout": 10
+            "timeout": 15
           },
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/process-kill-guard.py",
-            "timeout": 10
+            "timeout": 15
           },
           {
             "type": "command",
@@ -160,7 +160,7 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/intent-ledger.sh stop",
-            "timeout": 5
+            "timeout": 15
           },
           {
             "type": "command",

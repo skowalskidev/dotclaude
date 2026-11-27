@@ -22,11 +22,15 @@ A merge passes on one of two paths, in this order:
     merge word for #N under its PR status block's Needs your ok group, Action needed line or an end-block
     numbered step) with no later
     message holding merges. The hand-back only resolves the referent: his words still give the order.
+    When any of his messages mentions merging, naming or answering for #N, or holds, the shared Haiku step
+    (bin/haiku_judge.py, kind merge-order) reads those messages and its verdict decides (judged_merge); the
+    keyword rule above is the prefilter and, when no verdict comes back, the fallback.
 Only user turns of the transcript count; a peer envelope, a harness block, a tool answer and a
-delegated worker's brief never do. There is no override flag.
+delegated worker's brief never do: the Haiku step sees only that typed text. There is no override flag.
 
 A default-branch push needs CLAUDE_ALLOW_MAIN_COMMIT set to 1 in the session's starting environment
-AND Simon's typed "push" this turn. In the ~/.claude config repo a push to main passes instead when
+AND Simon's typed "push" this turn (a message with a push word goes to the Haiku step, kind push-order,
+which decides whether it orders the push; the keyword rule is the fallback). In the ~/.claude config repo a push to main passes instead when
 bin/config-land-check.py verified every pushed head and it fast-forwards the remote.
 
 It fails open on malformed input that names no merge or push; a crash or stall on a command that
@@ -996,7 +1000,12 @@ def push_denial(repo: str, args: list, payload: dict, allow_main: bool) -> str:
                 "not count.")
     msgs, handbacks = typed_messages(str(payload.get("transcript_path") or ""))
     turn = [t for t, _, h in msgs if h == handbacks]
-    if not any(PUSH_WORD_RE.search(t) and not _negated_before(t, PUSH_WORD_RE.search(t).start()) for t in turn):
+    ordered = any(PUSH_WORD_RE.search(t) and not _negated_before(t, PUSH_WORD_RE.search(t).start()) for t in turn)
+    if any(PUSH_WORD_RE.search(t) for t in turn):  # prefilter: only a turn naming a push is judged
+        verdict = _haiku("push-order", {"messages": [t[:1500] for t in turn[-6:]]})
+        if verdict.get("ok") is not None:
+            ordered = verdict["ok"]
+    if not ordered:
         return ("Blocked: a push to the default branch runs only when the user's own words this turn say "
                 "\"push\". A yes to an option you wrote is not that. Ask, and stop.")
     return ""
@@ -1706,6 +1715,37 @@ def words_allow(number: str, window: list) -> tuple:
     return False, f"no message the user typed says merge #{number}"
 
 
+def _haiku(kind: str, data: dict) -> dict:
+    """The shared Haiku step's verdict (bin/haiku_judge.py), bounded by this hook's own budget; {} when there is no
+    time left or the helper fails, so the caller keeps its keyword result."""
+    try:
+        budget = min(8.0, time_left(2.5) - 1.5)
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin"))
+        import haiku_judge
+        return haiku_judge.judge(kind, data, timeout=budget)
+    except Exception:
+        return {}
+
+
+def judged_merge(number: str, window: list) -> tuple:
+    """(allowed, cause) for merging #N. The keyword rule (words_allow) is the prefilter and the fallback: every typed
+    message that mentions merging, names #N, answers a hand-back asking for #N or holds is sent, newest 12, to the
+    Haiku step, whose verdict decides. Its input is Simon's typed text only (typed_messages), never assistant text."""
+    allowed, cause = words_allow(number, window)
+    relevant = [(t, asked) for t, asked, _ in window
+                if names_pr(t, number) or number in asked or MERGE_VERB_RE.search(t) or BARE_HOLD_RE.match(t)
+                or HOLD_MERGE_RE.search(t)]
+    if not relevant:
+        return allowed, cause
+    verdict = _haiku("merge-order", {"pr": number, "messages": [
+        {"text": t[:1500], "answers_merge_ask": number in asked} for t, asked in relevant[-12:]]})
+    if verdict.get("ok") is True:
+        return True, ""
+    if verdict.get("ok") is False:
+        return False, f"the user's messages give no standing merge order for #{number} ({verdict.get('reason', '')})"
+    return allowed, cause
+
+
 def pr_view(number: str, slug: str, where) -> dict:
     try:
         p = _run(["gh", "pr", "view", number, "--json", "number,title,headRefName,headRefOid,state,url",
@@ -1776,7 +1816,7 @@ def merge_denial(payload: dict, margs: list, where, scan: Scan) -> str:
                         f"--match-head-commit {head or '<full head sha>'} and rerun.{mline}")
         msgs, _ = typed_messages(str(payload.get("transcript_path") or ""))
         # Every typed message counts, however old: a merge word stands until a later message holds it.
-        allowed, cause = words_allow(number, msgs)
+        allowed, cause = judged_merge(number, msgs)
     except OutOfTime:
         allowed, cause = False, "the merge check ran out of time"
     except Exception as exc:
@@ -1964,7 +2004,7 @@ def explain(argv: list) -> int:
     print(f"verdict: {'MERGES AT THE BAR' if ok else 'DECLINES'}; failing checks: {len(collect)}")
     for cause in collect:
         print(f"- {cause}")
-    words, why = words_allow(number, typed_messages(a.transcript)[0]) if a.transcript else (False, "")
+    words, why = judged_merge(number, typed_messages(a.transcript)[0]) if a.transcript else (False, "")
     if a.transcript:
         print(f"user's words: {'ALLOW' if words else 'DECLINE: ' + why}")
     return 0 if ok or words else 1
