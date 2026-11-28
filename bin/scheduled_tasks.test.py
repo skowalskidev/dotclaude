@@ -133,5 +133,19 @@ check(st.next_fire("0 9 * * 1-5", dt.datetime(2026, 11, 28, 10)) == dt.datetime(
 check(st.next_fire("15,45 */2 * * *", dt.datetime(2026, 11, 28, 1, 50)) == dt.datetime(2026, 11, 28, 2, 15),
       "lists and steps parse")
 
+# 9. Judges' holes: `done` on a recurring task keeps it alive; a one-shot keeps its instant across a timezone change.
+r = fresh()
+create(r, "17 * * * *", prompt="hourly check", recurring=True, at="2026-11-28T00:05:00", jid="dddd3333")
+subprocess.run([sys.executable, str(ENGINE), "done", "dddd3333", "--root", str(r)], capture_output=True,
+               env={**os.environ, "SCHEDULED_TASKS_NOW": "2026-11-28T05:30:00"})
+check(tasks(r)[0]["status"] == "pending" and tasks(r)[0]["last_fired"], "done on a recurring task stamps it and keeps it pending")
+r = fresh()
+hook(r, {"hook_event_name": "PostToolUse", "tool_name": "CronCreate", "session_id": "s1",
+         "tool_input": {"cron": "0 7 28 11 *", "prompt": PROMPT, "recurring": False},
+         "tool_response": "Scheduled one-shot task eeee4444"}, "2026-11-28T00:13:00", env={"TZ": "Asia/Bangkok"})
+out = hook(r, {"hook_event_name": "SessionStart", "session_id": "s2", "source": "startup"}, "2026-11-28T01:30:00",
+           env={"TZ": "Europe/London"})
+check("OVERDUE eeee4444" in out, f"07:00 Bangkok is overdue at 01:30 London (08:30 Bangkok): {out!r}")
+
 print("ok" if not FAILURES else f"{len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)

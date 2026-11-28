@@ -143,6 +143,15 @@ def save(root: Path, tasks: list[dict]) -> None:
     tmp.replace(path)
 
 
+def aware(t: dt.datetime | None) -> str | None:
+    """A one-shot's due time with its UTC offset, so a timezone or daylight-saving change keeps the instant."""
+    return t.astimezone().isoformat(timespec="seconds") if t else None
+
+
+def local_tz() -> str:
+    return os.environ.get("TZ") or dt.datetime.now().astimezone().tzname() or ""
+
+
 def norm(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
@@ -165,7 +174,8 @@ def state(task: dict, at: dt.datetime) -> tuple[str, dt.datetime | None]:
             if missed:
                 return "overdue", missed
             return "pending", next_fire(task["cron"], at)
-        due = next_fire(task["cron"], created)
+        due = (dt.datetime.fromisoformat(task["due"]).astimezone().replace(tzinfo=None) if task.get("due")
+               else next_fire(task["cron"], created))
         if due is None:
             return "expired", None
         if due <= at:
@@ -194,11 +204,15 @@ def on_create(root: Path, payload: dict) -> None:
     for t in tasks:  # re-arming the same promise updates its record
         if t.get("status") == "pending" and norm(t["prompt"]) == norm(prompt) and t["cron"] == cron:
             t.update(job_id=jid, armed_session=sid)
+            if t.get("recurring"):  # CronCreate's recurring expiry restarts when it is created again
+                t["created"] = stamp(now())
             save(root, tasks)
             return
     tasks.append({"id": jid or f"t{len(tasks) + 1}", "job_id": jid, "cron": cron, "prompt": prompt,
                   "recurring": inp.get("recurring", True) is not False, "created": stamp(now()),
-                  "session": sid, "armed_session": sid, "status": "pending", "last_fired": None})
+                  "session": sid, "armed_session": sid, "status": "pending", "last_fired": None,
+                  "due": None if inp.get("recurring", True) is not False else aware(next_fire(cron, now())),
+                  "tz": local_tz()})
     save(root, tasks)
 
 
@@ -302,9 +316,12 @@ def main(argv: list[str]) -> int:
     if cmd in ("done", "cancel") and len(argv) > 1:
         hit = [t for t in tasks if argv[1] in (t.get("id"), t.get("job_id"))]
         for t in hit:
-            t["status"] = "done" if cmd == "done" else "cancelled"
-            if cmd == "done":
-                t["last_fired"] = stamp(now())
+            if cmd == "cancel":
+                t["status"] = "cancelled"
+                continue
+            t["last_fired"] = stamp(now())
+            if not t.get("recurring"):  # a recurring task stays pending for its next run
+                t["status"] = "done"
         save(root, tasks)
         print(f"{cmd}: {len(hit)}")
         return 0 if hit else 1

@@ -320,9 +320,10 @@ scheduled tasks: one run for the most recent missed time, within 7 days.
   tell Simon it ran late and why, then `python3 ~/.claude/bin/scheduled_tasks.py done <id> --root <project>`;
   PENDING means run CronList and CronCreate the same cron and prompt again only when it is missing.
 - DO tell Simon, when promising a time, that it fires only while this session is open, and that a restart
-  with no prompt runs it at his next message. On-time runs across a restart need an external waker (Desktop
-  local scheduled tasks or a launchd job), a persistent process that needs his yes (`rules/process.md`
-  § Clean up after yourself).
+  with no prompt runs it at his next message. On-time runs across a restart need an external waker, a
+  persistent process that needs his yes (`rules/process.md` § Clean up after yourself): default to a Claude
+  Desktop local scheduled task (first-party, catch-up built in, needs the app open and the Mac awake; it
+  starts a NEW session, not this conversation), launchd only for custom automation.
 - TEST: `bin/scheduled_tasks.test.py` replays the missed 27 Nov 2026 7am resume: a restart overnight and a
   09:05 prompt surface it as OVERDUE with its prompt (the fix for a resume that vanished silently).
 
