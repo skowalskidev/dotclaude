@@ -185,6 +185,10 @@ the no-`/tmp` rule are process.md's, above.
 
 Owned by `rules/process.md` § "Run to completion". This section holds the detail.
 
+WHY (moved from `rules/process.md`): "work till completion" recurred in 8 of 17 sessions, so run to
+completion is the default, said or not; and the verdict-alone TEST is the fix for a batch of asked-for
+follow-ups handed back as verdicts and plans.
+
 DO read the verb Simon used before choosing the deliverable. "Do", "build", "fix", "ship", "the queued
 tasks" and "for each of the queued tasks, use skill X" ask for the work done; the skills he names are
 the method, never the scope.
@@ -301,6 +305,26 @@ resume rule).
 
 TEST: at any point mid-run, the last finished stage is a commit AND the `.context/` checklist names
 it, so a fresh session resumes from git alone with no lost stage.
+
+## Timed resumes survive a session restart
+
+A CronCreate task is session-scoped: it dies with the process, a restored one skips missed runs, and a
+one-shot past its time is never restored (code.claude.com/docs/en/scheduled-tasks); `durable: true` is a
+no-op in this build. `bin/scheduled_tasks.py` keeps a durable copy in `<project>/.context/scheduled-tasks.json`
+through hooks, with the missed-run catch-up of anacron, systemd `Persistent=true` and Claude Desktop local
+scheduled tasks: one run for the most recent missed time, within 7 days.
+
+- DO schedule a promised resume ("resume at 7am", "check at 2am") with CronCreate as usual; the PostToolUse
+  hook records it and CronDelete cancels it. No extra step.
+- DO act on the hook lines at SessionStart and on each prompt: OVERDUE means run its prompt first, once,
+  tell Simon it ran late and why, then `python3 ~/.claude/bin/scheduled_tasks.py done <id> --root <project>`;
+  PENDING means run CronList and CronCreate the same cron and prompt again only when it is missing.
+- DO tell Simon, when promising a time, that it fires only while this session is open, and that a restart
+  with no prompt runs it at his next message. On-time runs across a restart need an external waker (Desktop
+  local scheduled tasks or a launchd job), a persistent process that needs his yes (`rules/process.md`
+  § Clean up after yourself).
+- TEST: `bin/scheduled_tasks.test.py` replays the missed 27 Nov 2026 7am resume: a restart overnight and a
+  09:05 prompt surface it as OVERDUE with its prompt (the fix for a resume that vanished silently).
 
 ## The intent ledger — the record of what was asked, and whether it got built
 

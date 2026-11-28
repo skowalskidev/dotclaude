@@ -3022,6 +3022,17 @@ CONTRACTS: dict[str, dict] = {
             "Rejects a session id that is not a plain token before using it as a path.",
         ],
     },
+    "bin/scheduled_tasks.py": {
+        "mission": "A timed resume or follow-up promised to Simon happens even when the session restarts, and a missed one is run once and named late instead of vanishing.",
+        "purpose": "Durable copy of every CronCreate task in <project>/.context/scheduled-tasks.json with missed-run catch-up: PostToolUse records and cancels, SessionStart and UserPromptSubmit surface OVERDUE (run now, once) and PENDING-not-armed (re-arm after CronList) tasks.",
+        "criteria": [
+            "PostToolUse CronCreate records cron, prompt, recurring, job id and session; re-creating the same cron and prompt re-links the record, never duplicates it; CronDelete cancels it.",
+            "A prompt equal to a record's prompt is the task firing: a one-shot is done, a recurring one stamps last_fired.",
+            "SessionStart (startup or resume) unarms every pending task and lists OVERDUE tasks with their prompt and PENDING tasks to re-arm after a CronList check; UserPromptSubmit repeats both until done or re-armed.",
+            "Catch-up is one run for the most recent missed time within 7 days (anacron, systemd Persistent=true, Desktop scheduled tasks); an older one-shot and a recurring task past 7 days expire quietly.",
+            "Skips AGENT_DELEGATED_WORKER=1 and fails open: malformed input prints nothing and exits 0. bin/scheduled_tasks.test.py replays the 27 Nov 2026 missed 7am resume and covers restart-before-time, firing, delete, recurring catch-up, expiry and fail-open.",
+        ],
+    },
     "bin/session-reaper.py": {
         "mission": "Finished sessions leave nothing behind on Simon's machine, and nothing he still needs is ever removed.",
         "purpose": "SessionStart/SessionEnd safety net: one detached one-shot run removes gated leftovers of "

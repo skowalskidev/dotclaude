@@ -130,6 +130,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/scheduled_tasks.py hook",
+            "timeout": 5
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -159,6 +168,16 @@
           {
             "type": "command",
             "command": "$HOME/.claude/hooks/intent-ledger.sh skill",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "matcher": "CronCreate|CronDelete",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/scheduled_tasks.py hook",
             "timeout": 5
           }
         ]
@@ -260,6 +279,15 @@
             "type": "command",
             "command": "$HOME/.claude/bin/session-reaper.py hook",
             "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/scheduled_tasks.py hook",
+            "timeout": 5
           }
         ]
       }

@@ -521,11 +521,16 @@ HOOK_ROUTING: list[dict] = [
     # A Skill call can be a ship stage; the stage-receipt recorder watches it. A tool whose name only
     # contains "Skill" must not fire it.
     {"event": "PostToolUse", "tool": "Skill", "expect": ["intent-ledger.sh"]},
+    # A scheduled task is copied to durable workspace state the moment it is created or deleted, so a
+    # session restart cannot silently drop a promised resume (bin/scheduled_tasks.py).
+    {"event": "PostToolUse", "tool": "CronCreate", "expect": ["scheduled_tasks.py"]},
+    {"event": "PostToolUse", "tool": "CronDelete", "expect": ["scheduled_tasks.py"]},
+    {"event": "PostToolUse", "tool": "CronList", "expect": []},
     {"event": "PostToolUse", "tool": "mcp__x__SkillSearch", "expect": []},
     {"event": "SessionEnd", "tool": None, "expect": ["retro-trigger-log.sh", "config-metrics-log.sh", "session-reaper.py"]},
     # Matcher-less like SessionStart, so every UserPromptSubmit hook fires on every prompt.
     {"event": "UserPromptSubmit", "tool": None,
-     "expect": ["task-intake.sh", "intent-ledger.sh"]},
+     "expect": ["task-intake.sh", "intent-ledger.sh", "scheduled_tasks.py"]},
     # Stop is the one event where a wrong matcher is unrecoverable from inside the session it hits,
     # so it is pinned: the ledger's reconciliation/ship gate and the bare-reference link check.
     {"event": "Stop", "tool": None, "expect": ["intent-ledger.sh", "bare-reference-guard.py", "config-branch-gate.py"]},
@@ -533,5 +538,6 @@ HOOK_ROUTING: list[dict] = [
     # because the list grows, and a hook added to the wrong event silently never runs.
     {"event": "SessionStart", "tool": None,
      "expect": ["agent_runtime.py", "config-status.sh", "session-connectors.sh", "orphan-worker-sweep.sh",
-                "port-registry-sweep.sh", "session-identity.sh", "worktree-freshness.sh", "session-reaper.py"]},
+                "port-registry-sweep.sh", "session-identity.sh", "worktree-freshness.sh", "session-reaper.py",
+                "scheduled_tasks.py"]},
 ]

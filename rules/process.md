@@ -76,6 +76,7 @@ confirmation. TEST: authorized work proceeds without a mandatory approval interv
 DO apply `rules/living-plan.md` to every request, including a single task and later additions.
 Keep the task list and tickets as views of that one record. Mark work done only with verification
 evidence; name all outstanding work at hand-back. TEST: a tangent cannot remove an earlier obligation.
+DO act on scheduled-task hook lines first: `references/planning-and-tracking.md` § Timed resumes.
 
 ### A message that arrives mid-run is a QUEUED task, not an interrupt
 When a new request lands mid-work, add it to the checklist and keep going — never drop the current task
@@ -90,7 +91,7 @@ consent. How-to: `references/parallelization.md` § Talk to other live sessions.
 
 ### "Run to completion" means DON'T END THE TURN — a progress report is not a deliverable
 
-DO run to completion by default, said or not ("work till completion" recurred in 8 of 17 sessions):
+DO run to completion by default, said or not:
 the turn ends when the WORK is done, not when a batch is or there is something tidy to report.
 **Committing at checkpoints is a git instruction, not a conversational one.** Commit, then keep
 working; never trade remaining work for a status update.
@@ -106,7 +107,7 @@ writing "say the word and I'll continue" — that's the bug. Continue.
 done, never its deliverable:** a build verdict builds that item to done (a PR for code) in the same run,
 independent items in parallel: `references/planning-and-tracking.md` § Asked-for work ends built.
 TEST: each asked-for item ends done or blocked by a Simon-only reason above; a verdict alone is never
-done (the fix for a batch of asked-for follow-ups handed back as verdicts and plans).
+done.
 
 **Work in fix → verify → fix loops until a clean pass**, using the batch timing above. Re-run the affected
 check after a failure; preserve passing evidence for unaffected scope. If a loop stops converging (the
