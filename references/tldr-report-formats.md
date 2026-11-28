@@ -158,6 +158,11 @@ Hey, [PR #812](https://github.com/org/repo/pull/812) (search cache) is ready for
 - Needs your yes before Monday's deploy
 ```
 
+DO check each factual claim and each ask in a draft against the vendor page or the live account
+before showing it, keep only what the task needs, and name the exact item (PR, URL, role, setting).
+TEST: every claim in the draft names the page or account it was checked on (the fix for a client ask
+listing a role the developer account already held).
+
 DO show a draft for Simon as the message alone in one quote block, under a chat reply that itself
 follows § Human-facing messages. Both stay TLDR: the draft at most 5 lines, the reply around it with
 no commentary restating the draft.

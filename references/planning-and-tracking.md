@@ -129,6 +129,11 @@ silently missing.
   `rules/process.md` § "Front-load everything you need from me" applied to out-of-code STATE, not just
   auth. TEST: every external system the feature reads or writes has its config in hand OR a named ask
   against it before the plan is proposed.
+- **DO keep one release-prerequisites list in the plan for every input an outside owner must give**
+  (a store role, a console setting, a policy edit, a merge go), checked read-only against the person's
+  actual console roles and the vendor's role docs before asking. Check your own access first. Answer
+  "do I have all I need" as yes/no plus only the missing items, never a how-to. TEST: each listed item
+  names the owner, the exact role or setting and the page it was checked on.
 - **DO make each ticket name the inputs its implementer must obtain before starting** — mockup/design
   references, that out-of-code config, a sample payload — so the downstream agent asks Simon for them
   instead of guessing. A ticket that needs a mockup and does not say so produces a confidently wrong build.

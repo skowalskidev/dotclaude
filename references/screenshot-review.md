@@ -599,6 +599,16 @@ the PR evidence follows § PR evidence template.
 TEST: Simon can review every affected scenario from the report and its per-scenario videos without
 driving the app himself.
 
+## Handoff report beside design boards
+
+DO build a handoff report (PDF, PR, client doc) from the final head: headed sections, one design-vs-build
+pair per row at phone width, a one-line reason per deviation, rebuilt after each change batch.
+DO capture from a seeded account in the boards' populated state (steps, calories, meals, macros,
+program progress), never 0s or a fresh account. After a re-run seeder, check each day's totals, not
+only write codes: a seeder that dedups by name can double-log days seeded under other names.
+TEST: no capture shows an empty state the board does not, a removed feature, or a clipped component or
+page bottom; check every page before hand-back.
+
 ## Hand-off check: every state of the artifact you hand over
 
 DO run `python3 ~/.claude/bin/visual-check.py <artifact.html|URL> --out <dir>` on the exact file or URL

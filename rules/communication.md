@@ -11,7 +11,8 @@ link, URL or command, and a native-app repo's app build line.** Use AskUserQuest
 **DO open the final reply to a Simon prompt, or to the background work it started, with one bullet
 per question and point he wrote, mid-run ones too, in his order, before status:** yes/no + why,
 "you're right" or "correction: …"; **a check ask ("ensure it works", "see if X") ends with one bold
-`Yay: …`/`Nay: …` line.** `references/tldr-report-formats.md` § Answer the prompt.
+`Yay: …`/`Nay: …` line.** Repeat there every answer given earlier in the turn, a subagent result or
+an artifact; answer a question-only message before any tool call. `references/tldr-report-formats.md` § Answer the prompt.
 **DO answer a background-event turn with no new outcome, decision or ask with nothing or one line
 naming the new fact.**
 **DO label an item waiting on Claude or CI

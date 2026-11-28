@@ -165,6 +165,8 @@ device, simulator or emulator boot and walk (seeding and install included), a sc
 capture, a judge round, a stage skill, a simulation and a CI wait.
 DO start a heavy check only once every planned build item AND every review/fix round has landed on one
 head. A review stage still to run counts as a pending fix round: its findings move the head.
+DO queue the fixes found during a walkthrough or feedback round and rebuild once per round, never
+once per fix. TEST: a round of N fixes shows one rebuild.
 DO between edits run only cheap targeted checks: the affected test file, a narrow unit, analyze or a
 typecheck on the touched files. DON'T run a heavy check for a small fix.
 DON'T start a heavy check early "for discovery" while a review or fix round is pending, on the reasoning

@@ -45,3 +45,9 @@ only the billing, consent, dry-run and upload-limit subtitles.
 tool** (`references/agent-hosts.md` § Image generation, no spend). Hand-written SVG stays for icons,
 logos and simple shapes.
 TEST: no new illustration in the diff is a hand-authored `<svg>` path drawing.
+
+### Motion where it fits, checked against the platform
+DO add brief motion tied to the person's action without being asked (a dismissed card fades and
+collapses, a state change cross-fades), only after checking the platform owner's guidance (Apple HIG
+Motion, Material motion); off under Reduce Motion. DON'T animate on every screen open (rings, charts).
+TEST: each new animation cites its guidance page and has a Reduce Motion path.

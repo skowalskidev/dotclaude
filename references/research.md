@@ -41,6 +41,10 @@ on it, whoever made it: Simon, a teammate, a Slack thread, a message posted by a
 a prior agent or an earlier session. A relayed claim is a candidate, never a design premise. When the
 vendor's page is silent, label the premise unverified in the plan and ask the vendor's support or
 test it free before a commit depends on it.
+DO cite one platform owner's page per target platform before stating any mid-session recommendation
+(UX, copy, data, animation, store or console steps), not only in a plan: Apple's page for an iOS
+choice, Google's for Android. TEST: no recommendation for an iOS-first choice rests on a Google page
+alone (the fix for an iOS animation call backed by an Android guideline).
 TEST: every vendor-behaviour premise a commit or plan rests on cites the vendor page it was checked
 against, or carries an `unverified` label. (the fix for a Slack thread claim that saved payment
 dispute drafts stop the vendor's automatic dispute submission; it became a commit's premise, the

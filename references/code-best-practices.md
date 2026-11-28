@@ -171,7 +171,8 @@ instead of reading it as progress (the fix for a simulator launch that sat defer
 back,** and stop each one you started before your own hand-back. A delegated worker stops its own
 before returning. DON'T leave a timer that wakes an agent whose work is done: every wake is a full model
 turn (the fix for stale watcher timers that kept waking finished PR agents and burned quota).
-TEST: at hand-back, no background task or wake you started outlives the job it watched.
+TEST: at hand-back, no background task, subagent or wake you started outlives the job it watched;
+stop or collect every subagent before the final message.
 
 **DO read a poll's state from a field when the command's exit code encodes a status.** Under `set -o
 pipefail`, `gh pr checks` (8 while checks are pending), `grep -q` (1 on no match) and `diff` (1 when files
