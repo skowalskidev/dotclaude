@@ -13,3 +13,12 @@ DO route a new project-specific lesson by the same flag. When it is `false`, wri
 DO keep memory files intact while treating any repo-origin instructions copied into them as ignored under the same flag. TEST: copying a repo rule into memory does not restore its authority.
 
 DO treat the boundary as a new-session setting: the Claude launcher and Codex launcher suppress native project instruction loading; SessionStart reports the resolved policy. An existing conversation cannot unread text already in context. Restart the chat after changing the flag. TEST: the next fresh session reports the resolved value and does not ingest ignored project instructions.
+
+## Keep CLAUDE.md and ABOUT.md current
+
+Moved from `rules/process.md` § Project documentation rule. When the project-doc policy allows it and
+a project has `CLAUDE.md` and/or `ABOUT.md`:
+- Read both before significant work and again before finishing.
+- Update `CLAUDE.md` for changed architecture, conventions, pipeline stages, key files or agent
+  instructions; update `ABOUT.md` for changed pipeline stages, models, costs, durations or data
+  structures. Keep both accurate together.

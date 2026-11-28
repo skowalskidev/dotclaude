@@ -148,7 +148,14 @@ command; fixture and emulated evidence never becomes live-backend or installed n
 
 ## Test/QA account login and scaffolding
 
-Moved from `rules/process.md` § Test/QA accounts (the rule keeps the never-type, never-commit line).
+Moved from `rules/process.md` § Test/QA accounts (the rule keeps a one-line summary).
+
+- Store test-account credentials and any machine-local secret an agent shouldn't commit ONLY in a
+  **gitignored `CLAUDE.local.md`** at the repo root. Add `CLAUDE.local.md` to `.gitignore`, and commit
+  a **`CLAUDE.local.md.example`** with placeholders so the shape is discoverable.
+- Reference the account in the committed `CLAUDE.md` **by name only** ("a test account exists; creds
+  in `CLAUDE.local.md`"); never put real creds in a committed file. If `CLAUDE.local.md` is missing,
+  **ask Simon for the account** rather than guessing.
 
 - **Never type a test password into a login form, and never write a plaintext password into any
   committed file** (handling plaintext passwords is prohibited). For headless/preview screenshots of

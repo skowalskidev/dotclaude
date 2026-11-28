@@ -78,6 +78,11 @@ Keep the task list and tickets as views of that one record. Mark work done only 
 evidence; name all outstanding work at hand-back. TEST: a tangent cannot remove an earlier obligation.
 DO act on scheduled-task hook lines first: `references/planning-and-tracking.md` § Timed resumes.
 
+### Never go silent on a long wait
+DO post one line (what waits, on what, ETA) once a wait passes 5 min; never queue behind a lease or
+simulator this session holds; at 3x a step's expected time, research a faster method and reuse what a
+sibling platform proved. TEST: no stretch over 5 min without a status line.
+
 ### A message that arrives mid-run is a QUEUED task, not an interrupt
 When a new request lands mid-work, add it to the checklist and keep going — never drop the current task
 to serve it, and never make me label it. Say in one line where it landed: running now in parallel
@@ -238,23 +243,11 @@ Leave nothing persistent on my machine that I didn't ask for. When a task is don
 
 ## Project documentation rule
 
-DO apply `references/project-instructions.md` before any project documentation read or update.
+DO apply `references/project-instructions.md` before any project documentation read or update, and
+keep a project's `CLAUDE.md` and `ABOUT.md` accurate together (§ Keep CLAUDE.md and ABOUT.md current).
 
-**When the project-doc policy allows it and a project has `CLAUDE.md` and/or `ABOUT.md`:**
-- Read both before significant work and again before finishing.
-- Update `CLAUDE.md` for changed architecture, conventions, pipeline stages, key files or agent instructions; update `ABOUT.md` for changed pipeline stages, models, costs, durations or data structures. Keep both accurate together.
+## Test/QA accounts & machine-local secrets
 
-## Test/QA accounts & machine-local secrets — always use `CLAUDE.local.md` (every project)
-
-Standard convention across ALL my projects for test-account credentials and any machine-local
-secret an agent shouldn't commit:
-
-- Store them ONLY in a **gitignored `CLAUDE.local.md`** at the repo root. Add `CLAUDE.local.md` to
-  `.gitignore`, and commit a **`CLAUDE.local.md.example`** with placeholders so the shape is
-  discoverable.
-- Reference the account in the committed `CLAUDE.md` **by name only** ("a test account exists; creds
-  in `CLAUDE.local.md`") — never put real creds in a committed file. If `CLAUDE.local.md` is missing,
-  **ask me for the account** rather than guessing.
-- Password-free login for auth-gated screenshots, and the scaffolding for a new QA project:
-  `references/browser-debugging.md` § Test/QA account login and scaffolding. Never type a test password
-  into a login form; never write a plaintext password into a committed file.
+DO keep test-account credentials and machine-local secrets only in a gitignored `CLAUDE.local.md`
+(committed `CLAUDE.local.md.example`, named in `CLAUDE.md` by name only); never type a test password into
+a login form or commit one. Detail: `references/browser-debugging.md` § Test/QA account login and scaffolding.
