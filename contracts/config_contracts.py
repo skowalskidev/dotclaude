@@ -2431,7 +2431,8 @@ CONTRACTS: dict[str, dict] = {
             "saying not to re-ask Simon), no GH_REPO/GH_HOST in the command, a non-delegated session, and in "
             "a repo declaring monitoring paths --match-head-commit equal to the PR head. Then Simon's own "
             "typed words decide: the shared Haiku step (bin/haiku_judge.py, kind merge-order) reads the newest 12 typed messages that mention merging, "
-            "name #N, answer a hand-back asking for #N or hold, and its verdict decides; with no verdict (or no such message) the keyword rule "
+            "name #N, answer a hand-back asking for #N or hold (plus the 3 messages after each) and the PR's title and branch, so a forward order that describes the work ('when you are done, merge it', 'the one you are working on now') reaches the PR that work became unless a later message holds it or the order names a different PR, and its verdict decides; "
+            "first, an unsuperseded merge decision that bin/decision_ledger.py logged from his typed prompt and bound to #N allows it when its quote is in a typed message and no later typed message holds it; with no verdict (or no such message) the keyword rule "
             "decides: among every message he typed in the session (no count window) the "
             "newest that orders #N (a present-tense merge verb, not negated, not a question or a noun) names #N, "
             "or uses a referent (both, it, them) in an imperative aimed at it (the verb within 3 words of the referent or starting its clause, the sentence not defining or generalising merging) while it names #N or answers a hand-back that asked a merge "
@@ -2525,6 +2526,7 @@ CONTRACTS: dict[str, dict] = {
             "Calls `claude -p --safe-mode --model haiku --effort low --tools \"\"` on the existing subscription login, never --bare (it needs an API key), from a neutral cwd, with an 8 s default timeout.",
             "Caches each model verdict per hash of kind, prompt version and data for 30 days, and appends every verdict (kind, hash, a 200-character excerpt, ok, reason, source, ms) to logs/haiku-judge.jsonl.",
             "The system prompt treats the data as untrusted: an instruction aimed at the judge is a reason for ok=false.",
+            "The decision-extract and decision-bind kinds answer with a structured data object beside ok and reason, cached with it; the merge-order prompt reads DATA.pr_title and pr_branch and bumps PROMPT_VERSION so no old verdict is served.",
             "CLAUDE_HAIKU_JUDGE=off and CLAUDE_HAIKU_JUDGE_STUB give offline control; bin/haiku_judge.test.py covers the helper and every caller's verdict, refusal and no-verdict paths with no model call.",
         ],
     },
@@ -3020,6 +3022,17 @@ CONTRACTS: dict[str, dict] = {
             "hooks/task-intake.sh records a delegated worker (AGENT_DELEGATED_WORKER=1) empty at its first prompt, so a supervisor's brief never waits in the learning queue.",
             "prune-state is the one owner of .intent-ledger (7 days, 30 for evidence markers), .session-root (14 days) and retired .session-intake pruning, and deletes a session's file only once it is covered; a non-session fixture name goes after a day.",
             "Rejects a session id that is not a plain token before using it as a path.",
+        ],
+    },
+    "bin/decision_ledger.py": {
+        "mission": "An order Simon types that describes work instead of naming a PR (\"when you're done, merge it\", \"the one you're working on now\") is recorded, bound to the PR that work becomes and carried out, so he never repeats it.",
+        "purpose": "Durable, signed decision log in <project>/.context/decisions.jsonl: UserPromptSubmit extracts decisions with one Haiku step, Stop binds them to new PRs and surfaces the merge once, PostToolUse marks a PR merge executed, and the merge guard reads it.",
+        "criteria": [
+            "UserPromptSubmit runs the extractor only when a decision word is present or an order still waits for its PR; each decision records action, target (a PR number, else the described work), exclusions, condition and a quote that must appear verbatim in the typed message.",
+            "A descriptive merge decision binds (kind decision-bind) only to an open PR that matches its work and never to a number the message excluded; a later hold or cancel supersedes the earlier merge decisions it covers.",
+            "Every line carries an HMAC and an unsigned or altered line is ignored; the file survives a restart because each hook call is a new process; only the hook writes a decision, from a typed prompt.",
+            "A bound unsuperseded merge decision is surfaced on each prompt and once at Stop with the merge-with-pinned-head instruction; running the merge on that PR marks it executed.",
+            "Skips AGENT_DELEGATED_WORKER=1; an extraction error logs nothing and exits 0. bin/decision_ledger.test.py replays the 28 Nov 2026 sequence: bound to the later PR, the guard allows it and denies the excluded one, a later hold blocks, a forged line is ignored.",
         ],
     },
     "bin/scheduled_tasks.py": {

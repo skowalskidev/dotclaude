@@ -286,6 +286,7 @@ Outside the own-config exception (`/sk:claude-config-sync` lands a head verified
 `bin/config-land-check.py` with no confirmation) and § Monitoring-only changes, **DO get the user's explicit yes for THIS PR before `gh pr merge` or any push to the remote default
 branch.** A general "merge everything", "proceed", or "continue" authorizes the direction, never the
 specific irreversible merge.
+**A forward or descriptive order is a decision, logged and carried out (28 Nov):** "merge it when you're done", "the one you're working on now" or "the new rule" orders the PR that work becomes. `bin/decision_ledger.py` (UserPromptSubmit, Stop, PostToolUse Bash) logs it from Simon's typed prompt to `.context/decisions.jsonl` with one Haiku step, binds it to the PR that matches (never one he excluded with "not N"), and surfaces it so the agent merges once the ship gate passes and CI is green, without being told twice; a later hold supersedes it. The guard allows a merge bound to `#N` before its words and judged rules run. When a hook says "Logged decision", act on it.
 **The guard (`hooks/git-commit-guard.py`, rebuilt 26 Nov on Simon's "bare-bones, not a bottleneck"):**
 it judges only commands the shell runs, so text that names a merge (a note, a heredoc body, a PR body,
 a `grep`) never blocks, and reads, PR create/edit/comment, `--disable-auto` and a GraphQL dequeue run.

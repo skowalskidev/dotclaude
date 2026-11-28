@@ -139,6 +139,15 @@
             "timeout": 5
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/decision_ledger.py hook",
+            "timeout": 15
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -159,6 +168,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/check-cache-guard.py",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/decision_ledger.py hook",
+            "timeout": 5
           }
         ]
       },
@@ -200,6 +214,11 @@
             "type": "command",
             "command": "$HOME/.claude/hooks/config-branch-gate.py",
             "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "$HOME/.claude/bin/decision_ledger.py hook",
+            "timeout": 15
           }
         ]
       }

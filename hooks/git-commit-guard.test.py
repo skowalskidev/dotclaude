@@ -242,6 +242,12 @@ CASES = [
      False, ""),
     ("FB 'from this session i mean' is Simon's own words, not a relayed note", dict(command=f"{M} 1186", turn=[
         ("open", "from this session i mean: merge #1186")]), False, ""),
+    ("FB a merge order for another PR never authorizes this one", dict(command=f"{M} 1556", turn=[
+        ("open", "merge #1524"), ("handback", ""), ("open", "no not 1528, the one you are working on now")]),
+     True, NONE),
+    ("FB a forward order ('when you are done, auto merge') followed by a hold stays held with the judge off", dict(
+        command=f"{M} 1556", turn=[("open", "ok when you are done auto merge"), ("handback", ""),
+                                   ("open", "hold off merging for now")]), True, "holds merging"),
     ("FB 'wait, merge #1186 now' is a new order", dict(command=f"{M} 1186", turn=[
         ("open", "merge #1186"), ("handback", ""), ("open", "wait"), ("handback", ""),
         ("open", "wait, merge #1186 now")]), False, ""),

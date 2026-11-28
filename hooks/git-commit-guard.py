@@ -1727,23 +1727,51 @@ def _haiku(kind: str, data: dict) -> dict:
         return {}
 
 
-def judged_merge(number: str, window: list) -> tuple:
+def judged_merge(number: str, window: list, pr: dict = None) -> tuple:
     """(allowed, cause) for merging #N. The keyword rule (words_allow) is the prefilter and the fallback: every typed
     message that mentions merging, names #N, answers a hand-back asking for #N or holds is sent, newest 12, to the
-    Haiku step, whose verdict decides. Its input is Simon's typed text only (typed_messages), never assistant text."""
+    Haiku step, whose verdict decides, plus the 3 typed messages after each (an order that describes the work, "the
+    one you're working on now", is explained there). `pr` ({title, headRefName}) lets the judge match such a
+    description to this PR. Its input is Simon's typed text only (typed_messages), never assistant text."""
     allowed, cause = words_allow(number, window)
-    relevant = [(t, asked) for t, asked, _ in window
-                if names_pr(t, number) or number in asked or MERGE_VERB_RE.search(t) or BARE_HOLD_RE.match(t)
-                or HOLD_MERGE_RE.search(t)]
-    if not relevant:
+    hit = [names_pr(t, number) or number in asked or bool(MERGE_VERB_RE.search(t) or BARE_HOLD_RE.match(t)
+                                                             or HOLD_MERGE_RE.search(t)) for t, asked, _ in window]
+    if not any(hit):
         return allowed, cause
-    verdict = _haiku("merge-order", {"pr": number, "messages": [
-        {"text": t[:1500], "answers_merge_ask": number in asked} for t, asked in relevant[-12:]]})
+    keep = [any(hit[max(0, i - 3):i + 1]) for i in range(len(window))]
+    messages = [{"text": t[:1500], "answers_merge_ask": number in asked}
+                for (t, asked, _), k in zip(window, keep) if k][-12:]
+    data = {"pr": number, "messages": messages}
+    if isinstance(pr, dict) and (pr.get("title") or pr.get("headRefName")):
+        data["pr_title"] = str(pr.get("title") or "")[:300]
+        data["pr_branch"] = str(pr.get("headRefName") or "")[:200]
+    verdict = _haiku("merge-order", data)
     if verdict.get("ok") is True:
         return True, ""
     if verdict.get("ok") is False:
         return False, f"the user's messages give no standing merge order for #{number} ({verdict.get('reason', '')})"
     return allowed, cause
+
+
+def logged_merge(number: str, window: list, pr: dict, where) -> tuple:
+    """(allowed, cause) from the decision ledger (bin/decision_ledger.py): an unsuperseded merge decision the
+    hook logged from Simon's typed prompt, bound to #N, whose quote is in a message he typed, with no later typed
+    message holding it. (False, "") when there is none; the words and judged rules then decide."""
+    try:
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "bin"))
+        import decision_ledger
+        found = decision_ledger.decision_for(decision_ledger.root_of(where or os.getcwd()), number,
+                                             [t for t, _, _ in window], pr)
+        if not found:
+            return False, ""
+        quote = " ".join(found["quote"].lower().split())
+        at = max(i for i, (t, _, _) in enumerate(window) if quote in " ".join(t.lower().replace("\u2019", "'").split()))
+        for text, asked, _ in window[at + 1:]:
+            if holds(text, number) and _hold_scope_covers(text, asked, number):
+                return False, f"the user's later message (\"{' '.join(text.split())[:80]}\") holds merging"
+        return True, ""
+    except Exception:
+        return False, ""
 
 
 def pr_view(number: str, slug: str, where) -> dict:
@@ -1816,7 +1844,13 @@ def merge_denial(payload: dict, margs: list, where, scan: Scan) -> str:
                         f"--match-head-commit {head or '<full head sha>'} and rerun.{mline}")
         msgs, _ = typed_messages(str(payload.get("transcript_path") or ""))
         # Every typed message counts, however old: a merge word stands until a later message holds it.
-        allowed, cause = judged_merge(number, msgs)
+        try:
+            info = pr_view(number, slug, where)
+        except OutOfTime:
+            info = {}
+        allowed, cause = logged_merge(number, msgs, info, where)
+        if not allowed and not cause:
+            allowed, cause = judged_merge(number, msgs, info)
     except OutOfTime:
         allowed, cause = False, "the merge check ran out of time"
     except Exception as exc:

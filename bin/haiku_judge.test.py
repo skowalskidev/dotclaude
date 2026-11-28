@@ -234,6 +234,36 @@ def test_merge_and_push_words() -> None:
     check(g.judged_merge("1551", [("thanks, all good", set(), 0)])[0] is False,
           "a window with no merge mention was sent to the Haiku step (the prefilter must decide it)")
 
+    # A forward order describes the work, not the PR number: the judge must get the PR title, branch and the
+    # clarifying messages that follow the merge word, and a verdict for a described PR stands.
+    seen = []
+    real = g._haiku
+    g._haiku = lambda kind, data: (seen.append(data), real(kind, data))[1]
+    forward = [("ok when you are done auto merge", set(), 0), ("no not 1528, the one you are working on now", set(), 1),
+               ("ie the new rule after we changed to the split", set(), 2)]
+    info = {"title": "Alert rule for the split test", "headRefName": "poi-1-alert-rule"}
+    stub({"merge-order": {"ok": True, "reason": "forward order matches the PR title"}})
+    check(g.judged_merge("1556", forward, info) == (True, ""), "a forward order for the described PR was not honoured")
+    check(seen[-1].get("pr_title") == info["title"] and seen[-1].get("pr_branch") == info["headRefName"],
+          "the judge was not given the PR title and branch")
+    check([m["text"] for m in seen[-1]["messages"]] == [t for t, _, _ in forward],
+          "the clarifying messages after a forward order were not sent to the judge")
+    check(g.judged_merge("1556", forward)[0] is True and "pr_title" not in seen[-1],
+          "with no PR info the data must carry no title (today's behaviour)")
+    stub({"merge-order": {"ok": False, "reason": "the order describes a different PR"}})
+    check(g.judged_merge("1528", forward, {"title": "Other work", "headRefName": "x"})[0] is False,
+          "a forward order excluded by 'not 1528' authorized the excluded PR")
+    stub({"merge-order": {"ok": False, "reason": "a later hold"}})
+    check(g.judged_merge("1556", forward + [("hold off merging for now", set(), 3)], info)[0] is False,
+          "a hold after the forward order did not block")
+    stub({"merge-order": "timeout"})
+    check(g.judged_merge("1556", [("merge #1524", set(), 0)], info)[0] is False,
+          "an order for another PR authorized this one when the judge had no verdict")
+    g._haiku = real
+    hj = load(ROOT / "bin" / "haiku_judge.py", "haiku_judge_prompt")
+    check(hj.PROMPT_VERSION != "1" and "pr_title" in hj.KINDS["merge-order"],
+          "the merge-order prompt was not versioned or does not read the PR title")
+
     # The hook's own merge path (merge_denial) reads the judged rule, not the bare keyword one.
     os.environ.pop("AGENT_DELEGATED_WORKER", None)
 
