@@ -17,7 +17,7 @@ from pathlib import Path
 
 ENGINE = Path(__file__).resolve().parent / "scheduled_tasks.py"
 FAILURES: list[str] = []
-PROMPT = "Resume the paused session work at 7am: finish POI-1967, re-run the readout."
+PROMPT = "Resume the paused session work at 7am: finish the open PR, re-run the readout."
 
 
 def check(ok: bool, msg: str) -> None:
@@ -142,10 +142,10 @@ check(tasks(r)[0]["status"] == "pending" and tasks(r)[0]["last_fired"], "done on
 r = fresh()
 hook(r, {"hook_event_name": "PostToolUse", "tool_name": "CronCreate", "session_id": "s1",
          "tool_input": {"cron": "0 7 28 11 *", "prompt": PROMPT, "recurring": False},
-         "tool_response": "Scheduled one-shot task eeee4444"}, "2026-11-28T00:13:00", env={"TZ": "Asia/Bangkok"})
+         "tool_response": "Scheduled one-shot task eeee4444"}, "2026-11-28T00:13:00", env={"TZ": "Asia/Singapore"})
 out = hook(r, {"hook_event_name": "SessionStart", "session_id": "s2", "source": "startup"}, "2026-11-28T01:30:00",
            env={"TZ": "Europe/London"})
-check("OVERDUE eeee4444" in out, f"07:00 Bangkok is overdue at 01:30 London (08:30 Bangkok): {out!r}")
+check("OVERDUE eeee4444" in out, f"07:00 Singapore is overdue at 01:30 London (09:30 Singapore): {out!r}")
 
 print("ok" if not FAILURES else f"{len(FAILURES)} failure(s)")
 sys.exit(1 if FAILURES else 0)
