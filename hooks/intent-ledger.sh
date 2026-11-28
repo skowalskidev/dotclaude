@@ -40,7 +40,10 @@
 #
 # Modes:  submit                  UserPromptSubmit — append the ask verbatim (and a receipt for a
 #                                 typed /sk:<stage> command)
-#         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile|learning.
+#         note <kind> <file>      called by the model — append sources|plan|pivot|reconcile|learning|design.
+#                                 A design note records a supplied design source at intake: one
+#                                 "board: <absolute path>" line per board, or "design source: none, <why>";
+#                                 gate PASS then needs each board's PASS report (design_check)
 #                                 A learning note records the end-of-session config learning: its body
 #                                 holds "session learning: done" or "session learning: skipped", and it
 #                                 is refused unless an ask since the previous learning note is Simon's
@@ -78,7 +81,9 @@
 #                                 PASS for a branch with an open PR records only when
 #                                 bin/pr-landing-gate.py passes on the fetched PR and
 #                                 bin/pr-ci-wait.py --once finds every check green on <sha>
-#                                 (exit 1 otherwise)
+#                                 (exit 1 otherwise); any PASS also needs design_check: an ask
+#                                 naming a design build has a design note, and every noted board
+#                                 a report holding "Verdict: PASS" (exit 1 otherwise)
 #         latest-ask [--since <ts>]
 #                                 PreToolUse helper — print this session's newest recorded ask, verbatim
 #                                 (stdin payload: session_id, cwd); prints nothing when none. Read-only.
@@ -350,6 +355,48 @@ light_waivers() {
   printf '%s' "$out"
 }
 
+# Design builds (references/workflow-loops.md § Build from a supplied design source). An ask naming a
+# design build owes a design note; each recorded board owes a measurement report whose Verdict is PASS,
+# and its PR a passing Design match row (bin/pr-landing-gate.py --design-board).
+DESIGN_NOTE_RE='^(board: */[^ ].*|design source: none, *[^ ]+ +[^ ]+ +[^ ]+.*)$'
+DESIGN_ASK_RE='pixel[- ]perfect|to a t([^a-z]|$)|(implement|build|recreate|replicate|match)[a-z]* (the |these |this |our )?(supplied |approved )?(designs?|design boards?|mockups?|figma)([^a-z]|$)|design boards?'
+design_boards() { # the stem of every recorded board path, one per line
+  section_lines design "$LEDGER" | sed -nE 's#^board: *(.*[^ ]) *$#\1#p' | while IFS= read -r b; do
+    b="${b##*/}"; printf '%s\n' "${b%.*}"; done
+}
+# design_check — 0 when no ask names a design build, or a design note says none, or every recorded board
+# has .context/design-spec/<board>*.report.md and each such report holds "Verdict: PASS". Else prints why.
+design_check() {
+  noted="$(section_lines design "$LEDGER" | grep -E "$DESIGN_NOTE_RE")"
+  if [ -z "$noted" ]; then
+    ask_text | grep -qE "$DESIGN_ASK_RE" || return 0
+    echo "gate: PASS refused: an ask in this session names a design build, but no design note records its \
+source. Record it with ~/.claude/hooks/intent-ledger.sh note design <scratch.md> holding one \
+\"board: <absolute path>\" line per board (or \"design source: none, <why>\"), then measure every \
+board to a PASS report (references/workflow-loops.md § Build from a supplied design source)." >&2
+    return 1
+  fi
+  printf '%s\n' "$noted" | grep -qE '^design source: none' && [ -z "$(design_boards)" ] && return 0
+  root="$(dirname "$(dirname "$LEDGER")")"; bad=""
+  while IFS= read -r b; do
+    [ -n "$b" ] || continue
+    found=0
+    for f in "$root/.context/design-spec/$b".report.md "$root/.context/design-spec/$b"-*.report.md; do
+      [ -f "$f" ] || continue
+      found=1
+      grep -qiE '^\**verdict\**: *\**pass([^a-z]|$)' "$f" || bad="${bad:+$bad, }${f##*/} (no Verdict: PASS)"
+    done
+    [ "$found" = 1 ] || bad="${bad:+$bad, }$b (no .context/design-spec/$b-<state>.report.md)"
+  done <<EOF_BOARDS
+$(design_boards)
+EOF_BOARDS
+  [ -z "$bad" ] && return 0
+  echo "gate: PASS refused: design boards not measured to PASS: $bad. Loop fix, re-render, re-measure \
+until each report ends \"Verdict: PASS\" (references/workflow-loops.md § Build from a supplied design \
+source), or record BLOCKED with the failing rows." >&2
+  return 1
+}
+
 # landing_check BRANCH SHA — 0 when the branch has no open PR on a GitHub origin, or when
 # bin/pr-landing-gate.py passes on that PR AND bin/pr-ci-wait.py --once finds every check on SHA
 # succeeded or skipped. Otherwise prints why and fails, so `gate PASS` records nothing. A PR that
@@ -357,7 +404,11 @@ light_waivers() {
 landing_check() {
   open_pr "$1" || { echo "gate: PASS refused: $open_pr_error" >&2; return 1; }
   [ -n "$num" ] || return 0                                   # not a GitHub origin, or no open PR
-  out="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" 2>&1)" || {
+  boards=()
+  while IFS= read -r b; do [ -n "$b" ] && boards+=(--design-board "$b"); done <<EOF_BOARDS
+$(design_boards)
+EOF_BOARDS
+  out="$(python3 "$CFG_ROOT/bin/pr-landing-gate.py" --repo "$repo" --pr "$num" ${boards[@]+"${boards[@]}"} 2>&1)" || {
     printf '%s\n' "$out" >&2
     echo "gate: PASS refused for $1: $repo#$num fails the landing gate above. Post each missing \
 row to the PR body, then rerun gate PASS; or record BLOCKED with the blocker." >&2
@@ -1003,8 +1054,8 @@ older work. Recording an ask does not grant approval." \
 
 note)
   kind="${2:-}"; src="${3:-}"
-  case "$kind" in sources|plan|pivot|reconcile|learning) ;; *)
-    echo "note: kind must be sources|plan|pivot|reconcile|learning" >&2; exit 2 ;;
+  case "$kind" in sources|plan|pivot|reconcile|learning|design) ;; *)
+    echo "note: kind must be sources|plan|pivot|reconcile|learning|design" >&2; exit 2 ;;
   esac
   [ -f "$src" ] || { echo "note: no such file: $src" >&2; exit 2; }
   resolve || { echo "note: no ledger for this worktree (see the session's ledger notice)" >&2; exit 2; }
@@ -1069,6 +1120,10 @@ note)
       echo "note: refusing: no ask since the last learning note says go or skip. Ask Simon: \"Action needed: say go to run the end-of-session config learning over your N messages in this session\"." >&2
       rm -f "$snap"; exit 2
     fi
+  fi
+  if [ "$kind" = "design" ] && ! grep -qE "$DESIGN_NOTE_RE" "$src" 2>/dev/null; then
+    echo "note: refusing: a design note holds one \"board: <absolute path>\" line per board, or \"design source: none, <why in 3+ words>\"." >&2
+    rm -f "$snap"; exit 2
   fi
   acquire "$LEDGER" || { rm -f "$snap"; echo "note: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
@@ -1350,7 +1405,7 @@ Use \"Not run: $miss\"." >&2; exit 2
   fi
   [ -n "$tier" ] && reason="$tier${reason:+ $reason}"
   [ -n "$LIGHT_WAIVED" ] && reason="$reason; stood in for by the open PR: $LIGHT_WAIVED"
-  if [ "$status" = PASS ]; then landing_check "$branch" "$sha" || exit 1; fi
+  if [ "$status" = PASS ]; then design_check || exit 1; landing_check "$branch" "$sha" || exit 1; fi
   acquire "$LEDGER" || { echo "gate: could not acquire the ledger lock" >&2; exit 2; }
   header_if_new "$LEDGER"
   {

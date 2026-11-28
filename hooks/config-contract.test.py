@@ -170,7 +170,8 @@ CRITERIA: list[tuple[str, str]] = [
      "main to the push: both land with no lost race, a waiter names the holder, the wait ends with "
      "exit 75 at its bound, and a killed holder frees the lock."),
     ("pr-landing-gate-refuses-missing-rows",
-     "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row."),
+     "A ship-gate PASS for a branch with an open PR records only when the fetched PR holds every landing-gate row, "
+     "and a design build's PASS needs every recorded board measured to a PASS report and Design match row."),
     ("merge-word-runs-deploy-tldr",
      "Simon's merge or deploy word runs the merged PR's whole Deploy TLDR, switch turn-ons included, unless he "
      "says keep it off; ship-pr never writes a step as waiting on a second approval and the landing gate fails one."),
@@ -3103,6 +3104,11 @@ def check_pr_landing_gate_refuses_missing_rows() -> None:
               f"{path} does not point at bin/pr-landing-gate.py for the landing-gate rows")
     check('landing_check "$branch"' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
           "intent-ledger.sh gate PASS no longer runs the landing-gate checker")
+    check('design_check || exit 1' in (ROOT / "hooks" / "intent-ledger.sh").read_text(),
+          "intent-ledger.sh gate PASS no longer requires the design boards' PASS reports")
+    loops = " ".join((ROOT / "references/workflow-loops.md").read_text().split())
+    check("note design" in loops and "## Design match (head <sha>)" in loops and "Verdict: PASS" in loops,
+          "workflow-loops.md design-source section lost the recorded boards or the enforced PASS loop")
 
 
 def check_merge_word_runs_deploy_tldr() -> None:

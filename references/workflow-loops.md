@@ -412,7 +412,9 @@ matches, and only the measurement report below can say a screen matches.
 
 DO finish these five steps at intake, before any layout is written or briefed:
 1. **Read the source end to end:** every board, state variant, size, colour, radius, gap and string.
-   Write its absolute path into the plan and into every builder brief.
+   Write its absolute path into the plan and into every builder brief, and record it with
+   `~/.claude/hooks/intent-ledger.sh note design <scratch.md>`: one `board: <absolute path>` line per
+   board.
 2. **Render every board in every state to its own image** at the board's viewport and device scale
    (an image 2x the frame's CSS width is a 2x frame), one target per board and state, at a versioned
    path. Open a board's own file when it sits in a cross-origin frame. Reject a blank render (one
@@ -612,11 +614,21 @@ DO hand back the measurement report at `.context/design-spec/<board>-<state>.rep
 table has one line per spec row: x, y, width, height, the four gaps, font size, weight, line height,
 line count, colour and text, each as spec value, built value and delta. Below it: the frame and region
 differing-pixel ratios with the target, capture and difference image paths, the exceptions, then counts
-of rows, passed, failed, missing, extra, unmeasured and excepted. PASS is zero failed, missing, extra and
-unmeasured rows and frames within threshold. Name every exception in the hand-back reply. DON'T write
+of rows, passed, failed, missing, extra, unmeasured and excepted, and a last line `Verdict: PASS` or
+`Verdict: FAIL`. PASS is zero failed, missing, extra and unmeasured rows and frames within threshold. Name every exception in the hand-back reply. DON'T write
 "matches the design" on a whole-screen side-by-side read by eye, green tests, or a report with an
 unmeasured row; a row nobody measured is reported `unmeasured` with what it needs (a
 harness state, a device).
+
+DO hand back or record gate PASS only once every board's report says `Verdict: PASS` and the PR body's
+`## Design match (head <sha>)` table holds one PASS row per board and state with its report path and
+0 failed, missing, extra and unmeasured rows (each exception a `cause:` line). `intent-ledger.sh gate
+PASS` refuses otherwise, and refuses an ask naming a design build ("to a T", "pixel-perfect",
+"implement these designs") that has no design note. DON'T hand back a design build for Simon to find
+the drift: a failing row is the next fix round, or a BLOCKED gate naming the rows.
+TEST: the session's design note lists every board, each board has a `Verdict: PASS` report at the PR
+head, and the gate records PASS (the fix for a feature built from flat boards and PR'd with no report,
+whose font weights, 2-6 pt gaps, icon sizes and ring stroke drifted until Simon found them).
 
 DO put the evidence on each PR: before (the board, or the current screen) | after composites in the PR
 body, and one PR comment holding the measured results table and the design-diff panels, uploaded with

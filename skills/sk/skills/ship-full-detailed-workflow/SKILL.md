@@ -200,6 +200,8 @@ verified the user + system journey, then handed back with it never posted to the
   on a Standard or Deep PR touching an existing user flow, the `### Flow walk` table.
 - Part verdicts (`/sk:work-full-detailed-workflow`), on every Standard or Deep build, adopt or rebuild
   PR: the table from `references/tldr-report-formats.md` § Part verdicts, re-derived on the final head.
+- Design match, on every PR built from a supplied design, any tier: one PASS row per board and state,
+  measured on the final head (`references/workflow-loops.md` § Build from a supplied design source).
 - Tier (stage 0), on every PR: the tier and trigger in the Test matrix section, and a Standard PR's
   `Skipped (tier standard): <trigger>` line under each matrix, prod-data and deploy-safety heading it
   skipped; a Light PR posts only the sections `references/testing-strategy.md` § Size the checks to

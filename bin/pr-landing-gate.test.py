@@ -317,6 +317,47 @@ check(any("names no head sha" in m for m in gate.check_body(PASSING, HTML, 0, he
       "A Test matrix heading with no head sha passed when the PR head is known")
 check(gate.check_body(PASSING, HTML, 0) == [], "The head check fired with no PR head given")
 
+# Design match (references/workflow-loops.md § Build from a supplied design source): owed when the session
+# recorded a board or the body claims a design build; every board row PASS with zero failed, missing, extra
+# and unmeasured rows, its report named, each exception's cause one of the seven.
+DESIGN = """
+## Design match (head abc1234)
+
+| Board | State | Report | Rows | Failed | Missing | Extra | Unmeasured | Excepted | Verdict |
+|---|---|---|---|---|---|---|---|---|---|
+| 03_daily_steps | week | `.context/design-spec/03_daily_steps-week.report.md` | 41 | 0 | 0 | 0 | 0 | 1 | PASS |
+
+Exceptions:
+- steps.avatar: cause: asset: the board's stock photo is not shipped; our placeholder in the same slot.
+"""
+designed = stamped + DESIGN
+check(gate.check_body(designed, HTML, 0, head=HEAD, design_boards=("03_daily_steps",)) == [],
+      f"A PASS Design match failed: {gate.check_body(designed, HTML, 0, head=HEAD, design_boards=('03_daily_steps',))}")
+check(rows(gate.check_body(stamped, HTML, 0, head=HEAD, design_boards=("03_daily_steps",))) == {"Design match"},
+      "A recorded board with no Design match section passed")
+claim = stamped.replace("1. A paid member opens Settings", "1. Implements the supplied design boards. A paid member "
+                        "opens Settings", 1)
+check(rows(gate.check_body(claim, HTML, 0, head=HEAD)) == {"Design match"},
+      "A body claiming a design build with no Design match section passed")
+check(gate.check_body(stamped, HTML, 0, head=HEAD) == [], "A body with no design claim or board owed a Design match")
+for old, new, want in (("| 0 | 1 | PASS |", "| 2 | 1 | PASS |", "non-zero"),
+                       ("| 41 | 0 |", "| 41 | 3 |", "non-zero"),
+                       ("| 1 | PASS |", "| 1 | FAIL |", "is not PASS"),
+                       ("`.context/design-spec/03_daily_steps-week.report.md`", "see notes", "no .report.md"),
+                       ("cause: asset:", "cause: close enough:", "not one of"),
+                       ("- steps.avatar: cause: asset: the board's stock photo is not shipped; our placeholder in "
+                        "the same slot.", "", "excepted row(s)"),
+                       ("(head abc1234)", "(head fff1234)", "PR head is")):
+    got = gate.check_body(designed.replace(old, new), HTML, 0, head=HEAD, design_boards=("03_daily_steps",))
+    check(any(m.startswith("Design match") and want in m for m in got), f"Design match did not fail on {want}: {got}")
+got = gate.check_body(designed, HTML, 0, head=HEAD, design_boards=("03_daily_steps", "04_goal_ring"))
+check(any("no row for recorded board(s) 04_goal_ring" in m for m in got), f"An unrowed recorded board passed: {got}")
+na = stamped + "\n## Design match\n\nDoes not apply: the PR changes the server limit only and draws nothing new.\n"
+check(gate.check_body(na.replace("## Design match", "## Design match"), HTML, 0, head=HEAD) == [],
+      "A reasoned Design match N/A with no recorded board failed")
+check(any("recorded design boards" in m for m in gate.check_body(na, HTML, 0, head=HEAD, design_boards=("03_daily_steps",))),
+      "A Design match N/A passed over a recorded board")
+
 # One run names every requirement: a missing heading lists what its section must hold, and the
 # independent checks inside a present section all report together (the fix for a PR body that took
 # eight rewrites because each run revealed one more hidden requirement).
@@ -1097,6 +1138,88 @@ with tempfile.TemporaryDirectory() as tmp:
     serve(stub, with_native.replace(WALK_LINE, sim_walk), files=NATIVE_FILES, roots=("ios", "src"))
     r = cli()
     check(r.returncode == 0, f"CLI failed a deep native PR with a simulator walk: {r.stdout}{r.stderr}")
+
+# The hook's design leg, in its own repo and ledger: an ask naming a design build owes a design note, each
+# noted board a report ending "Verdict: PASS", and the PR a Design match row (--design-board).
+with tempfile.TemporaryDirectory() as tmp:
+    base = Path(tmp)
+    bindir, stub, home, repo = base / "bin", base / "stub", base / "home", base / "repo"
+    for d in (bindir, stub, home, repo):
+        d.mkdir()
+    (bindir / "gh").write_text(STUB)
+    (bindir / "gh").chmod(0o755)
+    env = {**os.environ, "PATH": f"{bindir}:{os.environ['PATH']}", "GH_STUB": str(stub), "HOME": str(home),
+           "CLAUDE_CONFIG_ROOT": str(ROOT), "CLAUDE_INTENT_LEDGER": "on", "CLAUDE_PROJECT_DIR": str(repo),
+           "CLAUDE_CODE_SESSION_ID": "design-gate-test"}
+    env.pop("AGENT_DELEGATED_WORKER", None)
+
+    def git(*args):
+        return subprocess.run(["git", "-C", str(repo), "-c", "user.email=t@example.com", "-c", "user.name=t", *args],
+                              check=True, capture_output=True, text=True).stdout.strip()
+
+    def hook(*args, stdin=None):
+        return subprocess.run(["bash", str(HOOK), *args], input=stdin, text=True, capture_output=True, cwd=repo,
+                              env=env)
+
+    git("init", "-q", "-b", "feature/d")
+    (repo / ".git" / "info" / "exclude").write_text(".context/\n")
+    (repo / "a.txt").write_text("a")
+    git("add", "a.txt")
+    git("commit", "-q", "-m", "a")
+    git("remote", "add", "origin", "https://github.com/example-org/example-repo.git")
+    hook("submit", stdin=json.dumps({"cwd": str(repo), "session_id": "design-gate-test",
+                                     "prompt": "Implement these designs to a T from the PNG boards"}))
+    ledger = repo / ".context" / "intent-ledger.md"
+    for stage in subprocess.run(["bash", str(HOOK), "stages", "light"], text=True, capture_output=True, cwd=repo,
+                                env=env).stdout.split():
+        hook("skill", stdin=json.dumps({"cwd": str(repo), "session_id": "design-gate-test", "tool_name": "Skill",
+                                        "tool_input": {"skill": stage}}))
+    LIGHT = ("light", "fixture; skipped: matrix")
+
+    def gates():
+        return [ln for ln in ledger.read_text().splitlines() if ln.startswith("gate: ")]
+
+    serve(stub, None, prs=())
+    r = hook("gate", "feature/d", "HEAD", "PASS", *LIGHT)
+    check(r.returncode == 1 and "no design note" in r.stderr and gates() == [],
+          f"gate PASS recorded for a design ask with no design note: {r.returncode} {r.stderr}")
+    note = base / "bad.md"
+    note.write_text("the boards are in the design folder\n")
+    r = hook("note", "design", str(note))
+    check(r.returncode == 2 and "board: <absolute path>" in r.stderr, f"A design note with no board line recorded: {r.stderr}")
+    note = base / "design.md"
+    note.write_text("board: /abs/boards/03_daily_steps.png\n")
+    r = hook("note", "design", str(note))
+    check(r.returncode == 0, f"A design note with a board line was refused: {r.stderr}")
+    r = hook("gate", "feature/d", "HEAD", "PASS", *LIGHT)
+    check(r.returncode == 1 and "03_daily_steps" in r.stderr and "not measured to PASS" in r.stderr and gates() == [],
+          f"gate PASS recorded for a board with no report: {r.returncode} {r.stderr}")
+    spec_dir = repo / ".context" / "design-spec"
+    spec_dir.mkdir(parents=True)
+    report = spec_dir / "03_daily_steps-week.report.md"
+    report.write_text("| row | spec | built | delta |\n\nfailed 2, missing 0, extra 0, unmeasured 1\n\nVerdict: FAIL\n")
+    r = hook("gate", "feature/d", "HEAD", "PASS", *LIGHT)
+    check(r.returncode == 1 and "no Verdict: PASS" in r.stderr and gates() == [],
+          f"gate PASS recorded over a FAIL report: {r.returncode} {r.stderr}")
+    r = hook("gate", "feature/d", "HEAD", "BLOCKED", "design rows still failing")
+    check(r.returncode == 0 and len(gates()) == 1, f"gate BLOCKED was refused for a failing design: {r.stderr}")
+    report.write_text("failed 0, missing 0, extra 0, unmeasured 0\n\nVerdict: PASS\n")
+    r = hook("gate", "feature/d", "HEAD", "PASS", *LIGHT)
+    check(r.returncode == 0 and len(gates()) == 2, f"gate PASS refused with a PASS report and no PR: {r.stderr}")
+    # With an open PR the recorded board reaches the landing gate, which owes its Design match row.
+    head = git("rev-parse", "HEAD")
+    serve(stub, PASSING.replace("## Test matrix\n", f"## Test matrix (head {head[:9]})\n", 1), head=head)
+    (stub / "pull.json").write_text(json.dumps({"body": PASSING.replace("## Test matrix\n", f"## Test matrix (head {head[:9]})\n", 1),
+                                                "body_html": HTML, "head": {"sha": head}}))
+    r = hook("gate", "feature/d", "HEAD", "PASS", *LIGHT)
+    check(r.returncode == 1 and "Design match" in r.stderr and len(gates()) == 2,
+          f"gate PASS recorded for a PR with no Design match row for its board: {r.returncode} {r.stderr}")
+    body = PASSING.replace("## Test matrix\n", f"## Test matrix (head {head[:9]})\n", 1) + DESIGN.replace(
+        "head abc1234", f"head {head[:9]}")
+    serve(stub, body, head=head)
+    (stub / "pull.json").write_text(json.dumps({"body": body, "body_html": HTML, "head": {"sha": head}}))
+    r = hook("gate", "feature/d", "HEAD", "PASS", *LIGHT)
+    check(r.returncode == 0 and len(gates()) == 3, f"gate PASS refused for a PR with a PASS Design match: {r.stdout}{r.stderr}")
 
 if FAILS:
     print("pr-landing-gate.test: FAIL\n  " + "\n  ".join(FAILS))

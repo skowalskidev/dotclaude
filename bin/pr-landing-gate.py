@@ -74,6 +74,14 @@ image with alt text, or an <img> tag, outside code). An <img> whose alt holds a 
 attribute early, so GitHub shows the whole tag as text (references/screenshot-review.md § PR evidence
 template; `bin/pr-evidence.py size-images` writes the tags with the alt escaped).
 
+A PR built from a supplied design holds a Design match section (references/workflow-loops.md § Build
+from a supplied design source): it is required when `--design-board` names a board (intent-ledger.sh
+passes one per `board:` line of the session's design note) or the body says it implements a design
+(DESIGN_CLAIM), and checked whenever present. Its heading names the PR's head sha; its table has one row
+per board and state with Board, Report, Failed, Missing, Extra, Unmeasured and Verdict columns, every
+row PASS with 0 in each count and a .report.md path, every named board in a row; each exception line
+names its `cause:` from DESIGN_CAUSES. A reasoned does-not-apply passes only when no board was named.
+
 hooks/intent-ledger.sh `gate <branch> <sha> PASS` runs this for a branch with an open PR and refuses
 to record PASS unless it exits 0. Exit 0: one PASS line. Exit 1: one FAIL line per missing row.
 Exit 2: usage error, or a fetch failed (a fetch failure never passes).
@@ -102,8 +110,11 @@ SECTIONS = {
     "Screenshots": "Screenshots",
     "Verification runs": "Verification runs",
     "Part verdicts": "Part verdicts",
+    "Design match": "Design match",
 }
 MATRIX_COUNTS = ("COVERED", "GAP", "NEEDS-DRIVING", "SKIPPED")
+# references/workflow-loops.md § Build from a supplied design source: the seven causes an exception may name.
+DESIGN_CAUSES = ("data", "gate", "asset", "ours", "depicts product", "phone fit", "agreed")
 # What each section must hold, printed with a missing heading so one gate run names every requirement
 # instead of revealing them one rewrite at a time. Keep in step with the checks in check_body.
 NEEDS = {
@@ -136,6 +147,9 @@ NEEDS = {
     "Screenshots": "an image, or a no-visible-surface reason with a 'Checked outputs:' clause",
     "Part verdicts": ("a table whose header names Verdict, Mainstream practice, Regression evidence and "
                       "a judge column per provider; a primary-source link in every row"),
+    "Design match": ("'## Design match (head <sha>)'; a | Board | Report | Failed | Missing | Extra | "
+                     "Unmeasured | Verdict | table, one PASS row per board and state with 0 in each count and "
+                     "its .report.md path; one 'cause: <" + "|".join(DESIGN_CAUSES) + ">' line per exception"),
 }
 
 
@@ -196,6 +210,14 @@ WALKED = re.compile(r"\bW\d+\b|\bwalk(?:s|ed)\b|\bjourneys?\b|\bend[- ]to[- ]end
 NO_JOURNEY = re.compile(r"\bno (?:user[- ]|purchase |payment |sign[- ]in |changed )?journeys?\b|"
                         r"\b(?:changes|touches|alters) no (?:user[- ])?journeys?\b|"
                         r"\bjourneys? (?:is |are |stays? |stay )?(?:unchanged|not changed)\b", re.I)
+# references/workflow-loops.md § Build from a supplied design source: a body claiming a design build
+# owes a Design match section, and each recorded exception names one of the seven allowed causes.
+DESIGN_CLAIM = re.compile(r"\bpixel[- ]perfect\b|\b(?:implement|build|built|recreat|replicat|match)\w*\s+"
+                          r"(?:(?:the|these|this|our|a|its)\s+)?(?:supplied\s+|approved\s+|new\s+)?"
+                          r"(?:designs?|design boards?|boards?|mockups?|figma)\b", re.I)
+DESIGN_COLUMNS = ("Board", "Report", "Failed", "Missing", "Extra", "Unmeasured", "Verdict")
+DESIGN_ZERO = ("Failed", "Missing", "Extra", "Unmeasured")
+CAUSE_LINE = re.compile(r"\bcause\W{0,3}:\**\s*([a-z][a-z ]*)", re.I)
 # A posted video: an inline <video> or a bare GitHub attachment URL alone on its line (images are <img> or ![]()).
 VIDEO = re.compile(r"<video\s|^\s*https://github\.com/user-attachments/assets/\S+\s*$", re.I | re.M)
 # references/screenshot-review.md § Verification run videos: the labels each run block and the section carry.
@@ -651,7 +673,71 @@ def check_matrix_head(order, head):
     return []
 
 
-def check_body(body, body_html, unresolved, modified=(), installed=False, head=None, native=False, changed=()):
+def check_section_head(order, row, head):
+    """Missing-row strings when a section heading does not name the PR's current head sha."""
+    title = next((text for _, text, _ in order if matches(text, SECTIONS[row])), "")
+    named = HEAD_NAMED.search(title)
+    if not named:
+        return [f"{row}: the heading names no head sha; write '## {SECTIONS[row]} (head {head[:9]})'"]
+    if not head.lower().startswith(named.group(1).lower()):
+        return [f"{row}: the heading names head {named.group(1)} but the PR head is {head[:9]}; re-measure "
+                "every board on the current head and rewrite the section"]
+    return []
+
+
+def check_design_match(text, boards=(), claimed=False):
+    """Missing-row strings for the Design match section.
+
+    boards: board names the session recorded (intent-ledger.sh design note); each needs a PASS row.
+    claimed: the body says it implements a design, so the section is owed even with no board named.
+    """
+    if text is None:
+        return [no_heading("Design match")] if boards or claimed else []
+    if reasoned_na(text) and not table_blocks(text):
+        return ["Design match: a does-not-apply line, but the session recorded design boards: "
+                + ", ".join(boards)] if boards else []
+    cells = lambda row: [c.strip() for c in row.strip().strip("|").split("|")]
+    out = []
+    block = next((b for b in table_blocks(text)
+                  if all(any(col.lower() in h.lower() for h in cells(b[0])) for col in DESIGN_COLUMNS)), None)
+    if block is None:
+        return ["Design match: no | " + " | ".join(DESIGN_COLUMNS) + " | table (one row per board and state)"]
+    header = cells(block[0])
+    col = {name: next(i for i, h in enumerate(header) if name.lower() in h.lower()) for name in DESIGN_COLUMNS}
+    excepted = next((i for i, h in enumerate(header) if "except" in h.lower()), None)
+    data = [cells(r) for r in block[2:]]
+    if not data:
+        out.append("Design match: the table has no board rows")
+    owed = 0
+    for r in data:
+        get = lambda name: r[col[name]] if len(r) > col[name] else ""
+        board = get("Board") or "?"
+        if not re.search(r"\bPASS\b", get("Verdict")) or re.search(r"\bFAIL", get("Verdict")):
+            out.append(f"Design match: {board} is not PASS; loop fix, re-render, re-measure until it is")
+        nonzero = [n for n in DESIGN_ZERO if get(n).strip("* ") != "0"]
+        if nonzero:
+            out.append(f"Design match: {board} has non-zero or blank " + ", ".join(nonzero) + " rows")
+        if ".report.md" not in get("Report"):
+            out.append(f"Design match: {board} names no .report.md measurement report")
+        if excepted is not None and len(r) > excepted and r[excepted].strip("* ").isdigit():
+            owed += int(r[excepted].strip("* "))
+    named = " ".join(r[col["Board"]] for r in data if len(r) > col["Board"]).lower()
+    unrowed = [b for b in boards if b.lower() not in named]
+    if unrowed:
+        out.append("Design match: no row for recorded board(s) " + ", ".join(unrowed))
+    causes = [m.group(1).strip().lower() for m in CAUSE_LINE.finditer(text)]
+    bad = [c for c in causes if not any(c.startswith(k) for k in DESIGN_CAUSES)]
+    if bad:
+        out.append("Design match: exception cause(s) " + ", ".join(bad) + " are not one of "
+                   + ", ".join(DESIGN_CAUSES))
+    if len(causes) < owed:
+        out.append(f"Design match: {owed} excepted row(s) but {len(causes)} 'cause:' line(s); name each "
+                   "exception's spec id, cause and evidence")
+    return out
+
+
+def check_body(body, body_html, unresolved, modified=(), installed=False, head=None, native=False, changed=(),
+               design_boards=()):
     """Return one 'row: what is missing' string per failing landing-gate row.
 
     native: the repo ships a native app, so the Deploy TLDR carries the app build line (on a Light PR,
@@ -662,6 +748,8 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
 
     head: the PR's current head sha. When given, the Test matrix heading must name it
     ("## Test matrix (head <sha>)"), so a body written for an earlier head fails.
+
+    design_boards: board names the session's design note recorded; each needs a PASS Design match row.
     """
     missing = []
     found, order = sections(body)
@@ -791,6 +879,12 @@ def check_body(body, body_html, unresolved, modified=(), installed=False, head=N
     if not light and not hotfix:
         missing += check_part_verdicts(found.get("Part verdicts"))
 
+    design = found.get("Design match")
+    claimed = DESIGN_CLAIM.search(prose_mask(body)) is not None
+    missing += check_design_match(design, tuple(design_boards or ()), claimed)
+    if design is not None and head and table_blocks(design):
+        missing += check_section_head(order, "Design match", head)
+
     collapsed = len(COLLAPSED.findall(body_html or ""))
     if collapsed:
         missing.append(f"Visible sections: {collapsed} collapsed <details> in body_html (add open)")
@@ -896,6 +990,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--repo", required=True, help="owner/name")
     ap.add_argument("--pr", required=True, type=int)
+    ap.add_argument("--design-board", action="append", default=[],
+                    help="a board the session recorded (repeatable); its Design match row must PASS")
     ap.add_argument("--feedback-count", action="store_true",
                     help="print the PR's reviews, review comments and non-bot comments, then exit")
     args = ap.parse_args()
@@ -918,7 +1014,8 @@ def main():
         print(f"pr-landing-gate: FETCH FAILED {args.repo}#{args.pr}: body empty or under 200 chars",
               file=sys.stderr)
         return 2
-    missing = check_body(body, body_html, unresolved, modified, installed, head, native, changed)
+    missing = check_body(body, body_html, unresolved, modified, installed, head, native, changed,
+                         args.design_board)
     for row in missing:
         print(f"pr-landing-gate: FAIL {args.repo}#{args.pr} {row}")
     if missing:
